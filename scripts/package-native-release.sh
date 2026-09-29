@@ -47,13 +47,12 @@ rm -f "$archive" "$archive.sha256"
 (cd "$package" && zip -9 -q -r "$archive" .)
 (cd "$output_dir" && checksum "$artifact.zip" > "$artifact.zip.sha256")
 
-# Linux and macOS used to get a `.deb` and a `.dmg` from here. Those were not
-# packages of this binary — they were a fake desktop app built around it, a
-# launcher script in `Contents/MacOS` and an autostart entry in `/etc/xdg`,
-# because v3 had no GUI. v4 has one: `crates/gproxy-host-tauri` bundles a real
-# `.app`/`.dmg` and `.deb` with an actual window, and that is where a desktop
-# artifact comes from now. What stays here is the tarball of the server binary,
-# which is a server artifact and always was.
 case "$target_os" in
-  android) OUTPUT_DIR="$output_dir" scripts/package-android-apk.sh ;;
+  linux | android) OUTPUT_DIR="$output_dir" bash scripts/package-cli-deb.sh ;;
+  macos)
+    # Cross builds seal the DMG later on the macOS packaging runner.
+    if [ "$(uname -s)" = Darwin ]; then
+      python3 scripts/package-macos-cli.py --binary "$binary" --artifact "$artifact" --output-dir "$output_dir"
+    fi
+    ;;
 esac

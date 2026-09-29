@@ -16,16 +16,26 @@ Each target builds **CLI / server** and **Application** separately:
 
 | Platform | CLI / server | Application |
 | --- | --- | --- |
-| Linux GNU x86_64 / ARM64 | `gproxy-linux-*.zip` | `gproxy-tauri-linux-*.deb` |
-| Linux GNU RISC-V 64 | `gproxy-linux-riscv64.zip` | `gproxy-tauri-linux-riscv64.deb` |
-| Linux musl x86_64 / ARM64 / RISC-V 64 | `gproxy-linux-*-musl.zip` | None |
-| Windows x86_64 / ARM64 | `gproxy-windows-*.zip` (`gproxy.exe`) | `gproxy-tauri-windows-*.msix` (`gproxy-desktop.exe`) |
-| macOS x86_64 / ARM64 | `gproxy-macos-*.zip` (`gproxy`) | `gproxy-tauri-macos-*.dmg` (Tauri application) |
-| Android x86_64 / ARM64 | `gproxy-android-*.zip` and legacy server-wrapper APK | `gproxy-tauri-android-*.apk` |
+| Linux GNU x86_64 / ARM64 / RISC-V 64 | ZIP, DEB | ZIP, DEB |
+| Linux musl x86_64 / ARM64 / RISC-V 64 | ZIP, DEB | None |
+| Windows x86_64 / ARM64 | ZIP, MSIX | ZIP, MSIX |
+| macOS x86_64 / ARM64 | ZIP, DMG | ZIP, DMG |
+| Android x86_64 / ARM64 | ZIP, Termux DEB | APK only |
 
-Android Application identity is `dev.gproxy.desktop`; the server wrapper is
-`io.github.leenhawk.gproxy`. Their signed manifest targets are respectively
-`<triple>-tauri-apk` and `<triple>-apk`. CLI archives use bare triples.
+CLI filenames use `gproxy-*`; Applications use `gproxy-tauri-*`. Linux CLI
+packages install `gproxy` as `gproxy-cli`, distinct from the desktop package.
+Android DEBs install under `/data/data/com.termux/files/usr` and bundle the
+NDK C++ runtime privately; ZIPs keep their launcher and runtime alongside the
+binary. The legacy Android server-wrapper APK is no longer built.
+
+Windows CLI MSIX uses a separate `.CLI` identity and registers the `gproxy.exe`
+console alias. macOS CLI DMGs contain the actual command and installation
+instructions. Application ZIPs contain the Linux desktop payload, Windows
+executable plus emitted DLLs, or the signed macOS `.app`. Linux ZIPs require
+GTK/WebKitGTK and Windows ZIPs require WebView2 on the host.
+
+Android Application identity remains `dev.gproxy.desktop`; its signed update
+key remains `<triple>-tauri-apk`. CLI updates still use ZIPs and bare triples.
 The desktop host does not acquire CLI-style executable replacement.
 
 Edge publishes `gproxy-edge.wasm` and the deployable
@@ -46,8 +56,8 @@ Windows/macOS SDKs, and Android's NDK. CLI and Application use separate jobs and
 caches. Linux ARM64 and RISC-V GNU use GCC and QEMU checks; musl (including RISC-V) and macOS use cargo-zigbuild;
 Windows uses cargo-xwin; Android uses cargo-ndk/Tauri's Android build.
 
-Native ZIP packages are CLI binary distributions. Applications are DEB, MSIX, DMG
-and APK. Windows SDK and macOS hdiutil jobs only seal already-cross-built
+Both CLI and desktop Application have ZIP and platform installer packages.
+Windows SDK and macOS hdiutil jobs only seal already-cross-built
 executables into MSIX/DMG; they do not compile Rust. macOS CLI signatures and
 both CPU architectures are checked on the macOS packaging host, using Rosetta
 for x86_64. App bundles are ad-hoc signed, not notarized.

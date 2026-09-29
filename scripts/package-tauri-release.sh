@@ -29,6 +29,19 @@ case "$TARGET_OS" in
     files=("$root/target/$TARGET_TRIPLE/release/bundle/$bundle/"*."$bundle")
     test "${#files[@]}" -eq 1 && test -f "${files[0]}"
     cp "${files[0]}" "$output/$ARTIFACT_NAME.$bundle"
+    if [ "$TARGET_OS" = macos ]; then
+      apps=("$root/target/$TARGET_TRIPLE/release/bundle/macos/"*.app)
+      test "${#apps[@]}" -eq 1 && test -d "${apps[0]}"
+      ditto -c -k --sequesterRsrc --keepParent "${apps[0]}" "$output/$ARTIFACT_NAME.zip"
+    else
+      work="$(mktemp -d)"
+      # Preserve the DEB payload, including desktop resources, in the ZIP.
+      dpkg-deb -x "${files[0]}" "$work"
+      cp "$root/README.md" "$root/LICENSE" "$work/"
+      printf '%s\n' 'Run ./usr/bin/gproxy-desktop. GTK 3 and WebKitGTK 4.1 runtime libraries are required; the DEB installs those dependencies automatically.' > "$work/RUN.txt"
+      (cd "$work" && zip -9 -q -r "$output/$ARTIFACT_NAME.zip" .)
+      rm -rf "$work"
+    fi
     ;;
   windows)
     (
@@ -57,6 +70,8 @@ case "$TARGET_OS" in
     pwsh -NoProfile -File scripts/package-windows-msix.ps1 \
       -Target "$TARGET_TRIPLE" -Artifact "$ARTIFACT_NAME" -Version "$GPROXY_BUILD_VERSION" \
       -OutputDir dist/release
+    pwsh -NoProfile -File scripts/package-application-zip.ps1 \
+      -Target "$TARGET_TRIPLE" -Artifact "$ARTIFACT_NAME" -OutputDir dist/release
     ;;
   android)
     source "$root/scripts/android/sdk.sh"

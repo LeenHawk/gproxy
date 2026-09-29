@@ -6,16 +6,24 @@ description: 从源码构建 GPROXY v4 的每个目标——server、桌面宿�
 Release 工作流在推送 `dev` 时构建 nightly，在推送与 workspace 版本一致的 `v*`
 tag 时发布版本。下面介绍源码构建；自动打包由 `.github/workflows/release.yml` 驱动。
 
-## 应用安装包
+## 发布包
 
-Tauri 应用安装包与服务器便携 ZIP 分开发布，均包含构建好的 Console：
+CLI（`gproxy-*`）和 Application（`gproxy-tauri-*`）是两类独立程序，分别提供
+便携包和安装包。Application 内嵌构建好的 Console。
 
-| 平台 | 架构 | GitHub Release 文件 |
+| 平台 | CLI | Application |
 | --- | --- | --- |
-| Linux | x86_64、aarch64 | `gproxy-tauri-linux-<架构>.deb` |
-| macOS | x86_64、aarch64 | `gproxy-tauri-macos-<架构>.dmg` |
-| Windows | x86_64、aarch64 | `gproxy-tauri-windows-<架构>.msix` |
-| Android | x86_64、aarch64 | `gproxy-tauri-android-<架构>.apk` |
+| Linux GNU（x86_64、aarch64、riscv64） | ZIP、DEB | ZIP、DEB |
+| Linux musl（x86_64、aarch64、riscv64） | ZIP、DEB | — |
+| Windows（x86_64、aarch64） | ZIP、MSIX | ZIP、MSIX |
+| macOS（x86_64、aarch64） | ZIP、DMG | ZIP、DMG |
+| Android（x86_64、aarch64） | ZIP、Termux DEB | 仅 APK |
+
+Linux CLI DEB 将 `gproxy` 安装到 `/usr/bin`；Termux DEB 安装到
+`/data/data/com.termux/files/usr`，并在私有目录携带 C++ 运行库。
+Android CLI ZIP 同时包含启动脚本、二进制和运行库。Windows CLI MSIX 使用独立的
+`.CLI` 包身份和控制台命令别名；macOS CLI DMG 包含二进制及终端安装说明。
+Application ZIP 保留桌面资源，macOS ZIP 包含完整 `.app`。
 
 nightly 的文件名额外带提交 SHA 前缀。Linux x86_64 在 Ubuntu 22.04 构建，
 ARM64 在 Ubuntu 24.04 构建，安装时需要发行版提供 WebKitGTK 4.1。
@@ -29,8 +37,7 @@ GitHub 附带的 MSIX 与提交包一样未签名，由 Store 签发后分发；
 可信签名包。应用依赖系统的 WebView2 Runtime。
 
 Android 使用已有 `ANDROID_SIGNING_*` secrets 签名并验证 APK。应用的
-`<target-triple>-tauri-apk` 条目进入 Ed25519 签名更新清单，与旧服务包装 APK 的
-应用身份和更新条目分开。缺少必需的密钥或 Store 身份会使打包失败。
+`<target-triple>-tauri-apk` 条目进入 Ed25519 签名更新清单，与 CLI ZIP 更新分开；不再构建旧服务包装 APK。缺少必需的密钥或 Store 身份会使打包失败。
 
 本地先构建 Console 并同步资源，然后调用发布脚本：
 
@@ -44,7 +51,7 @@ TARGET_OS=linux TARGET_TRIPLE=x86_64-unknown-linux-gnu \
   scripts/package-tauri-release.sh
 ```
 
-产物写入 `dist/release/`。工作流还发布原生服务器 ZIP、旧 Android 包、Edge 包和
+产物写入 `dist/release/`。工作流还发布原生服务器 ZIP、Termux 包、Edge 包和
 GNU/musl 容器镜像；每个应用包都生成构建证明，GitHub 上可查询 attestations。
 
 ## 前置条件

@@ -7,17 +7,25 @@ The Release workflow builds nightly on pushes to `dev`, and versioned releases o
 `v*` tags matching the workspace version. The instructions below cover source
 builds; `.github/workflows/release.yml` drives automated packaging.
 
-## Application installers
+## Release packages
 
-Tauri application installers are published alongside the server portable ZIPs.
-Each app includes the built Console:
+CLI (`gproxy-*`) and Application (`gproxy-tauri-*`) are separate programs;
+each has its own portable archives and installers. Applications embed the Console.
 
-| Platform | Architectures | GitHub Release file |
+| Platform | CLI | Application |
 | --- | --- | --- |
-| Linux | x86_64, aarch64 | `gproxy-tauri-linux-<arch>.deb` |
-| macOS | x86_64, aarch64 | `gproxy-tauri-macos-<arch>.dmg` |
-| Windows | x86_64, aarch64 | `gproxy-tauri-windows-<arch>.msix` |
-| Android | x86_64, aarch64 | `gproxy-tauri-android-<arch>.apk` |
+| Linux GNU (x86_64, aarch64, riscv64) | ZIP, DEB | ZIP, DEB |
+| Linux musl (x86_64, aarch64, riscv64) | ZIP, DEB | — |
+| Windows (x86_64, aarch64) | ZIP, MSIX | ZIP, MSIX |
+| macOS (x86_64, aarch64) | ZIP, DMG | ZIP, DMG |
+| Android (x86_64, aarch64) | ZIP, Termux DEB | APK only |
+
+The Linux CLI DEB installs `gproxy` under `/usr/bin`; the Termux DEB installs
+under `/data/data/com.termux/files/usr` and carries its C++ runtime privately.
+Android CLI ZIPs include the launcher, executable and C++ runtime. Windows CLI
+MSIX uses a distinct `.CLI` identity and a console execution alias. macOS CLI
+DMGs include the executable and Terminal installation instructions.
+Application ZIPs retain desktop resources and, on macOS, the complete `.app`.
 
 Nightly filenames also carry a commit SHA prefix. Linux x86_64 builds on Ubuntu
 22.04 and ARM64 on Ubuntu 24.04; installation requires the distribution's
@@ -36,8 +44,7 @@ system WebView2 Runtime.
 
 Android APKs are signed and verified using the existing `ANDROID_SIGNING_*`
 secrets. Each app's `<target-triple>-tauri-apk` entry joins the Ed25519-signed
-update manifest, separately from the legacy server-wrapper APK identity and
-update entry. Missing required keys or Store identity variables fail packaging.
+update manifest, separately from CLI ZIP updates. The legacy server-wrapper APK is no longer built. Missing required keys or Store identity variables fail packaging.
 
 For a local build, prepare the Console and invoke the packaging script:
 
@@ -52,7 +59,7 @@ TARGET_OS=linux TARGET_TRIPLE=x86_64-unknown-linux-gnu \
 ```
 
 Outputs go to `dist/release/`. The workflow also publishes native server ZIPs,
-legacy Android packages, Edge bundles, and GNU/musl container images. Application
+Termux packages, Edge bundles, and GNU/musl container images. Application
 packages receive build provenance attestations hosted on GitHub.
 
 ## Prerequisites

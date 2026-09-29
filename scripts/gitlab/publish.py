@@ -176,11 +176,16 @@ def verify_packages():
             executable = "gproxy.exe" if row["os"] == "windows" else "gproxy"
             if executable not in archive.namelist() or any("gproxy-desktop" in n for n in archive.namelist()):
                 raise ValueError(f"Wrong executable in CLI archive: {cli}")
-        if row["os"] == "android":
-            expected.append(cli + ".apk")
+        cli_extension = ".deb" if row["os"] == "android" else extensions[row["os"]]
+        expected.append(cli + cli_extension)
         if app := row.get("application_artifact"):
-            expected += [app + extensions[row["os"]],
-                         app + ".provenance.json"]
+            expected += [app + extensions[row["os"]], app + ".provenance.json"]
+            if row["os"] != "android":
+                expected.append(app + ".zip")
+                with zipfile.ZipFile(directory / (app + ".zip")) as archive:
+                    executable = "gproxy-desktop.exe" if row["os"] == "windows" else "gproxy-desktop"
+                    if not any(Path(name).name == executable for name in archive.namelist()):
+                        raise ValueError(f"Missing Application executable: {app}")
     for name in expected:
         path = directory / name
         if not path.is_file():

@@ -177,7 +177,7 @@ jobs:
           GPROXY_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
           GPROXY_BUILD_CHANNEL: ${{ needs.prepare.outputs.channel }}
           GPROXY_BUILD_HASH: ${{ github.sha }}
-          GPROXY_INSTALLATION_KIND: ${{ matrix.os == 'android' && 'android-apk' || 'standalone' }}
+          GPROXY_INSTALLATION_KIND: standalone
         run: |
           case "${{ matrix.builder }}" in
             cargo)
@@ -276,6 +276,19 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+      - name: Package Windows CLI MSIX
+        if: matrix.os == 'windows'
+        shell: pwsh
+        env:
+          MS_STORE_IDENTITY_NAME: ${{ vars.MS_STORE_IDENTITY_NAME }}
+          MS_STORE_DISPLAY_NAME: ${{ vars.MS_STORE_DISPLAY_NAME }}
+          MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
+          MS_STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          # Use the final portable executable, including its signature when enabled.
+          Expand-Archive -Path "dist/release/${{ matrix.artifact }}.zip" -DestinationPath "$env:RUNNER_TEMP/cli-msix" -Force
+          Copy-Item "$env:RUNNER_TEMP/cli-msix/gproxy.exe" "target/${{ matrix.target }}/release/gproxy.exe" -Force
+          ./scripts/package-windows-msix.ps1 -Target '${{ matrix.target }}' -Artifact '${{ matrix.artifact }}' -Version '${{ needs.prepare.outputs.version }}' -Mode cli -OutputDir dist/release
       - name: Record build provenance
         env:
           ARTIFACT_NAME: ${{ matrix.artifact }}
@@ -295,8 +308,12 @@ jobs:
             dist/release/${{ matrix.artifact }}.provenance.json
             dist/release/${{ matrix.artifact }}.zip
             dist/release/${{ matrix.artifact }}.zip.sha256
-            dist/release/${{ matrix.artifact }}.apk
-            dist/release/${{ matrix.artifact }}.apk.sha256
+            dist/release/${{ matrix.artifact }}.deb
+            dist/release/${{ matrix.artifact }}.deb.sha256
+            dist/release/${{ matrix.artifact }}.dmg
+            dist/release/${{ matrix.artifact }}.dmg.sha256
+            dist/release/${{ matrix.artifact }}.msix
+            dist/release/${{ matrix.artifact }}.msix.sha256
           retention-days: 1
 
       - name: Install Android shared-library UPX fix

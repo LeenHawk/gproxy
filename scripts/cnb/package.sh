@@ -43,7 +43,7 @@ cross_environment() {
       export MACOSX_DEPLOYMENT_TARGET=10.13
       [[ "$TARGET_TRIPLE" != aarch64-* ]] || export MACOSX_DEPLOYMENT_TARGET=11.0
       ;;
-    android) export GPROXY_INSTALLATION_KIND=android-apk ;;
+
   esac
 }
 
@@ -116,6 +116,7 @@ case "${1:?prepare|cli|application|upload|edge}" in
     scripts/build-provenance.sh
     ;;
   application)
+    if [ "$TARGET_OS" = android ]; then export GPROXY_INSTALLATION_KIND=android-apk; fi
     test -n "${APPLICATION_ARTIFACT:?}"
     cross_environment
     export ARTIFACT_NAME="$APPLICATION_ARTIFACT" BUILDER=tauri
