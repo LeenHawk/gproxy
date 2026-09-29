@@ -56,8 +56,9 @@ UPX runs for supported Linux, Windows and Android binaries. Linux CLI binaries
 run before and after compression in GitLab (QEMU for ARM64/RISC-V).
 RISC-V CLI and Application use `--no-filter` with UPX 5.2.1 to avoid its
 AUIPC filter failure. GNU provides the GTK/WebKit Application DEB; musl
-provides the static CLI. GitHub uses native RISE `ubuntu-24.04-riscv` runners
-and builds musl in Alpine. GitHub checks the packed CLI on the native runner. The uncompressed Windows
+provides the static CLI. GitHub cross-compiles RISC-V on AMD64 using the same
+GitLab toolchain image and packaging script, including QEMU checks before
+and after compression. Other GitHub targets retain their native runners. The uncompressed Windows
 x64 CLI runs under Wine; the packed Wine check is informational because Wine
 can reject UPX loaders. The Windows packaging job requires both uncompressed
 and compressed x64 CLI executables to start successfully on Windows before
