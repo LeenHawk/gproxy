@@ -28,4 +28,11 @@ RUN python3 scripts/ohos/prepare-toolchain.py \
        cargo install tauri-cli --path /opt/ohos-tauri/tauri/crates/tauri-cli --root /opt/ohos-tools \
     && cargo install ohrs --version 1.5.0 --locked --root /opt/ohos-tools \
     && rm -rf /opt/ohos-tauri/tauri/target /usr/local/cargo/registry /usr/local/cargo/git
+# Huawei's headless resource compiler still links the host OpenGL loader.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgl1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && dependencies="$(ldd /opt/harmony/command-line-tools/sdk/default/hms/toolchains/lib/libimage_transcoder_shared.so)" \
+    && printf '%s\n' "$dependencies" \
+    && ! printf '%s\n' "$dependencies" | grep -q 'not found'
 WORKDIR /workspace
