@@ -81,12 +81,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake ninja-build clang libclang-dev libssl-dev pkg-config
           pip install json5
-      - uses: actions/cache@v5.0.5
+      - uses: actions/cache/restore@v5.0.5
+        id: harmony-cache
         with:
           path: .harmony-tools
           key: harmony-tools-linux-6.0.0.858
       - name: Install HarmonyOS command-line tools
         run: bash scripts/ohos/install-hap-tools.sh
+      - uses: actions/cache/save@v5.0.5
+        if: steps.harmony-cache.outputs.cache-hit != 'true'
+        with:
+          path: .harmony-tools
+          key: harmony-tools-linux-6.0.0.858
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24' 
       - uses: actions/setup-go@v7.0.0
         with:
           go-version: '1.27.1'
@@ -119,6 +128,7 @@ jobs:
       - name: Generate native HAP project
         run: |
           source scripts/ohos/env.sh
+          export PATH="$HARMONY_TOOLS_DIR/command-line-tools/tool/node/bin:$PATH"
           cd crates/gproxy-host-tauri
           cargo tauri ohos init --ci --skip-targets-install
           cd ../..
@@ -126,6 +136,7 @@ jobs:
       - name: Compile and package unsigned HAP
         run: |
           source scripts/ohos/env.sh
+          export PATH="$HARMONY_TOOLS_DIR/command-line-tools/tool/node/bin:$PATH"
           cd crates/gproxy-host-tauri
           cargo tauri ohos build --ci --target aarch64 --ignore-version-mismatches -- --lib
       - uses: actions/upload-artifact@v7.0.1

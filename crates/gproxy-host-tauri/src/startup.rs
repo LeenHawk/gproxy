@@ -25,7 +25,10 @@ pub fn set(enabled: bool) -> Result<(), String> {
     }
 }
 
-#[cfg(all(not(target_env = "ohos"), any(target_os = "linux", target_os = "macos")))]
+#[cfg(all(
+    not(target_env = "ohos"),
+    any(target_os = "linux", target_os = "macos")
+))]
 fn save(path: &Path, content: &str, enabled: bool) -> Result<(), String> {
     if !enabled {
         return match std::fs::remove_file(path) {
@@ -40,7 +43,10 @@ fn save(path: &Path, content: &str, enabled: bool) -> Result<(), String> {
     std::fs::write(path, content).map_err(|error| error.to_string())
 }
 
-#[cfg(all(not(target_env = "ohos"), any(target_os = "linux", target_os = "macos")))]
+#[cfg(all(
+    not(target_env = "ohos"),
+    any(target_os = "linux", target_os = "macos")
+))]
 fn home() -> Result<std::path::PathBuf, String> {
     std::env::var_os("HOME")
         .map(Into::into)
