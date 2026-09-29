@@ -688,7 +688,10 @@
     "limits": "Token limits",
     "tierCount": "Tiered · {{count}}",
     "searchPlaceholder": "Search models or provider instances",
-    "providerInstances": "Provider instances"
+    "providerInstances": "Provider instances",
+    "importRemote": "Import from OpenRouter",
+    "importRemoteHelp": "Select model metadata to import. Existing custom values are kept; pricing is unchanged.",
+    "metadataImported": "Imported metadata for {{count}} models."
   },
   "management": {
     "select": "Select",

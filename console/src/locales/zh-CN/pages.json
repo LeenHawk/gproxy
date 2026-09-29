@@ -688,7 +688,10 @@
     "limits": "Token 上限",
     "tierCount": "分段价 · {{count}}",
     "searchPlaceholder": "搜索模型或供应商实例",
-    "providerInstances": "供应商实例"
+    "providerInstances": "供应商实例",
+    "importRemote": "从 OpenRouter 导入",
+    "importRemoteHelp": "选择要导入的模型元数据，保留已有自定义值，不修改价格。",
+    "metadataImported": "已导入 {{count}} 个模型的元数据。"
   },
   "management": {
     "select": "选择",

@@ -357,6 +357,57 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
     }
 
     /// The client a probe of this scope should go out through.
+    /// Read OpenRouter's public metadata using the instance's configured client.
+    /// Importing the returned rows is a separate model write chosen by the caller.
+    pub async fn openrouter_models(&self) -> SdkResult<Vec<DiscoveredModelDto>> {
+        let (client, _) = self
+            .probe_client(&ConnectivityTest {
+                scope: ConnectivityScope::Global,
+                proxy: None,
+            })
+            .await?;
+        rt::timeout(PROBE_TIMEOUT, async {
+            let request = http::Request::get(
+                "https://openrouter.ai/api/v1/models?limit=1000&output_modalities=all",
+            )
+            .body(HttpBody::Bytes(Bytes::new()))
+            .map_err(|error| SdkError::invalid(error.to_string()))?;
+            let response = client
+                .send(request)
+                .await
+                .map_err(|error| SdkError::invalid(format!("OpenRouter: {error}")))?;
+            let status = response.status;
+            let body = read(response.body, usize::MAX).await;
+            if !status.is_success() {
+                return Err(SdkError::invalid(upstream_error(status, &body)));
+            }
+            let document: Value = serde_json::from_slice(&body)
+                .map_err(|error| SdkError::invalid(format!("OpenRouter: {error}")))?;
+            let rows = document["data"]
+                .as_array()
+                .ok_or_else(|| SdkError::invalid("OpenRouter response has no model list"))?;
+            let mut seen = BTreeSet::new();
+            Ok(rows
+                .iter()
+                .filter_map(|row| {
+                    let id = model_name(Dialect::OpenAi, row)?;
+                    let name = id.rsplit('/').next()?.trim();
+                    if name.is_empty() || !seen.insert(name.to_ascii_lowercase()) {
+                        return None;
+                    }
+                    Some(DiscoveredModelDto {
+                        upstream_name: name.into(),
+                        metadata: model_metadata(Some(row)),
+                        known: false,
+                        has_default_price: false,
+                    })
+                })
+                .collect())
+        })
+        .await
+        .ok_or_else(|| SdkError::invalid("OpenRouter model query timed out"))?
+    }
+
     async fn probe_client(
         &self,
         request: &ConnectivityTest,
@@ -775,6 +826,10 @@ fn discovered_metadata(dialect: Dialect, document: &Value, name: &str) -> Value 
             rows.iter()
                 .find(|row| model_name(dialect, row) == Some(name))
         });
+    model_metadata(item)
+}
+
+fn model_metadata(item: Option<&Value>) -> Value {
     let mut result = serde_json::Map::new();
     if let Some(item) = item {
         for (key, aliases) in [

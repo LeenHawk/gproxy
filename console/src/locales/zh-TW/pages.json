@@ -688,7 +688,10 @@
     "limits": "Token 上限",
     "tierCount": "分段價 · {{count}}",
     "searchPlaceholder": "搜尋模型或供應商實例",
-    "providerInstances": "供應商實例"
+    "providerInstances": "供應商實例",
+    "importRemote": "從 OpenRouter 匯入",
+    "importRemoteHelp": "選擇要匯入的模型中繼資料，保留既有自訂值，不修改價格。",
+    "metadataImported": "已匯入 {{count}} 個模型的中繼資料。"
   },
   "management": {
     "select": "選擇",

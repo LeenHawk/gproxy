@@ -1,3 +1,4 @@
+import { ModelMetadataImport } from "./model-metadata-import"
 import { defaultMetadata, matchingModel, providersByModel } from "@/lib/model-catalog"
 import { usePagination } from "@/lib/use-pagination"
 import { useMemo, useState } from "react"
@@ -42,6 +43,7 @@ export function ModelCatalogPage() {
   const instances = useQuery({ queryKey: ["admin", "/providers", "directory"], queryFn: () => directory(providers) })
   const bindings = useQuery({ queryKey: ["admin", "/provider-models", "directory"], queryFn: () => directory(providerModels) })
   const prices = useQuery({ queryKey: ["admin", "/price-rules", "global"], queryFn: () => directory(priceRules) })
+  const [importing, setImporting] = useState(false)
   const [search, setSearch] = useState("")
   const { page, pageSize, setPage, setPageSize } = usePagination("model-catalog")
   const [editing, setEditing] = useState<Row | null>(null), [detail, setDetail] = useState<Row | null>(null), [pricing, setPricing] = useState<string | null>(null)
@@ -81,7 +83,8 @@ export function ModelCatalogPage() {
     <Button variant="ghost" size="icon-sm" aria-label={`${t("providers.models.pricing")}: ${row.name}`} title={t("providers.models.pricing")} onClick={() => setPricing(pricePattern(row))}><BadgeDollarSign /></Button>
   </>
   return <Page>
-    <PageHeader title={t("nav.model-catalog")} actions={<Button onClick={() => { save.reset(); setEditing({ name: "", metadata: {} }) }}><Plus data-icon="inline-start" />{t("actions.new")}</Button>} />
+    {importing ? <ModelMetadataImport existing={local.data ?? []} onClose={() => setImporting(false)} /> : null}
+    <PageHeader title={t("nav.model-catalog")} actions={<><Button variant="outline" disabled={!local.data} onClick={() => setImporting(true)}>{t("catalog.importRemote")}</Button><Button onClick={() => { save.reset(); setEditing({ name: "", metadata: {} }) }}><Plus data-icon="inline-start" />{t("actions.new")}</Button></>} />
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <InputGroup className="w-full sm:max-w-sm"><InputGroupAddon><Search /></InputGroupAddon><InputGroupInput aria-label={t("catalog.searchPlaceholder")} placeholder={t("catalog.searchPlaceholder")} value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></InputGroup>
