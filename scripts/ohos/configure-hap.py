@@ -24,7 +24,7 @@ for resource in ("AppScope/resources/base/media/foreground.png",
                  "entry/src/main/resources/base/media/startIcon.png"):
     shutil.copyfile(icon, project / resource)
 # The experimental template drops release mode and defaults every callback to
-# ARM64. Preserve both so Hvigor reuses the library the CLI already compiled.
+# ARM64. This release-only project must reuse the library already compiled.
 hvigor = project / "entry/hvigorfile.ts"
 text = hvigor.read_text()
 target = os.environ["TARGET_TRIPLE"].split("-")[0]
@@ -32,7 +32,7 @@ text = text.replace('properties.target || "aarch64"', f'properties.target || "{t
 old = '"--target", target.toString()]'
 if old not in text:
     raise ValueError("Upstream Hvigor Rust callback changed")
-text = text.replace(old, '"--target", target.toString(), ...(properties.buildMode === "release" ? ["--release"] : [])]')
+text = text.replace(old, '"--target", target.toString(), "--release"]')
 hvigor.write_text(text)
 profile = project / "build-profile.json5"
 config = json5.loads(profile.read_text())
