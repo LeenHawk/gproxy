@@ -44,7 +44,11 @@ pub mod binding {
     pub const S3_ACCESS_KEY_ID: &str = "GPROXY_S3_ACCESS_KEY_ID";
     pub const S3_SECRET_ACCESS_KEY: &str = "GPROXY_S3_SECRET_ACCESS_KEY";
 
-    /// Every name above, for a host that wants to read them in one pass.
+    /// First-run identity bindings; these are not part of AppConfig.
+    pub const ADMIN_USER: &str = "GPROXY_ADMIN_USER";
+    pub const ADMIN_PASSWORD: &str = "GPROXY_ADMIN_PASSWORD";
+
+    /// Shared AppConfig secrets. The bootstrap password is read separately.
     pub const SECRETS: [&str; 4] = [
         MASTER_KEY,
         LIBSQL_TOKEN,

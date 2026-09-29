@@ -154,6 +154,19 @@ where
         active_key::<E>(&item)?;
         Ok(E::insert(item).build(self.db.get_database_backend()))
     }
+
+    /// Evaluate the insert condition inside the database, including in a D1 batch.
+    pub fn insert_if_statement(
+        &self,
+        item: E::ActiveModel,
+        condition: Condition,
+    ) -> Result<sea_orm::Statement> {
+        active_key::<E>(&item)?;
+        Ok(self
+            .db
+            .get_database_backend()
+            .build(&crate::operations::sql::insert_if::<E>(item, condition)?))
+    }
     /// None when the patch sets no non-key column: there is nothing to write,
     /// which is not an error.
     pub fn update_statement(&self, patch: E::ActiveModel) -> Result<Option<sea_orm::Statement>> {

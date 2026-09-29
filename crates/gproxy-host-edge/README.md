@@ -228,3 +228,7 @@ wasm32-unknown-unknown --lib -- -D warnings` and a real `cargo build` artifact.
 lookup, the libSQL transport and `tick()` have never been run, because running
 them needs a Workers runtime. The route table underneath them is the native
 host's and is covered by its tests.
+
+## First administrator
+
+Before deploying, run `wrangler secret put GPROXY_ADMIN_PASSWORD` with an initial password of at least 8 characters. First assembly creates `admin` only if the users table is empty; `GPROXY_ADMIN_USER` changes the name. Any existing user disables bootstrap, so passwords are never reset and the initial secret may be removed. Sign in at `/console/` and create a gateway API key. A conditional database insert prevents duplicate creation across isolates.

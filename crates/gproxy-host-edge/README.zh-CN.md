@@ -193,3 +193,7 @@ Cloudflare 限的是压缩后的包体——免费 3 MB，付费 10 MB。`wasm-o
 以及一次真正产出产物的 `cargo build`。**没有被执行过的**：fetch 入口、isolate 装配、
 D1 binding 查找、libSQL 传输和 `tick()`，跑它们需要一个 Workers 运行时。它们底下那张
 路由表是原生宿主的，由原生宿主的测试覆盖。
+
+## 首次管理员
+
+部署前执行 `wrangler secret put GPROXY_ADMIN_PASSWORD`，设置至少 8 个字符的初始密码。首次装配在空库创建 `admin` 用户，`GPROXY_ADMIN_USER` 可修改用户名。已有任何用户时跳过创建，不重置密码，可以删除该密码 Secret。登录 `/console/` 后创建网关 API Key。数据库内的条件插入防止多个 isolate 重复创建。

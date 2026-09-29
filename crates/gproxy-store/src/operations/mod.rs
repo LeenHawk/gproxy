@@ -8,7 +8,7 @@ pub mod oauth;
 mod oauth_policy;
 pub mod quota;
 pub mod rewrite;
-mod sql;
+pub(crate) mod sql;
 pub mod state;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
