@@ -24,7 +24,8 @@ case "$TARGET_OS" in
       upx --test "$binary"
       pnpm exec tauri bundle --target "$TARGET_TRIPLE" --bundles "$bundle" --config "$config" --no-binary-patching
     else
-      pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --bundles "$bundle" --config "$config" -- --locked
+      # Keep the .app as a requested output; DMG-only bundling deletes it before ZIP packaging.
+      pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --bundles app,dmg --config "$config" -- --locked
     fi
     files=("$root/target/$TARGET_TRIPLE/release/bundle/$bundle/"*."$bundle")
     test "${#files[@]}" -eq 1 && test -f "${files[0]}"
