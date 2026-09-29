@@ -1,3 +1,4 @@
+import { FilterFields } from "./filter-fields"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { RewriteRuleDto, RewriteRuleWrite } from "@/generated/sdk"
@@ -99,9 +100,8 @@ export function RuleForm({ original, choices, defaultSetId, onClose, onSubmit, p
         </> : null}
         {!semantic && kind !== "header" && !(kind === "transform" && target === "query") ? select(t("fields.phase"), phase, ["request", "response", "both"], setPhase) : null}
         <details><summary className="cursor-pointer text-sm">{t("rules.filters")}</summary><FieldGroup className="mt-3">
-          {input(t("fields.filterModelPattern"), modelFilter, setModelFilter)}{input(t("fields.filterHeaderPattern"), headerFilter, setHeaderFilter)}
+          <FilterFields model={modelFilter} onModel={setModelFilter} operations={operations} onOperations={setOperations} headers={headerFilter} onHeaders={setHeaderFilter} />
           {!semantic && kind !== "header" && target === "body" ? input(t("fields.filterEventPattern"), eventFilter, setEventFilter) : null}
-          {input(t("fields.filterOperationKeys"), operations, setOperations, true)}
         </FieldGroup></details>
         <Field orientation="horizontal"><FieldLabel htmlFor="rule-enabled">{t("fields.enabled")}</FieldLabel><Switch id="rule-enabled" checked={enabled} onCheckedChange={setEnabled} /></Field>
       </FieldGroup></fieldset>{validation || error ? <ErrorNotice error={validation ?? error} /> : null}</DialogBody>

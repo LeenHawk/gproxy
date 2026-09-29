@@ -364,6 +364,7 @@
     }
   },
   "rules": {
+    "allModels": "所有模型",
     "advancedBindings": "進階：規則集關聯",
     "inactive": "此組規則未啟用",
     "manage": "管理規則",

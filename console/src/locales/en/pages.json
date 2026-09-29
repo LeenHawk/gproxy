@@ -364,6 +364,7 @@
     }
   },
   "rules": {
+    "allModels": "All models",
     "advancedBindings": "Advanced: rule set bindings",
     "inactive": "This group of rules is disabled",
     "manage": "Manage rules",
