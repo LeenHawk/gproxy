@@ -121,10 +121,15 @@ jobs:
           node-version: 'lts/*'
           cache: pnpm
           cache-dependency-path: crates/gproxy-host-tauri/pnpm-lock.yaml
+      - name: Activate cached Node on RISE
+        if: matrix.application_artifact && startsWith(matrix.target, 'riscv64gc-')
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
       - name: Install pnpm on RISE
         if: matrix.application_artifact && startsWith(matrix.target, 'riscv64gc-')
         run: |
-          # RISE provides native Node; setup-node and @pnpm/exe have no RISC-V binary.
+          # RISE caches native Node 24; @pnpm/exe has no RISC-V binary.
           node --version
           pnpm_version="$(node -p "require('./console/package.json').packageManager")"
           npm install --prefix "$RUNNER_TEMP/riscv-pnpm" "$pnpm_version"
