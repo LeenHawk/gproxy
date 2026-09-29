@@ -14,9 +14,11 @@ import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export function LoadingRows({ rows = 4 }: { rows?: number }) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-2" role="status" aria-live="polite">
-      {Array.from({ length: rows }, (_, index) => <Skeleton key={index} className="h-9 w-full" />)}
+      <span className="sr-only">{t("state.loading")}</span>
+      {Array.from({ length: rows }, (_, index) => <Skeleton aria-hidden="true" key={index} className="h-9 w-full" />)}
     </div>
   )
 }

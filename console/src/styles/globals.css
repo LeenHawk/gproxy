@@ -207,3 +207,17 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Coarse pointers need larger targets without changing desktop density. */
+@media (pointer: coarse) {
+  [data-slot="toggle-group-item"],
+  [data-slot="select-trigger"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  [data-slot="input"],
+  [data-slot="input-group"] {
+    min-height: 44px;
+  }
+}

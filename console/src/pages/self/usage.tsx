@@ -13,6 +13,8 @@ import { Page, PageHeader, PageSection } from "@/components/page"
 import { EmptyNotice, QueryState } from "@/components/state"
 import { UsageSummary } from "@/components/usage-summary"
 import { Button } from "@/components/ui/button"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { CACHE_TOKEN_FIELDS, formatCacheHitRate, formatUsageTokens } from "@/lib/usage"
 import type { UsageGroupDto } from "@/generated/sdk"
 import type { UsageGroupBy } from "@/generated/app"
@@ -58,24 +60,20 @@ export function UsagePage({ global = false, renderRecords }: { global?: boolean;
     <Page>
       <PageHeader title={t(global ? "nav.globalUsage" : "nav.usage")} actions={<Button size="sm" variant="outline" onClick={() => { void usage.refetch(); if (global) void queryClient.invalidateQueries({ queryKey: ["admin", "usage-records"] }) }}>{t("observation.refresh")}</Button>} />
       {global ? <HistoryFilters summary onApply={setFilter} /> : null}
-      <div className="flex flex-wrap gap-2">
-        {(Object.keys(RANGES) as Array<RangeKey>).map((key) => (
-          <Button
-            key={key}
-            size="sm"
-            variant={range === key ? "secondary" : "ghost"}
-            onClick={() => { setRange(key); setFilter({ ...filter, fromMs: undefined, toMs: undefined }) }}
-          >
-            {t(`range.${key}`)}
-          </Button>
+      <ToggleGroup type="single" value={range} onValueChange={value => {
+        if (value) { setRange(value as RangeKey); setFilter({ ...filter, fromMs: undefined, toMs: undefined }) }
+      }} size="sm" className="flex-wrap" aria-label={t("usage.timeRange")}>
+        {(Object.keys(RANGES) as Array<RangeKey>).map(key => (
+          <ToggleGroupItem key={key} value={key}>{t(`range.${key}`)}</ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
       <QueryState isPending={usage.isPending} error={usage.error}>
         {usage.data ? (
           <div className="space-y-6">
             <UsageSummary summary={usage.data.summary} />
 
             <PageSection title={t("usage.trend")}>
+              {usage.data.trend.length ? <>
               <div className="flex h-32 items-end gap-1" role="img" aria-label={t("usage.trend")}>
                 {usage.data.trend.map((point) => (
                   <div
@@ -86,23 +84,28 @@ export function UsagePage({ global = false, renderRecords }: { global?: boolean;
                   />
                 ))}
               </div>
+              <details>
+                <summary className="w-fit cursor-pointer rounded-md py-3 text-sm">{t("usage.trendData")}</summary>
+                <Table>
+                  <TableCaption className="sr-only">{t("usage.trend")}</TableCaption>
+                  <TableHeader><TableRow><TableHead scope="col">{t("usage.periodStart")}</TableHead><TableHead scope="col">{t("fields.cost")}</TableHead></TableRow></TableHeader>
+                  <TableBody>{usage.data.trend.map(point => <TableRow key={point.startMs}>
+                    <TableCell className="whitespace-normal">{formatInstant(point.startMs, i18n.language)}</TableCell>
+                    <TableCell>{formatCost(point.summary.cost, i18n.language)}</TableCell>
+                  </TableRow>)}</TableBody>
+                </Table>
+              </details>
+              </> : <EmptyNotice title={t("usage.emptyTitle")} />}
             </PageSection>
 
             <PageSection
               title={t("usage.groups")}
               actions={
-                <span className="flex flex-wrap gap-1">
-                  {(global ? ["user" as const, ...GROUPS] : GROUPS).map((group) => (
-                    <Button
-                      key={group}
-                      size="xs"
-                      variant={groupBy === group ? "secondary" : "ghost"}
-                      onClick={() => setGroupBy(group)}
-                    >
-                      {t(`values.${group}`)}
-                    </Button>
+                <ToggleGroup type="single" value={groupBy} onValueChange={value => { if (value) setGroupBy(value as UsageGroupBy) }} size="sm" className="flex-wrap" aria-label={t("usage.groups")}>
+                  {(global ? ["user" as const, ...GROUPS] : GROUPS).map(group => (
+                    <ToggleGroupItem key={group} value={group}>{t(`values.${group}`)}</ToggleGroupItem>
                   ))}
-                </span>
+                </ToggleGroup>
               }
             >
               <DataTable

@@ -1,7 +1,9 @@
 {
   "shell": {
     "navigation": "導覽",
-    "resizeHint": "拖曳調整寬度，按兩下恢復預設；也可使用方向鍵調整。"
+    "resizeHint": "拖曳調整寬度，按兩下恢復預設；也可使用方向鍵調整。",
+    "skipToContent": "跳至主要內容",
+    "mainContent": "主要內容"
   },
   "signIn": {
     "title": "登入"
@@ -34,7 +36,8 @@
     "emptyTitle": "這裡還是空的",
     "failed": "請求失敗",
     "forbidden": "無權存取",
-    "notFoundTitle": "沒有這個頁面"
+    "notFoundTitle": "沒有這個頁面",
+    "loading": "載入中…"
   },
   "form": {
     "all": "全部",
