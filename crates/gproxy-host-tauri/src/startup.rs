@@ -1,23 +1,31 @@
 //! Per-user launch-at-login registration. The application runs without elevation.
 
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_env = "ohos")))]
 use std::path::Path;
 
 pub fn set(enabled: bool) -> Result<(), String> {
+    #[cfg(target_env = "ohos")]
+    {
+        if enabled {
+            Err("OpenHarmony launch at login is not supported".into())
+        } else {
+            Ok(())
+        }
+    }
     #[cfg(target_os = "android")]
     {
         // Android's boot receiver reads the completed first-run settings.
         let _ = enabled;
         Ok(())
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_env = "ohos")))]
     {
         let executable = std::env::current_exe().map_err(|error| error.to_string())?;
         platform(&executable, enabled)
     }
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(all(not(target_env = "ohos"), any(target_os = "linux", target_os = "macos")))]
 fn save(path: &Path, content: &str, enabled: bool) -> Result<(), String> {
     if !enabled {
         return match std::fs::remove_file(path) {
@@ -32,14 +40,14 @@ fn save(path: &Path, content: &str, enabled: bool) -> Result<(), String> {
     std::fs::write(path, content).map_err(|error| error.to_string())
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(all(not(target_env = "ohos"), any(target_os = "linux", target_os = "macos")))]
 fn home() -> Result<std::path::PathBuf, String> {
     std::env::var_os("HOME")
         .map(Into::into)
         .ok_or_else(|| "could not locate the user's home directory".into())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "ohos")))]
 fn platform(executable: &Path, enabled: bool) -> Result<(), String> {
     let base = match std::env::var_os("XDG_CONFIG_HOME").filter(|value| !value.is_empty()) {
         Some(path) => std::path::PathBuf::from(path),
@@ -49,7 +57,7 @@ fn platform(executable: &Path, enabled: bool) -> Result<(), String> {
     save(&path, &desktop_entry(executable)?, enabled)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "ohos")))]
 fn desktop_entry(executable: &Path) -> Result<String, String> {
     let text = executable
         .to_str()

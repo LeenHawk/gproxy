@@ -1,7 +1,7 @@
 name: OpenHarmony probe
 on:
   push:
-    branches: [ci/ohos-probe]
+    branches: [ci/ohos-probe, ci/ohos-hap-probe]
   workflow_dispatch:
 permissions:
   contents: read
@@ -10,6 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   cli:
+    if: github.ref_name != 'ci/ohos-hap-probe'
     name: CLI (${{ matrix.target }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -53,3 +54,79 @@ jobs:
           name: ohos-cli-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/gproxy
           if-no-files-found: error
+  hap:
+    if: github.ref_name != 'ci/ohos-probe'
+    name: Experimental Tauri HAP (ARM64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      HARMONY_TOOLS_DIR: ${{ github.workspace }}/.harmony-tools
+      OHOS_TAURI_SOURCES: ${{ github.workspace }}/.ohos-tauri
+      TARGET_TRIPLE: aarch64-unknown-linux-ohos
+      CARGO_PROFILE_RELEASE_LTO: thin
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '8'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Prepare runner space and host tools
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build clang libclang-dev libssl-dev pkg-config
+          pip install json5
+      - uses: actions/cache@v5.0.5
+        with:
+          path: .harmony-tools
+          key: harmony-tools-linux-6.0.0.858
+      - name: Install HarmonyOS command-line tools
+        run: bash scripts/ohos/install-hap-tools.sh
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-ohos
+      - uses: pnpm/action-setup@v6.1.0
+        with:
+          package_json_file: console/package.json
+      - name: Build shared Console
+        run: |
+          pnpm --dir console install --frozen-lockfile
+          pnpm --dir console build
+      - name: Apply pinned experimental Tauri overlay
+        run: python3 scripts/ohos/prepare-tauri.py
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          shared-key: ohos-tauri-probe
+          cache-all-crates: true
+          workspaces: |
+            . -> target
+            .ohos-tauri/tauri -> target
+      - name: Install OHOS Tauri CLI and ohrs
+        run: |
+          cargo install tauri-cli --path "$OHOS_TAURI_SOURCES/tauri/crates/tauri-cli" --root "$RUNNER_TEMP/ohos-tools"
+          cargo install ohrs --version 1.5.0 --locked --root "$RUNNER_TEMP/ohos-tools"
+          echo "$RUNNER_TEMP/ohos-tools/bin" >> "$GITHUB_PATH"
+      - name: Generate native HAP project
+        run: |
+          source scripts/ohos/env.sh
+          cd crates/gproxy-host-tauri
+          cargo tauri ohos init --ci --skip-targets-install
+          cd ../..
+          python3 scripts/ohos/configure-hap.py
+      - name: Compile and package unsigned HAP
+        run: |
+          source scripts/ohos/env.sh
+          cd crates/gproxy-host-tauri
+          cargo tauri ohos build --ci --target aarch64 --ignore-version-mismatches -- --lib
+      - uses: actions/upload-artifact@v7.0.1
+        if: always()
+        with:
+          name: ohos-hap-probe
+          path: |
+            crates/gproxy-host-tauri/gen/**/outputs/**/*.hap
+            crates/gproxy-host-tauri/gen/**/build-profile.json5
+            Cargo.lock
+            .ohos-tauri/tauri/Cargo.lock
+          if-no-files-found: warn

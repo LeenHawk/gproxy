@@ -91,12 +91,14 @@ pub trait SecretStore: Send + Sync {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Keychain;
 
+#[cfg(not(target_env = "ohos"))]
 impl Keychain {
     fn entry(account: &str) -> Result<keyring::Entry, String> {
         keyring::Entry::new(KEYCHAIN_SERVICE, account).map_err(|error| error.to_string())
     }
 }
 
+#[cfg(not(target_env = "ohos"))]
 impl SecretStore for Keychain {
     fn get(&self, account: &str) -> Result<Option<String>, String> {
         match Self::entry(account)?.get_password() {
@@ -110,6 +112,19 @@ impl SecretStore for Keychain {
         Self::entry(account)?
             .set_password(secret)
             .map_err(|error| error.to_string())
+    }
+}
+
+// OHOS has no keyring backend. Use the existing explicit private-file fallback
+// rather than compiling Linux Secret Service into an application sandbox.
+#[cfg(target_env = "ohos")]
+impl SecretStore for Keychain {
+    fn get(&self, account: &str) -> Result<Option<String>, String> {
+        UnavailableStore.get(account)
+    }
+
+    fn set(&self, account: &str, secret: &str) -> Result<(), String> {
+        UnavailableStore.set(account, secret)
     }
 }
 

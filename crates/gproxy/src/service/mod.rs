@@ -313,6 +313,10 @@ pub fn detect() -> Platform {
         return Platform::Termux;
     }
     match std::env::consts::OS {
+        "linux" if cfg!(target_env = "ohos") => Platform::Unsupported(
+            "OpenHarmony service registration is not supported; run gproxy in the foreground."
+                .to_owned(),
+        ),
         "linux" => systemd::detect(),
         "macos" => Platform::Launchd,
         "windows" => Platform::TaskScheduler,

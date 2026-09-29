@@ -207,6 +207,15 @@ pub fn start() {
     }
 }
 
+/// OpenHarmony's native Ability entry point, provided by the pinned Tauri port.
+#[cfg(target_env = "ohos")]
+#[tauri::mobile_entry_point]
+pub fn start() {
+    if let Err(error) = run() {
+        eprintln!("GPROXY could not start: {error}");
+    }
+}
+
 /// Wall clock in milliseconds. The operations that take one take it from the
 /// host, never from the webview: a caller that could choose "now" could read a
 /// budget window that has not opened or purge sessions that have not expired.
