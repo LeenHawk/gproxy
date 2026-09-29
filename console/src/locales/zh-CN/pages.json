@@ -252,6 +252,8 @@
     "preferred_max_latency": "最高延迟偏好"
   },
   "providerForm": {
+    "autoRefreshModels": "从上游刷新模型候选",
+    "autoRefreshModelsHelp": "配置路由成员时拉取最新上游模型；关闭后仅使用已保存的模型。",
     "dynamicAddress": "根据渠道设置或凭证自动选择",
     "displayName": "显示名",
     "routeName": "路由名",
@@ -930,6 +932,8 @@
     "metrics": "上游用量数据"
   },
   "modelRoutes": {
+    "modelsFallback": "上游模型刷新失败，已回退到保存的模型；仍可手动输入任意模型 ID。",
+    "modelsLoading": "正在加载上游模型…",
     "modelName": "模型名称"
   },
   "setup": {

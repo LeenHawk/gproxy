@@ -7,7 +7,7 @@ import { connectionProfiles } from "@/api/configuration"
 import { ProxyControl, type ProxySettings } from "@/components/proxy-control"
 import { ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -137,6 +137,11 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
           </QueryState>
         </Field>
         <Field data-field-span="full"><FieldLabel htmlFor={`${id}-proxy`}>{t("proxy.provider")}</FieldLabel><ProxyControl id={`${id}-proxy`} value={proxy} onChange={setProxy} scope={provider ? { scope: "provider", provider_id: provider.id } : { scope: "global", parent: true }} /></Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-auto-refresh-models`}>{t("providerForm.autoRefreshModels")}</FieldLabel>
+          <Switch id={`${id}-auto-refresh-models`} checked={config.auto_refresh_models !== false} onCheckedChange={value => change("auto_refresh_models", value)} />
+          <FieldDescription>{t("providerForm.autoRefreshModelsHelp")}</FieldDescription>
+        </Field>
         <Field>
           <FieldLabel htmlFor={`${id}-enabled`}>{t("fields.enabled")}</FieldLabel>
           <Switch id={`${id}-enabled`} checked={enabled} onCheckedChange={setEnabled} />
