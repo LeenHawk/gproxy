@@ -127,6 +127,12 @@ pub async fn instance(env: &Env) -> Result<&'static Assembled, worker::Error> {
 }
 
 async fn assemble(env: &Env) -> Result<Assembled, worker::Error> {
+    let admin_user = binding(env, config::binding::ADMIN_USER).unwrap_or_else(|| "admin".into());
+    // Password whitespace is significant. Never log or trim this secret.
+    let admin_password = env
+        .secret(config::binding::ADMIN_PASSWORD)
+        .ok()
+        .map(|secret| secret.to_string());
     let config = config::resolve(
         binding(env, config::binding::CONFIG).as_deref(),
         &config::Secrets {
@@ -161,7 +167,9 @@ async fn assemble(env: &Env) -> Result<Assembled, worker::Error> {
             }
             let connection = gproxy_seaorm::D1Connection::from_binding(value)
                 .map_err(|e| error(format!("the `{name}` binding is not a D1 database: {e}")))?;
-            Ok(Assembled::D1(build(connection, config).await?))
+            Ok(Assembled::D1(
+                build(connection, config, &admin_user, admin_password.as_deref()).await?,
+            ))
         }
         #[cfg(feature = "libsql")]
         StoreBackendConfig::Libsql { url, token } => {
@@ -174,7 +182,9 @@ async fn assemble(env: &Env) -> Result<Assembled, worker::Error> {
                 ));
             let connection = gproxy_seaorm::LibsqlConnection::new(transport, url, token.as_deref())
                 .map_err(|e| error(format!("libSQL: {e}")))?;
-            Ok(Assembled::Libsql(build(connection, config).await?))
+            Ok(Assembled::Libsql(
+                build(connection, config, &admin_user, admin_password.as_deref()).await?,
+            ))
         }
         other => Err(error(format!(
             "this build cannot open the configured store ({other:?}); rebuild with the matching \
@@ -187,7 +197,12 @@ async fn assemble(env: &Env) -> Result<Assembled, worker::Error> {
 ///
 /// Sync the schema before touching settings or loading configuration, as the
 /// native host does. There is no filesystem setup or automatic key rotation.
-async fn build<C>(connection: C, config: AppConfig) -> Result<Instance<C>, worker::Error>
+async fn build<C>(
+    connection: C,
+    config: AppConfig,
+    admin_user: &str,
+    admin_password: Option<&str>,
+) -> Result<Instance<C>, worker::Error>
 where
     C: BatchConnectionTrait + SchemaSyncConnectionTrait + Clone + Send + Sync + 'static,
 {
@@ -237,6 +252,17 @@ where
         .await
         .map_err(|e| error(format!("the instance could not be assembled: {e}")))?;
     let app = Arc::new(App::new(gproxy, config));
+    let data = app.data();
+    gproxy_app::Operations::new(app.gproxy(), &data, app.config())
+        .users()
+        .bootstrap_admin(admin_user, admin_password)
+        .await
+        .map_err(|e| {
+            error(format!(
+                "administrator initialization ({}): {e}",
+                config::binding::ADMIN_PASSWORD
+            ))
+        })?;
     let revision = app
         .reload_all()
         .await

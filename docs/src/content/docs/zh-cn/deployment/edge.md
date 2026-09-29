@@ -10,7 +10,7 @@ Workers 使用与原生服务相同的 HTTP 路由，数据库和文件存储需
 - WebSocket / Realtime 升级返回 `501`，请使用原生部署处理这类请求。
 - 默认支持 D1；libSQL 与 S3/R2 需要在构建时启用对应 feature。
 - 不支持本地 SQLite、TCP 数据库、本地文件目录或进程内缓存。当前 Worker 装配使用 `store` 缓存，不提供 Redis 客户端。
-- **空数据库没有首个管理员创建入口。** Workers 不运行 CLI bootstrap，也没有 Application 设置向导。需要预先准备兼容的身份数据；仅创建 D1 并部署还不能完成全新实例的登录。这是当前部署限制。
+- 首次启动通过 `GPROXY_ADMIN_PASSWORD` Secret 创建管理员，默认用户名为 `admin`；可用 `GPROXY_ADMIN_USER` 修改。Workers 不显示 Application 设置向导。
 
 ## 使用发布包
 
@@ -36,6 +36,7 @@ database_id = "replace-with-your-database-id"
 
 ```sh
 pnpm exec wrangler secret put GPROXY_MASTER_KEY
+pnpm exec wrangler secret put GPROXY_ADMIN_PASSWORD
 pnpm exec wrangler deploy --dry-run
 pnpm exec wrangler deploy
 ```
@@ -61,6 +62,7 @@ GPROXY_CONFIG = """
 
 | Secret | 用途 |
 | --- | --- |
+| `GPROXY_ADMIN_PASSWORD` | 空库初始管理员密码，至少 8 个字符；只在首次初始化使用 |
 | `GPROXY_MASTER_KEY` | 加密凭证的主密钥 |
 | `GPROXY_LIBSQL_TOKEN` | libSQL / Turso 令牌，仅启用该后端时需要 |
 | `GPROXY_S3_ACCESS_KEY_ID` | S3 / R2 访问标识 |
@@ -80,7 +82,7 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/*", "!/", "!/console", "!/console/*"]
 ```
 
-完成身份数据准备后，可访问 `/console/` 登录。`/healthz` 仅用于健康检查，不能代替登录和上游请求验证。
+首次请求完成初始化后，访问 `/console/`，使用 `admin` 和配置的初始密码登录。然后在控制台创建网关 API Key。已有任何用户时，初始化会跳过，不会重置密码；可删除初始密码 Secret。空库未提供密码或密码不符合要求时，启动会报错。`/healthz` 仅用于健康检查，不能代替登录和上游请求验证。
 
 ## 数据库与配置同步
 

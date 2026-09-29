@@ -10,7 +10,7 @@ Workers uses the same HTTP routes as the native server, with remote database and
 - WebSocket / Realtime upgrades return `501`; use a native deployment for these requests.
 - D1 is enabled by default. libSQL and S3/R2 require their corresponding build features.
 - Local SQLite, TCP databases, filesystem storage, and in-memory cache are unsupported. Current Worker assembly uses `store` cache and does not provide a Redis client.
-- **An empty database has no first-administrator setup entry point.** Workers runs neither the CLI bootstrap nor the Application wizard. Compatible identity data must be prepared separately; creating D1 and deploying alone does not make a fresh instance ready for login. This is a current deployment limitation.
+- First startup creates an administrator from the `GPROXY_ADMIN_PASSWORD` secret. The username defaults to `admin`; set `GPROXY_ADMIN_USER` to change it. Workers does not show the Application wizard.
 
 ## Use a release bundle
 
@@ -36,6 +36,7 @@ Save a 32-byte master key (64 hex digits or base64), then enter it as a secret:
 
 ```sh
 pnpm exec wrangler secret put GPROXY_MASTER_KEY
+pnpm exec wrangler secret put GPROXY_ADMIN_PASSWORD
 pnpm exec wrangler deploy --dry-run
 pnpm exec wrangler deploy
 ```
@@ -61,6 +62,7 @@ GPROXY_CONFIG = """
 
 | Secret | Purpose |
 | --- | --- |
+| `GPROXY_ADMIN_PASSWORD` | Initial administrator password, at least 8 characters; used only for an empty database |
 | `GPROXY_MASTER_KEY` | Master key for credential encryption |
 | `GPROXY_LIBSQL_TOKEN` | libSQL / Turso token, when that backend is enabled |
 | `GPROXY_S3_ACCESS_KEY_ID` | S3 / R2 access identifier |
@@ -80,7 +82,7 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/*", "!/", "!/console", "!/console/*"]
 ```
 
-Once identity data is prepared, sign in at `/console/`. `/healthz` is a health check, not a substitute for authentication and upstream-request validation.
+After the first request initializes the instance, sign in at `/console/` with `admin` and the configured password, then create a gateway API key. If any user already exists, initialization is skipped without resetting passwords; the initial password secret can be removed. An empty database without a valid initial password fails startup. `/healthz` is a health check, not a substitute for authentication and upstream-request validation.
 
 ## Database and configuration synchronization
 

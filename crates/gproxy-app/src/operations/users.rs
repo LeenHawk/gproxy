@@ -12,12 +12,15 @@
 //! A session outlives the credential that opened it otherwise, which is
 //! exactly the window a password reset is meant to close.
 
-use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
+use gproxy_seaorm::{BatchConnectionTrait, BatchResult, BatchStatement};
 use gproxy_store::{
     Repository,
     entity::identity::{user, user_session},
 };
-use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, Select, Set};
+use sea_orm::sea_query::{Expr, ExprTrait};
+use sea_orm::{
+    ColumnTrait, Condition, EntityTrait, QueryFilter, QuerySelect, QueryTrait, Select, Set,
+};
 
 use super::{
     Scope, Writer,
@@ -53,6 +56,46 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Users<'_, C> {
     }
     pub async fn create(&self, write: UserWrite) -> Result<UserDto> {
         crud::create(self, write).await
+    }
+
+    /// Host-only first-run setup. Any existing user disables bootstrap.
+    /// The conditional insert also covers concurrent isolates with different names.
+    pub async fn bootstrap_admin(&self, name: &str, password: Option<&str>) -> Result<bool> {
+        let users = self.writer.store().users();
+        if !users.query(user::Entity::find().limit(1)).await?.is_empty() {
+            return Ok(false);
+        }
+        let name = crud::text(name, "administrator name")?;
+        let plaintext = password.ok_or_else(|| {
+            AppError::invalid("an initial administrator password is required for an empty database")
+        })?;
+        password::validate(plaintext)?;
+        let row = user::ActiveModel {
+            id: Set(crud::id_or_new(None)?),
+            name: Set(name),
+            password_hash: Set(Some(password::hash(plaintext)?)),
+            role: Set(ADMIN.to_owned()),
+            enabled: Set(true),
+            oauth_client_allowlist: Set(None),
+            created_at_ms: Set(crate::now_ms()),
+        };
+        let condition =
+            Condition::all().add(Expr::exists(user::Entity::find().limit(1).into_query()).not());
+        let (_, results) = self
+            .writer
+            .commit_results(
+                vec![BatchStatement::Execute(
+                    users.insert_if_statement(row, condition)?,
+                )],
+                &[Scope::Identity],
+            )
+            .await?;
+        match results.first() {
+            Some(BatchResult::Executed(result)) => Ok(result.rows_affected() == 1),
+            _ => Err(AppError::internal(
+                "administrator initialization returned no write result",
+            )),
+        }
     }
 
     /// Patch a user, refusing the two changes that could leave the instance

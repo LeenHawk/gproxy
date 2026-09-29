@@ -7,9 +7,10 @@ configuration document, the secrets and what the Worker refuses.
 
 The release bundle `gproxy-edge-cloudflare.zip` includes the built Worker and console.
 Enter its `cloudflare/` directory and install the package dependencies before using Wrangler.
-The Worker synchronizes the schema during first assembly. An empty database still
-needs compatible identity data: this host has no first-administrator setup flow.
-See the deployment guide above before deploying a fresh instance.
+The Worker synchronizes the schema during first assembly. Set `GPROXY_ADMIN_PASSWORD` before the first request. It creates the initial
+`admin` user only when the database has no users; `GPROXY_ADMIN_USER` can change
+the initial name. Existing accounts are never reset. Sign in at `/console/`
+and create a gateway API key after deployment.
 
 ```sh
 pnpm install
@@ -20,6 +21,7 @@ With Wrangler available:
 ```sh
 pnpm exec wrangler d1 create gproxy               # paste the id into wrangler.toml
 pnpm exec wrangler secret put GPROXY_MASTER_KEY
+pnpm exec wrangler secret put GPROXY_ADMIN_PASSWORD
 pnpm exec wrangler deploy
 ```
 
