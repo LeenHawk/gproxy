@@ -28,7 +28,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: image
         env:
-          TOOLCHAIN_HASH: ${{ hashFiles('.gitlab/Dockerfile.ohos', 'scripts/ohos/install-sdk.sh', 'scripts/ohos/install-hap-tools.sh', 'scripts/ohos/prepare-tauri.py', 'scripts/ohos/tauri-pins.json') }}
+          TOOLCHAIN_HASH: ${{ hashFiles('.gitlab/Dockerfile.ohos', 'scripts/ohos/install-sdk.sh', 'scripts/ohos/install-hap-tools.sh', 'scripts/ohos/prepare-toolchain.py', 'scripts/ohos/tauri-pins.json') }}
         run: |
           image="ghcr.io/leenhawk/gproxy-build-ohos:$TOOLCHAIN_HASH"
           echo "image=$image" >> "$GITHUB_OUTPUT"
@@ -119,7 +119,7 @@ jobs:
           pnpm --dir console install --frozen-lockfile
           pnpm --dir console build
       - name: Apply pinned experimental Tauri overlay
-        run: python3 scripts/ohos/prepare-tauri.py --phase workspace
+        run: python3 scripts/ohos/prepare-tauri.py
       - uses: Swatinem/rust-cache@v2.9.2
         with:
           shared-key: ohos-container-tauri
