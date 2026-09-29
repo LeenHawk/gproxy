@@ -55,11 +55,12 @@ jobs:
         run: |
           source scripts/ohos/env.sh
           cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE"
-          "$OHOS_HOME/native/llvm/bin/llvm-readelf" -h -l -d "target/$TARGET_TRIPLE/release/gproxy"
+          export ARTIFACT_NAME="gproxy-ohos-${TARGET_TRIPLE%%-*}"
+          bash scripts/ohos/package-cli.sh
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: ohos-cli-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/gproxy
+          path: dist/release/
           if-no-files-found: error
   hap:
     if: github.ref_name != 'ci/ohos-probe'
@@ -68,7 +69,7 @@ jobs:
     timeout-minutes: 120
     env:
       HARMONY_TOOLS_DIR: ${{ github.workspace }}/.harmony-tools
-      OHOS_TAURI_SOURCES: ${{ github.workspace }}/.ohos-tauri
+      OHOS_TAURI_SOURCES: ${{ runner.temp }}/gproxy-ohos-upstream
       TARGET_TRIPLE: aarch64-unknown-linux-ohos
       CARGO_PROFILE_RELEASE_LTO: thin
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '8'
@@ -119,7 +120,7 @@ jobs:
           cache-all-crates: true
           workspaces: |
             . -> target
-            .ohos-tauri/tauri -> target
+            ${{ runner.temp }}/gproxy-ohos-upstream/tauri -> target
       - name: Install OHOS Tauri CLI and ohrs
         run: |
           cargo install tauri-cli --path "$OHOS_TAURI_SOURCES/tauri/crates/tauri-cli" --root "$RUNNER_TEMP/ohos-tools"
@@ -139,13 +140,16 @@ jobs:
           export PATH="$HARMONY_TOOLS_DIR/command-line-tools/tool/node/bin:$PATH"
           cd crates/gproxy-host-tauri
           cargo tauri ohos build --ci --target aarch64 --ignore-version-mismatches -- --lib
+          cd ../..
+          ARTIFACT_NAME=gproxy-tauri-ohos-aarch64-unsigned python3 scripts/ohos/package-hap.py
       - uses: actions/upload-artifact@v7.0.1
         if: always()
         with:
           name: ohos-hap-probe
           path: |
+            dist/release/
             crates/gproxy-host-tauri/gen/**/outputs/**/*.hap
             crates/gproxy-host-tauri/gen/**/build-profile.json5
             Cargo.lock
-            .ohos-tauri/tauri/Cargo.lock
+            ${{ runner.temp }}/gproxy-ohos-upstream/tauri/Cargo.lock
           if-no-files-found: warn
