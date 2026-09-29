@@ -106,6 +106,7 @@ export function ApiKeysPage() {
       <CollectionPage
         id="api-keys"
         family={admin.apiKeys}
+        groupBy={row => ({ id: row.userId, label: users.data?.find(user => user.id === row.userId)?.name ?? row.userId })}
         searchable
         create={(body) => admin.createApiKey(body as Parameters<typeof admin.createApiKey>[0])}
         onCreated={(created) => { setToken((created as ApiKeyCreated).token); void client.invalidateQueries({ queryKey: ["portal", "keys"] }); void client.invalidateQueries({ queryKey: ["admin", "/quotas"] }) }}
@@ -251,6 +252,10 @@ export function PermissionsPage() {
     <CollectionPage
       id="permissions"
       family={admin.permissions}
+      groupBy={row => {
+        const userId = row.userId ?? keys.data?.find(key => key.id === row.apiKeyId)?.userId
+        return { id: userId ?? row.apiKeyId ?? "global", label: userId ? users.data?.find(user => user.id === userId)?.name ?? userId : row.apiKeyId ?? t("management.allUsers") }
+      }}
       rowId={(row: PermissionDto) => row.id}
       rowLabel={(row) => row.modelPattern}
       columns={[
@@ -271,10 +276,18 @@ export function PermissionsPage() {
 // ----------------------------------------------------------- rate limits --
 
 export function RateLimitsPage() {
+  const { t } = useTranslation()
+  const context = useConsoleContext()
+  const users = useQuery({ queryKey: ["admin", "/users", "directory"], queryFn: () => directory(admin.users), enabled: context.has("identity.users") })
+  const keys = useQuery({ queryKey: ["admin", "/api-keys", "directory"], queryFn: () => directory(admin.apiKeys), enabled: context.has("identity.api-keys") })
   return (
     <CollectionPage
       id="rate-limits"
       family={admin.rateLimits}
+      groupBy={row => {
+        const userId = row.userId ?? keys.data?.find(key => key.id === row.apiKeyId)?.userId
+        return { id: userId ?? row.apiKeyId ?? "global", label: userId ? users.data?.find(user => user.id === userId)?.name ?? userId : row.apiKeyId ?? t("management.allUsers") }
+      }}
       rowId={(row: RateLimitDto) => row.id}
       rowLabel={(row) => row.metric}
       columns={[

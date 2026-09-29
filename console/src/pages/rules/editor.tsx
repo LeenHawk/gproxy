@@ -1,3 +1,5 @@
+import { ChevronRight } from "lucide-react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useState } from "react"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
@@ -74,9 +76,12 @@ export function RulesEditor({ sets, availableSets = sets, attachments = [], prov
     {remove.error || move.error ? <ErrorNotice error={remove.error ?? move.error} /> : null}
     <QueryState isPending={lists.some(list => list.isPending)} error={lists.find(list => list.error)?.error}>
       <p className="mb-3 text-xs text-muted-foreground">{t("rules.orderHint")}</p>
-      {rows.length ? <ol className="flex flex-col gap-3">{rows.map((row, index) => {
-        const group = rows.filter(rule => rule.ruleSetId === row.ruleSetId)
-        const source = choices.find(set => set.id === row.ruleSetId)
+      {rows.length ? <div className="flex flex-col gap-3">{sets.map(set => {
+        const group = rows.filter(rule => rule.ruleSetId === set.id)
+        const source = choices.find(choice => choice.id === set.id)
+        return <Collapsible key={set.id} defaultOpen={sets.length === 1} className="rounded-lg border">
+          <CollapsibleTrigger asChild><Button variant="ghost" className="group h-auto w-full justify-start whitespace-normal p-3"><ChevronRight data-icon="inline-start" className="transition-transform group-data-[state=open]:rotate-90" /><span className="min-w-0 flex-1 text-left break-words">{source?.name ?? set.name}</span><Badge variant="secondary">{group.length}</Badge>{!set.enabled ? <Badge variant="outline">{t("values.disabled")}</Badge> : null}</Button></CollapsibleTrigger>
+          <CollapsibleContent className="p-3 pt-0"><ol className="flex flex-col gap-3">{group.map((row, index) => {
         return <li key={row.id}><Card size="sm">
           <CardHeader><CardTitle headingLevel={3}><span className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{index + 1}</Badge>{t(`rules.types.${ruleKind(row)}`)}<Badge variant="outline">{t(`rules.options.${row.phase}`)}</Badge>{!row.enabled ? <Badge variant="outline">{t("values.disabled")}</Badge> : !active(row) ? <Badge variant="outline">{t("rules.inactive")}</Badge> : null}</span></CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-2">
@@ -85,7 +90,8 @@ export function RulesEditor({ sets, availableSets = sets, attachments = [], prov
           </CardContent>
           <CardFooter className="flex flex-wrap justify-end gap-1"><Button variant="ghost" size="sm" disabled={busy || group[0].id === row.id} onClick={() => move.mutate({ row, delta: -1 })}>{t("management.moveUp")}</Button><Button variant="ghost" size="sm" disabled={busy || group.at(-1)?.id === row.id} onClick={() => move.mutate({ row, delta: 1 })}>{t("management.moveDown")}</Button><Button variant="ghost" size="sm" disabled={busy} onClick={() => { save.reset(); setEditing(row) }}>{t("actions.edit")}</Button><ConfirmButton disabled={busy} title={t("confirm.deleteTitle", { name: summary(row) })} onConfirm={() => remove.mutate(row.id)}>{t("actions.delete")}</ConfirmButton></CardFooter>
         </Card></li>
-      })}</ol> : <EmptyNotice title={t("rules.empty")} />}
+      })}</ol></CollapsibleContent></Collapsible>
+      })}</div> : <EmptyNotice title={t("rules.empty")} />}
     </QueryState>
     {editing !== null ? <RuleForm key={editing === "new" ? "new" : editing.id} original={editing === "new" ? undefined : editing} choices={choices} defaultSetId={defaultSetId} pending={save.isPending} error={save.error} onClose={() => setEditing(null)} onSubmit={write => save.mutate(write)} /> : null}
     {showPresets ? <PresetDialog choices={choices} defaultSetId={defaultSetId} pending={apply.isPending} error={apply.error} onClose={() => setShowPresets(false)} onSubmit={(setId, preset) => apply.mutate({ setId, preset })} /> : null}
