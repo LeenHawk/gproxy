@@ -1006,5 +1006,23 @@
     "lanUrlHelp": "这是本机地址。其他设备连接时，请将回环地址替换为本设备的局域网 IP。",
     "selectedFile": "已选择：{{name}}",
     "readingFile": "正在读取配置…"
+  },
+  "credentialImport": {
+    "title": "批量导入凭据",
+    "format": "输入格式",
+    "tokens": "每行一个 API Key",
+    "input": "凭据内容",
+    "jsonHint": "粘贴 JSON 数组、单个对象或 JSONL（每行一个对象）。每个对象是凭据 secret，也可使用 {\"label\":\"账户名称\",\"secret\":{...}} 包装。字段按原样保留。",
+    "tokensHint": "每行一个 API Key，忽略空行及以 # 开头的行。",
+    "summary": "可导入 {{count}} 条 · 本批重复 {{duplicates}} 条 · 错误 {{errors}} 条",
+    "errorAt": "第 {{index}} 项 / 行：{{reason}}",
+    "invalidJson": "JSON 格式错误",
+    "invalidSecret": "凭据 secret 必须是非空对象",
+    "invalidLabel": "名称必须是文本",
+    "defaultLabel": "导入凭据 {{index}}",
+    "preview": "预览凭据名称",
+    "policy": "仅对本次输入去重，不与已有凭据比较。请修正全部格式错误后再导入。整批一起保存，校验失败时不会保存任何条目。",
+    "submit": "导入 {{count}} 条凭据",
+    "imported": "已导入 {{count}} 条凭据"
   }
 }

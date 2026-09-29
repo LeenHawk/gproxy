@@ -1006,5 +1006,23 @@
     "lanUrlHelp": "This is the local address. On other devices, replace the loopback address with this device’s network IP.",
     "selectedFile": "Selected: {{name}}",
     "readingFile": "Reading configuration…"
+  },
+  "credentialImport": {
+    "title": "Import credentials",
+    "format": "Input format",
+    "tokens": "One API key per line",
+    "input": "Credential data",
+    "jsonHint": "Paste a JSON array, one object, or JSONL (one object per line). Each object is the credential secret, or a wrapper: {\"label\":\"Account name\",\"secret\":{...}}. Fields are preserved as supplied.",
+    "tokensHint": "One API key per line. Blank lines and lines beginning with # are ignored.",
+    "summary": "Ready: {{count}} · Duplicates in this input: {{duplicates}} · Errors: {{errors}}",
+    "errorAt": "Item / line {{index}}: {{reason}}",
+    "invalidJson": "Invalid JSON",
+    "invalidSecret": "Expected a non-empty secret object",
+    "invalidLabel": "Label must be text",
+    "defaultLabel": "Imported credential {{index}}",
+    "preview": "Preview credential names",
+    "policy": "Duplicates are removed within this input only; existing credentials are not compared. Correct all format errors before importing. The batch is saved together; if validation fails, none are saved.",
+    "submit": "Import {{count}} credentials",
+    "imported": "Imported {{count}} credentials"
   }
 }

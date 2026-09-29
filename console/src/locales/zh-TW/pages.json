@@ -1006,5 +1006,23 @@
     "lanUrlHelp": "這是本機位址。其他裝置連線時，請將回環位址替換為本裝置的區域網路 IP。",
     "selectedFile": "已選擇：{{name}}",
     "readingFile": "正在讀取設定…"
+  },
+  "credentialImport": {
+    "title": "批次匯入憑證",
+    "format": "輸入格式",
+    "tokens": "每行一個 API Key",
+    "input": "憑證內容",
+    "jsonHint": "貼上 JSON 陣列、單一物件或 JSONL（每行一個物件）。每個物件是憑證 secret，也可使用 {\"label\":\"帳戶名稱\",\"secret\":{...}} 包裝。欄位按原樣保留。",
+    "tokensHint": "每行一個 API Key，忽略空行及以 # 開頭的行。",
+    "summary": "可匯入 {{count}} 筆 · 本批重複 {{duplicates}} 筆 · 錯誤 {{errors}} 筆",
+    "errorAt": "第 {{index}} 項 / 行：{{reason}}",
+    "invalidJson": "JSON 格式錯誤",
+    "invalidSecret": "憑證 secret 必須是非空物件",
+    "invalidLabel": "名稱必須是文字",
+    "defaultLabel": "匯入憑證 {{index}}",
+    "preview": "預覽憑證名稱",
+    "policy": "僅對本次輸入去重，不與現有憑證比較。請修正全部格式錯誤後再匯入。整批一起儲存，驗證失敗時不會儲存任何項目。",
+    "submit": "匯入 {{count}} 筆憑證",
+    "imported": "已匯入 {{count}} 筆憑證"
   }
 }

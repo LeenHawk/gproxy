@@ -14,6 +14,7 @@ import { QueryState } from "@/components/state"
 import { CredentialDetails } from "./details"
 import { CredentialLoginDialog } from "./login"
 import { CredentialForm } from "./form"
+import { CredentialBulkImport } from "./bulk-import"
 import { CredentialTest } from "./test"
 
 export function ProviderCredentials({ providerId }: { providerId: string }) {
@@ -28,8 +29,10 @@ function CredentialCollection({ provider }: { provider: CredentialProviderDto })
   const [detail, setDetail] = useState<{ row: CredentialDto; tab: "basic" | "upstream" } | null>(null)
   const [testing, setTesting] = useState<CredentialDto | null>(null)
   const [login, setLogin] = useState(false)
+  const [importing, setImporting] = useState(false)
   return <div className="flex flex-col gap-4">
-    {provider.enabled && provider.loginModes.some(mode => mode !== "api_key") ? <Button className="self-start" onClick={() => setLogin(true)}>{t("management.loginAdd")}</Button> : null}
+    <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={!provider.enabled} onClick={() => setImporting(true)}>{t("credentialImport.title")}</Button>
+    {provider.enabled && provider.loginModes.some(mode => mode !== "api_key") ? <Button className="self-start" onClick={() => setLogin(true)}>{t("management.loginAdd")}</Button> : null}</div>
     <CollectionPage creatable={provider.enabled} embedded id="credentials" family={credentials} filter={{ providerId: provider.id }} create={body => {
       if (!provider.enabled) return Promise.reject(new Error(t("management.disabled")))
       return credentials.create({ ...body, providerId: provider.id })
@@ -40,6 +43,7 @@ function CredentialCollection({ provider }: { provider: CredentialProviderDto })
     />
     {detail ? <CredentialDetails credential={detail.row} initialTab={detail.tab} provider={provider} onClose={() => setDetail(null)} /> : null}
     {testing ? <CredentialTest credential={testing} onClose={() => setTesting(null)} /> : null}
+    {importing ? <CredentialBulkImport provider={provider} onClose={() => setImporting(false)} /> : null}
     {login ? <CredentialLoginDialog provider={provider} onClose={() => setLogin(false)} /> : null}
   </div>
 }
