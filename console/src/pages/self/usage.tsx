@@ -2,7 +2,7 @@
 //!
 //! The API returns summary, grouped totals and a trend over the same requested range.
 
-import { useState, type ReactNode } from "react"
+import { lazy, Suspense, useState, type ReactNode } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import * as portal from "@/api/portal"
@@ -10,15 +10,16 @@ import * as observation from "@/api/observation"
 import { HistoryFilters, type HistoryFilter } from "@/pages/observation/filters"
 import { DataTable, IdCell } from "@/components/data-table"
 import { Page, PageHeader, PageSection } from "@/components/page"
-import { EmptyNotice, QueryState } from "@/components/state"
+import { EmptyNotice, LoadingRows, QueryState } from "@/components/state"
 import { UsageSummary } from "@/components/usage-summary"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { CACHE_TOKEN_FIELDS, formatCacheHitRate, formatUsageTokens } from "@/lib/usage"
 import type { UsageGroupDto } from "@/generated/sdk"
 import type { UsageGroupBy } from "@/generated/app"
-import { formatCost, formatCount, formatInstant } from "@/lib/format"
+import { formatCost, formatCount } from "@/lib/format"
+
+const UsageTrend = lazy(() => import("@/components/usage-trend"))
 
 const RANGES = { day: 86_400_000, week: 604_800_000, month: 2_592_000_000 } as const
 type RangeKey = keyof typeof RANGES
@@ -54,7 +55,6 @@ export function UsagePage({ global = false, renderRecords }: { global?: boolean;
     },
   })
 
-  const peak = Math.max(1, ...(usage.data?.trend ?? []).map((point) => Number(point.summary.cost)))
 
   return (
     <Page>
@@ -69,33 +69,11 @@ export function UsagePage({ global = false, renderRecords }: { global?: boolean;
       </ToggleGroup>
       <QueryState isPending={usage.isPending} error={usage.error}>
         {usage.data ? (
-          <div className="space-y-6">
+          <div className="flex flex-col gap-6">
             <UsageSummary summary={usage.data.summary} />
 
             <PageSection title={t("usage.trend")}>
-              {usage.data.trend.length ? <>
-              <div className="flex h-32 items-end gap-1" role="img" aria-label={t("usage.trend")}>
-                {usage.data.trend.map((point) => (
-                  <div
-                    key={point.startMs}
-                    className="min-w-1 flex-1 rounded-t bg-primary/70"
-                    style={{ height: `${Math.max(2, (Number(point.summary.cost) / peak) * 100)}%` }}
-                    title={`${formatInstant(point.startMs, i18n.language)} · ${formatCost(point.summary.cost, i18n.language)}`}
-                  />
-                ))}
-              </div>
-              <details>
-                <summary className="w-fit cursor-pointer rounded-md py-3 text-sm">{t("usage.trendData")}</summary>
-                <Table>
-                  <TableCaption className="sr-only">{t("usage.trend")}</TableCaption>
-                  <TableHeader><TableRow><TableHead scope="col">{t("usage.periodStart")}</TableHead><TableHead scope="col">{t("fields.cost")}</TableHead></TableRow></TableHeader>
-                  <TableBody>{usage.data.trend.map(point => <TableRow key={point.startMs}>
-                    <TableCell className="whitespace-normal">{formatInstant(point.startMs, i18n.language)}</TableCell>
-                    <TableCell>{formatCost(point.summary.cost, i18n.language)}</TableCell>
-                  </TableRow>)}</TableBody>
-                </Table>
-              </details>
-              </> : <EmptyNotice title={t("usage.emptyTitle")} />}
+              <Suspense fallback={<LoadingRows />}><UsageTrend points={usage.data.trend} /></Suspense>
             </PageSection>
 
             <PageSection

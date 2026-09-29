@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react"
 //! The landing page, which is the caller's own account rather than an operator
 //! dashboard.
 //!
@@ -11,9 +12,11 @@ import * as portal from "@/api/portal"
 import { useConsoleContext } from "@/capability/session"
 import { Page, PageHeader, PageSection } from "@/components/page"
 import { QuotaWindows } from "@/components/quota-windows"
-import { QueryState } from "@/components/state"
+import { LoadingRows, QueryState } from "@/components/state"
 import { UsageSummary } from "@/components/usage-summary"
 import { Link } from "@/lib/router"
+
+const UsageTrend = lazy(() => import("@/components/usage-trend"))
 
 const WEEK = 604_800_000
 
@@ -28,7 +31,7 @@ export function OverviewPage() {
     queryKey: ["portal", "usage", "week"],
     queryFn: () => {
       const now = Date.now()
-      return portal.usage({ fromMs: now - WEEK, toMs: now })
+      return portal.usage({ fromMs: now - WEEK, toMs: now, bucketMs: WEEK / 28 })
     },
   })
 
@@ -42,6 +45,12 @@ export function OverviewPage() {
       >
         <QueryState isPending={usage.isPending} error={usage.error} rows={2}>
           {usage.data ? <UsageSummary summary={usage.data.summary} /> : null}
+        </QueryState>
+      </PageSection>
+
+      <PageSection title={t("usage.trend")}>
+        <QueryState isPending={usage.isPending} error={usage.error}>
+          {usage.data ? <Suspense fallback={<LoadingRows />}><UsageTrend points={usage.data.trend} /></Suspense> : null}
         </QueryState>
       </PageSection>
 

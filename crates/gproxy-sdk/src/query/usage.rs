@@ -76,101 +76,96 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Usage<'_, C> {
 
     /// Totals over every record the filters match, up to the scan cap.
     pub async fn summary(&self, query: UsageQuery) -> SdkResult<UsageSummaryDto> {
-        let filters = Filters::from(&query);
-        let mut totals = Totals::default();
-        let scan = self
-            .scan(&filters, cap(query.max_scan_rows), |row| {
-                totals.add(row);
-            })
-            .await?;
-        Ok(totals.summary(&scan))
+        Ok(self.aggregate(query, None, None).await?.0)
     }
 
-    /// The same totals, cut by one column. Groups are ordered by cost and then
-    /// by request count, both descending, with the key as the final tie-break,
-    /// so the answer is stable between two identical calls.
     pub async fn group(&self, query: UsageGroupQuery) -> SdkResult<Vec<UsageGroupDto>> {
-        let filters = Filters::from(&query.filter);
+        Ok(self
+            .aggregate(query.filter, Some(query.group_by), None)
+            .await?
+            .1)
+    }
+
+    pub async fn trend(&self, query: UsageTrendQuery) -> SdkResult<Vec<UsageTrendPointDto>> {
+        Ok(self
+            .aggregate(query.filter, None, Some(query.bucket_ms))
+            .await?
+            .2)
+    }
+
+    /// Summary, optional groups and trend from one bounded scan. All three
+    /// describe the same rows even while new requests are being settled.
+    pub async fn aggregate(
+        &self,
+        query: UsageQuery,
+        group_by: Option<UsageGroupBy>,
+        bucket_ms: Option<i64>,
+    ) -> SdkResult<(UsageSummaryDto, Vec<UsageGroupDto>, Vec<UsageTrendPointDto>)> {
+        let (from_ms, width, count) = if let Some(width) = bucket_ms {
+            let from = query
+                .from_ms
+                .ok_or_else(|| SdkError::invalid("a trend needs fromMs"))?;
+            let to = query
+                .to_ms
+                .ok_or_else(|| SdkError::invalid("a trend needs toMs"))?;
+            if width <= 0 {
+                return Err(SdkError::invalid("bucketMs must be positive"));
+            }
+            let span = to
+                .checked_sub(from)
+                .filter(|span| *span > 0)
+                .ok_or_else(|| SdkError::invalid("toMs must be after fromMs"))?;
+            let count = (span - 1) / width + 1;
+            if count > MAX_TREND_BUCKETS {
+                return Err(SdkError::invalid(format!(
+                    "a {width}ms bucket over this range is {count} buckets, more than the {MAX_TREND_BUCKETS} allowed"
+                )));
+            }
+            (from, width, count as usize)
+        } else {
+            (0, 1, 0)
+        };
+        let mut totals = Totals::default();
         let mut groups: BTreeMap<Option<String>, Totals> = BTreeMap::new();
-        let group_by = query.group_by;
+        let mut buckets = vec![Totals::default(); count];
         let scan = self
-            .scan(&filters, cap(query.filter.max_scan_rows), |row| {
-                groups.entry(key_of(row, group_by)).or_default().add(row);
+            .scan(&Filters::from(&query), cap(query.max_scan_rows), |row| {
+                totals.add(row);
+                if let Some(group_by) = group_by {
+                    groups.entry(key_of(row, group_by)).or_default().add(row);
+                }
+                if bucket_ms.is_some() {
+                    buckets[((row.started_at_ms - from_ms) / width) as usize].add(row);
+                }
             })
             .await?;
-
-        let mut entries: Vec<(Option<String>, Totals)> = groups.into_iter().collect();
-        entries.sort_by(|a, b| {
+        let mut groups: Vec<_> = groups.into_iter().collect();
+        groups.sort_by(|a, b| {
             b.1.cost
                 .cmp(&a.1.cost)
                 .then(b.1.requests.cmp(&a.1.requests))
                 .then(a.0.cmp(&b.0))
         });
-        Ok(entries
+        let groups = groups
             .into_iter()
             .map(|(key, totals)| UsageGroupDto {
                 key,
                 summary: totals.summary(&scan),
             })
-            .collect())
-    }
-
-    /// Fixed-width buckets aligned to `from_ms`, every one of them present.
-    /// A bucket nothing landed in is zeros rather than a gap: a chart must not
-    /// have to guess whether a missing point is "no traffic" or "no data".
-    pub async fn trend(&self, query: UsageTrendQuery) -> SdkResult<Vec<UsageTrendPointDto>> {
-        let from_ms = query
-            .filter
-            .from_ms
-            .ok_or_else(|| SdkError::invalid("a trend needs fromMs"))?;
-        let to_ms = query
-            .filter
-            .to_ms
-            .ok_or_else(|| SdkError::invalid("a trend needs toMs"))?;
-        let bucket_ms = query.bucket_ms;
-        if bucket_ms <= 0 {
-            return Err(SdkError::invalid("bucketMs must be positive"));
-        }
-        let span = to_ms
-            .checked_sub(from_ms)
-            .filter(|span| *span > 0)
-            .ok_or_else(|| SdkError::invalid("toMs must be after fromMs"))?;
-        // Both operands are positive, so this is the ceiling division that
-        // `i64::div_ceil` would be if it were stable.
-        let count = (span - 1) / bucket_ms + 1;
-        if count > MAX_TREND_BUCKETS {
-            return Err(SdkError::invalid(format!(
-                "a {bucket_ms}ms bucket over this range is {count} buckets, more than the {MAX_TREND_BUCKETS} allowed"
-            )));
-        }
-
-        let filters = Filters::from(&query.filter);
-        let mut buckets = vec![Totals::default(); count as usize];
-        let scan = self
-            .scan(&filters, cap(query.filter.max_scan_rows), |row| {
-                // The filter is half-open on the same bounds, so the index is
-                // always inside the vector; `get_mut` rather than an index is
-                // the cheap way of saying so without a panic path.
-                let index = (row.started_at_ms - from_ms) / bucket_ms;
-                if let Ok(index) = usize::try_from(index)
-                    && let Some(bucket) = buckets.get_mut(index)
-                {
-                    bucket.add(row);
-                }
-            })
-            .await?;
-        Ok(buckets
+            .collect();
+        let trend = buckets
             .into_iter()
             .enumerate()
             .map(|(index, totals)| {
-                let start_ms = from_ms + index as i64 * bucket_ms;
+                let start_ms = from_ms + index as i64 * width;
                 UsageTrendPointDto {
                     start_ms,
-                    end_ms: start_ms + bucket_ms,
+                    end_ms: start_ms.saturating_add(width).min(query.to_ms.unwrap()),
                     summary: totals.summary(&scan),
                 }
             })
-            .collect())
+            .collect();
+        Ok((totals.summary(&scan), groups, trend))
     }
 
     /// Read the rows the column filters match, oldest first, handing each to

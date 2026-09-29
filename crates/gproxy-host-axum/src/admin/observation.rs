@@ -8,7 +8,7 @@ use axum::{
     routing::get,
 };
 use gproxy_app::{AdminScope, dto::PortalUsageQuery};
-use gproxy_sdk::dto::{LogQuery, UsageGroupQuery, UsageQuery, UsageRecordQuery, UsageTrendQuery};
+use gproxy_sdk::dto::{LogQuery, UsageQuery, UsageRecordQuery};
 use gproxy_seaorm::BatchConnectionTrait;
 
 pub fn routes<C: BatchConnectionTrait + Send + Sync + 'static>() -> Router<HostState<C>> {
@@ -43,22 +43,9 @@ async fn usage<C: BatchConnectionTrait + Send + Sync + 'static>(
         let handle = state.app().gproxy().query();
         let usage = handle.usage();
         let result = async {
-            let summary = usage.summary(filter.clone()).await?;
-            let groups = match query.group_by {
-                Some(group_by) => {
-                    usage
-                        .group(UsageGroupQuery {
-                            filter: filter.clone(),
-                            group_by,
-                        })
-                        .await?
-                }
-                None => Vec::new(),
-            };
-            let trend = match query.bucket_ms {
-                Some(bucket_ms) => usage.trend(UsageTrendQuery { filter, bucket_ms }).await?,
-                None => Vec::new(),
-            };
+            let (summary, groups, trend) = usage
+                .aggregate(filter, query.group_by, query.bucket_ms)
+                .await?;
             Ok(gproxy_app::dto::PortalUsageDto {
                 from_ms: query.from_ms,
                 to_ms: query.to_ms,

@@ -18,14 +18,15 @@
     "emptyTitle": "No models are exposed"
   },
   "usage": {
-    "trend": "Cost over the window",
+    "trend": "Usage trend",
     "groups": "Breakdown",
     "truncated": "The scan hit its row cap. These numbers describe {{scanned}} records, not every one in the window.",
     "emptyTitle": "Nothing in this window",
     "cacheHitRateHelp": "Based on reported tokens: cache hit rate = cache hits ÷ (uncached input + cache hits + cache writes). No input data is shown as —.",
     "timeRange": "Time range",
     "trendData": "View trend data",
-    "periodStart": "Period start"
+    "periodStart": "Period start",
+    "trendMetric": "Trend metric"
   },
   "quota": {
     "emptyTitle": "No budget applies",
