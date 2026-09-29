@@ -43,6 +43,7 @@ use time::{Duration as TimeDuration, OffsetDateTime};
 
 pub(crate) mod cycles;
 mod dedupe;
+mod diagnostics;
 
 /// `Total` windows never reset; the counter still needs a cache TTL.
 const TOTAL_WINDOW_TTL_MS: i64 = 30 * 24 * 60 * 60 * 1000;
@@ -551,10 +552,52 @@ impl<C: BatchConnectionTrait> Core<C> {
     where
         C: Send,
     {
+        self.query_quota(provider_id, credential_id, None).await
+    }
+
+    /// The normal quota operation, plus redacted response bodies for feedback.
+    /// A failed parse still returns the response that caused it.
+    pub async fn diagnose_credential_quota(
+        &self,
+        provider_id: &str,
+        credential_id: &str,
+    ) -> (CoreResult<QuotaSnapshot>, Vec<serde_json::Value>)
+    where
+        C: Send,
+    {
+        let responses = diagnostics::Responses::default();
+        let result = self
+            .query_quota(provider_id, credential_id, Some(&responses))
+            .await;
+        let responses = std::mem::take(&mut *responses.lock().expect("quota diagnostics lock"));
+        (result, responses)
+    }
+
+    async fn query_quota(
+        &self,
+        provider_id: &str,
+        credential_id: &str,
+        responses: Option<&diagnostics::Responses>,
+    ) -> CoreResult<QuotaSnapshot>
+    where
+        C: Send,
+    {
         let queried_at_ms = now_ms();
         let (credential, mut observed) = self
             .quota_operation(provider_id, credential_id, |provider, context| {
+                let responses = responses.cloned();
                 Box::pin(async move {
+                    let capture = responses.map(|responses| diagnostics::CaptureClient {
+                        inner: context.client,
+                        responses,
+                        secrets: diagnostics::secrets(context.credential.secret),
+                    });
+                    let context = CredentialContext {
+                        client: capture.as_ref().map_or(context.client, |client| {
+                            client as &dyn gproxy_client::OutboundClient
+                        }),
+                        ..context
+                    };
                     provider
                         .channel
                         .quota_query()

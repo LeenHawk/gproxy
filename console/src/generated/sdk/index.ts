@@ -102,6 +102,7 @@ export * from "./QuotaEntryDto";
 export * from "./QuotaObservationDto";
 export * from "./QuotaObservationQuery";
 export * from "./QuotaPatch";
+export * from "./QuotaProbeDto";
 export * from "./QuotaResetCreditsDto";
 export * from "./QuotaResetDto";
 export * from "./QuotaResetOptionDto";

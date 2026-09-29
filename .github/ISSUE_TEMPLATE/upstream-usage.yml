@@ -1,0 +1,36 @@
+name: 上游用量字段反馈 / Upstream usage feedback
+description: 反馈渠道用量、额度窗口、重置时间或翻译问题。
+title: "[Usage] "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: GProxy 版本 / Version
+      description: 请包含版本号或提交哈希。
+    validations:
+      required: true
+  - type: input
+    id: channel
+    attributes:
+      label: 渠道与套餐 / Channel and plan
+      placeholder: "例如 Codex Plus、Claude Max、Cline"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期与实际显示 / Expected and actual display
+      description: 哪个字段、百分比、额度窗口或重置时间不正确？可附上游官网和 GProxy 的截图。
+    validations:
+      required: true
+  - type: textarea
+    id: response
+    attributes:
+      label: 脱敏原始响应 / Redacted raw response
+      description: 在凭证的“上游额度”中点击“查询原始响应”并复制。即使查询失败也可提供。分享前检查邮箱、账号标识等个人信息；不要提交密钥、Cookie 或令牌。
+      render: json
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充说明 / Additional context
+      description: 字段何时变化、是否触发限额、重置后是否恢复，以及你知道的字段含义。

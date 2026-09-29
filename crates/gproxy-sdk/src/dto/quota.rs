@@ -424,6 +424,17 @@ pub struct QuotaSnapshotDto {
     pub entries: Vec<QuotaEntryDto>,
 }
 
+/// An explicit diagnostic probe; responses are redacted and never stored.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct QuotaProbeDto {
+    pub snapshot: Option<QuotaSnapshotDto>,
+    pub error: Option<String>,
+    pub responses: Vec<serde_json::Value>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]

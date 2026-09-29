@@ -1,3 +1,4 @@
+import { QuotaDiagnostics } from "./quota-diagnostics"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { QuotaBreakdownRowDto } from "@/generated/sdk"
@@ -65,6 +66,7 @@ export function UpstreamQuota({ id, provider }: { id: string; provider: Credenti
   const resetTime = new Intl.DateTimeFormat(i18n.language, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
   return <div className="flex flex-col gap-4">
     <div className="flex flex-wrap justify-end gap-2">
+      {provider.capabilities.quotaQuery ? <QuotaDiagnostics id={id} disabled={busy || !provider.enabled} /> : null}
       {provider.capabilities.quotaQuery ? <Button variant="outline" disabled={busy || !provider.enabled} onClick={() => void probe.refetch()}>{t("management.probe")}</Button> : null}
     </div>
     {provider.capabilities.quotaReset ? <UpstreamReset id={id} enabled={provider.enabled} busy={busy} onReset={() => probe.refetch()} /> : null}

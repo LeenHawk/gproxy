@@ -37,8 +37,8 @@ use gproxy_sdk::{
     dto::{
         BatchItem, BudgetStatusDto, CredentialDto, CredentialLimitStatusDto, CredentialPatch,
         CredentialQuotaDto, CredentialSummaryDto, CredentialWrite, ListQuery, Page, QuotaDto,
-        QuotaObservationDto, QuotaObservationQuery, QuotaPatch, QuotaResetDto, QuotaSnapshotDto,
-        QuotaWrite,
+        QuotaObservationDto, QuotaObservationQuery, QuotaPatch, QuotaProbeDto, QuotaResetDto,
+        QuotaSnapshotDto, QuotaWrite,
     },
 };
 use gproxy_seaorm::BatchConnectionTrait;
@@ -303,6 +303,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
     pub async fn quota_probe(&self, id: &str) -> Result<QuotaSnapshotDto> {
         self.admit(id).await?;
         Ok(self.manage().quota_probe(id).await?)
+    }
+
+    pub async fn quota_diagnostics(&self, id: &str) -> Result<QuotaProbeDto> {
+        self.admit(id).await?;
+        Ok(self.manage().quota_diagnostics(id).await?)
     }
 
     pub async fn quota_reset_credits(
