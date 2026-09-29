@@ -1,127 +1,55 @@
 ---
-title: "Permissions, Rate Limits & Quotas"
-description: "Scoped permissions, request rate limits, and cost quotas with inheritance; how admission pre-charges and reconciles; what a rejected request sees"
+title: "Permissions, rate limits, and budgets"
+description: "Configure access rules, request limits, and budgets, and distinguish local limits from upstream allowance."
 ---
 
-Permissions, rate limits, and cost quotas attach to a **subject**: an
-organization, a team, a user, or a single API key. A request is evaluated
-against every row on its chain:
-
-```text
-api key -> user -> team -> organization
-```
-
-The console's **Access** card on any of these shows the rows set at that
-level together with the rows inherited from its parents, labelled
-"Inherited from ...".
+Permissions control access, rate limits control request frequency, and cost budgets control spending. These checks are separate.
 
 ## Permissions
 
-A permission row names a subject, a provider (or all providers), an operation
-group (or all operations), and an effect: allow or deny.
+A permission rule belongs to a user or API key and may filter by provider, model pattern, and operation. Model patterns support `*` and `?`, so model restrictions do not require separate providers.
 
-Evaluation runs per target provider in the resolved plan. Every row on the
-chain that matches the provider and the operation group applies. Any matching
-deny rejects the request; with no matching allow the request is also rejected.
-There is no implicit access.
+Rules are ordered by descending priority, then ID. The first matching rule supplies the `allow` or `deny` decision. Ordinary users need an applicable allow rule. Instance administrators bypass ordinary permission rules, while OAuth operation scopes are still checked separately.
 
-Operation groups: `models`, `count_tokens`, `memories`, `generate_content`,
-`compact`, `embeddings`, `images`, `audio`, `video`, `files`, `search`,
-`rerank`, `realtime`.
-
-Permissions are by provider and operation group, not by model name. To limit
-a user to some models, put those models on a provider of their own, or expose
-them through a dedicated route and provider pair. The portal's **Allowed
-models** list is derived from the same check: a model appears with exactly the
-capabilities the user may call.
-
-:::note
-Listing models and counting tokens are `models` and `count_tokens`
-operations. A user with `generate_content` only cannot list models.
-:::
-
-## Rate Limits
-
-A rate-limit row is a subject, a request count, and a window in seconds. One
-row per (subject, window length); several windows may coexist on one subject.
-
-Windows are fixed and aligned to the Unix epoch. The counter lives in the
-cache backend and is incremented before the check, so concurrent requests are
-counted deterministically. A rejected request rolls its increment back and
-does not consume the window. Every matching row on the chain is checked; the
-first exceeded one rejects.
-
-Per-credential requests-per-minute and tokens-per-minute limits protect an
-upstream account and are configured on the credential; see
-[Providers & Credentials](/guides/providers/).
-
-## Cost Quotas
-
-One quota row per subject holds a **total** limit and optional window limits:
-
-| Window | Resets |
+| API field | Meaning |
 | --- | --- |
-| Total | Never. |
-| Daily | 00:00 UTC. |
-| Weekly | Monday 00:00 UTC. |
-| Monthly | First day of the month, 00:00 UTC. |
-| 5-hour | Five hours after the first admitted request; the next request starts a new window. |
-| 7-day | Seven days after the first admitted request, likewise. |
+| `userId` / `apiKeyId` | Exactly one rule subject |
+| `providerId` | Optional; omit to match all providers |
+| `modelPattern` | Model pattern, default `*` |
+| `operation` | Optional; omit to match all operations |
+| `action` | `allow` or `deny` |
+| `priority` | Higher values match first |
 
-Limits are decimal cost in the pricing currency. A quota can be disabled
-without deleting it.
+The model catalog's `permitted` field reports caller access. An inaccessible model may still appear in the catalog.
 
-### Admission
+## Credential visibility
 
-For every billable operation, admission:
+Permission alone is not enough: the caller also needs an available credential. Credential ownership and the API key's user, organization, and team bindings determine visibility. Management scope, model permission, and credential ownership are separate settings.
 
-1. estimates the cost as the highest price any candidate target would charge
-   for the request's input tokens (counted with the tokenizer ladder);
-2. adds the estimate to a pending counter for each applicable quota window
-   in the cache;
-3. rejects if the window is already at its limit, or if settled cost plus
-   pending would exceed it;
-4. records the reservation under the request id.
+## Rate limits
 
-When the request finishes, the settled cost is written to the window (once per
-request id, so retries cannot double-charge) and the pending estimate is
-released. Free operations such as listing models and counting tokens skip the
-quota check but still record a zero-cost settlement.
+User or API-key rate limits specify a metric, limit, period in seconds, optional model pattern, and enabled state. Common metrics are `requests` and `concurrency`. Live counters use the cache backend; multiple instances need shared cache state.
 
-Cost comes from the price rules described in [Pricing](/reference/pricing/).
-A request without a matching rule runs and records usage at zero cost.
+Permission checks run before rate-limit accounting. Inspect the error and logs to distinguish caller limits from upstream credential limits.
 
-## Rejected Requests
+## Cost budgets
 
-Every rejection is a JSON error envelope:
+Budgets can belong to users, API keys, organizations, and teams, in USD. Requests check the key and user budgets plus those of the key's actual organization and team bindings. A team's parent organization is not charged merely because that relationship exists.
 
-```json
-{ "error": { "message": "quota exceeded" } }
-```
+Every applicable enabled budget must have remaining capacity. Period and model filters are configurable in the console. Actual cost is settled after the upstream call, so in-flight and concurrent calls may exceed the limit. A budget is not a hard cap on upstream spending.
 
-| Status | Message | Cause |
-| --- | --- | --- |
-| `401` | `unauthorized` | Missing, unknown, disabled, or expired key. |
-| `403` | `forbidden: permission denied` | No allow, or a deny, on the chain. |
-| `429` | `rate limited` | A caller rate limit or a credential RPM/TPM limit. |
-| `402` | `quota exceeded` | A cost window would be exceeded. |
-| `404` | `unknown route or model: ...` | The model name resolves to nothing. |
+Missing prices affect cost totals and budget consumption. Check [Pricing](/reference/pricing/) as well. Budget amounts use decimal strings in the API.
 
-## Watching Windows
+## Provider and credential limits
 
-**Usage** in the console lists every active quota window with a bar: settled
-cost over the limit, the percentage, when the window started, and when it
-resets. Bars turn to warning at 85% and critical at 100%. An anchored 5-hour
-or 7-day window that has not seen a request shows "not started". The portal
-shows the same bars for the signed-in user's chain, labelled by scope.
+A provider's default limits apply separately to each credential, not to one shared provider pool. An enabled same-name credential rule overrides the provider default. Restoring inheritance removes the individual configuration.
 
-## Upstream Quota Cycles
+Local limits differ from upstream account allowance. Resetting a local rule does not reset the upstream balance or window. See [Providers and credentials](/guides/providers/) and [Console](/guides/console/).
 
-Credentials on `codex`, `claudecode`, and `geminicli` report the upstream
-account's own rate-limit windows. GPROXY records them as **quota cycles** per
-credential and window key, with the boundary source (upstream, inferred, or
-unknown) and used percent, and shows them on the credential card. They
-describe the upstream account, not your users, and are separate from the
-quotas on this page. They do steer balancing: inside a failover tier, a
-credential with any live window at 90% or more sorts behind its peers, and one
-at 100% sorts last. None is removed from the plan.
+## Diagnose a rejection
+
+- `401`: check key and user validity.
+- `403`: check permissions, credential visibility, and OAuth operation scopes.
+- `429`: check caller rate limits, budgets, local credential limits, and upstream allowance.
+
+Inspect the relevant user, key, and credential in the console, then use the specific logged error to identify the limiting rule.

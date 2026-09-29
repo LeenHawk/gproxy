@@ -1,273 +1,84 @@
 # GPROXY
 
-[English](README.md) | [简体中文](README.zh-CN.md) · [Documentation](https://gproxy.leenhawk.com) · [Downloads](https://github.com/LeenHawk/gproxy/releases) · [Discussions](https://github.com/LeenHawk/gproxy/discussions) · [Sponsor](https://github.com/sponsors/LeenHawk)
+English | [简体中文](README.zh-CN.md) · [Documentation](https://gproxy.leenhawk.com/) · [Downloads](https://github.com/LeenHawk/gproxy/releases) · [Discussions](https://github.com/LeenHawk/gproxy/discussions)
 
-[![CI](https://github.com/LeenHawk/gproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/LeenHawk/gproxy/actions/workflows/ci.yml)
-[![License](https://img.shields.io/github/license/LeenHawk/gproxy)](LICENSE)
+**One endpoint for your LLM services.**
 
-**One endpoint for your LLM providers, accounts and applications.**
+GPROXY is a self-hosted LLM API gateway. It manages upstream accounts, translates OpenAI, Claude, and Gemini requests, routes models, switches credentials on failure, enforces access rules, and records usage and costs.
 
-GPROXY is a self-hosted LLM API gateway. It pools upstream credentials, routes
-requests, translates API formats, enforces access and spending limits, and
-records usage and cost. A native installation serves the API, an operator
-console and a user portal from one executable.
+This branch targets **4.0.0**, which is being prepared for release. To try v4 now, choose `nightly` on Releases. Once the stable version is published, choose its versioned attachments.
 
-## What You Can Do
+## Quick start
 
-- **Use the client you prefer.** Accept OpenAI Chat Completions, OpenAI
-  Responses, Claude Messages and Gemini GenerateContent, including streaming.
-  Cross-format conversion is direct; support for other operations depends on
-  the selected channel.
-- **Pool upstream accounts.** Manage API keys, OAuth credentials and cookies
-  where supported, with token refresh, health tracking, credential selection
-  and failover.
-- **Keep model names stable.** Map a public model name to a route and its
-  provider/upstream models. Change providers without changing every client.
-- **Control access and cost.** Manage users, organizations, teams, permissions,
-  rate limits, spending quotas and dimensional pricing. Inference goes through
-  the same admission and settlement pipeline, including CLI service surfaces.
-- **Operate without editing JSON files.** The console manages providers,
-  credentials, model catalogs, rule sets, usage, quota history and updates.
-  The user portal manages accounts, API keys and authorized OAuth sessions.
-- **Choose a deployment.** Native binaries and installers, containers, Android
-  packages and prebuilt edge bundles are available. Rust applications can
-  embed `gproxy-core` without an HTTP server or UI dependency.
-- **Forget the gateway is there.** Written in Rust with a zero-copy data
-  plane. The proxy adds about 0.2 ms to a request, settles more than 27,000
-  metered requests per second on one machine, and holds 20,000 concurrent
-  connections without dropping one. See [Performance](#performance).
-
-Channels include OpenAI, Claude API / Claude Code / Claude Web, Gemini CLI,
-Codex, Copilot, OpenRouter, AWS Bedrock, Vertex, Azure, Kimi and others.
-See [Providers](https://gproxy.leenhawk.com/guides/providers/) for their
-authentication methods and runtime-specific capabilities.
-
-## Quick Start
-
-### Native
-
-Download the archive or installer for your platform from
-[Releases](https://github.com/LeenHawk/gproxy/releases). After extracting a
-portable archive on Linux or macOS:
+1. Download **Application** (`gproxy-tauri-*`) for your OS from [Releases](https://github.com/LeenHawk/gproxy/releases).
+2. Open it and complete the three-step wizard: connection, administrator account, and optional configuration import.
+3. Save the service URL and gateway API key. Open the console and add a provider and upstream credential.
+4. Test the credential, create a model route named `fast`, and add the working model as a member.
 
 ```sh
-chmod +x ./gproxy
-./gproxy
+export GPROXY_KEY='your-gproxy-api-key'
+curl -sS http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer $GPROXY_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"fast","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-On Windows, run `gproxy.exe`. On a fresh database, the executable generates an
-administrator password and API key and displays them in the terminal **once**
-(default username: `admin`). Save them, then sign in at
-**http://127.0.0.1:8787/admin**. The user portal is at **/portal**.
-
-DMG, DEB, and APK installations ask you to choose an administrator username
-and password before the first server start, with an automatic startup choice.
-Windows MSIX packaging is prepared for Microsoft Store; use the portable ZIP
-until Store certification is complete. Store installations manage updates and
-automatic startup through Microsoft Store and Windows Settings.
-Launchers do not save the plaintext password. Existing installations keep their
-accounts. You can also supply `GPROXY_ADMIN_USER` and `GPROXY_ADMIN_PASSWORD`;
-a configured password resets that administrator on every start, so remove it
-after recovery.
-
-The default native installation listens on loopback and stores its database
-at `./data/gproxy.db`. Keep that directory when updating the executable.
-
-### Container
+For a server, choose **CLI** (`gproxy-*`), extract it, and run:
 
 ```sh
-docker run -d --name gproxy --restart unless-stopped \
-  -p 127.0.0.1:8787:8787 \
-  -v gproxy-data:/app/data \
-  ghcr.io/leenhawk/gproxy:v3.0.0
+./gproxy serve --data-dir ./data --port 8787
 ```
 
-The release image runs as UID/GID **65532:65532** and stores data at
-**/app/data**. A named volume preserves it; bind mounts must be writable by
-that user. Images cover amd64, arm64 and riscv64, with a `-musl` variant.
-Use `:staging` only when you want rolling development builds.
+On Windows, use `gproxy.exe`. Save the administrator password and API key printed on first startup, then open **http://127.0.0.1:8787/console/**. Application uses its in-app console; its HTTP port serves gateway API calls only.
 
-### Edge
+The CLI defaults to SQLite at `./data/gproxy.db`. Configure and save `GPROXY_MASTER_KEY` before adding credentials; without it, upstream secrets are stored unencrypted. Keep the data directory and master key when updating.
 
-Cloudflare Workers and Netlify Edge run the prebuilt wasm bundle from the
-[`deploy`](https://github.com/LeenHawk/gproxy/tree/deploy) branch. Both
-buttons ask for `GPROXY_LIBSQL_URL` and `GPROXY_LIBSQL_AUTH_TOKEN`, the HTTPS
-URL and token of a libSQL (Turso) database; everything else is optional.
+See [Installation](https://gproxy.leenhawk.com/getting-started/installation/) for platform requirements, signing restrictions, containers, and Workers. Windows MSIX attachments are unsigned Store submission packages, macOS apps are not notarized, and the HarmonyOS HAP is experimental.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare)
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LeenHawk/gproxy&branch=deploy&create_from_path=netlify)
+## Features
 
-See [Container deployment](https://gproxy.leenhawk.com/deployment/docker/)
-and [Edge deployment](https://gproxy.leenhawk.com/deployment/edge/) for other
-deployment options.
+- **Credential pools**: API keys, OAuth, or Cookies as supported by each channel, with health tracking, refresh, and failover.
+- **Model routes**: stable client-facing names with configurable providers, upstream models, weights, and fallback tiers.
+- **Protocol conversion**: major generation formats and streaming, with other operations depending on the channel and upstream.
+- **Rewrite rules**: system text, cache breakpoints, JSON edits, regular expressions, and headers.
+- **Users and costs**: users, organizations, teams, API keys, permissions, budgets, usage, requests, and audit records.
+- **Deployment options**: CLI, desktop and mobile apps, containers, Cloudflare Workers, and an embeddable Rust core.
 
-### Send Your First Request
+Read more: [Quick start](https://gproxy.leenhawk.com/getting-started/quick-start/) · [Providers and credentials](https://gproxy.leenhawk.com/guides/providers/) · [CLI clients](https://gproxy.leenhawk.com/guides/cli-clients/)
 
-1. Add a provider in the console and supply or authorize an upstream credential.
-2. Pull its model catalog, then configure the public model/route you want to use.
-3. Grant your user access and create an API key.
-4. Set `GPROXY_API_KEY` in your shell and replace `my-model` with an accessible
-   model ID shown by the console or `GET /v1/models`.
+## Upgrade from v3
 
-```sh
-curl http://127.0.0.1:8787/v1/chat/completions \
-  -H "Authorization: Bearer $GPROXY_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"my-model","messages":[{"role":"user","content":"Hello"}],"stream":true}'
-```
+Stop v3, back up the database, master key, and startup configuration, then start v4 with the same configuration. Supported v3 SQLite databases migrate automatically, preserving accounts, passwords, API keys, and historical usage. The migration report lists configuration that could not be mapped. Do not run v3 and v4 against the same database at once.
 
-Your application only needs the gateway base URL, a GPROXY API key and a model
-ID. [First request](https://gproxy.leenhawk.com/getting-started/first-request/)
-covers the other API formats.
-
-## Performance
-
-GPROXY is built so that the gateway never becomes the bottleneck. The data
-plane moves bodies as reference-counted bytes, streams pass through untouched
-unless a transform has to rewrite them, and metering happens off the response
-path: usage is written after the reply has left, through a bounded backlog
-that coalesces settlements into grouped SQLite commits. Nothing is unmetered
-and nothing waits for the disk.
-
-Measured on a single laptop-class machine (AMD Ryzen 7 8745H, 16 threads,
-SQLite on NVMe) with a local mock upstream, every request fully authenticated,
-routed, priced and written to the usage ledger:
-
-| Scenario | Result |
-|---|---|
-| Added latency, one connection | 0.21 ms median |
-| Metered throughput, 32 connections | 27,000 requests/s, p99 4.4 ms |
-| Metered throughput, 2,000 connections | 23,000 requests/s |
-| Authentication and routing only | 108,000 requests/s |
-| 10,000 concurrent connections, 500 ms upstream | 18,600 requests/s, +1.4 ms median over the upstream itself |
-| 20,000 concurrent connections, 500 ms upstream | 18,500 requests/s, zero errors |
-| Memory at 10,000 open connections | about 1.2 GB |
-
-The client, the gateway and the mock upstream shared the same 16 cores, so
-a dedicated host does better. With a real model behind it, the time a
-request spends inside GPROXY is a rounding error next to the time the model
-spends thinking.
-
-## CLI Clients and Pi
-
-Codex CLI and Claude Code can use GPROXY's compatible service surfaces.
-Follow the [client guides](https://gproxy.leenhawk.com/guides/cli-clients/)
-for the correct provider path and authentication mode.
-
-For Pi, install the independent, MIT-licensed
-[pi-gproxy](https://github.com/LeenHawk/pi-gproxy) extension:
-
-```sh
-pi install npm:pi-gproxy
-```
-
-Enable `pi-gproxy` in **Console → Settings → OAuth clients**, then run
-`/login` in Pi and select **GPROXY**. Browser PKCE and device-code login
-authorize your gateway account, not an upstream account. The extension
-discovers your allowed models and uses the normal inference pipeline.
-
-The Portal's **Authorized sessions** view shows successful logins, still-valid
-sessions and refresh counts. Revoking a session invalidates its tokens.
-Pi's local `/logout` alone does not revoke the server session.
-See [Account OAuth](docs/account-oauth.md) for the contract.
-
-## Configuration and Security
-
-Configuration comes from command-line flags, environment variables, then
-`.env` in the working directory and data directory. Run `gproxy --help` for
-the complete native option list.
-
-| Variable | Purpose |
-| --- | --- |
-| `GPROXY_HOST`, `GPROXY_PORT` | Listen address; native defaults to `127.0.0.1:8787`. |
-| `GPROXY_DATA_DIR` | Persistent local state; native default `./data`, release container `/app/data`. |
-| `GPROXY_PERSISTENCE` | `sqlite`, `libsql`, `postgres` or `mysql`. |
-| `GPROXY_DSN` | Database connection string where required. |
-| `GPROXY_MASTER_KEY` | Optional standard-base64 32-byte key for stored secret encryption. |
-| `GPROXY_UPSTREAM_PROXY_URL` | Default upstream proxy override. |
-
-Console settings are grouped into Runtime, Network, Logs, Access, and Maintenance.
-Switching sections keeps unsaved edits. CORS origins, trusted proxy IPs, request
-and upload concurrency, upstream attempt limits, outbound proxies, and process
-log level/format apply without restarting. Lowering concurrency lets active
-requests finish; the admin interface remains accessible. Updates and announcements
-follow the effective outbound proxy too.
-
-Explicit startup flags/environment values override saved settings; Console shows
-both the saved and effective values with the override source. Remove an override
-and restart to use the saved value. Listener, database, cache, and encryption
-configuration still require a restart or the dedicated migration/rotation flow.
-CORS entries are origins such as `https://example.com`, not URLs with paths;
-trailing slashes and default ports are normalized.
-
-Without a master key, stored credentials and API keys are plaintext. Protect
-the data directory and backups. If you enable encryption, keep the key safe
-and do not regenerate it on each restart; changing it requires the documented
-rotation procedure. Put remote access behind HTTPS and configure trusted
-proxies and allowed origins deliberately.
-
-[Configuration reference](https://gproxy.leenhawk.com/reference/configuration/)
-covers encryption, persistence, caching, bootstrap and proxy settings.
-
-## Upgrading from v2
-
-**Back up the v2 executable, database and launch configuration before updating.**
-
-V3 uses a different data model. Native startup can back up and migrate supported
-v2 SQLite databases, preserving recoverable keys and supported configuration
-and usage. It verifies the migrated data before atomically switching databases.
-
-Unmapped populated tables, route-specific permissions and other unsupported
-data stop automatic migration rather than being silently discarded. Existing
-v2 updaters do not retain the old executable, so binary rollback requires your
-saved executable or the corresponding official v2 package. Remote databases
-require an explicit migration plan.
-
-Read the [upgrade and rollback guide](docs/v2-upgrade.md) first.
-`main` now contains v3; v2 source remains available through its version tags
-and Git history.
+See [Migrating v3 to v4](https://gproxy.leenhawk.com/deployment/v3-to-v4/) for migration scope, backups, and failure handling.
 
 ## Development
 
-The Rust workspace separates the embeddable core, channel implementations,
-pairwise transforms, shared persistence, application services and native/edge
-hosts. The React console is in `console/`; documentation is in `docs/`.
-Admin API TypeScript types are generated from Rust by `cargo test`.
-Native builds also require Go 1.25.8 or newer and Clang on `PATH` for BoringSSL symbol generation and validation.
+Native builds require stable Rust, Go, and Clang. The console and docs require Node.js 22.12+ (24 LTS recommended) and pnpm. Linux desktop builds also require the WebKitGTK 4.1, GTK 3, and libsoup 3 development packages.
 
 ```sh
-cargo run -p gproxy-host-axum
 pnpm --dir console install --frozen-lockfile
-pnpm --dir console dev
+pnpm --dir console build
+cargo run -p gproxy -- serve
 ```
 
-Before submitting changes:
+The console build synchronizes embedded assets. A fresh checkout built with only `cargo build` has no console bundle.
 
 ```sh
-cargo fmt --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo check --workspace --target wasm32-unknown-unknown
+cargo fmt --all --check
+cargo clippy --all-targets -- -D warnings
+cargo test
 pnpm --dir console lint
 pnpm --dir console test
-pnpm --dir console build
+pnpm --dir docs install --frozen-lockfile
+pnpm --dir docs check
+pnpm --dir docs build
 ```
 
-See [Architecture](https://gproxy.leenhawk.com/introduction/architecture/) and
-[Adding a channel](https://gproxy.leenhawk.com/guides/adding-a-channel/).
-Report bugs through [Issues](https://github.com/LeenHawk/gproxy/issues);
-report vulnerabilities privately through
-[Security](https://github.com/LeenHawk/gproxy/security).
+See [Building from source](https://gproxy.leenhawk.com/deployment/release-build/) for desktop and WASM checks, [Architecture](https://gproxy.leenhawk.com/introduction/architecture/) for the workspace layout, and [Adding a channel](https://gproxy.leenhawk.com/guides/adding-a-channel/) for extensions.
 
-## Code signing policy
-
-Our SignPath Foundation application is awaiting review; Windows production
-signing is not enabled yet. See the [Code signing policy](https://gproxy.leenhawk.com/deployment/code-signing/)
-for signing scope, team roles, privacy information, and verification instructions.
+Report bugs through [Issues](https://github.com/LeenHawk/gproxy/issues). Report vulnerabilities privately through [Security](https://github.com/LeenHawk/gproxy/security).
 
 ## License
 
-The gateway application is **AGPL-3.0-or-later**; see [LICENSE](LICENSE).
-The reusable library crates — `gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`,
-`gproxy-file`, `gproxy-seaorm` and `gproxy-tokenizer` — are **MIT**, each with its own
-`LICENSE`. The separate Pi extension is MIT-licensed.
+The gateway application is **AGPL-3.0-or-later**; see [LICENSE](LICENSE). `gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`, `gproxy-file`, `gproxy-seaorm`, and `gproxy-tokenizer` are **MIT**, with a license in each directory.

@@ -1,6 +1,6 @@
 ---
 title: "配置"
-description: 五个配置来源及其顺序、全部 25 个 GPROXY_* 变量、TOML 文件、主密钥轮换、bootstrap，以及运行期 settings 行。
+description: "CLI 配置来源、环境变量、主密钥、首次初始化与运行时设置。"
 ---
 
 GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模块读环境变量。
@@ -18,16 +18,14 @@ GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模
 4. **`--config` 点名的 TOML 文件**
 5. **内置默认值**
 
-把文件放在环境*下面*是要紧的那个选择。文件是一套部署签进版本库的意图；环境是某一台主机或
-某一个容器偏离它的方式。如果文件赢了，compose 文件里的 `GPROXY_PORT` 就会静默地什么也不做。
+环境变量可以覆盖配置文件，便于不同主机或容器复用同一份配置。
 
 每个配置 flag 都是全局的，因此 `gproxy --port 9000 serve` 和 `gproxy serve --port 9000`
 是同一次调用。
 
 ## 环境变量
 
-每个值都是一个带着自己变量名的 flag，因此 `gproxy --help` 会把变量印在它所遮蔽的 flag 旁边，
-这张表也就没法从程序上漂走。v3 就有的名字含义不变：升级不是重新部署。
+下面列出常用环境变量。`gproxy --help` 显示当前二进制支持的参数及对应变量。
 
 | 变量 | Flag | 默认 | 是什么 |
 | --- | --- | --- | --- |
@@ -56,6 +54,13 @@ GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模
 | `GPROXY_BOOTSTRAP_ADMIN_API_KEY` | `--admin-api-key` / `--api-key` | 生成 | 要为他签发的那把确切 API key |
 | `GPROXY_IMPORT_SOURCE_MASTER_KEY` | `--source-master-key` | — | 仅 `import`：源实例的钥匙 |
 | `GPROXY_ENV_FILE` | — | `.env` | 加载哪个 `.env` |
+| `GPROXY_UPDATE_CHANNEL` | `--update-channel` | 构建渠道 | `dev`、`beta` 或 `release` |
+| `GPROXY_UPDATE_SOURCE` | `--update-source` | 构建来源 | `github` 或 `cnb` |
+| `GPROXY_UPDATE_MANIFEST_URL` | `--update-manifest-url` | 来源与渠道对应 URL | 自定义签名更新清单 |
+| `GPROXY_UPDATE_RESTART` | `--update-restart` | `re-exec` | 更新后 `none`、`supervisor`（退出码 42）或 `re-exec` |
+| `GPROXY_UPDATE_CHECK_INTERVAL` | `--update-check-interval` | `21600` | 检查间隔秒数，`0` 关闭定时检查 |
+| `GPROXY_UPDATE_AUTOMATIC` | `--update-automatic` | `false` | 自动安装检查到的更新 |
+| `GPROXY_AUTOSTART` | `service install --autostart` | 见命令帮助 | 安装服务时的启动选项 |
 
 `GPROXY_ENV_FILE` 刻意没有 flag：flag 得由它所喂养的那一步来解析，因此它影响不了解析器
 自己读到的值。
@@ -74,6 +79,9 @@ GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模
 | `gproxy bootstrap admin` | 创建第一个管理员。幂等。 |
 | `gproxy export --out <PATH>` | 把本实例的配置写成一份 JSON 文档。 |
 | `gproxy import --in <PATH>` | 把这样一份文档回放进本实例。 |
+| `gproxy update --check` | 仅检查更新，不安装。 |
+| `gproxy update` | 安装可用更新。 |
+| `gproxy service --help` | 查看当前平台的服务安装与管理选项。 |
 
 `serve` 在 `SIGINT` 或 `SIGTERM` 上停止，先把在途请求排空。**没有关停超时**：一次流式
 补全跑上几分钟是合法的，而想要截止时间的 supervisor 自己有。
@@ -201,21 +209,13 @@ GPROXY_MASTER_KEY=<new> gproxy serve
 设了 `GPROXY_MASTER_KEY_NEXT` 却*没有* `GPROXY_MASTER_KEY_ROTATE` 时什么也不做，并且会
 这么说——这样一把在部署里躺了一个月的"下一把钥匙"，不会被误当成一次已经发生过的轮换。
 
-## Bootstrap
+## 首次初始化
 
-一个全新的数据库没有入口，所以首次启动创建一个管理员、签发一把网关 API key，并把两者
-只打印一次到标准输出。
+CLI 在 users 表为空时创建管理员和网关 API Key。已有任何用户时，初始化不修改账户，也不会因设置 `GPROXY_ADMIN_PASSWORD` 而重置密码。
 
-- **触发条件是 users 表为空。** 只要有任何用户，就说明这个实例已经被设置过：不重置密码、
-  不签发 key、不改任何一行。一个重启还带着 `GPROXY_ADMIN_PASSWORD` 的容器的运维者，并不
-  是在要求重置密码。
-- **只打印运维者还不知道的东西。** 提供了 `GPROXY_ADMIN_PASSWORD` 就使用它但不回显；
-  提供了 `GPROXY_BOOTSTRAP_ADMIN_API_KEY` 就签发那把确切的 key。
-- **输出走 stdout，绝不走日志**，这样密钥不会落进 journal 或者把它运走的任何东西。
-- **每一次写入都走产品自己的操作家族**，所以密码由产品的规则校验和哈希，key 由产品的函数
-  做摘要。v3 的 bootstrap key 是用手写 SQL 按一个管理 API 并不用它来查的摘要写下去的，
-  于是一把 `sk-` 前缀的 bootstrap key 在每个请求上都回 `401`。修法不是换一个更好的摘要
-  ——而是只有一个。
+`GPROXY_ADMIN_PASSWORD` 和 `GPROXY_BOOTSTRAP_ADMIN_API_KEY` 可指定初始值；省略时自动生成。程序只显示生成的凭据，输出到标准输出。服务管理器和容器可能收集标准输出，因此首次启动日志同样需要保管。
+
+Application 使用[首次设置向导](/zh-cn/getting-started/installation/#application在界面中设置)，不使用浏览器初始化页。
 
 ## 搬运一份配置
 
@@ -307,7 +307,7 @@ curl -s -X PATCH http://127.0.0.1:8787/admin/api/settings \
 logging 组是 `enableDownstreamLog`、`enableDownstreamLogBody`、`enableUpstreamLog`、
 `enableUpstreamLogBody`、`disableLogRedaction`、`enableTracing`、`logLevel`、`logFormat`
 和三个黑名单。两个 body 开关默认关闭，见
-[用量、日志与审计](/zh-cn/guides/observability/#capture)。
+[用量、日志与审计](/zh-cn/guides/observability/#请求日志)。
 
 ## 跑多个实例
 

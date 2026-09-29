@@ -15,11 +15,7 @@ request model
   → one (provider, credential, upstream model) per attempt
 ```
 
-There are **no aliases and no variant suffixes** in v4. Both existed in v3 and
-neither was ported: an alias was a second name-rewriting stage in front of a
-name-rewriting stage, and a variant suffix was request shaping hidden inside
-resolution. Request shaping is a rewrite rule now — visible, ordered, and
-filtered by model — see [Rewrite Rules](/guides/rules/).
+Use a route name as the client-facing model name. To change request parameters, use [rewrite rules](/guides/rules/).
 
 ## The Four Forms
 

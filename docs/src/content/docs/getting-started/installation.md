@@ -1,200 +1,86 @@
 ---
-title: Installation
-description: Build the GPROXY v4 binary from source, run it, find its data, and choose between the server, the desktop shell and the Workers host.
+title: "Installation"
+description: "Choose a GPROXY 4.0 application, CLI, container, or Cloudflare Workers deployment."
 ---
 
-v4 has **no release pipeline**: no installers, no portable archives, no
-published container image and no signed artifacts. There is one supported way
-to get a binary, and it is to build one.
 
-:::note[What happened to the download page]
-v3 published installers for four platforms and a signed update manifest. None
-of that was ported, and this site no longer describes it. The pages that did —
-Downloads, Code signing and Container — were removed rather than rewritten
-around machinery that does not exist.
-:::
+Choose **Application** for a local graphical app, or **CLI** for a server. Both provide the same gateway features, with different startup and management interfaces.
 
-## Prerequisites
+Select a version on [Releases](https://github.com/LeenHawk/gproxy/releases), then download the file for your OS and architecture. Version 4.0.0 is being prepared; until it is published, use `nightly` to try v4. Nightly builds change with development and are not stable releases.
 
-| Tool | Needed for |
-| --- | --- |
-| A stable Rust toolchain (edition 2024) | every crate |
-| `wasm32-unknown-unknown` | the Workers host only |
-| `webkit2gtk-4.1`, `gtk+-3.0`, `libsoup-3.0` (Linux) | the desktop shell only |
-| Node.js LTS and pnpm | the console bundle only |
+## Choose a package
 
-The tree was last built here with:
-
-```text
-rustc 1.98.0 (88d9e12ae 2026-08-18)
-cargo 1.98.0 (797e8a9bc 2026-08-05)
-```
-
-## Build the Server
-
-```sh
-git clone https://github.com/LeenHawk/gproxy
-cd gproxy
-cargo build -p gproxy --release
-```
-
-The binary is `target/release/gproxy`.
-
-```text
-$ ./target/release/gproxy --version
-gproxy 4.0.0-dev
-```
-
-The default feature set is a single-node SQLite instance with every channel
-this repository implements: `channels`, `memory`, `fs`, `bundled-vocabulary`.
-
-| Feature | Default | Adds |
+| Platform | CLI (`gproxy-*`) | Application (`gproxy-tauri-*`) |
 | --- | --- | --- |
-| `channels` | ✓ | all 25 channels. Name them one by one (`codex`, `kiro`, `openai`, …) for a binary that carries only the upstreams you use |
-| `memory` | ✓ | the in-process cache |
-| `fs` | ✓ | local file storage |
-| `bundled-vocabulary` | ✓ | a fallback tokenizer vocabulary |
-| `postgres` | | the PostgreSQL driver |
-| `mysql` | | the MySQL driver |
-| `redis` | | the shared cache a multi-instance deployment needs |
-| `s3` | | S3-compatible file storage |
+| Linux GNU: x86_64, aarch64, riscv64 | ZIP, DEB | ZIP, DEB |
+| Linux musl: x86_64, aarch64, riscv64 | ZIP, DEB | — |
+| Windows: x86_64, aarch64 | ZIP, MSIX | ZIP, MSIX |
+| macOS: x86_64, aarch64 | ZIP, DMG | ZIP, DMG |
+| Android: x86_64, aarch64 | ZIP, Termux DEB | APK |
+| OpenHarmony / HarmonyOS NEXT | ARM64, x86_64 ZIP | Experimental ARM64 HAP |
 
-SQLite is always compiled in. A backend this build does not have is refused
-**at startup**, naming the feature that would provide it, rather than at the
-first request.
+Choose x86_64 for most Intel / AMD computers and aarch64 for Apple Silicon. Linux Application requires WebKitGTK 4.1.
 
-## Run It
+The MSIX release attachments are unsigned Store submission packages, not signed installers. Use a ZIP or check the actual Microsoft Store listing for availability. macOS apps use ad-hoc signing and are not notarized. The experimental HarmonyOS HAP requires your own signature, has not been verified on a physical device, and does not provide a background service.
 
-```sh
-./target/release/gproxy serve --data-dir ./data --port 8787
-```
+## Application: graphical setup
 
-A first start creates the database and the schema, creates one administrator,
-mints one gateway API key, and prints both **once**, to standard output:
+Install or extract Application, then open GPROXY. A new instance shows a three-step setup wizard:
 
-```text
-GPROXY first-run administrator (shown once)
-  user:     admin
-  password: p0Wsgf70xcFViWtn1UhZQ3msZSYHx2ZC
-  api key:  sk-5hKlHHF0mtyw4pQewEj6pD2WZPkgH2vN-5lufKRtTdQ
-Save these before closing this terminal; they are not stored in a form
-this instance can show you again.
-```
+1. **Connection**: choose a listening address, port, data directory, and database. Defaults are suitable for a first local setup.
+2. **Administrator account**: enter a username and a password of at least 8 characters. Supply an API key or leave it blank to generate one.
+3. **Import**: optionally import an existing v4 configuration file, or finish without one.
 
-Save them. The password is argon2-hashed and the key is stored as a SHA-256
-digest; the instance cannot show you either again.
+Save the service URL and API key shown on completion, then open the console. Desktop builds offer launch-at-login and a system tray. Mobile builds use private app storage and show the options their platform supports. Android also offers notification and background permission controls.
 
-The log goes to standard **error**, which is what keeps that block and
-`gproxy export --out -` clean:
+The app window manages the instance over local IPC. Its HTTP listener serves gateway API clients; opening that port in a browser does not open the app's wizard or management console.
 
-```text
-WARN gproxy::serve: upstream credential secrets are stored UNENCRYPTED: no
-     master key is configured. Set GPROXY_MASTER_KEY to 32 bytes as 64 hex
-     characters or base64 …
-INFO gproxy::serve: no console bundle is compiled into this binary and no
-     directory was named, so /console answers 404. …
-INFO gproxy::bootstrap: created the first administrator user="admin"
-INFO gproxy::serve: gproxy is listening address=127.0.0.1:8787 revision=2 console=false
-```
+## CLI: start a server
 
-Both of those lines are true and deliberate. Read on.
-
-### Set a master key before the first credential
-
-With no master key, upstream credential secrets are stored **unencrypted**.
-That is a supported deployment — the binary says so loudly once at startup —
-but it is not one to keep by accident.
+Extract the CLI ZIP and open a terminal in its directory. On Linux / macOS:
 
 ```sh
-GPROXY_MASTER_KEY="$(openssl rand -hex 32)" \
-  ./target/release/gproxy serve --data-dir ./data
+chmod +x ./gproxy
+./gproxy serve --data-dir ./data --port 8787
 ```
 
-32 bytes, as 64 hex characters or as base64. Setting it *after* credentials
-already exist is a rotation, not an edit; see
-[Configuration](/reference/configuration/#master-key-rotation).
+On Windows, use PowerShell:
 
-### A source checkout has no console
+```powershell
+.\gproxy.exe serve --data-dir .\data --port 8787
+```
 
-`/console` is served from a bundle compiled into the binary, and **a source
-checkout embeds nothing**. That is the intended state: `cargo build` produces a
-binary whose console paths answer 404 rather than a blank page that looks like
-a broken application, and the startup log says so.
+A new instance prints a generated administrator password and API key **once**. Save them. Restarting an existing instance does not reset its accounts.
 
-To get one, build the console and point the binary at it:
+Open **http://127.0.0.1:8787/console/** and sign in. Personal and administrative pages share this console. The CLI does not use the Application setup wizard.
+
+The default listener is local-only, and the SQLite database is `./data/gproxy.db`. To accept connections from other devices, adjust the listening address and configure network access and HTTPS. See [Configuration](/reference/configuration/) for environment variables, database options, and master-key handling.
+
+Set `GPROXY_MASTER_KEY` before adding upstream credentials and keep the same saved value for subsequent starts. Without it, the CLI stores upstream secrets unencrypted and reports this in its startup log.
+
+## Containers
+
+The image is `ghcr.io/leenhawk/gproxy`. Obtain the image tag or commit SHA from the selected release and replace the placeholder below. Old v3 image tags do not run v4.
 
 ```sh
-cd console && pnpm install && pnpm build
-GPROXY_CONSOLE_PATH=console/dist ./target/release/gproxy serve
+export GPROXY_IMAGE='ghcr.io/leenhawk/gproxy:<tag-or-commit-sha>'
+# Set GPROXY_MASTER_KEY to your saved 32-byte key (64 hex digits or base64).
+docker run -d --name gproxy --restart unless-stopped \
+  -p 127.0.0.1:8787:8787 \
+  -v gproxy-data:/app/data \
+  -e GPROXY_MASTER_KEY \
+  "$GPROXY_IMAGE"
+docker logs gproxy
 ```
 
-A release build instead copies `console/dist` into
-`crates/gproxy-host-axum/assets/web` before `cargo build`, and the bundle is
-embedded.
+Save the credentials from the first startup log and open `/console/`. The image runs as `65532:65532`; a bind-mounted directory must be writable by that user. Keep the `/app/data` volume when replacing a container. The release workflow builds GNU and musl images for amd64, arm64, and riscv64.
 
-## Where the Data Lives
+## Cloudflare Workers
 
-Everything relative resolves against `--data-dir` (`GPROXY_DATA_DIR`,
-default `data`):
+Use `gproxy-edge-cloudflare.zip` and follow [Edge deployment](/deployment/edge/) to configure the database and secrets. Workers Assets serves the console. WebSocket / Realtime is currently unsupported.
 
-| Path | What it is |
-| --- | --- |
-| `<data-dir>/gproxy.db` | the SQLite instance |
-| `<data-dir>/` + `--file-storage-dir` | published bodies and downloaded vocabularies |
+## Upgrade from v3
 
-With `postgres` or `mysql` the directory still exists for the file storage.
+Back up the database, master key, and startup configuration. Stop v3, then start v4 with the same configuration. Supported v3 SQLite databases migrate automatically. Read [Migrating v3 to v4](/deployment/v3-to-v4/) for retained data and the migration report to check.
 
-`migrate` creates or incrementally synchronizes the schema and exits:
-
-```text
-$ ./target/release/gproxy migrate --data-dir ./data
-INFO gproxy::instance: schema is up to date warnings=0
-```
-
-`serve` does this too. The separate command is for a deployment that runs
-migrations as their own step, with one writer, before any instance starts —
-which is what more than one instance over one database requires.
-
-## The Desktop Shell
-
-`gproxy-desktop` is a Tauri window over the same instance, new in v4. It is not
-in the workspace's default members, because it pulls in webkit, gtk and about a
-hundred and eighty crates that have nothing to say about the engine.
-
-```sh
-cargo run -p gproxy-host-tauri --bin gproxy-desktop
-```
-
-Two front doors, one instance:
-
-- **the window**, over Tauri IPC, which carries the management and user
-  surfaces. There is no authentication on it, deliberately: a message arrives
-  only because this process's own webview sent it, so the channel is the proof.
-- **`127.0.0.1:8787`**, a real axum host serving the **data plane only**, for
-  Claude Code and the Codex CLI, which speak HTTP and cannot speak IPC. It
-  **still demands a gateway key** — a loopback socket is not a trust boundary —
-  and `/admin/api` and `/portal/api` answer 404 there, so the gateway key never
-  doubles as an administrative one.
-
-The default port is 8787, shared with the server. Change `port` in `gproxy.toml`
-when running both on the same machine.
-
-The master key is minted on first run and kept in the platform keychain
-(Secret Service, the macOS Keychain, the Windows Credential Manager). It does
-**not** fall back to a file — a key sitting next to the database it protects is
-a longer path to the same plaintext. With no keychain the instance runs exactly
-as the server does without `GPROXY_MASTER_KEY`, and says so.
-
-## A Cloudflare Worker
-
-The third host compiles the same router to wasm. See
-[Edge (Cloudflare Workers)](/deployment/edge/).
-
-## Next Steps
-
-- [Quick Start](/getting-started/quick-start/) — a provider, a credential, a
-  route and a request.
-- [Configuration](/reference/configuration/) — every flag and every
-  `GPROXY_*` variable.
-- [Building from Source](/deployment/release-build/) — the quality gates and
-  the other build targets.
+To compile your own build, see [Building from source](/deployment/release-build/). Once installed, continue to [Quick start](/getting-started/quick-start/).

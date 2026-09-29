@@ -67,180 +67,102 @@ Outputs go to `dist/release/`. The workflow also publishes native server ZIPs,
 Termux packages, Edge bundles, and GNU/musl container images. Application
 packages receive build provenance attestations hosted on GitHub.
 
-## Prerequisites
+## Build environment
 
-| Tool | Needed for |
-| --- | --- |
-| A stable Rust toolchain (edition 2024) | every crate |
-| `wasm32-unknown-unknown` | the Workers host, and the CI check |
-| `webkit2gtk-4.1`, `gtk+-3.0`, `libsoup-3.0` (Linux) | the desktop shell |
-| Node.js LTS and pnpm | the console and this documentation site |
-| `worker-build` | the Workers bundle |
+Install stable Rust (edition 2024), Go, Clang, Node.js 22.12+ (24 LTS recommended), and pnpm. Linux desktop builds also need the `webkit2gtk-4.1`, `gtk+-3.0`, and `libsoup-3.0` development packages. The release workflow configures the other platform toolchains.
 
-## The Workspace
+## Build the CLI and console
 
-Sixteen crates. `cargo check`, `cargo test` and `cargo clippy` with no `-p` and
-no `--workspace` build the **default members**, which is everything except the
-desktop shell.
-
-That exclusion is not a demotion and it is not about incremental builds: with a
-warm target directory the two selections are within half a second of each
-other. It is about the **cold** one. The desktop shell brings wry, webkit, gtk
-and their `-sys` crates — about a hundred and eighty extra third-party crates
-that have nothing to say about the engine, and that a Linux box without the
-development headers cannot build at all.
-
-`--workspace` builds it, and CI does.
-
-## The Server
+From the repository root:
 
 ```sh
+pnpm --dir console install --frozen-lockfile
+pnpm --dir console build
 cargo build -p gproxy --release
-./target/release/gproxy --version
+./target/release/gproxy serve --data-dir ./data
 ```
 
-```text
-gproxy 4.0.0-dev
-```
+The console build copies resources into the HTTP and Tauri embed directories. A subsequent Rust build includes them. A fresh checkout built with Rust alone has no console assets, so `/console` returns 404. You can also pass `--console-path console/dist` to serve a separate build.
 
-The default features are `channels`, `memory`, `fs` and `bundled-vocabulary` —
-a single-node SQLite instance with every channel compiled in. Name channels one
-by one for a binary that carries only the upstreams a deployment uses:
+CLI defaults include all channels, memory cache, local file storage, and bundled vocabulary. Select fewer channels or add backends as needed:
 
 ```sh
 cargo build -p gproxy --release --no-default-features \
   --features memory,fs,codex,claudecode,openai,custom
 ```
 
-Add `postgres`, `mysql`, `redis` or `s3` as the deployment needs. SQLite is
-always compiled in, and a backend this build does not have is refused at
-startup naming the feature that would provide it.
+PostgreSQL, MySQL, Redis, and S3 require `postgres`, `mysql`, `redis`, and `s3` respectively. SQLite is always available.
 
-## The Console
+## Build Application
 
-```sh
-cd console
-pnpm install --frozen-lockfile
-pnpm build
-```
-
-A release build copies `console/dist` into
-`crates/gproxy-host-axum/assets/web` **before** `cargo build`, and the bundle
-is embedded with `rust-embed`.
-
-**A source checkout embeds nothing**, and that is the intended state:
-`cargo build` produces a binary whose console paths answer 404 rather than a
-blank page that looks like a broken application, and the startup log says so.
-
-For development against a Vite build, point the binary at a directory instead:
-
-```sh
-GPROXY_CONSOLE_PATH=console/dist ./target/release/gproxy serve
-```
-
-The TypeScript types the console is written against are **generated from
-Rust**, never written by hand, from two crates into two directories:
-
-```sh
-GPROXY_TS_OUT=console/src/generated/sdk cargo test -p gproxy-sdk --features ts export_types
-GPROXY_TS_OUT=console/src/generated/app cargo test -p gproxy-app --features ts export_types
-```
-
-Without the variable each test returns immediately and writes nothing, so
-`cargo test --all-features` stays hermetic and a generated directory is only
-ever rewritten on purpose. The two go to **separate** directories because the
-export wipes its output first, and two crates sharing one would erase each
-other.
-
-## The Desktop Shell
+After building the console:
 
 ```sh
 cargo run -p gproxy-host-tauri --bin gproxy-desktop
 ```
 
-One process, one instance, two front doors: the window over Tauri IPC for the
-management and user surfaces, and a real axum host on `127.0.0.1:8787` serving
-the **data plane only**, for the CLIs that speak HTTP and cannot speak IPC.
+A new instance opens the setup wizard. The window manages it over IPC, while the HTTP listener serves gateway clients. Use the release workflow's platform toolchains and packaging scripts for mobile builds.
 
-The test suite drives the whole arrangement on a machine with **no display
-server**, because almost everything is in the library and the binary only opens
-a window.
+The default workspace members exclude Tauri so backend builds do not require desktop dependencies. `--workspace` includes it.
 
-```sh
-cargo check  -p gproxy-host-tauri
-cargo clippy -p gproxy-host-tauri --all-targets --all-features -- -D warnings
-cargo test   -p gproxy-host-tauri
-```
+## Build Workers
 
-The first-run wizard supports launch-at-login and a system tray. Desktop auto-update is not implemented.
-
-## The Worker
+From the repository root:
 
 ```sh
+rustup target add wasm32-unknown-unknown
 cargo install worker-build
-CARGO_PROFILE_RELEASE_STRIP=none worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
+pnpm --dir console install --frozen-lockfile
+pnpm --dir deploy/cloudflare install
+pnpm --dir deploy/cloudflare build
+pnpm --dir deploy/cloudflare check
 ```
 
-See [Edge (Cloudflare Workers)](/deployment/edge/) for the bindings, the
-configuration document and the size constraint that makes naming channels one
-by one worth doing.
+`worker-build` compiles and optimizes WASM. `check` runs a Wrangler deployment dry run without publishing. See [Edge deployment](/deployment/edge/) for configuration and runtime restrictions.
 
-## The Quality Gates
+## Validate changes
 
-Exactly what CI runs:
+Backend default members:
 
 ```sh
-cargo fmt --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo check --workspace --target wasm32-unknown-unknown
+cargo fmt --all --check
+cargo clippy --all-targets -- -D warnings
+cargo test
 ```
 
-The last one is not optional decoration. `gproxy-app` and the axum router both
-build for wasm, which is what lets the Workers host mount the same router
-instead of writing the route table a second time — and a handler that forgets
-its `Send` bridge is **a compile error on that target naming the handler**. The
-check is the enforcement.
-
-A lint finding gets a code change, not an `#[allow]`.
-
-Per-crate, while working on one:
+Check the desktop host separately:
 
 ```sh
-cargo test   -p gproxy-channel --all-features
-cargo clippy -p gproxy-channel --all-features --target wasm32-unknown-unknown --lib -- -D warnings
-cargo test   -p gproxy-host-axum
-cargo test   -p gproxy-store -p gproxy-seaorm
+cargo clippy -p gproxy-host-tauri --all-targets -- -D warnings
+cargo test -p gproxy-host-tauri
 ```
 
-Every `gproxy-host-axum` integration test builds the **real router** over an
-in-memory instance, with only the upstream scripted. A test that called a
-handler function directly would skip the part being tested.
-
-Two suites bind a real loopback port because they cannot be faked: a websocket
-round trip, because the in-process service harness never produces hyper's
-upgrade extension; and a client disconnect, because every HTTP client in the
-tree drains a body before handing it over, so that suite types the request out
-over a raw socket and hangs up by dropping it.
-
-## This Documentation Site
+WASM checks include supported libraries and hosts, not the CLI or Tauri. Do not use the entire workspace for this target:
 
 ```sh
-cd docs
-pnpm install --frozen-lockfile
-pnpm check
-pnpm build
+cargo check --target wasm32-unknown-unknown \
+  -p gproxy-protocol -p gproxy-store -p gproxy-seaorm -p gproxy-client \
+  -p gproxy-cache -p gproxy-channel -p gproxy-core -p gproxy-file \
+  -p gproxy-tokenizer -p gproxy-sdk -p gproxy-app -p gproxy-host-axum \
+  -p gproxy-host-edge
 ```
 
-Astro Starlight, deployed to Cloudflare Pages by CI. `pnpm check` validates the
-notification feed the site also hosts.
+Console and docs:
 
-`scripts/check-docs.sh` is the structural check: sidebar slugs against pages,
-English and Chinese parity, frontmatter, forbidden references and oversized
-pages.
+```sh
+pnpm --dir console lint
+pnpm --dir console test
+pnpm --dir console build
+pnpm --dir docs install --frozen-lockfile
+pnpm --dir docs check
+pnpm --dir docs build
+bash scripts/check-docs.sh
+```
 
-## Library releases
+After changing Rust DTOs, run `pnpm --dir console types` to regenerate the TypeScript types.
 
-Version tags also invoke `scripts/publish-crates.sh` for the selected MIT library
-crates. Other workspace crates are consumed through git or path dependencies;
-see [Embedding the Core](/reference/embedding/). The public surface is not stable.
+## Publish
+
+A version tag must match the workspace version and have a `docs/release-notes/v<version>.md` file. The workflow builds packages, creates a signed update manifest, and uploads assets. A build or signing failure means publication is incomplete.
+
+Version tags also invoke `scripts/publish-crates.sh` for selected MIT libraries. Other crates use git or path dependencies; see [Embedding the core](/reference/embedding/).

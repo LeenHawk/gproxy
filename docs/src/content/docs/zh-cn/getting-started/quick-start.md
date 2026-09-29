@@ -1,213 +1,66 @@
 ---
-title: 快速开始
-description: "从一个构建好的二进制到一个被计量的请求：启动 gproxy，加一个 Provider 和一把凭证，公开一个模型名，然后调用它。"
+title: "快速开始"
+description: "在控制台添加供应商和凭证，配置模型路由并发送第一个请求。"
 ---
 
-本页把一个全新实例带到它的第一个成功请求。它假设你已有一个来自
-[安装](/zh-cn/getting-started/installation/)的二进制，并且全程使用管理 API——因为源码
-检出里没有 console bundle。
 
-下面每条命令都对着一个临时数据目录真实跑过，输出就是它回来的东西。
+先按[安装说明](/zh-cn/getting-started/installation/)启动 GPROXY。Application 用户完成首次设置后进入应用内控制台；CLI 和容器用户在浏览器打开 `http://127.0.0.1:8787/console/`，使用首次启动的管理员账户登录。
 
-## 1. 启动实例
+下面以 OpenAI 兼容服务为例。你需要一份可用的上游 API Key，以及该服务支持的模型名称。
 
-```sh
-./target/release/gproxy serve --data-dir ./data --port 8787
-```
+## 1. 添加供应商
 
-首次启动把管理员和一把网关 API key 只打印一次到标准输出：
+进入 **供应商**，新增一条连接：
 
-```text
-GPROXY first-run administrator (shown once)
-  user:     admin
-  password: zfpub7rfV2PO2PAbqazAVt-yC_yfwLrt
-  api key:  sk-56sjXy3JADsZjYl1g3QnzzTNH-NBmzPNyUKf22qgVzI
-Save these before closing this terminal; they are not stored in a form
-this instance can show you again.
-```
+- 名称填写 `openai-main`。
+- 使用 OpenAI 官方服务时选择 `openai` 渠道。
+- 使用其他 OpenAI 兼容服务时选择 `custom`，填写服务地址，并按上游文档选择支持的协议，例如 Chat Completions（`openai_chat`）。
 
-这把 key 既是网关 key 也是管理员的 key，因此它同时打开 `/admin/api` 和 `/v1`。本页余下
-部分把它放在一个 shell 变量里：
+供应商名称会用于直接调用的地址。不同供应商可以使用同一种渠道，分别保存各自的地址和凭证。
 
-```sh
-export GPROXY_KEY='sk-56sjXy3JADsZjYl1g3QnzzTNH-NBmzPNyUKf22qgVzI'
-```
+## 2. 添加凭证并测试
 
-确认它起来了。`/healthz` 不需要认证，也不碰数据库和 cache，因此负载均衡器轮询它不会
-自己变成压垮它的那份负载：
+打开刚创建的供应商，在 **凭证** 标签中添加上游 API Key。使用 Codex、Claude Code 等登录渠道时，选择登录添加凭证，按页面提示完成授权。
 
-```sh
-curl -s http://127.0.0.1:8787/healthz
-```
+在凭证行打开测试，选择上游支持的模型并发送一条简短消息。生成测试会真实调用上游，可能产生费用。成功后记下模型 ID，下一步会用到。
 
-```json
-{"revision":2,"status":"ok"}
-```
+上游 API Key 保存在 GPROXY；客户端使用的是 GPROXY 签发的网关 API Key，两者不要混用。
 
-## 2. 看这个二进制有哪些渠道
+## 3. 创建模型路由
 
-渠道是某一族上游的适配器，只有编译进去的才存在。这份清单来自二进制，不是数据库：
+进入 **模型路由**，新建名称为 `fast` 的路由，添加一个成员：供应商选择 `openai-main`，上游模型填写刚才测试成功的模型 ID，层级和权重先保留默认值。
+
+客户端以后填写 `fast` 即可。更换上游时只需修改路由成员。一个供应商也可以直接调用，不必创建路由，见[模型与路由](/zh-cn/guides/models/)。
+
+## 4. 发送请求
+
+使用首次设置时保存的网关 API Key，或在 **我的账户 → 密钥** 创建一把新密钥。替换下面的占位值；如果修改过端口，也要修改地址。
 
 ```sh
-curl -s http://127.0.0.1:8787/admin/api/channels \
-  -H "Authorization: Bearer $GPROXY_KEY"
-```
-
-默认构建回答全部 29 个：`aistudio`、`antigravity`、`aws_bedrock`、`azure`、`claudeapi`、
-`claudecode`、`claudeweb`、`cline`、`cloudflare_ai_gateway`、`codex`、`copilotcli`、`custom`、`dashscope`、
-`deepseek`、`devin`、`geminicli`、`grokbuild`、`kimi`、`kiro`、`nvidia`、`openai`、`opencodego`、
-`opencodezen`、`openrouter`、`vercel`、`vertex`、`vertexexpress`、`workbuddy`、`xai`。
-
-每一项都带着它的登录方式、能力，以及一个 Provider 表单该渲染哪些 `config` 键——这就是
-一个管理 UI 渲染表单所需的全部。
-
-## 3. 添加一个 Provider
-
-Provider 是某个渠道上的一条已保存连接。`custom` 是通用的 API-key 渠道：任何原生讲
-OpenAI、Claude 或 Gemini 的端点。
-
-```sh
-curl -s -X POST http://127.0.0.1:8787/admin/api/providers \
+export GPROXY_KEY='your-gproxy-api-key'
+curl -sS http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" \
-  -H 'content-type: application/json' \
-  -d '{
-    "name": "openai-main",
-    "channel": "custom",
-    "baseUrl": "https://api.openai.com",
-    "config": { "dialects": ["openai_chat", "openai"] }
-  }'
+  -H 'Content-Type: application/json' \
+  -d '{"model":"fast","messages":[{"role":"user","content":"你好，请简单介绍自己。"}]}'
 ```
 
-```json
-{"id":"5a45fd807be02516a1626eedd528859d","name":"openai-main","channel":"custom",
- "baseUrl":"https://api.openai.com","connectionProfileId":null,
- "config":{"dialects":["openai_chat","openai"]},"enabled":true,
- "createdAtMs":1789981558211}
-```
+如果客户端要求填写 OpenAI Base URL，通常填 `http://127.0.0.1:8787/v1`；如果要求填写完整请求 URL，则填示例中的 `/v1/chat/completions` 地址。
 
-`name` 是运维者取的标签，同时也是 **Provider 挂载点**：
-`/openai-main/v1/chat/completions` 只会触达这个 Provider。`dialects` 告诉 `custom` 渠道
-这个端点讲哪些线格式——把你想让它承接的都点上名；方言不在列表里的操作没有转换能到达它。
+其他协议和流式调用见[发送第一个请求](/zh-cn/getting-started/first-request/)。Codex CLI、Claude Code 等工具的专用配置见[CLI 客户端](/zh-cn/guides/cli-clients/)。
 
-记下 id：
+## 5. 查看用量
 
-```sh
-export PROVIDER=5a45fd807be02516a1626eedd528859d
-```
+在控制台查看请求和用量记录，确认模型、供应商、token 数与费用。费用依赖配置的价格规则，不等于上游账单的实时余额。上游未报告的用量字段可能为空。
 
-## 4. 添加一把凭证
+## 遇到问题
 
-```sh
-curl -s -X POST http://127.0.0.1:8787/admin/api/credentials \
-  -H "Authorization: Bearer $GPROXY_KEY" \
-  -H 'content-type: application/json' \
-  -d "{\"providerId\":\"$PROVIDER\",\"label\":\"main key\",
-       \"authKind\":\"api_key\",\"secret\":{\"api_key\":\"sk-…\"}}"
-```
+| 现象 | 先检查 |
+| --- | --- |
+| 无法连接 | GPROXY 是否运行，地址和端口是否正确 |
+| `401` | 是否使用网关 API Key，密钥是否有效 |
+| `403` | 当前用户或密钥是否有访问目标模型的权限 |
+| `404 unknown_model` | `fast` 路由是否存在并启用，是否添加了成员 |
+| `429` | 本地限额与上游额度，凭证是否暂时不可用 |
+| 上游错误或不支持该操作 | 凭证测试结果、模型 ID、供应商协议与端点配置 |
 
-```json
-{"id":"b8aad67f1af2cdb265218b8d1686a2ef","providerId":"5a45fd807be02516a1626eedd528859d",
- "organizationId":null,"teamId":null,"userId":null,"label":"main key",
- "authKind":"api_key","hasSecret":true,"version":0,"connectionProfileId":null,
- "metadata":{},"expiresAtMs":null,"status":"active","statusReason":null,"enabled":true}
-```
-
-密钥从不出现在列表里——只有 `hasSecret`，外加一个单独的、被审计的
-`POST /admin/api/credentials/{id}/reveal`。账号池里有几把就加几把；引擎会在它们之间轮转，
-并在计划移动到下一个成员之前先在该 Provider 内部做转移。
-
-对于靠登录而不是贴 key 的渠道（`codex`、`claudecode`、`kiro`…），凭证来自
-[登录流程](/zh-cn/guides/providers/#通过登录获取凭证)。
-
-## 5. 通过 Provider 挂载点调用
-
-现在已经可以发请求了。Provider 挂载点不需要路由，也不需要公开名：
-
-```sh
-curl -s http://127.0.0.1:8787/openai-main/v1/chat/completions \
-  -H "Authorization: Bearer $GPROXY_KEY" \
-  -H 'content-type: application/json' \
-  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Say hello."}]}'
-```
-
-在聚合挂载点上，`provider/model` 形式做的是同一件事：
-
-```sh
-curl -s http://127.0.0.1:8787/v1/chat/completions \
-  -H "Authorization: Bearer $GPROXY_KEY" \
-  -H 'content-type: application/json' \
-  -d '{"model":"openai-main/gpt-4o-mini","messages":[{"role":"user","content":"Say hello."}]}'
-```
-
-## 6. 创建模型路由
-
-路由名称就是客户端请求的模型名。成员配置供应商、上游模型、tier 与 weight。
-创建 `fast` 路由并添加成员即可使用，不需要再配置公开名称。
-
-```sh
-curl -s -X POST http://127.0.0.1:8787/admin/api/routes \
-  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
-  -d '{"name":"fast"}'
-```
-
-```json
-{"id":"33a88261f571347c7f0408c3bd2e2164","name":"fast","strategy":"round_robin",
- "maxAttempts":6,"enabled":true}
-```
-
-```sh
-export ROUTE=33a88261f571347c7f0408c3bd2e2164
-
-curl -s -X POST http://127.0.0.1:8787/admin/api/route-members \
-  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
-  -d "{\"routeId\":\"$ROUTE\",\"providerId\":\"$PROVIDER\",
-       \"upstreamModel\":\"gpt-4o-mini\"}"
-
-```
-
-```json
-{"id":"fe91bb79f182e5becd899a056865c707","routeId":"33a88261f571347c7f0408c3bd2e2164",
- "providerId":"5a45fd807be02516a1626eedd528859d","upstreamModel":"gpt-4o-mini",
- "tier":0,"weight":100,"enabled":true}
-```
-
-在另一个 Provider 上加一个 `tier: 1` 的成员，就是一个故障转移目标。两个 `tier: 0` 的成员
-按权重分流。
-
-每一次写入都是一个事务连同配置 revision 自增，而且实例先重载、再通知同伴，所以新名字
-在下一个请求上就能用。
-
-## 7. 发送请求
-
-```sh
-curl -s http://127.0.0.1:8787/v1/chat/completions \
-  -H "Authorization: Bearer $GPROXY_KEY" \
-  -H 'content-type: application/json' \
-  -d '{"model":"fast","messages":[{"role":"user","content":"Say hello."}]}'
-```
-
-## 8. 看看花了多少
-
-```sh
-curl -s http://127.0.0.1:8787/portal/api/usage \
-  -H "Authorization: Bearer $GPROXY_KEY"
-```
-
-```json
-{"fromMs":null,"toMs":null,"summary":{"requests":2,"inputTokens":4,
- "outputTokens":318,"cachedInputTokens":0,"cacheCreationTokens":0,
- "reasoningTokens":0,"cost":"0","currency":null,"truncated":false,"scanned":2},
- "groups":[],"trend":[]}
-```
-
-`cost` 是 `0`，因为还没有价格规则覆盖这个模型。请求依然被结算、依然被记录，并带上
-`unpriced = true` 维度——运维者要的是"有个模型在被白嫖"这个信号，而不是一个拒绝。
-见[价格与分层](/zh-cn/reference/pricing/)。
-
-## 下一步
-
-- [发送第一个请求](/zh-cn/getting-started/first-request/)——同一个调用在每种格式下的写法、
-  流式，以及三个挂载点。
-- [Provider 与凭证](/zh-cn/guides/providers/)——凭证池、登录流程、健康。
-- [模型、路由与公开名称](/zh-cn/guides/models/)——tier、weight 与 namespace。
-- [CLI 客户端](/zh-cn/guides/cli-clients/)——把 Codex CLI 和 Claude Code 指向网关。
+需要用脚本管理时，[供应商](/zh-cn/guides/providers/)和[模型路由](/zh-cn/guides/models/)文档中提供了管理 API 示例。

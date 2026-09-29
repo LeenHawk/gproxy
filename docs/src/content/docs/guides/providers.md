@@ -1,6 +1,6 @@
 ---
 title: "Providers & Credentials"
-description: "The 25 channels, what a provider row holds, credential pools and their lifecycle, the three login flows, connection profiles, and the two probes."
+description: "Choose a channel, add providers and credentials, and configure login, allowance queries, and connections."
 ---
 
 A **channel** is the compiled-in adapter for one upstream family. A
@@ -13,7 +13,7 @@ Every write here is one transaction with the configuration revision bump, and
 the instance reloads before it notifies its peers, so a change applies to the
 next request without a restart.
 
-## The 25 Channels
+## Supported channels
 
 Only the channels compiled into your binary exist.
 `GET /admin/api/channels` answers from the binary, never from the database, and
@@ -70,7 +70,7 @@ difference is an origin and a header is a `custom` provider:
 NVIDIA NIM, Vercel AI Gateway and Cloudflare AI Gateway used to be served this
 way; each has a channel now, because a row could not say everything they need.
 
-## A Provider Row
+## Provider configuration
 
 | Field | Meaning |
 | --- | --- |

@@ -1,6 +1,6 @@
 ---
 title: "Configuration"
-description: "The five configuration sources and their order, all 25 GPROXY_* variables, the TOML file, master-key rotation, bootstrap, and the runtime settings row."
+description: "CLI configuration sources, environment variables, master keys, initial setup, and runtime settings."
 ---
 
 GPROXY reads its process configuration **once, at startup**. No module below
@@ -30,10 +30,7 @@ Every configuration flag is global, so `gproxy --port 9000 serve` and
 
 ## The Environment
 
-Every value is one flag carrying its variable name, so `gproxy --help` prints
-the variable next to the flag it shadows and this table cannot drift away from
-the program. Names that existed in v3 mean what they meant there: an upgrade is
-not a redeployment.
+Common environment variables are listed below. `gproxy --help` shows the flags and variables supported by your binary.
 
 | Variable | Flag | Default | What it is |
 | --- | --- | --- | --- |
@@ -62,6 +59,13 @@ not a redeployment.
 | `GPROXY_BOOTSTRAP_ADMIN_API_KEY` | `--admin-api-key` / `--api-key` | generated | the exact API key to mint for them |
 | `GPROXY_IMPORT_SOURCE_MASTER_KEY` | `--source-master-key` | — | `import` only: the source instance's key |
 | `GPROXY_ENV_FILE` | — | `.env` | which `.env` to load |
+| `GPROXY_UPDATE_CHANNEL` | `--update-channel` | build channel | `dev`, `beta`, or `release` |
+| `GPROXY_UPDATE_SOURCE` | `--update-source` | build source | `github` or `cnb` |
+| `GPROXY_UPDATE_MANIFEST_URL` | `--update-manifest-url` | source/channel URL | Custom signed update manifest |
+| `GPROXY_UPDATE_RESTART` | `--update-restart` | `re-exec` | After update: `none`, `supervisor` (exit 42), or `re-exec` |
+| `GPROXY_UPDATE_CHECK_INTERVAL` | `--update-check-interval` | `21600` | Check interval in seconds; `0` disables scheduled checks |
+| `GPROXY_UPDATE_AUTOMATIC` | `--update-automatic` | `false` | Automatically install scheduled updates |
+| `GPROXY_AUTOSTART` | `service install --autostart` | see command help | Service installation startup option |
 
 `GPROXY_ENV_FILE` has no flag on purpose: a flag would have to be parsed by the
 very step it feeds, so it could not affect the values the parser itself reads.
@@ -80,6 +84,9 @@ To disable auditing, set `GPROXY_AUDIT_ENABLED=false`, pass `--audit-enabled fal
 | `gproxy bootstrap admin` | Create the first administrator. Idempotent. |
 | `gproxy export --out <PATH>` | Write this instance's configuration as one JSON document. |
 | `gproxy import --in <PATH>` | Replay such a document into this instance. |
+| `gproxy update --check` | Check for an update without installing. |
+| `gproxy update` | Install an available update. |
+| `gproxy service --help` | Show service installation and management options for this platform. |
 
 `serve` stops on `SIGINT` or `SIGTERM`, draining in-flight requests first.
 **There is no shutdown timeout**: a streamed completion legitimately runs for
@@ -208,23 +215,11 @@ mistaken for a rotation that happened.
 
 ## Bootstrap
 
-A fresh database has no way in, so the first start creates one administrator,
-mints one gateway API key and prints both once, to standard output. See
-[Installation](/getting-started/installation/#run-it) for what that looks like.
+The CLI creates an administrator and gateway API key only when the users table is empty. If any user exists, initialization leaves accounts unchanged, even when `GPROXY_ADMIN_PASSWORD` is set.
 
-- **The trigger is an empty users table.** Any user at all means the instance
-  has been set up: no password is reset, no key is minted, no row is changed.
-  An operator restarting a container that still carries
-  `GPROXY_ADMIN_PASSWORD` is not asking for a password reset.
-- **Only what the operator does not already know is printed.** Supply
-  `GPROXY_ADMIN_PASSWORD` and it is used but not echoed; supply
-  `GPROXY_BOOTSTRAP_ADMIN_API_KEY` and that exact key is minted.
-- **Every write goes through the product's own operation families**, so the
-  password is validated and hashed by the product's rules and the key is
-  digested by the product's function. In v3 the bootstrap key was written with
-  hand-rolled SQL under a digest the admin API did not look it up by, and an
-  `sk-` prefixed bootstrap key answered `401` on every request. The fix is not
-  a better digest — it is having only one.
+`GPROXY_ADMIN_PASSWORD` and `GPROXY_BOOTSTRAP_ADMIN_API_KEY` supply initial values; omitted values are generated. Only generated credentials are printed, to stdout. Service managers and containers may collect stdout, so protect the first startup log.
+
+Application uses the [setup wizard](/getting-started/installation/#application-graphical-setup), not a browser initialization page.
 
 ## Moving a Configuration
 
@@ -247,7 +242,7 @@ replay order — no row appears before the row it points at:
 ```
 
 **Identity does not travel** — users, keys, organizations, teams, permissions,
-subscriptions and OAuth clients belong to the product layer — so an imported
+OAuth clients belong to the product layer — so an imported
 instance still needs its own bootstrap. Usage and captures do not travel
 either: copying them would fabricate history the destination never had.
 
@@ -322,7 +317,7 @@ The logging group is `enableDownstreamLog`, `enableDownstreamLogBody`,
 `enableUpstreamLog`, `enableUpstreamLogBody`, `disableLogRedaction`,
 `enableTracing`, `logLevel`, `logFormat` and three blacklists. The two body
 switches are off by default; see
-[Usage, Logs & Audit](/guides/observability/#captures).
+[Usage, Logs & Audit](/guides/observability/#request-logs).
 
 ## Running More Than One Instance
 

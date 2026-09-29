@@ -1,9 +1,9 @@
 ---
 title: GPROXY
-description: "用一个网关接入多个 LLM Provider：成对协议转换、带故障转移的凭证池、按请求计量，以及一张路由表之上的三个宿主。"
+description: "管理上游账户、转换 API 协议、配置模型路由，并查看用量与费用。"
 template: splash
 hero:
-  tagline: "一个网关，接入多个 LLM Provider。在 OpenAI、Claude、Gemini 线格式之间成对转换协议，池化上游凭证并自动故障转移，按请求计量与限额——而同一张路由表由原生二进制、桌面宿主和 Cloudflare Worker 共同提供。"
+  tagline: "一个入口，连接你的大模型服务。管理上游账户、转换 API 协议、配置模型路由，并查看用量与费用。"
   actions:
     - text: 安装 GPROXY
       link: /zh-cn/getting-started/installation/
@@ -20,75 +20,30 @@ hero:
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-## 文档地图
-
-<CardGrid stagger>
-	<Card title="介绍" icon="document">
-		GPROXY 做什么、接受哪些线格式、一个请求如何从调用方一路收窄到一把凭证，
-		以及 crate 与三个宿主如何组合。
-	</Card>
-	<Card title="快速上手" icon="rocket">
-		构建二进制、运行它、加一个 Provider 和一把凭证，并用每种被接受的格式
-		发送第一个请求。
-	</Card>
-	<Card title="使用指南" icon="puzzle">
-		Provider 与凭证、路由与公开名称、改写规则、提示缓存、CLI 客户端、
-		可观测性，以及新增通道。
-	</Card>
-	<Card title="参考手册" icon="seti:config">
-		每个 flag 与变量、完整的入站表、价格与分层、存储与缓存后端，
-		以及可嵌入的句柄。
-	</Card>
-</CardGrid>
-
-## 它是怎么建的
+## 从这里开始
 
 <CardGrid>
-	<Card title="一张 router，三个宿主" icon="random">
-		Workers 宿主挂载的是原生二进制服务的同一个 axum router。它新增的路由就是
-		边缘提供的路由，没有第二张表会漂走。
-	</Card>
-	<Card title="每一层都在收窄" icon="approve-check">
-		认证产出一个调用方，准入产出一个 Provider 集合和一个凭证集合，引擎拿到的
-		恰好就是这些。下层绝不重新打开上层收窄过的东西。
-	</Card>
-	<Card title="没有中间格式" icon="setting">
-		转换是两种线格式之间的直接映射。上游规范的变化速度快过任何中枢格式能跟上
-		的速度，而转换保真度正是这个产品本身。
-	</Card>
-	<Card title="没有东西绕过漏斗" icon="warning">
-		每一条到达上游的路径都经同一个出口定价、扣减与观测。绕过它的路径就是未计量
-		流量，所以那样的路径不存在。
-	</Card>
+  <LinkCard title="安装与首次设置" description="选择应用、CLI、容器或 Workers，完成账户设置。" href="/zh-cn/getting-started/installation/" />
+  <LinkCard title="发送第一个请求" description="添加供应商和凭证，配置模型路由，连接你的客户端。" href="/zh-cn/getting-started/quick-start/" />
+  <LinkCard title="从 v3 升级" description="了解自动迁移、数据保留范围和升级后的检查步骤。" href="/zh-cn/deployment/v3-to-v4/" />
+  <LinkCard title="连接 CLI 客户端" description="配置 Codex CLI、Claude Code 等工具。" href="/zh-cn/guides/cli-clients/" />
 </CardGrid>
 
-:::note[v4 从源码构建]
-目前还没有发布流水线——没有安装包、没有发布的容器镜像、也没有签名产物。见
-[安装](/zh-cn/getting-started/installation/)。
-:::
+## 常用功能
 
-## 主要路径
+<CardGrid>
+  <Card title="管理上游账户" icon="setting">
+    在一个控制台管理 API Key、OAuth 和 Cookie 凭证，查看健康状态和上游额度。
+  </Card>
+  <Card title="配置模型路由" icon="random">
+    为客户端设置固定的模型名，按权重分配请求，并配置备用供应商。
+  </Card>
+  <Card title="连接不同协议" icon="puzzle">
+    支持 OpenAI、Claude 和 Gemini API 格式及流式响应，具体操作取决于渠道和上游能力。
+  </Card>
+  <Card title="查看用量与费用" icon="document">
+    管理用户和密钥的访问权限与费用预算，查看请求记录和计费明细。
+  </Card>
+</CardGrid>
 
-<LinkCard
-	title="安装"
-	description="前置条件、构建、首次启动与数据的位置，外加桌面宿主和 Workers 宿主。"
-	href="/zh-cn/getting-started/installation/"
-/>
-
-<LinkCard
-	title="快速开始"
-	description="从一个运行中的实例到一个被计量的请求：一个 Provider、一把凭证、一条路由、一个公开名，以及它产生的用量。"
-	href="/zh-cn/getting-started/quick-start/"
-/>
-
-<LinkCard
-	title="架构"
-	description="两种装配、十六个 crate、每个问题在哪里被回答，以及不让结构漂回去的那几条规则。"
-	href="/zh-cn/introduction/architecture/"
-/>
-
-<LinkCard
-	title="路由与端点"
-	description="完整的入站表、挂载点语法、OAuth 与管理路由，以及失败转移预算。"
-	href="/zh-cn/reference/routing-table/"
-/>
+需要了解内部实现时，参阅[架构](/zh-cn/introduction/architecture/)和[嵌入核心库](/zh-cn/reference/embedding/)。

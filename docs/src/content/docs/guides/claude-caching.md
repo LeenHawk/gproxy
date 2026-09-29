@@ -1,18 +1,29 @@
 ---
 title: Prompt Caching
-description: "How GPROXY v4 places prompt cache breakpoints: the three magic strings, which channels honour them, where each dialect puts a marker, and how cached tokens are priced."
+description: "Configure prompt caching with breakpoint rules or magic strings, and inspect usage and pricing."
 ---
 
-A prompt cache matches an exact prefix, so caching pays off when long, stable
-instructions come before the text that changes on every turn. Placing the
-breakpoint is the client's job — except that many clients cannot do it, because
-their request shape has no field for one.
+Prompt caching is provided by the upstream. Hits depend on the model, prompt prefix, and TTL. GPROXY can add markers through cache breakpoint rules or magic strings in prompts. Markers do not guarantee a hit or add caching support to an upstream that lacks it.
 
-For those, GPROXY reads a **magic string** embedded in prompt text. That is the
-whole mechanism in v4: there is no `cache_breakpoint` rule kind and there are
-no cache presets. Both existed in v3 and neither was ported.
+## Add a cache breakpoint in the console
 
-## The Three Strings
+Add a cache breakpoint rule on the provider's rewrite page. Select the upstream protocol and a global, system, or message target. Claude also supports tools. For a local target, positive indices start at 1, negative indices count from the end, and a blank index selects the last available position.
+
+Claude offers default, 5-minute, and 1-hour TTLs. OpenAI offers default and 30-minute TTLs. Actual behavior depends on the upstream. Select the protocol used after conversion; Gemini is not supported by this rule type.
+
+For API configuration, use `action: "cache_breakpoint"` and a JSON-encoded configuration string in `replacement`, for example:
+
+```json
+{"dialect":"claude","target":"message","index":-1,"ttl":"5m"}
+```
+
+This rule runs on the request body in the configured rewrite order. Clients that can set native cache fields may also use the upstream's supported fields directly.
+
+## Use magic strings
+
+Clients without cache controls can include the following strings in prompt text and enable the provider's matching magic-cache option.
+
+### The three strings
 
 ```text
 GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH
