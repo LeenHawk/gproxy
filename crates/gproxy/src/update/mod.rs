@@ -542,6 +542,11 @@ impl Updater {
     ) -> Outcome<manifest::Manifest> {
         let url = self.options.manifest_url(channel, source);
         let manifest = download::manifest(&self.client, &url, self.signing_key.as_deref()).await?;
+        if channel == Channel::Release && manifest.channel == "releases" {
+            return Err(UpdateError::Configuration(
+                "this source still offers a v3 stable release; select the dev channel for v4 preview builds".into(),
+            ));
+        }
         if manifest.channel != channel.as_str() {
             return Err(UpdateError::WrongChannel {
                 expected: channel.as_str(),
@@ -894,20 +899,20 @@ mod tests {
             checked_at_ms: 1,
         };
         updater.record(Ok(report));
-        updater.record(Err(&UpdateError::Download));
+        updater.record(Err(&UpdateError::Download("test failure".into())));
 
         let schedule = updater.recorded();
         assert_eq!(schedule.last_check.unwrap().latest, "4.1.0");
         assert_eq!(
             schedule.last_error.as_deref(),
-            Some("update download failed")
+            Some("update download failed: test failure")
         );
     }
 
     #[test]
     fn a_later_success_clears_the_failure() {
         let updater = updater(UpdateOptions::default());
-        updater.record(Err(&UpdateError::Download));
+        updater.record(Err(&UpdateError::Download("test failure".into())));
         assert!(updater.recorded().last_error.is_some());
         updater.record(Ok(UpdateReport {
             current: "4.0.0".into(),

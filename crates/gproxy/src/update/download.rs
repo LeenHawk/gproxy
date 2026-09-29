@@ -43,7 +43,7 @@ pub(super) fn client() -> Result<reqwest::Client, UpdateError> {
         .connect_timeout(std::time::Duration::from_secs(10))
         .timeout(std::time::Duration::from_secs(600))
         .build()
-        .map_err(|_| UpdateError::Download)
+        .map_err(download_error)
 }
 
 pub(super) async fn manifest(
@@ -51,16 +51,21 @@ pub(super) async fn manifest(
     url: &str,
     key: Option<&str>,
 ) -> Result<Manifest, UpdateError> {
+    let key = key.ok_or(UpdateError::NoSigningKey)?;
     let response = client
         .get(url)
+        .timeout(std::time::Duration::from_secs(30))
         .send()
         .await
-        .map_err(|_| UpdateError::Download)?;
+        .map_err(download_error)?;
     if !response.status().is_success() {
-        return Err(UpdateError::Download);
+        return Err(UpdateError::Download(format!(
+            "manifest returned HTTP {}; check whether the selected source has published this channel",
+            response.status().as_u16()
+        )));
     }
-    let bytes = response.bytes().await.map_err(|_| UpdateError::Download)?;
-    Manifest::parse_verified(&bytes, key)
+    let bytes = response.bytes().await.map_err(download_error)?;
+    Manifest::parse_verified(&bytes, Some(key))
 }
 
 pub(super) async fn artifact(
@@ -72,12 +77,15 @@ pub(super) async fn artifact(
         .get(&artifact.url)
         .send()
         .await
-        .map_err(|_| UpdateError::Download)?;
+        .map_err(download_error)?;
     if !response.status().is_success() {
-        return Err(UpdateError::Download);
+        return Err(UpdateError::Download(format!(
+            "artifact returned HTTP {}",
+            response.status().as_u16()
+        )));
     }
     let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await.map_err(|_| UpdateError::Download)? {
+    while let Some(chunk) = response.chunk().await.map_err(download_error)? {
         if (bytes.len() as u64).saturating_add(chunk.len() as u64) > artifact.size {
             return Err(UpdateError::Integrity);
         }
@@ -108,6 +116,16 @@ pub(super) fn hex(bytes: &[u8]) -> String {
         write!(output, "{byte:02x}").expect("writing to a String cannot fail");
     }
     output
+}
+
+fn download_error(error: reqwest::Error) -> UpdateError {
+    UpdateError::Download(if error.is_timeout() {
+        "request timed out; check the network or system proxy".into()
+    } else if error.is_connect() {
+        "could not connect to the update source; check the network or system proxy".into()
+    } else {
+        error.without_url().to_string()
+    })
 }
 
 #[cfg(test)]

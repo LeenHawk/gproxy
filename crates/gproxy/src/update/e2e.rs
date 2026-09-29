@@ -370,6 +370,21 @@ async fn a_manifest_for_another_channel_is_refused_even_though_it_is_signed() {
         "{error}"
     );
     assert_eq!(release.downloads(), 0);
+
+    let legacy = Release::publish(Broken {
+        channel: Some("releases"),
+        ..Broken::default()
+    })
+    .await;
+    let error = legacy
+        .default_updater()
+        .check_now(None, None)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(&error, UpdateError::Configuration(message) if message.contains("v3 stable release"))
+    );
+    assert_eq!(legacy.downloads(), 0);
 }
 
 #[tokio::test]
