@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge"
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
@@ -37,7 +38,7 @@ function CredentialCollection({ provider }: { provider: CredentialProviderDto })
       if (!provider.enabled) return Promise.reject(new Error(t("management.disabled")))
       return credentials.create({ ...body, providerId: provider.id })
     }} rowId={row => row.id} rowLabel={row => row.label ?? row.id} searchable
-      columns={[{ key: "label", cell: row => row.label ?? row.id }, { key: "authKind", cell: row => row.authKind }, { key: "connectionProfileId", cell: row => profiles.data?.find(profile => profile.id === row.connectionProfileId)?.name ?? row.connectionProfileId ?? t("form.unset") }, { key: "expiresAtMs", cell: row => <InstantCell value={row.expiresAtMs} /> }, { key: "status", cell: row => t(`values.${row.status}`) }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
+      columns={[{ key: "label", cell: row => row.label ?? row.id }, { key: "authKind", cell: row => row.authKind }, { key: "connectionProfileId", cell: row => profiles.data?.find(profile => profile.id === row.connectionProfileId)?.name ?? row.connectionProfileId ?? t("form.unset") }, { key: "expiresAtMs", cell: row => <InstantCell value={row.expiresAtMs} /> }, { key: "status", cell: row => <Badge variant={row.status === "dead" ? "destructive" : "success"}>{t(`values.${row.status}`)}</Badge> }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
       fields={credentialFields} renderForm={props => <CredentialForm {...props} providerId={provider.id} />} onOpen={row => setDetail({ row, tab: "basic" })} onEdit={row => setDetail({ row, tab: "basic" })}
       rowActions={row => <><Button variant="ghost" size="sm" onClick={() => setDetail({ row, tab: "upstream" })}>{t("limits.upstream")}</Button><Button variant="ghost" size="sm" disabled={!provider.enabled || !row.hasSecret} onClick={() => setTesting(row)}>{t("providers.models.test")}</Button></>}
     />
