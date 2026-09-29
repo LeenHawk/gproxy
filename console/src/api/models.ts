@@ -15,3 +15,4 @@ export const defaultModels = () => api<DefaultModelCatalogDto>("/admin/api/defau
 export const applyDefaultPrices = (providerId: string | null, modelIds: string[]) => api<ApplyDefaultPricesReportDto>("/admin/api/default-model-catalog/apply-prices", json("POST", { providerId, modelIds, overwrite: false }))
 
 export const models = family<ModelDto, Partial<ModelWrite>, Partial<ModelPatch>>("/models")
+export const openrouterModels = () => api<DiscoveredModelDto[]>("/admin/api/models/openrouter")

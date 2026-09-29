@@ -628,6 +628,7 @@ const TABLE: &[(Method, &str)] = &[
     (Method::PATCH, "/admin/api/models/x"),
     (Method::DELETE, "/admin/api/models/x"),
     (Method::POST, "/admin/api/models/discover"),
+    (Method::GET, "/admin/api/models/openrouter"),
     (Method::POST, "/admin/api/models/discover/apply"),
     (Method::POST, "/admin/api/models/test"),
     (Method::GET, "/admin/api/provider-models"),
@@ -760,7 +761,28 @@ async fn every_configuration_route_is_reachable() {
             "{method} {path} did not reach the guarded surface: {}",
             anonymous.text()
         );
+        if *path == "/admin/api/models/openrouter" {
+            host.client.push(support::Reply::Http(
+                StatusCode::OK,
+                json!({"data": [{
+                    "id": "vendor/remote-model", "name": "Remote model", "context_length": 32000,
+                    "architecture": {"input_modalities": ["text", "image"]},
+                    "top_provider": {"max_completion_tokens": 4096}
+                }]}),
+            ));
+        }
         let authenticated = host.send(keyed(request(method.clone(), path), KEY)).await;
+        if *path == "/admin/api/models/openrouter" {
+            assert_eq!(authenticated.status, StatusCode::OK);
+            let rows = authenticated.json();
+            assert_eq!(rows[0]["upstreamName"], "remote-model");
+            assert_eq!(rows[0]["metadata"]["context_window"], 32000);
+            assert_eq!(rows[0]["metadata"]["max_output_tokens"], 4096);
+            assert_eq!(
+                rows[0]["metadata"]["input_modalities"],
+                json!(["text", "image"])
+            );
+        }
         assert_ne!(
             authenticated.status,
             StatusCode::METHOD_NOT_ALLOWED,
