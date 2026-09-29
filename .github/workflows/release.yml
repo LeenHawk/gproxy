@@ -398,12 +398,7 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/leenhawk/gproxy-build-riscv64:buildcache
           cache-to: type=registry,ref=ghcr.io/leenhawk/gproxy-build-riscv64:buildcache,mode=max
 
-  riscv:
-    name: Cross packages (${{ matrix.target }})
-    needs: [prepare, console, riscv-toolchain]
-    runs-on: ubuntu-latest
-    environment: release
-    ohos-toolchain:
+  ohos-toolchain:
     name: Cached OHOS toolchain image
     concurrency:
       group: gproxy-ohos-toolchain
@@ -566,7 +561,12 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  container:
+  riscv:
+    name: Cross packages (${{ matrix.target }})
+    needs: [prepare, console, riscv-toolchain]
+    runs-on: ubuntu-latest
+    environment: release
+    container:
       image: ghcr.io/leenhawk/gproxy-build-riscv64:${{ github.sha }}
       credentials:
         username: ${{ github.actor }}
