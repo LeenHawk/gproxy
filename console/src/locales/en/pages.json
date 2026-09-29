@@ -252,6 +252,8 @@
     "preferred_max_latency": "Preferred maximum latency"
   },
   "providerForm": {
+    "autoRefreshModels": "Refresh model suggestions from upstream",
+    "autoRefreshModelsHelp": "When configuring route members, fetch current upstream models. Turn off to use only saved models.",
     "dynamicAddress": "Chosen automatically from channel settings or credentials",
     "displayName": "Display name",
     "routeName": "Route name",
@@ -930,6 +932,8 @@
     "metrics": "Upstream usage data"
   },
   "modelRoutes": {
+    "modelsFallback": "Could not refresh upstream models. Showing saved models; you can still enter any model ID.",
+    "modelsLoading": "Loading upstream models…",
     "modelName": "Model name"
   },
   "setup": {

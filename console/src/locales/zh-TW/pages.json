@@ -252,6 +252,8 @@
     "preferred_max_latency": "最高延遲偏好"
   },
   "providerForm": {
+    "autoRefreshModels": "從上游重新整理模型候選",
+    "autoRefreshModelsHelp": "設定路由成員時取得最新上游模型；關閉後僅使用已儲存的模型。",
     "dynamicAddress": "依渠道設定或憑證自動選擇",
     "displayName": "顯示名稱",
     "routeName": "路由名稱",
@@ -930,6 +932,8 @@
     "metrics": "上游用量資料"
   },
   "modelRoutes": {
+    "modelsFallback": "上游模型重新整理失敗，已退回儲存的模型；仍可手動輸入任意模型 ID。",
+    "modelsLoading": "正在載入上游模型…",
     "modelName": "模型名稱"
   },
   "setup": {

@@ -3,7 +3,8 @@ import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { configFamily } from "@/api/config-family"
-import { credentialDirectory } from "@/api/credentials"
+import { providers as providerFamily } from "@/api/configuration"
+import { directory } from "@/api/models"
 import type { RouteDto, RouteWrite, RoutePatch, RouteMemberDto, RouteMemberWrite, RouteMemberPatch } from "@/generated/sdk"
 import { CollectionPage } from "@/pages/identity/collection"
 import { ManagementDialog } from "@/components/management-dialog"
@@ -25,7 +26,7 @@ export function ModelRoutesPage() {
   </>
 }
 function RouteDetails({ route, onClose }: { route: RouteDto; onClose: () => void }) {
-  const providers = useQuery({ queryKey: ["credential-providers"], queryFn: credentialDirectory })
+  const providers = useQuery({ queryKey: ["admin", "/providers", "directory"], queryFn: () => directory(providerFamily) })
   return <ManagementDialog title={route.name} onClose={onClose}><QueryState isPending={providers.isPending} error={providers.error}>
     <CollectionPage renderForm={props => props.open ? <MemberForm original={props.original} providers={providers.data ?? []} onSubmit={props.onSubmit} onClose={() => props.onOpenChange(false)} pending={props.pending} error={props.error} /> : null} embedded id="route-members" family={members} filter={{ routeId: route.id }} create={body => members.create({ ...body, routeId: route.id })} rowId={row => row.id} rowLabel={row => row.upstreamModel}
       columns={[{ key: "providerId", cell: row => providers.data?.find(provider => provider.id === row.providerId)?.name ?? row.providerId }, { key: "upstreamModel", cell: row => row.upstreamModel }, { key: "tier", cell: row => row.tier }, { key: "weight", cell: row => row.weight }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
