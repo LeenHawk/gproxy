@@ -43,7 +43,7 @@ export function ModelCatalogPage() {
   const bindings = useQuery({ queryKey: ["admin", "/provider-models", "directory"], queryFn: () => directory(providerModels) })
   const prices = useQuery({ queryKey: ["admin", "/price-rules", "global"], queryFn: () => directory(priceRules) })
   const [search, setSearch] = useState("")
-  const { page, pageSize, setPage, setPageSize } = usePagination()
+  const { page, pageSize, setPage, setPageSize } = usePagination("model-catalog")
   const [editing, setEditing] = useState<Row | null>(null), [detail, setDetail] = useState<Row | null>(null), [pricing, setPricing] = useState<string | null>(null)
   const rows = useMemo(() => {
     const attached = new Set<string>()

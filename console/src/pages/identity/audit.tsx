@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input"
 
 export function AuditPage() {
   const { t } = useTranslation()
-  const { page, pageSize, setPage, setPageSize } = usePagination()
+  const { page, pageSize, setPage, setPageSize } = usePagination("audit")
   const [action, setAction] = useState("")
   const [actor, setActor] = useState("")
 

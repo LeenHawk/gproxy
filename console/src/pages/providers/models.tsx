@@ -34,7 +34,7 @@ export function ProviderModels({ provider }: { provider: ProviderDto }) {
   const [importing, setImporting] = useState<"models" | "metadata" | null>(null)
   const [credentialId, setCredentialId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
-  const { page, pageSize, setPage, setPageSize } = usePagination()
+  const { page, pageSize, setPage, setPageSize } = usePagination("provider-models")
   const behavior = useQuery({ queryKey: ["model-variant-rules", editing?.id], queryFn: () => variantRules(editing!.id), enabled: !!editing })
   const refresh = () => Promise.all([client.invalidateQueries({ queryKey: ["admin", "/provider-models"] }), client.invalidateQueries({ queryKey: ["admin", "/price-rules"] }), client.invalidateQueries({ queryKey: ["admin", "/rules"] }), client.invalidateQueries({ queryKey: ["admin", "/rule-sets"] }), client.invalidateQueries({ queryKey: ["model-variant-rules"] })])
   const save = useMutation({ mutationFn: async (value: ModelSave) => {

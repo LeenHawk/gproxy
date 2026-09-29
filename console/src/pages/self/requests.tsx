@@ -29,7 +29,7 @@ export function RequestsPage() {
     <Page>
       <PageHeader title={t("nav.requests")} />
       <QueryState isPending={list.isPending} error={list.error}>
-        <DataTable paginate
+        <DataTable storageKey="self-requests" paginate
           columns={[
             { key: "startedAtMs", cell: (row) => <InstantCell value={row.startedAtMs} /> },
             { key: "model", cell: (row) => <MaybeCell value={row.model} mono /> },

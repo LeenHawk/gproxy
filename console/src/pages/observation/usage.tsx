@@ -24,7 +24,7 @@ export function GlobalUsagePage() {
 function UsageRecords({ filter }: { filter: HistoryFilter }) {
   const { t, i18n } = useTranslation()
   const [requestId, setRequestId] = useState("")
-  const { page, pageSize, setPage, setPageSize } = usePagination()
+  const { page, pageSize, setPage, setPageSize } = usePagination("usage-records")
   const [selected, setSelected] = useState<UsageRecordDto | null>(null)
   const records = useQuery({ queryKey: ["admin", "usage-records", filter, requestId, page, pageSize], queryFn: () => history.records({ ...filter, requestId, page, pageSize }) })
   return <div className="flex flex-col gap-6">

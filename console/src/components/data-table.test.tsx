@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
@@ -16,6 +16,8 @@ async function size(value: string) {
 }
 
 describe("list pagination", () => {
+  beforeEach(() => localStorage.clear())
+
   it("does not paginate settings or reference tables unless explicitly requested", () => {
     render(<DataTable rows={rows} columns={columns} rowKey={row => row.id} empty="Empty" />)
     expect(count()).toBe(51)

@@ -70,7 +70,7 @@ export function CollectionPage<D, W, P>({
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
   const client = useQueryClient()
-  const { page, pageSize, setPage, setPageSize } = usePagination()
+  const { page, pageSize, setPage, setPageSize } = usePagination(family.path)
   const [search, setSearch] = useState("")
   const [editing, setEditing] = useState<D | null>(null)
   const [creating, setCreating] = useState(false)

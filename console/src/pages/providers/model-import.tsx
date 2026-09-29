@@ -19,7 +19,7 @@ export function ModelImportDialog({ mode, providerId, models, onClose, onSaved }
   const { t } = useTranslation()
   const [credentialId, setCredentialId] = useState<string | null>(null)
   const [search, setSearch] = useState(""), [selected, setSelected] = useState<Set<string>>(new Set()), [prices, setPrices] = useState(true)
-  const { page, pageSize, setPage, setPageSize } = usePagination(search)
+  const { page, pageSize, setPage, setPageSize } = usePagination("model-import", search)
   const catalog = useQuery({ queryKey: ["default-model-catalog"], queryFn: defaultModels })
   const discovery = useQuery({ queryKey: ["discover-models", providerId, credentialId], queryFn: () => discoverModels(providerId, credentialId), enabled: mode === "models", retry: false, staleTime: 0 })
   const rows = mode === "models" ? (discovery.data ?? []).map(m => ({ name: m.upstreamName, metadata: m.metadata, price: m.hasDefaultPrice })) : models.flatMap(model => {

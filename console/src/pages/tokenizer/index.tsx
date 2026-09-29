@@ -141,7 +141,7 @@ export function TokenizerPage() {
         <ErrorNotice error={changeDefault.error ?? remove.error ?? settings.error ?? models.error} />
       ) : null}
       <QueryState isPending={list.isPending} error={list.error}>
-        <DataTable paginate resetPageKey={search}
+        <DataTable storageKey="tokenizers" paginate resetPageKey={search}
           rows={rows}
           rowKey={(row) => row.fileId}
           empty={<EmptyNotice title={t("tokenizer.empty")} />}
