@@ -372,7 +372,6 @@
     "allModels": "All models",
     "advancedBindings": "Advanced: rule set bindings",
     "inactive": "This group of rules is disabled",
-    "manage": "Manage rules",
     "title": "Rules · {{name}}",
     "preset": "Choose a preset",
     "apply": "Apply preset",
@@ -455,7 +454,10 @@
       "request": "Request",
       "response": "Response",
       "both": "Request and response"
-    }
+    },
+    "selectSet": "Select a rule set to view its rules.",
+    "providerCount": "{{count}} providers",
+    "orderHint": "Rules follow rule set binding order, then the order within each set. Move up/down changes the order within a set."
   },
   "update": {
     "source": "Update source",

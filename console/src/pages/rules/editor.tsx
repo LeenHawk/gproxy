@@ -5,12 +5,11 @@ import { toast } from "sonner"
 import { applyPreset, bindings, ensureProviderDefaultSet, providerDefaultSetId, rulePresets, rules } from "@/api/routing-rules"
 import { directory } from "@/api/models"
 import type { ProviderRuleSetDto, RewriteRuleDto, RewriteRuleWrite, RuleSetDto } from "@/generated/sdk"
-import { DataTable } from "@/components/data-table"
-import { BoolCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
 import { EmptyNotice, ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FieldDescription, FieldGroup } from "@/components/ui/field"
 import { RuleForm, RuleSelect, type SetChoice } from "./rule-form"
@@ -28,7 +27,7 @@ export function RulesEditor({ sets, availableSets = sets, attachments = [], prov
   const [showPresets, setShowPresets] = useState(false)
   const lists = useQueries({ queries: sets.map(set => ({ queryKey: ["admin", "/rules", set.id, "editor"], queryFn: () => directory(rules, { ruleSetId: set.id }) })) })
   const rows = lists.flatMap(list => [...(list.data ?? [])].sort(ordered))
-  const choices: SetChoice[] = availableSets.map(set => ({ id: set.id, name: set.id === defaultSetId ? t("rules.defaultSet", { name: set.name }) : set.name, shared: new Set([...allAttachments.filter(binding => binding.ruleSetId === set.id).map(binding => binding.providerId), ...(providerId ? [providerId] : [])]).size > 1 }))
+  const choices: SetChoice[] = availableSets.map(set => ({ id: set.id, name: providerId && set.id === defaultSetId ? t("rules.defaultSet", { name: set.name }) : set.name, shared: new Set([...allAttachments.filter(binding => binding.ruleSetId === set.id).map(binding => binding.providerId), ...(providerId ? [providerId] : [])]).size > 1 }))
   if (!choices.some(set => set.id === defaultSetId)) choices.unshift({ id: defaultSetId, name: t("rules.defaultSet", { name: providerName }) })
   const invalidate = () => Promise.all(["/rules", "/rule-sets", "/provider-rule-sets"].map(path => client.invalidateQueries({ queryKey: ["admin", path] })))
   const ensureTarget = async (setId: string) => {
@@ -74,16 +73,19 @@ export function RulesEditor({ sets, availableSets = sets, attachments = [], prov
     <div className="mb-4 flex flex-wrap gap-2"><Button disabled={busy} onClick={() => { save.reset(); setEditing("new") }}>{t("create.rules")}</Button><Button variant="outline" disabled={busy} onClick={() => { apply.reset(); setShowPresets(true) }}>{t("rules.applyPreset")}</Button></div>
     {remove.error || move.error ? <ErrorNotice error={remove.error ?? move.error} /> : null}
     <QueryState isPending={lists.some(list => list.isPending)} error={lists.find(list => list.error)?.error}>
-      <DataTable rows={rows} rowKey={row => row.id} empty={<EmptyNotice title={t("rules.empty")} />} columns={[
-        { key: "type", header: t("rules.ruleType"), cell: row => t(`rules.types.${ruleKind(row)}`) },
-        { key: "rule", header: t("rules.content"), cell: row => <span className="block max-w-lg truncate" title={summary(row)}>{summary(row)}</span> },
-        { key: "ruleSetId", cell: row => <span className="inline-flex flex-wrap items-center gap-2">{choices.find(set => set.id === row.ruleSetId)?.name}{choices.find(set => set.id === row.ruleSetId)?.shared ? <Badge variant="outline">{t("rules.shared")}</Badge> : null}</span> },
-        { key: "phase", cell: row => t(`rules.options.${row.phase}`) },
-        { key: "enabled", cell: row => <span className="inline-flex items-center gap-2"><BoolCell value={row.enabled} />{row.enabled && !active(row) ? <Badge variant="outline">{t("rules.inactive")}</Badge> : null}</span> },
-      ]} actions={row => {
+      <p className="mb-3 text-xs text-muted-foreground">{t("rules.orderHint")}</p>
+      {rows.length ? <ol className="flex flex-col gap-3">{rows.map((row, index) => {
         const group = rows.filter(rule => rule.ruleSetId === row.ruleSetId)
-        return <><Button variant="ghost" size="sm" disabled={busy || group[0].id === row.id} onClick={() => move.mutate({ row, delta: -1 })}>{t("management.moveUp")}</Button><Button variant="ghost" size="sm" disabled={busy || group.at(-1)?.id === row.id} onClick={() => move.mutate({ row, delta: 1 })}>{t("management.moveDown")}</Button><Button variant="ghost" size="sm" disabled={busy} onClick={() => { save.reset(); setEditing(row) }}>{t("actions.edit")}</Button><ConfirmButton disabled={busy} title={t("confirm.deleteTitle", { name: summary(row) })} onConfirm={() => remove.mutate(row.id)}>{t("actions.delete")}</ConfirmButton></>
-      }} />
+        const source = choices.find(set => set.id === row.ruleSetId)
+        return <li key={row.id}><Card size="sm">
+          <CardHeader><CardTitle headingLevel={3}><span className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{index + 1}</Badge>{t(`rules.types.${ruleKind(row)}`)}<Badge variant="outline">{t(`rules.options.${row.phase}`)}</Badge>{!row.enabled ? <Badge variant="outline">{t("values.disabled")}</Badge> : !active(row) ? <Badge variant="outline">{t("rules.inactive")}</Badge> : null}</span></CardTitle></CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <p className="whitespace-pre-wrap break-words text-sm" aria-label={t("rules.content")}>{summary(row)}</p>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><span>{source?.name}</span>{source?.shared ? <Badge variant="outline">{t("rules.shared")}</Badge> : null}<span>{row.filterModelPattern || t("rules.allModels")}</span></div>
+          </CardContent>
+          <CardFooter className="flex flex-wrap justify-end gap-1"><Button variant="ghost" size="sm" disabled={busy || group[0].id === row.id} onClick={() => move.mutate({ row, delta: -1 })}>{t("management.moveUp")}</Button><Button variant="ghost" size="sm" disabled={busy || group.at(-1)?.id === row.id} onClick={() => move.mutate({ row, delta: 1 })}>{t("management.moveDown")}</Button><Button variant="ghost" size="sm" disabled={busy} onClick={() => { save.reset(); setEditing(row) }}>{t("actions.edit")}</Button><ConfirmButton disabled={busy} title={t("confirm.deleteTitle", { name: summary(row) })} onConfirm={() => remove.mutate(row.id)}>{t("actions.delete")}</ConfirmButton></CardFooter>
+        </Card></li>
+      })}</ol> : <EmptyNotice title={t("rules.empty")} />}
     </QueryState>
     {editing !== null ? <RuleForm key={editing === "new" ? "new" : editing.id} original={editing === "new" ? undefined : editing} choices={choices} defaultSetId={defaultSetId} pending={save.isPending} error={save.error} onClose={() => setEditing(null)} onSubmit={write => save.mutate(write)} /> : null}
     {showPresets ? <PresetDialog choices={choices} defaultSetId={defaultSetId} pending={apply.isPending} error={apply.error} onClose={() => setShowPresets(false)} onSubmit={(setId, preset) => apply.mutate({ setId, preset })} /> : null}

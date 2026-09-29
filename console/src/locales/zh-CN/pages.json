@@ -372,7 +372,6 @@
     "allModels": "所有模型",
     "advancedBindings": "高级：规则集关联",
     "inactive": "此组规则未启用",
-    "manage": "管理规则",
     "title": "规则 · {{name}}",
     "preset": "选择预设",
     "apply": "应用预设",
@@ -455,7 +454,10 @@
       "request": "请求",
       "response": "响应",
       "both": "请求和响应"
-    }
+    },
+    "selectSet": "选择规则集，查看其中的规则。",
+    "providerCount": "{{count}} 个供应商",
+    "orderHint": "规则按规则集关联顺序、组内顺序排列；上移/下移仅调整组内顺序。"
   },
   "update": {
     "source": "更新源",

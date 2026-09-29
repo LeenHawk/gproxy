@@ -372,7 +372,6 @@
     "allModels": "所有模型",
     "advancedBindings": "進階：規則集關聯",
     "inactive": "此組規則未啟用",
-    "manage": "管理規則",
     "title": "規則 · {{name}}",
     "preset": "選擇預設",
     "apply": "套用預設",
@@ -455,7 +454,10 @@
       "request": "請求",
       "response": "回應",
       "both": "請求和回應"
-    }
+    },
+    "selectSet": "選擇規則集，查看其中的規則。",
+    "providerCount": "{{count}} 個供應商",
+    "orderHint": "規則依規則集關聯順序、組內順序排列；上移/下移僅調整組內順序。"
   },
   "update": {
     "source": "更新來源",
