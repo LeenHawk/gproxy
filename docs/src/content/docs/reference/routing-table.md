@@ -244,8 +244,7 @@ DELETE /admin/api/{family}/{id}      delete    → 204
 ```
 
 **Identity** families: `users`, `api-keys`, `organizations`, `teams`,
-`permissions`, `rate-limits`, `subscriptions`, `pools`, `pool-members`,
-`plans`, `plan-limits`. `oauth-clients` has the first four plus
+`permissions`, `rate-limits`. Organization and team memberships have their own endpoints. `oauth-clients` has the first four plus
 `POST …/{id}/retire` instead of a delete — the grants a client issued still
 name it.
 
@@ -272,14 +271,7 @@ Beyond the five: `settings`, the credential operations (`reveal`, `status`,
 `channels`, `tls-presets`, `rule-presets`, `default-model-catalog`,
 `tokenizer-vocabs`, `tokenizer-auth`, `session`, `sessions` and `audit`.
 
-Where v3 had the same operation the path is v3's, so an operator's scripts
-survive. New in v4: `/connection-profiles`, `/operation-rules`, `/operation-endpoints`,
-`/price-tiers`, a single `/settings` (v3 split it in two), and
-`/{family}/batch` (v3 had `/batch/{entity}`). The middleware runs authenticate
-→ **require the instance administrator** → same-origin for an unsafe cookie
-request → the operation → an audit row for every method that is not a read. It
-is a route layer, so an unknown `/admin/api/*` path is a 404 that never touches
-the database.
+Management payloads and behavior have changed in v4; check older scripts against the current API. See [Usage, logs, and audit](/guides/observability/) for instance-wide history endpoints.
 
 ## Portal Routes
 

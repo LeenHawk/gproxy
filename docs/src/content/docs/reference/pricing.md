@@ -217,13 +217,10 @@ otherwise serving traffic.
 ## Budgets Spend the Result
 
 A budget is a `quotas` row whose metric is `cost` in USD. Admission hands the
-engine the caller's chain — `[api_key?, user, subscription?, team?, org?]` —
+engine the caller's chain — `[api_key?, user, team?, org?]` —
 and **every** enabled budget of **any** owner in the chain applies.
 
-There is no pre-charge and no estimate. Cost is known when the exchange ends,
-so a budget can be overrun by **at most one request**, and that is the accepted
-price of never having to roll one back. See
-[Usage, Logs & Audit](/guides/observability/#quotas-and-budgets).
+Costs settle after the upstream call. In-flight and concurrent requests may exceed a budget. See [Permissions, rate limits, and budgets](/guides/permissions/) for ownership and checks.
 
 ## Token Estimation
 

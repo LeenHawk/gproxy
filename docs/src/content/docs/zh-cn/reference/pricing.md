@@ -191,12 +191,10 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/default-model-catalog/apply-pric
 ## 预算花的是这个结果
 
 一个预算就是一行 metric 为 `cost`、unit 为 USD 的 `quotas`。准入把调用方的链
-`[api_key?, user, subscription?, team?, org?]` 交给引擎，而链上**任何** owner 的**每一个**
+`[api_key?, user, team?, org?]` 交给引擎，而链上**任何** owner 的**每一个**
 启用预算都适用。
 
-没有预扣、没有预估。费用在交换结束时才知道，所以预算**最多被超出一个请求**，而这正是
-永远不必回滚的代价。见
-[用量、日志与审计](/zh-cn/guides/observability/#配额与预算)。
+费用在上游调用结束后结算，在途请求和并发调用可能使预算超出上限。预算归属与检查方式见[权限、限流与费用预算](/zh-cn/guides/permissions/)。
 
 ## Token 估算
 

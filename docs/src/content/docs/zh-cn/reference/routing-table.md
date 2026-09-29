@@ -146,7 +146,7 @@ realtime 会话**绝不被转换**：只有同方言直通，因为一个能在�
 ### 有歧义的那几条路径
 
 `/v1/models`、`/v1/models/{id}` 和 `/v1/files` 被 OpenAI、Claude 和 Gemini 的 v1 surface
-拼成了同一个样子。方言决定向转换器要哪一套线类型，猜错就是客户端解析不了的 body。
+拼成了同一个样子。方言决定向转换器要哪一套协议类型，猜错就是客户端解析不了的 body。
 
 判别依据是**客户端自己的认证 header**——`x-goog-api-key` 是 Gemini 的、`anthropic-version`
 是 Claude 的——因为那是客户端主动提供的关于它自己的证据，而不是本网关发明的默认值。没有
@@ -217,7 +217,7 @@ DELETE /admin/api/{family}/{id}      删除    → 204
 ```
 
 **身份**家族：`users`、`api-keys`、`organizations`、`teams`、`permissions`、
-`rate-limits`、`subscriptions`、`pools`、`pool-members`、`plans`、`plan-limits`。
+`rate-limits`。组织和团队成员通过各自的成员接口管理。
 `oauth-clients` 有前四条，外加 `POST …/{id}/retire` 取代删除——一个客户端签发过的授权还
 指着它。
 
@@ -243,11 +243,9 @@ POST /admin/api/{family}/batch
 `default-model-catalog`、`tokenizer-vocabs`、`tokenizer-auth`、`session`、`sessions`
 和 `audit`。
 
-v3 有同样操作的地方路径沿用 v3 的，所以运维者的脚本还能用。v4 新增的：`/connection-profiles`、`/operation-rules`、`/operation-endpoints`、
-`/price-tiers`、单一的 `/settings`（v3 拆成两个），以及 `/{family}/batch`（v3 是
-`/batch/{entity}`）。
+v4 的管理请求与数据结构已有变化，旧脚本应按本页接口重新核对。实例级用量和日志接口见[用量、日志与审计](/zh-cn/guides/observability/)。
 
-中间件依次是：认证 → **要求实例管理员** → 对不安全的 cookie 请求做同源校验 → 操作 →
+中间件依次是：认证 → **检查管理范围与操作权限** → 对不安全的 cookie 请求做同源校验 → 操作 →
 为每个不是读的方法写一行审计。它是一个 route layer，因此未知的 `/admin/api/*` 路径是一个
 根本不碰数据库的 404。
 
@@ -278,7 +276,7 @@ POST   /portal/api/oauth/device      批准或拒绝；需要登录会话或带�
 
 ## 解析与失败转移预算
 
-四种名字形式与排序见[模型、路由与公开名称](/zh-cn/guides/models/)。预算：
+四种名字形式与排序见[模型与路由](/zh-cn/guides/models/)。预算：
 
 - 它是路由自己的 `maxAttempts`，被 `settings.maxAttempts` 钳住；
 - 它**跨目标共享**：每个目标最多拿到自己凭证数那么多次、且不超过剩余额度，因此一个计划的

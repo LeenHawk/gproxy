@@ -3,13 +3,17 @@ title: Console and Scoped Administration
 description: "Manage credentials, upstream sign-in, routes, quotas, pricing and configuration transfer in the v4 Console."
 ---
 
-The v4 Console is served at `/console`. One application contains personal
+The CLI / container Console is served at `/console`. One application contains personal
 pages and administrative pages. Sign in using the deployment's configured
 account; the Console uses `/portal/api/login` and an HttpOnly session cookie.
 
 Personal cost budgets are displayed read-only on Overview, alongside usage.
 There is no separate personal quota page; administrators edit budgets on the
 corresponding user, API key, organization or team.
+
+## First startup
+
+A new Application instance opens a three-step wizard before the in-app console. CLI / container instances create an administrator on first startup and use the browser console at `/console/`, without the app wizard. See [Installation](/getting-started/installation/).
 
 ## Management Scope
 

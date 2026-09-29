@@ -5,13 +5,22 @@ the same axum router the native binary serves. See
 [Edge deployment](https://gproxy.leenhawk.com/deployment/edge/) for the
 configuration document, the secrets and what the Worker refuses.
 
-From a release's `gproxy-edge-cloudflare.zip`, everything is built:
+The release bundle `gproxy-edge-cloudflare.zip` includes the built Worker and console.
+Enter its `cloudflare/` directory and install the package dependencies before using Wrangler.
+The Worker synchronizes the schema during first assembly. An empty database still
+needs compatible identity data: this host has no first-administrator setup flow.
+See the deployment guide above before deploying a fresh instance.
 
 ```sh
-wrangler d1 create gproxy               # paste the id into wrangler.toml
-wrangler d1 migrations apply gproxy --remote
-wrangler secret put GPROXY_MASTER_KEY
-wrangler deploy
+pnpm install
+```
+
+With Wrangler available:
+
+```sh
+pnpm exec wrangler d1 create gproxy               # paste the id into wrangler.toml
+pnpm exec wrangler secret put GPROXY_MASTER_KEY
+pnpm exec wrangler deploy
 ```
 
 From a checkout, build first. It needs the `wasm32-unknown-unknown` target,

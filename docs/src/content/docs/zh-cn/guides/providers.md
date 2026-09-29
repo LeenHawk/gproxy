@@ -1,16 +1,15 @@
 ---
 title: "Provider 与凭证"
-description: "25 个渠道、一行 Provider 装什么、凭证池及其生命周期、三种登录流程、连接配置，以及两个探针。"
+description: "选择渠道、添加供应商与凭证，配置登录、额度查询和连接选项。"
 ---
 
 **渠道（channel）** 是编译进二进制的某一族上游适配器。**Provider** 是某个渠道上的一条
 已保存连接：名字、可选 base URL、该渠道自己的 `config` JSON，以及一个凭证池。同一个渠道
 可以建任意多个 Provider——`openai-main` 和 `openai-eu` 可以都在 `openai` 渠道上。
 
-这里的每一次写入都是一个事务连同配置 revision 自增，而且实例先重载、再通知同伴，因此
-改动在下一个请求上生效，不需要重启。
+供应商和凭证的配置保存后生效，通常不需要重启。首次接入请先测试凭证，再把它加入模型路由。
 
-## 25 个渠道
+## 支持的渠道
 
 只有编译进你的二进制的渠道才存在。`GET /admin/api/channels` 回答自二进制而非数据库，
 每一项带着登录方式、能力，以及一个 Provider 表单该渲染的 `config` 键。
@@ -41,6 +40,7 @@ description: "25 个渠道、一行 Provider 装什么、凭证池及其生命�
 | `opencodego` | OpenCode Go：订阅制、开源模型、用量窗口 | `{"api_key"}` |
 | `opencodezen` | OpenCode Zen：从 Console 余额按量付费 | `{"api_key"}` 或 OAuth |
 | `openrouter` | OpenRouter：body 里的路由偏好、应答里报出的价格 | `{"api_key"}` |
+| `vercel` | Vercel AI Gateway：模型调用与团队余额查询 | `{"api_key"}` |
 | `vertex` | Google Vertex AI：Google、Anthropic 与 OpenAI 兼容发布者 | 服务账号密钥 |
 | `vertexexpress` | Vertex AI Express：单一全球源上的 Gemini surface | `{"api_key"}` |
 | `workbuddy` | 经编辑器插件使用腾讯 Copilot | OAuth |
@@ -49,10 +49,9 @@ description: "25 个渠道、一行 Provider 装什么、凭证池及其生命�
 每个渠道都能为原生目标**和** `wasm32-unknown-unknown` 构建，所以 Worker 部署不是一个
 缩水的渠道集。
 
-### 不需要渠道的厂商
+### 接入兼容服务
 
-渠道是要对着别人的 wire 维护的代码。只有当一行 Provider 说不清它需要什么时，一个厂商才
-值得一个渠道。全部差别只是一个源和一个 header 的厂商，就是一个 `custom` Provider：
+兼容现有协议的服务可以通过 `custom` 接入，填写服务地址和支持的协议即可：
 
 ```json
 { "name": "example-vendor", "channel": "custom",
@@ -60,10 +59,9 @@ description: "25 个渠道、一行 Provider 装什么、凭证池及其生命�
   "config": { "dialects": ["openai_chat"] } }
 ```
 
-NVIDIA NIM、Vercel AI Gateway 和 Cloudflare AI Gateway 曾经这样接入；现在各自有了渠道，
-因为一行 Provider 说不清它们需要的全部东西。
+NVIDIA NIM、Vercel AI Gateway 和 Cloudflare AI Gateway 提供专用渠道，优先使用对应渠道以获得专用的认证和额度查询功能。
 
-## 一行 Provider
+## 供应商配置
 
 | 字段 | 含义 |
 | --- | --- |
@@ -74,7 +72,7 @@ NVIDIA NIM、Vercel AI Gateway 和 Cloudflare AI Gateway 曾经这样接入；�
 | `connectionProfileId` | 这个 Provider 的调用走哪套出站栈——代理、TLS 模拟。 |
 | `enabled` | 被禁用的 Provider 退出解析。 |
 
-`custom` 的 `config` 带 `dialects`（端点讲哪些线格式）、静态 `headers`、`allowed_headers`
+`custom` 的 `config` 带 `dialects`（端点讲哪些协议格式）、静态 `headers`、`allowed_headers`
 和两个 magic cache 开关。模拟厂商 CLI 的渠道声明自己的身份 header，并且不让客户端伪造它们。
 
 ### Claude 模型 fallback

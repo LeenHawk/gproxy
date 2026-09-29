@@ -29,7 +29,7 @@ Application ZIP 保留桌面资源，macOS ZIP 包含完整 `.app`。
 鸿蒙构建使用缓存工具链镜像和固定版本的实验性 Tauri 分支，其他平台继续使用稳定版。
 HAP 安装前需要签名，尚未做真机验证；暂不提供后台服务。
 
-nightly 的文件名额外带提交 SHA 前缀。Linux x86_64 在 Ubuntu 22.04 构建，
+nightly 附件使用固定名称，提交 SHA 记录在更新清单中。Linux x86_64 在 Ubuntu 22.04 构建，
 ARM64 在 Ubuntu 24.04 构建，安装时需要发行版提供 WebKitGTK 4.1。
 macOS 使用 ad-hoc 签名，尚未接入 Developer ID 签名和公证。
 
@@ -58,160 +58,102 @@ TARGET_OS=linux TARGET_TRIPLE=x86_64-unknown-linux-gnu \
 产物写入 `dist/release/`。工作流还发布原生服务器 ZIP、Termux 包、Edge 包和
 GNU/musl 容器镜像；每个应用包都生成构建证明，GitHub 上可查询 attestations。
 
-## 前置条件
+## 构建环境
 
-| 工具 | 用于 |
-| --- | --- |
-| stable Rust 工具链（edition 2024） | 每个 crate |
-| `wasm32-unknown-unknown` | Workers 宿主，以及 CI 的那一道检查 |
-| `webkit2gtk-4.1`、`gtk+-3.0`、`libsoup-3.0`（Linux） | 桌面宿主 |
-| Node.js LTS 与 pnpm | console 与本文档站 |
-| `worker-build` | Workers 包 |
+需要 stable Rust（edition 2024）、Go、Clang、Node.js 22.12+（推荐 24 LTS）和 pnpm。Linux 桌面构建还需要 `webkit2gtk-4.1`、`gtk+-3.0`、`libsoup-3.0` 开发包。其他平台工具链由发布工作流配置。
 
-## Workspace
+## 构建 CLI 与控制台
 
-十六个 crate。不带 `-p` 也不带 `--workspace` 的 `cargo check`、`cargo test` 和
-`cargo clippy` 构建的是**默认成员**，也就是除桌面宿主之外的一切。
-
-这个排除不是降级，也不是为了增量构建：目标目录是热的时候，两种选择相差不到半秒。它是为了
-**冷**的那一次。桌面宿主会拉进 wry、webkit、gtk 及它们的 `-sys` crate——大约一百八十个与
-引擎无关的第三方 crate，而且一台没有对应开发头文件的 Linux 机器根本构建不了它们。
-
-`--workspace` 会构建它，CI 也会。
-
-## server
+从仓库根目录运行：
 
 ```sh
+pnpm --dir console install --frozen-lockfile
+pnpm --dir console build
 cargo build -p gproxy --release
-./target/release/gproxy --version
+./target/release/gproxy serve --data-dir ./data
 ```
 
-```text
-gproxy 4.0.0-dev
-```
+控制台构建会自动同步资源到 HTTP 宿主和 Tauri 的嵌入目录，随后编译的二进制包含控制台。只执行 Rust 构建的全新检出没有这些资源，`/console` 会返回 404。也可以使用 `--console-path console/dist` 指向单独构建的资源。
 
-默认 feature 是 `channels`、`memory`、`fs` 和 `bundled-vocabulary`——一个编译进全部渠道的
-单节点 SQLite 实例。逐个点名渠道可以得到一个只带用得到的上游的二进制：
+CLI 默认启用全部渠道、内存缓存、本地文件存储和内置词表。可按需缩减渠道或增加后端：
 
 ```sh
 cargo build -p gproxy --release --no-default-features \
   --features memory,fs,codex,claudecode,openai,custom
 ```
 
-按部署需要加上 `postgres`、`mysql`、`redis` 或 `s3`。SQLite 始终编译在内，而本次构建没有的
-后端会在启动时被拒绝，并指名能提供它的 feature。
+PostgreSQL、MySQL、Redis 和 S3 分别需要 `postgres`、`mysql`、`redis`、`s3` feature。SQLite 始终可用。
 
-## console
+## 构建 Application
 
-```sh
-cd console
-pnpm install --frozen-lockfile
-pnpm build
-```
-
-发布构建在 `cargo build` **之前**把 `console/dist` 拷进
-`crates/gproxy-host-axum/assets/web`，bundle 由 `rust-embed` 内嵌进去。
-
-**源码检出什么都不内嵌**，这是刻意的状态：`cargo build` 产出的二进制在 console 路径上回
-404，而不是一个看起来像坏掉的应用的空白页，启动日志也说了这件事。
-
-要对着一个 Vite 构建开发，就让二进制指向一个目录：
-
-```sh
-GPROXY_CONSOLE_PATH=console/dist ./target/release/gproxy serve
-```
-
-console 所依据的 TypeScript 类型是**由 Rust 生成的**、绝不手写，从两个 crate 生成到两个
-目录：
-
-```sh
-GPROXY_TS_OUT=console/src/generated/sdk cargo test -p gproxy-sdk --features ts export_types
-GPROXY_TS_OUT=console/src/generated/app cargo test -p gproxy-app --features ts export_types
-```
-
-没有这个环境变量时每个测试都直接返回、什么也不写，所以 `cargo test --all-features` 保持
-无副作用，而生成目录只会被有意地重写。两者去**不同**的目录，因为导出会先清空它的输出目录，
-两个 crate 共用一个会把对方擦掉。
-
-## 桌面宿主
+构建控制台后运行：
 
 ```sh
 cargo run -p gproxy-host-tauri --bin gproxy-desktop
 ```
 
-一个进程、一个实例、两扇前门：承载管理面与用户面的 Tauri IPC 窗口，以及一个跑在
-`127.0.0.1:8787` 上、**只提供数据面**的真正 axum 宿主，给那些会说 HTTP、不会说 IPC 的 CLI。
+全新实例会打开设置向导。窗口通过 IPC 管理实例，HTTP 监听供外部客户端调用网关。移动端打包请使用发布工作流中的平台工具链与打包脚本。
 
-测试套件能在一台**没有显示服务器**的机器上驱动整套安排，因为几乎所有东西都在库里，而
-二进制只负责开一个窗口。
+默认 workspace 成员不包含 Tauri，便于没有桌面依赖的环境编译后端；`--workspace` 会包含它。
 
-```sh
-cargo check  -p gproxy-host-tauri
-cargo clippy -p gproxy-host-tauri --all-targets --all-features -- -D warnings
-cargo test   -p gproxy-host-tauri
-```
+## 构建 Workers
 
-首次启动向导已支持开机自启和系统托盘；桌面端自动更新尚未实现。
-
-## Worker
+从仓库根目录运行：
 
 ```sh
+rustup target add wasm32-unknown-unknown
 cargo install worker-build
-CARGO_PROFILE_RELEASE_STRIP=none worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
+pnpm --dir console install --frozen-lockfile
+pnpm --dir deploy/cloudflare install
+pnpm --dir deploy/cloudflare build
+pnpm --dir deploy/cloudflare check
 ```
 
-binding、配置文档，以及那个让"逐个点名渠道"变得值得做的体积约束，见
-[边缘部署（Cloudflare Workers）](/zh-cn/deployment/edge/)。
+`worker-build` 完成 WASM 编译与优化；`check` 使用 Wrangler 做部署预检，不发布到线上。配置和运行限制见[边缘部署](/zh-cn/deployment/edge/)。
 
-## 质量闸门
+## 检查改动
 
-CI 跑的正是这几条：
+后端默认成员：
 
 ```sh
-cargo fmt --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo check --workspace --target wasm32-unknown-unknown
+cargo fmt --all --check
+cargo clippy --all-targets -- -D warnings
+cargo test
 ```
 
-最后一条不是可有可无的装饰。`gproxy-app` 和 axum router 都能为 wasm 构建，这正是 Workers
-宿主能挂载同一个 router 而不是把路由表写第二遍的原因——而一个漏了 `Send` 桥接的 handler
-在那个目标上就是**一个指名道姓的编译错误**。这条检查就是强制手段。
-
-lint 报错要改代码，不是加 `#[allow]`。
-
-在某个 crate 上干活时按 crate 跑：
+桌面宿主单独检查：
 
 ```sh
-cargo test   -p gproxy-channel --all-features
-cargo clippy -p gproxy-channel --all-features --target wasm32-unknown-unknown --lib -- -D warnings
-cargo test   -p gproxy-host-axum
-cargo test   -p gproxy-store -p gproxy-seaorm
+cargo clippy -p gproxy-host-tauri --all-targets -- -D warnings
+cargo test -p gproxy-host-tauri
 ```
 
-`gproxy-host-axum` 的每个集成测试都在一个内存实例之上构建**真正的 router**，只有上游是
-脚本化的。一个直接调 handler 函数的测试会跳过正要被测的那一部分。
-
-有两个套件必须绑定一个真实的回环端口，因为它们没法伪造：一次 WebSocket 往返，因为进程内的
-service 测试装置从不产生 hyper 的升级扩展；以及一次客户端断连，因为本仓库里的每个 HTTP
-客户端都会在交出 body 之前把它排空，所以那个套件直接在裸 socket 上把请求敲出去，再靠 drop
-挂断。
-
-## 本文档站
+WASM 检查只包含支持该目标的库和宿主，不能对包含 CLI、Tauri 的整个 workspace 执行：
 
 ```sh
-cd docs
-pnpm install --frozen-lockfile
-pnpm check
-pnpm build
+cargo check --target wasm32-unknown-unknown \
+  -p gproxy-protocol -p gproxy-store -p gproxy-seaorm -p gproxy-client \
+  -p gproxy-cache -p gproxy-channel -p gproxy-core -p gproxy-file \
+  -p gproxy-tokenizer -p gproxy-sdk -p gproxy-app -p gproxy-host-axum \
+  -p gproxy-host-edge
 ```
 
-Astro Starlight，由 CI 部署到 Cloudflare Pages。`pnpm check` 校验本站同时承载的那份通知源。
+控制台与文档：
 
-`scripts/check-docs.sh` 是结构性检查：侧边栏 slug 对页面、中英文对等、frontmatter、
-被禁止的引用，以及过长的页面。
+```sh
+pnpm --dir console lint
+pnpm --dir console test
+pnpm --dir console build
+pnpm --dir docs install --frozen-lockfile
+pnpm --dir docs check
+pnpm --dir docs build
+bash scripts/check-docs.sh
+```
 
-## 库发布
+修改 Rust DTO 后，用 `pnpm --dir console types` 更新生成的 TypeScript 类型。
 
-版本 tag 还会调用 `scripts/publish-crates.sh` 发布选定的 MIT 库。其余 workspace crate
-通过 git 或路径依赖使用，见[嵌入核心库](/zh-cn/reference/embedding/)。公开接口尚不稳定。
+## 发布
+
+版本 tag 必须与 workspace 版本一致，并提供 `docs/release-notes/v<版本>.md`。发布流程构建包、生成签名更新清单并上传附件；构建或签名要求未满足时，不能视为发布完成。
+
+版本 tag 还会调用 `scripts/publish-crates.sh` 发布选定的 MIT 库，其他 crate 使用 git 或路径依赖。详情见[嵌入核心库](/zh-cn/reference/embedding/)。

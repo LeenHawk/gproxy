@@ -1,103 +1,73 @@
 ---
-title: "用户与 API 密钥"
-description: "组织、团队、用户与 API 密钥；管理员账户、用户门户、管理 API 访问，以及密钥如何随请求发送"
+title: "用户与 API Key"
+description: "创建用户、分配管理范围，签发和轮换网关 API Key。"
 ---
 
-网关流量通过用户 API 密钥认证为某个用户。控制台与门户使用用户名和密码登录，
-并由服务端会话维持。
 
-```text
-Organization
-`-- Team
-    `-- User
-        |-- password    optional; console or portal login
-        |-- is_admin    grants /admin and the admin API
-        `-- API keys    gateway traffic
-```
+控制台使用用户名和密码登录，客户端使用网关 API Key 调用模型。上游凭证在供应商中配置，不能用来登录 GPROXY。
 
-用户可以属于某个团队、直接属于某个组织，或两者都不属于。每一级都有启用标记。
-权限、限流和配额可以挂在任一级并向下继承，见
-[权限、限流与配额](/zh-cn/guides/permissions/)。
+## 首个管理员
 
-## 管理员
-
-管理员是一个带密码和 `is_admin` 的普通用户。在全新的存储上，控制台会显示
-初始化页面来创建它。也可以通过环境变量预置：
+Application 在首次设置向导中创建管理员。CLI 在空实例启动时创建管理员并显示生成的密码和 API Key，也可以通过以下变量预先指定：
 
 ```sh
-GPROXY_ADMIN_USER=admin            # default
-GPROXY_ADMIN_PASSWORD=<password>   # required for the bootstrap options below
-GPROXY_BOOTSTRAP_ADMIN_API_KEY=sk-...   # optional; a sealed key is generated otherwise
-GPROXY_BOOTSTRAP_CHANNELS=codex,claudecode   # optional; creates one provider per id, named after it
+export GPROXY_ADMIN_USER='admin'
+export GPROXY_ADMIN_PASSWORD='your-initial-password'
+export GPROXY_BOOTSTRAP_ADMIN_API_KEY='your-initial-gateway-key'
+./gproxy serve
 ```
 
-这些变量不会修改已有账户，唯一例外是管理员密码：只要设置了，每次启动都会
-应用。
+密码和密钥变量均可省略，由程序生成。**这些选项只用于首次初始化，不会重置已有用户的密码。** 不再支持通过 `GPROXY_BOOTSTRAP_CHANNELS` 自动创建供应商，请在控制台添加。
 
-管理员会话使用 `gproxy_admin_session` Cookie，有效期 12 小时，限定在
-`/admin` 路径。`/admin/api/` 下的管理 API 也接受
-`Authorization: Bearer <key>`，只要该密钥属于一个已启用且带 `is_admin` 的用户；
-没有单独的管理员密钥类型。每一次管理写操作和每一次密文显示都会记入管理操作
-审计。
+CLI / 容器的登录入口是 `/console/`。个人页和管理页共用登录会话，HTTP 会话 Cookie 名为 `gproxy_session`，生命周期由 `session_ttl_secs` 配置。Application 使用应用内控制台。
 
-## 创建用户
+## 用户、组织与团队
 
-在 **身份** 中先创建组织，可选地在其中创建团队，然后创建用户。用户有名称、
-可选的组织和团队、启用标记、管理员角色和可选密码。编辑时密码留空即保持不变。
+实例管理员在访问控制中创建用户。用户角色为 `admin` 或 `user`；未设置密码的用户不能登录控制台，但可以使用获准签发的 API Key。
 
-## 签发密钥
+组织与团队通过成员关系分配用户和管理角色。API Key 可以绑定组织或团队，这个绑定用于确定凭证可见范围和费用预算。不能通过在请求中伪造组织、团队请求头来改变绑定。
 
-密钥为单个用户创建，包含：
+组织和团队管理员只能管理其范围内开放的功能，不等于实例管理员。具体入口见[控制台与范围管理](/zh-cn/guides/console/)。
 
-| 字段 | 含义 |
+## 创建密钥
+
+个人密钥在 **我的账户 → 密钥** 管理；实例管理员也可以在 **访问控制 → 用户密钥** 操作。
+
+| 设置 | 含义 |
 | --- | --- |
-| 前缀 | `sk`（标准）或 `at`（Codex 风格 access token）。摘要忽略前缀，因此两种写法指向同一把密钥。 |
-| 标签 | 可选。 |
-| 过期时间 | 可选，必须是将来的时间；过期密钥会被拒绝。 |
-| 启用 | 禁用的密钥会被拒绝。 |
+| 名称 | 方便区分不同应用或设备 |
+| 归属 | 关联用户，以及可选的组织或团队 |
+| 有效期与启用状态 | 过期或停用后拒绝新请求 |
+| 管理权限 | 允许密钥访问管理操作，默认关闭；仍受所属用户和范围权限约束 |
+| 保留密钥 | 允许以后再次查看完整值，默认不保留 |
+| 费用预算 | 管理员可配置金额、周期和模型范围 |
 
-完整密钥形如 `sk-gp-<43 个 URL 安全字符>`，只在创建时显示一次。列表显示前
-12 个字符。**显示密钥** 会再次返回完整密钥，前提是其密封材料已存储；这是一
-项会被审计的操作（`user_key.reveal`）。仅以摘要导入的密钥无法显示。
+创建后立即复制完整密钥。没有保留密钥原文、或仅从旧实例导入摘要的密钥，不能再次显示。显示操作仍需相应权限。
 
-密钥按摘要查找。摘要算法带版本号，可以在不作废已存密钥的前提下更换；版本 1
-是对密钥载荷的 SHA-256。以本二进制不支持的版本存储的密钥会被忽略。
+预算与新密钥可以一起保存，预算校验失败不会单独创建密钥。
 
-没有原地轮换：创建新密钥，迁移客户端，然后禁用或删除旧密钥。
+## 轮换与撤销
+
+密钥支持轮换，轮换后旧值失效，需要更新客户端。如果希望逐个迁移客户端而不中断旧配置，可以先创建第二把密钥，替换完成后再停用或删除旧密钥。
+
+管理 API 的对应操作为：
+
+- `POST /admin/api/api-keys/{id}/rotate`：轮换。
+- `GET /admin/api/api-keys/{id}/secret`：查看已保留的密钥。
+- 个人 API 使用 `/portal/api/keys/{id}/rotate` 和 `/portal/api/keys/{id}/secret`。
 
 ## 发送密钥
 
-准入按以下顺序读取第一个存在的请求头：
+```text
+Authorization: Bearer <gateway-key>
+x-api-key: <gateway-key>
+x-goog-api-key: <gateway-key>
+```
 
-| 请求头 | 典型客户端 |
-| --- | --- |
-| `Authorization: Bearer <key>` | OpenAI SDK、Codex CLI、Claude Code |
-| `x-api-key: <key>` | Anthropic SDK |
-| `x-goog-api-key: <key>` | Google GenAI SDK |
+选择客户端协议惯用的请求头即可，不要同时填写不同的密钥。管理 API 需要密钥启用管理权限；普通推理密钥不会因为所属用户是管理员就自动获得管理权限。
 
-不接受 Gemini 的 `?key=` Query 参数，请使用请求头。任何请求头都可用于任何
-路径：请求头只携带密钥，不决定协议。
+## OAuth 会话
 
-## 用户门户
+GPROXY 可作为 OAuth 签发端，让客户端经用户授权取得访问令牌。OAuth 内部密钥与普通用户密钥不同，不能把它当作普通 Bearer Key 创建或显示。授权会话可以在控制台撤销。
 
-非管理员用户在 `/portal` 使用管理员设置的用户名和密码登录。会话 Cookie
-`gproxy_portal_session` 有效期 12 小时。登录尝试按来源地址和用户名分别限流。
-
-门户显示：
-
-- **连接**：Base URL、账户可调用的模型，以及 curl、OpenAI / Anthropic /
-  Google SDK、Codex CLI 和 Claude Code 的可复制片段（见
-  [CLI 客户端](/zh-cn/guides/cli-clients/)）；
-- **配额窗口**：应用于该账户的支出进度条；
-- **用量与成本**：1、7 或 30 天范围；
-- **最近结算请求**：管理员在门户设置中开启后可见（绝不显示请求体）；
-- **API 密钥**：以 `sk` 或 `at` 前缀创建、撤销；以及修改密码表单。
-
-门户创建的密钥在创建后无法再次显示。
-
-## OAuth 签发的密钥
-
-当 Codex CLI 通过 GPROXY 内置的 OAuth 签发端登录时，批准登录的门户用户会得
-到一把标签为 `Codex OAuth`、前缀为 `at-gp-oauth-` 的密钥，GPROXY 签发的
-access token 会映射回这把密钥。这些请求与其他请求一样计入该用户。见
-[CLI 客户端](/zh-cn/guides/cli-clients/)。
+客户端配置和授权流程见[CLI 客户端](/zh-cn/guides/cli-clients/)。

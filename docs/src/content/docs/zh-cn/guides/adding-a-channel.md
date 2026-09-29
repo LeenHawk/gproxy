@@ -18,7 +18,7 @@ feature 后面，新增一个意味着向本仓库提一个 PR。默认不编译
 移动、body 必须被改写、有账号 surface 要读、有客户端身份要呈现——一个厂商才值得一个渠道。
 
 全部差别只是一个源和一个 header 的厂商，就是一个 `custom` Provider。见
-[不需要渠道的厂商](/zh-cn/guides/providers/#不需要渠道的厂商)。
+[不需要渠道的厂商](/zh-cn/guides/providers/#接入兼容服务)。
 
 ## 契约
 

@@ -25,7 +25,7 @@ model name to an execution plan, and keeps every instance of a deployment on
 the same revision. It contains **no HTTP server and no identity**.
 
 `gproxy-app` adds who is calling and what they may reach: users, gateway API
-keys, organizations, teams, permissions, subscriptions, rate limits, the OAuth
+keys, organizations, teams, permissions, rate limits, the OAuth
 issuer, audit, and the operations that write any of them. It owns **no server**
 — no router, no runtime, no CLI — which is what lets the same decisions run
 behind a native axum server and inside a Cloudflare Worker.
@@ -37,7 +37,7 @@ A host is the thin remainder: bytes in, typed calls out, bytes back.
 | Crate | Holds | Never |
 | --- | --- | --- |
 | `gproxy-protocol` | Connection modelling (`WireRequest`, `WireResponse`, bodies, framing, sockets), the operation registry, the OpenAI / Claude / Gemini wire types, and the host-capability interfaces protocol adaptation needs | Knows a channel exists; matches a URL path |
-| `gproxy-channel` | `BaseChannel`, the optional ability traits, and the 25 upstream adapters behind Cargo features | Depends on the engine or the store; picks a transport backend |
+| `gproxy-channel` | `BaseChannel`, the optional ability traits, and the upstream adapters behind Cargo features | Depends on the engine or the store; picks a transport backend |
 | `gproxy-client` | The outbound transport contract and its `reqwest` / `wreq` implementations, plus the wasm `fetch` and Workers backends | Reads the database, picks a credential, converts a protocol |
 | `gproxy-core` | The engine: the provider execution snapshot, credential selection, refresh and health inside a permitted set, conversion, rewriting, budgets, pricing, settlement and observation | Resolves a route, checks a permission, runs a server |
 | `gproxy-store` | The schema and its queries, backend by feature | — |
@@ -150,9 +150,7 @@ What *is* optional is asked **before** the work, not discarded after it. A
 capture that is switched off allocates nothing and clones no body; v3's
 arrangement paid the whole cost before a sink could decline it.
 
-Cost is known only when the exchange ends, so a budget can be overrun by at
-most one request. That is the accepted price of not estimating, not
-pre-charging and not rolling back. Settlement is idempotent per request id, and
+Costs settle after the upstream call, so in-flight and concurrent calls can exceed a budget. Settlement is idempotent per request id, and
 a settlement failure loses the accounting, never the delivered response.
 
 A model with no price rule settles at zero with the dimension

@@ -131,9 +131,9 @@ export default defineConfig({
               translations: { 'zh-CN': 'Provider 与凭证' },
             },
             {
-              label: 'Models, Routes & Exposed Names',
+              label: 'Models & Routes',
               slug: 'guides/models',
-              translations: { 'zh-CN': '模型、路由与公开名称' },
+              translations: { 'zh-CN': '模型与路由' },
             },
             {
               label: 'Users & API Keys',

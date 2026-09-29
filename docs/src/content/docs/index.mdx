@@ -1,9 +1,9 @@
 ---
 title: GPROXY
-description: "Run one gateway in front of many LLM providers: pairwise protocol conversion, pooled credentials with failover, per-request metering, and one router over three hosts."
+description: "Manage upstream accounts, translate API requests, route models, and track usage and costs."
 template: splash
 hero:
-  tagline: "One gateway for many LLM providers. Pairwise protocol conversion between the OpenAI, Claude and Gemini wire formats, pooled upstream credentials with failover, per-request metering and budgets — and one route table served by a native binary, a desktop shell and a Cloudflare Worker alike."
+  tagline: "One endpoint for your LLM services.Manage upstream accounts, translate API requests, route models, and track usage and costs."
   actions:
     - text: Install GPROXY
       link: /getting-started/installation/
@@ -12,7 +12,7 @@ hero:
       link: /getting-started/quick-start/
       icon: right-arrow
       variant: secondary
-    - text: View on GitHub
+    - text: GitHub
       link: https://github.com/LeenHawk/gproxy
       icon: external
       variant: minimal
@@ -20,79 +20,30 @@ hero:
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-## Documentation Map
-
-<CardGrid stagger>
-	<Card title="Introduction" icon="document">
-		What GPROXY does, which wire formats it accepts, how a request is narrowed
-		from a caller to one credential, and how the crates and the three hosts fit
-		together.
-	</Card>
-	<Card title="Getting Started" icon="rocket">
-		Build the binary, run it, add a provider and a credential, and send the
-		first request in each accepted format.
-	</Card>
-	<Card title="Guides" icon="puzzle">
-		Providers and credentials, routes and exposed names, rewrite rules, prompt
-		caching, CLI clients, observability, and adding a channel.
-	</Card>
-	<Card title="Reference" icon="seti:config">
-		Every flag and variable, the full ingress table, pricing and tiers, storage
-		and cache backends, and the embeddable handle.
-	</Card>
-</CardGrid>
-
-## How It Is Built
+## Start here
 
 <CardGrid>
-	<Card title="One router, three hosts" icon="random">
-		The Workers host mounts the same axum router the native binary serves.
-		A route it grows is a route the edge serves, with no second table to drift.
-	</Card>
-	<Card title="Each layer narrows" icon="approve-check">
-		Authentication produces a caller, admission produces a provider set and a
-		credential set, and the engine is handed exactly those. Nothing below
-		re-opens what was narrowed above.
-	</Card>
-	<Card title="No intermediate format" icon="setting">
-		Conversion is direct between two wire formats. Upstream specifications
-		change faster than any pivot format can track, and conversion fidelity is
-		the product.
-	</Card>
-	<Card title="Nothing skips the funnel" icon="warning">
-		Every path that reaches an upstream is priced, charged and observed through
-		the same exit. A path around it would be unmetered traffic, so there is
-		not one.
-	</Card>
+  <LinkCard title="Install and set up" description="Choose Application, CLI, containers, or Workers and set up your account." href="/getting-started/installation/" />
+  <LinkCard title="Make your first request" description="Add a provider and credential, create a model route, and connect your client." href="/getting-started/quick-start/" />
+  <LinkCard title="Upgrade from v3" description="Review automatic migration, retained data, and checks after upgrading." href="/deployment/v3-to-v4/" />
+  <LinkCard title="Connect CLI clients" description="Configure Codex CLI, Claude Code, and other tools." href="/guides/cli-clients/" />
 </CardGrid>
 
-:::note[v4 is built from source]
-There is no release pipeline yet — no installers, no published container image
-and no signed artifacts. See [Installation](/getting-started/installation/).
-:::
+## Common tasks
 
-## Primary Paths
+<CardGrid>
+  <Card title="Manage accounts" icon="setting">
+    Manage API keys, OAuth, and Cookie credentials in one console, with health and upstream allowance information.
+  </Card>
+  <Card title="Route models" icon="random">
+    Give clients a stable model name, distribute requests by weight, and configure fallback providers.
+  </Card>
+  <Card title="Connect protocols" icon="puzzle">
+    Use OpenAI, Claude, and Gemini API formats with streaming. Available operations depend on the channel and upstream.
+  </Card>
+  <Card title="Track usage and costs" icon="document">
+    Set user and key permissions and budgets, then inspect requests and billing details.
+  </Card>
+</CardGrid>
 
-<LinkCard
-	title="Installation"
-	description="Prerequisites, the build, the first start and where its data lives — plus the desktop shell and the Workers host."
-	href="/getting-started/installation/"
-/>
-
-<LinkCard
-	title="Quick Start"
-	description="From a running instance to a metered request: a provider, a credential, a route, an exposed name, and the usage it produced."
-	href="/getting-started/quick-start/"
-/>
-
-<LinkCard
-	title="Architecture"
-	description="The two assemblies, the sixteen crates, where each question is answered, and the rules that keep the structure from drifting back."
-	href="/introduction/architecture/"
-/>
-
-<LinkCard
-	title="Routing & Endpoints"
-	description="The complete ingress table, the mount grammar, the OAuth and management routes, and the failover budget."
-	href="/reference/routing-table/"
-/>
+For implementation details, see [Architecture](/introduction/architecture/) and [Embedding the core](/reference/embedding/).

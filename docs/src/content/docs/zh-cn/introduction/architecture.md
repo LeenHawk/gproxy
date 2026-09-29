@@ -32,8 +32,8 @@ Cloudflare Worker 里的原因。
 
 | Crate | 装什么 | 绝不 |
 | --- | --- | --- |
-| `gproxy-protocol` | 连接建模（`WireRequest`、`WireResponse`、body、分帧、套接字）、操作注册表、OpenAI／Claude／Gemini 线类型，以及协议适配所需的宿主能力接口 | 知道渠道存在；匹配 URL 路径 |
-| `gproxy-channel` | `BaseChannel`、可选能力 trait，以及按 feature 启用的 25 个上游适配器 | 依赖引擎或 store；选择 client 后端 |
+| `gproxy-protocol` | 连接建模（`WireRequest`、`WireResponse`、body、分帧、套接字）、操作注册表、OpenAI／Claude／Gemini 协议类型，以及协议适配所需的宿主能力接口 | 知道渠道存在；匹配 URL 路径 |
+| `gproxy-channel` | `BaseChannel`、可选能力 trait，以及按 feature 启用的上游适配器 | 依赖引擎或 store；选择 client 后端 |
 | `gproxy-client` | 出站传输契约及其 `reqwest` / `wreq` 实现，加上 wasm 的 `fetch` 与 Workers 后端 | 读数据库、选凭证、做协议转换 |
 | `gproxy-core` | 引擎：Provider 执行快照、允许集合内的凭证选择／刷新／健康、转换、改写、预算、计价、结算与观测 | 解析路由、检查权限、跑 server |
 | `gproxy-store` | 表结构与查询，后端按 feature 切 | — |
@@ -132,8 +132,7 @@ publish  ConfigurationChanged { revision, scopes }
 *可选*的东西是**干活之前先问**，而不是事后丢弃结果。关掉的 capture 不分配任何东西、
 不复制任何 body；v3 的做法是先把整份成本付掉，再让 sink 决定要不要。
 
-费用要等交换结束才知道，所以预算**最多被超出一个请求**——这是不用预估、不用预扣、
-不用回滚所付的代价。结算按请求 id 幂等，结算失败只丢记账，不影响已经交付的响应。
+费用在上游调用结束后结算，在途请求和并发调用可能使预算超出上限。结算按请求 id 幂等，结算失败只丢记账，不影响已经交付的响应。
 
 没有价格规则覆盖的模型按 0 结算，并带上 `unpriced = true` 维度。运维者要的是这个信号，
 不是一个拒绝。
