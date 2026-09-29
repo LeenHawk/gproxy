@@ -1,7 +1,9 @@
 {
   "shell": {
     "navigation": "Navigation",
-    "resizeHint": "Drag to resize; double-click to reset. Use arrow keys to adjust."
+    "resizeHint": "Drag to resize; double-click to reset. Use arrow keys to adjust.",
+    "skipToContent": "Skip to main content",
+    "mainContent": "Main content"
   },
   "signIn": {
     "title": "Sign in"
@@ -34,7 +36,8 @@
     "emptyTitle": "Nothing here yet",
     "failed": "The request failed",
     "forbidden": "Not permitted",
-    "notFoundTitle": "No such page"
+    "notFoundTitle": "No such page",
+    "loading": "Loading…"
   },
   "form": {
     "all": "All",

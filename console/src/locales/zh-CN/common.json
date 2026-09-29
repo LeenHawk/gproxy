@@ -1,7 +1,9 @@
 {
   "shell": {
     "navigation": "导航",
-    "resizeHint": "拖动调整宽度，双击恢复默认；也可使用方向键调整。"
+    "resizeHint": "拖动调整宽度，双击恢复默认；也可使用方向键调整。",
+    "skipToContent": "跳到主内容",
+    "mainContent": "主内容"
   },
   "signIn": {
     "title": "登录"
@@ -34,7 +36,8 @@
     "emptyTitle": "这里还是空的",
     "failed": "请求失败",
     "forbidden": "无权访问",
-    "notFoundTitle": "没有这个页面"
+    "notFoundTitle": "没有这个页面",
+    "loading": "正在加载…"
   },
   "form": {
     "all": "全部",

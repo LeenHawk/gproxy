@@ -8,7 +8,7 @@
 
 import { ResizableColumns } from "@/components/resizable-columns"
 import { toast } from "sonner"
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { ChevronRight, ChevronsUpDown, CircleUserRound, Languages, LogOut, Menu, Moon, Sun } from "lucide-react"
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -197,21 +197,35 @@ export function AppShell({ children }: { children: ReactNode }) {
   const item = section?.items.find((item) => item.route === navRoute)
   const ActiveIcon = item?.icon
   const [open, setOpen] = useState(false)
+  const mainRef = useRef<HTMLElement>(null)
+  const previousRoute = useRef(route)
+  const drawerRoute = useRef(route)
+
+  useEffect(() => {
+    if (previousRoute.current === route) return
+    previousRoute.current = route
+    const frame = requestAnimationFrame(() => mainRef.current?.focus({ preventScroll: true }))
+    return () => cancelAnimationFrame(frame)
+  }, [route])
 
   return (
+    <>
+    <a href="#console-main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-40 focus:rounded-lg focus:bg-background focus:px-4 focus:py-3 focus:text-foreground" onClick={event => { event.preventDefault(); mainRef.current?.focus() }}>{t("shell.skipToContent")}</a>
     <ResizableColumns storageKey="gproxy.layout.navigation.v1" initialWidth={248} minWidth={192} maxWidth={400} contentMinWidth={640} label={t("shell.navigation")} handleClassName="sticky top-0 h-dvh" className="min-h-dvh bg-background text-foreground">
       <aside className="sticky top-0 hidden h-dvh lg:block">
         <Sidebar sections={sections} route={navRoute} />
       </aside>
       <div className="min-w-0">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur lg:px-8">
-          <Sheet open={open} onOpenChange={setOpen}>
+          <Sheet open={open} onOpenChange={next => { if (next) drawerRoute.current = route; setOpen(next) }}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="lg:hidden" aria-label={t("shell.navigation")}>
                 <Menu />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" closeLabel={t("actions.close")} aria-describedby={undefined} className="gap-0 data-[side=left]:w-72 data-[side=left]:sm:max-w-72">
+            <SheetContent side="left" onCloseAutoFocus={event => {
+              if (drawerRoute.current !== route) { event.preventDefault(); mainRef.current?.focus({ preventScroll: true }) }
+            }} closeLabel={t("actions.close")} aria-describedby={undefined} className="gap-0 data-[side=left]:w-72 data-[side=left]:sm:max-w-72">
               <SheetTitle className="sr-only">{t("shell.navigation")}</SheetTitle>
               <Sidebar sections={sections} route={navRoute} onNavigate={() => setOpen(false)} />
             </SheetContent>
@@ -230,11 +244,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             <ThemeToggle />
           </div>
         </header>
-        <main className="mx-auto w-full min-w-0 max-w-[1400px] px-4 py-6 lg:px-8">
+        <main id="console-main" ref={mainRef} tabIndex={-1} aria-label={t("shell.mainContent")} className="scroll-mt-20 mx-auto w-full min-w-0 max-w-[1400px] px-4 py-6 lg:px-8">
           {!context.scope && context.scopes.length ? <div className="mb-6 flex flex-col gap-2"><p>{t("management.chooseScope")}</p><Select onValueChange={value => { void context.switchScope?.(value).catch(error => toast.error(String(error))) }}><SelectTrigger aria-label={t("management.chooseScope")}><SelectValue placeholder={t("management.chooseScope")} /></SelectTrigger><SelectContent><SelectGroup>{context.scopes.map(scope => <SelectItem key={scope.selector} value={scope.selector}>{scope.name ?? t(`scope.${scope.kind}`)}</SelectItem>)}</SelectGroup></SelectContent></Select></div> : null}
           {children}
         </main>
       </div>
     </ResizableColumns>
+    </>
   )
 }

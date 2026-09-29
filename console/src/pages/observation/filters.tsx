@@ -25,7 +25,7 @@ export function HistoryFilters({ onApply, logs = false, summary = false, reasons
     onApply(result)
   }
   return <form onSubmit={apply} className="flex flex-col gap-3">
-    <FieldGroup className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {["fromMs", "toMs", ...fields, ...(logs ? ["status"] : [])].map(name => <Field key={name}>
         <FieldLabel htmlFor={`${id}-${name}`}>{t(`observation.${name}`)}</FieldLabel>
         <Input id={`${id}-${name}`} type={name.endsWith("Ms") ? "datetime-local" : name === "status" ? "number" : "text"} min={name === "status" ? 100 : name === "toMs" ? draft.fromMs : undefined} max={name === "status" ? 599 : name === "fromMs" ? draft.toMs : undefined} value={draft[name] ?? ""} onChange={event => setDraft({ ...draft, [name]: event.target.value })} />
