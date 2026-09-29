@@ -9,127 +9,126 @@ concurrency:
   group: ohos-probe-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  toolchain:
+    name: Cached OHOS toolchain image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: docker/setup-buildx-action@v4.4.1
+      - uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: image
+        env:
+          TOOLCHAIN_HASH: ${{ hashFiles('.gitlab/Dockerfile.ohos', 'scripts/ohos/install-sdk.sh', 'scripts/ohos/install-hap-tools.sh', 'scripts/ohos/prepare-tauri.py', 'scripts/ohos/tauri-pins.json') }}
+        run: |
+          image="ghcr.io/leenhawk/gproxy-build-ohos:$TOOLCHAIN_HASH"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then echo 'exists=true' >> "$GITHUB_OUTPUT"; fi
+      - name: Prepare image build space
+        if: steps.image.outputs.exists != 'true'
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet
+      - uses: docker/build-push-action@v7.4.0
+        if: steps.image.outputs.exists != 'true'
+        with:
+          context: .
+          file: .gitlab/Dockerfile.ohos
+          push: true
+          tags: ${{ steps.image.outputs.image }}
+          cache-from: type=registry,ref=ghcr.io/leenhawk/gproxy-build-ohos:buildcache
+          cache-to: type=registry,ref=ghcr.io/leenhawk/gproxy-build-ohos:buildcache,mode=max
+
   cli:
     if: github.ref_name != 'ci/ohos-hap-probe'
     name: CLI (${{ matrix.target }})
+    needs: toolchain
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ${{ needs.toolchain.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
         target: [aarch64-unknown-linux-ohos, x86_64-unknown-linux-ohos]
+    defaults:
+      run:
+        shell: bash
     env:
-      OHOS_HOME: ${{ github.workspace }}/.ohos-sdk/default/openharmony/20
+      OHOS_HOME: /opt/ohos-public
       TARGET_TRIPLE: ${{ matrix.target }}
       CARGO_PROFILE_RELEASE_LTO: thin
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '8'
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-go@v7.0.0
-        with:
-          go-version: '1.27.1'
-          cache: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - uses: actions/cache/restore@v5.0.5
-        id: sdk-cache
-        with:
-          path: .ohos-sdk
-          key: ohos-sdk-linux-6.0.0.48
-      - name: Install public OpenHarmony SDK
-        run: bash scripts/ohos/install-sdk.sh
-      - uses: actions/cache/save@v5.0.5
-        if: steps.sdk-cache.outputs.cache-hit != 'true'
-        with:
-          path: .ohos-sdk
-          key: ohos-sdk-linux-6.0.0.48
-      - name: Install host build tools
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends cmake ninja-build clang libclang-dev pkg-config
       - uses: Swatinem/rust-cache@v2.9.2
         with:
-          shared-key: ohos-cli-${{ matrix.target }}
+          shared-key: ohos-container-cli-${{ matrix.target }}
           cache-on-failure: true
-      - name: Cross-compile complete CLI
-        shell: bash
+      - name: Cross-compile and package complete CLI
         run: |
           source scripts/ohos/env.sh
           cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE"
-          export ARTIFACT_NAME="gproxy-ohos-${TARGET_TRIPLE%%-*}"
-          bash scripts/ohos/package-cli.sh
+          ARTIFACT_NAME="gproxy-ohos-${TARGET_TRIPLE%%-*}" bash scripts/ohos/package-cli.sh
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: ohos-cli-${{ matrix.target }}
           path: dist/release/
           if-no-files-found: error
+
   hap:
     if: github.ref_name != 'ci/ohos-probe'
     name: Experimental Tauri HAP (ARM64)
+    needs: toolchain
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ${{ needs.toolchain.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    defaults:
+      run:
+        shell: bash
     env:
-      HARMONY_TOOLS_DIR: ${{ github.workspace }}/.harmony-tools
+      OHOS_HOME: /opt/harmony/command-line-tools/sdk/default/openharmony
       TARGET_TRIPLE: aarch64-unknown-linux-ohos
       CARGO_PROFILE_RELEASE_LTO: thin
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '8'
       CARGO_PROFILE_DEV_DEBUG: '0'
     steps:
       - uses: actions/checkout@v7.0.1
-      - name: Prepare runner space and host tools
-        run: |
-          echo "OHOS_TAURI_SOURCES=$RUNNER_TEMP/gproxy-ohos-upstream" >> "$GITHUB_ENV"
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake ninja-build clang libclang-dev libssl-dev pkg-config
-          pip install json5
-      - uses: actions/cache/restore@v5.0.5
-        id: harmony-cache
-        with:
-          path: .harmony-tools
-          key: harmony-tools-linux-6.0.0.858
-      - name: Install HarmonyOS command-line tools
-        run: bash scripts/ohos/install-hap-tools.sh
-      - uses: actions/cache/save@v5.0.5
-        if: steps.harmony-cache.outputs.cache-hit != 'true'
-        with:
-          path: .harmony-tools
-          key: harmony-tools-linux-6.0.0.858
-      - uses: actions/setup-node@v7.0.0
-        with:
-          node-version: '24' 
-      - uses: actions/setup-go@v7.0.0
-        with:
-          go-version: '1.27.1'
-          cache: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-unknown-linux-ohos
-      - uses: pnpm/action-setup@v6.1.0
-        with:
-          package_json_file: console/package.json
       - name: Build shared Console
         run: |
           pnpm --dir console install --frozen-lockfile
           pnpm --dir console build
       - name: Apply pinned experimental Tauri overlay
-        run: python3 scripts/ohos/prepare-tauri.py
+        run: python3 scripts/ohos/prepare-tauri.py --phase workspace
       - uses: Swatinem/rust-cache@v2.9.2
         with:
-          shared-key: ohos-tauri-probe
-          cache-on-failure: true
+          shared-key: ohos-container-tauri
           cache-all-crates: true
-          workspaces: |
-            . -> target
-            ${{ runner.temp }}/gproxy-ohos-upstream/tauri -> target
-      - name: Install OHOS Tauri CLI and ohrs
-        run: |
-          cargo install tauri-cli --path "$OHOS_TAURI_SOURCES/tauri/crates/tauri-cli" --root "$RUNNER_TEMP/ohos-tools"
-          cargo install ohrs --version 1.5.0 --locked --root "$RUNNER_TEMP/ohos-tools"
-          echo "$RUNNER_TEMP/ohos-tools/bin" >> "$GITHUB_PATH"
+          cache-on-failure: true
       - name: Generate native HAP project
         run: |
           source scripts/ohos/env.sh
-          export PATH="$HARMONY_TOOLS_DIR/command-line-tools/tool/node/bin:$PATH"
+          export PATH="$HARMONY_TOOLS_DIR/command-line-tools/tool/node/bin:$HARMONY_TOOLS_DIR/command-line-tools/bin:$PATH"
           cd crates/gproxy-host-tauri
           cargo tauri ohos init --ci --skip-targets-install
           cd ../..
@@ -137,7 +136,7 @@ jobs:
       - name: Compile and package unsigned HAP
         run: |
           source scripts/ohos/env.sh
-          export PATH="$HARMONY_TOOLS_DIR/command-line-tools/tool/node/bin:$PATH"
+          export PATH="$HARMONY_TOOLS_DIR/command-line-tools/tool/node/bin:$HARMONY_TOOLS_DIR/command-line-tools/bin:$PATH"
           cd crates/gproxy-host-tauri
           cargo tauri ohos build --ci --target aarch64 --ignore-version-mismatches -- --lib
           cd ../..
@@ -151,5 +150,4 @@ jobs:
             crates/gproxy-host-tauri/gen/**/outputs/**/*.hap
             crates/gproxy-host-tauri/gen/**/build-profile.json5
             Cargo.lock
-            ${{ runner.temp }}/gproxy-ohos-upstream/tauri/Cargo.lock
           if-no-files-found: warn
