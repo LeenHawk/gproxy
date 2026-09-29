@@ -32,7 +32,7 @@ RUN python3 scripts/ohos/prepare-toolchain.py \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgl1 \
     && rm -rf /var/lib/apt/lists/* \
-    && dependencies="$(ldd /opt/harmony/command-line-tools/sdk/default/hms/toolchains/lib/libimage_transcoder_shared.so)" \
+    && dependencies="$(LD_LIBRARY_PATH=/opt/harmony/command-line-tools/sdk/default/hms/toolchains/lib:/opt/harmony/command-line-tools/sdk/default/openharmony/toolchains/lib:/opt/harmony/command-line-tools/sdk/default/openharmony/previewer/common/bin ldd /opt/harmony/command-line-tools/sdk/default/hms/toolchains/lib/libimage_transcoder_shared.so)" \
     && printf '%s\n' "$dependencies" \
     && ! printf '%s\n' "$dependencies" | grep -q 'not found'
 WORKDIR /workspace
