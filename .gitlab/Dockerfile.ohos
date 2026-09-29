@@ -17,11 +17,13 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && rm -rf /var/lib/apt/lists/* \
     && rustup target add aarch64-unknown-linux-ohos x86_64-unknown-linux-ohos
 WORKDIR /opt/ohos-build
-COPY scripts/ohos/install-sdk.sh scripts/ohos/install-hap-tools.sh scripts/ohos/prepare-tauri.py scripts/ohos/tauri-pins.json scripts/ohos/
+COPY scripts/ohos/install-sdk.sh scripts/ohos/
 RUN OHOS_HOME=/opt/ohos-public bash scripts/ohos/install-sdk.sh
+COPY scripts/ohos/install-hap-tools.sh scripts/ohos/
 RUN GITHUB_PATH=/tmp/ohos-paths GITHUB_ENV=/tmp/ohos-env bash scripts/ohos/install-hap-tools.sh \
     && rm /tmp/ohos-paths /tmp/ohos-env
-RUN python3 scripts/ohos/prepare-tauri.py --phase toolchain \
+COPY scripts/ohos/prepare-toolchain.py scripts/ohos/tauri-pins.json scripts/ohos/
+RUN python3 scripts/ohos/prepare-toolchain.py \
     && CARGO_PROFILE_RELEASE_LTO=thin CARGO_PROFILE_RELEASE_CODEGEN_UNITS=8 \
        cargo install tauri-cli --path /opt/ohos-tauri/tauri/crates/tauri-cli --root /opt/ohos-tools \
     && cargo install ohrs --version 1.5.0 --locked --root /opt/ohos-tools \
