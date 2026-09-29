@@ -7,6 +7,7 @@ from pathlib import Path
 import plistlib
 import shutil
 import subprocess
+import sys
 import tempfile
 import zipfile
 
@@ -36,6 +37,9 @@ for row in rows:
         subprocess.run(["arch", f"-{arch}", str(cli), "--version"], check=True)
         subprocess.run(["arch", f"-{arch}", str(cli), "--help"], stdout=subprocess.DEVNULL, check=True)
 
+        subprocess.run([sys.executable, "scripts/package-macos-cli.py", "--binary", str(cli),
+                        "--artifact", row["artifact"], "--output-dir", str(output)], check=True)
+
         image_root = work / "image"
         app = image_root / "GPROXY.app"
         contents = app / "Contents"
@@ -58,6 +62,11 @@ for row in rows:
             }, stream)
         subprocess.run(["codesign", "--force", "--sign", "-", str(app)], check=True)
         subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
+        archive_path = output / f"{artifact}.zip"
+        subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app), str(archive_path)], check=True)
+        with archive_path.open("rb") as stream:
+            zip_digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        Path(str(archive_path) + ".sha256").write_text(f"{zip_digest}  {archive_path.name}\n")
         (image_root / "Applications").symlink_to("/Applications")
         package = output / f"{artifact}.dmg"
         subprocess.run(["hdiutil", "create", "-ov", "-format", "UDZO", "-fs", "HFS+",

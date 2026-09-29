@@ -318,8 +318,8 @@ runner。
 ## v3 的 APK 机器还在
 
 Android 相关的东西一样都没删。`scripts/android/`、
-`scripts/package-android-apk.sh` 以及两个 `*-linux-android` 发布目标全部保留，
-而它们是两回事：
+`scripts/package-android-apk.sh` 以及两个 `*-linux-android` 发布目标作为参考保留。CLI 发布产物现为 ZIP 和 Termux DEB，不再构建旧 wrapper APK。
+它们是两回事：
 
 - 那些 **Java 模板**是这次移植的源材料，也是「某处当初这么做是不是另有原因」时
   的参照；

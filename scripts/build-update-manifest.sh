@@ -61,24 +61,7 @@ while IFS=$'\t' read -r target artifact os; do
     '. + [{target_triple:$t,url:$u,sha256:$s,size:$z}]' <<<"$artifacts")"
 
   if [ "$os" = android ]; then
-    apk="$assets_dir/$prefix$artifact.apk"
-    apk_sidecar="$apk.sha256"
-    if [ ! -f "$apk" ] || [ ! -f "$apk_sidecar" ]; then
-      echo "missing signed Android APK for $target" >&2
-      exit 1
-    fi
-    apk_sha="$(awk '{print $1}' "$apk_sidecar")"
-    apk_size="$(stat -c%s "$apk")"
-    apk_target="$target-apk"
-    apk_url="$asset_base_url/$prefix$artifact.apk"
-    printf '%s|%s|%s|%s\n' "$apk_target" "$apk_url" "$apk_sha" "$apk_size" >> "$payload"
-    artifacts="$(jq -c --arg t "$apk_target" --arg u "$apk_url" --arg s "$apk_sha" \
-      --argjson z "$apk_size" '. + [{target_triple:$t,url:$u,sha256:$s,size:$z}]' \
-      <<<"$artifacts")"
-
-    # The Tauri app has its own package identity. Never offer the legacy
-    # server-wrapper APK as an update to it. App builds can join the same
-    # signed manifest when their APK and hash are supplied alongside these.
+    # Only the Tauri Application is an APK; the CLI uses ZIP and Termux DEB.
     app_artifact="${artifact/gproxy-/gproxy-tauri-}"
     app_apk="$assets_dir/$prefix$app_artifact.apk"
     if [ -f "$app_apk" ]; then

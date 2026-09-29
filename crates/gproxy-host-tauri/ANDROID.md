@@ -354,7 +354,8 @@ four ABIs of it will fill a small runner.
 
 Nothing Android has been deleted. `scripts/android/`,
 `scripts/package-android-apk.sh` and the two `*-linux-android` release targets
-all stay, and they are two different things:
+remain as reference material; releases now ship the CLI as ZIP and Termux DEB,
+not the legacy wrapper APK. These are two different things:
 
 - the **Java templates** are this port's source material, and the reference for
   anything that turns out to have been done for a reason not recorded here;

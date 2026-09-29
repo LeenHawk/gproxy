@@ -2,7 +2,6 @@
 set -euo pipefail
 source scripts/gitlab/env.sh
 mkdir -p dist/release
-if [ "${TARGET_OS:-}" = android ]; then export GPROXY_INSTALLATION_KIND=android-apk; fi
 case "${1:?cli|application|edge}" in
   cli)
     echo "Building CLI / server: $ARTIFACT_NAME"
@@ -32,6 +31,7 @@ case "${1:?cli|application|edge}" in
     scripts/build-provenance.sh
     ;;
   application)
+    if [ "$TARGET_OS" = android ]; then export GPROXY_INSTALLATION_KIND=android-apk; fi
     [ -n "$APPLICATION_ARTIFACT" ] || exit 0
     export ARTIFACT_NAME="$APPLICATION_ARTIFACT" BUILDER=tauri
     echo "Building Application: $ARTIFACT_NAME"
