@@ -284,8 +284,8 @@ fn drafts(config: &RuleConfig, named: &str, report: &mut Report) -> Option<Vec<D
             Some(vec![draft])
         }
         RuleConfig::Header { name, value, mode } => {
-            if axum::http::HeaderName::from_bytes(name.trim().as_bytes()).is_err()
-                || axum::http::HeaderValue::from_str(value).is_err()
+            if http::HeaderName::from_bytes(name.trim().as_bytes()).is_err()
+                || http::HeaderValue::from_str(value).is_err()
             {
                 return drop("its header name or value is not valid in HTTP".into());
             }

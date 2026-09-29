@@ -2,7 +2,7 @@
 //!
 //! # Why this file exists at all
 //!
-//! [`crate::transfer::import`] never opens anything: it hands the sdk a source
+//! configuration import never opens anything: it hands the sdk a source
 //! master key and `manage().transfer().import` opens each blob with
 //! [`AesGcmCodec`] and re-seals it under this instance's codec. That works
 //! between two v4 instances because both write the same envelope.
@@ -53,7 +53,7 @@ use serde_json::Value;
 use zeroize::Zeroize;
 
 use super::document::Envelope;
-use crate::{Error, Result};
+use super::{Error, Result};
 
 /// v3's authenticated-data domains, copied from
 /// `v3:crates/gproxy-app/src/secrets.rs`. They are fixed strings: v3 bound no
@@ -237,7 +237,7 @@ impl Drop for EphemeralKey {
 /// A master key as an operator holds it — 64 hex characters or base64 — as the
 /// 32 bytes v3 sealed with.
 pub fn master_key(value: &str) -> Result<[u8; KEY_BYTES]> {
-    use gproxy_app::config::MasterKey;
+    use crate::config::MasterKey;
 
     let trimmed = value.trim();
     let candidate = if trimmed.len() == 64 && trimmed.chars().all(|c| c.is_ascii_hexdigit()) {

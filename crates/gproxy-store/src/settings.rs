@@ -50,7 +50,7 @@ impl<C: BatchConnectionTrait> Settings<'_, C> {
             .collect::<Vec<_>>();
         let mut conflict = OnConflict::column(setting::Column::Id);
         if columns.is_empty() {
-            conflict.do_nothing();
+            conflict.do_nothing_on([setting::Column::Id]);
         } else {
             conflict.update_columns(columns);
         }

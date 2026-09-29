@@ -1,7 +1,7 @@
 //! The configuration half: a v3 document as a v4 [`ConfigurationExportDto`].
 //!
 //! Nothing here writes to a database. It produces the same document
-//! `gproxy export` writes, which [`crate::transfer`] already knows how to
+//! `gproxy export` writes, which configuration import already knows how to
 //! replay — so the import runs through the sdk's one transaction, its one
 //! revision bump, its reference checking and its credential re-sealing, and
 //! this module's only job is the translation.
@@ -56,13 +56,13 @@ use gproxy_sdk::dto::{
 };
 use serde_json::Value;
 
+use super::{Error, Result};
 use super::{
     Report, aliases, channels,
     document::{self, Document},
     endpoints, fingerprint, ids, provider_config, routing, rules,
     secret::{Bridge, Domain},
 };
-use crate::{Error, Result};
 
 /// v3 had one currency and never stored it.
 const CURRENCY: &str = "USD";

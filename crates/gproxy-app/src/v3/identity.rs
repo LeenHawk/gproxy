@@ -1,8 +1,8 @@
 //! The identity half: users, keys, scopes, permissions and rate limits.
 //!
 //! None of this is in the sdk's reach — identity is `gproxy-app`'s — so every
-//! row goes through [`gproxy_app::Operations`], the same families the admin API
-//! calls, exactly as [`crate::bootstrap`] does. That is not a stylistic
+//! row goes through [`crate::Operations`], the same families the admin API
+//! calls, exactly as the host bootstrap does. That is not a stylistic
 //! preference. The binding rules that say a key's organization must exist and
 //! that its holder must be a member of it live in those families and nowhere
 //! else; a hand-rolled insert would be a second door past them, which is
@@ -12,7 +12,7 @@
 //!
 //! v3 stored `SHA-256(payload)`, the key text with an `sk-`/`at-` presentation
 //! prefix removed (`v3:crates/gproxy-app/src/control/user_key.rs`). v4's
-//! [`gproxy_app::auth::digests`] probes the raw digest of the presented token
+//! [`crate::auth::digests`] probes the raw digest of the presented token
 //! *and* that same prefix-stripped one, the second rung existing because "it is
 //! what v3 wrote". So a migrated row carries v3's digest bytes verbatim and the
 //! operator's existing key keeps authenticating — which is the single fact that
@@ -48,7 +48,7 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use gproxy_app::{
+use crate::{
     App, AppError, Operations,
     dto::{
         ApiKeyWrite, MemberWrite, OAuthClientWrite, OrganizationWrite, PermissionWrite,
@@ -61,13 +61,13 @@ use gproxy_store::entity::limits::rate_limit;
 use gproxy_store::entity::oauth::client as oauth_client;
 use sea_orm::EntityTrait;
 
+use super::{Error, Result};
 use super::{
     Report,
     document::{self, DIGEST_VERSION, Document},
     ids,
     secret::{Bridge, Domain},
 };
-use crate::{Error, Result};
 
 /// v4's instance roles.
 const ADMIN: &str = "admin";
@@ -149,7 +149,7 @@ where
                 .organizations()
                 .update(
                     &id,
-                    gproxy_app::dto::OrganizationPatch {
+                    crate::dto::OrganizationPatch {
                         name: Some(row.name.clone()),
                         ..Default::default()
                     },
@@ -191,7 +191,7 @@ where
                 .teams()
                 .update(
                     &id,
-                    gproxy_app::dto::TeamPatch {
+                    crate::dto::TeamPatch {
                         name: Some(row.name.clone()),
                         ..Default::default()
                     },
@@ -238,7 +238,7 @@ where
                 .users()
                 .update(
                     &id,
-                    gproxy_app::dto::UserPatch {
+                    crate::dto::UserPatch {
                         name: Some(row.name.clone()),
                         role: Some(role.to_owned()),
                         enabled: Some(row.enabled),
@@ -466,7 +466,7 @@ where
                 .api_keys()
                 .update(
                     &id,
-                    gproxy_app::dto::ApiKeyPatch {
+                    crate::dto::ApiKeyPatch {
                         name: Some(write.name.clone()),
                         expires_at_ms: Some(write.expires_at_ms),
                         enabled: write.enabled,
@@ -585,7 +585,7 @@ where
                 ops.permissions()
                     .update(
                         &id,
-                        gproxy_app::dto::PermissionPatch {
+                        crate::dto::PermissionPatch {
                             action: Some(action.clone()),
                             model_pattern: Some(model_pattern.clone()),
                             ..Default::default()
@@ -748,7 +748,7 @@ where
                 .rate_limits()
                 .update(
                     &id,
-                    gproxy_app::dto::RateLimitPatch {
+                    crate::dto::RateLimitPatch {
                         limit_value: Some(write.limit_value.clone()),
                         period_seconds: Some(write.period_seconds),
                         ..Default::default()
@@ -941,4 +941,81 @@ mod tests {
         }
         assert!(unmappable_subject("surface").contains("neither a user nor a key"));
     }
+}
+
+/// Resume identity import at a row boundary. Original rows remain available in
+/// the archived tables; retries repeat at most one small, idempotent chunk.
+pub(crate) async fn step<C>(
+    app: &Arc<App<C>>,
+    document: &Document,
+    bridge: &Bridge,
+    dropped: &std::collections::BTreeSet<i64>,
+    cursor: usize,
+) -> Result<(Report, Option<usize>)>
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    let sizes = [
+        document.data.organizations.len(),
+        document.data.teams.len(),
+        document.data.users.len(),
+        document.data.users.len(),
+        document.data.user_keys.len(),
+        document.data.permissions.len(),
+        document.data.rate_limits.len(),
+        document.data.oauth_clients.len(),
+    ];
+    let mut offset = cursor;
+    let Some((group, size)) = sizes.into_iter().enumerate().find(|(_, n)| {
+        if offset < *n {
+            true
+        } else {
+            offset -= *n;
+            false
+        }
+    }) else {
+        return Ok((Report::default(), None));
+    };
+    let end = (offset + 16).min(size);
+    let mut data = document.data.clone();
+    let mut report = Report::default();
+    let users = existing(app.gproxy().store().users()).await?;
+    let keys = existing(app.gproxy().store().api_keys()).await?;
+    match group {
+        0 => {
+            data.organizations = data.organizations[offset..end].to_vec();
+            organizations(app, &data, &mut report).await?;
+        }
+        1 => {
+            data.teams = data.teams[offset..end].to_vec();
+            teams(app, &data, &mut report).await?;
+        }
+        2 => {
+            data.users = data.users[offset..end].to_vec();
+            self::users(app, &data, &mut report).await?;
+        }
+        3 => {
+            data.users = data.users[offset..end].to_vec();
+            memberships(app, &data, &users, &mut report).await?;
+        }
+        4 => {
+            data.user_keys = data.user_keys[offset..end].to_vec();
+            api_keys(app, &data, &users, bridge, &mut report).await?;
+        }
+        5 => {
+            data.permissions = data.permissions[offset..end].to_vec();
+            permissions(app, &data, &users, &keys, dropped, &mut report).await?;
+        }
+        6 => {
+            data.rate_limits = data.rate_limits[offset..end].to_vec();
+            rate_limits(app, &data, &users, &keys, &mut report).await?;
+        }
+        7 => {
+            data.oauth_clients = data.oauth_clients[offset..end].to_vec();
+            oauth_clients(app, &data, &mut report).await?;
+        }
+        _ => unreachable!(),
+    }
+    app.reload_all().await?;
+    Ok((report, Some(cursor + end - offset)))
 }

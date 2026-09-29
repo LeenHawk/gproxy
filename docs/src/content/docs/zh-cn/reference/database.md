@@ -15,6 +15,8 @@ description: 数据库后端及其选择、以实体为先的结构同步、cach
 | D1 | Cloudflare binding | Workers 宿主 |
 | libSQL / Turso | 经 Hrana HTTP pipeline | `--features libsql` |
 
+MySQL 需要 8.0.13 或更新版本，以支持 JSON 列的默认表达式。PostgreSQL 和 MySQL 驱动均启用 TLS 支持。
+
 没有 `--persistence` 时 `--dsn` 自己点明后端，所以通常 scheme 就够了。
 
 **本次构建没有的后端会在启动时被拒绝**，并指名能提供它的 feature，而不是等到第一个请求。

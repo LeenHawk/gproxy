@@ -16,6 +16,8 @@ Three storage extension points, chosen independently: the **database**, the
 | D1 | the Cloudflare binding | the Workers host |
 | libSQL / Turso | over the Hrana HTTP pipeline | `--features libsql` |
 
+MySQL requires 8.0.13 or later for JSON default expressions. PostgreSQL and MySQL drivers include TLS support.
+
 `--dsn` names its own backend when `--persistence` is absent, so the scheme is
 usually enough.
 

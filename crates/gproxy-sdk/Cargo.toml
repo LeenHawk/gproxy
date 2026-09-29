@@ -75,8 +75,8 @@ channels = [
 
 # Databases. SQLite is always available on native targets; these add a driver
 # and are native-only. libSQL and D1 are the edge options.
-postgres = ["sea-orm/sqlx-postgres"]
-mysql = ["sea-orm/sqlx-mysql"]
+postgres = ["sea-orm/sqlx-postgres", "sea-orm/runtime-tokio-rustls"]
+mysql = ["sea-orm/sqlx-mysql", "sea-orm/runtime-tokio-rustls"]
 libsql = ["gproxy-seaorm/libsql", "gproxy-client/libsql"]
 # Marker: the D1 binding is always available on wasm32 through gproxy-seaorm.
 # Enabling it documents the intent and keeps the feature name stable.

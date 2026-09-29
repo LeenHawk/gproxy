@@ -75,14 +75,9 @@ work on `serve`.
 
 ### Automatic v3 upgrade
 
-Start with the same data directory and `GPROXY_MASTER_KEY`. v4 recognizes the
-v3 SQLite database, imports a snapshot beside it, and replaces the original path
-only after success, keeping a `gproxy.db.v3-*.bak` backup. Passwords and API keys
-remain valid. `gproxy migrate` follows the same path.
+Keep the database URL, data directory, and `GPROXY_MASTER_KEY`. SQLite uses a file snapshot and replaces the original only after success, retaining a `.v3-*.bak` backup. PostgreSQL and MySQL archive the old tables as `gproxy_v3_*` and checkpoint the data conversion. Passwords, API keys, and historical usage survive. The host serves traffic only after migration completes; `gproxy migrate` uses the same path.
 
-`import --from-v3` remains available for separately importing a backup or JSON;
-it is not required for a normal upgrade. See the
-[migration guide](../../docs/src/content/docs/deployment/v3-to-v4.md).
+Fix a reported failure and restart to resume. `import --from-v3` remains available for separately importing a SQLite backup or JSON document; normal upgrades do not require an export. See the [migration guide](../../docs/src/content/docs/deployment/v3-to-v4.md).
 
 ### `export` / `import`
 

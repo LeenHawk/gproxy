@@ -32,6 +32,7 @@ mod hex;
 mod rt;
 
 pub mod config;
+pub mod v3;
 pub use config::AppConfig;
 
 pub mod snapshot;

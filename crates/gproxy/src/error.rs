@@ -14,6 +14,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error(transparent)]
+    Migration(#[from] gproxy_app::v3::Error),
     /// A value the operator supplied is wrong. `origin` names where it came
     /// from — `--port / GPROXY_PORT` — so the message points at the thing to
     /// change rather than at the code that rejected it.

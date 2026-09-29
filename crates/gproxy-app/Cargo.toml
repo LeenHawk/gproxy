@@ -21,9 +21,12 @@ repository.workspace = true
 ts = ["dep:ts-rs", "ts-rs/no-serde-warnings", "gproxy-sdk/ts"]
 
 [dependencies]
+# Legacy v3 envelope decryption for both native and edge migration.
+aes-gcm = { workspace = true }
 arc-swap = { workspace = true }
 # Pure Rust password hashing for the console/portal login.
 argon2 = { workspace = true }
+async-trait = { workspace = true }
 base64 = { workspace = true }
 bytes = { workspace = true }
 # Query-parameter keys are percent-decoded before they are matched against the
@@ -43,6 +46,8 @@ gproxy-sdk = { workspace = true }
 gproxy-seaorm = { workspace = true }
 gproxy-store = { workspace = true }
 http = { workspace = true }
+regex = { workspace = true }
+rust_decimal = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -55,6 +60,7 @@ tracing = { workspace = true }
 url = { workspace = true }
 ts-rs = { workspace = true, optional = true }
 web-time = { workspace = true }
+zeroize = { workspace = true }
 
 # A rate-limit charge has to be given back from a `Drop`, where nothing can be
 # awaited, so the release is spawned; `sync` adds a timer for the revision poll

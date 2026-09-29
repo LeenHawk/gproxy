@@ -29,7 +29,7 @@
 
 use serde_json::Value;
 
-use crate::{Error, Result};
+use super::{Error, Result};
 
 /// Every channel id v4 registers, as `gproxy_channel::channels::compiled_in()`
 /// declares them. Listed rather than queried because a build with a reduced

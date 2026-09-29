@@ -134,7 +134,7 @@ impl<C: BatchConnectionTrait> Repository<'_, C, quota_window::Entity> {
                     quota_window::Column::QuotaId,
                     quota_window::Column::StartsAtMs,
                 ])
-                .do_nothing()
+                .do_nothing_on([quota_window::Column::Id])
                 .to_owned(),
             )
             .build(backend);

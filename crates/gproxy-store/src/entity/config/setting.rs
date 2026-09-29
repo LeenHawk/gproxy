@@ -28,10 +28,10 @@ pub struct Model {
     /// Outbound proxy override. None inherits the parent scope; global None is direct.
     pub proxy: Option<Json>,
     /// JSON array of browser origin strings.
-    #[sea_orm(default_value = "[]")]
+    #[sea_orm(default_expr = "sea_orm::sea_query::Expr::cust(\"('[]')\")")]
     pub cors_origins: Json,
     /// JSON array of trusted proxy addresses.
-    #[sea_orm(default_value = "[]")]
+    #[sea_orm(default_expr = "sea_orm::sea_query::Expr::cust(\"('[]')\")")]
     pub trusted_proxies: Json,
     /// Mark the session cookie `Secure` whatever the request looked like. Off,
     /// it is `Secure` only when the request is known to be HTTPS, which behind
@@ -113,13 +113,13 @@ pub struct Model {
     #[sea_orm(default_value = "text")]
     pub log_format: String,
     /// Additional request-header names to remove, as a JSON string array.
-    #[sea_orm(default_value = "[]")]
+    #[sea_orm(default_expr = "sea_orm::sea_query::Expr::cust(\"('[]')\")")]
     pub request_header_blacklist: Json,
     /// Additional response-header names to remove, as a JSON string array.
-    #[sea_orm(default_value = "[]")]
+    #[sea_orm(default_expr = "sea_orm::sea_query::Expr::cust(\"('[]')\")")]
     pub response_header_blacklist: Json,
     /// Additional query-parameter names to remove, as a JSON string array.
-    #[sea_orm(default_value = "[]")]
+    #[sea_orm(default_expr = "sea_orm::sea_query::Expr::cust(\"('[]')\")")]
     pub query_parameter_blacklist: Json,
 
     // Files and maintenance
