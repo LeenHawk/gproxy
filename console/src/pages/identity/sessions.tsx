@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input"
 export function SessionsPage() {
   const { t } = useTranslation()
   const client = useQueryClient()
-  const { page, pageSize, setPage, setPageSize } = usePagination()
+  const { page, pageSize, setPage, setPageSize } = usePagination("sessions")
   const [userId, setUserId] = useState("")
 
   const filter = { page, pageSize, userId: userId.trim() || undefined }

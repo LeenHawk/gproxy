@@ -29,7 +29,7 @@ export function ProvidersPage({ providerId, tab = "credentials" }: { providerId?
 function InstanceProvidersPage({ providerId, tab }: { providerId?: string; tab: string }) {
   const { t } = useTranslation(), navigate = useNavigate(), client = useQueryClient()
   const [search, setSearch] = useState("")
-  const { page, pageSize, setPage, setPageSize } = usePagination(search)
+  const { page, pageSize, setPage, setPageSize } = usePagination("providers", search)
   const [creating, setCreating] = useState(false)
   const request = { page, pageSize, search: search.trim() || undefined }
   const list = useQuery({ queryKey: ["admin", "/providers", request], queryFn: () => providers.list(request) })

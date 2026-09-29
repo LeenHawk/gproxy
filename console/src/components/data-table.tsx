@@ -85,8 +85,8 @@ type TableProps<T> = {
 }
 
 // Record lists opt into paging; configuration and reference tables remain whole.
-export function DataTable<T>({ paginate = false, resetPageKey = "", ...props }: TableProps<T> & { paginate?: boolean; resetPageKey?: string }) {
-  const { page, pageSize, setPage, setPageSize } = usePagination(resetPageKey)
+export function DataTable<T>({ paginate = false, resetPageKey = "", storageKey = "", ...props }: TableProps<T> & { paginate?: boolean; resetPageKey?: string; storageKey?: string }) {
+  const { page, pageSize, setPage, setPageSize } = usePagination(storageKey, resetPageKey)
   const currentPage = Math.min(page, Math.max(1, Math.ceil(props.rows.length / pageSize)))
   if (paginate && page > currentPage) setPage(currentPage)
   const rows = paginate ? props.rows.slice((currentPage - 1) * pageSize, currentPage * pageSize) : props.rows
