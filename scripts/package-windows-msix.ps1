@@ -46,6 +46,7 @@ try {
     $displayXml = [System.Security.SecurityElement]::Escape($DisplayName)
     $publisherXml = [System.Security.SecurityElement]::Escape($Publisher)
     $publisherDisplayXml = [System.Security.SecurityElement]::Escape($PublisherDisplayName)
+    $applicationAttributes = if ($Mode -eq 'cli') { 'desktop4:SupportsMultipleInstances="true"' } else { '' }
     $extensions = if ($Mode -eq 'cli') {
         '<uap5:Extension Category="windows.appExecutionAlias" Executable="gproxy.exe" EntryPoint="Windows.FullTrustApplication"><uap5:AppExecutionAlias desktop4:Subsystem="console"><uap5:ExecutionAlias Alias="gproxy.exe" /></uap5:AppExecutionAlias></uap5:Extension>'
     } else {
@@ -64,7 +65,7 @@ try {
  <Properties><DisplayName>$displayXml</DisplayName><PublisherDisplayName>$publisherDisplayXml</PublisherDisplayName><Logo>Assets\StoreLogo.png</Logo></Properties>
  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
  <Resources><Resource Language="en-us" /></Resources>
- <Applications><Application Id="GPROXY" Executable="$executable" EntryPoint="Windows.FullTrustApplication">
+ <Applications><Application Id="GPROXY" Executable="$executable" EntryPoint="Windows.FullTrustApplication" $applicationAttributes>
   <uap:VisualElements DisplayName="$displayXml" Description="$displayXml" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
   <Extensions>$extensions</Extensions>
  </Application></Applications>
