@@ -154,5 +154,6 @@ jobs:
             dist/release/
             crates/gproxy-host-tauri/gen/**/outputs/**/*.hap
             crates/gproxy-host-tauri/gen/**/build-profile.json5
+            crates/gproxy-host-tauri/gen/**/hvigorfile.ts
             Cargo.lock
           if-no-files-found: warn
