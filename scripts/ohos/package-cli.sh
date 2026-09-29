@@ -10,6 +10,7 @@ case "$ohos_arch" in
   x86_64) machine='Advanced Micro Devices X86-64' ;;
 esac
 "$reader" -h "$binary" | grep -F "$machine"
+"$reader" -S "$binary" | grep -F .note.ohos.ident
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 install -m755 "$binary" "$work/gproxy"
