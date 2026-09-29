@@ -25,4 +25,4 @@ export "CXXSTDLIB_$underscore=c++"
 export "CARGO_TARGET_${underscore^^}_LINKER=$wrapper_dir/$ohos_arch-clang"
 export "BINDGEN_EXTRA_CLANG_ARGS_$underscore=--target=$ohos_arch-linux-ohos --sysroot=$OHOS_NATIVE_HOME/sysroot"
 export "CMAKE_TOOLCHAIN_FILE_$underscore=$PWD/scripts/cmake/ohos.cmake"
-export BORING_BSSL_CPP_RUNTIME_LIB=c++
+export BORING_BSSL_RUST_CPPLIB=c++

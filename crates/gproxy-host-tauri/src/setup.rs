@@ -129,11 +129,18 @@ impl Setup {
         if !request.data_dir.is_absolute() {
             return Err(AppError::invalid("choose an absolute data directory path").into());
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_env = "ohos"))]
         if request.data_dir != self.root {
             return Err(
-                AppError::invalid("Android uses the application's private data directory").into(),
+                AppError::invalid("Mobile applications use their private data directory").into(),
             );
+        }
+        #[cfg(target_env = "ohos")]
+        if request.auto_start || request.tray {
+            return Err(AppError::invalid(
+                "OpenHarmony does not support launch at login or a desktop tray",
+            )
+            .into());
         }
         validate_database(&request.database)?;
         let pending = self.root.join(FILE).is_file();
@@ -300,14 +307,14 @@ fn database_kinds() -> Vec<&'static str> {
 fn validate_database(database: &StoreBackendConfig) -> IpcResult<()> {
     match database {
         StoreBackendConfig::Sqlite { path } if !path.trim().is_empty() => {
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_env = "ohos"))]
             if Path::new(path).is_absolute()
                 || Path::new(path)
                     .components()
                     .any(|component| component == std::path::Component::ParentDir)
             {
                 return Err(AppError::invalid(
-                    "Android database files must stay inside the private data directory",
+                    "Mobile database files must stay inside the private data directory",
                 )
                 .into());
             }

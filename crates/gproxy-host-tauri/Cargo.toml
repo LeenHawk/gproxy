@@ -53,10 +53,6 @@ gproxy-store = { workspace = true }
 # The master key this shell mints on first run, and nothing else.
 getrandom = { workspace = true }
 http = { workspace = true }
-# The system credential store. `v1` is the platform-native store per OS —
-# Secret Service on Linux, the Keychain on macOS, the Credential Manager on
-# Windows — which is exactly the set this shell wants and nothing more.
-keyring = { workspace = true }
 # Builds a command's name out of its surface, family and method. A table of
 # two hundred entries has to derive its identifiers from the declaration, or
 # the declaration stops being the single place they are written down.
@@ -91,7 +87,13 @@ tauri-build = { workspace = true }
 jni = { workspace = true }
 libc = { workspace = true }
 
-[target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies]
+# The system credential store. `v1` is the platform-native store per OS —
+# Secret Service on Linux, the Keychain on macOS, the Credential Manager on
+# Windows — which is exactly the set this shell wants and nothing more.
+[target.'cfg(not(target_env = "ohos"))'.dependencies]
+keyring = { workspace = true }
+
+[target.'cfg(all(not(target_env = "ohos"), any(target_os = "linux", target_os = "macos", target_os = "windows")))'.dependencies]
 tauri = { workspace = true, features = ["tray-icon"] }
 tauri-plugin-dialog = { workspace = true }
 tauri-plugin-single-instance = { workspace = true }

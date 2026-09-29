@@ -66,7 +66,9 @@ pub(super) fn compatible(required: u32, current: u32) -> Result<(), UpdateError>
 pub(super) fn target() -> String {
     let arch = std::env::consts::ARCH;
     let os = std::env::consts::OS;
-    let environment = if cfg!(target_env = "musl") {
+    let environment = if cfg!(target_env = "ohos") {
+        "ohos"
+    } else if cfg!(target_env = "musl") {
         "musl"
     } else if cfg!(target_env = "gnu") {
         "gnu"
@@ -76,6 +78,8 @@ pub(super) fn target() -> String {
         ""
     };
     match (arch, os, environment) {
+        ("aarch64", "linux", "ohos") => "aarch64-unknown-linux-ohos",
+        ("x86_64", "linux", "ohos") => "x86_64-unknown-linux-ohos",
         ("x86_64", "linux", "gnu") => "x86_64-unknown-linux-gnu",
         ("aarch64", "linux", "gnu") => "aarch64-unknown-linux-gnu",
         ("riscv64", "linux", "gnu") => "riscv64gc-unknown-linux-gnu",
