@@ -3,7 +3,7 @@
 set -euo pipefail
 mode="${1:?cli|application}"
 case "$mode" in
-  cli) export OHOS_HOME=/opt/ohos-public BUILDER=cargo-ohos ;;
+  cli) export OHOS_HOME="$HARMONY_TOOLS_DIR/command-line-tools/sdk/default/openharmony" BUILDER=cargo-ohos ;;
   application)
     export OHOS_HOME="$HARMONY_TOOLS_DIR/command-line-tools/sdk/default/openharmony"
     export ARTIFACT_NAME="${APPLICATION_ARTIFACT:?}" BUILDER=tauri-ohos

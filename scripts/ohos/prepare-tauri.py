@@ -9,7 +9,7 @@ import re
 root = Path.cwd()
 source = Path(os.environ["OHOS_TAURI_SOURCES"]).resolve()
 pins = json.loads((root / "scripts/ohos/tauri-pins.json").read_text())
-marker = source / "gproxy-pins.json"
+marker = source / "tauri-harmony-pins.json"
 
 if json.loads(marker.read_text()) != pins:
     raise ValueError("The OHOS toolchain image does not match tauri-pins.json")
