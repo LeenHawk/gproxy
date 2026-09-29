@@ -10,7 +10,7 @@ GitLab builds. Run one publisher at a time to avoid competing nightly updates.
 The `dev` branch builds the rolling `nightly` release. Matching `v4.*` version
 tags build beta/stable releases. Release jobs require a protected ref and do
 not run for external pull requests. Publication waits for all checks and all
-twelve targets in `scripts/release-targets.json`, plus Edge/Cloudflare.
+targets in `scripts/release-targets.json`, plus Edge/Cloudflare.
 
 Each target builds **CLI / server** and **Application** separately:
 
@@ -21,6 +21,7 @@ Each target builds **CLI / server** and **Application** separately:
 | Windows x86_64 / ARM64 | ZIP, MSIX | ZIP, MSIX |
 | macOS x86_64 / ARM64 | ZIP, DMG | ZIP, DMG |
 | Android x86_64 / ARM64 | ZIP, Termux DEB | APK only |
+| OpenHarmony x86_64 / ARM64 | ZIP | ARM64 experimental unsigned HAP |
 
 CLI filenames use `gproxy-*`; Applications use `gproxy-tauri-*`. Linux CLI
 packages install `gproxy` as `gproxy-cli`, distinct from the desktop package.
@@ -38,6 +39,13 @@ Android Application identity remains `dev.gproxy.desktop`; its signed update
 key remains `<triple>-tauri-apk`. CLI updates still use ZIPs and bare triples.
 The desktop host does not acquire CLI-style executable replacement.
 
+OHOS uses the pinned experimental Tauri port only in its own build checkout.
+The shared `.gitlab/Dockerfile.ohos` image contains both SDKs and the Tauri/ohrs
+build tools; GitHub reuses a content-addressed GHCR tag and GitLab retains its
+registry layer cache. The HAP is explicitly unsigned and needs device/profile
+signing before installation. No device execution or background-service support
+is claimed. See `scripts/ohos/README.md` for the exact boundaries.
+
 Edge publishes `gproxy-edge.wasm` and the deployable
 `gproxy-edge-cloudflare.zip` bundle, with checksums and provenance.
 In GitLab, native verification runs Clippy and tests once each over the whole workspace,
@@ -50,7 +58,7 @@ directories and lockfile-keyed caches. Native caches omit test executables and
 incremental compilation directories; dependency libraries and build-script
 outputs remain cached, using fast ZIP extraction and compression.
 
-GitLab Rust release compilation runs on 16-core AMD64 Linux runners. Five
+GitLab Rust release compilation runs on 16-core AMD64 Linux runners. Six
 registry-cached images provide GNU/musl cross tools and separate GTK development libraries for each Linux architecture,
 Windows/macOS SDKs, and Android's NDK. CLI and Application use separate jobs and
 caches. Linux ARM64 and RISC-V GNU use GCC and QEMU checks; musl (including RISC-V) and macOS use cargo-zigbuild;

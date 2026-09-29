@@ -46,6 +46,13 @@ The HAP runs as an application; no background-service or boot-restart support
 is claimed. Its generated backup extension is removed so instance data and
 credentials are not enrolled in automatic backup.
 
-The temporary `ohos-probe.yml` workflow exercises the CLI build and native ELF
-checks separately from HAP compilation, ABI inspection and packaging. Replace
-that probe with Release jobs only after the corresponding builds pass.
+GitHub Release and the GitLab fallback use `.gitlab/Dockerfile.ohos`.
+The SDK/source installation happens once in `prepare-toolchain.py` while
+building the image; `prepare-tauri.py` only applies its dependency overlay to
+the current application checkout. Application changes do not invalidate the
+toolchain image key. Cargo dependencies have a separate compiler cache.
+
+The temporary probe has been removed after successful ARM64/x86_64 CLI ZIP
+and ARM64 unsigned HAP builds on GitHub Actions. Release jobs retain the native
+ELF identity/architecture and HAP library checks, and publish per-artifact
+provenance. No compilation or SDK validation was performed locally.

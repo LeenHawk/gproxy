@@ -56,3 +56,12 @@ jq -n \
   > "dist/release/${ARTIFACT_NAME}.provenance.json"
 
 echo "wrote dist/release/${ARTIFACT_NAME}.provenance.json"
+
+if [[ "${TARGET_TRIPLE:-}" == *-linux-ohos ]]; then
+  record="dist/release/$ARTIFACT_NAME.provenance.json"
+  jq --arg image "${OHOS_TOOLCHAIN_IMAGE:-}" --arg builder "$BUILDER" \
+    --slurpfile pins scripts/ohos/tauri-pins.json \
+    '.ohos = {toolchain_image:$image,tauri:(if $builder=="tauri-ohos" then $pins[0] else null end),hap_signed:(if $builder=="tauri-ohos" then false else null end)}' \
+    "$record" > "$record.tmp"
+  mv "$record.tmp" "$record"
+fi
