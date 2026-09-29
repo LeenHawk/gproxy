@@ -774,7 +774,9 @@
     },
     "chooseScope": "Choose a management scope",
     "newPriceRule": "Add another price rule",
-    "cleanupFailed": "Records were deleted, but related rule cleanup failed: {{message}}"
+    "cleanupFailed": "Records were deleted, but related rule cleanup failed: {{message}}",
+    "groupedPage": "This page, grouped by user",
+    "allUsers": "All users"
   },
   "limits": {
     "cycleCost": "Spent",

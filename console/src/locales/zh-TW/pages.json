@@ -774,7 +774,9 @@
     },
     "chooseScope": "選擇管理範圍",
     "newPriceRule": "新增另一條價格規則",
-    "cleanupFailed": "記錄已刪除，但關聯規則清理失敗：{{message}}"
+    "cleanupFailed": "記錄已刪除，但關聯規則清理失敗：{{message}}",
+    "groupedPage": "目前頁面依使用者分組",
+    "allUsers": "所有使用者"
   },
   "limits": {
     "cycleCost": "花費",

@@ -1,3 +1,6 @@
+import { ChevronRight } from "lucide-react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Badge } from "@/components/ui/badge"
 import { invalidateConfiguration } from "@/api/invalidation"
 import { usePagination } from "@/lib/use-pagination"
 //! One page for twelve families.
@@ -48,6 +51,7 @@ export type CollectionProps<D, W, P> = {
   batchEnabled?: boolean
   createLabel?: string
   searchable?: boolean
+  groupBy?: (row: D) => { id: string; label: string }
   /** Filters held constant for this page, e.g. a parent id. */
   filter?: ListFilter
   /** Row actions this family has and the others do not. */
@@ -65,7 +69,7 @@ export type CollectionProps<D, W, P> = {
 }
 
 export function CollectionPage<D, W, P>({
-  id, family, columns, fields, rowId, rowLabel, searchable, filter, embedded = false,
+  id, family, columns, fields, rowId, rowLabel, searchable, groupBy, filter, embedded = false,
   rowActions, onOpen, onEdit, deletable = true, rowDeletable = deletable, creatable = true, onCreated, create, renderForm, createLabel, paginate = true, batchEnabled = fields.some(field => field.name === "enabled"),
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
@@ -134,19 +138,15 @@ export function CollectionPage<D, W, P>({
     />
   ) : null
 
-  return (
-    <Page>
-      {embedded ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">{searchInput}<div className="ml-auto flex items-center gap-2">{batch.trigger}{add}</div></div>
-      ) : (
-        <><PageHeader title={t(`nav.${id}`)} actions={<>{batch.trigger}{add}</>} />{searchInput}</>
-      )}
-      {batch.toolbar}
-      <QueryState isPending={list.isPending} error={list.error}>
-        <div className="space-y-3">
-          <DataTable paginate={false}
+  const groups = groupBy && list.data?.items.length ? new Map<string, { label: string; rows: D[] }>() : null
+  if (groups && groupBy) for (const row of list.data!.items) {
+    const group = groupBy(row)
+    if (!groups.has(group.id)) groups.set(group.id, { label: group.label, rows: [] })
+    groups.get(group.id)!.rows.push(row)
+  }
+  const renderRows = (rows: D[]) => (<DataTable paginate={false}
             columns={tableColumns}
-            rows={list.data?.items ?? []}
+            rows={rows}
             rowKey={rowId}
             onRowClick={onOpen}
             empty={<EmptyNotice title={t("state.emptyTitle")} />}
@@ -164,7 +164,22 @@ export function CollectionPage<D, W, P>({
                 ) : null}
               </>
             )}
-          />
+          />)
+
+  return (
+    <Page>
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">{searchInput}<div className="ml-auto flex items-center gap-2">{batch.trigger}{add}</div></div>
+      ) : (
+        <><PageHeader title={t(`nav.${id}`)} actions={<>{batch.trigger}{add}</>} />{searchInput}</>
+      )}
+      {batch.toolbar}
+      <QueryState isPending={list.isPending} error={list.error}>
+        <div className="flex flex-col gap-3">
+          {groups ? <div className="flex flex-col gap-3"><p className="text-xs text-muted-foreground">{t("management.groupedPage")}</p>{[...groups].map(([id, group]) => <Collapsible key={id} defaultOpen={groups.size === 1} className="rounded-lg border">
+            <CollapsibleTrigger asChild><Button variant="ghost" className="group h-auto w-full justify-start whitespace-normal p-3"><ChevronRight data-icon="inline-start" className="transition-transform group-data-[state=open]:rotate-90" /><span className="min-w-0 flex-1 break-words text-left">{group.label}</span><Badge variant="secondary">{group.rows.length}</Badge></Button></CollapsibleTrigger>
+            <CollapsibleContent className="p-3 pt-0">{renderRows(group.rows)}</CollapsibleContent>
+          </Collapsible>)}</div> : renderRows(list.data?.items ?? [])}
           {paginate ? <Pagination
             page={page}
             pageSize={pageSize}
