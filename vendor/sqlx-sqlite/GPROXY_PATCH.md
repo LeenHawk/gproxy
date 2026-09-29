@@ -13,6 +13,9 @@ Changes from upstream:
 - `src/connection/worker.rs`: one new command and its oneshot reply; the existing
   execution iterator and cache counters are reused.
 - `src/connection/mod.rs` and `src/lib.rs`: module and public type exports.
+- `src/types/time.rs`: use `time` string literals and dedicated calendar-year,
+  numeric-month, and 24-hour components without changing accepted date formats.
+  The minimum `time` version is 0.3.55, matching the workspace lockfile.
 - Three upstream Rustdoc trailing-space lines in `deserialize.rs` are normalized.
 
 GProxy's adapter owns atomicity, ordered job retries, and cancellation semantics.

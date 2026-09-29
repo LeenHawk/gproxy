@@ -170,7 +170,7 @@ features = ["std"]
 default-features = false
 
 [dependencies.time]
-version = "0.3.47"
+version = "0.3.55"
 features = [
     "formatting",
     "parsing",
