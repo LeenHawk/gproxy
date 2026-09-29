@@ -10,8 +10,10 @@ if [ "$GPROXY_BUILD_CHANNEL" = dev ]; then
     exit 0
   fi
 fi
-cp dist/msix/* dist/release/
-cp dist/dmg/* dist/release/
+if [ "${GITHUB_ACTIONS:-false}" != true ]; then
+  cp dist/msix/* dist/release/
+  cp dist/dmg/* dist/release/
+fi
 VERIFY_ONLY=true python3 scripts/gitlab/publish.py
 export TAG="$RELEASE_TAG" CHANNEL="$GPROXY_BUILD_CHANNEL" VERSION="$GPROXY_BUILD_VERSION"
 export ASSETS_DIR=dist/release ASSET_PREFIX=
@@ -38,5 +40,9 @@ for platform in github gitlab cnb; do
   export OUT="dist/manifests/$platform/manifest.json"
   scripts/build-update-manifest.sh
 done
-bash scripts/gitlab/publish-containers.sh
+if [ "${GITHUB_ACTIONS:-false}" = true ]; then
+  bash scripts/github/mirror-containers.sh
+else
+  bash scripts/gitlab/publish-containers.sh
+fi
 python3 scripts/gitlab/publish.py

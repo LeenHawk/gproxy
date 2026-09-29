@@ -2,9 +2,9 @@ workflow:
   auto_cancel:
     on_new_commit: interruptible
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
-    - if: '$CI_COMMIT_TAG =~ /^v4\./'
-    - if: '$CI_COMMIT_BRANCH'
+    # GitHub owns automatic builds; GitLab is an explicitly triggered backup.
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"'
+    - if: '$GPROXY_GITLAB_CI_ENABLED == "true"'
 
 stages: [prepare, verify, build, package, publish]
 
@@ -131,14 +131,14 @@ toolchains:
     - |
       dockerfile="$FLAVOR"
       architecture=amd64
-      if [ "$FLAVOR" = linux-arm64 ]; then
-        dockerfile=linux
-        architecture=arm64
-      fi
+      case "$FLAVOR" in
+        linux-arm64) dockerfile=linux; architecture=arm64 ;;
+        linux-riscv64) dockerfile=linux; architecture=riscv64 ;;
+      esac
       docker buildx build --push --file ".gitlab/Dockerfile.$dockerfile" --build-arg "TARGET_ARCH=$architecture" --tag "$CI_REGISTRY_IMAGE/build-$FLAVOR:$CI_COMMIT_SHA" --tag "$CI_REGISTRY_IMAGE/build-$FLAVOR:verify-$RUST_VERSION" --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache" --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache,mode=max" .
   parallel:
     matrix:
-      - FLAVOR: [linux, linux-arm64, desktop, android]
+      - FLAVOR: [linux, linux-arm64, linux-riscv64, desktop, android]
 
 .cross-package:
   extends: .release-rules
@@ -196,6 +196,24 @@ linux-arm64:
     matrix:
       - TARGET_TRIPLE: [aarch64-unknown-linux-gnu]
         PACKAGE_MODE: [cli, application]
+
+linux-riscv64:
+  extends: linux
+  variables:
+    TOOLCHAIN: linux-riscv64
+  needs:
+    - console
+    - job: toolchains
+      artifacts: false
+      parallel:
+        matrix:
+          - FLAVOR: [linux-riscv64]
+  parallel:
+    matrix:
+      - TARGET_TRIPLE: [riscv64gc-unknown-linux-gnu]
+        PACKAGE_MODE: [cli, application]
+      - TARGET_TRIPLE: [riscv64gc-unknown-linux-musl]
+        PACKAGE_MODE: [cli]
 
 linux-musl:
   extends: linux
@@ -325,6 +343,7 @@ publish:
       artifacts: false
     - linux
     - linux-arm64
+    - linux-riscv64
     - linux-musl
     - desktop
     - android

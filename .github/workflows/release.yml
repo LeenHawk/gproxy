@@ -168,6 +168,12 @@ jobs:
         if: matrix.target == 'aarch64-pc-windows-msvc'
         shell: bash
         run: echo "CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_msvc=$(cygpath -m "$GITHUB_WORKSPACE/scripts/cmake/windows-arm64.cmake")" >> "$GITHUB_ENV"
+      - name: Provide Clang command on RISE
+        if: matrix.target == 'riscv64gc-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang libclang-dev
+          clang --version
       - name: Build
         env:
           RUSTFLAGS: ${{ matrix.os == 'windows' && '-C target-feature=+crt-static' || '' }}
@@ -230,7 +236,10 @@ jobs:
         if: ${{ matrix.upx && matrix.os != 'windows' }}
         run: |
           binary="target/${{ matrix.target }}/release/gproxy${{ matrix.os == 'windows' && '.exe' || '' }}"
-          upx --best --lzma "$binary"
+          upx_args=(--best --lzma)
+          # UPX 5.2.1's AUIPC filter rejects large RISC-V executables.
+          if [[ "${{ matrix.target }}" == riscv64gc-* ]]; then upx_args+=(--no-filter); fi
+          upx "${upx_args[@]}" "$binary"
           upx --test "$binary"
       - name: Smoke check Windows executable
         if: ${{ matrix.run_check && matrix.os == 'windows' }}
@@ -368,6 +377,12 @@ jobs:
             target: aarch64-unknown-linux-gnu
             suffix: ""
             runtime_base: gcr.io/distroless/cc-debian13
+          - variant: gnu
+            arch: riscv64
+            runner: ubuntu-24.04-riscv
+            target: riscv64gc-unknown-linux-gnu
+            suffix: ""
+            runtime_base: gcr.io/distroless/cc-debian13
           - variant: musl
             arch: amd64
             runner: ubuntu-latest
@@ -378,6 +393,12 @@ jobs:
             arch: arm64
             runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
+            suffix: -musl
+            runtime_base: gcr.io/distroless/static-debian13
+          - variant: musl
+            arch: riscv64
+            runner: ubuntu-24.04-riscv
+            target: riscv64gc-unknown-linux-musl
             suffix: -musl
             runtime_base: gcr.io/distroless/static-debian13
     steps:
@@ -399,7 +420,7 @@ jobs:
         id: metadata
         with:
           images: ghcr.io/${{ github.repository_owner }}/gproxy
-          tags: type=raw,value=${{ env.RELEASE_TAG }}-${{ matrix.arch }}${{ matrix.suffix }}
+          tags: type=raw,value=${{ github.sha }}-${{ matrix.arch }}${{ matrix.suffix }}
       - uses: docker/build-push-action@v7.4.0
         with:
           context: .
@@ -426,49 +447,11 @@ jobs:
       - name: Create GNU and musl manifests
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          tag="$image:$RELEASE_TAG"
+          tag="$image:$GITHUB_SHA"
           docker buildx imagetools create -t "$tag" \
-            "$tag-amd64" "$tag-arm64"
+            "$tag-amd64" "$tag-arm64" "$tag-riscv64"
           docker buildx imagetools create -t "$tag-musl" \
-            "$tag-amd64-musl" "$tag-arm64-musl"
-
-  manifest:
-    name: Signed update manifest
-    needs: [prepare, native]
-    runs-on: ubuntu-latest
-    environment: release
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/download-artifact@v8.0.1
-        with:
-          pattern: native-*
-          path: dist/native
-          merge-multiple: true
-      - uses: actions/download-artifact@v8.0.1
-        with:
-          pattern: application-*
-          path: dist/native
-          merge-multiple: true
-      - name: Build and sign manifest
-        env:
-          UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
-          UPDATE_SIGNING_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
-          TAG: ${{ env.RELEASE_TAG }}
-          VERSION: ${{ needs.prepare.outputs.manifest_version }}
-          CHANNEL: ${{ needs.prepare.outputs.channel }}
-          REPO: ${{ github.repository }}
-          NOTES_URL: https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }}
-          ASSET_PREFIX: ${{ needs.prepare.outputs.channel == 'dev' && format('{0}-', github.sha) || '' }}
-        run: |
-          if [ -n "$ASSET_PREFIX" ]; then
-            scripts/namespace-nightly-assets.sh dist/native "$ASSET_PREFIX"
-          fi
-          scripts/build-update-manifest.sh
-      - uses: actions/upload-artifact@v7.0.1
-        with:
-          name: signed-update-manifest
-          path: dist/release/manifest.json
-          retention-days: 1
+            "$tag-amd64-musl" "$tag-arm64-musl" "$tag-riscv64-musl"
 
   publish-crates:
     if: github.ref_type == 'tag'
@@ -575,35 +558,38 @@ jobs:
 
   publish:
     if: ${{ always() && !failure() && !cancelled() }}
-    name: Publish release
-    needs: [prepare, manifest, edge, edge-check, container-manifest, publish-crates]
+    name: Publish GitHub, GitLab and CNB releases
+    needs: [prepare, native, edge, edge-check, container-manifest, publish-crates]
     runs-on: ubuntu-latest
+    environment: release
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v8.0.1
         with:
           pattern: native-*
-          path: dist/publish
+          path: dist/release
           merge-multiple: true
-      - uses: actions/download-artifact@v8.0.1
-        with:
-          name: signed-update-manifest
-          path: dist/publish
       - uses: actions/download-artifact@v8.0.1
         with:
           name: edge-bundles
-          path: dist/publish
+          path: dist/release
       - uses: actions/download-artifact@v8.0.1
         with:
           pattern: application-*
-          path: dist/publish
+          path: dist/release
           merge-multiple: true
-      - name: Publish GitHub Release assets
+      - name: Install container mirror tool
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends skopeo
+      - name: Publish the same artifacts to all three platforms
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PUBLISH_CHANNEL: ${{ needs.prepare.outputs.channel }}
-          VERSION: ${{ needs.prepare.outputs.version }}
-        run: scripts/publish-release.sh
+          GITLAB_RELEASE_TOKEN: ${{ secrets.GITLAB_RELEASE_TOKEN }}
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+          UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
+          UPDATE_SIGNING_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+        run: bash scripts/github/publish.sh
 
   store-publish:
     name: Submit Microsoft Store update

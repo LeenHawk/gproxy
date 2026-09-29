@@ -11,9 +11,12 @@ for variant in gnu musl; do
   suffix=
   base=gcr.io/distroless/cc-debian13
   if [ "$variant" = musl ]; then suffix=-musl; base=gcr.io/distroless/static-debian13; fi
-  for arch in amd64 arm64; do
+  for arch in amd64 arm64 riscv64; do
     rust_arch=x86_64
-    [ "$arch" != arm64 ] || rust_arch=aarch64
+    case "$arch" in
+      arm64) rust_arch=aarch64 ;;
+      riscv64) rust_arch=riscv64gc ;;
+    esac
     cp "dist/container/$rust_arch-unknown-linux-$variant/gproxy" "$context/dist/gproxy"
     tags=()
     for image in "${images[@]}"; do tags+=(--tag "$image:$CI_COMMIT_SHA-$arch$suffix"); done
@@ -23,6 +26,6 @@ for variant in gnu musl; do
   done
   for image in "${images[@]}"; do
     docker buildx imagetools create --tag "$image:$RELEASE_TAG$suffix" \
-      "$image:$CI_COMMIT_SHA-amd64$suffix" "$image:$CI_COMMIT_SHA-arm64$suffix"
+      "$image:$CI_COMMIT_SHA-amd64$suffix" "$image:$CI_COMMIT_SHA-arm64$suffix" "$image:$CI_COMMIT_SHA-riscv64$suffix"
   done
 done

@@ -21,6 +21,12 @@ case "$version:$(uname -s):$(uname -m)" in
     extension=tar.xz
     executable=upx
     ;;
+  5.2.1:Linux:riscv64)
+    platform=riscv64_linux
+    checksum=a8663b4cb6523104a8a807362d0da6f5d6d55f6083152f78fa27fa9c05443c17
+    extension=tar.xz
+    executable=upx
+    ;;
   5.2.1:MINGW*:x86_64 | 5.2.1:MSYS*:x86_64 | \
   5.2.1:MINGW*:aarch64 | 5.2.1:MSYS*:aarch64 | \
   5.2.1:MINGW*:arm64 | 5.2.1:MSYS*:arm64)

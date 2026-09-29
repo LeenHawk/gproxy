@@ -10,11 +10,12 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && npm install -g pnpm@9.15.9 \
     && printf 'path-exclude=/usr/share/man/*\n' > /etc/dpkg/dpkg.cfg.d/99-no-manpages \
     && rm -rf /usr/share/man \
-    && dpkg --add-architecture arm64 \
+    && dpkg --add-architecture "$TARGET_ARCH" \
     && apt-get update \
     && apt-get install -y --no-install-recommends clang lld llvm libclang-dev \
        cmake ninja-build nasm pkg-config jq zip unzip python3 python3-venv \
        openssl patchelf qemu-user gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+       gcc-riscv64-linux-gnu g++-riscv64-linux-gnu \
        libwebkit2gtk-4.1-dev:$TARGET_ARCH libgtk-3-dev:$TARGET_ARCH \
        libsoup-3.0-dev:$TARGET_ARCH libdbus-1-dev:$TARGET_ARCH \
        libayatana-appindicator3-dev:$TARGET_ARCH librsvg2-dev:$TARGET_ARCH \
@@ -22,4 +23,4 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && python3 -m venv /opt/cross \
     && /opt/cross/bin/pip install --no-cache-dir cargo-zigbuild==0.23.4 \
     && rustup component add clippy rustfmt \
-    && rustup target add aarch64-unknown-linux-gnu x86_64-unknown-linux-musl aarch64-unknown-linux-musl wasm32-unknown-unknown
+    && rustup target add riscv64gc-unknown-linux-gnu riscv64gc-unknown-linux-musl aarch64-unknown-linux-gnu x86_64-unknown-linux-musl aarch64-unknown-linux-musl wasm32-unknown-unknown
