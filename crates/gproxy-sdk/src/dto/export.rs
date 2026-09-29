@@ -145,6 +145,7 @@ exported!(
     QuotaResetDto, QuotaResetCreditsDto, QuotaResetOptionDto, QuotaResetWrite,
     QuotaSettlementDto,
     QuotaSnapshotDto,
+    QuotaProbeDto,
     QuotaWindowDto,
     QuotaWindowQuery,
     QuotaWrite,

@@ -618,6 +618,7 @@ const TABLE: &[(Method, &str)] = &[
     (Method::GET, "/admin/api/credentials/x/quota"),
     (Method::GET, "/admin/api/credentials/x/quota-observations"),
     (Method::POST, "/admin/api/credentials/x/quota-probe"),
+    (Method::POST, "/admin/api/credentials/x/quota-diagnostics"),
     (Method::POST, "/admin/api/credentials/x/quota-reset"),
     (Method::POST, "/admin/api/credentials/x/health-reset"),
     (Method::GET, "/admin/api/credentials/x/limits"),

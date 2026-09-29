@@ -883,7 +883,9 @@
       "already_redeemed": "This reset credit has already been used."
     },
     "anchor": "Period start",
-    "nameTaken": "A rule with this name already exists for this object. Choose a different name."
+    "nameTaken": "A rule with this name already exists for this object. Choose a different name.",
+    "rawResponse": "Query raw response",
+    "rawResponseHelp": "Runs a new quota query and shows the upstream response bodies, including failed responses. Known sensitive fields are masked. Review personal information before sharing."
   },
   "keyBudget": {
     "enable": "Set a budget for this key",

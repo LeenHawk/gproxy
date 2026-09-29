@@ -30,7 +30,7 @@ use crate::{
     dto::{
         BatchItem, CredentialDto, CredentialLimitStatusDto, CredentialPatch, CredentialQuotaDto,
         CredentialSummaryDto, CredentialWrite, ListQuery, Page, QuotaObservationDto,
-        QuotaObservationQuery, QuotaResetCreditsDto, QuotaResetDto, QuotaResetWrite,
+        QuotaObservationQuery, QuotaProbeDto, QuotaResetCreditsDto, QuotaResetDto, QuotaResetWrite,
         QuotaSnapshotDto,
     },
 };
@@ -143,6 +143,27 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
             .query_credential_quota(&row.provider_id, &row.id)
             .await?
             .into())
+    }
+
+    pub async fn quota_diagnostics(&self, id: &str) -> SdkResult<QuotaProbeDto> {
+        let row = crud::row::<C, Self>(self, id).await?;
+        let (result, responses) = self
+            .writer
+            .core()
+            .diagnose_credential_quota(&row.provider_id, &row.id)
+            .await;
+        Ok(match result {
+            Ok(snapshot) => QuotaProbeDto {
+                snapshot: Some(snapshot.into()),
+                error: None,
+                responses,
+            },
+            Err(error) => QuotaProbeDto {
+                snapshot: None,
+                error: Some(error.to_string()),
+                responses,
+            },
+        })
     }
 
     /// What this deployment already knows, without asking the upstream: the

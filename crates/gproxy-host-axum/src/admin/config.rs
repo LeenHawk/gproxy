@@ -111,6 +111,10 @@ where
     )
     .route("/credentials/{id}/quota-probe", post(quota_probe::<C>))
     .route(
+        "/credentials/{id}/quota-diagnostics",
+        post(quota_diagnostics::<C>),
+    )
+    .route(
         "/credentials/{id}/quota-reset-credits",
         get(quota_reset_credits::<C>),
     )
@@ -448,6 +452,29 @@ where
 {
     crate::send(async move { scoped!(state, scope, "credentials", credentials.quota_probe(&id)) })
         .await
+}
+
+async fn quota_diagnostics<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path(id): Path<String>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        let mut response = scoped!(
+            state,
+            scope,
+            "credentials",
+            credentials.quota_diagnostics(&id)
+        );
+        response
+            .headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+        response
+    })
+    .await
 }
 
 async fn quota_reset_credits<C>(
