@@ -40,7 +40,7 @@ pub struct Model {
     /// Token-kind public_id stores a digest, never a plaintext downstream bearer.
     pub secret: Option<Vec<u8>>,
     /// Public resource metadata for local list views; excludes tokens/secrets.
-    #[sea_orm(default_value = "{}")]
+    #[sea_orm(default_expr = "sea_orm::sea_query::Expr::cust(\"('{}')\")")]
     pub summary: Json,
     pub file_id: Option<String>,
     pub created_at_ms: i64,

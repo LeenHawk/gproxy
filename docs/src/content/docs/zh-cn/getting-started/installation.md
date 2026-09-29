@@ -81,6 +81,6 @@ docker logs gproxy
 
 ## 从 v3 升级
 
-先备份数据库、主密钥和启动配置，停止旧进程，再用原配置启动 v4。支持的 v3 SQLite 数据库会自动迁移；请阅读[迁移说明](/zh-cn/deployment/v3-to-v4/)，确认保留的数据和需要检查的迁移报告。
+先备份数据库、主密钥和启动配置，停止旧进程，再用原配置启动 v4。支持的 v3 SQLite、PostgreSQL、MySQL 和 D1 数据库会自动迁移；请阅读[迁移说明](/zh-cn/deployment/v3-to-v4/)，确认保留的数据和需要检查的迁移报告。
 
 需要自行编译时，见[从源码构建](/zh-cn/deployment/release-build/)。安装完成后继续[快速开始](/zh-cn/getting-started/quick-start/)。

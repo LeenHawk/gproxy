@@ -75,10 +75,6 @@ s3 = ["gproxy-sdk/s3", "gproxy-file/s3"]
 bundled-vocabulary = ["gproxy-sdk/bundled-vocabulary"]
 
 [dependencies]
-# v3's envelope encryption, which is not v4's codec: four columns, a fixed
-# authenticated-data domain and no row id bound in. `import --from-v3` has to
-# open those blobs by v3's rules before the sdk can re-seal them by v4's.
-aes-gcm = { workspace = true }
 axum = { workspace = true, features = ["form", "http1", "http2", "json", "matched-path", "original-uri", "query", "tokio", "tower-log", "tracing", "ws"] }
 # Standard base64 is what the sdk's import reads a source master key in, so a
 # key given here in hex is re-encoded rather than handed over as typed.
@@ -99,10 +95,6 @@ gproxy-seaorm = { workspace = true, features = ["group-commit"] }
 gproxy-store = { workspace = true }
 # The generated first-run password, and nothing else.
 getrandom = { workspace = true }
-# `regex::escape`, for the one v3 rewrite action that names literal text where
-# v4 wants a pattern. Compiling the result is core's job, not this crate's.
-regex = { workspace = true }
-rust_decimal = { workspace = true }
 # The two update downloads: a signed manifest and one release archive. It
 # follows redirects, which a GitHub release asset URL is; that is safe here
 # because the signature and the sha256 are checked after the bytes arrive.

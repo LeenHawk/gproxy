@@ -260,7 +260,7 @@ impl<C: BatchConnectionTrait> Repository<'_, C, credential_cycle::Entity> {
                     })
                     .on_conflict(
                         OnConflict::column(credential_cycle::Column::OpenKey)
-                            .do_nothing()
+                            .do_nothing_on([credential_cycle::Column::Id])
                             .to_owned(),
                     )
                     .build(backend)

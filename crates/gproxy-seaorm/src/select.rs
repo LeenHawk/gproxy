@@ -4,7 +4,7 @@ use sea_orm::{
     ColumnTrait, ColumnType, DbBackend, DbErr, EntityTrait, IdenStatic, Iterable, QueryTrait,
     Select, SelectFive, SelectFour, SelectSix, SelectThree, SelectTwo, SelectTwoMany,
     SelectTwoRequired, Topology,
-    sea_query::{Expr, SelectExpr, SelectStatement},
+    sea_query::{Alias, Expr, ExprTrait, IntoIden, SelectExpr, SelectStatement},
 };
 
 use crate::{BatchConnectionTrait, BatchQuery, D1Type, Projection, error};
@@ -21,7 +21,26 @@ pub trait SelectProjection: QueryTrait<QueryStatement = SelectStatement> {
     /// Build SQL and its projection together before any batch is dispatched.
     fn batch_query(&self, backend: DbBackend) -> Result<BatchQuery, DbErr> {
         let projection = self.projection()?;
-        Ok(BatchQuery::new(self.build(backend), projection))
+        let mut query = self.as_query().clone();
+        if backend == DbBackend::Postgres {
+            // SeaQuery stores u32 as BIGINT; SeaORM's u32 decoder understands
+            // OID (the full unsigned range) but not BIGINT. Cast only the
+            // selected value, keeping the schema and Rust entity unchanged.
+            query.exprs_mut_for_each(|select| {
+                let alias = select
+                    .alias
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .or_else(|| column_name(&select.expr));
+                if let Some(alias) = alias
+                    && matches!(projection.column_type(&alias), Some((D1Type::U32, _)))
+                {
+                    select.expr = select.expr.clone().cast_as(Alias::new("oid"));
+                    select.alias = Some(Alias::new(alias).into_iden());
+                }
+            });
+        }
+        Ok(BatchQuery::new(backend.build(&query), projection))
     }
 
     /// Build the same SQL, deriving D1 result types only when the connection
@@ -34,7 +53,7 @@ pub trait SelectProjection: QueryTrait<QueryStatement = SelectStatement> {
         Self: Sized,
     {
         let backend = connection.get_database_backend();
-        if connection.requires_query_projection() {
+        if connection.requires_query_projection() || backend == DbBackend::Postgres {
             self.batch_query(backend)
         } else {
             Ok(BatchQuery::new(self.build(backend), Projection::new()))

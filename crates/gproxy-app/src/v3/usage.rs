@@ -1,22 +1,25 @@
 //! Stream historical usage into the ledger, without pricing or settlement.
-use std::{collections::HashSet, path::Path, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 
-use gproxy_app::App;
-use gproxy_seaorm::{BatchConnectionTrait, FixedDecimal, SchemaSyncConnectionTrait};
+use crate::App;
+use gproxy_seaorm::{BatchConnectionTrait, FixedDecimal};
 use gproxy_store::entity::usage::usage_record;
 use rust_decimal::{Decimal, prelude::ToPrimitive};
-use sea_orm::{ConnectionTrait, DbBackend, QueryResult, Set, Statement};
+use sea_orm::{QueryResult, Set};
 use serde_json::{Value, json};
 
+use super::{Error, Result};
 use super::{Report, ids, source};
-use crate::{Error, Result};
 
-pub(super) async fn import<C>(app: &Arc<App<C>>, path: &Path, report: &mut Report) -> Result<()>
+pub async fn import<C, S: BatchConnectionTrait>(
+    app: &Arc<App<C>>,
+    source: &source::Source<'_, S>,
+    report: &mut Report,
+) -> Result<()>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let db = source::open(path).await?;
-    if !db.table_names().await?.iter().any(|t| t == "usage_rows") {
+    if !source.tables.iter().any(|t| t == "usage_rows") {
         return Ok(());
     }
     let repository = app.gproxy().store().usage_records();
@@ -24,18 +27,13 @@ where
     let mut imported = 0;
     let mut rounded = 0;
     loop {
-        let rows = db
-            .query_all_raw(match cursor {
-                Some(id) => Statement::from_sql_and_values(
-                    DbBackend::Sqlite,
-                    "SELECT * FROM usage_rows WHERE id > ? ORDER BY id LIMIT 256",
-                    [id.into()],
-                ),
-                None => Statement::from_string(
-                    DbBackend::Sqlite,
-                    "SELECT * FROM usage_rows ORDER BY id LIMIT 256",
-                ),
-            })
+        let rows = source
+            .rows(
+                "usage_rows",
+                &["id"],
+                cursor.map(|id| ("id", id)),
+                Some(256),
+            )
             .await?;
         if rows.is_empty() {
             break;
@@ -69,7 +67,6 @@ where
     if rounded > 0 {
         report.warn(format!("{rounded} historical usage costs rounded to v4's 9-decimal scale; exact originals remain in metrics.v3.cost"));
     }
-    db.close().await?;
     Ok(())
 }
 
@@ -81,7 +78,7 @@ fn decimal(value: &Value) -> Option<Decimal> {
     Decimal::from_str_exact(&text).ok()
 }
 
-fn translate(row: &QueryResult) -> Result<(usage_record::ActiveModel, bool)> {
+pub(crate) fn translate(row: &QueryResult) -> Result<(usage_record::ActiveModel, bool)> {
     let id: i64 = row.try_get("", "id")?;
     let at: i64 = row.try_get("", "at")?;
     let latency: i64 = row.try_get("", "latency_ms")?;

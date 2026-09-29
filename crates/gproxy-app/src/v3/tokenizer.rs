@@ -13,17 +13,17 @@
 
 use std::sync::Arc;
 
-use axum::body::Bytes;
-use gproxy_app::App;
+use crate::App;
+use bytes::Bytes;
 use gproxy_seaorm::BatchConnectionTrait;
 use serde_json::Value;
 
+use super::Result;
 use super::{
     Report,
     document::Document,
     secret::{Bridge, Domain},
 };
-use crate::Result;
 
 pub async fn write<C>(
     app: &Arc<App<C>>,

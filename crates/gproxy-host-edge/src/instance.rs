@@ -206,6 +206,9 @@ async fn build<C>(
 where
     C: BatchConnectionTrait + SchemaSyncConnectionTrait + Clone + Send + Sync + 'static,
 {
+    gproxy_app::v3::upgrade::run(connection.clone(), &config, false)
+        .await
+        .map_err(|e| error(format!("v3 migration: {e}")))?;
     // One `Store` over a clone of the connection, for the cache — which has to
     // exist before the handle does, because the handle takes it.
     let store = Arc::new(Store::new(connection.clone()));

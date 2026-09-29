@@ -1,14 +1,14 @@
 ---
 title: Migrating v3 to v4
-description: Automatic migration when v4 starts with an existing v3 SQLite database.
+description: Automatic migration when v4 starts with an existing v3 database.
 ---
 
 **Replace the binary and start it with your existing configuration.** v4 recognizes
-v3's SQLite database and upgrades it automatically. Keep the same data directory,
+v3 databases on SQLite, PostgreSQL, MySQL, and D1 and upgrades them automatically. Keep the same data directory,
 database path and `GPROXY_MASTER_KEY`; no export, new directory or password reset
 is needed. Existing usernames, passwords and API keys continue to work.
 
-## What startup does
+## SQLite file migration
 
 Before binding its HTTP port, v4 takes a complete SQLite snapshot, including
 committed WAL contents, and imports it into a temporary database beside the
@@ -25,6 +25,20 @@ makes subsequent starts ordinary v4 starts. There is no repeated import.
 Run one database writer during the upgrade, as for other schema migrations. Stop
 v3 before starting v4. Running both deployments with the same OAuth credentials
 can also invalidate refresh tokens, independently of database migration.
+
+## PostgreSQL, MySQL, and D1
+
+Keep the original connection URL or D1 binding and master key. No export or new database is required. Native PostgreSQL / MySQL builds must include the corresponding driver.
+
+Migration validates source configuration and credential encryption, then renames the old tables to `gproxy_v3_<original-name>`. These tables retain the source data. New v4 tables use the original names. Configuration, identity, and historical usage are converted before the instance opens to traffic.
+
+- **PostgreSQL** uses a session advisory lock and renames the source tables in one transaction.
+- **MySQL** keeps its session lock across implicit DDL commits and renames all source tables with one `RENAME TABLE` statement.
+- **D1** uses transactional batches for renaming, plus a migration lease and a holder check on each write batch. An interrupted lease expires within 60 seconds.
+
+`gproxy_v3_upgrade` stores progress. Its `report_json` field retains skipped records and semantic-change warnings. Identity and usage imports checkpoint between batches. After interruption, the next startup or Worker request resumes unfinished work. A partially migrated instance does not serve traffic or bootstrap a new administrator.
+
+After a failure, old tables remain under archive names and new tables may contain completed portions of the import. Fix the reported error and restart to resume. Do not delete the progress table or rename archives during migration. To roll back to v3, stop all instances and restore the pre-upgrade backup; do not point v3 at a partially migrated database. Keep archived tables until the upgrade has been verified.
 
 ## What carries over
 

@@ -32,10 +32,14 @@ pub(super) fn default_statements(
         updated_at_ms: Set(now),
     });
     if ignore_existing {
-        set = set.on_conflict(OnConflict::column(set::Column::Id).do_nothing().to_owned());
+        set = set.on_conflict(
+            OnConflict::column(set::Column::Id)
+                .do_nothing_on([set::Column::Id])
+                .to_owned(),
+        );
         binding = binding.on_conflict(
             OnConflict::columns([binding::Column::ProviderId, binding::Column::RuleSetId])
-                .do_nothing()
+                .do_nothing_on([binding::Column::Id])
                 .to_owned(),
         );
     }

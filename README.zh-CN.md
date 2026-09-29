@@ -48,7 +48,7 @@ CLI 默认使用 SQLite，数据保存在 `./data/gproxy.db`。在添加凭证�
 
 ## 从 v3 升级
 
-停止 v3，备份数据库、主密钥与启动配置，再用原配置启动 v4。支持的 v3 SQLite 数据库会自动迁移，保留账户、密码、API Key 和历史用量；无法映射的配置会在报告中列出。不要让 v3 与 v4 同时写入同一数据库。
+停止 v3，备份数据库、主密钥与启动配置，再用原配置启动 v4。支持的 v3 SQLite、PostgreSQL、MySQL 和 D1 数据库会自动迁移，保留账户、密码、API Key 和历史用量；无法映射的配置会在报告中列出。不要让 v3 与 v4 同时写入同一数据库。
 
 迁移范围、备份与失败处理见[从 v3 迁移到 v4](https://gproxy.leenhawk.com/zh-cn/deployment/v3-to-v4/)。
 

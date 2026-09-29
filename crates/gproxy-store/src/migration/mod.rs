@@ -291,6 +291,31 @@ impl<C: SchemaSyncConnectionTrait> Store<C> {
         Ok(())
     }
 
+    /// Finish installation after a host has archived a verified legacy schema.
+    /// Unlike `install`, this tolerates interruption between DDL statements.
+    /// The caller must keep traffic stopped until its data import completes.
+    pub async fn resume_install(&self) -> Result<()> {
+        let registry = crate::register_entities(self.db.schema_registry());
+        self.db.sync_schema(registry).await?;
+        Migrator::install(&self.db).await?;
+        let rows = Migrator::migrations()
+            .iter()
+            .map(|migration| seaql_migrations::ActiveModel {
+                version: ActiveValue::Set(migration.name().to_owned()),
+                applied_at: ActiveValue::Set(now_seconds()),
+            })
+            .collect::<Vec<_>>();
+        seaql_migrations::Entity::insert_many(rows)
+            .on_conflict(
+                sea_orm::sea_query::OnConflict::column(seaql_migrations::Column::Version)
+                    .do_nothing_on([seaql_migrations::Column::Version])
+                    .to_owned(),
+            )
+            .exec_without_returning(&self.db)
+            .await?;
+        Ok(())
+    }
+
     /// Every migration this build carries, with what the ledger says about it.
     ///
     /// Reads only, including when the ledger is absent. Safe to call against

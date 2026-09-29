@@ -48,7 +48,7 @@ Read more: [Quick start](https://gproxy.leenhawk.com/getting-started/quick-start
 
 ## Upgrade from v3
 
-Stop v3, back up the database, master key, and startup configuration, then start v4 with the same configuration. Supported v3 SQLite databases migrate automatically, preserving accounts, passwords, API keys, and historical usage. The migration report lists configuration that could not be mapped. Do not run v3 and v4 against the same database at once.
+Stop v3, back up the database, master key, and startup configuration, then start v4 with the same configuration. Supported v3 SQLite, PostgreSQL, MySQL, and D1 databases migrate automatically, preserving accounts, passwords, API keys, and historical usage. The migration report lists configuration that could not be mapped. Do not run v3 and v4 against the same database at once.
 
 See [Migrating v3 to v4](https://gproxy.leenhawk.com/deployment/v3-to-v4/) for migration scope, backups, and failure handling.
 

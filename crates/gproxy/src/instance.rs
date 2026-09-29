@@ -22,6 +22,8 @@
 //! Step 4 is why this is a function rather than a builder chain: which codec the
 //! handle gets depends on work done against the same database a moment earlier.
 
+use gproxy_seaorm::SchemaSyncConnectionTrait;
+
 use std::{path::PathBuf, sync::Arc};
 
 use gproxy_app::{
@@ -233,12 +235,23 @@ pub(crate) async fn assemble(
 /// Other foreign schemas are refused before DDL.
 pub async fn connect(config: &AppConfig) -> Result<Connection> {
     let connection = open_connection(config).await?;
+    if matches!(config.store, StoreBackendConfig::Url { .. }) {
+        let tables = connection.table_names().await?;
+        if tables
+            .iter()
+            .any(|t| t == "schema_migrations" || t == gproxy_app::v3::upgrade::STATE)
+        {
+            connection.close().await?;
+            crate::v3::remote::run(config).await?;
+            return open_connection(config).await;
+        }
+    }
     match crate::v3::detect::inspect(&connection).await? {
         crate::v3::detect::Verdict::Ours => Ok(connection),
         crate::v3::detect::Verdict::Version3 { .. } => {
             let StoreBackendConfig::Sqlite { path } = &config.store else {
                 return Err(Error::other(
-                    "automatic v3 migration requires a SQLite file",
+                    "the configured backend has no native v3 migration entry point",
                 ));
             };
             crate::v3::upgrade::run(config, &resolve(config, path), connection).await?;

@@ -177,6 +177,10 @@ D1 and libSQL use `Store::sync()` to add missing entity-defined objects; ordinar
 requests only tick configuration revisions. Coordinate schema-changing deployments
 with a single writer; explicit data/type migrations remain deployment work.
 
+## Upgrading from v3
+
+First assembly automatically converts v3 data in D1 / libSQL using the existing binding / URL and master key. Old tables remain under `gproxy_v3_*`; `gproxy_v3_upgrade` stores progress and warnings. Identity and usage import in batches and resume on a subsequent request after interruption. No business traffic is served until migration completes. A database lease and a holder check on each write batch prevent stale isolates from continuing the import.
+
 ## Building
 
 ```sh

@@ -13,8 +13,10 @@ pub struct Model {
     pub provider_id: String,
     /// Native operation after protocol adaptation.
     #[sea_orm(unique_key = "provider_operation_endpoint")]
+    #[sea_orm(column_type = "String(StringLen::N(64))")]
     pub operation: String,
     #[sea_orm(unique_key = "provider_operation_endpoint")]
+    #[sea_orm(column_type = "String(StringLen::N(64))")]
     pub dialect: String,
     #[sea_orm(default_value = "http", unique_key = "provider_operation_endpoint")]
     pub transport: EndpointTransport,

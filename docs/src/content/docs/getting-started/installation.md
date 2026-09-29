@@ -81,6 +81,6 @@ Use `gproxy-edge-cloudflare.zip` and follow [Edge deployment](/deployment/edge/)
 
 ## Upgrade from v3
 
-Back up the database, master key, and startup configuration. Stop v3, then start v4 with the same configuration. Supported v3 SQLite databases migrate automatically. Read [Migrating v3 to v4](/deployment/v3-to-v4/) for retained data and the migration report to check.
+Back up the database, master key, and startup configuration. Stop v3, then start v4 with the same configuration. Supported v3 SQLite, PostgreSQL, MySQL, and D1 databases migrate automatically. Read [Migrating v3 to v4](/deployment/v3-to-v4/) for retained data and the migration report to check.
 
 To compile your own build, see [Building from source](/deployment/release-build/). Once installed, continue to [Quick start](/getting-started/quick-start/).
