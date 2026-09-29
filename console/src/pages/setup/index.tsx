@@ -39,7 +39,7 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
   const [password, setPassword] = useState("")
   const [confirmation, setConfirmation] = useState("")
   const [apiKey, setApiKey] = useState("")
-  const [autoStart, setAutoStart] = useState(initial.autoStart)
+  const [autoStart, setAutoStart] = useState(initial.canAutoStart && initial.autoStart)
   const [tray, setTray] = useState(initial.tray)
   const [started, setStarted] = useState(initial.started)
   const [databaseKind, setDatabaseKind] = useState<"sqlite" | "postgres" | "mysql">(initial.database.kind === "url" ? (initial.database.dsn.startsWith("mysql:") ? "mysql" : "postgres") : "sqlite")
@@ -63,7 +63,7 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
     try { sourceMasterKey = normalizeSourceMasterKey(sourceKey) }
     catch { throw new Error(t("management.sourceKeyInvalid")) }
     return completeSetup({ dataDir, host: host.trim(), port: Number(port), adminUser: adminUser.trim(), password,
-      apiKey: apiKey || null, autoStart, tray: initial.canChooseDataDir && tray,
+      apiKey: apiKey || null, autoStart: initial.canAutoStart && autoStart, tray: initial.canChooseDataDir && tray,
       database: databaseKind === "sqlite" ? { kind: "sqlite", path: databasePath.trim() } : { kind: "url", dsn: databaseUrl.trim() },
       import: document ? { export: document, mode: "merge", sourceMasterKey } : null })
   }, onError: async () => {
@@ -121,10 +121,10 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
       {step === 0 ? <FieldGroup>
         <Field data-invalid={!!errors.host}><FieldLabel htmlFor="setup-host">{t("setup.host")}</FieldLabel><Input id="setup-host" value={host} onChange={e => setHost(e.target.value)} disabled={busy || started} aria-invalid={!!errors.host} /><FieldDescription>{t("setup.hostHelp")}</FieldDescription><FieldError>{errors.host}</FieldError></Field>
         <Field data-invalid={!!errors.port}><FieldLabel htmlFor="setup-port">{t("setup.port")}</FieldLabel><Input id="setup-port" inputMode="numeric" value={port} onChange={e => setPort(e.target.value)} disabled={busy || started} aria-invalid={!!errors.port} /><FieldDescription>{t("setup.portHelp")}</FieldDescription><FieldError>{errors.port}</FieldError></Field>
-        <Field data-field-span="full" data-invalid={!!errors.dataDir}><FieldLabel htmlFor="setup-directory">{t("setup.dataDir")}</FieldLabel><div className="flex gap-2"><Input id="setup-directory" value={dataDir} onChange={e => setDataDir(e.target.value)} readOnly={!initial.canChooseDataDir} disabled={busy || started} aria-invalid={!!errors.dataDir} />{initial.canChooseDataDir ? <Button type="button" variant="outline" size="icon" aria-label={t("setup.chooseDirectory")} disabled={busy || started} onClick={() => directory.mutate()}><FolderOpen /></Button> : null}</div><FieldDescription>{t(initial.canChooseDataDir ? "setup.directoryHelp" : "setup.androidDirectory")}</FieldDescription><FieldError>{errors.dataDir}</FieldError></Field>
+        <Field data-field-span="full" data-invalid={!!errors.dataDir}><FieldLabel htmlFor="setup-directory">{t("setup.dataDir")}</FieldLabel><div className="flex gap-2"><Input id="setup-directory" value={dataDir} onChange={e => setDataDir(e.target.value)} readOnly={!initial.canChooseDataDir} disabled={busy || started} aria-invalid={!!errors.dataDir} />{initial.canChooseDataDir ? <Button type="button" variant="outline" size="icon" aria-label={t("setup.chooseDirectory")} disabled={busy || started} onClick={() => directory.mutate()}><FolderOpen /></Button> : null}</div><FieldDescription>{t(initial.canChooseDataDir ? "setup.directoryHelp" : "setup.privateDirectory")}</FieldDescription><FieldError>{errors.dataDir}</FieldError></Field>
         <Field><FieldLabel htmlFor="setup-database-kind">{t("setup.database")}</FieldLabel><Select value={databaseKind} onValueChange={value => { setDatabaseKind(value as typeof databaseKind); setDatabaseUrl("") }} disabled={busy || started}><SelectTrigger id="setup-database-kind"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{initial.databaseKinds.map(kind => <SelectItem key={kind} value={kind}>{{ sqlite: "SQLite", postgres: "PostgreSQL", mysql: "MySQL" }[kind]}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
         <Field data-invalid={!!errors.database}><FieldLabel htmlFor="setup-database-value">{t(databaseKind === "sqlite" ? "setup.databaseFile" : "setup.databaseUrl")}</FieldLabel><Input id="setup-database-value" type={databaseKind === "sqlite" ? "text" : "password"} autoComplete="off" value={databaseKind === "sqlite" ? databasePath : databaseUrl} onChange={e => databaseKind === "sqlite" ? setDatabasePath(e.target.value) : setDatabaseUrl(e.target.value)} disabled={busy || started} aria-invalid={!!errors.database} placeholder={databaseKind === "sqlite" ? "gproxy.db" : `${databaseKind}://user:password@host:${databaseKind === "mysql" ? "3306" : "5432"}/gproxy`} /><FieldDescription>{t(databaseKind === "sqlite" ? "setup.databaseFileHelp" : "setup.databaseUrlHelp")}</FieldDescription><FieldError>{errors.database}</FieldError></Field>
-        <Field data-field-span="full" orientation="horizontal"><FieldLabel htmlFor="setup-autostart">{t(initial.canChooseDataDir ? "setup.autoStart" : "setup.androidAutoStart")}</FieldLabel><Switch id="setup-autostart" checked={autoStart} onCheckedChange={setAutoStart} disabled={busy} /></Field>
+        {initial.canAutoStart ? <Field data-field-span="full" orientation="horizontal"><FieldLabel htmlFor="setup-autostart">{t(initial.canChooseDataDir ? "setup.autoStart" : "setup.androidAutoStart")}</FieldLabel><Switch id="setup-autostart" checked={autoStart} onCheckedChange={setAutoStart} disabled={busy} /></Field> : null}
         {initial.canChooseDataDir ? <Field data-field-span="full" orientation="horizontal"><FieldLabel htmlFor="setup-tray">{t("setup.tray")}</FieldLabel><Switch id="setup-tray" checked={tray} onCheckedChange={setTray} disabled={busy} /></Field> : null}
       </FieldGroup> : null}
       {step === 1 ? <FieldGroup>

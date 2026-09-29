@@ -8,6 +8,7 @@ export type SetupStatus = {
   required: boolean
   databaseKinds: Array<"sqlite" | "postgres" | "mysql">
   canChooseDataDir: boolean
+  canAutoStart: boolean
   started: boolean
   completed: boolean
   dataDir: string
