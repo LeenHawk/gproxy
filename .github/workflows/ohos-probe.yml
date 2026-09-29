@@ -77,6 +77,7 @@ jobs:
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '8'
     steps:
       - uses: actions/checkout@v7.0.1
+      - run: git config --global --add safe.directory "$PWD"
       - uses: Swatinem/rust-cache@v2.9.2
         with:
           shared-key: ohos-container-cli-${{ matrix.target }}
@@ -117,6 +118,7 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: '0'
     steps:
       - uses: actions/checkout@v7.0.1
+      - run: git config --global --add safe.directory "$PWD"
       - name: Build shared Console
         run: |
           pnpm --dir console install --frozen-lockfile
