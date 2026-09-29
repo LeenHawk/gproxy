@@ -130,11 +130,18 @@ fn store() -> &'static dyn secrets::SecretStore {
 /// window opened after the foreground service has already started the instance
 /// finds it running and shows it rather than building a second one.
 pub fn run() -> StartResult<()> {
+    // Tauri consumes the native Ability when constructing its runtime. Capture
+    // the sandbox path before Builder::run, not inside its later setup callback.
+    #[cfg(target_env = "ohos")]
+    let ohos_data_dir = engine::ohos_data_dir()?;
     let handle = engine::runtime()?.handle().clone();
 
     let builder = tauri::Builder::default()
         .invoke_handler(ipc::invoke_handler::<tauri::Wry>())
         .setup(move |app| {
+            #[cfg(target_env = "ohos")]
+            let data_dir = ohos_data_dir;
+            #[cfg(not(target_env = "ohos"))]
             let data_dir = engine::data_dir(app.handle())?;
             let setup = setup::Setup::new(data_dir);
             let choices = setup.choices()?;
