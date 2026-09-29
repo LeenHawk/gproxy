@@ -11,6 +11,9 @@ concurrency:
 jobs:
   toolchain:
     name: Cached OHOS toolchain image
+    concurrency:
+      group: gproxy-ohos-toolchain
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
