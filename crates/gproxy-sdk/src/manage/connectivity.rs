@@ -124,7 +124,10 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
         let snapshot = self.writer.core().snapshot();
         let provider = provider(&snapshot, &request.provider_id)?;
         let credentials = credentials(&snapshot, provider, request.credential_id.as_deref())?;
-        let dialect = native_dialect(provider, Operation::GenerateContent)?;
+        // Stream-only HTTP upstreams (such as Codex) still accept a buffered
+        // probe through Core's generation conversion and stream collection.
+        let dialect = native_dialect(provider, Operation::GenerateContent)
+            .or_else(|_| native_dialect(provider, Operation::StreamGenerateContent))?;
         let model = crud::text(&request.model, "model")?;
 
         let endpoint = gproxy_core::convert::generate_endpoint(dialect, &model, false)
