@@ -5,6 +5,11 @@ mode="${1:?cli|application}"
 export GOCACHE="$CI_PROJECT_DIR/.cache/go-build" GOMODCACHE="$CI_PROJECT_DIR/.cache/go-mod"
 mkdir -p "$GOCACHE" "$GOMODCACHE" dist/release
 case "$TARGET_OS" in
+  ohos)
+    export OHOS_TOOLCHAIN_IMAGE="${CI_JOB_IMAGE:-}"
+    if [ "$mode" = application ]; then python3 scripts/ohos/prepare-tauri.py; fi
+    exec bash scripts/ohos/build.sh "$mode"
+    ;;
   windows) exec bash scripts/gitlab/package-windows-cross.sh "$mode" ;;
   android) exec bash scripts/gitlab/package-unix.sh "$mode" ;;
   macos)

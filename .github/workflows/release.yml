@@ -25,6 +25,8 @@ jobs:
     outputs:
       matrix: ${{ steps.metadata.outputs.matrix }}
       riscv_matrix: ${{ steps.metadata.outputs.riscv_matrix }}
+      ohos_matrix: ${{ steps.metadata.outputs.ohos_matrix }}
+      ohos_app_matrix: ${{ steps.metadata.outputs.ohos_app_matrix }}
       version: ${{ steps.metadata.outputs.version }}
       channel: ${{ steps.metadata.outputs.channel }}
       manifest_version: ${{ steps.metadata.outputs.manifest_version }}
@@ -48,8 +50,10 @@ jobs:
           echo "manifest_version=$manifest_version" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "channel=$channel" >> "$GITHUB_OUTPUT"
-          echo "matrix=$(jq -c '{include: [.include[] | select(.target | startswith("riscv64gc-") | not)]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
+          echo "matrix=$(jq -c '{include: [.include[] | select(.os != "ohos") | select(.target | startswith("riscv64gc-") | not)]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "riscv_matrix=$(jq -c '{include: [.include[] | select(.target | startswith("riscv64gc-"))]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
+          echo "ohos_matrix=$(jq -c '{include: [.include[] | select(.os == "ohos")]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
+          echo "ohos_app_matrix=$(jq -c '{include: [.include[] | select(.os == "ohos" and .application_artifact)]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
 
   console:
     name: Console bundle
@@ -399,7 +403,170 @@ jobs:
     needs: [prepare, console, riscv-toolchain]
     runs-on: ubuntu-latest
     environment: release
+    ohos-toolchain:
+    name: Cached OHOS toolchain image
+    concurrency:
+      group: gproxy-ohos-toolchain
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: docker/setup-buildx-action@v4.4.1
+      - uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: image
+        env:
+          TOOLCHAIN_HASH: ${{ hashFiles('.gitlab/Dockerfile.ohos', 'scripts/ohos/install-sdk.sh', 'scripts/ohos/install-hap-tools.sh', 'scripts/ohos/prepare-toolchain.py', 'scripts/ohos/tauri-pins.json') }}
+        run: |
+          image="ghcr.io/leenhawk/gproxy-build-ohos:$TOOLCHAIN_HASH"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then echo 'exists=true' >> "$GITHUB_OUTPUT"; fi
+      - name: Prepare image build space
+        if: steps.image.outputs.exists != 'true'
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet
+      - uses: docker/build-push-action@v7.4.0
+        if: steps.image.outputs.exists != 'true'
+        with:
+          context: .
+          file: .gitlab/Dockerfile.ohos
+          push: true
+          tags: ${{ steps.image.outputs.image }}
+          cache-from: type=registry,ref=ghcr.io/leenhawk/gproxy-build-ohos:buildcache
+          cache-to: type=registry,ref=ghcr.io/leenhawk/gproxy-build-ohos:buildcache,mode=max
+
+
+  ohos-cli:
+    name: OpenHarmony CLI (${{ matrix.target }})
+    needs: [prepare, console, ohos-toolchain]
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: read
+      actions: read
+      id-token: write
+      attestations: write
     container:
+      image: ${{ needs.ohos-toolchain.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.ohos_matrix) }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET_TRIPLE: ${{ matrix.target }}
+      ARTIFACT_NAME: ${{ matrix.artifact }}
+      GPROXY_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
+      GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
+      GPROXY_BUILD_CHANNEL: ${{ needs.prepare.outputs.channel }}
+      GPROXY_BUILD_HASH: ${{ github.sha }}
+      GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+      OHOS_TOOLCHAIN_IMAGE: ${{ needs.ohos-toolchain.outputs.image }}
+      CARGO_PROFILE_RELEASE_LTO: thin
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '8'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Prepare build identity
+        run: |
+          git config --global --add safe.directory "$PWD"
+          test "$(cat .gitlab/update-public-key)" = "$GPROXY_UPDATE_PUBKEY"
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: console-dist
+          path: console/dist
+      - run: node console/scripts/sync-to-embed.mjs
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          shared-key: ohos-container-cli-${{ matrix.target }}
+          cache-on-failure: true
+      - run: bash scripts/ohos/build.sh cli
+      - uses: ./.github/actions/attest-release
+        with:
+          artifact: ${{ matrix.artifact }}
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: native-${{ matrix.target }}
+          path: dist/release/${{ matrix.artifact }}.*
+          if-no-files-found: error
+          retention-days: 1
+
+  ohos-application:
+    name: Experimental HarmonyOS HAP (${{ matrix.target }})
+    needs: [prepare, console, ohos-toolchain]
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: read
+      actions: read
+      id-token: write
+      attestations: write
+    container:
+      image: ${{ needs.ohos-toolchain.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.ohos_app_matrix) }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET_TRIPLE: ${{ matrix.target }}
+      APPLICATION_ARTIFACT: ${{ matrix.application_artifact }}
+      GPROXY_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
+      GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
+      GPROXY_BUILD_CHANNEL: ${{ needs.prepare.outputs.channel }}
+      GPROXY_BUILD_HASH: ${{ github.sha }}
+      GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+      OHOS_TOOLCHAIN_IMAGE: ${{ needs.ohos-toolchain.outputs.image }}
+      CARGO_PROFILE_RELEASE_LTO: thin
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '8'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Prepare build identity
+        run: |
+          git config --global --add safe.directory "$PWD"
+          test "$(cat .gitlab/update-public-key)" = "$GPROXY_UPDATE_PUBKEY"
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: console-dist
+          path: console/dist
+      - run: node console/scripts/sync-to-embed.mjs
+      - run: python3 scripts/ohos/prepare-tauri.py
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          shared-key: ohos-container-tauri
+          cache-all-crates: true
+          cache-on-failure: true
+      - run: bash scripts/ohos/build.sh application
+      - uses: ./.github/actions/attest-release
+        with:
+          artifact: ${{ matrix.application_artifact }}
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: application-${{ matrix.target }}
+          path: dist/release/${{ matrix.application_artifact }}.*
+          if-no-files-found: error
+          retention-days: 1
+
+  container:
       image: ghcr.io/leenhawk/gproxy-build-riscv64:${{ github.sha }}
       credentials:
         username: ${{ github.actor }}
@@ -670,7 +837,7 @@ jobs:
   publish:
     if: ${{ always() && !failure() && !cancelled() }}
     name: Publish GitHub, GitLab and CNB releases
-    needs: [prepare, native, riscv, edge, edge-check, container-manifest, publish-crates]
+    needs: [prepare, native, riscv, ohos-cli, ohos-application, edge, edge-check, container-manifest, publish-crates]
     runs-on: ubuntu-latest
     environment: release
     steps:

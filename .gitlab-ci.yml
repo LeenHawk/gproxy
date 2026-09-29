@@ -138,7 +138,7 @@ toolchains:
       docker buildx build --push --file ".gitlab/Dockerfile.$dockerfile" --build-arg "TARGET_ARCH=$architecture" --tag "$CI_REGISTRY_IMAGE/build-$FLAVOR:$CI_COMMIT_SHA" --tag "$CI_REGISTRY_IMAGE/build-$FLAVOR:verify-$RUST_VERSION" --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache" --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache,mode=max" .
   parallel:
     matrix:
-      - FLAVOR: [linux, linux-arm64, linux-riscv64, desktop, android]
+      - FLAVOR: [linux, linux-arm64, linux-riscv64, desktop, android, ohos]
 
 .cross-package:
   extends: .release-rules
@@ -223,6 +223,24 @@ linux-musl:
   parallel:
     matrix:
       - TARGET_TRIPLE: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+
+ohos:
+  extends: .cross-package
+  variables:
+    TOOLCHAIN: ohos
+  needs:
+    - console
+    - job: toolchains
+      artifacts: false
+      parallel:
+        matrix:
+          - FLAVOR: [ohos]
+  parallel:
+    matrix:
+      - TARGET_TRIPLE: [aarch64-unknown-linux-ohos]
+        PACKAGE_MODE: [cli, application]
+      - TARGET_TRIPLE: [x86_64-unknown-linux-ohos]
+        PACKAGE_MODE: [cli]
 
 desktop:
   extends: .cross-package
@@ -344,6 +362,7 @@ publish:
     - linux
     - linux-arm64
     - linux-riscv64
+    - ohos
     - linux-musl
     - desktop
     - android

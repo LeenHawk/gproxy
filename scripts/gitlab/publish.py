@@ -190,7 +190,7 @@ def verify_packages():
     directory = Path("dist/release")
     matrix = json.loads(Path("scripts/release-targets.json").read_text())["include"]
     expected = ["gproxy-edge.wasm", "gproxy-edge-cloudflare.zip", "gproxy-edge.provenance.json"]
-    extensions = {"linux": ".deb", "macos": ".dmg", "windows": ".msix", "android": ".apk"}
+    extensions = {"linux": ".deb", "macos": ".dmg", "windows": ".msix", "android": ".apk", "ohos": ".hap"}
     for row in matrix:
         cli = row["artifact"]
         expected += [cli + ".zip", cli + ".provenance.json"]
@@ -198,11 +198,12 @@ def verify_packages():
             executable = "gproxy.exe" if row["os"] == "windows" else "gproxy"
             if executable not in archive.namelist() or any("gproxy-desktop" in n for n in archive.namelist()):
                 raise ValueError(f"Wrong executable in CLI archive: {cli}")
-        cli_extension = ".deb" if row["os"] == "android" else extensions[row["os"]]
-        expected.append(cli + cli_extension)
+        if row["os"] != "ohos":
+            cli_extension = ".deb" if row["os"] == "android" else extensions[row["os"]]
+            expected.append(cli + cli_extension)
         if app := row.get("application_artifact"):
             expected += [app + extensions[row["os"]], app + ".provenance.json"]
-            if row["os"] != "android":
+            if row["os"] not in ("android", "ohos"):
                 expected.append(app + ".zip")
                 with zipfile.ZipFile(directory / (app + ".zip")) as archive:
                     executable = "gproxy-desktop.exe" if row["os"] == "windows" else "gproxy-desktop"

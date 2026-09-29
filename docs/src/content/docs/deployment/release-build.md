@@ -19,6 +19,7 @@ each has its own portable archives and installers. Applications embed the Consol
 | Windows (x86_64, aarch64) | ZIP, MSIX | ZIP, MSIX |
 | macOS (x86_64, aarch64) | ZIP, DMG | ZIP, DMG |
 | Android (x86_64, aarch64) | ZIP, Termux DEB | APK only |
+| OpenHarmony / HarmonyOS NEXT | ARM64 / x86_64 ZIP | ARM64 experimental unsigned HAP |
 
 The Linux CLI DEB installs `gproxy` under `/usr/bin`; the Termux DEB installs
 under `/data/data/com.termux/files/usr` and carries its C++ runtime privately.
@@ -26,6 +27,10 @@ Android CLI ZIPs include the launcher, executable and C++ runtime. Windows CLI
 MSIX uses a distinct `.CLI` identity and a console execution alias. macOS CLI
 DMGs include the executable and Terminal installation instructions.
 Application ZIPs retain desktop resources and, on macOS, the complete `.app`.
+
+OHOS builds use a cached toolchain image and a pinned experimental Tauri branch;
+other platforms retain stable Tauri. HAP files require signing before installation.
+Device execution has not been verified; background services are not implemented.
 
 Nightly filenames also carry a commit SHA prefix. Linux x86_64 builds on Ubuntu
 22.04 and ARM64 on Ubuntu 24.04; installation requires the distribution's

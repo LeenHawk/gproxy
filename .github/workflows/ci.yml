@@ -2,7 +2,6 @@ name: CI
 
 on:
   push:
-    branches-ignore: ["ci/ohos-*"]
   pull_request:
 
 # Read-only unless a job says otherwise; the repository default may be write.

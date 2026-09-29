@@ -13,6 +13,7 @@ runs:
         subject-path: |
           dist/release/${{ inputs.artifact }}*.zip
           dist/release/${{ inputs.artifact }}*.apk
+          dist/release/${{ inputs.artifact }}*.hap
           dist/release/${{ inputs.artifact }}*.wasm
           dist/release/${{ inputs.artifact }}*.deb
           dist/release/${{ inputs.artifact }}*.dmg
@@ -23,6 +24,7 @@ runs:
         subject-path: |
           dist/release/${{ inputs.artifact }}*.zip
           dist/release/${{ inputs.artifact }}*.apk
+          dist/release/${{ inputs.artifact }}*.hap
           dist/release/${{ inputs.artifact }}*.wasm
           dist/release/${{ inputs.artifact }}*.deb
           dist/release/${{ inputs.artifact }}*.dmg
