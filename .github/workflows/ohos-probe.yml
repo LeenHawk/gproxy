@@ -1,0 +1,55 @@
+name: OpenHarmony probe
+on:
+  push:
+    branches: [ci/ohos-probe]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ohos-probe-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  cli:
+    name: CLI (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-unknown-linux-ohos, x86_64-unknown-linux-ohos]
+    env:
+      OHOS_HOME: ${{ github.workspace }}/.ohos-sdk/default/openharmony/20
+      TARGET_TRIPLE: ${{ matrix.target }}
+      CARGO_PROFILE_RELEASE_LTO: thin
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '8'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/cache@v5.0.5
+        with:
+          path: .ohos-sdk
+          key: ohos-sdk-linux-6.0.0.48
+      - name: Install public OpenHarmony SDK
+        run: bash scripts/ohos/install-sdk.sh
+      - name: Install host build tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends cmake ninja-build clang libclang-dev pkg-config
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          shared-key: ohos-cli-${{ matrix.target }}
+      - name: Cross-compile complete CLI
+        shell: bash
+        run: |
+          source scripts/ohos/env.sh
+          cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE"
+          "$OHOS_HOME/native/llvm/bin/llvm-readelf" -h -l -d "target/$TARGET_TRIPLE/release/gproxy"
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ohos-cli-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/gproxy
+          if-no-files-found: error
