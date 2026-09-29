@@ -112,15 +112,23 @@ jobs:
       - name: Prepare server assets
         run: cp -R console/dist/. crates/gproxy-host-axum/assets/web/
       - uses: pnpm/action-setup@v6.1.0
-        if: matrix.application_artifact
+        if: matrix.application_artifact && !startsWith(matrix.target, 'riscv64gc-')
         with:
           package_json_file: console/package.json
       - uses: actions/setup-node@v7.0.0
-        if: matrix.application_artifact
+        if: matrix.application_artifact && !startsWith(matrix.target, 'riscv64gc-')
         with:
           node-version: 'lts/*'
           cache: pnpm
           cache-dependency-path: crates/gproxy-host-tauri/pnpm-lock.yaml
+      - name: Install pnpm on RISE
+        if: matrix.application_artifact && startsWith(matrix.target, 'riscv64gc-')
+        run: |
+          # RISE provides native Node; setup-node and @pnpm/exe have no RISC-V binary.
+          node --version
+          pnpm_version="$(node -p "require('./console/package.json').packageManager")"
+          npm install --prefix "$RUNNER_TEMP/riscv-pnpm" "$pnpm_version"
+          echo "$RUNNER_TEMP/riscv-pnpm/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Prepare application assets and CLI
         if: matrix.application_artifact
         run: |
