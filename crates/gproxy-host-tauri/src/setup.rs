@@ -32,6 +32,7 @@ pub struct Choices {
 pub struct SetupStatus {
     pub required: bool,
     pub can_choose_data_dir: bool,
+    pub can_auto_start: bool,
     pub started: bool,
     pub database: StoreBackendConfig,
     pub database_kinds: Vec<&'static str>,
@@ -95,6 +96,7 @@ impl Setup {
         Ok(SetupStatus {
             required: !choices.completed,
             can_choose_data_dir: cfg!(desktop),
+            can_auto_start: !cfg!(target_env = "ohos"),
             started: engine::started().is_some(),
             database: choices.database.clone(),
             database_kinds: database_kinds(),

@@ -954,7 +954,7 @@
     "portHelp": "預設 8787，用戶端透過此連接埠呼叫模型。",
     "dataDir": "資料目錄",
     "directoryHelp": "選擇本執行個體的資料儲存目錄，不會覆寫既有執行個體。",
-    "androidDirectory": "Android 使用應用程式私有目錄儲存執行個體資料。",
+    "privateDirectory": "實例資料儲存在應用程式私有目錄中。",
     "chooseDirectory": "選擇資料目錄",
     "autoStart": "登入系統時自動啟動",
     "androidAutoStart": "裝置重新啟動後自動啟動",

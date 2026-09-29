@@ -954,7 +954,7 @@
     "portHelp": "默认 8787，客户端通过此端口调用模型。",
     "dataDir": "数据目录",
     "directoryHelp": "选择本实例的数据保存目录，不会覆盖已有实例。",
-    "androidDirectory": "Android 使用应用私有目录保存实例数据。",
+    "privateDirectory": "实例数据保存在应用私有目录中。",
     "chooseDirectory": "选择数据目录",
     "autoStart": "登录系统时自动启动",
     "androidAutoStart": "设备重启后自动启动",
