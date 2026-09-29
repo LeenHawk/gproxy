@@ -142,17 +142,18 @@ pub fn data_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> StartResult<Pat
 
 /// OpenHarmony supplies the private files directory through the native Ability.
 #[cfg(target_env = "ohos")]
-pub fn data_dir<R: tauri::Runtime>(_app: &tauri::AppHandle<R>) -> StartResult<PathBuf> {
+pub fn ohos_data_dir() -> StartResult<PathBuf> {
     let ability = tauri::ohos::APP
         .lock()
         .map_err(|error| StartError::App(gproxy_app::AppError::internal(error.to_string())))?;
     ability
         .as_ref()
         .and_then(|app| app.base_path())
+        .filter(|path| std::path::Path::new(path).is_absolute())
         .map(|path| PathBuf::from(path).join("gproxy"))
         .ok_or_else(|| {
             StartError::App(gproxy_app::AppError::internal(
-                "OpenHarmony did not provide the application's private files directory",
+                "OpenHarmony did not provide an absolute private files directory",
             ))
         })
 }
