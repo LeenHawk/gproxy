@@ -58,6 +58,12 @@ class Cnb:
         self.request("POST", verify)
         print(f"Uploaded {path.name} ({path.stat().st_size} bytes)", flush=True)
 
+    def prune(self, release, keep):
+        current = self.request("GET", f"/releases/{release['id']}")
+        for asset in current.get("assets", []):
+            if asset["name"] not in keep:
+                self.request("DELETE", f"/releases/{release['id']}/assets/{asset['id']}")
+
     def release(self, tag, body, prerelease=True):
         release = self.request("GET", f"/releases/tags/{urllib.parse.quote(tag)}", missing=True)
         if release is None:

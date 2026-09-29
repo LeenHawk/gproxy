@@ -78,6 +78,18 @@ class Github:
             "make_latest": "true" if latest else "false",
         })
 
+    def prune(self, release, keep):
+        page = 1
+        obsolete = []
+        while True:
+            assets = self.api("GET", f"/releases/{release['id']}/assets?per_page=100&page={page}")
+            obsolete.extend(asset for asset in assets if asset["name"] not in keep)
+            if len(assets) < 100:
+                break
+            page += 1
+        for asset in obsolete:
+            self.api("DELETE", f"/releases/assets/{asset['id']}")
+
     def move_tag(self, tag):
         ref = self.api("GET", f"/git/ref/tags/{tag}", missing=True)
         if ref:
@@ -132,6 +144,13 @@ class Gitlab:
         else:
             self.api("PUT", f"/releases/{release['tag_name']}", {"description": notes})
 
+    def prune(self, release, keep):
+        tag = urllib.parse.quote(release["tag_name"], safe="")
+        current = self.api("GET", f"/releases/{tag}")
+        for link in current["assets"]["links"]:
+            if link["name"] not in keep:
+                self.api("DELETE", f"/releases/{tag}/assets/links/{link['id']}")
+
     def move_tag(self, tag):
         git_push(self.url, f"refs/tags/{tag}", self.token, "oauth2", force=True)
 
@@ -159,6 +178,9 @@ class Cnb:
             "draft": False, "body": notes, "prerelease": prerelease,
             "make_latest": "true" if latest else "false",
         })
+
+    def prune(self, release, keep):
+        self.client.prune(release, keep)
 
     def move_tag(self, tag):
         git_push("https://cnb.cool/LeenHawk/gproxy.git", f"refs/tags/{tag}", os.environ["CNB_TOKEN"], "cnb", force=True)
@@ -215,6 +237,9 @@ def main():
                else "CNB CI" if os.environ.get("CNB_BUILD_ID") else "GitLab CI")
     notes += f"\n\nBuilt once by [{builder}]({os.environ['CI_PIPELINE_URL']}). CLI (`gproxy-*`) and Application (`gproxy-tauri-*`) packages are separate.\n"
     assets = sorted(path for path in Path("dist/release").iterdir() if path.is_file())
+    if channel == "dev":
+        assets = [path for path in assets
+                  if not path.name.endswith((".sha256", ".provenance.json"))]
     # Each host gets the same package bytes and a manifest signed for its URLs.
     for host in hosts:
         release = host.release(tag, notes, channel != "release")
@@ -229,6 +254,8 @@ def main():
         manifest = Path("dist/manifests") / host.name / "manifest.json"
         host.upload(release, manifest)
         host.finish(release, notes, channel != "release", channel == "release")
+        if channel == "dev":
+            host.prune(release, {path.name for path in assets} | {"manifest.json"})
         if channel != "dev" and (channel == "beta" or host.name != "github"):
             versions = [r["tag_name"][1:] for r in hosts[0].api("GET", "/releases?per_page=100")
                         if r["tag_name"].startswith("v4.") and not r["draft"]

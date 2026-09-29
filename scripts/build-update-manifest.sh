@@ -10,7 +10,6 @@ output="${OUT:-dist/release/manifest.json}"
 notes_url="${NOTES_URL:-}"
 version="${VERSION:-${TAG#v}}"
 channel="${CHANNEL:-release}"
-prefix="${ASSET_PREFIX:-}"
 asset_base_url="${ASSET_BASE_URL:-https://github.com/$REPO/releases/download/$TAG}"
 asset_base_url="${asset_base_url%/}"
 
@@ -47,7 +46,7 @@ printf '%s\n%s\n%s\n%s\n' "$channel" "$version" "$notes_url" "$minimum" > "$payl
 artifacts='[]'
 
 while IFS=$'\t' read -r target artifact os; do
-  package="$assets_dir/$prefix$artifact.zip"
+  package="$assets_dir/$artifact.zip"
   sidecar="$package.sha256"
   if [ ! -f "$package" ] || [ ! -f "$sidecar" ]; then
     echo "missing native release archive for $target" >&2
@@ -55,7 +54,7 @@ while IFS=$'\t' read -r target artifact os; do
   fi
   sha="$(awk '{print $1}' "$sidecar")"
   size="$(stat -c%s "$package")"
-  url="$asset_base_url/$prefix$artifact.zip"
+  url="$asset_base_url/$artifact.zip"
   printf '%s|%s|%s|%s\n' "$target" "$url" "$sha" "$size" >> "$payload"
   artifacts="$(jq -c --arg t "$target" --arg u "$url" --arg s "$sha" --argjson z "$size" \
     '. + [{target_triple:$t,url:$u,sha256:$s,size:$z}]' <<<"$artifacts")"
@@ -63,12 +62,12 @@ while IFS=$'\t' read -r target artifact os; do
   if [ "$os" = android ]; then
     # Only the Tauri Application is an APK; the CLI uses ZIP and Termux DEB.
     app_artifact="${artifact/gproxy-/gproxy-tauri-}"
-    app_apk="$assets_dir/$prefix$app_artifact.apk"
+    app_apk="$assets_dir/$app_artifact.apk"
     if [ -f "$app_apk" ]; then
       app_sha="$(awk '{print $1}' "$app_apk.sha256")"
       app_size="$(stat -c%s "$app_apk")"
       app_target="$target-tauri-apk"
-      app_url="$asset_base_url/$prefix$app_artifact.apk"
+      app_url="$asset_base_url/$app_artifact.apk"
       printf '%s|%s|%s|%s\n' "$app_target" "$app_url" "$app_sha" "$app_size" >> "$payload"
       artifacts="$(jq -c --arg t "$app_target" --arg u "$app_url" --arg s "$app_sha" \
         --argjson z "$app_size" '. + [{target_triple:$t,url:$u,sha256:$s,size:$z}]' \

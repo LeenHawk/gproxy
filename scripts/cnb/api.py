@@ -124,6 +124,12 @@ class Cnb:
         subprocess.run(["git", "tag", "-f", tag, self.commit], check=True)
         subprocess.run(["git", "push", "--force", "origin", f"refs/tags/{tag}"], check=True)
 
+    def prune(self, release, keep):
+        current = self.request("GET", f"/releases/{release['id']}")
+        for asset in current.get("assets", []):
+            if asset["name"] not in keep:
+                self.request("DELETE", f"/releases/{release['id']}/assets/{asset['id']}")
+
     def release(self, tag, body, prerelease=True):
         release = self.request("GET", f"/releases/tags/{urllib.parse.quote(tag)}", missing=True)
         if release is None:
@@ -152,9 +158,11 @@ class Cnb:
             if manifest["version"] != self.commit:
                 raise ValueError("Nightly manifest must identify this commit")
         release = self.release(tag, notes, prerelease=channel != "release")
-        for file in sorted(directory.iterdir()):
-            if file.is_file() and file.name != "manifest.json":
-                self.upload(file, release["id"])
+        assets = [file for file in sorted(directory.iterdir())
+                  if file.is_file() and file.name != "manifest.json"
+                  and (channel != "dev" or not file.name.endswith((".sha256", ".provenance.json")))]
+        for file in assets:
+            self.upload(file, release["id"])
         if channel == "dev":
             latest = subprocess.check_output(["git", "ls-remote", "origin", "refs/heads/dev"], text=True).split()[0]
             if latest != self.commit:
@@ -167,6 +175,8 @@ class Cnb:
             "body": notes, "draft": False, "prerelease": channel != "release",
             "make_latest": "true" if channel == "release" else "false",
         })
+        if channel == "dev":
+            self.prune(release, {p.name for p in assets} | {"manifest.json"})
         if channel != "dev":
             releases = self.request("GET", "/releases?page_size=100")
             versions = [r["tag_name"][1:] for r in releases

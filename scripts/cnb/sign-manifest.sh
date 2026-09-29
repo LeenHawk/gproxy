@@ -6,10 +6,8 @@ export CHANNEL="$GPROXY_BUILD_CHANNEL" VERSION="$GPROXY_BUILD_VERSION"
 export NOTES_URL="https://cnb.cool/$REPO/-/releases/tag/$TAG"
 export ASSET_BASE_URL="https://cnb.cool/$REPO/-/releases/download/$TAG"
 export ASSETS_DIR=dist/release
-export ASSET_PREFIX=
 if [ "$CHANNEL" = dev ]; then
-  export VERSION="$CNB_COMMIT" ASSET_PREFIX="$CNB_COMMIT-"
-  scripts/namespace-nightly-assets.sh dist/release "$ASSET_PREFIX"
+  export VERSION="$CNB_COMMIT"
 fi
 node scripts/cnb/check-signing.mjs
 for platform in github gitlab cnb; do
