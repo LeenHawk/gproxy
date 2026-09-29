@@ -18,10 +18,10 @@ Run it in a disposable CI checkout with `OHOS_TAURI_SOURCES` outside the
 project workspace. Other platforms keep the normal `Cargo.toml` and
 `Cargo.lock`. Never run this overlay in a shared development checkout.
 
-The CLI uses the official OpenHarmony 6.0.0.48/API 20 public SDK, verified by
-Huawei's published SHA-256. HAP tooling uses a pinned, checksum-verified mirror
-of Huawei Command Line Tools 6.0.0 Release (6.0.0.858), including hvigor and
-ohpm. Console builds use Node 24; the HAP tools use their bundled Node.
+CLI and HAP builds use the SDK from the shared
+[tauri-harmony image](https://github.com/LeenHawk/tauri-harmony), pinned by digest
+in `.gitlab/Dockerfile.ohos`. It contains checksum-verified Huawei Command Line
+Tools 6.0.0 Release (6.0.0.858), including the API 20 SDK, hvigor and ohpm. Console builds use Node 24; the HAP tools use their bundled Node.
 
 - [Official SDK release](https://github.com/openharmony/docs/blob/master/en/release-notes/OpenHarmony-v6.0.0.1-release.md)
 - [Command-line tools mirror](https://github.com/ErBWs/ohos-sdk/releases/tag/6.0.0.858)
@@ -47,10 +47,11 @@ is claimed. Its generated backup extension is removed so instance data and
 credentials are not enrolled in automatic backup.
 
 GitHub Release and the GitLab fallback use `.gitlab/Dockerfile.ohos`.
-The SDK/source installation happens once in `prepare-toolchain.py` while
-building the image; `prepare-tauri.py` only applies its dependency overlay to
-the current application checkout. Application changes do not invalidate the
-toolchain image key. Cargo dependencies have a separate compiler cache.
+That image only adds GPROXY's Go build dependency to the public toolchain.
+SDK and experimental Tauri installation are maintained in the independent
+`tauri-harmony` repository. `prepare-tauri.py` verifies its source pins and
+applies the dependency overlay to the application checkout.
+Application changes do not invalidate the toolchain image key. Cargo dependencies have a separate compiler cache.
 
 The temporary probe has been removed after successful ARM64/x86_64 CLI ZIP
 and ARM64 unsigned HAP builds on GitHub Actions. Release jobs retain the native
