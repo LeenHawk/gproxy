@@ -33,17 +33,10 @@ upstream.write_text(text)
 # Huawei's SDK has native directly below openharmony, without an API subdir.
 env_file = source / "cargo-mobile2/src/open_harmony/env.rs"
 text = env_file.read_text()
-old = '''self.ohos_home
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .as_os_str()
-            .to_os_string()'''
-if old not in text:
+pattern = r"self\.ohos_home(?:\s*\.parent\(\)\s*\.unwrap\(\)){3}\s*\.as_os_str\(\)\s*\.to_os_string\(\)"
+text, count = re.subn(pattern, 'std::env::var_os("DEVECO_SDK_HOME").expect("DEVECO_SDK_HOME is required")', text, count=1)
+if count != 1:
     raise ValueError("Upstream OpenHarmony SDK layout helper changed")
-env_file.write_text(text.replace(old, 'std::env::var_os("DEVECO_SDK_HOME").expect("DEVECO_SDK_HOME is required")'))
+env_file.write_text(text)
 marker.write_text(json.dumps(pins, indent=2) + "\n")
 
