@@ -370,8 +370,8 @@ pub enum UpdateError {
     },
     #[error("this release has no artifact for `{0}`")]
     Artifact(String),
-    #[error("update download failed")]
-    Download,
+    #[error("update download failed: {0}")]
+    Download(String),
     #[error("downloaded update failed its integrity check")]
     Integrity,
     #[error("verified update archive is invalid")]
