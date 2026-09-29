@@ -3,12 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, expect, it, vi } from "vitest"
 import "@/i18n"
 import { readSettings, saveSettings, instanceInfo } from "@/api/settings"
-import { checkUpdate, updateSchedule, type UpdateReport } from "@/api/update"
+import { checkUpdate, updateSchedule, updateProgress, type UpdateReport } from "@/api/update"
 import type { SettingsDto } from "@/generated/sdk"
 import { UpdatePage } from "./index"
 
 vi.mock("@/api/settings", () => ({ SETTINGS_KEY: ["settings"], INFO_KEY: ["info"], readSettings: vi.fn(), saveSettings: vi.fn(), instanceInfo: vi.fn() }))
-vi.mock("@/api/update", () => ({ checkUpdate: vi.fn(), applyUpdate: vi.fn(), rollbackUpdate: vi.fn(), updateSchedule: vi.fn() }))
+vi.mock("@/api/update", () => ({ checkUpdate: vi.fn(), applyUpdate: vi.fn(), rollbackUpdate: vi.fn(), updateSchedule: vi.fn(), updateProgress: vi.fn() }))
 
 const report: UpdateReport = { current: "4.0.0-dev", latest: "new-commit", available: true, channel: "dev", source: "github", target: "x86_64-unknown-linux-gnu", notes_url: null, notes: null, restart: "none", rollback_available: false, checked_at_ms: 1 }
 let stored: SettingsDto
@@ -20,6 +20,7 @@ function mount() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.mocked(updateProgress).mockResolvedValue(null)
   stored = { instance: { updateChannel: "dev", updateSource: "github" }, logging: {} } as SettingsDto
   vi.mocked(instanceInfo).mockResolvedValue({ instanceName: "test", version: "4.0.0-dev", hash: "commit" })
   vi.mocked(readSettings).mockImplementation(async () => stored)

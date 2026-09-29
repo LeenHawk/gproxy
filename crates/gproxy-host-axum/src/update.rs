@@ -1,4 +1,4 @@
-//! The self-update surface: a trait the host implements, and the four routes
+//! The self-update surface: a trait the host implements, and the five routes
 //! that exist only when one did.
 //!
 //! # Why this is a trait and not a module
@@ -33,6 +33,7 @@
 //! | Route | What it does |
 //! |---|---|
 //! | `GET /admin/api/update` | the last scheduled check's result, from memory; no egress |
+//! | `GET /admin/api/update/progress` | live download and installation progress; no egress |
 //! | `POST /admin/api/update/check` | check now; still only a report |
 //! | `POST /admin/api/update/apply` | download, verify, swap — the explicit act |
 //! | `POST /admin/api/update/rollback` | put the previous executable back |
@@ -86,6 +87,11 @@ pub trait UpdateService: Send + Sync {
     /// polls this, and a poll must not become egress.
     fn recorded(&self) -> UpdateSchedule;
 
+    /// The current installation, without making an upstream request.
+    fn progress(&self) -> Option<UpdateProgress> {
+        None
+    }
+
     /// Check now. Downloads and verifies the manifest; downloads no artifact
     /// and changes nothing on disk.
     fn check(
@@ -123,6 +129,14 @@ pub struct UpdateSchedule {
     pub automatic: bool,
     pub channel: String,
     pub source: String,
+}
+
+/// Live byte counts and the current installation phase.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct UpdateProgress {
+    pub phase: String,
+    pub downloaded_bytes: u64,
+    pub total_bytes: u64,
 }
 
 /// One check's answer.
@@ -267,7 +281,7 @@ pub struct ChannelQuery {
     pub source: Option<String>,
 }
 
-/// The four routes, to be merged into `/admin/api`.
+/// The five routes, to be merged into `/admin/api`.
 ///
 /// Called **only** when [`HostState::updates`] is `Some`, so the surface does
 /// not exist on a host that cannot update itself rather than existing and
@@ -278,6 +292,7 @@ where
 {
     Router::new()
         .route("/update", get(recorded::<C>))
+        .route("/update/progress", get(progress::<C>))
         .route("/update/check", post(check::<C>))
         .route("/update/apply", post(apply::<C>))
         .route("/update/rollback", post(rollback::<C>))
@@ -296,6 +311,23 @@ where
             Err(response) => return *response,
         };
         crate::error::ok_json(&service.recorded())
+    })
+    .await
+}
+
+async fn progress<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        let service = match instance_service(&state, &scope) {
+            Ok(service) => service,
+            Err(response) => return *response,
+        };
+        crate::error::ok_json(&service.progress())
     })
     .await
 }

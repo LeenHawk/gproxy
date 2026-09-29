@@ -3,9 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { ApiError } from "@/api/client"
-import { type UpdateSelection, applyUpdate, checkUpdate, rollbackUpdate, updateSchedule } from "@/api/update"
+import { type UpdateSelection, applyUpdate, checkUpdate, rollbackUpdate, updateProgress, updateSchedule } from "@/api/update"
 import { INFO_KEY, instanceInfo, SETTINGS_KEY, readSettings, saveSettings } from "@/api/settings"
 import { Page, PageHeader, PageSection } from "@/components/page"
+import { DownloadProgress } from "@/components/download-progress"
 import { ConfirmButton } from "@/components/confirm"
 import { EmptyNotice, ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
@@ -40,9 +41,16 @@ export function UpdatePage() {
     },
   })
   const installed = useMutation({ mutationFn: (kind: "apply" | "rollback") => kind === "apply" ? applyUpdate({ channel, source }) : rollbackUpdate() })
+  const progress = useQuery({
+    queryKey: ["update", "progress"],
+    queryFn: updateProgress,
+    enabled: schedule.isSuccess,
+    refetchInterval: 500,
+    retry: false,
+  })
   const report = checked.data?.channel === channel && checked.data.source === source ? checked.data : schedule.data?.last_check?.channel === channel && schedule.data.last_check.source === source ? schedule.data.last_check : null
   const unsupported = schedule.error instanceof ApiError && schedule.error.status === 404
-  const busy = checked.isPending || installed.isPending || saved.isPending
+  const busy = checked.isPending || installed.isPending || saved.isPending || !!progress.data
   const notesUrl = report?.notes_url && /^https?:\/\//.test(report.notes_url) ? report.notes_url : null
   return <Page>
     <PageHeader title={t("nav.update")} actions={<Link to="/settings" className="text-sm underline">{t("nav.settings")}</Link>} />
@@ -76,7 +84,12 @@ export function UpdatePage() {
       </div>
       {checked.error || installed.error ? <ErrorNotice error={checked.error ?? installed.error} /> : null}
       {!checked.data && channel === schedule.data?.channel && source === schedule.data?.source && schedule.data?.last_error ? <ErrorNotice error={new Error(schedule.data.last_error)} /> : null}
-      {installed.isPending ? <p role="status">{t("update.installing")}</p> : null}
+      {progress.data || installed.isPending ? <DownloadProgress
+        label={t(progress.data?.phase === "downloading" ? "update.downloading" : progress.data?.phase === "verifying" ? "update.verifying" : "update.installing")}
+        downloaded={progress.data?.downloaded_bytes}
+        total={progress.data?.total_bytes}
+      /> : null}
+      {progress.error && installed.isPending ? <ErrorNotice error={progress.error} /> : null}
       {installed.data ? <p role="status">{t(installed.data.changed ? "update.installed" : "update.unchanged", { version: installed.data.version ?? "—", restart: installed.data.restart })}</p> : null}
       {report ? <PageSection title={report.available ? t("update.available", { version: report.latest }) : t("update.latest")}>
         <p className="text-sm text-muted-foreground">{report.target} · {formatInstant(report.checked_at_ms, i18n.language)}</p>

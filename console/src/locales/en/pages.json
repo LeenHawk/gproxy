@@ -473,6 +473,8 @@
     "rollback": "Roll back",
     "installConfirm": "Install {{version}}? The service may restart and interrupt connections.",
     "rollbackConfirm": "Restore the previous executable? The service may restart.",
+    "downloading": "Downloading update…",
+    "verifying": "Verifying update…",
     "installing": "Working… The service may restart; reload after it returns.",
     "installed": "Executable replaced. Version: {{version}}; restart: {{restart}}. Reload when the service is ready.",
     "unchanged": "No executable change was needed.",

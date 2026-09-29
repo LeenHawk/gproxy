@@ -33,7 +33,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Progress } from "@/components/ui/progress"
+import { DownloadProgress } from "@/components/download-progress"
 import {
   Select,
   SelectContent,
@@ -80,6 +80,10 @@ export function TokenizerPage() {
   })
   const fetch = useMutation({
     mutationFn: downloadVocabulary,
+    onMutate: async () => {
+      await client.cancelQueries({ queryKey: ["tokenizer", "progress"] })
+      client.setQueryData(["tokenizer", "progress"], null)
+    },
     onSuccess: async () => {
       setDownloading(false)
       await invalidate()
@@ -218,7 +222,7 @@ export function TokenizerPage() {
               pending={fetch.isPending}
               error={fetch.error}
               onSubmit={(request) => fetch.mutate(request)}
-              progress={progress.data}
+              progress={progress.data?.repo === fetch.variables?.repo && progress.data?.filename === (fetch.variables?.filename || "tokenizer.json") ? progress.data : null}
               progressError={progress.error}
             />
           ) : null}
@@ -336,19 +340,11 @@ function DownloadForm({
         </FieldGroup>
         {pending ? (
           <div role="status" className="mt-5 flex flex-col gap-2">
-            <Progress
-              aria-label={t("tokenizer.downloading")}
-              value={
-                progress?.totalBytes
-                  ? Math.min(100, (progress.downloadedBytes / progress.totalBytes) * 100)
-                  : null
-              }
+            <DownloadProgress
+              label={t("tokenizer.downloading")}
+              downloaded={progress?.downloadedBytes}
+              total={progress?.totalBytes}
             />
-            <span>
-              {progress
-                ? `${size(progress.downloadedBytes)}${progress.totalBytes ? ` / ${size(progress.totalBytes)}` : ""}`
-                : t("tokenizer.downloading")}
-            </span>
             {progressError ? <ErrorNotice error={progressError} /> : null}
           </div>
         ) : null}
