@@ -32,17 +32,24 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: actions/cache@v5.0.5
+      - uses: actions/cache/restore@v5.0.5
+        id: sdk-cache
         with:
           path: .ohos-sdk
           key: ohos-sdk-linux-6.0.0.48
       - name: Install public OpenHarmony SDK
         run: bash scripts/ohos/install-sdk.sh
+      - uses: actions/cache/save@v5.0.5
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        with:
+          path: .ohos-sdk
+          key: ohos-sdk-linux-6.0.0.48
       - name: Install host build tools
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends cmake ninja-build clang libclang-dev pkg-config
       - uses: Swatinem/rust-cache@v2.9.2
         with:
           shared-key: ohos-cli-${{ matrix.target }}
+          cache-on-failure: true
       - name: Cross-compile complete CLI
         shell: bash
         run: |
@@ -99,6 +106,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2.9.2
         with:
           shared-key: ohos-tauri-probe
+          cache-on-failure: true
           cache-all-crates: true
           workspaces: |
             . -> target
