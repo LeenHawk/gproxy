@@ -622,9 +622,10 @@ fn probe_body(dialect: Dialect, model: &str) -> Value {
 /// omits one still has usable names in it. Discovery reads the names it can
 /// see rather than refusing a directory over a field it does not need.
 fn model_names(dialect: Dialect, document: &Value) -> Vec<String> {
-    let (list, field, strip) = match dialect {
-        Dialect::Gemini => ("models", "name", true),
-        _ => ("data", "id", false),
+    let list = if dialect == Dialect::Gemini {
+        "models"
+    } else {
+        "data"
     };
     let mut names: Vec<String> = document
         .get(list)
@@ -632,20 +633,29 @@ fn model_names(dialect: Dialect, document: &Value) -> Vec<String> {
         .map(|items| {
             items
                 .iter()
-                .filter_map(|item| item.get(field).and_then(Value::as_str))
-                .map(|name| match strip {
-                    // Gemini names a model `models/gemini-…`; the resource
-                    // prefix is not part of the name a request sends.
-                    true => name.strip_prefix("models/").unwrap_or(name).to_owned(),
-                    false => name.to_owned(),
-                })
-                .filter(|name| !name.is_empty())
+                .filter_map(|item| model_name(dialect, item).map(str::to_owned))
                 .collect()
         })
         .unwrap_or_default();
     names.sort();
     names.dedup();
     names
+}
+
+// Keep directory names and metadata lookup on the same compatibility path.
+fn model_name(dialect: Dialect, item: &Value) -> Option<&str> {
+    let fields: &[&str] = if dialect == Dialect::Gemini {
+        &["name"]
+    } else {
+        &["id", "model", "name"]
+    };
+    let name = fields.iter().find_map(|field| item.get(*field)?.as_str())?;
+    let name = if dialect == Dialect::Gemini {
+        name.strip_prefix("models/").unwrap_or(name)
+    } else {
+        name
+    };
+    (!name.is_empty()).then_some(name)
 }
 
 /// What the upstream said it spent. A conversion reports the downstream view;
@@ -759,12 +769,8 @@ fn discovered_metadata(dialect: Dialect, document: &Value, name: &str) -> Value 
         .get(list)
         .and_then(Value::as_array)
         .and_then(|rows| {
-            rows.iter().find(|row| {
-                row.get("id")
-                    .or_else(|| row.get("name"))
-                    .and_then(Value::as_str)
-                    .is_some_and(|n| n.trim_start_matches("models/") == name)
-            })
+            rows.iter()
+                .find(|row| model_name(dialect, row) == Some(name))
         });
     let mut result = serde_json::Map::new();
     if let Some(item) = item {
