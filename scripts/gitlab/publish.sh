@@ -16,10 +16,9 @@ if [ "${GITHUB_ACTIONS:-false}" != true ]; then
 fi
 VERIFY_ONLY=true python3 scripts/gitlab/publish.py
 export TAG="$RELEASE_TAG" CHANNEL="$GPROXY_BUILD_CHANNEL" VERSION="$GPROXY_BUILD_VERSION"
-export ASSETS_DIR=dist/release ASSET_PREFIX=
+export ASSETS_DIR=dist/release
 if [ "$CHANNEL" = dev ]; then
-  export VERSION="$CI_COMMIT_SHA" ASSET_PREFIX="$CI_COMMIT_SHA-"
-  scripts/namespace-nightly-assets.sh dist/release "$ASSET_PREFIX"
+  export VERSION="$CI_COMMIT_SHA"
 fi
 for platform in github gitlab cnb; do
   export REPO=LeenHawk/gproxy

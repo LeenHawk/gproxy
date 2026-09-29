@@ -8,10 +8,8 @@ if [ "$latest" != "$GITHUB_SHA" ]; then
 fi
 test "$(jq -r .channel dist/publish/manifest.json)" = dev
 test "$(jq -r .version dist/publish/manifest.json)" = "$GITHUB_SHA"
-scripts/namespace-nightly-assets.sh dist/publish "$GITHUB_SHA-"
 previous="$(mktemp -d)"
 trap 'rm -rf "$previous"' EXIT
-gh release download nightly --pattern manifest.json --dir "$previous" >/dev/null 2>&1 || true
 git tag -f nightly "$GITHUB_SHA"
 git push -f origin refs/tags/nightly
 notes="docs/release-notes/v$VERSION.md"
@@ -21,16 +19,13 @@ if gh release view nightly >/dev/null 2>&1; then
 else
   gh release create nightly --verify-tag --title "gproxy dev" --notes-file "$notes" --prerelease --latest=false
 fi
-mapfile -d '' files < <(find dist/publish -maxdepth 1 -type f ! -name manifest.json -print0 | sort -z)
+mapfile -d '' files < <(find dist/publish -maxdepth 1 -type f ! -name manifest.json ! -name "*.sha256" ! -name "*.provenance.json" -print0 | sort -z)
 gh release upload nightly "${files[@]}" --clobber
 gh release upload nightly dist/publish/manifest.json --clobber
 printf '%s\n' manifest.json > "$previous/keep"
-find dist/publish -maxdepth 1 -type f -printf '%f\n' >> "$previous/keep"
-if [ -f "$previous/manifest.json" ]; then
-  jq -r '.artifacts[].url | split("/")[-1]' "$previous/manifest.json" >> "$previous/keep"
-fi
+find dist/publish -maxdepth 1 -type f ! -name "*.sha256" ! -name "*.provenance.json" -printf '%f\n' >> "$previous/keep"
 gh api "repos/$GITHUB_REPOSITORY/releases/tags/nightly" --jq '.assets[].name' | while IFS= read -r name; do
-  if [[ "$name" =~ ^[0-9a-f]{40}- ]] && ! grep -Fxq "$name" "$previous/keep"; then
+  if ! grep -Fxq "$name" "$previous/keep"; then
     gh release delete-asset nightly "$name" --yes
   fi
 done
