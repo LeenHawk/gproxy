@@ -9,9 +9,7 @@
 
 use std::collections::BTreeMap;
 
-use gproxy_sdk::dto::{
-    LogQuery, UsageGroupBy, UsageGroupQuery, UsageQuery, UsageSummaryDto, UsageTrendQuery,
-};
+use gproxy_sdk::dto::{LogQuery, UsageGroupBy, UsageQuery};
 use gproxy_seaorm::BatchConnectionTrait;
 
 use super::Portal;
@@ -30,8 +28,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Portal<'_, C> {
     /// The caller's own usage over a range, with an optional grouped cut and
     /// an optional trend.
     ///
-    /// The summary is always computed; `groupBy` and `bucketMs` each add one
-    /// more scan when they are given and cost nothing when they are not.
+    /// The summary, groups and trend share one bounded scan.
     pub async fn usage(&self, query: PortalUsageQuery) -> Result<PortalUsageDto> {
         // Refused rather than ignored: unlike `userId`, dropping these would
         // silently widen the answer to everything the caller spent.
@@ -58,29 +55,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Portal<'_, C> {
         };
         let usage = self.writer().gproxy().query().usage();
 
-        let summary: UsageSummaryDto = usage.summary(filter.clone()).await?;
-        let groups = match query.group_by {
-            Some(group_by) => {
-                usage
-                    .group(UsageGroupQuery {
-                        filter: filter.clone(),
-                        group_by,
-                    })
-                    .await?
-            }
-            None => Vec::new(),
-        };
-        let trend = match query.bucket_ms {
-            Some(bucket_ms) => {
-                if filter.from_ms.is_none() || filter.to_ms.is_none() {
-                    return Err(AppError::invalid(
-                        "a trend needs both fromMs and toMs; buckets are aligned to fromMs",
-                    ));
-                }
-                usage.trend(UsageTrendQuery { filter, bucket_ms }).await?
-            }
-            None => Vec::new(),
-        };
+        let (summary, groups, trend) = usage
+            .aggregate(filter, query.group_by, query.bucket_ms)
+            .await?;
 
         Ok(PortalUsageDto {
             from_ms: query.from_ms,

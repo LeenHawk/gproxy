@@ -18,14 +18,15 @@
     "emptyTitle": "沒有公開任何模型"
   },
   "usage": {
-    "trend": "視窗內的費用",
+    "trend": "用量趨勢",
     "groups": "分組",
     "truncated": "掃描觸及列數上限。這些數字描述的是 {{scanned}} 筆記錄，不是視窗內的全部。",
     "emptyTitle": "這個視窗裡沒有記錄",
     "cacheHitRateHelp": "按已回報的 Token 統計：快取命中率 = 快取命中 ÷（一般輸入 + 快取命中 + 快取寫入）。無輸入資料時顯示 —。",
     "timeRange": "時間範圍",
     "trendData": "查看趨勢資料",
-    "periodStart": "時段開始"
+    "periodStart": "時段開始",
+    "trendMetric": "趨勢指標"
   },
   "quota": {
     "emptyTitle": "沒有預算約束",

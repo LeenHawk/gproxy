@@ -807,6 +807,37 @@ async fn the_scan_cap_is_reported_rather_than_hidden() {
     // Ascending scan order: the two oldest records, so 10 + 40 input.
     assert_eq!(capped.input_tokens, 50);
 
+    let (summary, groups, trend) = usage
+        .aggregate(
+            UsageQuery {
+                from_ms: Some(0),
+                to_ms: Some(10_000),
+                max_scan_rows: Some(2),
+                ..Default::default()
+            },
+            Some(UsageGroupBy::Model),
+            Some(1_000),
+        )
+        .await
+        .unwrap();
+    assert_eq!(summary.input_tokens, capped.input_tokens);
+    assert_eq!(
+        groups
+            .iter()
+            .map(|group| group.summary.requests)
+            .sum::<u64>(),
+        summary.requests
+    );
+    assert_eq!(
+        trend
+            .iter()
+            .map(|point| point.summary.input_tokens)
+            .sum::<u64>(),
+        summary.input_tokens
+    );
+    assert!(groups.iter().all(|group| group.summary.truncated));
+    assert!(trend.iter().all(|point| point.summary.truncated));
+
     // A cap exactly at the row count is not a truncation: the scan reads one
     // row past its budget precisely so it can tell the two apart.
     let exact = usage
