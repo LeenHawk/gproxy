@@ -5,6 +5,7 @@ target="${1:?target triple is required}"
 case "$target:$(uname -m)" in
   x86_64-unknown-linux-musl:x86_64) platform=linux/amd64 ;;
   aarch64-unknown-linux-musl:aarch64) platform=linux/arm64 ;;
+  riscv64gc-unknown-linux-musl:riscv64) platform=linux/riscv64 ;;
   *) echo "musl builds require a matching native host: $target on $(uname -m)" >&2; exit 1 ;;
 esac
 image=gproxy-musl-builder

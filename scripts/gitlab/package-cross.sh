@@ -22,6 +22,15 @@ case "$TARGET_OS" in
       export PKG_CONFIG_ALLOW_CROSS=1
       export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
       export BINDGEN_EXTRA_CLANG_ARGS_aarch64_unknown_linux_gnu='--target=aarch64-linux-gnu --sysroot=/'
+    elif [ "$TARGET_TRIPLE" = riscv64gc-unknown-linux-gnu ]; then
+      export CC_riscv64gc_unknown_linux_gnu=riscv64-linux-gnu-gcc
+      export CXX_riscv64gc_unknown_linux_gnu=riscv64-linux-gnu-g++
+      export AR_riscv64gc_unknown_linux_gnu=riscv64-linux-gnu-ar
+      export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=riscv64-linux-gnu-gcc
+      export CMAKE_TOOLCHAIN_FILE_riscv64gc_unknown_linux_gnu="$CI_PROJECT_DIR/scripts/cmake/linux-riscv64.cmake"
+      export PKG_CONFIG_ALLOW_CROSS=1
+      export PKG_CONFIG_LIBDIR=/usr/lib/riscv64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+      export BINDGEN_EXTRA_CLANG_ARGS_riscv64gc_unknown_linux_gnu='--target=riscv64-linux-gnu --sysroot=/'
     fi
     ;;
   *) exit 2 ;;
@@ -32,6 +41,9 @@ run_linux_cli() {
   if [[ "$TARGET_TRIPLE" == aarch64-* ]]; then
     qemu-aarch64 "$1" --version
     qemu-aarch64 "$1" --help >/dev/null
+  elif [[ "$TARGET_TRIPLE" == riscv64gc-* ]]; then
+    qemu-riscv64 "$1" --version
+    qemu-riscv64 "$1" --help >/dev/null
   else
     "$1" --version
     "$1" --help >/dev/null
@@ -53,7 +65,9 @@ case "$mode" in
       mkdir -p "dist/container/$TARGET_TRIPLE"
       cp "$binary" "dist/container/$TARGET_TRIPLE/gproxy"
       run_linux_cli "$binary"
-      upx --best --lzma "$binary"
+      upx_args=(--best --lzma)
+      if [[ "$TARGET_TRIPLE" == riscv64gc-* ]]; then upx_args+=(--no-filter); fi
+      upx "${upx_args[@]}" "$binary"
       upx --test "$binary"
       run_linux_cli "$binary"
     else

@@ -2,8 +2,10 @@
   "include": [
     { "target": "x86_64-unknown-linux-gnu", "runner": "ubuntu-latest", "os": "linux", "artifact": "gproxy-linux-x86_64", "application_artifact": "gproxy-tauri-linux-x86_64", "builder": "cargo", "upx": true, "upx_version": "4.2.4", "run_check": true },
     { "target": "aarch64-unknown-linux-gnu", "runner": "ubuntu-24.04-arm", "os": "linux", "artifact": "gproxy-linux-aarch64", "application_artifact": "gproxy-tauri-linux-aarch64", "builder": "cargo", "upx": true, "run_check": true },
+    { "target": "riscv64gc-unknown-linux-gnu", "runner": "ubuntu-24.04-riscv", "os": "linux", "artifact": "gproxy-linux-riscv64", "application_artifact": "gproxy-tauri-linux-riscv64", "builder": "cargo", "upx": true, "run_check": true },
     { "target": "x86_64-unknown-linux-musl", "runner": "ubuntu-latest", "os": "linux", "artifact": "gproxy-linux-x86_64-musl", "builder": "cargo-alpine", "upx": true, "run_check": true },
     { "target": "aarch64-unknown-linux-musl", "runner": "ubuntu-24.04-arm", "os": "linux", "artifact": "gproxy-linux-aarch64-musl", "builder": "cargo-alpine", "upx": true, "run_check": true },
+    { "target": "riscv64gc-unknown-linux-musl", "runner": "ubuntu-24.04-riscv", "os": "linux", "artifact": "gproxy-linux-riscv64-musl", "builder": "cargo-alpine", "upx": true, "run_check": true },
     { "target": "x86_64-apple-darwin", "runner": "macos-26-intel", "os": "macos", "artifact": "gproxy-macos-x86_64", "application_artifact": "gproxy-tauri-macos-x86_64", "builder": "cargo", "upx": false, "run_check": true },
     { "target": "aarch64-apple-darwin", "runner": "macos-latest", "os": "macos", "artifact": "gproxy-macos-aarch64", "application_artifact": "gproxy-tauri-macos-aarch64", "builder": "cargo", "upx": false, "run_check": true },
     { "target": "x86_64-pc-windows-msvc", "runner": "windows-latest", "os": "windows", "artifact": "gproxy-windows-x86_64", "application_artifact": "gproxy-tauri-windows-x86_64", "builder": "cargo", "upx": true, "run_check": true },
