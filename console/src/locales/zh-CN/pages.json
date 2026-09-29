@@ -473,6 +473,8 @@
     "rollback": "回滚版本",
     "installConfirm": "安装 {{version}}？服务可能重启并中断连接。",
     "rollbackConfirm": "恢复上一份程序？服务可能重启。",
+    "downloading": "正在下载更新…",
+    "verifying": "正在校验更新…",
     "installing": "正在执行… 服务可能重启，恢复后请刷新。",
     "installed": "程序已替换。版本：{{version}}；重启方式：{{restart}}。服务恢复后请刷新。",
     "unchanged": "无需替换程序。",

@@ -473,6 +473,8 @@
     "rollback": "回復版本",
     "installConfirm": "安裝 {{version}}？服務可能重新啟動並中斷連線。",
     "rollbackConfirm": "恢復上一份程式？服務可能重新啟動。",
+    "downloading": "正在下載更新…",
+    "verifying": "正在驗證更新…",
     "installing": "正在執行… 服務可能重新啟動，恢復後請重新整理。",
     "installed": "程式已替換。版本：{{version}}；重新啟動方式：{{restart}}。服務恢復後請重新整理。",
     "unchanged": "無需替換程式。",

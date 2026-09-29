@@ -68,7 +68,9 @@ use std::{
     time::Duration,
 };
 
-use gproxy_host_axum::{AppliedUpdate, UpdateFailure, UpdateReport, UpdateSchedule, UpdateService};
+use gproxy_host_axum::{
+    AppliedUpdate, UpdateFailure, UpdateProgress, UpdateReport, UpdateSchedule, UpdateService,
+};
 
 pub use config::{
     BUILD_CHANNEL, BUILD_HASH, BUILD_VERSION, Channel, DEFAULT_INTERVAL_SECS, Restart, Source,
@@ -121,9 +123,48 @@ pub struct Updater {
     options: UpdateOptions,
     runtime: Mutex<Option<(Channel, Source, bool)>>,
     recorded: Mutex<Recorded>,
+    progress: Mutex<Option<UpdateProgress>>,
     /// The scheduled check, aborted when this value is dropped. The task holds
     /// a `Weak` back, so the two do not keep each other alive.
     task: Mutex<Option<tokio::task::JoinHandle<()>>>,
+}
+
+/// Clears the live status on success, failure, or cancellation.
+struct InstallProgress<'a>(&'a Mutex<Option<UpdateProgress>>);
+
+impl<'a> InstallProgress<'a> {
+    fn start(cell: &'a Mutex<Option<UpdateProgress>>, total: u64) -> Outcome<Self> {
+        let mut current = cell.lock().unwrap_or_else(|error| error.into_inner());
+        if current.is_some() {
+            return Err(UpdateError::Configuration(
+                "an update is already in progress".into(),
+            ));
+        }
+        *current = Some(UpdateProgress {
+            phase: "downloading".into(),
+            downloaded_bytes: 0,
+            total_bytes: total,
+        });
+        Ok(Self(cell))
+    }
+
+    fn publish(&self, phase: &str, downloaded: u64) {
+        if let Some(current) = self
+            .0
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .as_mut()
+        {
+            current.phase = phase.into();
+            current.downloaded_bytes = downloaded;
+        }
+    }
+}
+
+impl Drop for InstallProgress<'_> {
+    fn drop(&mut self) {
+        *self.0.lock().unwrap_or_else(|error| error.into_inner()) = None;
+    }
 }
 
 #[derive(Default)]
@@ -187,6 +228,7 @@ impl Updater {
             options,
             runtime: Mutex::new(None),
             recorded: Mutex::new(Recorded::default()),
+            progress: Mutex::new(None),
             task: Mutex::new(None),
         }))
     }
@@ -225,6 +267,7 @@ impl Updater {
             options,
             runtime: Mutex::new(None),
             recorded: Mutex::new(Recorded::default()),
+            progress: Mutex::new(None),
             task: Mutex::new(None),
         })
     }
@@ -404,7 +447,12 @@ impl Updater {
         if !version::available(channel, &manifest.version)?.1 {
             return Ok(None);
         }
-        let bytes = download::artifact(&self.client, artifact).await?;
+        let progress = InstallProgress::start(&self.progress, artifact.size)?;
+        let bytes = download::artifact(&self.client, artifact, |phase, bytes| {
+            progress.publish(phase, bytes);
+        })
+        .await?;
+        progress.publish("installing", bytes.len() as u64);
         std::fs::create_dir_all(&self.staging)
             .map_err(|error| UpdateError::io("creating the APK staging directory", error))?;
         let marker = self.staging.join("install-apk.pending");
@@ -562,7 +610,12 @@ impl Updater {
         }
         let target = version::target();
         let artifact = manifest.artifact(&target)?;
-        let bytes = download::artifact(&self.client, artifact).await?;
+        let progress = InstallProgress::start(&self.progress, artifact.size)?;
+        let bytes = download::artifact(&self.client, artifact, |phase, bytes| {
+            progress.publish(phase, bytes);
+        })
+        .await?;
+        progress.publish("installing", bytes.len() as u64);
         let staged = extract::binary(&bytes, &self.staging)?;
         swap::install(self.executable()?, &staged)?;
         // The staged copy is now redundant — `swap` copied it into place — and
@@ -602,6 +655,13 @@ impl Updater {
 }
 
 impl UpdateService for Updater {
+    fn progress(&self) -> Option<UpdateProgress> {
+        self.progress
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone()
+    }
+
     fn recorded(&self) -> UpdateSchedule {
         let recorded = self
             .recorded

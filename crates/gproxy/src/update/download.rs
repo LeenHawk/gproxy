@@ -66,8 +66,9 @@ pub(super) async fn manifest(
 pub(super) async fn artifact(
     client: &reqwest::Client,
     artifact: &Artifact,
+    progress: impl Fn(&str, u64) + Send + Sync,
 ) -> Result<Vec<u8>, UpdateError> {
-    let response = client
+    let mut response = client
         .get(&artifact.url)
         .send()
         .await
@@ -75,9 +76,17 @@ pub(super) async fn artifact(
     if !response.status().is_success() {
         return Err(UpdateError::Download);
     }
-    let bytes = response.bytes().await.map_err(|_| UpdateError::Download)?;
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|_| UpdateError::Download)? {
+        if (bytes.len() as u64).saturating_add(chunk.len() as u64) > artifact.size {
+            return Err(UpdateError::Integrity);
+        }
+        bytes.extend_from_slice(&chunk);
+        progress("downloading", bytes.len() as u64);
+    }
+    progress("verifying", bytes.len() as u64);
     verify(&bytes, artifact)?;
-    Ok(bytes.to_vec())
+    Ok(bytes)
 }
 
 /// The size and the hash the manifest's signature covered.

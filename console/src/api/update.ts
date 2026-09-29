@@ -7,3 +7,6 @@ export type UpdateSelection = { channel: string; source: string }
 export const checkUpdate = ({ channel, source }: UpdateSelection) => api<UpdateReport>(`/admin/api/update/check${query({ channel, source })}`, { method: "POST" })
 export const applyUpdate = ({ channel, source }: UpdateSelection) => api<AppliedUpdate>(`/admin/api/update/apply${query({ channel, source })}`, { method: "POST" })
 export const rollbackUpdate = () => api<AppliedUpdate>("/admin/api/update/rollback", { method: "POST" })
+
+export type UpdateProgress = { phase: "downloading" | "verifying" | "installing"; downloaded_bytes: number; total_bytes: number }
+export const updateProgress = () => api<UpdateProgress | null>("/admin/api/update/progress")
