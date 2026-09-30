@@ -19,7 +19,6 @@ import { EmptyNotice, ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { ModelCapabilities, ModelIdentity, ModelLimits, ModelSummaryCard } from "@/components/providers/model-summary"
-import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { ProviderModelDialog, type ModelSave } from "./model-form"
 import { ModelImportDialog } from "./model-import"
@@ -55,7 +54,7 @@ export function ProviderModels({ provider }: { provider: ProviderDto }) {
   const rows = list.data?.items ?? []
   const batch = useConfigBatch({ family: providerModels, context: JSON.stringify(request), rows, onSaved: refresh, afterDelete: cleanupVariants })
   const priced = (row: ProviderModelDto) => row.hasPrice
-  const enabled = (row: ProviderModelDto) => <div className="flex items-center gap-2">{batch.checkbox(row.id, row.upstreamName)}<Switch aria-label={`${t("fields.enabled")}: ${row.upstreamName}`} checked={row.enabled} disabled={toggle.isPending} onCheckedChange={value => toggle.mutate({ id: row.id, enabled: value })} /></div>
+  const enabled = (row: ProviderModelDto) => <div className="flex items-center gap-2">{batch.checkbox(row.id, row.upstreamName)}<Button size="sm" variant={row.enabled ? "secondary" : "outline"} aria-label={`${t("fields.enabled")}: ${row.upstreamName}`} aria-pressed={row.enabled} disabled={toggle.isPending} onClick={() => toggle.mutate({ id: row.id, enabled: !row.enabled })}>{t(row.enabled ? "fields.enabled" : "management.disabled")}</Button></div>
   const actions = (row: ProviderModelDto) => <>
     <Button size="icon-sm" variant="ghost" aria-label={`${t("providers.models.test")}: ${row.upstreamName}`} title={t("providers.models.test")} disabled={probe.isPending} onClick={() => probe.mutate(row.upstreamName)}><Play /></Button>
     <Button size="icon-sm" variant="ghost" aria-label={`${t("providers.models.pricing")}: ${row.upstreamName}`} title={t("providers.models.pricing")} onClick={() => setPricing(row)}><BadgeDollarSign /></Button>
