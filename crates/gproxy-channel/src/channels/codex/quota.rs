@@ -6,9 +6,9 @@ use super::{Codex, CodexConfig};
 use crate::channel::{
     ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
     QuotaBalance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric,
-    QuotaModel, QuotaQuery, QuotaReset, QuotaResetBehavior, QuotaResetCredits, QuotaResetOutcome,
-    QuotaResetRequest, QuotaResetResult, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking,
-    QuotaValue, QuotaWindow,
+    QuotaModel, QuotaQuery, QuotaReset, QuotaResetBehavior, QuotaResetCredits, QuotaResetOption,
+    QuotaResetOutcome, QuotaResetRequest, QuotaResetResult, QuotaScope, QuotaSnapshot,
+    QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
 };
 use http::{HeaderMap, Method};
 use rust_decimal::Decimal;
@@ -331,6 +331,8 @@ struct ResetCreditsDetails {
 
 #[derive(Deserialize)]
 struct ResetCredit {
+    id: Option<String>,
+    title: Option<String>,
     status: Option<String>,
     expires_at: Option<String>,
 }
@@ -375,12 +377,12 @@ impl QuotaReset for Codex {
             }
             let details: ResetCreditsDetails =
                 serde_json::from_slice(&bytes).map_err(|e| invalid_response(e.to_string()))?;
-            let mut credit_expirations_ms: Vec<_> = details
+            let mut available: Vec<_> = details
                 .credits
                 .iter()
                 .filter(|credit| credit.status.as_deref() == Some("available"))
                 .map(|credit| {
-                    credit
+                    let expiry = credit
                         .expires_at
                         .as_deref()
                         .and_then(|date| {
@@ -390,16 +392,42 @@ impl QuotaReset for Codex {
                             )
                             .ok()
                         })
-                        .map(|date| (date.unix_timestamp_nanos() / 1_000_000) as i64)
+                        .map(|date| (date.unix_timestamp_nanos() / 1_000_000) as i64);
+                    (credit, expiry)
                 })
                 .collect();
-            credit_expirations_ms.sort_by_key(|expiry| expiry.unwrap_or(i64::MAX));
+            available.sort_by_key(|(_, expiry)| expiry.unwrap_or(i64::MAX));
+            available.truncate(usize::try_from(details.available_count).unwrap_or(usize::MAX));
+            let credit_expirations_ms: Vec<_> =
+                available.iter().map(|(_, expiry)| *expiry).collect();
             let expires_at_ms = credit_expirations_ms.iter().flatten().next().copied();
+            let options = available
+                .into_iter()
+                .filter_map(|(credit, expiry)| {
+                    let id = credit.id.as_deref().filter(|id| !id.is_empty())?;
+                    Some(QuotaResetOption {
+                        program: "codex_rate_limits".into(),
+                        grant_id: Some(id.into()),
+                        label: credit
+                            .title
+                            .as_deref()
+                            .map(str::trim)
+                            .filter(|title| !title.is_empty())
+                            .map(str::to_owned),
+                        available_count: Some(1),
+                        expires_at_ms: expiry,
+                        next_available_at_ms: None,
+                        usable: true,
+                        ineligible_reason: None,
+                        clears: Vec::new(),
+                    })
+                })
+                .collect();
             Ok(QuotaResetCredits {
                 credit_expirations_ms,
                 available_count: Some(details.available_count),
                 expires_at_ms,
-                options: Vec::new(),
+                options,
             })
         })
     }
@@ -410,9 +438,13 @@ impl QuotaReset for Codex {
         request: QuotaResetRequest<'a>,
     ) -> OperationFuture<'a, QuotaResetResult> {
         Box::pin(async move {
-            if request.program.is_some() || request.grant_id.is_some() {
+            if request
+                .program
+                .is_some_and(|program| program != "codex_rate_limits")
+                || request.grant_id == Some("")
+            {
                 return Err(ChannelError::InvalidConfig(
-                    "Codex reset does not accept a program or grant selection".into(),
+                    "invalid Codex reset selection".into(),
                 ));
             }
             let config = CodexConfig::from_view(context.provider)?;
@@ -423,10 +455,11 @@ impl QuotaReset for Codex {
                 http::header::CONTENT_TYPE,
                 http::HeaderValue::from_static("application/json"),
             );
-            let body = serde_json::to_vec(
-                &serde_json::json!({"redeem_request_id": request.redeem_request_id}),
-            )
-            .map_err(|e| invalid_response(e.to_string()))?;
+            let mut payload = serde_json::json!({"redeem_request_id": request.redeem_request_id});
+            if let Some(credit_id) = request.grant_id {
+                payload["credit_id"] = credit_id.into();
+            }
+            let body = serde_json::to_vec(&payload).map_err(|e| invalid_response(e.to_string()))?;
             let (status, _, bytes) = send_json(
                 context.client,
                 Method::POST,

@@ -791,6 +791,7 @@
     "cyclePeriod": "周期",
     "cycleFinalPercent": "结束时",
     "monthCycle": "自然月",
+    "fullReset": "完整重置",
     "resetCardNumber": "第 {{number}} 张",
     "weeklyBreakdown": "周用量分布",
     "usageSources": {
