@@ -29,6 +29,7 @@ use crate::{
     BudgetOwner, Core, CoreError, CoreResult, CredentialBlocks, CredentialData, CredentialStatus,
     CredentialVersion, ExecutionTarget, RefreshMode, api::lifecycle::now_ms, ids,
 };
+use futures_util::StreamExt;
 pub use gproxy_channel::channel::{CallerRole, ServiceView};
 use gproxy_channel::{
     ChannelError,
@@ -43,10 +44,14 @@ use gproxy_store::entity::{resource::resource_binding, usage::usage_record};
 use rust_decimal::{Decimal, prelude::ToPrimitive};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::{collections::BTreeMap, sync::Arc};
+use tokio_util::sync::CancellationToken;
 
 /// One vendor service call. `B` is `HttpBody` for `call_service` and `()`
 /// for `connect_service`; a socket is never an HTTP body.
 pub struct ServiceRequest<B = HttpBody> {
+    /// Cancels preparation, dispatch and HTTP response streaming. For sockets,
+    /// covers the handshake only; the host owns the established connection.
+    pub cancellation: CancellationToken,
     /// Opaque isolation scope, as for `RequestContext::scope`; used for
     /// resource bindings and the synthesized identity, never as a user ID.
     pub scope: String,
@@ -526,6 +531,19 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         &self,
         request: ServiceRequest,
     ) -> CoreResult<WireResponse<HttpBody>> {
+        let cancellation = request.cancellation.clone();
+        let response = tokio::select! {
+            biased;
+            () = cancellation.cancelled() => return Err(CoreError::Cancelled),
+            result = self.call_service_inner(request) => result?,
+        };
+        Ok(cancel_response(response, cancellation))
+    }
+
+    async fn call_service_inner(
+        &self,
+        request: ServiceRequest,
+    ) -> CoreResult<WireResponse<HttpBody>> {
         let Some(services) = request.target.provider.channel.services() else {
             return Err(CoreError::Channel(ChannelError::UnsupportedService));
         };
@@ -563,6 +581,24 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         &self,
         request: ServiceRequest<()>,
     ) -> CoreResult<UpstreamConnection> {
+        let cancellation = request.cancellation.clone();
+        let response = tokio::select! {
+            biased;
+            () = cancellation.cancelled() => return Err(CoreError::Cancelled),
+            result = self.connect_service_inner(request) => result?,
+        };
+        Ok(match response {
+            UpstreamConnection::Rejected(response) => {
+                UpstreamConnection::Rejected(cancel_response(response, cancellation))
+            }
+            connected => connected,
+        })
+    }
+
+    async fn connect_service_inner(
+        &self,
+        request: ServiceRequest<()>,
+    ) -> CoreResult<UpstreamConnection> {
         let Some(services) = request.target.provider.channel.services() else {
             return Err(CoreError::Channel(ChannelError::UnsupportedService));
         };
@@ -592,4 +628,28 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             .await
             .map_err(CoreError::Channel)
     }
+}
+
+// Keep cancellation effective after the channel returns the response head.
+fn cancel_response(
+    mut response: WireResponse<HttpBody>,
+    cancellation: CancellationToken,
+) -> WireResponse<HttpBody> {
+    if let HttpBody::Stream(stream) = response.body {
+        response.body = HttpBody::Stream(Box::pin(futures_util::stream::unfold(
+            Some((stream, cancellation)),
+            |state| async move {
+                let (mut stream, cancellation) = state?;
+                tokio::select! {
+                    biased;
+                    () = cancellation.cancelled() => Some((
+                        Err(Box::new(std::io::Error::other("request cancelled")) as gproxy_protocol::connection::TransportError),
+                        None,
+                    )),
+                    item = stream.next() => item.map(|item| (item, Some((stream, cancellation)))),
+                }
+            },
+        )));
+    }
+    response
 }

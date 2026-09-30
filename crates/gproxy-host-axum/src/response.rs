@@ -316,9 +316,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
         }
     }
 
-    pub(crate) fn service(app: Arc<App<C>>, capture: Option<DownstreamCapture>) -> Self {
-        let mut cancel = CancelOnDrop::new();
-        cancel.disarm();
+    pub(crate) fn service(
+        app: Arc<App<C>>,
+        capture: Option<DownstreamCapture>,
+        cancel: CancelOnDrop,
+    ) -> Self {
         Self {
             app,
             admitted: None,

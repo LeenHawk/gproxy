@@ -64,9 +64,10 @@ as a request that reached no upstream.
 It does pass the budget chain, because the `caller` view renders the caller's
 own windows from it. Reporting a quota is not spending one.
 
-A service call also cannot be cancelled: neither the host's request shape nor
-the engine's has a field to put a token in, and a service call is short and
-buffered enough that the value has not paid for changing two crates.
+Service calls carry the same cancellation token as model requests. Cancellation
+stops credential preparation, upstream dispatch and HTTP response streaming. For
+WebSocket services it covers the handshake; the host manages the established socket.
+Services still take no rate-limit lease and produce no model usage.
 
 ## Codex CLI
 

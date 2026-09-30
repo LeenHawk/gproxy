@@ -513,11 +513,10 @@ other, with `metrics.state` set to `cancelled` rather than `completed`, whatever
 the upstream managed to report before it was stopped, and its capture record
 closed as cancelled. The lease comes back the same way it always did.
 
-**A vendor service call takes no token.** It runs outside the observation funnel
-and holds no `Admitted`, but the deciding reason is narrower: neither
-`ServiceRequestIn` nor core's `ServiceRequest` has a field to put one in, so
-giving a service call a token means changing two other crates. A service call is
-short and buffered and the value does not pay for that, so it is left out.
+Service calls carry the same cancellation token as model requests. Cancellation
+stops credential preparation, upstream dispatch and HTTP response streaming. For
+WebSocket services it covers the handshake; the host manages the established socket.
+Services still take no rate-limit lease and produce no model usage.
 
 ## Two error envelopes
 
@@ -560,9 +559,6 @@ header. The code is; the text goes to the operator's log.
   `ADMIN_SECTIONS` and giving the family a narrowing — and each family is a
   deliberate act rather than a flag, because most of them need an `IN` over a
   membership rather than a column comparison.
-- **A vendor service call cannot be cancelled.** See above: the field does not
-  exist on `ServiceRequestIn` or on core's `ServiceRequest`, and a service call
-  is short and buffered enough that adding it has not been worth two crates.
 
 ## Tests
 
