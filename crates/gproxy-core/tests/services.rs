@@ -191,7 +191,7 @@ async fn a_channel_without_services_is_unsupported() {
 }
 
 #[tokio::test]
-async fn blocked_and_dead_credentials_are_skipped() {
+async fn services_ignore_generation_blocks_but_skip_dead_credentials() {
     let h = harness(full(), "round_robin").await;
     h.channel.expose_services.store(true, Ordering::Relaxed);
     let mut blocks = CredentialBlocks::default();
@@ -228,7 +228,7 @@ async fn blocked_and_dead_credentials_are_skipped() {
         .unwrap();
     assert_eq!(
         h.channel.service_calls.lock().unwrap().as_slice(),
-        ["b:Member:tenant"]
+        ["a:Member:tenant"]
     );
 
     h.core
@@ -243,6 +243,18 @@ async fn blocked_and_dead_credentials_are_skipped() {
         .await
         .unwrap();
     h.core.reload_credentials(&["b".into()]).await.unwrap();
+    h.core
+        .store()
+        .credentials()
+        .set_status_many(vec![CredentialStatusUpdate {
+            id: "a".into(),
+            expected_version: 0,
+            status: CredentialStatus::Dead,
+            reason: Some("invalid_grant".into()),
+        }])
+        .await
+        .unwrap();
+    h.core.reload_credentials(&["a".into()]).await.unwrap();
     let error = h
         .core
         .call_service(request(
@@ -259,7 +271,7 @@ async fn blocked_and_dead_credentials_are_skipped() {
         matches!(
             &error,
             CoreError::CredentialDead { credential_id, reason }
-                if credential_id == "b" && reason.as_deref() == Some("invalid_grant")
+                if credential_id == "a" && reason.as_deref() == Some("invalid_grant")
         ),
         "{error}"
     );

@@ -125,16 +125,19 @@ impl BlockSource {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CredentialBlock {
     pub scope: QuotaScope,
-    /// None applies to every operation.
+    /// None applies to inference and metered tool operations.
     pub operation: Option<Operation>,
     pub until_ms: i64,
     pub source: BlockSource,
     pub observed_at_ms: i64,
 }
 impl CredentialBlock {
-    /// A request without a model (e.g. listing models) is only affected by
-    /// credential-wide blocks.
+    /// Non-inference operations only observe blocks explicitly targeting them.
+    /// Generation exhaustion must not prevent account or resource management.
     pub fn applies_to(&self, upstream_model: Option<&str>, operation: Operation) -> bool {
+        if !operation.produces_usage() && self.operation.is_none() {
+            return false;
+        }
         if self.operation.is_some_and(|blocked| blocked != operation) {
             return false;
         }

@@ -693,7 +693,8 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                 let block = (status == StatusCode::TOO_MANY_REQUESTS && quota_blocks.is_empty())
                     .then(|| CredentialBlock {
                         scope: gproxy_channel::channel::QuotaScope::All,
-                        operation: None,
+                        operation: (!operation.operation.produces_usage())
+                            .then_some(operation.operation),
                         until_ms: finished_at + retry_after.unwrap_or(DEFAULT_RATE_LIMIT_MS),
                         source: BlockSource::RateLimited,
                         observed_at_ms: finished_at,

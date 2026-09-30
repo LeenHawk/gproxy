@@ -344,6 +344,10 @@ impl<C: BatchConnectionTrait> Core<C> {
         request: &RequestContext,
         now_ms: i64,
     ) -> CoreResult<()> {
+        // Cost budgets gate inference, not catalog queries or resource cleanup.
+        if !request.operation.operation.produces_usage() {
+            return Ok(());
+        }
         let budgets = applicable(
             &request.snapshot.budgets,
             &request.budgets,
