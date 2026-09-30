@@ -86,4 +86,3 @@ export function buildPatch(
   }
   return body
 }
-
