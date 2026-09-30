@@ -1,6 +1,6 @@
 //! Which model names this caller may call.
 //!
-//! Two kinds of name are listed, and they are the two a client can actually
+//! The listed names are the forms a client can actually
 //! type:
 //!
 //! 1. every **exposed model** — the names an operator published through the
@@ -8,11 +8,8 @@
 //! 2. every **`channel/model`** form — a registered channel id, a slash, and a
 //!    model some live provider of that channel lists in its catalogue.
 //!
-//! A third form resolves and is deliberately not listed:
-//! `providerName/model`. It is an operator convenience whose left half is a
-//! renameable row, so a portal that printed it would be handing users a name
-//! that stops working when somebody edits a provider. The channel form is
-//! stable for the life of the build.
+//! Provider-qualified names (`providerName/model`) are also listed, so clients
+//! can use the same model through either the root or the provider's base URL.
 //!
 //! # Nothing is omitted; `permitted` says whether you may call it
 //!
@@ -100,9 +97,11 @@ impl<C> Portal<'_, C> {
             let channel = &provider.entity.channel;
             for model in &provider.models {
                 for name in model.exposed_names() {
-                    let entry = names.entry(format!("{channel}/{name}")).or_default();
-                    entry.provider_ids.insert(provider.entity.id.clone());
-                    entry.channel_ids.insert(channel.clone());
+                    for prefix in [channel, &provider.entity.name] {
+                        let entry = names.entry(format!("{prefix}/{name}")).or_default();
+                        entry.provider_ids.insert(provider.entity.id.clone());
+                        entry.channel_ids.insert(channel.clone());
+                    }
                 }
             }
         }

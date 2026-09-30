@@ -843,8 +843,8 @@ portal.password().change(change).await?;
 的：暴露名和 `渠道/模型` 形式是实例配置，就是运营者发布出去的那些字符串。被扣下的是它们
 背后的 Provider id；DTO 只报一个数量和一个渠道，这说明了一个名字有多冗余，却没点名任何机器。
 
-`Provider名/模型` 同样能解析，但刻意**不**列出：它的左半是一行可以改名的配置，印出来等于
-交给用户一个别人一编辑 Provider 就失效的名字。
+`Provider名/模型` 同样列出，它与使用 Provider 专属 API 地址并填写原模型名等价。
+Provider 改名后，模型前缀和专属 API 地址也随之改变。
 
 `permitted` 由 `admission::permission::allowed_providers` 算出——正是请求漏斗调用的那个
 函数，对同一份快照——按 `GenerateContent` 评估，因为门户问的是"我能把 prompt 发给什么"。
