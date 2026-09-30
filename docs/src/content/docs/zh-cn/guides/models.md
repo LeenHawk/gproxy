@@ -180,8 +180,15 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/default-model-catalog/apply-pric
 
 ## 调用方看到什么
 
-`GET /v1/models` 是**转发给某个 Provider** 的，回答的是那个上游自己的目录。*你*发布的那
-份名字清单在用户面，而且什么都不省略：
+`GET /v1/models` 返回已配置的模型清单，包括路由名、`渠道/模型` 和
+`Provider 名/模型`，只列出调用方有权使用的名字，不会轮流返回某一家上游的目录。
+新增或导入供应商模型后，它会出现在这份清单中。
+
+两种调用方式等价：API 地址用 `/供应商A/v1`、模型填 `gpt-5`；
+或者地址用 `/v1`、模型填 `供应商A/gpt-5`。
+`GET /供应商A/v1/models` 只向供应商 A 查询，保留上游模型原名。
+
+用户面的清单还会显示没有权限的名字，并用 `permitted` 标注：
 
 ```sh
 curl -s http://127.0.0.1:8787/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
@@ -197,8 +204,7 @@ curl -s http://127.0.0.1:8787/portal/api/models -H "Authorization: Bearer $GPROX
 而且没什么要保护的：公开名本来就是运维者对外发布的实例配置。
 
 被扣下的是名字背后的 Provider id：答案只报一个数量和一个渠道，说明一个名字有多冗余，
-却不点破机器。`provider/model` 形式同样能解析，但刻意**不列出**——它的左半边是一行可以
-改名的数据，印出来等于给用户一个会在有人改 Provider 时失效的名字。
+却不点破机器。`Provider 名/模型` 使用供应商的显示名称；供应商改名后，对应的模型前缀和 API 地址也随之改变。
 
 ### 全局模型与默认元数据
 

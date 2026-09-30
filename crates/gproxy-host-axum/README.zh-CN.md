@@ -469,10 +469,6 @@ OAuth 端点回答 RFC 6749 §5.2 的
 
 ## 已知限制
 
-- **Provider 挂载上不带模型的操作只收窄到该 Provider 的渠道，而不是该 Provider。**
-  `DataPlaneRequest` 有 `channel` 字段而没有 provider 字段，所以
-  `GET /p1/v1/models` 会列出调用者能够到的、`p1` 所在渠道上所有 Provider 的模型。
-  要收干净得给 `DataPlaneRequest` 加一个字段。
 - **WebSocket：有意没做的部分。** 本宿主自己不做子协议协商——上游选了什么就原样
   回给客户端，此外不提供任何选项。帧原样转发，core 对帧应用的改写规则是 core 的。
   socket 在这里没有空闲超时，因为 core 自己就写了：realtime 会话「由取消和帧上限

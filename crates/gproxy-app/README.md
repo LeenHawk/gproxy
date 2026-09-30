@@ -1050,9 +1050,8 @@ operator publishes. What is withheld is the provider ids behind them; the DTO
 reports a count and a channel, which say how redundant a name is without naming
 the machinery.
 
-`providerName/model` also resolves and is deliberately **not** listed: its left
-half is a renameable row, so printing it would hand users a name that stops
-working when somebody edits a provider.
+`providerName/model` is also listed. It is equivalent to the provider base URL
+with an unqualified model name; renaming the provider changes both prefixes.
 
 `permitted` is computed by `admission::permission::allowed_providers` — the
 same function the request funnel calls, against the same snapshot — evaluated

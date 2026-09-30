@@ -198,9 +198,15 @@ keeps its edit and is reported as skipped.
 
 ## What a Caller Sees
 
-`GET /v1/models` is **forwarded to a provider** and answers with that
-upstream's own catalogue. The list of names *you* publish is the portal's, and
-it omits nothing:
+`GET /v1/models` returns the configured catalogue: route names, `channel/model`
+and `provider/model`, filtered to names the caller may use. It does not rotate
+between upstream directories. Add or import provider models to publish them here.
+
+The two forms are equivalent: base URL `/provider-A/v1` with model `gpt-5`, or
+base URL `/v1` with model `provider-A/gpt-5`. `GET /provider-A/v1/models` queries
+only provider A and keeps its original model names.
+
+The portal also includes names the caller cannot use, marked with `permitted`:
 
 ```sh
 curl -s http://127.0.0.1:8787/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
@@ -219,9 +225,8 @@ instance configuration the operator publishes anyway.
 
 What *is* withheld is the provider ids behind a name: the answer reports a
 count and a channel, which say how redundant a name is without naming the
-machinery. The `provider/model` form also resolves and is deliberately **not**
-listed — its left half is a renameable row, and printing it would hand users a
-name that stops working when somebody edits a provider.
+machinery. `provider/model` uses the provider display name; renaming a provider
+changes its model prefix and base URL.
 
 ### Global models and default metadata
 

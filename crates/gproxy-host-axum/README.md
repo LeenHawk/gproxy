@@ -544,11 +544,6 @@ header. The code is; the text goes to the operator's log.
 
 ## Known limitations
 
-- **A model-less operation on a provider mount is narrowed to that provider's
-  channel, not to the provider.** `DataPlaneRequest` has a `channel` field and
-  no provider field, so `GET /p1/v1/models` lists the models of every provider
-  on `p1`'s channel that the caller may reach. Closing it needs a field on
-  `DataPlaneRequest`.
 - **Websocket upgrades: what is deliberately left out.** There is no
   subprotocol negotiation of this host's own — whatever the upstream selected
   is echoed to the client and nothing else is offered. Frames are forwarded

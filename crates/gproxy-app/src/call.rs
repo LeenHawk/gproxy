@@ -77,9 +77,8 @@ pub struct DataPlaneRequest {
     /// here decides on it: a rate limit is a row about a key or a person, and
     /// an address a proxy can rewrite must not select one.
     pub client_ip: Option<String>,
-    /// Restrict resolution to one channel, as a channel-specific ingress mount
-    /// does (`/{channel}/v1/...`).
-    pub channel: Option<String>,
+    /// Restrict resolution to the provider selected by the ingress mount.
+    pub provider_id: Option<String>,
     /// The `agent_sessions` row the host resolved for this request, when it is
     /// a long-lived agent session whose credential binding core manages as an
     /// assignment rather than as affinity.
@@ -96,7 +95,7 @@ pub struct DataPlaneRequest {
 }
 
 impl DataPlaneRequest {
-    /// The required parts: no channel restriction, no agent session, no
+    /// The required parts: no provider restriction, no agent session, no
     /// deadline and no cancellation.
     pub fn new(
         request_id: impl Into<String>,
@@ -110,7 +109,7 @@ impl DataPlaneRequest {
             parts,
             body,
             client_ip: None,
-            channel: None,
+            provider_id: None,
             agent_session_id: None,
             model: None,
             deadline: None,
@@ -128,7 +127,7 @@ impl std::fmt::Debug for DataPlaneRequest {
             .field("operation", &self.operation)
             .field("path", &self.parts.uri.path())
             .field("body_bytes", &self.body.len())
-            .field("channel", &self.channel)
+            .field("provider_id", &self.provider_id)
             .field("model", &self.model)
             .finish_non_exhaustive()
     }
@@ -210,9 +209,6 @@ macro_rules! drive {
         }
         if let Some(model) = $model {
             builder = builder.model(model);
-        }
-        if let Some(channel) = &$request.channel {
-            builder = builder.channel(channel.clone());
         }
         if let Some(deadline) = $request.deadline {
             builder = builder.deadline(deadline);
@@ -394,7 +390,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
         model: Option<&str>,
     ) -> Result<Admitted, AppError> {
         let core = self.gproxy().core().snapshot();
-        let all_providers: BTreeSet<String> = core.providers.keys().cloned().collect();
+        let all_providers: BTreeSet<String> = core
+            .providers
+            .keys()
+            .filter(|id| {
+                request
+                    .provider_id
+                    .as_ref()
+                    .is_none_or(|selected| selected == *id)
+            })
+            .cloned()
+            .collect();
         let all_credentials: BTreeSet<String> = core.credentials.keys().cloned().collect();
         let admission = AdmissionRequest::new(
             caller,

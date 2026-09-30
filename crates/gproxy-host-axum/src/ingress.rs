@@ -34,10 +34,8 @@
 //! prefix the URL asked for. A name that already carries the prefix is left
 //! alone, so a client may spell it either way.
 //!
-//! A provider mount additionally restricts the channel, which is what narrows
-//! the operations that name no model at all (listing models, for instance).
-//! Narrowing those to the single provider needs a field `DataPlaneRequest`
-//! does not have yet; see the crate README.
+//! A provider mount restricts resolution to that provider, including operations
+//! that name no model. Root model listings come from the published catalogue.
 
 pub mod surface;
 
@@ -377,6 +375,17 @@ where
         Err(error) => return Some(ErrorResponse(error).into_response()),
     };
 
+    if matched.operation.operation == gproxy_protocol::Operation::ListModels
+        && !matches!(mount, Mount::Provider(_))
+    {
+        return Some(model_catalog(
+            state,
+            &caller,
+            mount,
+            matched.operation.dialect,
+        ));
+    }
+
     // The handshake is taken out of the request once there is a caller and
     // before anything is accepted. Nothing is upgraded here — the `101` is
     // only written once the engine has a socket — so admission below still
@@ -409,13 +418,10 @@ where
     // [`crate::response::CancelOnDrop`].
     let mut cancel = CancelOnDrop::new();
     request.cancellation = Some(cancel.token());
-    // What narrows the operations that name no model. A provider mount is one
-    // provider, and one provider is one channel.
-    request.channel = mount
+    request.provider_id = mount
         .provider_name()
         .and_then(|name| index.provider_id(name))
-        .and_then(|id| core.providers.get(id))
-        .map(|provider| provider.channel.id().to_owned());
+        .map(str::to_owned);
 
     let app = Arc::clone(state.app());
     if let Some(upgrade) = upgrade {
@@ -442,6 +448,54 @@ where
             ErrorResponse(error).into_response()
         }
     })
+}
+
+/// Return names that can be used unchanged at this base URL.
+fn model_catalog<C>(
+    state: &HostState<C>,
+    caller: &Caller,
+    mount: &Mount,
+    dialect: gproxy_protocol::Dialect,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    use gproxy_protocol::Dialect;
+    use serde_json::json;
+
+    let data = state.app().data();
+    let operations = gproxy_app::Operations::new(state.app().gproxy(), &data, state.app().config());
+    let models = match operations.portal(caller).models() {
+        Ok(models) => models,
+        Err(error) => return ErrorResponse(error).into_response(),
+    };
+    let prefix = format!("{}/", mount.prefix().trim_start_matches('/'));
+    let models: Vec<_> = models
+        .into_iter()
+        .filter(|model| model.permitted)
+        .filter_map(|model| match mount {
+            Mount::Namespace(_) => model.name.strip_prefix(&prefix).map(str::to_owned),
+            _ => Some(model.name),
+        })
+        .map(|name| match dialect {
+            Dialect::Claude => json!({
+                "id": name, "type": "model", "display_name": name,
+                "created_at": "1970-01-01T00:00:00Z"
+            }),
+            Dialect::Gemini => json!({"name": format!("models/{name}"), "displayName": name}),
+            _ => json!({"id": name, "object": "model", "created": 0, "owned_by": "gproxy"}),
+        })
+        .collect();
+    let body = match dialect {
+        Dialect::Claude => json!({
+            "first_id": models.first().and_then(|m| m.get("id")),
+            "last_id": models.last().and_then(|m| m.get("id")),
+            "has_more": false, "data": models
+        }),
+        Dialect::Gemini => json!({"models": models}),
+        _ => json!({"object": "list", "data": models}),
+    };
+    axum::Json(body).into_response()
 }
 
 /// The model name as the mount asked for it.
