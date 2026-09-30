@@ -300,6 +300,7 @@ fn snapshot(rules: Vec<Arc<RewriteRuleData>>) -> (CoreData, ProviderData) {
     let mut data = CoreData::default();
     data.rewrite_rule_sets.insert("set".into(), Arc::new(set));
     let provider = ProviderData {
+        effective_config: json!({}),
         entity: Arc::new(provider::Model {
             id: "p".into(),
             name: "p".into(),

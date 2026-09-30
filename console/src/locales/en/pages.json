@@ -269,6 +269,8 @@
     "reset": "Reset {{name}} to default"
   },
   "setting": {
+    "allowedHeaders": "Global request header allow-list",
+    "allowedHeadersHelp": "Combined with each provider’s allowed headers and the channel defaults. An empty list adds no global headers; credentials and hop-by-hop headers are still removed.",
     "instanceName": "Instance name",
     "oauthClientAllowlist": "Allowed OAuth clients",
     "connectionProfileId": "Default HTTP client configuration",

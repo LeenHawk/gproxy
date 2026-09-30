@@ -59,7 +59,10 @@ impl BaseChannel for VertexExpress {
             ctx.request.query.as_deref(),
             key,
         )?;
-        let allowlist = HeaderAllowlist::from_view(ctx.provider)?;
+        let allowlist = HeaderAllowlist::from_view_for(
+            ctx.provider,
+            crate::channel::ChannelHeaders::native(ctx.operation.dialect),
+        )?;
         let headers = forwardable(&ctx.request.headers, allowlist.as_ref(), &[]);
         let mut builder = http::Request::builder()
             .method(ctx.request.method.clone())

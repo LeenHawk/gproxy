@@ -21,6 +21,10 @@ pub struct Model {
     pub oauth_client_allowlist: Option<Json>,
 
     // Network
+    /// Client request headers allowed for every provider, unioned with each
+    /// provider's allow-list and the channel's built-in headers.
+    #[sea_orm(default_expr = "sea_orm::sea_query::Expr::cust(\"('[]')\")")]
+    pub allowed_headers: Json,
     /// Global connection profile. None uses the built-in reqwest/direct defaults.
     /// Credential then Provider selections override this entire profile.
     #[sea_orm(indexed)]

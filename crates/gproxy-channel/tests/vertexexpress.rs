@@ -90,7 +90,7 @@ fn methods_are_publisher_scoped_and_the_key_rides_in_the_query() {
     assert!(generate.headers().get("authorization").is_none());
     assert!(generate.headers().get("x-goog-api-key").is_none());
     assert!(generate.headers().get("host").is_none());
-    assert_eq!(generate.headers()["x-vendor"], "kept");
+    assert!(generate.headers().get("x-vendor").is_none());
 
     let streamed = prepare(
         &config,

@@ -140,7 +140,10 @@ impl BaseChannel for Vercel {
         }
         let config = VercelConfig::from_view(ctx.provider)?;
         let key = api_key(ctx.credential.secret)?;
-        let allowlist = HeaderAllowlist::from_view(ctx.provider)?;
+        let allowlist = HeaderAllowlist::from_view_for(
+            ctx.provider,
+            crate::channel::ChannelHeaders::native(ctx.operation.dialect),
+        )?;
         let mut headers = forwardable(&ctx.request.headers, allowlist.as_ref(), &[]);
         for (name, value) in &config.headers {
             insert_configured(&mut headers, name, value)?;

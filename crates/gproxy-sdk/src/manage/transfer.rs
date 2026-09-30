@@ -1282,6 +1282,9 @@ mod rows {
             connection_profile_id: Set(profile),
             proxy: Set(crud::proxy(instance.proxy.clone())?),
             cors_origins: Set(instance.cors_origins.clone()),
+            allowed_headers: Set(crate::manage::settings::header_list(
+                instance.allowed_headers.clone(),
+            )?),
             trusted_proxies: Set(instance.trusted_proxies.clone()),
             always_secure_cookie: Set(instance.always_secure_cookie),
             max_attempts: Set(instance.max_attempts.max(1)),

@@ -89,8 +89,8 @@ fn joins_base_url_and_path_and_authenticates_per_family() {
     assert!(openai.headers().get("x-api-key").is_none());
     assert!(openai.headers().get("host").is_none());
     assert!(openai.headers().get("content-length").is_none());
-    assert_eq!(openai.headers()["anthropic-beta"], "files-api");
-    assert_eq!(openai.headers().get_all("x-multi").iter().count(), 2);
+    assert!(openai.headers().get("anthropic-beta").is_none());
+    assert!(openai.headers().get("x-multi").is_none());
 
     let claude = prepare(
         &config,

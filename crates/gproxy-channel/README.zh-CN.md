@@ -174,8 +174,9 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
   一个厂商侧对话）。
 - 源请求的鉴权永远到不了上游。`forwardable` 丢弃逐跳头、`host`、`content-length`、
   `authorization`、`x-api-key`、`x-goog-api-key`、`api-key`；渠道从凭证注入自己的
-  鉴权。provider 的 `config.allowed_headers` 收窄其他客户端头的转发；`content-type`
-  与渠道声明的 `ChannelHeaders`（厂商 CLI 自己的头）总是放行。
+  鉴权。客户端头按全局 `allowedHeaders`、provider 的 `config.allowed_headers`
+  与渠道声明的 `ChannelHeaders` 取并集；`content-type` 总是保留。
+  未配置或空列表不增加允许项，不在并集中的客户端头默认丢弃。
 - `endpoint_override` 一旦设置就是完整的方法 URL，替代 `base_url` 加渠道默认路径。
 - 响应保留 status、headers 和惰性 body；非 2xx 也是响应，不是错误。
   `ChannelError::UpstreamResponse` 用于能力调用（登录、刷新、额度）以及多次调用

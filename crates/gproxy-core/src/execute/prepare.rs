@@ -133,7 +133,7 @@ pub(crate) fn drop_thinking_handles(operation: OperationKey, request: &mut WireR
 }
 
 pub(crate) fn provider_view(provider: &ProviderData) -> ProviderView<'_> {
-    crate::assemble::provider_view(&provider.entity)
+    provider.view()
 }
 
 pub(crate) fn credential_view<'a>(

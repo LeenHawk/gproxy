@@ -76,6 +76,8 @@ pub(super) fn plan_type(credential: &CredentialView<'_>) -> Option<String> {
 pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
     names: &[
         "accept",
+        "mcp-session-id",
+        "mcp-protocol-version",
         "session-id",
         "thread-id",
         "version",

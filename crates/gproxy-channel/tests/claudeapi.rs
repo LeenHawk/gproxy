@@ -193,7 +193,7 @@ fn routes_every_native_dialect_and_injects_the_api_key() {
         headers["anthropic-user-profile-id"], "profile-1",
         "a vendor header the API reads is forwarded"
     );
-    assert_eq!(headers.get_all("x-multi").iter().count(), 2);
+    assert!(headers.get("x-multi").is_none());
 
     let route = |operation, dialect, path| {
         prepare(

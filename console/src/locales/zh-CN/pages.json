@@ -269,6 +269,8 @@
     "reset": "恢复 {{name}} 默认值"
   },
   "setting": {
+    "allowedHeaders": "全局请求头白名单",
+    "allowedHeadersHelp": "与供应商白名单、渠道内置必要头取并集。空列表不增加全局允许项；原始鉴权头和逐跳头仍会移除。",
     "instanceName": "实例名称",
     "oauthClientAllowlist": "允许的 OAuth 客户端",
     "connectionProfileId": "默认 HTTP 客户端配置",

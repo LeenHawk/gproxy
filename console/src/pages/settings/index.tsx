@@ -22,7 +22,7 @@ import { Page, PageHeader } from "@/components/page"
 import { ErrorNotice, QueryState } from "@/components/state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -210,6 +210,7 @@ function SettingsForm({ original }: { original: SettingsDto }) {
               >
                 <FieldLabel htmlFor={`${id}-${field.name}`}>{t(`setting.${field.name}`)}</FieldLabel>
                 {control(field)}
+                {field.name === "allowedHeaders" ? <FieldDescription>{t("setting.allowedHeadersHelp")}</FieldDescription> : null}
               </Field>
             ))}
             {group.id === "tokenizer" ? (

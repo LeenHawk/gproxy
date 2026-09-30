@@ -269,6 +269,8 @@
     "reset": "還原 {{name}} 預設值"
   },
   "setting": {
+    "allowedHeaders": "全域請求標頭白名單",
+    "allowedHeadersHelp": "與供應商白名單、渠道內建必要標頭取聯集。空清單不增加全域允許項；原始驗證標頭和逐跳標頭仍會移除。",
     "instanceName": "執行個體名稱",
     "oauthClientAllowlist": "允許的 OAuth 用戶端",
     "connectionProfileId": "預設 HTTP 用戶端設定",

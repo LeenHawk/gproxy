@@ -189,9 +189,10 @@ Rules every channel follows:
 - Source authentication never reaches the upstream. `forwardable` drops
   hop-by-hop headers, `host`, `content-length`, `authorization`, `x-api-key`,
   `x-goog-api-key` and `api-key`; the channel adds its own auth from the
-  credential. A provider's `config.allowed_headers` narrows what other client
-  headers are forwarded; `content-type` and the channel's declared
-  `ChannelHeaders` (the vendor CLI's own headers) always pass.
+  credential. Client headers are allowed by the union of the global
+  `allowedHeaders`, the provider's `config.allowed_headers`, and the channel's
+  declared `ChannelHeaders`; `content-type` always passes. Missing or empty
+  lists add no entries, so unlisted client headers are dropped by default.
 - `endpoint_override`, when set, is the complete method URL and replaces
   `base_url` plus the channel's default path.
 - Responses keep status, headers and a lazy body; a non-2xx is a response,

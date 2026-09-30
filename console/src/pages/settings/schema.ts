@@ -32,6 +32,7 @@ export const groups = [
     fields: [
       instance("proxy", "proxy", { nullable: true }),
       instance("connectionProfileId", "profile", { nullable: true }),
+      instance("allowedHeaders", "list"),
       instance("corsOrigins", "list"),
       instance("trustedProxies", "list"),
       instance("alwaysSecureCookie", "switch"),
