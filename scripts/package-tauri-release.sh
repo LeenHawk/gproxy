@@ -62,7 +62,7 @@ case "$TARGET_OS" in
     )
     binary="$root/target/$TARGET_TRIPLE/release/gproxy-desktop.exe"
     if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
-      upx --best --nrv2e "$binary"
+      upx --fast --nrv2e "$binary"
     else
       upx --best --lzma "$binary"
     fi

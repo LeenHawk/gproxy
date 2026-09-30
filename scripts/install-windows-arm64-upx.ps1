@@ -1,7 +1,7 @@
-# Keep compression enabled while testing UPX's corrected ARM64 entry stub.
-# upx/upx#18909: preserve x0-x3 through decompression and TLS callbacks.
+# upx/upx#18927: protect the TLS index and decompress DLLs only on process attach.
+# Pin the generated loader artifacts too, not just the ARM64 assembly source.
 $ErrorActionPreference = 'Stop'
-$revision = 'b888ad87f5d7d8d890777b03d71f09d01a8eb902'
+$revision = '079b95b2d16e8181e6099cb5a674e51d74332793'
 $source = Join-Path $env:RUNNER_TEMP 'gproxy-windows-arm64-upx'
 function Invoke-Checked {
     param([string]$Command, [string[]]$Arguments)
