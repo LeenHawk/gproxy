@@ -15,8 +15,7 @@ function Test-Executable {
 
 Write-Host 'Smoke checking the uncompressed Windows executable'
 if (-not (Test-Executable)) { throw 'Uncompressed Windows executable failed its smoke check' }
-# ARM64 --best spent almost 14 minutes compressing a 49 MiB CLI on the native runner.
-$packArguments = if ($Target -eq 'aarch64-pc-windows-msvc') { @('--fast', '--nrv2e') } else { @('--best', '--lzma') }
+$packArguments = if ($Target -eq 'aarch64-pc-windows-msvc') { @('--best', '--nrv2e') } else { @('--best', '--lzma') }
 Write-Host "Compressing with UPX $packArguments"
 & upx @packArguments $binary
 if ($LASTEXITCODE -ne 0) { throw 'UPX compression failed' }
