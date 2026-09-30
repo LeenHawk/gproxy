@@ -18,6 +18,24 @@ Add rules from a provider's rewrite page, choosing a type and entering its setti
 
 System text supports Claude, OpenAI Chat, Responses (including WebSocket), and Gemini. Cache breakpoints support Claude and OpenAI formats; see [Prompt caching](/guides/claude-caching/) for positions and TTLs.
 
+## Advanced JSON editing
+
+When creating or editing a rule within a rule set, select **Advanced JSON** to paste one v4 rule object. This is also available on a provider's rewrite page. Switch between the form and JSON, or format the JSON. Invalid input stays in the editor with an error; saving also checks that the rule can execute.
+
+For example, replace `"type":"function"}` in the body with `"type":"function","strict":false}`:
+
+```json
+{
+  "action": "replace",
+  "phase": "request",
+  "target": "body",
+  "pattern": "\"type\":\"function\"\\}",
+  "replacement": "\"type\":\"function\",\"strict\":false}"
+}
+```
+
+Use the v4 `action`, `pattern`, and `replacement` fields. The page manages the rule set, ID, and order, so omit those from the JSON. Optional filters and `enabled` can be included. Omitted filters impose no restriction, and `enabled` defaults to true. Each edit accepts one rule object, not an array.
+
 ## Execution order
 
 Requests are converted to the upstream protocol, rewritten, and then sent by the channel. Responses are rewritten before conversion back to the client protocol. Rule paths must therefore use the **upstream format**.

@@ -370,6 +370,13 @@
     }
   },
   "rules": {
+    "editorMode": "規則編輯模式",
+    "formMode": "表單",
+    "jsonMode": "進階 JSON",
+    "ruleJson": "規則 JSON",
+    "jsonHelp": "貼上一個 v4 規則物件。所屬規則集和規則順序由頁面管理，儲存時會驗證規則是否有效。",
+    "formatJson": "格式化 JSON",
+    "invalidJsonField": "規則欄位無效或不支援：{{field}}。",
     "allModels": "所有模型",
     "advancedBindings": "進階：規則集關聯",
     "inactive": "此組規則未啟用",
