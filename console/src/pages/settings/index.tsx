@@ -11,6 +11,8 @@ import {
   vocabularies,
 } from "@/api/settings"
 import { ProxyControl, type ProxySettings } from "@/components/proxy-control"
+import { SearchableSelect } from "@/components/searchable-select"
+import { optionSource } from "@/api/options"
 import { connectionProfiles } from "@/api/configuration"
 import { navigate, useRoute } from "@/lib/router"
 import { TransferPanel } from "@/pages/transfer"
@@ -88,10 +90,6 @@ function SettingsForm({ original }: { original: SettingsDto }) {
   const [draft, setDraft] = useState(original)
   const [resetEpoch, setResetEpoch] = useState(0)
   const [token, setToken] = useState<string | null | undefined>(undefined)
-  const profiles = useQuery({
-    queryKey: ["admin", "/connection-profiles", "directory"],
-    queryFn: connectionProfiles,
-  })
   const files = useQuery({ queryKey: ["configuration", "vocabularies"], queryFn: vocabularies })
   const patch = settingsPatch(original, draft, token)
   const changed = Object.keys(patch).length > 0
@@ -143,15 +141,14 @@ function SettingsForm({ original }: { original: SettingsDto }) {
           ) : null}
         </div>
       )
-    if (["choice", "profile", "vocabulary"].includes(field.kind)) {
+    if (field.kind === "profile") return <SearchableSelect id={inputId} label={t(`setting.${field.name}`)} value={value == null ? "" : String(value)} onChange={v => change(field, v || null)} emptyLabel={t("settings.default")} source={optionSource(connectionProfiles, row => ({ value: row.id, label: row.name }))} />
+    if (["choice", "vocabulary"].includes(field.kind)) {
       const options =
-        field.kind === "profile"
-          ? (profiles.data?.map((row) => ({ value: row.id, label: row.name })) ?? [])
-          : field.kind === "vocabulary"
+        field.kind === "vocabulary"
             ? (files.data?.map((row) => ({ value: row.fileId, label: row.filename ?? row.fileId })) ?? [])
             : field.options!.map((option) => ({ value: option, label: t(`settingsOption.${option}`) }))
       const error =
-        field.kind === "profile" ? profiles.error : field.kind === "vocabulary" ? files.error : null
+        field.kind === "vocabulary" ? files.error : null
       return (
         <>
           <Select

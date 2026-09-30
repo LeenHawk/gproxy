@@ -15,7 +15,7 @@
 //! operators editing two different columns of one row would overwrite each
 //! other with values neither of them typed.
 
-import { SearchableSelect } from "@/components/searchable-select"
+import { SearchableSelect, type OptionSource } from "@/components/searchable-select"
 import { Fragment, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { ProxyControl, type ProxySettings, type ProxyScope } from "@/components/proxy-control"
@@ -48,6 +48,7 @@ export type FormField = {
   options?: ReadonlyArray<string>
   /** Choices whose labels are data rather than translations — a row's name. */
   choices?: ReadonlyArray<{ value: string; label: string }>
+  source?: OptionSource
   /** Refuse an empty value on a create. */
   required?: boolean
   /** Offered when creating and not when editing: the column is immutable. */
@@ -127,7 +128,7 @@ function Control({ field, value, onChange, original }: {
   if (field.kind === "switch") {
     return <Switch id={id} checked={Boolean(value)} onCheckedChange={(next) => onChange(next)} />
   }
-  if (field.kind === "searchable") return <SearchableSelect id={id} label={field.label ?? t(`fields.${field.name}`)} value={String(value)} options={field.choices ?? []} allowCustom={field.allowCustom} emptyLabel={field.emptyLabel} emptyValue={field.emptyValue} onChange={onChange} />
+  if (field.kind === "searchable") return <SearchableSelect id={id} label={field.label ?? t(`fields.${field.name}`)} value={String(value)} options={field.choices ?? []} source={field.source} allowCustom={field.allowCustom} emptyLabel={field.emptyLabel} emptyValue={field.emptyValue} onChange={onChange} />
   if (field.kind === "select") {
     const choices = field.choices ?? (field.options ?? []).map((option) => ({ value: option, label: t(`values.${option}`) }))
     return (

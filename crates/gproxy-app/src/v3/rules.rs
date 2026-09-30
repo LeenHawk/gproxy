@@ -94,6 +94,7 @@ pub fn translate(
         .rule_sets
         .iter()
         .map(|row| RuleSetDto {
+            provider_count: None,
             id: ids::id("rule_sets", row.id),
             name: row.name.clone(),
             description: row.description.clone(),

@@ -203,10 +203,14 @@ pub struct RuleSets<'a, C> {
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> RuleSets<'_, C> {
     pub async fn list(&self, query: ListQuery) -> SdkResult<Page<RuleSetDto>> {
-        crud::list(self, query).await
+        let mut page = crud::list(self, query).await?;
+        self.provider_counts(&mut page.items).await?;
+        Ok(page)
     }
     pub async fn get(&self, id: &str) -> SdkResult<RuleSetDto> {
-        crud::get(self, id).await
+        let mut row = crud::get(self, id).await?;
+        self.provider_counts(std::slice::from_mut(&mut row)).await?;
+        Ok(row)
     }
     pub async fn create(&self, write: RuleSetWrite) -> SdkResult<RuleSetDto> {
         crud::create(self, write).await
@@ -222,6 +226,29 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> RuleSets<'_, C> {
         items: Vec<BatchItem<RuleSetWrite, RuleSetPatch>>,
     ) -> SdkResult<Vec<Option<RuleSetDto>>> {
         crud::batch(self, items).await
+    }
+
+    async fn provider_counts(&self, rows: &mut [RuleSetDto]) -> SdkResult<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let counts = self
+            .writer
+            .store()
+            .provider_rewrite_rule_sets()
+            .count_many(
+                rows.iter()
+                    .map(|row| {
+                        provider_rewrite_rule_set::Entity::find()
+                            .filter(provider_rewrite_rule_set::Column::RuleSetId.eq(&row.id))
+                    })
+                    .collect(),
+            )
+            .await?;
+        for (row, count) in rows.iter_mut().zip(counts) {
+            row.provider_count = Some(count);
+        }
+        Ok(())
     }
 
     async fn name(&self, name: &str, exclude: Option<&str>) -> SdkResult<String> {
@@ -257,7 +284,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for RuleSets<'_, 
     fn select(&self, query: &ListQuery) -> Select<Self::Entity> {
         let mut select = rewrite_rule_set::Entity::find();
         if let Some(search) = crud::optional_text(query.search.clone()) {
-            select = select.filter(rewrite_rule_set::Column::Name.contains(&search));
+            select = select.filter(
+                Condition::any()
+                    .add(rewrite_rule_set::Column::Name.contains(&search))
+                    .add(rewrite_rule_set::Column::Description.contains(&search)),
+            );
         }
         if let Some(enabled) = query.enabled {
             select = select.filter(rewrite_rule_set::Column::Enabled.eq(enabled));
@@ -358,7 +389,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for RewriteRules<
         if let Some(enabled) = query.enabled {
             select = select.filter(rewrite_rule::Column::Enabled.eq(enabled));
         }
-        select
+        select.order_by_asc(rewrite_rule::Column::SortOrder)
     }
 
     async fn build(
@@ -503,7 +534,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ProviderRuleS
         if let Some(enabled) = query.enabled {
             select = select.filter(provider_rewrite_rule_set::Column::Enabled.eq(enabled));
         }
-        select
+        select.order_by_asc(provider_rewrite_rule_set::Column::SortOrder)
     }
 
     async fn build(

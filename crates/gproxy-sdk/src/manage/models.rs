@@ -3,7 +3,10 @@
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::{
     Repository,
-    entity::upstream::{model, provider_model},
+    entity::{
+        pricing::price_rule,
+        upstream::{model, provider_model},
+    },
 };
 use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, Select, Set};
 
@@ -153,7 +156,29 @@ impl<'a, C> ProviderModels<'a, C> {
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> ProviderModels<'_, C> {
     pub async fn list(&self, query: ListQuery) -> SdkResult<Page<ProviderModelDto>> {
-        crud::list(self, query).await
+        let mut page = crud::list(self, query).await?;
+        if !page.items.is_empty() {
+            let counts = self
+                .writer
+                .store()
+                .price_rules()
+                .count_many(
+                    page.items
+                        .iter()
+                        .map(|row| {
+                            price_rule::Entity::find()
+                                .filter(price_rule::Column::ProviderId.eq(&row.provider_id))
+                                .filter(price_rule::Column::ModelPattern.eq(&row.upstream_name))
+                                .filter(price_rule::Column::Enabled.eq(true))
+                        })
+                        .collect(),
+                )
+                .await?;
+            for (row, count) in page.items.iter_mut().zip(counts) {
+                row.has_price = Some(count > 0);
+            }
+        }
+        Ok(page)
     }
     pub async fn get(&self, id: &str) -> SdkResult<ProviderModelDto> {
         crud::get(self, id).await
@@ -314,7 +339,29 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ProviderModel
             select = select.filter(provider_model::Column::ModelId.eq(model_id));
         }
         if let Some(search) = crud::optional_text(query.search.clone()) {
-            select = select.filter(provider_model::Column::UpstreamName.contains(&search));
+            use sea_orm::sea_query::{Expr, ExprTrait, Func};
+            let display_name = match self.writer.backend() {
+                sea_orm::DbBackend::Postgres => Expr::cust_with_expr(
+                    "$1 ->> 'display_name'",
+                    Expr::col(provider_model::Column::Metadata),
+                ),
+                sea_orm::DbBackend::MySql => Expr::cust_with_expr(
+                    "JSON_UNQUOTE(JSON_EXTRACT(?, '$.display_name'))",
+                    Expr::col(provider_model::Column::Metadata),
+                ),
+                _ => Expr::cust_with_expr(
+                    "json_extract(?, '$.display_name')",
+                    Expr::col(provider_model::Column::Metadata),
+                ),
+            };
+            select = select.filter(
+                Condition::any()
+                    .add(provider_model::Column::UpstreamName.contains(&search))
+                    .add(
+                        Expr::expr(Func::lower(display_name))
+                            .like(format!("%{}%", search.to_lowercase())),
+                    ),
+            );
         }
         if let Some(enabled) = query.enabled {
             select = select.filter(provider_model::Column::Enabled.eq(enabled));

@@ -167,6 +167,7 @@ fn variant(provider_id: i64, name: &str, target: &str, models: &mut Vec<Provider
         Some(index) => index,
         None => {
             models.push(ProviderModelDto {
+                has_price: None,
                 id: ids::part("providers", provider_id, &format!("model-{target}")),
                 provider_id: v4_provider,
                 upstream_name: target.to_owned(),

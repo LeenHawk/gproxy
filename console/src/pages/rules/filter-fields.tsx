@@ -1,18 +1,14 @@
 import { useId } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { directory, models } from "@/api/models"
-import { providers, providerModels } from "@/api/configuration"
-import { configFamily } from "@/api/config-family"
-import { effectiveRouting } from "@/api/routing-rules"
-import type { RouteDto } from "@/generated/sdk"
+import { api, query } from "@/api/client"
+import type { Page, RoutingTargetDto } from "@/generated/sdk"
 import { SearchableSelect } from "@/components/searchable-select"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
-const routes = configFamily<RouteDto, never, never>("/routes")
 const clients = [["OpenCode", "^user-agent: opencode/"], ["Claude CLI", "^user-agent: claude-cli/"], ["Codex", "^user-agent: codex"], ["Cursor", "(?i)\\bcursor\\b"]]
 type OperationKey = { operation: string; dialect: string }
 const key = (value: OperationKey) => JSON.stringify([value.operation, value.dialect])
@@ -23,18 +19,8 @@ export function FilterFields({ model, onModel, operations, onOperations, headers
   headers: string; onHeaders: (value: string) => void
 }) {
   const { t } = useTranslation(), id = useId()
-  const modelList = useQuery({ queryKey: ["admin", "/models", "directory"], queryFn: () => directory(models) })
-  const stored = useQuery({ queryKey: ["admin", "/provider-models", "directory"], queryFn: () => directory(providerModels) })
-  const routeList = useQuery({ queryKey: ["admin", "/routes", "directory"], queryFn: () => directory(routes) })
-  const providerList = useQuery({ queryKey: ["admin", "/providers", "directory"], queryFn: () => directory(providers) })
-  const providerIds = (providerList.data ?? []).filter(p => p.enabled).map(p => p.id).sort()
-  const routing = useQuery({ queryKey: ["rule-filter-operations", providerIds], enabled: !!providerIds.length, queryFn: async () => (await Promise.all(providerIds.map(effectiveRouting))).flat() })
-  const suggestions = [...new Set([
-    ...(modelList.data ?? []).map(row => row.name),
-    ...(stored.data ?? []).filter(row => row.enabled).map(row => row.upstreamName),
-    ...(routeList.data ?? []).filter(row => row.enabled).map(row => row.name),
-  ])].sort()
-  const options = [...new Map((routing.data ?? []).map(row => [key(row), { operation: row.operation, dialect: row.dialect }])).values()]
+  const routing = useQuery({ queryKey: ["operation-keys"], queryFn: () => api<RoutingTargetDto[]>("/admin/api/operation-keys") })
+  const options = routing.data ?? []
   let selected: OperationKey[] | null
   try {
     const value: unknown = operations.trim() ? JSON.parse(operations) : []
@@ -42,7 +28,7 @@ export function FilterFields({ model, onModel, operations, onOperations, headers
   } catch { selected = null }
   return <>
     <Field><FieldLabel htmlFor={`${id}-model`}>{t("fields.filterModelPattern")}</FieldLabel>
-      <SearchableSelect id={`${id}-model`} label={t("fields.filterModelPattern")} value={model} onChange={onModel} allowCustom emptyLabel={t("rules.allModels")} options={suggestions.map(value => ({ value, label: value }))} />
+      <SearchableSelect id={`${id}-model`} label={t("fields.filterModelPattern")} value={model} onChange={onModel} allowCustom emptyLabel={t("rules.allModels")} source={{ key: ["model-names"], list: async (search, page, pageSize) => { const result = await api<Page<string>>(`/admin/api/model-names${query({ search, page, pageSize })}`); return { items: result.items.map(value => ({ value, label: value })), total: result.total } } }} />
     </Field>
     <Field><FieldLabel htmlFor={`${id}-operations`}>{t("fields.filterOperationKeys")}</FieldLabel>
       <Textarea id={`${id}-operations`} value={operations} onChange={e => onOperations(e.target.value)} />

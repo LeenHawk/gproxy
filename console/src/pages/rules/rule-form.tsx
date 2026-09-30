@@ -1,5 +1,9 @@
 import { FilterFields } from "./filter-fields"
-import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { ruleSets } from "@/api/routing-rules"
+import { optionSource } from "@/api/options"
+import { SearchableSelect } from "@/components/searchable-select"
+import { useId, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { RewriteRuleDto, RewriteRuleWrite } from "@/generated/sdk"
 import { ErrorNotice } from "@/components/state"
@@ -17,8 +21,21 @@ export function RuleSelect({ label, value, options, onChange, disabled }: { labe
   return <Field><FieldLabel>{label}</FieldLabel><Select value={value} onValueChange={onChange} disabled={disabled}><SelectTrigger aria-label={label}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
 }
 
-type Props = { original?: RewriteRuleDto; choices: SetChoice[]; defaultSetId: string; onClose: () => void; onSubmit: (write: RewriteRuleWrite) => void; pending: boolean; error: unknown }
-export function RuleForm({ original, choices, defaultSetId, onClose, onSubmit, pending, error }: Props) {
+export function RuleSetSelect({ value, choices, remote, onChange, disabled }: { value: string; choices: SetChoice[]; remote?: boolean; onChange: (value: string) => void; disabled?: boolean }) {
+  const { t } = useTranslation(), id = useId()
+  const known = choices.find(set => set.id === value)
+  const selected = useQuery({ queryKey: ["admin", "/rule-sets", "detail", value], queryFn: () => ruleSets.get(value), enabled: !!remote && !!value && !known })
+  const options = choices.map(set => ({ value: set.id, label: set.name }))
+  if (selected.data && !known) options.push({ value, label: selected.data.name })
+  return <Field><FieldLabel htmlFor={id}>{t("fields.ruleSetId")}</FieldLabel>
+    <SearchableSelect id={id} label={t("fields.ruleSetId")} value={value} options={options} source={remote ? optionSource(ruleSets, row => ({ value: row.id, label: row.name })) : undefined} onChange={onChange} disabled={disabled} />
+    {known?.shared || (selected.data?.providerCount ?? 0) > 0 ? <FieldDescription>{t("rules.sharedWarning")}</FieldDescription> : null}
+    {selected.error ? <ErrorNotice error={selected.error} /> : null}
+  </Field>
+}
+
+type Props = { remoteSets?: boolean; original?: RewriteRuleDto; choices: SetChoice[]; defaultSetId: string; onClose: () => void; onSubmit: (write: RewriteRuleWrite) => void; pending: boolean; error: unknown }
+export function RuleForm({ original, choices, remoteSets, defaultSetId, onClose, onSubmit, pending, error }: Props) {
   const { t } = useTranslation()
   const initialKind = original ? ruleKind(original) : "system_text"
   const [kind, setKind] = useState<RuleKind>(initialKind)
@@ -80,9 +97,8 @@ export function RuleForm({ original, choices, defaultSetId, onClose, onSubmit, p
     <DialogHeader><DialogTitle>{t(original ? "edit.rules" : "create.rules")}</DialogTitle></DialogHeader>
     <form className="flex min-h-0 flex-col" onSubmit={e => { e.preventDefault(); submit() }}>
       <DialogBody><fieldset disabled={pending} className="min-w-0"><FieldGroup>
-        <RuleSelect label={t("fields.ruleSetId")} value={setId} options={choices.map(set => ({ value: set.id, label: set.name }))} onChange={setSetId} disabled={!!original} />
-        {choices.find(set => set.id === setId)?.shared ? <FieldDescription>{t("rules.sharedWarning")}</FieldDescription> : null}
-        <RuleSelect label={t("rules.ruleType")} value={kind} options={options(kinds, "rules.types")} onChange={value => { const next = value as RuleKind; setKind(next); setTarget("body"); setPhase("request"); setEventFilter(""); setAction(next === "header" ? "header_set" : "set"); setValidation(null); if (next === "cache_breakpoint" && dialect === "gemini") setDialect("claude") }} />
+        <RuleSetSelect value={setId} choices={choices} remote={remoteSets} onChange={setSetId} disabled={!!original} />
+          <RuleSelect label={t("rules.ruleType")} value={kind} options={options(kinds, "rules.types")} onChange={value => { const next = value as RuleKind; setKind(next); setTarget("body"); setPhase("request"); setEventFilter(""); setAction(next === "header" ? "header_set" : "set"); setValidation(null); if (next === "cache_breakpoint" && dialect === "gemini") setDialect("claude") }} />
         <FieldDescription>{t(`rules.templateHelp.${kind}`)}</FieldDescription>
         {semantic ? select(t("fields.dialect"), dialect, kind === "system_text" ? ["openai", "openai_chat", "claude", "gemini", "openai_responses_websocket"] : ["openai", "openai_chat", "claude", "openai_responses_websocket"], value => { setDialect(value); setTtl("default"); if (value !== "claude" && cacheTarget === "tools") setCacheTarget("message") }, "rules.protocols") : null}
         {kind === "system_text" ? <>{select(t("rules.position"), position, ["prepend", "append"], setPosition)}{input(t("rules.text"), text, setText, true, true)}</> : null}

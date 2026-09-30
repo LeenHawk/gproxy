@@ -44,8 +44,8 @@ pub use gproxy_channel::{
 };
 
 pub use catalog::{
-    ApplyDefaultPricesReportDto, ApplyDefaultPricesRequest, ApplyRulePreset,
-    DefaultModelCatalogDto, DefaultModelCatalogSourceDto, DefaultModelDto,
+    ApplyDefaultPricesReportDto, ApplyDefaultPricesRequest, ApplyRulePreset, CatalogModelDto,
+    CatalogProviderDto, DefaultModelCatalogDto, DefaultModelCatalogSourceDto, DefaultModelDto,
     DefaultModelPriceRateDto, DefaultModelPricingDto, DefaultModelTierDto, RulePresetCategory,
     RulePresetDto, TlsPresetDto,
 };

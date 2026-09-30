@@ -365,6 +365,10 @@ pub struct ProviderModelDto {
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub metadata: Value,
     pub enabled: bool,
+    /// Exact enabled provider price rule exists; populated by list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub has_price: Option<bool>,
 }
 
 impl From<provider_model::Model> for ProviderModelDto {
@@ -376,6 +380,7 @@ impl From<provider_model::Model> for ProviderModelDto {
             model_id: row.model_id,
             metadata: row.metadata,
             enabled: row.enabled,
+            has_price: None,
         }
     }
 }

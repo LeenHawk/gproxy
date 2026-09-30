@@ -1,11 +1,12 @@
 import { useId, useState, type FormEvent } from "react"
 import { RotateCcw } from "lucide-react"
-import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import type { ChannelDescriptor, ProviderDto, ProviderWrite } from "@/generated/sdk"
+import { SearchableSelect } from "@/components/searchable-select"
+import { optionSource } from "@/api/options"
 import { connectionProfiles } from "@/api/configuration"
 import { ProxyControl, type ProxySettings } from "@/components/proxy-control"
-import { ErrorNotice, QueryState } from "@/components/state"
+import { ErrorNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -50,10 +51,6 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
     [channel]: (provider?.config ?? {}) as ConfigObject,
   })
   const [resets, setResets] = useState<Record<string, number>>({})
-  const profiles = useQuery({
-    queryKey: ["admin", "/connection-profiles", "directory"],
-    queryFn: connectionProfiles,
-  })
   const descriptor = catalog.find((item) => item.id === channel)
   const hiddenKeys = ["user_agent", "client_id", "client_secret", "oauth_client_id", "sso_client_id", "sso_client_secret", ...(["antigravity", "geminicli"].includes(channel) ? ["project_id"] : [])]
   const config = Object.fromEntries(Object.entries(configs[channel] ?? {}).filter(([key]) => !hiddenKeys.includes(key)))
@@ -118,23 +115,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
         </Field>
         <Field>
           <FieldLabel htmlFor={`${id}-profile`}>{t("providerForm.connection")}</FieldLabel>
-          <QueryState isPending={profiles.isPending} error={profiles.error}>
-            <Select value={profile} onValueChange={setProfile}>
-              <SelectTrigger id={`${id}-profile`} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="__default">{t("form.unset")}</SelectItem>
-                  {profiles.data?.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </QueryState>
+          <SearchableSelect id={`${id}-profile`} label={t("providerForm.connection")} value={profile} onChange={setProfile} emptyValue="__default" emptyLabel={t("form.unset")} source={optionSource(connectionProfiles, row => ({ value: row.id, label: row.name }))} />
         </Field>
         <Field data-field-span="full"><FieldLabel htmlFor={`${id}-proxy`}>{t("proxy.provider")}</FieldLabel><ProxyControl id={`${id}-proxy`} value={proxy} onChange={setProxy} scope={provider ? { scope: "provider", provider_id: provider.id } : { scope: "global", parent: true }} /></Field>
         <Field>
@@ -193,7 +174,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
             {t("actions.cancel")}
           </Button>
         ) : null}
-        <Button type="submit" disabled={pending || profiles.isPending || !!profiles.error}>
+        <Button type="submit" disabled={pending}>
           {provider ? t("actions.save") : t("actions.create")}
         </Button>
       </div>

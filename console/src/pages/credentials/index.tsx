@@ -25,8 +25,6 @@ export function ProviderCredentials({ providerId }: { providerId: string }) {
 }
 function CredentialCollection({ provider }: { provider: CredentialProviderDto }) {
   const { t } = useTranslation()
-  const context = useConsoleContext()
-  const profiles = useQuery({ queryKey: ["admin", "/connection-profiles", "directory"], queryFn: connectionProfiles, enabled: context.has("configuration.connection-profiles") })
   const [detail, setDetail] = useState<{ row: CredentialDto; tab: "basic" | "upstream" } | null>(null)
   const [testing, setTesting] = useState<CredentialDto | null>(null)
   const [login, setLogin] = useState(false)
@@ -38,7 +36,7 @@ function CredentialCollection({ provider }: { provider: CredentialProviderDto })
       if (!provider.enabled) return Promise.reject(new Error(t("management.disabled")))
       return credentials.create({ ...body, providerId: provider.id })
     }} rowId={row => row.id} rowLabel={row => row.label ?? row.id} searchable
-      columns={[{ key: "label", cell: row => row.label ?? row.id }, { key: "authKind", cell: row => row.authKind }, { key: "connectionProfileId", cell: row => profiles.data?.find(profile => profile.id === row.connectionProfileId)?.name ?? row.connectionProfileId ?? t("form.unset") }, { key: "expiresAtMs", cell: row => <InstantCell value={row.expiresAtMs} /> }, { key: "status", cell: row => <Badge variant={row.status === "dead" ? "destructive" : "success"}>{t(`values.${row.status}`)}</Badge> }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
+      columns={[{ key: "label", cell: row => row.label ?? row.id }, { key: "authKind", cell: row => row.authKind }, { key: "connectionProfileId", cell: row => <ProfileName id={row.connectionProfileId} /> }, { key: "expiresAtMs", cell: row => <InstantCell value={row.expiresAtMs} /> }, { key: "status", cell: row => <Badge variant={row.status === "dead" ? "destructive" : "success"}>{t(`values.${row.status}`)}</Badge> }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
       fields={credentialFields} renderForm={props => <CredentialForm {...props} providerId={provider.id} />} onOpen={row => setDetail({ row, tab: "basic" })} onEdit={row => setDetail({ row, tab: "basic" })}
       rowActions={row => <><Button variant="ghost" size="sm" onClick={() => setDetail({ row, tab: "upstream" })}>{t("limits.upstream")}</Button><Button variant="ghost" size="sm" disabled={!provider.enabled || !row.hasSecret} onClick={() => setTesting(row)}>{t("providers.models.test")}</Button></>}
     />
@@ -47,4 +45,10 @@ function CredentialCollection({ provider }: { provider: CredentialProviderDto })
     {importing ? <CredentialBulkImport provider={provider} onClose={() => setImporting(false)} /> : null}
     {login ? <CredentialLoginDialog provider={provider} onClose={() => setLogin(false)} /> : null}
   </div>
+}
+
+function ProfileName({ id }: { id: string | null }) {
+  const { t } = useTranslation(), context = useConsoleContext()
+  const profile = useQuery({ queryKey: ["admin", "/connection-profiles", "detail", id], queryFn: () => connectionProfiles.get(id!), enabled: !!id && context.has("configuration.connection-profiles") })
+  return profile.data?.name ?? id ?? t("form.unset")
 }

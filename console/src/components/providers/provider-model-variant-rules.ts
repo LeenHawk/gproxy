@@ -1,6 +1,6 @@
 import { bindings, rules, ruleSets } from "@/api/routing-rules"
 import { directory } from "@/api/models"
-import { api, json } from "@/api/client"
+import { ApiError, api, json } from "@/api/client"
 import type { RewriteRuleDto } from "@/generated/sdk"
 import type { VariantAction } from "./variant-presets"
 export type VariantRuleRow = { name: string; actions: VariantAction[]; touched: boolean }
@@ -12,12 +12,15 @@ export function readVariants(metadata: Record<string, unknown>, records: Rewrite
 }
 export async function saveVariantRules(providerId: string, providerName: string, modelId: string, modelName: string, variants: VariantRuleRow[]) {
   const id = variantSetId(modelId)
-  const [sets, attachments] = await Promise.all([directory(ruleSets), directory(bindings, { providerId })])
-  if (!sets.some(s => s.id === id)) {
+  const [set, attached] = await Promise.all([
+    ruleSets.get(id).catch(error => { if (error instanceof ApiError && error.status === 404) return null; throw error }),
+    bindings.list({ providerId, ruleSetId: id, pageSize: 1 }),
+  ])
+  if (!set) {
     if (!variants.length) return
     await ruleSets.create({ id, name: `${providerName} / ${modelName}`, description: `gproxy:model-variants:${modelId}`, enabled: true })
   }
-  if (!attachments.some(b => b.ruleSetId === id)) await bindings.create({ providerId, ruleSetId: id, enabled: true, sortOrder: 0 })
+  if (!attached.total) await bindings.create({ providerId, ruleSetId: id, enabled: true, sortOrder: 0 })
   const previous = await variantRules(modelId)
   // Keep manually managed rules and untouched variant rules, including their
   // operation/event filters. Presets only replace behavior the user edited.

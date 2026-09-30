@@ -9,15 +9,6 @@ export const operationRules = family<OperationRuleDto, Partial<OperationRuleWrit
 export const endpoints = family<OperationEndpointDto, Partial<OperationEndpointWrite>, Partial<OperationEndpointPatch>>("/operation-endpoints")
 export const rulePresets = () => api<RulePresetDto[]>("/admin/api/rule-presets")
 export const applyPreset = (setId: string, preset: string) => api<RewriteRuleDto[]>(`/admin/api/rule-sets/${encodeURIComponent(setId)}/rule-presets/${encodeURIComponent(preset)}`, { method: "POST" })
-export async function ruleSetDirectory() {
-  const rows: RuleSetDto[] = []
-  for (let page = 1; ; page++) {
-    const result = await ruleSets.list({ page, pageSize: 500 })
-    rows.push(...result.items)
-    if (rows.length >= result.total || result.items.length === 0) return rows
-  }
-}
-
 export const effectiveRouting = (providerId: string) => api<import("@/generated/sdk").OperationRoutingDto[]>(`/admin/api/providers/${encodeURIComponent(providerId)}/routing`)
 
 const mappingPath = (providerId: string, operation: string, dialect: string) => `/admin/api/providers/${encodeURIComponent(providerId)}/routing/${encodeURIComponent(operation)}/${encodeURIComponent(dialect)}`

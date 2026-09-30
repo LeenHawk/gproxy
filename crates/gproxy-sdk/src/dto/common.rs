@@ -26,6 +26,10 @@ pub struct ListQuery {
     pub price_rule_id: Option<String>,
     pub credential_id: Option<String>,
     pub model_id: Option<String>,
+    /// Exact pricing pattern (not a runtime wildcard match).
+    pub model_pattern: Option<String>,
+    /// Restrict price rules to the global scope.
+    pub global_only: Option<bool>,
     pub owner_kind: Option<String>,
     pub owner_id: Option<String>,
     pub enabled: Option<bool>,

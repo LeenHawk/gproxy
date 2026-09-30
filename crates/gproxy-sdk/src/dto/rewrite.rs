@@ -13,6 +13,10 @@ use gproxy_store::entity::upstream::{provider_rewrite_rule_set, rewrite_rule, re
 pub struct RuleSetDto {
     pub id: String,
     pub name: String,
+    /// Number of provider attachments, populated by list/get.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub provider_count: Option<u64>,
     pub description: Option<String>,
     pub enabled: bool,
     pub created_at_ms: i64,
@@ -24,6 +28,7 @@ impl From<rewrite_rule_set::Model> for RuleSetDto {
         Self {
             id: row.id,
             name: row.name,
+            provider_count: None,
             description: row.description,
             enabled: row.enabled,
             created_at_ms: row.created_at_ms,
