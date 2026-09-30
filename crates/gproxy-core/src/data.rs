@@ -56,6 +56,9 @@ pub struct CoreData {
 
 pub struct ProviderData {
     pub entity: Arc<upstream::provider::Model>,
+    /// Runtime config with the global and provider header allow-lists merged.
+    /// The persisted entity keeps the provider's own settings unchanged.
+    pub effective_config: serde_json::Value,
     pub channel: Arc<dyn BaseChannel>,
     /// References CoreData.credentials; no duplicate credential ownership.
     pub credential_ids: Vec<String>,
@@ -74,6 +77,13 @@ pub struct ProviderData {
 }
 
 impl ProviderData {
+    pub fn view(&self) -> gproxy_channel::channel::ProviderView<'_> {
+        gproxy_channel::channel::ProviderView {
+            config: &self.effective_config,
+            ..crate::assemble::provider_view(&self.entity)
+        }
+    }
+
     pub fn operation_url(
         &self,
         operation: OperationKey,

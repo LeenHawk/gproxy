@@ -122,7 +122,7 @@ impl ConfigKey {
 
 /// Read from the `config` JSON for every channel, by the host rather than by
 /// the channel itself: `credential_strategy` selects among the provider's
-/// credentials, `allowed_headers` narrows what `HeaderAllowlist` forwards.
+/// credentials, `allowed_headers` adds to the global and channel header sets.
 pub const HOST_CONFIG_KEYS: [ConfigKey; 3] = [
     ConfigKey::optional(
         "credential_strategy",
@@ -137,7 +137,7 @@ pub const HOST_CONFIG_KEYS: [ConfigKey; 3] = [
     ConfigKey::optional(
         "allowed_headers",
         ConfigKeyKind::HeaderList,
-        "The only client headers forwarded upstream; absent forwards the channel's own set.",
+        "Additional client headers to forward, unioned with the global allow-list and channel defaults.",
     ),
 ];
 

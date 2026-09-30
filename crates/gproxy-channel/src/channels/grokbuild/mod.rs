@@ -38,8 +38,8 @@
 //! forwarded as the caller wrote it and a job reply is xAI's own shape); the
 //! `endpoints` map, which v4 expresses as the host's per-operation
 //! `endpoint_override`; and the `ChannelTrafficPolicy`, which has no v4
-//! counterpart — a provider that wants v3's "forward nothing" writes
-//! `allowed_headers: []`.
+//! counterpart. Request headers use the union of global, provider and channel
+//! allow-lists; omitted lists add no entries.
 
 mod auth;
 mod config;

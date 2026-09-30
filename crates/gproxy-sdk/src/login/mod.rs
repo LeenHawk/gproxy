@@ -32,7 +32,7 @@ mod session;
 use std::sync::Arc;
 
 use gproxy_channel::channel::{AuthorizationCode, AuthorizationRequest, DevicePoll, LoginContext};
-use gproxy_core::{ProviderData, assemble::provider_view};
+use gproxy_core::ProviderData;
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::upstream::provider;
 
@@ -96,7 +96,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
         let started = flow
             .authorize(
                 LoginContext {
-                    provider: provider_view(&provider.entity),
+                    provider: provider.view(),
                     client: client.as_ref(),
                 },
                 AuthorizationRequest {
@@ -174,7 +174,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
         let acquired = flow
             .exchange(
                 LoginContext {
-                    provider: provider_view(&provider.entity),
+                    provider: provider.view(),
                     client: client.as_ref(),
                 },
                 AuthorizationCode {
@@ -207,7 +207,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
         let client = self.inner.core.provider_client(&provider.entity.id).await?;
         let authorization = flow
             .start(LoginContext {
-                provider: provider_view(&provider.entity),
+                provider: provider.view(),
                 client: client.as_ref(),
             })
             .await?;
@@ -267,7 +267,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
         let poll = flow
             .poll(
                 LoginContext {
-                    provider: provider_view(&provider.entity),
+                    provider: provider.view(),
                     client: client.as_ref(),
                 },
                 &authorization,
@@ -341,7 +341,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
         let acquired = flow
             .exchange_cookie(
                 LoginContext {
-                    provider: provider_view(&provider.entity),
+                    provider: provider.view(),
                     client: client.as_ref(),
                 },
                 cookie,

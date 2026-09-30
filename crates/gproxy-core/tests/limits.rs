@@ -10,6 +10,7 @@ fn settings() -> setting::Model {
         oauth_client_allowlist: None,
         connection_profile_id: None,
         proxy: None,
+        allowed_headers: serde_json::json!([]),
         cors_origins: serde_json::json!([]),
         trusted_proxies: serde_json::json!([]),
         always_secure_cookie: false,

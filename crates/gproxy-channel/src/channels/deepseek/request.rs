@@ -83,7 +83,10 @@ pub(super) fn build<B>(
         Some(query) => format!("{url}?{query}"),
         None => url,
     };
-    let allowlist = HeaderAllowlist::from_view(ctx.provider)?;
+    let allowlist = HeaderAllowlist::from_view_for(
+        ctx.provider,
+        crate::channel::ChannelHeaders::native(ctx.operation.dialect),
+    )?;
     let mut headers = forwardable(&request.headers, allowlist.as_ref(), &[]);
     if ctx.operation.dialect == Dialect::Claude {
         // DeepSeek's Anthropic-compatible surface takes the key the way

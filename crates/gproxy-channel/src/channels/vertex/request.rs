@@ -98,7 +98,10 @@ impl BaseChannel for Vertex {
             ctx.request.query.as_deref(),
             model.as_deref(),
         )?;
-        let allowlist = HeaderAllowlist::from_view(ctx.provider)?;
+        let allowlist = HeaderAllowlist::from_view_for(
+            ctx.provider,
+            crate::channel::ChannelHeaders::native(ctx.operation.dialect),
+        )?;
         let mut headers = forwardable(&ctx.request.headers, allowlist.as_ref(), &[]);
         headers.insert(
             header::AUTHORIZATION,

@@ -353,10 +353,7 @@ async fn new_turn_uploads_creates_configures_completes_and_deletes() {
         headers.get("x-api-key").is_none(),
         "source auth never leaves"
     );
-    assert_eq!(
-        headers["x-client-trace"], "trace-1",
-        "other client headers pass"
-    );
+    assert!(headers.get("x-client-trace").is_none(), "not on the default allow-list");
 
     let (method, url, _, body) = &sent[1];
     assert_eq!(method, Method::POST);

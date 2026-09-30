@@ -64,9 +64,9 @@ What the host hands over is borrowed and public where it can be:
 - **Source authentication never reaches the upstream.** The forwarding helper
   drops the hop-by-hop headers plus `host`, `content-length`, `authorization`,
   `x-api-key`, `x-goog-api-key` and `api-key`; the channel adds its own auth
-  from the credential. A provider's `allowed_headers` narrows what else is
-  forwarded, while `content-type` and the channel's declared identity headers
-  always pass.
+  from the credential. The allowed client headers are the union of the global
+  allow-list, provider `allowed_headers`, and the channel's declared headers;
+  `content-type` always passes. Missing or empty lists add no entries.
 - **An endpoint override is the complete method URL**, replacing the base URL
   and the channel's default path — not a base to append to.
 - **A non-2xx is a response, not an error.** Status, headers and a lazy body

@@ -1,6 +1,6 @@
 //! Deterministic mappings from a source OperationKey to one implementation.
 
-use crate::{ProviderData, assemble::provider_view};
+use crate::ProviderData;
 use gproxy_channel::channel::{BaseChannel, ProviderView};
 use gproxy_protocol::{Dialect, Operation, OperationKey, spec::OPERATION_SPECS};
 use gproxy_store::entity::upstream::operation_rule;
@@ -294,7 +294,7 @@ pub fn route_for_model(
         .find(|r| r.operation == key.operation.id());
     resolve_route_for_model(
         provider.channel.as_ref(),
-        provider_view(&provider.entity),
+        provider.view(),
         rule.map(|r| r.as_ref()),
         key,
         model,

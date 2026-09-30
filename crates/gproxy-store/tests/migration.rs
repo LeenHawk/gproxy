@@ -148,7 +148,8 @@ async fn running_the_migrator_twice_is_a_no_op() {
         first.ledger,
         [
             "m20260921_000001_baseline",
-            "m20260926_000001_credential_cycles"
+            "m20260926_000001_credential_cycles",
+            "m20260930_000001_allowed_headers"
         ]
     );
     let after_first = schema(store.connection()).await;
@@ -312,7 +313,7 @@ async fn a_guarded_migration_is_a_no_op_where_the_baseline_already_did_it() {
                 .into_iter()
                 .filter(|(_, status)| *status == MigrationStatus::Applied)
                 .count(),
-            3
+            Migrator::migrations().len() + 1
         );
     }
 }

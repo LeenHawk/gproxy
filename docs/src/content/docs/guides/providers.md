@@ -348,3 +348,14 @@ belong to the product layer — and neither do usage or captures, because copyin
 them would fabricate history the destination never had. See
 [Configuration](/reference/configuration/#moving-a-configuration) for the
 master-key rules.
+
+## Request header allow-lists
+
+Settings → Network provides a global request-header allow-list. Each provider
+can add names with `config.allowed_headers`. The effective set is the **union**
+of the global list, provider list and channel defaults, plus `content-type`.
+Missing or empty lists add no entries; arbitrary client headers are dropped by
+default. Source credentials and hop-by-hop headers remain excluded even when
+listed. Channel-injected authentication and configured static `headers` are
+independent of this client-header policy. Changes take effect on configuration
+reload without rewriting the provider's saved list.

@@ -1,6 +1,6 @@
 //! Assembly proper: profiles resolve to pooled clients on every target.
 
-use super::{Assembly, AssemblyError, LiveBlocks, ProviderConfig, block_from_row, provider_view};
+use super::{Assembly, AssemblyError, LiveBlocks, ProviderConfig, block_from_row};
 use crate::{
     ConfigRevision, CoreData, CredentialData, CredentialState, CredentialVersion, ExecutionLimits,
     OperationEndpointKey, ProviderData, RewriteRuleSetData, SecretCodec,
@@ -59,6 +59,15 @@ pub async fn assemble(
         );
     }
 
+    let global_headers: Vec<String> = match &control.settings {
+        Some(settings) => serde_json::from_value(settings.allowed_headers.clone())
+            .map_err(|error| AssemblyError::InvalidAllowedHeaders(error.to_string()))?,
+        None => Vec::new(),
+    };
+    for name in &global_headers {
+        http::HeaderName::from_bytes(name.trim().as_bytes())
+            .map_err(|error| AssemblyError::InvalidAllowedHeaders(error.to_string()))?;
+    }
     let mut providers = HashMap::new();
     for row in control.providers.iter().filter(|p| p.enabled) {
         let channel = channels
@@ -74,6 +83,26 @@ pub async fn assemble(
                 reason: e.to_string(),
             }
         })?;
+        let mut effective_config = row.config.clone();
+        if !global_headers.is_empty() {
+            let mut headers: Vec<String> = serde_json::from_value(
+                row.config
+                    .get("allowed_headers")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!([])),
+            )
+            .map_err(|error| AssemblyError::InvalidProviderConfig {
+                provider_id: row.id.clone(),
+                reason: error.to_string(),
+            })?;
+            headers.extend(global_headers.iter().cloned());
+            for name in &mut headers {
+                *name = name.trim().to_ascii_lowercase();
+            }
+            headers.sort_unstable();
+            headers.dedup();
+            effective_config["allowed_headers"] = serde_json::json!(headers);
+        }
         let mut operation_urls = HashMap::new();
         for endpoint in control
             .operation_endpoints
@@ -112,6 +141,7 @@ pub async fn assemble(
             row.id.clone(),
             ProviderData {
                 entity: Arc::new(row.clone()),
+                effective_config,
                 channel,
                 credential_ids: Vec::new(),
                 models: control
@@ -201,7 +231,7 @@ pub async fn assemble(
             .quota_model()
             .map(|model| {
                 model.dimensions(
-                    provider_view(&provider.entity),
+                    provider.view(),
                     CredentialView {
                         id: &row.id,
                         provider_id: &row.provider_id,

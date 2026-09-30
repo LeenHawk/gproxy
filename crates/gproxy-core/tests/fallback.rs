@@ -101,6 +101,7 @@ fn context_for_channel(
     let mut entity = (*old.entity).clone();
     entity.config = config;
     ctx.target.provider = Arc::new(ProviderData {
+        effective_config: entity.config.clone(),
         entity: Arc::new(entity),
         channel,
         credential_ids: old.credential_ids.clone(),

@@ -535,7 +535,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             .service_credentials(&request.target, &request.view)
             .await?;
         let caller = TargetCaller::new(self, &request);
-        let provider = crate::assemble::provider_view(&request.target.provider.entity);
+        let provider = request.target.provider.view();
         let accounts = selected
             .usable
             .iter()
@@ -590,7 +590,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             .service_credentials(&request.target, &request.view)
             .await?;
         let caller = TargetCaller::new(self, &request);
-        let provider = crate::assemble::provider_view(&request.target.provider.entity);
+        let provider = request.target.provider.view();
         let accounts = selected
             .usable
             .iter()

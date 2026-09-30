@@ -1,15 +1,15 @@
 //! Which client headers reach the upstream. Every channel drops hop-by-hop
-//! headers, the source host/length and any source authentication; a provider
-//! may additionally restrict forwarding to an allow-list so only the headers
-//! it names leave the gateway. Headers a channel injects itself (its own
+//! headers, the source host/length and any source authentication. By default
+//! only content-type and the channel's declared headers are forwarded; a
+//! provider can allow additional names. Headers a channel injects itself (its own
 //! authentication, static config headers) are not subject to the list.
 
 use super::{ChannelError, ProviderView};
 use http::{HeaderMap, HeaderName};
 
 /// Headers a vendor's own client sends that its channel always lets through,
-/// even under a provider allow-list: the list narrows what *other* clients
-/// may add, it must not strip the CLI the channel impersonates. Names are
+/// alongside the global and provider allow-lists. Operator lists add headers
+/// without removing the channel's own protocol requirements. Names are
 /// exact lowercase header names; prefixes match any header starting with
 /// them (`x-codex-`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -23,6 +23,25 @@ impl ChannelHeaders {
         names: &[],
         prefixes: &[],
     };
+
+    /// SDK headers needed by channels forwarding a native API dialect.
+    pub fn native(dialect: gproxy_protocol::Dialect) -> Self {
+        use gproxy_protocol::WireFamily;
+        match dialect.family() {
+            WireFamily::Claude => Self {
+                names: &["anthropic-beta", "anthropic-user-profile-id"],
+                prefixes: &[],
+            },
+            WireFamily::OpenAi => Self {
+                names: &["openai-beta", "openai-organization", "openai-project"],
+                prefixes: &[],
+            },
+            WireFamily::Gemini => Self {
+                names: &["range"],
+                prefixes: &["x-goog-upload-"],
+            },
+        }
+    }
 
     fn allows(&self, name: &HeaderName) -> bool {
         let name = name.as_str();
@@ -40,8 +59,8 @@ pub struct HeaderAllowlist {
 }
 
 impl HeaderAllowlist {
-    /// None when the provider configures no list (forward everything that is
-    /// not dropped); an invalid header name is a configuration error.
+    /// Use the channel defaults when the provider configures no list;
+    /// an invalid header name is a configuration error.
     pub fn from_view(provider: ProviderView<'_>) -> Result<Option<Self>, ChannelError> {
         Self::from_view_for(provider, ChannelHeaders::NONE)
     }
@@ -53,7 +72,10 @@ impl HeaderAllowlist {
         channel: ChannelHeaders,
     ) -> Result<Option<Self>, ChannelError> {
         let Some(value) = provider.config.get("allowed_headers") else {
-            return Ok(None);
+            return Ok(Some(Self {
+                names: Vec::new(),
+                channel,
+            }));
         };
         let names = value
             .as_array()

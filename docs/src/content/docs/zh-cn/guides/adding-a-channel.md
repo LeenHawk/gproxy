@@ -53,8 +53,8 @@ feature 后面，新增一个意味着向本仓库提一个 PR。默认不编译
   经 `context.client`，并且可以在响应流结束后继续持有它完成收尾工作。
 - **来源鉴权绝不到达上游。** 转发助手丢弃逐跳 header，外加 `host`、`content-length`、
   `authorization`、`x-api-key`、`x-goog-api-key` 和 `api-key`；渠道从凭证里加上自己的
-  鉴权。Provider 的 `allowed_headers` 收窄还能转发什么，而 `content-type` 和渠道声明的
-  身份 header 总是放行。
+  鉴权。全局白名单、Provider 的 `allowed_headers` 与渠道声明的头取并集，
+  `content-type` 总是保留。未配置或空列表不增加允许项。
 - **端点覆盖是完整的方法 URL**，替换 base URL 加渠道默认路径——不是一个拿来再拼的 base。
 - **非 2xx 是一个响应，不是一个错误。** 状态、header 和一个惰性 body 原样回来。错误变体
   是给*能力*调用（登录、刷新、配额）和多次调用覆写里的中间交换用的，那里失败的应答不是

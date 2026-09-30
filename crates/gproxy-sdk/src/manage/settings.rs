@@ -47,6 +47,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
             if let Some(value) = instance.instance_name {
                 row.instance_name = Set(crud::text(&value, "instanceName")?);
             }
+            if let Some(value) = instance.allowed_headers {
+                row.allowed_headers = Set(header_list(value)?);
+            }
             if let Some(value) = instance.oauth_client_allowlist {
                 row.oauth_client_allowlist = Set(array(value, "oauthClientAllowlist")?);
             }
@@ -323,4 +326,16 @@ fn positive64(value: i64, field: &'static str) -> SdkResult<i64> {
         return Err(SdkError::invalid(format!("{field} must be positive")));
     }
     Ok(value)
+}
+
+pub(super) fn header_list(value: serde_json::Value) -> SdkResult<serde_json::Value> {
+    let names: Vec<String> = serde_json::from_value(value)
+        .map_err(|_| SdkError::invalid("allowedHeaders must be an array of header names"))?;
+    let mut normalized = std::collections::BTreeSet::new();
+    for name in names {
+        let header = http::HeaderName::from_bytes(name.trim().as_bytes())
+            .map_err(|_| SdkError::invalid(format!("invalid header name: {name}")))?;
+        normalized.insert(header.as_str().to_owned());
+    }
+    Ok(serde_json::json!(normalized))
 }

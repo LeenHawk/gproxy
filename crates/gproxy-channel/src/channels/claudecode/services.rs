@@ -546,7 +546,21 @@ fn forward(
 ) -> Result<http::Request<HttpBody>, ChannelError> {
     let config = ClaudecodeConfig::from_view(account.provider)?;
     let identity = super::account(&account.credential)?;
-    let allowlist = HeaderAllowlist::from_view_for(account.provider, super::CLI_HEADERS)?;
+    let allowlist = HeaderAllowlist::from_view_for(
+        account.provider,
+        crate::channel::ChannelHeaders {
+            names: &[
+                "anthropic-beta",
+                "x-claude-code-session-id",
+                "session_id",
+                "user-agent",
+                "accept",
+                "cache-control",
+                "x-organization-uuid",
+            ],
+            prefixes: &[],
+        },
+    )?;
     let headers = service_headers(
         &config,
         identity.access_token,

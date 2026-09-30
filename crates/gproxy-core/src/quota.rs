@@ -838,7 +838,7 @@ impl<C: BatchConnectionTrait> Core<C> {
             let result = invoke(
                 &provider,
                 CredentialContext {
-                    provider: crate::assemble::provider_view(&provider.entity),
+                    provider: provider.view(),
                     credential: crate::execute::prepare::credential_view(&credential, &version),
                     client: credential.client.as_ref(),
                 },

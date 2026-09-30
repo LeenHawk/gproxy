@@ -22,8 +22,8 @@
 //! `StreamDecoder` become the overridden `list_models` and `generate_content`,
 //! which unwrap inside the channel before the host sees a body. v3's
 //! `ChannelTrafficPolicy` (which forwarded no client header at all) has no v4
-//! counterpart: v4 forwards everything but the fixed drops, and an operator
-//! who wants v3's behaviour writes `allowed_headers: []`.
+//! counterpart. Request headers use the union of global, provider and channel
+//! allow-lists; omitted lists add no entries.
 //!
 //! **No `default_connection()`**: v3 had no `cline/profile.rs`, so there is no
 //! captured client identity to reproduce and the operator's connection

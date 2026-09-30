@@ -36,6 +36,8 @@ pub enum AssemblyError {
     InvalidConnectionProfile { id: String, reason: String },
     #[error("provider `{provider_id}` config is invalid: {reason}")]
     InvalidProviderConfig { provider_id: String, reason: String },
+    #[error("invalid global allowed_headers: {0}")]
+    InvalidAllowedHeaders(String),
     #[error("outbound client for credential `{credential_id}` could not be built")]
     Client {
         credential_id: String,

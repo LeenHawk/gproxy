@@ -35,6 +35,7 @@ impl From<setting::Model> for SettingsDto {
             instance: InstanceSettingsDto {
                 instance_name: row.instance_name,
                 oauth_client_allowlist: row.oauth_client_allowlist,
+                allowed_headers: row.allowed_headers,
                 connection_profile_id: row.connection_profile_id,
                 proxy: row.proxy,
                 cors_origins: row.cors_origins,
@@ -78,6 +79,9 @@ impl From<setting::Model> for SettingsDto {
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct InstanceSettingsDto {
     pub instance_name: String,
+    #[serde(default = "empty_header_list")]
+    #[cfg_attr(feature = "ts", ts(type = "string[]"))]
+    pub allowed_headers: Value,
     #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub oauth_client_allowlist: Option<Value>,
     pub connection_profile_id: Option<String>,
@@ -178,6 +182,9 @@ pub struct SettingsPatch {
 pub struct InstanceSettingsPatch {
     #[serde(default)]
     pub instance_name: Option<String>,
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(type = "string[]"))]
+    pub allowed_headers: Option<Value>,
     #[serde(default, deserialize_with = "double_option")]
     #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub oauth_client_allowlist: Option<Option<Value>>,
@@ -322,4 +329,8 @@ mod limit_defaults {
 
 fn default_observation_retention() -> Option<u32> {
     Some(90)
+}
+
+fn empty_header_list() -> Value {
+    serde_json::json!([])
 }

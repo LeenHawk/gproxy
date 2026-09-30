@@ -199,7 +199,7 @@ fn forwards_the_native_path_and_replaces_the_credential() {
     assert_eq!(headers["authorization"], "Bearer sk-upstream", "trimmed");
     assert_eq!(headers["openai-beta"], "feature=v1");
     assert_eq!(headers["openai-project"], "proj_1");
-    assert_eq!(headers["x-vendor"], "kept");
+    assert!(headers.get("x-vendor").is_none());
     assert_eq!(headers["x-static"], "yes");
     assert!(headers.get("host").is_none());
     assert!(headers.get("content-length").is_none());

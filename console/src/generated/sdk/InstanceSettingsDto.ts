@@ -4,7 +4,7 @@
  * Identity, network, execution limits and maintenance. `config_revision` is
  * read-only: it is the write path's own counter.
  */
-export type InstanceSettingsDto = { instanceName: string, oauthClientAllowlist: string[] | null, connectionProfileId: string | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null, corsOrigins: string[], trustedProxies: string[],
+export type InstanceSettingsDto = { instanceName: string, allowedHeaders: string[], oauthClientAllowlist: string[] | null, connectionProfileId: string | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null, corsOrigins: string[], trustedProxies: string[],
 /**
  * Absent in an export from a build without it, which reads as off.
  */

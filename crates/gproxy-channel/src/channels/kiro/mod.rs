@@ -34,9 +34,8 @@
 //! Not ported from v3: `CountTokens`, which v3 answered locally and v4's host
 //! owns; the `endpoints` map, which v4 expresses as the host's
 //! per-operation `endpoint_override`; and the `ChannelTrafficPolicy`, which
-//! has no v4 counterpart — v4 forwards every client header that is not
-//! dropped, and a provider that wants v3's "forward nothing" writes
-//! `allowed_headers: []`.
+//! has no v4 counterpart. Request headers use the union of global, provider and channel
+//! allow-lists; omitted lists add no entries.
 //!
 //! Session identity: Kiro has no session field in `design/session-identity.md`
 //! and the app sends none. The envelope's `conversationId` is minted per

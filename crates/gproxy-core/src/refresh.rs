@@ -148,7 +148,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         }
 
         let mut context = CredentialContext {
-            provider: crate::assemble::provider_view(&provider.entity),
+            provider: provider.view(),
             credential: CredentialView {
                 id: credential_id,
                 provider_id: &credential.provider_id,

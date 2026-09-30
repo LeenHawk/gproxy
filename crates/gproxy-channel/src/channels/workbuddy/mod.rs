@@ -35,8 +35,8 @@
 //! and v4's host owns; the `endpoints` map, which v4 expresses as the host's
 //! per-operation `endpoint_override`; the multipart image rebuild, for the
 //! reason `images` gives; and the `ChannelTrafficPolicy`, which has no v4
-//! counterpart — v4 forwards every client header that is not dropped, and a
-//! provider that wants v3's "forward nothing" writes `allowed_headers: []`.
+//! counterpart. Request headers use the union of global, provider and channel
+//! allow-lists; omitted lists add no entries.
 
 mod auth;
 mod config;
