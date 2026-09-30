@@ -30,4 +30,3 @@ export function ConsoleContextProvider({ context, children }: { context: Session
     {switching ? <LoadingRows /> : <QueryClientProvider client={scopedClient}><div key={`${context.user.id}:${selector}`}>{children}</div></QueryClientProvider>}
   </ConsoleContextStore.Provider>
 }
-

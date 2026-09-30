@@ -66,4 +66,3 @@ export function useScrollReset(route: string) {
 export function useNavigate() {
   return useCallback((route: string, options?: { replace?: boolean }) => navigate(route, options), [])
 }
-
