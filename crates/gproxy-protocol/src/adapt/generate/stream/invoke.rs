@@ -271,7 +271,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
             response.body,
             self.settings.source_framing,
             read_limits,
-            self.settings.events.max_events,
         ));
         if let Some(value) = response.headers.get(http::header::CONTENT_TYPE) {
             let valid = value

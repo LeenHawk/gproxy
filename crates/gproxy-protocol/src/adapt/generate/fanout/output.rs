@@ -71,7 +71,6 @@ pub(super) fn normalize<N: IdentityFacts, C: Client>(
     client: &mut C,
     identities: &GenerationIdentity,
     seen: &mut BTreeSet<String>,
-    max: usize,
 ) -> Result<(), TransformError> {
     let originals = native.tools();
     let emitted = client.tools();
@@ -98,9 +97,6 @@ pub(super) fn normalize<N: IdentityFacts, C: Client>(
     let mut index = 0u64;
     let mut calls = Vec::new();
     for original in originals {
-        if seen.len() >= max {
-            return Err(limit());
-        }
         // A candidate repeating an ID an earlier one already emitted gets
         // the counted alias for it, which still names the upstream ID.
         let avoid = seen.clone();

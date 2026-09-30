@@ -219,7 +219,6 @@ fn limits() -> VideoLimits {
             max_part_bytes: 64 * 1024,
             max_parts: 8,
         },
-        max_resource_facts: 8,
     }
 }
 fn template(path: &str) -> WireRequest<()> {

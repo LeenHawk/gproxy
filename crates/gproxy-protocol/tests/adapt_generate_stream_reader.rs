@@ -45,7 +45,7 @@ fn each_framing_yields_before_transport_eof_and_cancellation_retains_state() {
     ] {
         let body = futures_util::stream::once(async move { Ok(Bytes::from(first)) })
             .chain(futures_util::stream::pending());
-        let mut reader = NativeReader::new(HttpBody::Stream(Box::pin(body)), framing, limits(), 16);
+        let mut reader = NativeReader::new(HttpBody::Stream(Box::pin(body)), framing, limits());
         assert!(content(ready(reader.next::<Gemini>()).unwrap().unwrap()).contains("early"));
         for _ in 0..2 {
             let mut waiting = Box::pin(reader.next::<Gemini>());
@@ -71,7 +71,6 @@ fn utf8_chunking_rest_isolation_done_and_clean_eof() {
         HttpBody::Stream(Box::pin(futures_util::stream::iter(chunks))),
         SourceFraming::Sse,
         limits(),
-        3,
     );
     let event = ready(reader.next::<Gemini>()).unwrap().unwrap();
     if let NativeFrame::Event { name, value } = event {
@@ -89,30 +88,21 @@ fn utf8_chunking_rest_isolation_done_and_clean_eof() {
     assert!(ready(reader.next::<Gemini>()).unwrap().is_none());
 }
 #[test]
-fn body_event_and_eof_failures_poison_reader() {
-    for (framing, body, max, kind) in [
+fn body_and_eof_failures_poison_reader() {
+    for (framing, body, kind) in [
         (
             SourceFraming::Sse,
             "data: {}\n",
-            9,
             CodecErrorKind::UnexpectedEof,
         ),
         (
             SourceFraming::JsonArray,
             "[{}",
-            9,
             CodecErrorKind::UnexpectedEof,
         ),
-        (SourceFraming::Sse, "data: {}\n\n", 0, CodecErrorKind::Limit),
-        (
-            SourceFraming::Sse,
-            "data: {bad}\n\n",
-            9,
-            CodecErrorKind::Json,
-        ),
+        (SourceFraming::Sse, "data: {bad}\n\n", CodecErrorKind::Json),
     ] {
-        let mut reader =
-            NativeReader::new(HttpBody::Bytes(Bytes::from(body)), framing, limits(), max);
+        let mut reader = NativeReader::new(HttpBody::Bytes(Bytes::from(body)), framing, limits());
         let error = loop {
             match ready(reader.next::<Gemini>()) {
                 Ok(Some(_)) => {}
@@ -132,7 +122,6 @@ fn body_event_and_eof_failures_poison_reader() {
         HttpBody::Bytes(Bytes::from_static(b"[]")),
         SourceFraming::JsonArray,
         cap,
-        9,
     );
     assert_eq!(
         ready(reader.next::<Gemini>()).unwrap_err().kind(),
@@ -151,8 +140,7 @@ fn array_and_ndjson_multiple_values_preserve_order() {
             "{\"responseId\":\"a\"}\n{\"responseId\":\"b\"}",
         ),
     ] {
-        let mut reader =
-            NativeReader::new(HttpBody::Bytes(Bytes::from(body)), framing, limits(), 9);
+        let mut reader = NativeReader::new(HttpBody::Bytes(Bytes::from(body)), framing, limits());
         for id in ["a", "b"] {
             let value = ready(reader.next::<Gemini>()).unwrap().unwrap();
             assert!(content(value).contains(&format!("\"responseId\":\"{id}\"")));
@@ -167,7 +155,6 @@ fn complete_array_prefix_is_yielded_before_malformed_later_value_in_same_chunk()
         HttpBody::Bytes(Bytes::from_static(b"[{\"responseId\":\"first\"},,]")),
         SourceFraming::JsonArray,
         limits(),
-        8,
     );
     let first = ready(reader.next::<Gemini>())
         .expect("later malformed value must not swallow completed prefix")
@@ -197,7 +184,6 @@ fn ready_empty_transport_chunks_yield_cooperatively_instead_of_spinning() {
         HttpBody::Stream(Box::pin(source)),
         SourceFraming::Sse,
         limits(),
-        8,
     );
     let mut future = Box::pin(reader.next::<Gemini>());
     assert!(
@@ -240,8 +226,7 @@ fn cancelled_partial_utf8_read_resumes_exact_payload_in_all_framings() {
                 Poll::Pending
             }
         });
-        let mut reader =
-            NativeReader::new(HttpBody::Stream(Box::pin(source)), framing, limits(), 8);
+        let mut reader = NativeReader::new(HttpBody::Stream(Box::pin(source)), framing, limits());
         {
             let mut next = Box::pin(reader.next::<Gemini>());
             assert!(
@@ -287,7 +272,6 @@ fn transport_error_releases_stream_and_cannot_poll_it_again() {
         HttpBody::Stream(Box::pin(FailedStream(dropped.clone()))),
         SourceFraming::Sse,
         limits(),
-        8,
     );
     assert_eq!(
         ready(reader.next::<Gemini>()).unwrap_err().kind(),

@@ -46,8 +46,7 @@ pub struct ResponsesToClaudeStream {
     pub(super) held_bytes: usize,
     pub(super) items: BTreeMap<i64, Item>,
     pub(super) cursor: i64,
-    pub(super) parts: usize,
-    pub(super) tools: usize,
+
     next_block: usize,
     pub(super) report: Report,
 }
@@ -82,17 +81,14 @@ impl ResponsesToClaudeStream {
         measure(&context.usage, limits.max_bytes)?;
         Ok(Self {
             source: Some(ResponsesStreamCollector::new(ResponsesStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_items: limits.max_items,
+
                 max_text_bytes: limits.max_bytes,
                 max_json_bytes: limits.max_bytes,
             })),
             target: Some(ClaudeStreamCollector::new(ClaudeStreamLimits {
-                max_events: limits.max_events,
                 max_text_bytes: limits.max_bytes,
                 max_json_bytes: limits.max_bytes,
-                max_blocks: limits.max_blocks,
             })),
             flow,
             policy,
@@ -111,8 +107,7 @@ impl ResponsesToClaudeStream {
             held_bytes: 0,
             items: BTreeMap::new(),
             cursor: 0,
-            parts: 0,
-            tools: 0,
+
             next_block: 0,
             report: Default::default(),
         })
@@ -215,12 +210,7 @@ impl ResponsesToClaudeStream {
                 self.terminal = true;
                 self.start(&mut out)?;
             }
-            s::StreamEvent::ReasoningSummaryPartAdded(_) => {
-                if self.parts >= self.limits.max_parts {
-                    return Err(limit());
-                }
-                self.parts += 1;
-            }
+            s::StreamEvent::ReasoningSummaryPartAdded(_) => {}
             s::StreamEvent::OutputTextDone(_)
             | s::StreamEvent::RefusalDone(_)
             | s::StreamEvent::OutputTextAnnotationAdded(_)
@@ -331,9 +321,6 @@ impl ResponsesToClaudeStream {
         Ok(())
     }
     pub(super) fn allocate_block(&mut self) -> Result<i64, TransformError> {
-        if self.next_block >= self.limits.max_blocks {
-            return Err(limit());
-        }
         let index = i64::try_from(self.next_block).map_err(|_| limit())?;
         self.next_block += 1;
         Ok(index)

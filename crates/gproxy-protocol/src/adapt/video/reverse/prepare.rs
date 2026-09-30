@@ -28,25 +28,8 @@ pub(super) fn split(
         .len()
         .checked_mul(samples)
         .ok_or_else(|| limit("video.fanout"))?;
-    if count == 0 || count > limits.max_resource_facts {
+    if count == 0 {
         return Err(limit("video.fanout"));
-    }
-    let mut resource_count = 0usize;
-    for instance in &input.instances {
-        let count = usize::from(instance.image.is_some())
-            + usize::from(instance.last_frame.is_some())
-            + usize::from(instance.video.is_some())
-            + instance.reference_images.as_ref().map_or(0, Vec::len);
-        resource_count = resource_count
-            .checked_add(
-                count
-                    .checked_mul(samples)
-                    .ok_or_else(|| limit("video.input_resources"))?,
-            )
-            .ok_or_else(|| limit("video.input_resources"))?;
-    }
-    if resource_count > limits.max_resource_facts {
-        return Err(limit("video.input_resources"));
     }
     let mut children = Vec::with_capacity(count);
     for (instance_index, instance) in input.instances.iter().enumerate() {
@@ -193,9 +176,7 @@ pub(super) async fn prepare<R: ResourceAccess>(
             }
         }
     }
-    if media.len() > limits.max_resource_facts {
-        return Err(limit("video.input"));
-    }
+
     let mut facts = BTreeMap::new();
     for (ordinal, (key, encoded, mime, image)) in media.into_iter().enumerate() {
         if facts.contains_key(&key) {

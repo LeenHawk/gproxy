@@ -32,7 +32,6 @@ pub struct ClaudeToChatStream {
     policy: TargetIdPolicy,
     flow: IdentityFlow,
     budget: Budget,
-    limits: StreamLimits,
     context: ClaudeToChatContext,
     blocks: BTreeMap<i64, Block>,
     text_order: std::collections::VecDeque<i64>,
@@ -83,22 +82,16 @@ impl ClaudeToChatStream {
                 IdentityFlow::new(flow.namespace()),
                 collector_policy,
                 ChatStreamLimits {
-                    max_events: limits.max_events,
                     max_bytes: limits.max_bytes,
-                    max_choices: 1,
-                    max_tool_calls: limits.max_tools,
                 },
             )),
             source: Some(ClaudeStreamCollector::new(ClaudeStreamLimits {
-                max_events: limits.max_events,
                 max_json_bytes: limits.max_bytes,
                 max_text_bytes: limits.max_bytes,
-                max_blocks: limits.max_blocks,
             })),
             policy,
             flow,
             budget: Budget::new(limits),
-            limits,
             context,
             blocks: BTreeMap::new(),
             text_order: Default::default(),
@@ -114,9 +107,8 @@ impl ClaudeToChatStream {
         &mut self,
         role: crate::transform::identity::IdentityRole,
         ids: &std::collections::BTreeSet<String>,
-        max: usize,
     ) -> Result<(), TransformError> {
-        self.flow.reserve_external_ids(role, ids, max).map_err(|e| {
+        self.flow.reserve_external_ids(role, ids).map_err(|e| {
             TransformError::new(
                 crate::transform::TransformErrorKind::Conflict,
                 "fanout.ids",
@@ -167,93 +159,84 @@ impl ClaudeToChatStream {
                     q::Delta::builder().role(q::DeltaRole::Assistant).build(),
                 )?;
             }
-            s::StreamEvent::ContentBlockStart(v) => {
-                if self.blocks.len() >= self.limits.max_blocks {
-                    return Err(limit());
+            s::StreamEvent::ContentBlockStart(v) => match v.content_block {
+                c::ResponseContentBlock::Text(text) => {
+                    self.blocks.insert(
+                        v.index,
+                        Block::Text {
+                            pending: Some(text.text),
+                            closed: false,
+                        },
+                    );
+                    self.text_order.push_back(v.index);
+                    self.flush_text(&mut out)?;
+                    if text.citations.is_some() {
+                        self.report.omitted(
+                            "content.citations",
+                            "Chat deltas have no typed citation field",
+                        );
+                    }
                 }
-                match v.content_block {
-                    c::ResponseContentBlock::Text(text) => {
-                        self.blocks.insert(
-                            v.index,
-                            Block::Text {
-                                pending: Some(text.text),
-                                closed: false,
-                            },
-                        );
-                        self.text_order.push_back(v.index);
-                        self.flush_text(&mut out)?;
-                        if text.citations.is_some() {
-                            self.report.omitted(
-                                "content.citations",
-                                "Chat deltas have no typed citation field",
-                            );
-                        }
+                c::ResponseContentBlock::ToolUse(tool)
+                    if tool.toolset_name.as_ref().is_none_or(Option::is_none) =>
+                {
+                    if tool.name.is_empty() {
+                        return Err(TransformError::missing_metadata("tool.name"));
                     }
-                    c::ResponseContentBlock::ToolUse(tool)
-                        if tool.toolset_name.as_ref().is_none_or(Option::is_none) =>
-                    {
-                        if self.next_tool >= self.limits.max_tools {
-                            return Err(limit());
-                        }
-                        if tool.name.is_empty() {
-                            return Err(TransformError::missing_metadata("tool.name"));
-                        }
-                        let index = i64::try_from(self.next_tool).map_err(|_| limit())?;
-                        self.next_tool += 1;
-                        let call_id = id(
-                            &mut self.flow,
-                            &self.policy,
-                            IdentityRole::ToolCall,
-                            crate::Dialect::Claude,
-                            Some(tool.id),
-                            index as u64,
-                        )?;
-                        let has_arguments = !tool.input.is_empty();
-                        let mut function = q::DeltaFunctionCall::builder().name(tool.name).build();
-                        if has_arguments {
-                            function.arguments = Some(Some(serde_json::to_string(&tool.input)?));
-                        }
-                        let mut call = q::DeltaToolCall::builder(index).build();
-                        call.id = Some(Some(call_id));
-                        call.type_ = Some(Some(q::DeltaToolCallType::Function));
-                        call.function = Some(Some(function));
-                        self.blocks.insert(
-                            v.index,
-                            Block::Tool {
-                                index,
-                                has_arguments,
-                            },
-                        );
-                        let mut delta = q::Delta::builder().build();
-                        delta.tool_calls = Some(Some(vec![call]));
-                        self.emit(&mut out, delta)?;
-                        if tool.caller.is_some() {
-                            self.report
-                                .omitted("tool.caller", "Chat stream has no Claude caller field");
-                        }
+                    let index = i64::try_from(self.next_tool).map_err(|_| limit())?;
+                    self.next_tool += 1;
+                    let call_id = id(
+                        &mut self.flow,
+                        &self.policy,
+                        IdentityRole::ToolCall,
+                        crate::Dialect::Claude,
+                        Some(tool.id),
+                        index as u64,
+                    )?;
+                    let has_arguments = !tool.input.is_empty();
+                    let mut function = q::DeltaFunctionCall::builder().name(tool.name).build();
+                    if has_arguments {
+                        function.arguments = Some(Some(serde_json::to_string(&tool.input)?));
                     }
-                    c::ResponseContentBlock::Thinking(block) => {
-                        self.blocks.insert(v.index, Block::Reasoning(block.clone()));
-                        if !block.thinking.is_empty() {
-                            let mut delta = q::Delta::builder().build();
-                            delta.reasoning_content = Some(Some(block.thinking));
-                            self.emit(&mut out, delta)?;
-                        }
-                    }
-                    c::ResponseContentBlock::RedactedThinking(block) => {
-                        self.blocks.insert(v.index, Block::Omitted);
-                        let mut delta = q::Delta::builder().build();
-                        delta.reasoning_details =
-                            Some(Some(vec![rd::from_redacted(&block, v.index)]));
-                        self.emit(&mut out, delta)?;
-                    }
-                    _ => {
-                        self.blocks.insert(v.index, Block::Omitted);
+                    let mut call = q::DeltaToolCall::builder(index).build();
+                    call.id = Some(Some(call_id));
+                    call.type_ = Some(Some(q::DeltaToolCallType::Function));
+                    call.function = Some(Some(function));
+                    self.blocks.insert(
+                        v.index,
+                        Block::Tool {
+                            index,
+                            has_arguments,
+                        },
+                    );
+                    let mut delta = q::Delta::builder().build();
+                    delta.tool_calls = Some(Some(vec![call]));
+                    self.emit(&mut out, delta)?;
+                    if tool.caller.is_some() {
                         self.report
-                            .omitted("content_block", "block has no target representation");
+                            .omitted("tool.caller", "Chat stream has no Claude caller field");
                     }
                 }
-            }
+                c::ResponseContentBlock::Thinking(block) => {
+                    self.blocks.insert(v.index, Block::Reasoning(block.clone()));
+                    if !block.thinking.is_empty() {
+                        let mut delta = q::Delta::builder().build();
+                        delta.reasoning_content = Some(Some(block.thinking));
+                        self.emit(&mut out, delta)?;
+                    }
+                }
+                c::ResponseContentBlock::RedactedThinking(block) => {
+                    self.blocks.insert(v.index, Block::Omitted);
+                    let mut delta = q::Delta::builder().build();
+                    delta.reasoning_details = Some(Some(vec![rd::from_redacted(&block, v.index)]));
+                    self.emit(&mut out, delta)?;
+                }
+                _ => {
+                    self.blocks.insert(v.index, Block::Omitted);
+                    self.report
+                        .omitted("content_block", "block has no target representation");
+                }
+            },
             s::StreamEvent::ContentBlockDelta(v) => {
                 let index = v.index;
                 if matches!(self.blocks.get(&index), Some(Block::Omitted)) {

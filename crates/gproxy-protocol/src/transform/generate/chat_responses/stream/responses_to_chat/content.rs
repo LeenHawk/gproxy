@@ -7,9 +7,6 @@ impl ResponsesToChatStream {
         item: r::ResponseOutputItem,
         out: &mut Vec<cs::ChatCompletionChunk>,
     ) -> Result<(), TransformError> {
-        if self.items.len() >= self.limits.max_items {
-            return Err(crate::transform::generate::chat_responses::stream::common::limit());
-        }
         if crate::transform::generate::multi_agent::omit_output(&item, &mut self.report) {
             self.items.insert(
                 index,
@@ -66,11 +63,7 @@ impl ResponsesToChatStream {
                         "server-owned/namespaced function requires an invocation adapter",
                     ));
                 }
-                if self.tools >= self.limits.max_tool_calls {
-                    return Err(
-                        crate::transform::generate::chat_responses::stream::common::limit(),
-                    );
-                }
+
                 let tool_index = self.tools as i64;
                 self.tools += 1;
                 if v.call_id.is_empty() || v.name.is_empty() {

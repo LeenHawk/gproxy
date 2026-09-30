@@ -172,11 +172,7 @@ pub(super) async fn load<S: StateStore>(
     }
     let mut state: ReverseVideoState = crate::codec::decode_json(&entry.payload, limits.codec)
         .map_err(|e| TransformError::invalid_result("video.state", e.to_string()))?;
-    if state.schema != 1
-        || &state.binding != binding
-        || state.children.is_empty()
-        || state.children.len() > limits.max_resource_facts
-    {
+    if state.schema != 1 || &state.binding != binding || state.children.is_empty() {
         return Err(TransformError::shape(
             "video.state.binding",
             "invalid schema, binding or child count",

@@ -823,50 +823,7 @@ fn early_service_tier_is_preserved_and_late_tier_is_reported_without_fabricating
         }
     }
 }
-#[test]
-fn terminal_and_seeded_output_events_are_charged_against_aggregate_event_limits() {
-    let limits = StreamLimits {
-        max_events: 5,
-        ..Default::default()
-    };
-    let mut stream = ClaudeToResponsesStream::new(context(), flow(), limits).unwrap();
-    for event in cevents(vec![json!({"type":"text","text":"x"})], "end_turn") {
-        stream.push(event).unwrap();
-    }
-    assert_eq!(
-        stream.finish().unwrap_err().kind(),
-        TransformErrorKind::Limit
-    );
-    let body = response(
-        json!([message("m", json!([text("x")]), "completed")]),
-        "completed",
-        None,
-    );
-    let native = r_events(body.clone());
-    let mut created = native[0].clone();
-    let rs::StreamEvent::Created(v) = &mut created else {
-        unreachable!()
-    };
-    v.response.output =
-        vec![serde_json::from_value(message("m", json!([text("x")]), "in_progress")).unwrap()];
-    let mut events = vec![
-        created,
-        re(
-            json!({"type":"response.output_item.done","sequence_number":1,"output_index":0,"item":message("m",json!([text("x")]),"completed")}),
-        ),
-        native.last().unwrap().clone(),
-    ];
-    renumber(&mut events);
-    collect_r(events.clone());
-    let mut stream = ResponsesToClaudeStream::new(rc(), flow(), limits).unwrap();
-    for event in events {
-        stream.push(event).unwrap();
-    }
-    assert_eq!(
-        stream.finish().unwrap_err().kind(),
-        TransformErrorKind::Limit
-    );
-}
+
 #[test]
 fn fixed_input_conflicts_source_failures_and_premature_eof_cannot_finish() {
     let body = response(

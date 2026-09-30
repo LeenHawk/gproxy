@@ -41,8 +41,7 @@ pub struct ResponsesWsLimits {
     /// Per-turn totals include all data and control frame payloads.
     pub max_receive_bytes: usize,
     pub max_send_bytes: usize,
-    pub max_receive_frames: usize,
-    pub max_send_frames: usize,
+
     /// Native Responses uses text messages. Binary JSON is an explicit opt-in.
     pub allow_binary: bool,
     pub collector: ResponsesStreamLimits,
@@ -55,8 +54,7 @@ impl Default for ResponsesWsLimits {
             max_event_bytes: 1024 * 1024,
             max_receive_bytes: 16 * 1024 * 1024,
             max_send_bytes: 16 * 1024 * 1024,
-            max_receive_frames: 100_000,
-            max_send_frames: 100_000,
+
             allow_binary: false,
             collector: ResponsesStreamLimits::default(),
         }
@@ -71,8 +69,7 @@ pub(super) struct Bounds {
     receive_event: usize,
     send_bytes: usize,
     receive_bytes: usize,
-    send_frames: usize,
-    receive_frames: usize,
+
     allow_binary: bool,
     collector: ResponsesStreamLimits,
 }

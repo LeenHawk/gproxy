@@ -67,8 +67,6 @@ impl Events {
     }
     fn collector(limits: CodecLimits) -> ClaudeStreamCollector {
         ClaudeStreamCollector::new(ClaudeStreamLimits {
-            max_events: 100_000,
-            max_blocks: 10_000,
             max_text_bytes: limits.max_body_bytes.min(usize::MAX as u64) as usize,
             max_json_bytes: limits.max_body_bytes.min(usize::MAX as u64) as usize,
         })

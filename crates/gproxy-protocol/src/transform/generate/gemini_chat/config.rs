@@ -77,7 +77,7 @@ pub(super) fn to_chat(
         let typed = config
             .response_schema
             .as_ref()
-            .map(|schema| super::super::gemini_schema::to_json(schema, Default::default()))
+            .map(super::super::gemini_schema::to_json)
             .map(crate::transform::optional)
             .transpose()?
             .flatten();

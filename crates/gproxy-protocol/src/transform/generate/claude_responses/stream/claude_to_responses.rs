@@ -38,8 +38,7 @@ pub struct ClaudeToResponsesStream {
     pub(super) limits: StreamLimits,
     pub(super) blocks: BTreeMap<i64, Block>,
     pub(super) output_items: usize,
-    pub(super) parts: usize,
-    pub(super) tool_count: usize,
+
     pub(super) argument_bytes: usize,
     pub(super) client_tools: crate::transform::generate::client_tools::Bindings,
     pub(super) deferred_block: Option<i64>,
@@ -87,10 +86,8 @@ impl ClaudeToResponsesStream {
         )?;
         Ok(Self {
             source: Some(ClaudeStreamCollector::new(ClaudeStreamLimits {
-                max_events: limits.max_events,
                 max_text_bytes: limits.max_bytes,
                 max_json_bytes: limits.max_bytes,
-                max_blocks: limits.max_blocks,
             })),
             context,
             events: ResponseEvents::new(limits),
@@ -100,8 +97,7 @@ impl ClaudeToResponsesStream {
             limits,
             blocks: BTreeMap::new(),
             output_items: 0,
-            parts: 0,
-            tool_count: 0,
+
             argument_bytes: 0,
             client_tools,
             deferred_block: None,

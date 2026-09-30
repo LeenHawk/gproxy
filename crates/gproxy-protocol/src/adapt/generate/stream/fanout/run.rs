@@ -76,18 +76,17 @@ where
         while self.index < self.children.len() {
             if !self.seeded {
                 let reserved: BTreeSet<String> = self.seen.keys().cloned().collect();
-                let reserved_budget = state.max_records;
                 let child = &mut self.children[self.index];
                 child
                     .bridge
                     .as_mut()
                     .ok_or_else(|| invalid("child bridge consumed"))?
-                    .reserve(IdentityRole::ToolCall, &reserved, reserved_budget)?;
-                child.bridge.as_mut().unwrap().reserve(
-                    IdentityRole::Response,
-                    &self.response_ids,
-                    reserved_budget,
-                )?;
+                    .reserve(IdentityRole::ToolCall, &reserved)?;
+                child
+                    .bridge
+                    .as_mut()
+                    .unwrap()
+                    .reserve(IdentityRole::Response, &self.response_ids)?;
                 child.flow = child.bridge.as_ref().unwrap().identities().clone();
                 self.seeded = true;
             }
@@ -126,9 +125,7 @@ where
                         self.report.diagnostics.push(diagnostic.clone());
                     }
                 }
-                if self.report.diagnostics.len() > self.settings.events.max_events {
-                    return Err(limit("fanout diagnostics exceeded"));
-                }
+
                 self.response_ids.extend(
                     child
                         .flow
@@ -174,15 +171,7 @@ where
                 }
                 self.seen.insert(id, self.index);
             }
-            if self
-                .seen
-                .len()
-                .checked_add(self.children.len())
-                .and_then(|n| n.checked_add(1))
-                .is_none_or(|count| count > state.max_records)
-            {
-                return Err(limit("fanout tool identity budget exceeded"));
-            }
+
             event.project(self.index, &self.id, &mut self.created)?;
             if !event.visible() {
                 continue;

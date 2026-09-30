@@ -19,9 +19,6 @@ impl ClaudeToResponsesStream {
         event: cs::ContentBlockStartEvent,
         out: &mut Vec<s::StreamEvent>,
     ) -> Result<(), TransformError> {
-        if self.blocks.len() >= self.limits.max_blocks {
-            return Err(limit());
-        }
         let index = event.index;
         let mut deferred = false;
         let source_index = u64::try_from(index).map_err(|_| invalid("negative block index"))?;
@@ -170,9 +167,6 @@ impl ClaudeToResponsesStream {
                 .flatten();
         }
         let output_index = if let Some(value) = &mut item {
-            if self.output_items >= self.limits.max_items {
-                return Err(limit());
-            }
             let n = i64::try_from(self.output_items).map_err(|_| limit())?;
             self.output_items += 1;
             if !deferred {
@@ -190,10 +184,6 @@ impl ClaudeToResponsesStream {
                 value,
                 r::ResponseOutputItem::Message(_) | r::ResponseOutputItem::Reasoning(_)
             ) {
-                if self.parts >= self.limits.max_parts {
-                    return Err(limit());
-                }
-                self.parts += 1;
                 self.events.part_added(
                     &mut self.budget,
                     out,
@@ -322,10 +312,6 @@ impl ClaudeToResponsesStream {
         Ok(())
     }
     fn count_tool(&mut self) -> Result<(), TransformError> {
-        if self.tool_count >= self.limits.max_tools {
-            return Err(limit());
-        }
-        self.tool_count += 1;
         Ok(())
     }
 }

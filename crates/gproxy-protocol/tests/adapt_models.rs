@@ -90,8 +90,7 @@ fn limits() -> ModelListLimits {
             max_part_bytes: 100_000,
             max_parts: 8,
         },
-        max_calls: 8,
-        max_models: 32,
+
         max_declared_bytes: 100_000,
     }
 }
@@ -262,27 +261,7 @@ fn catalogues_accept_omitted_fallbacks_and_model_version() {
 }
 
 #[test]
-fn paging_limits_and_cycles_fail_without_partial_success() {
-    let host = pages(vec![
-        json!({"models":[gm("models/a")],"nextPageToken":"next"}),
-    ]);
-    let mut bound = limits();
-    bound.max_calls = 1;
-    let err = ready(collect_gemini(
-        &host,
-        &(),
-        request(),
-        g::ListModelsQuery::builder().build(),
-        bound,
-    ))
-    .unwrap_err();
-    assert_eq!(err.completed_calls, 1);
-    assert_eq!(err.completed_models, 1);
-    let ModelListFailure::Transform(error) = err.failure else {
-        panic!()
-    };
-    assert_eq!(error.kind(), TransformErrorKind::Limit);
-    assert_eq!(host.sent.lock().unwrap().len(), 1);
+fn paging_cycles_fail_without_partial_success() {
     let host = pages(vec![
         json!({"nextPageToken":"cycle"}),
         json!({"nextPageToken":"cycle"}),
@@ -326,11 +305,10 @@ fn initial_cursor_is_not_mistaken_for_a_complete_directory_and_limits_bound_rete
         .is_err()
     );
     assert!(host.sent.lock().unwrap().is_empty());
-    for (models, bytes) in [(0, 100_000), (32, 1)] {
+    {
         let host = pages(vec![json!({"models":[gm("models/a")]})]);
         let mut bound = limits();
-        bound.max_models = models;
-        bound.max_declared_bytes = bytes;
+        bound.max_declared_bytes = 1;
         let err = ready(collect_gemini(
             &host,
             &(),

@@ -21,14 +21,7 @@ struct Progress {
 impl Progress {
     fn new(request: &WireRequest<()>, limits: ModelListLimits) -> Result<Self, ModelListError> {
         query::template(request)?;
-        if limits.max_calls == 0 {
-            return Err(TransformError::new(
-                TransformErrorKind::Limit,
-                "pagination.max_calls",
-                "at least one call is required",
-            )
-            .into());
-        }
+
         Ok(Self {
             calls: 0,
             models: 0,
@@ -57,13 +50,6 @@ impl Progress {
         target: &U::Target,
         request: WireRequest<()>,
     ) -> Result<O, ModelListError> {
-        if self.calls >= self.limits.max_calls {
-            return Err(self.error(TransformError::new(
-                TransformErrorKind::Limit,
-                "pagination.max_calls",
-                "directory has more pages than allowed",
-            )));
-        }
         let result = invoke_empty(upstream, target, request, self.limits.codec)
             .await
             .map_err(|e| self.error(e))?;
@@ -102,13 +88,7 @@ impl Progress {
         if id.is_empty() || !self.ids.insert(id.to_owned()) {
             return Err(self.invalid("models.id", "empty or repeated model identity across pages"));
         }
-        if self.models >= self.limits.max_models {
-            return Err(self.error(TransformError::new(
-                TransformErrorKind::Limit,
-                "pagination.max_models",
-                "directory exceeds model count limit",
-            )));
-        }
+
         self.models += 1;
         Ok(())
     }

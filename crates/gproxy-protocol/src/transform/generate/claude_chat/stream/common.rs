@@ -2,19 +2,13 @@ use super::*;
 
 #[derive(Debug, Clone, Copy)]
 pub struct StreamLimits {
-    pub max_events: usize,
     pub max_bytes: usize,
-    pub max_blocks: usize,
-    pub max_tools: usize,
 }
 
 impl Default for StreamLimits {
     fn default() -> Self {
         Self {
-            max_events: 100_000,
             max_bytes: 16 * 1024 * 1024,
-            max_blocks: 4096,
-            max_tools: 4096,
         }
     }
 }
@@ -27,9 +21,9 @@ pub struct StreamEnd<T> {
 
 pub(super) struct Budget {
     limits: StreamLimits,
-    input_events: usize,
+
     input_bytes: usize,
-    output_events: usize,
+
     output_bytes: usize,
 }
 
@@ -37,17 +31,13 @@ impl Budget {
     pub fn new(limits: StreamLimits) -> Self {
         Self {
             limits,
-            input_events: 0,
+
             input_bytes: 0,
-            output_events: 0,
+
             output_bytes: 0,
         }
     }
     pub fn input<T: serde::Serialize>(&mut self, v: &T) -> Result<(), TransformError> {
-        if self.input_events >= self.limits.max_events {
-            return Err(limit());
-        }
-        self.input_events += 1;
         self.input_bytes += bounded(v, self.limits.max_bytes.saturating_sub(self.input_bytes))?;
         Ok(())
     }
@@ -56,10 +46,6 @@ impl Budget {
         out: &mut Vec<T>,
         v: T,
     ) -> Result<(), TransformError> {
-        if self.output_events >= self.limits.max_events {
-            return Err(limit());
-        }
-        self.output_events += 1;
         self.output_bytes += bounded(&v, self.limits.max_bytes.saturating_sub(self.output_bytes))?;
         out.push(v);
         Ok(())

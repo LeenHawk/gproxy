@@ -14,9 +14,8 @@ impl NativeEvent for s::StreamEvent {
     const DIALECT: Dialect = Dialect::OpenAi;
     fn collector(_: IdentityFlow, _: TargetIdPolicy, limits: EventLimits) -> Self::Collector {
         ResponsesStreamCollector::new(ResponsesStreamLimits {
-            max_events: limits.max_events,
             max_bytes: limits.max_bytes,
-            max_items: limits.max_items,
+
             max_text_bytes: limits.max_bytes,
             max_json_bytes: limits.max_bytes,
         })

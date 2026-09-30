@@ -30,17 +30,12 @@ use http::{HeaderMap, Method};
 use serde::{Serialize, de::DeserializeOwned};
 use std::collections::BTreeMap;
 
-/// Pages fetched for one directory listing.
-const MAX_LIST_CALLS: usize = 16;
-/// Models retained across the pages of one listing.
-const MAX_LIST_MODELS: usize = 4096;
-
 fn list_limits(codec: CodecLimits) -> ModelListLimits {
     ModelListLimits {
         codec,
-        max_calls: MAX_LIST_CALLS,
-        max_models: MAX_LIST_MODELS,
-        max_declared_bytes: codec.max_body_bytes.saturating_mul(MAX_LIST_CALLS as u64),
+
+        // Preserve the aggregate byte budget independently of page count.
+        max_declared_bytes: codec.max_body_bytes.saturating_mul(16),
     }
 }
 

@@ -46,9 +46,6 @@ pub(super) struct ChoiceAccum {
 }
 
 impl ChoiceAccum {
-    pub(super) fn tool_count(&self) -> usize {
-        self.tools.len() + usize::from(self.legacy.is_some())
-    }
     pub(super) fn is_finished(&self) -> bool {
         self.finish.is_some()
     }

@@ -53,7 +53,7 @@ pub struct GeminiToClaudeStream {
     text_block: Option<i64>,
     /// The open thinking block, closed by its run's signature part.
     thinking_block: Option<i64>,
-    tools: usize,
+
     calls: super::super::history::Calls,
 }
 
@@ -97,16 +97,11 @@ impl GeminiToClaudeStream {
         )?;
         Ok(Self {
             source: Some(GeminiStreamCollector::new(GeminiStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_candidates: 1,
-                max_parts: limits.max_parts,
             })),
             target: Some(ClaudeStreamCollector::new(ClaudeStreamLimits {
-                max_events: limits.max_events,
                 max_text_bytes: limits.max_bytes,
                 max_json_bytes: limits.max_bytes,
-                max_blocks: limits.max_blocks,
             })),
             flow,
             policy,
@@ -124,7 +119,7 @@ impl GeminiToClaudeStream {
             next_block: 0,
             text_block: None,
             thinking_block: None,
-            tools: 0,
+
             calls: Default::default(),
         })
     }
@@ -260,9 +255,6 @@ impl GeminiToClaudeStream {
         Ok(())
     }
     fn allocate_block(&mut self) -> Result<i64, TransformError> {
-        if self.next_block >= self.limits.max_blocks {
-            return Err(limit());
-        }
         let index = i64::try_from(self.next_block).map_err(|_| limit())?;
         self.next_block += 1;
         Ok(index)
@@ -310,16 +302,14 @@ impl GeminiToClaudeStream {
         }
         if let Some(call) = part.function_call {
             self.close_text(out)?;
-            if self.tools >= self.limits.max_tools {
-                return Err(limit());
-            }
+
             if let Some(carried) = carried {
                 // The call's own signature travels on an empty thinking block
                 // right before it; see `thinking`.
                 self.open_thinking(out)?;
                 self.end_thinking(carried, out)?;
             }
-            self.tools += 1;
+
             let id = self.calls.call(
                 call.id,
                 &call.name,

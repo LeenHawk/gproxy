@@ -110,7 +110,7 @@ fn bound(limits: ResponsesWsLimits, host: CapabilityLimits) -> Result<Bounds, Tr
     let send_bytes = limits.max_send_bytes.min(host_usize(host.write_bytes));
     let receive_bytes = limits.max_receive_bytes.min(host_usize(host.read_bytes));
     let mut collector = limits.collector;
-    collector.max_events = collector.max_events.min(limits.max_receive_frames);
+
     collector.max_bytes = collector.max_bytes.min(receive_bytes);
     collector.max_text_bytes = collector.max_text_bytes.min(receive_bytes);
     collector.max_json_bytes = collector.max_json_bytes.min(receive_bytes);
@@ -121,16 +121,13 @@ fn bound(limits: ResponsesWsLimits, host: CapabilityLimits) -> Result<Bounds, Tr
         receive_event,
         send_bytes,
         receive_bytes,
-        limits.max_receive_frames,
-        limits.max_send_frames,
-        collector.max_events,
         collector.max_bytes,
     ]
     .contains(&0)
     {
         return Err(limit(
             "responses.websocket.limits",
-            "positive usable frame, byte, and event limits required",
+            "positive usable byte limits required",
         ));
     }
     Ok(Bounds {
@@ -140,8 +137,7 @@ fn bound(limits: ResponsesWsLimits, host: CapabilityLimits) -> Result<Bounds, Tr
         receive_event,
         send_bytes,
         receive_bytes,
-        send_frames: limits.max_send_frames,
-        receive_frames: limits.max_receive_frames,
+
         allow_binary: limits.allow_binary,
         collector,
     })

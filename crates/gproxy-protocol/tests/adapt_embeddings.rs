@@ -12,6 +12,7 @@ use gproxy_protocol::{
     wire::openai::embeddings::CreateEmbeddingRequestBody,
 };
 use serde_json::{Value, json};
+
 use std::{
     future::Future,
     sync::{
@@ -128,7 +129,7 @@ impl Upstream for Host {
             operation_total: Duration::from_secs(30),
             stream_idle: Duration::from_secs(5),
             read_bytes: 4096,
-            write_bytes: self.write_limit.unwrap_or(4096),
+            write_bytes: self.write_limit.unwrap_or(220),
             ws_frame_bytes: 1024,
         }
     }
@@ -147,8 +148,6 @@ fn input() -> CreateEmbeddingRequestBody {
 }
 fn options() -> EmbeddingBatchOptions {
     EmbeddingBatchOptions {
-        max_items_per_call: 2,
-        max_calls: 8,
         codec: CodecLimits {
             max_body_bytes: 4096,
             max_buffer_bytes: 4096,
@@ -206,43 +205,22 @@ fn split_calls_preserve_input_order_global_indexes_model_and_actual_usage() {
 }
 
 #[test]
-fn packing_obeys_host_byte_limit_and_preflights_max_calls() {
+fn packing_obeys_host_byte_limit() {
     let host = Host {
         write_limit: Some(130),
         ..Host::default()
     };
-    let mut limits = options();
-    limits.max_items_per_call = 5;
     let result = ready(openai_to_gemini_batch(
         &host,
         &(),
         template(),
         input(),
         "embedding",
-        limits.clone(),
+        options(),
     ))
     .unwrap();
     assert_eq!(result.completed_calls, 5);
-    let host = Host {
-        write_limit: Some(130),
-        ..Host::default()
-    };
-    limits.max_calls = 4;
-    let error = ready(openai_to_gemini_batch(
-        &host,
-        &(),
-        template(),
-        input(),
-        "embedding",
-        limits,
-    ))
-    .unwrap_err();
-    assert_eq!(error.completed_calls, 0);
-    let EmbeddingFailure::Transform(error) = error.failure else {
-        panic!("limit expected")
-    };
-    assert_eq!(error.kind(), TransformErrorKind::Limit);
-    assert!(host.sent.lock().unwrap().is_empty());
+    assert_eq!(result.output.value.data.len(), 5);
 }
 
 #[test]

@@ -39,7 +39,7 @@ pub struct ChatToClaudeStream {
     next_block: i64,
     tools: BTreeMap<i64, Tool>,
     legacy: Option<Tool>,
-    tool_count: usize,
+
     report: Report,
 }
 
@@ -70,20 +70,15 @@ impl ChatToClaudeStream {
             super::super::usage::to_chat(usage, &mut Report::default())?;
         }
         let native = ClaudeStreamLimits {
-            max_events: limits.max_events,
             max_json_bytes: limits.max_bytes,
             max_text_bytes: limits.max_bytes,
-            max_blocks: limits.max_blocks,
         };
         Ok(Self {
             source: Some(ChatStreamCollector::with_limits(
                 IdentityFlow::new(flow.namespace()),
                 TargetIdPolicy::new(crate::Dialect::OpenAiChat),
                 ChatStreamLimits {
-                    max_events: limits.max_events,
                     max_bytes: limits.max_bytes,
-                    max_choices: 1,
-                    max_tool_calls: limits.max_tools,
                 },
             )),
             target: Some(ClaudeStreamCollector::new(native)),
@@ -106,7 +101,7 @@ impl ChatToClaudeStream {
             next_block: 0,
             tools: BTreeMap::new(),
             legacy: None,
-            tool_count: 0,
+
             report: Default::default(),
         })
     }
@@ -261,22 +256,12 @@ impl ChatToClaudeStream {
                 let tool = match self.tools.entry(call.index) {
                     std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
                     std::collections::btree_map::Entry::Vacant(entry) => {
-                        if self.tool_count >= self.limits.max_tools {
-                            return Err(limit());
-                        }
-                        self.tool_count += 1;
                         entry.insert(Tool::default())
                     }
                 };
                 tool.append(call.id.flatten(), call.function.flatten())?;
             }
             if let Some(function) = delta.function_call.flatten() {
-                if self.legacy.is_none() {
-                    if self.tool_count >= self.limits.max_tools {
-                        return Err(limit());
-                    }
-                    self.tool_count += 1;
-                }
                 self.legacy
                     .get_or_insert_default()
                     .append(None, Some(function))?;
@@ -297,9 +282,6 @@ impl ChatToClaudeStream {
         Ok(index)
     }
     fn allocate_block(&mut self) -> Result<i64, TransformError> {
-        if self.next_block as usize >= self.limits.max_blocks {
-            return Err(limit());
-        }
         let index = self.next_block;
         self.next_block = self.next_block.checked_add(1).ok_or_else(limit)?;
         Ok(index)

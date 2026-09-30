@@ -37,7 +37,7 @@ fn wrong_policy_and_context_bounds_fail_before_output_allocation() {
     );
 }
 #[test]
-fn limits_cover_pending_output_amplification_and_terminal_events() {
+fn pending_payload_limits_poison_both_directions() {
     let mut stream = GeminiToResponsesStream::new(
         gc(),
         flow(),
@@ -54,22 +54,6 @@ fn limits_cover_pending_output_amplification_and_terminal_events() {
         .unwrap_err();
     assert_eq!(error.kind(), TransformErrorKind::Limit);
     assert!(stream.push(gfinish("STOP")).is_err());
-    let mut stream = GeminiToResponsesStream::new(
-        gc(),
-        flow(),
-        StreamLimits {
-            max_events: 2,
-            ..Default::default()
-        },
-    )
-    .unwrap();
-    assert_eq!(
-        stream
-            .push(gpart(json!([{"text":"amplify"}])))
-            .unwrap_err()
-            .kind(),
-        TransformErrorKind::Limit
-    );
     let body = response(
         json!([function("fc", "call", "{\"argument\":\"large value\"}")]),
         "completed",

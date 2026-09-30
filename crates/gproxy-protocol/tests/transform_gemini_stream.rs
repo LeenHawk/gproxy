@@ -25,8 +25,7 @@ fn limits_and_unfinished_stream_are_explicit() {
     )
     .unwrap();
     let mut collector = GeminiStreamCollector::new(GeminiStreamLimits {
-        max_events: 1,
-        ..Default::default()
+        max_bytes: serde_json::to_vec(&chunk).unwrap().len(),
     });
     collector.push(chunk.clone()).unwrap();
     assert!(collector.push(chunk).is_err());
@@ -113,27 +112,7 @@ fn every_candidate_must_finish_and_no_content_after_finish() {
     assert!(collector.finish().is_err());
 }
 #[test]
-fn aggregate_candidate_part_limits_and_decreasing_usage_are_enforced() {
-    let mut collector = GeminiStreamCollector::new(GeminiStreamLimits {
-        max_parts: 1,
-        ..Default::default()
-    });
-    let chunk: GenerateContentResponseBody =
-        serde_json::from_value(json!({"candidates":[{"content":{"parts":[{"text":"one"}]}}]}))
-            .unwrap();
-    collector.push(chunk.clone()).unwrap();
-    assert!(collector.push(chunk).is_err());
-    let mut collector = GeminiStreamCollector::new(GeminiStreamLimits {
-        max_candidates: 1,
-        ..Default::default()
-    });
-    for index in 0..2 {
-        let result = collector.push(
-            serde_json::from_value(json!({"candidates":[{"index":index,"finishReason":"STOP"}]}))
-                .unwrap(),
-        );
-        assert_eq!(result.is_err(), index == 1);
-    }
+fn decreasing_usage_is_rejected() {
     let mut collector = GeminiStreamCollector::new(Default::default());
     collector
         .push(serde_json::from_value(json!({"usageMetadata":{"totalTokenCount":10}})).unwrap())
@@ -162,16 +141,7 @@ fn synthesis_is_native_terminal_chunk_bounded_and_rest_clean() {
         collector.push(chunk).unwrap();
     }
     assert_eq!(collector.finish().unwrap().value, chunks[0]);
-    assert!(
-        synthesize_gemini_stream(
-            input,
-            GeminiStreamLimits {
-                max_bytes: 1,
-                ..Default::default()
-            }
-        )
-        .is_err()
-    );
+    assert!(synthesize_gemini_stream(input, GeminiStreamLimits { max_bytes: 1 }).is_err());
     let blocked =
         serde_json::from_value(json!({"promptFeedback":{"blockReason":"SAFETY"}})).unwrap();
     assert!(synthesize_gemini_stream(blocked, Default::default()).is_ok());
@@ -228,10 +198,7 @@ fn signature_only_parts_stay_distinct_and_partial_metadata_does_not_erase_fields
 
 #[test]
 fn byte_budget_applies_to_encoded_event_and_poison_prevents_partial_finish() {
-    let mut collector = GeminiStreamCollector::new(GeminiStreamLimits {
-        max_bytes: 32,
-        ..Default::default()
-    });
+    let mut collector = GeminiStreamCollector::new(GeminiStreamLimits { max_bytes: 32 });
     let chunk=serde_json::from_value(json!({"candidates":[{"content":{"parts":[{"text":"x".repeat(8192)}]},"finishReason":"STOP"}]})).unwrap();
     assert!(collector.push(chunk).is_err());
     assert!(collector.finish().is_err());

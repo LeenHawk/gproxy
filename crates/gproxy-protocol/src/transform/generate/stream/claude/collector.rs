@@ -13,19 +13,15 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ClaudeStreamLimits {
-    pub max_events: usize,
     pub max_text_bytes: usize,
     pub max_json_bytes: usize,
-    pub max_blocks: usize,
 }
 
 impl Default for ClaudeStreamLimits {
     fn default() -> Self {
         Self {
-            max_events: 100_000,
             max_text_bytes: 16 * 1024 * 1024,
             max_json_bytes: 16 * 1024 * 1024,
-            max_blocks: 100_000,
         }
     }
 }
@@ -34,7 +30,7 @@ impl Default for ClaudeStreamLimits {
 /// EOF never substitutes for message_stop or an unclosed content block.
 pub struct ClaudeStreamCollector {
     message: Option<stream::StreamMessage>,
-    events: usize,
+
     bytes: usize,
     text_bytes: usize,
     limits: ClaudeStreamLimits,
@@ -50,7 +46,7 @@ impl ClaudeStreamCollector {
     pub fn new(limits: ClaudeStreamLimits) -> Self {
         Self {
             message: None,
-            events: 0,
+
             bytes: 0,
             text_bytes: 0,
             limits,
@@ -76,7 +72,6 @@ impl ClaudeStreamCollector {
         if self.stopped {
             return Err(invalid("stream", "event after message_stop"));
         }
-        add(&mut self.events, 1, self.limits.max_events, "events")?;
         let encoded = bounded(
             &event,
             self.limits.max_json_bytes.saturating_sub(self.bytes),
@@ -124,9 +119,7 @@ impl ClaudeStreamCollector {
                         "index must append a new block",
                     ));
                 }
-                if index >= self.limits.max_blocks {
-                    return Err(limit("blocks"));
-                }
+
                 if let Some(id) = super::blocks::call_id(&event.content_block)
                     && (id.is_empty() || !self.call_ids.insert(id.to_owned()))
                 {

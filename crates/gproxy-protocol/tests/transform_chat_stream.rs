@@ -85,16 +85,8 @@ fn conflicts_and_limits_poison_collector() {
     assert!(c.push_done().is_err());
     let mut c = collector();
     assert!(c.push(chunk(json!([terminal(-1, "stop")]))).is_err());
-    for limits in [
-        ChatStreamLimits {
-            max_bytes: 1,
-            ..Default::default()
-        },
-        ChatStreamLimits {
-            max_tool_calls: 1,
-            ..Default::default()
-        },
-    ] {
+    {
+        let limits = ChatStreamLimits { max_bytes: 1 };
         let mut c = ChatStreamCollector::with_limits(
             IdentityFlow::new(IdNamespace::with_bytes([1; 16])),
             TargetIdPolicy::new(Dialect::OpenAiChat),
@@ -201,16 +193,7 @@ fn malformed_usage_and_synthesis_limits_are_explicit() {
             .unwrap(),
     ));
     assert!(c.push(n).is_ok());
-    assert!(
-        synthesize_chat_stream(
-            response(),
-            ChatStreamLimits {
-                max_events: 1,
-                ..Default::default()
-            }
-        )
-        .is_err()
-    );
+    assert!(synthesize_chat_stream(response(), ChatStreamLimits { max_bytes: 1 }).is_err());
     let mut source = response();
     source.choices[0].message.audio = Some(Some(
         serde_json::from_value(json!({"id":"a","data":"YQ==","expires_at":1,"transcript":"a"}))

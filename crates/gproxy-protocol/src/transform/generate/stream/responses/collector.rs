@@ -7,9 +7,8 @@ use std::collections::HashSet;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ResponsesStreamLimits {
-    pub max_events: usize,
     pub max_bytes: usize,
-    pub max_items: usize,
+
     pub max_text_bytes: usize,
     pub max_json_bytes: usize,
 }
@@ -17,9 +16,8 @@ pub struct ResponsesStreamLimits {
 impl Default for ResponsesStreamLimits {
     fn default() -> Self {
         Self {
-            max_events: 100_000,
             max_bytes: 16 * 1024 * 1024,
-            max_items: 4096,
+
             max_text_bytes: 16 * 1024 * 1024,
             max_json_bytes: 16 * 1024 * 1024,
         }
@@ -30,7 +28,7 @@ pub struct ResponsesStreamCollector {
     pub(super) limits: ResponsesStreamLimits,
     pub(super) sequence: Option<i64>,
     pub(super) bytes: usize,
-    pub(super) events: usize,
+
     pub(super) items: Vec<Item>,
     pub(super) ids: HashSet<String>,
     pub(super) response: Option<r::GenerateContentResponseBody>,
@@ -47,7 +45,7 @@ impl ResponsesStreamCollector {
             limits,
             sequence: None,
             bytes: 0,
-            events: 0,
+
             items: Vec::new(),
             ids: HashSet::new(),
             response: None,
@@ -83,10 +81,7 @@ impl ResponsesStreamCollector {
         {
             return Err(invalid("event agent differs from its output item"));
         }
-        if self.events >= self.limits.max_events {
-            return Err(limit());
-        }
-        self.events += 1;
+
         self.bytes += bounded(&event, self.limits.max_bytes.saturating_sub(self.bytes))?;
         let seq = super::events::sequence(&event);
         if seq < 0 || self.sequence.is_some_and(|v| seq <= v) {
@@ -161,9 +156,7 @@ impl ResponsesStreamCollector {
                 if v.output_index != self.items.len() as i64 {
                     return Err(invalid("noncontiguous/duplicate output index"));
                 }
-                if self.items.len() >= self.limits.max_items {
-                    return Err(limit());
-                }
+
                 if let Some(id) = item_id(&v.item)
                     && (id.is_empty() || !self.ids.insert(id.to_owned()))
                 {

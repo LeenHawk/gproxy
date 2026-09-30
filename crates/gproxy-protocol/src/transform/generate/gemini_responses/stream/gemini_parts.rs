@@ -19,9 +19,6 @@ impl GeminiToResponsesStream {
         part: g::Part,
         out: &mut Vec<s::StreamEvent>,
     ) -> Result<(), TransformError> {
-        if self.part_index >= self.limits.max_parts {
-            return Err(limit());
-        }
         let logical = self.part_index as u64;
         self.part_index += 1;
 
@@ -99,10 +96,6 @@ impl GeminiToResponsesStream {
             }
         }
         if let Some(call) = part.function_call {
-            if self.tools >= self.limits.max_tools {
-                return Err(limit());
-            }
-            self.tools += 1;
             if call.name.is_empty()
                 || call
                     .id
@@ -202,9 +195,6 @@ impl GeminiToResponsesStream {
         item: r::ResponseOutputItem,
         out: &mut Vec<s::StreamEvent>,
     ) -> Result<i64, TransformError> {
-        if self.item_count >= self.limits.max_items {
-            return Err(limit());
-        }
         let index = i64::try_from(self.item_count).map_err(|_| limit())?;
         self.item_count += 1;
         self.target.emit(&mut self.budget, out, |sequence_number| {

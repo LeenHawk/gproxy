@@ -1,4 +1,4 @@
-use super::super::resources::{bound_value, limit, read};
+use super::super::resources::{bound_value, read};
 use super::*;
 
 fn project(
@@ -162,9 +162,7 @@ pub(super) async fn finish<R: ResourceAccess, S: StateStore>(
                     })?;
                 samples.extend(values.iter().cloned());
             }
-            if samples.len() > limits.max_resource_facts {
-                return Err(limit("video.outputs"));
-            }
+
             output.response = Some(
                 g::VideoOperationResponse::builder()
                     .generate_video_response(

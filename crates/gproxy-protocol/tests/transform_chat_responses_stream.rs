@@ -335,22 +335,7 @@ fn usage_tail_preserves_real_details_and_rejects_conflicting_supplements() {
     assert!(a.finish().is_ok());
 }
 #[test]
-fn output_budget_failure_poison_and_missing_done_are_not_success() {
-    let mut a = ChatToResponsesStream::new(
-        context(),
-        ids(),
-        StreamLimits {
-            max_events: 2,
-            ..Default::default()
-        },
-    );
-    assert!(
-        a.push(cchunk(json!({"content":"x"}), serde_json::Value::Null))
-            .is_err()
-    );
-    assert!(a.push(cchunk(json!({}), json!("stop"))).is_err());
-    assert!(a.push_done().is_err());
-    assert!(a.finish().is_err());
+fn missing_done_is_not_success() {
     let mut a = ChatToResponsesStream::new(context(), ids(), StreamLimits::default());
     a.push(cchunk(json!({"content":"x"}), json!("stop")))
         .unwrap();

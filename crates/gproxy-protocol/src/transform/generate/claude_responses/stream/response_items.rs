@@ -55,9 +55,6 @@ impl ResponsesToClaudeStream {
         index: i64,
         value: r::ResponseOutputItem,
     ) -> Result<(), TransformError> {
-        if self.items.len() >= self.limits.max_items {
-            return Err(limit());
-        }
         if crate::transform::generate::multi_agent::omit_output(&value, &mut self.report) {
             self.items.insert(
                 index,
@@ -461,17 +458,9 @@ impl ResponsesToClaudeStream {
     }
 
     fn count_part(&mut self) -> Result<(), TransformError> {
-        if self.parts >= self.limits.max_parts {
-            return Err(limit());
-        }
-        self.parts += 1;
         Ok(())
     }
     fn count_tool(&mut self) -> Result<(), TransformError> {
-        if self.tools >= self.limits.max_tools {
-            return Err(limit());
-        }
-        self.tools += 1;
         Ok(())
     }
 }

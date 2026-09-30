@@ -489,29 +489,6 @@ fn output_aggregate_and_pending_caps_are_checked_before_retaining_unstarted_even
         TransformErrorKind::Limit
     );
 }
-#[test]
-fn start_and_terminal_events_count_toward_output_limits() {
-    let limits = StreamLimits {
-        max_events: 2,
-        ..Default::default()
-    };
-    let mut converter = GeminiToClaudeStream::new(gc(), flow(), limits).unwrap();
-    assert_eq!(
-        converter
-            .push(gparts(json!([{"text":"x"}])))
-            .unwrap_err()
-            .kind(),
-        TransformErrorKind::Limit
-    );
-    let limits = StreamLimits {
-        max_events: 4,
-        ..Default::default()
-    };
-    let mut converter = GeminiToClaudeStream::new(gc(), flow(), limits).unwrap();
-    converter.push(gparts(json!([{"text":"x"}]))).unwrap();
-    converter.push(gend("STOP")).unwrap();
-    assert!(converter.finish().is_err());
-}
 
 #[test]
 fn gemini_text_chunks_and_empty_tail_form_one_claude_text_block() {
@@ -907,7 +884,7 @@ fn fixed_initial_cache_breakdown_remains_in_the_canonical_target() {
     assert_eq!(actual, expected);
 }
 #[test]
-fn native_failures_and_each_bound_remain_terminal_without_tool_limits_blocking_text() {
+fn native_failures_and_byte_bounds_remain_terminal() {
     let mut converter =
         ClaudeToGeminiStream::new(Default::default(), flow(), Default::default()).unwrap();
     converter.push(start()).unwrap();
@@ -959,7 +936,6 @@ fn native_failures_and_each_bound_remain_terminal_without_tool_limits_blocking_t
     );
     assert!(converter.finish().is_err());
     let limits = StreamLimits {
-        max_tools: 0,
         ..Default::default()
     };
     let mut converter = ClaudeToGeminiStream::new(Default::default(), flow(), limits).unwrap();

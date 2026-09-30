@@ -41,7 +41,7 @@ fn roundtrip<C: CompleteResponse>(body: C) {
         "text/event-stream"
     );
     assert!(!response.headers.contains_key(http::header::CONTENT_LENGTH));
-    let mut reader = NativeReader::new(response.body, SourceFraming::Sse, settings().codec, 1024);
+    let mut reader = NativeReader::new(response.body, SourceFraming::Sse, settings().codec);
     let mut collector = C::Event::collector(
         IdentityFlow::new(IdNamespace([104; 16])),
         TargetIdPolicy::new(C::Event::DIALECT),
@@ -125,7 +125,7 @@ fn buffered_post_synthesis(include_usage: bool) {
     .unwrap() else {
         panic!("rejected")
     };
-    let mut reader = NativeReader::new(response.body, SourceFraming::Sse, settings().codec, 1024);
+    let mut reader = NativeReader::new(response.body, SourceFraming::Sse, settings().codec);
     let mut saw_usage = false;
     while let Some(frame) = ready(reader.next::<h::stream::ChatCompletionChunk>()).unwrap() {
         if let NativeFrame::Event { value, .. } = frame {

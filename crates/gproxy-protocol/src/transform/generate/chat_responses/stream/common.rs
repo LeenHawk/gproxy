@@ -5,19 +5,13 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct StreamLimits {
-    pub max_events: usize,
     pub max_bytes: usize,
-    pub max_items: usize,
-    pub max_tool_calls: usize,
 }
 
 impl Default for StreamLimits {
     fn default() -> Self {
         Self {
-            max_events: 100_000,
             max_bytes: 16 * 1024 * 1024,
-            max_items: 4096,
-            max_tool_calls: 4096,
         }
     }
 }
@@ -46,9 +40,9 @@ pub(super) fn limit() -> TransformError {
 
 pub(super) struct Budget {
     limits: StreamLimits,
-    input_events: usize,
+
     input_bytes: usize,
-    output_events: usize,
+
     output_bytes: usize,
 }
 
@@ -56,19 +50,14 @@ impl Budget {
     pub(super) fn new(limits: StreamLimits) -> Self {
         Self {
             limits,
-            input_events: 0,
+
             input_bytes: 0,
-            output_events: 0,
+
             output_bytes: 0,
         }
     }
 
     pub(super) fn input<T: serde::Serialize>(&mut self, value: &T) -> Result<(), TransformError> {
-        self.input_events = self
-            .input_events
-            .checked_add(1)
-            .filter(|n| *n <= self.limits.max_events)
-            .ok_or_else(limit)?;
         self.input_bytes = self
             .input_bytes
             .checked_add(measure(
@@ -80,11 +69,6 @@ impl Budget {
     }
 
     pub(super) fn output<T: serde::Serialize>(&mut self, value: &T) -> Result<(), TransformError> {
-        self.output_events = self
-            .output_events
-            .checked_add(1)
-            .filter(|n| *n <= self.limits.max_events)
-            .ok_or_else(limit)?;
         self.output_bytes = self
             .output_bytes
             .checked_add(measure(

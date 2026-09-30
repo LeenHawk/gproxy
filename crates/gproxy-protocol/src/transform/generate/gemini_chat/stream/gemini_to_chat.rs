@@ -21,7 +21,6 @@ pub struct GeminiToChatStream {
     policy: TargetIdPolicy,
     flow: IdentityFlow,
     budget: Budget,
-    limits: StreamLimits,
     calls: super::super::content::Calls,
     signatures: super::super::content::Signatures,
     tool_indexes: BTreeMap<i64, i64>,
@@ -68,15 +67,11 @@ impl GeminiToChatStream {
         }
         Ok(Self {
             source: Some(GeminiStreamCollector::new(GeminiStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_candidates: limits.max_choices,
-                max_parts: limits.max_events,
             })),
             policy,
             flow,
             budget: Budget::new(limits),
-            limits,
             calls: Default::default(),
             signatures: Default::default(),
             tool_indexes: BTreeMap::new(),
@@ -178,16 +173,7 @@ impl GeminiToChatStream {
             if content.role.as_deref() != Some("model") {
                 return Err(invalid("generated candidate must have model role"));
             }
-            let incoming_tools = content
-                .parts
-                .iter()
-                .flatten()
-                .filter(|p| p.function_call.is_some())
-                .count();
-            if self.calls.index.saturating_add(incoming_tools as u64) > self.limits.max_tools as u64
-            {
-                return Err(limit());
-            }
+
             for part in content.parts.iter().flatten() {
                 if part
                     .function_call

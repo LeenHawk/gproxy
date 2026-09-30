@@ -47,10 +47,6 @@ pub(super) struct Item {
 
 impl ResponsesToGeminiStream {
     pub(super) fn count_part(&mut self) -> Result<(), TransformError> {
-        if self.parts >= self.limits.max_parts {
-            return Err(limit());
-        }
-        self.parts += 1;
         Ok(())
     }
     pub(super) fn add_item(
@@ -58,9 +54,6 @@ impl ResponsesToGeminiStream {
         index: i64,
         value: r::ResponseOutputItem,
     ) -> Result<(), TransformError> {
-        if self.items.len() >= self.limits.max_items {
-            return Err(limit());
-        }
         if crate::transform::generate::multi_agent::excluded_output(&value)
             || self.image_only && !matches!(value, r::ResponseOutputItem::ImageGenerationCall(_))
         {
@@ -157,10 +150,6 @@ impl ResponsesToGeminiStream {
                 (v.id, Kind::Excluded, 0)
             }
             r::ResponseOutputItem::FunctionCall(v) => {
-                if self.tools >= self.limits.max_tools {
-                    return Err(limit());
-                }
-                self.tools += 1;
                 if v.call_id.is_empty()
                     || v.name.is_empty()
                     || !self.native_calls.insert(v.call_id.clone())

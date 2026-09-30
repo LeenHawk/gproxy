@@ -9,9 +9,6 @@ impl ResponsesStreamCollector {
         output: &[r::ResponseOutputItem],
     ) -> Result<(), TransformError> {
         for value in output {
-            if self.items.len() >= self.limits.max_items {
-                return Err(limit());
-            }
             if let Some(id) = item_id(value)
                 && (id.is_empty() || !self.ids.insert(id.to_owned()))
             {

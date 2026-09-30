@@ -336,13 +336,8 @@ fn actual_chat_stream_aliases_tell_modern_missing_id_from_legacy() {
         let settings = StreamSettings {
             codec: codec_limits(),
             events: EventLimits {
-                max_events: 1024,
                 max_bytes: 65536,
                 max_pending_bytes: 65536,
-                max_items: 64,
-                max_tools: 64,
-                max_parts: 64,
-                max_choices: 1,
             },
             source_framing: SourceFraming::Sse,
             client_framing: SourceFraming::Sse,

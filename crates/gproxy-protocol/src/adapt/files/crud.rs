@@ -117,9 +117,7 @@ struct Progress {
 impl Progress {
     fn new(request: &WireRequest<()>, limits: FileCrudLimits) -> Result<Self, FileOperationError> {
         template(request, http::Method::GET)?;
-        if limits.max_pages == 0 {
-            return Err(TransformError::shape("max_pages", "positive page limit required").into());
-        }
+
         Ok(Self {
             calls: 0,
             files: 0,
@@ -152,9 +150,6 @@ impl Progress {
         target: &U::Target,
         request: WireRequest<()>,
     ) -> Result<T, FileOperationError> {
-        if self.calls >= self.limits.max_pages {
-            return Err(self.limit("max_pages"));
-        }
         let response = invoke_empty(u, target, request, self.limits.codec)
             .await
             .map_err(|e| self.err(e))?;
@@ -194,9 +189,7 @@ impl Progress {
                 "empty or duplicate file identity",
             )));
         }
-        if self.files >= self.limits.max_files {
-            return Err(self.limit("max_files"));
-        }
+
         self.files += 1;
         Ok(())
     }

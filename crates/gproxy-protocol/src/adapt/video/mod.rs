@@ -38,5 +38,4 @@ pub use state::{
 #[derive(Debug, Clone, Copy)]
 pub struct VideoLimits {
     pub codec: CodecLimits,
-    pub max_resource_facts: usize,
 }

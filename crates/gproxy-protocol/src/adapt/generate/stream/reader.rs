@@ -47,19 +47,13 @@ pub struct NativeReader {
     queued: VecDeque<Frame>,
     limits: CodecLimits,
     received: u64,
-    events: usize,
-    max_events: usize,
+
     eof: bool,
     failed: bool,
 }
 
 impl NativeReader {
-    pub fn new(
-        body: HttpBody,
-        framing: SourceFraming,
-        limits: CodecLimits,
-        max_events: usize,
-    ) -> Self {
+    pub fn new(body: HttpBody, framing: SourceFraming, limits: CodecLimits) -> Self {
         let (stream, pending) = match body {
             HttpBody::Bytes(bytes) => (None, bytes),
             HttpBody::Stream(stream) => (Some(stream), Bytes::new()),
@@ -75,8 +69,7 @@ impl NativeReader {
             },
             queued: VecDeque::new(),
             limits,
-            events: 0,
-            max_events,
+
             eof: false,
             failed: false,
         }
@@ -111,10 +104,6 @@ impl NativeReader {
         let mut work = 0usize;
         loop {
             if let Some(frame) = self.queued.pop_front() {
-                if self.events >= self.max_events {
-                    return Err(error(CodecErrorKind::Limit, "native event limit exceeded"));
-                }
-                self.events += 1;
                 return match frame {
                     Frame::Sse(codec::SseFrame::Done) => Ok(Some(NativeFrame::Done)),
                     Frame::Sse(codec::SseFrame::Event(event)) => {

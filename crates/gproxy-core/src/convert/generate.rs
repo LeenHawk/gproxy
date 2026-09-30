@@ -235,13 +235,6 @@ pub(super) fn responses_over_gemini_facts(
     }
 }
 
-/// Finite per-stream event budgets; the codec limits already bound bytes.
-const MAX_STREAM_EVENTS: usize = 65_536;
-const MAX_STREAM_ITEMS: usize = 256;
-const MAX_STREAM_TOOLS: usize = 256;
-const MAX_STREAM_PARTS: usize = 256;
-const MAX_STREAM_CHOICES: usize = 8;
-
 pub(super) fn stream_settings(
     limits: CodecLimits,
     client: Dialect,
@@ -256,13 +249,8 @@ pub(super) fn stream_settings(
     StreamSettings {
         codec: limits,
         events: EventLimits {
-            max_events: MAX_STREAM_EVENTS,
             max_bytes: usize::try_from(limits.max_body_bytes).unwrap_or(usize::MAX),
             max_pending_bytes: usize::try_from(limits.max_value_bytes).unwrap_or(usize::MAX),
-            max_items: MAX_STREAM_ITEMS,
-            max_tools: MAX_STREAM_TOOLS,
-            max_parts: MAX_STREAM_PARTS,
-            max_choices: MAX_STREAM_CHOICES,
         },
         // Upstream streams are always requested as SSE (Gemini via `alt=sse`).
         source_framing: SourceFraming::Sse,
@@ -278,7 +266,6 @@ pub(super) struct OwnedState<C> {
     pub target: IdentityTarget,
     pub conversation_key: String,
     pub expires_at: SystemTime,
-    pub max_records: usize,
 }
 
 impl<C: BatchConnectionTrait + Send + Sync> OwnedState<C> {
@@ -292,7 +279,6 @@ impl<C: BatchConnectionTrait + Send + Sync> OwnedState<C> {
             target: state.target.clone(),
             conversation_key: state.conversation_key.clone(),
             expires_at: state.expires_at,
-            max_records: state.max_records,
         }
     }
 
@@ -305,7 +291,6 @@ impl<C: BatchConnectionTrait + Send + Sync> OwnedState<C> {
             expires_at: self.expires_at,
             now: SystemTime::UNIX_EPOCH
                 + std::time::Duration::from_millis(crate::api::lifecycle::now_ms().max(0) as u64),
-            max_records: self.max_records,
         }
     }
 }
@@ -653,14 +638,10 @@ fn chat_includes_usage(body: &[u8]) -> bool {
         == Some(true)
 }
 
-/// Candidate fanout sends one upstream call per candidate and holds every
-/// child's result in memory until the aggregate is built; this bounds both.
-const MAX_CANDIDATES: usize = 8;
-
 fn fanout_options(client: Dialect) -> FanoutOptions {
     FanoutOptions {
         namespace: namespace(),
-        max_children: MAX_CANDIDATES,
+
         response_policy: TargetIdPolicy::new(client),
     }
 }
@@ -829,12 +810,7 @@ async fn collect_native<C: BatchConnectionTrait + Send + Sync>(
         http::HeaderValue::from_static("application/json"),
     );
     let settings = stream_settings(call.limits, call.target, endpoint.query.as_deref());
-    let mut reader = NativeReader::new(
-        response.body,
-        settings.client_framing,
-        call.limits,
-        MAX_STREAM_EVENTS,
-    );
+    let mut reader = NativeReader::new(response.body, settings.client_framing, call.limits);
     macro_rules! collect {
         ($event:ty) => {{
             let mut collector = <$event>::collector(

@@ -208,19 +208,11 @@ fn full_usage_and_late_metadata_merge_without_resetting_omitted_fields() {
 fn limits_cover_starts_deltas_synthesis_and_poison() {
     for limits in [
         ClaudeStreamLimits {
-            max_events: 1,
-            ..Default::default()
-        },
-        ClaudeStreamLimits {
             max_text_bytes: 1,
             ..Default::default()
         },
         ClaudeStreamLimits {
             max_json_bytes: 1,
-            ..Default::default()
-        },
-        ClaudeStreamLimits {
-            max_blocks: 0,
             ..Default::default()
         },
     ] {

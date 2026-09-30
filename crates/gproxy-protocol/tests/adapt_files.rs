@@ -104,8 +104,7 @@ fn openai_list_paginates_and_delete_accepts_empty_204() {
         gproxy_protocol::openai::files::ListFilesQuery::builder().build(),
         files::FileCrudLimits {
             codec: fake_limits(),
-            max_pages: 3,
-            max_files: 100,
+
             max_declared_bytes: 16384,
         },
     ))
@@ -154,8 +153,7 @@ fn cursor_and_file_ids_are_percent_encoded() {
         query,
         files::FileCrudLimits {
             codec: fake_limits(),
-            max_pages: 1,
-            max_files: 100,
+
             max_declared_bytes: 16384,
         },
     ))
@@ -180,8 +178,7 @@ fn template(path: &str, method: http::Method) -> WireRequest<()> {
 fn crud_limits() -> files::FileCrudLimits {
     files::FileCrudLimits {
         codec: fake_limits(),
-        max_pages: 5,
-        max_files: 10,
+
         max_declared_bytes: 16384,
     }
 }
@@ -317,7 +314,7 @@ fn pagination_cycles_and_total_retention_are_bounded() {
         requests: Arc::new(Mutex::new(Vec::new())),
     };
     let mut limits = crud_limits();
-    limits.max_files = 0;
+    limits.max_declared_bytes = 1;
     assert!(
         ready(files::gemini_list(
             &fake,

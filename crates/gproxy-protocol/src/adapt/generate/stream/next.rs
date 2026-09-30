@@ -316,8 +316,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
                 .ok_or_else(|| super::limit("queued client event size overflow"))?;
             if self.queued_bytes > self.settings.codec.max_buffer_bytes
                 || self.queued_bytes > self.settings.events.max_pending_bytes as u64
-                || self.queued.len().saturating_add(self.held.len())
-                    >= self.settings.events.max_events
             {
                 return Err(super::limit("pending client events exceed stream budget"));
             }
@@ -394,9 +392,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
     fn append_report(&mut self, report: Report) -> Result<(), TransformError> {
         for diagnostic in report.diagnostics {
             if !self.report.diagnostics.contains(&diagnostic) {
-                if self.report.diagnostics.len() >= self.settings.events.max_events {
-                    return Err(super::limit("stream diagnostic limit exceeded"));
-                }
                 self.report.diagnostics.push(diagnostic);
             }
         }

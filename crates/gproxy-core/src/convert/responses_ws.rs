@@ -346,7 +346,6 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
         expires_at: SystemTime::UNIX_EPOCH
             + std::time::Duration::from_millis(now.max(0) as u64)
             + super::call::STATE_TTL,
-        max_records: super::call::STATE_MAX_RECORDS,
     };
     let codec = limits.codec();
     let settings = stream_settings(codec, Dialect::OpenAi, None);

@@ -116,8 +116,7 @@ impl<'a> ResponsesWsTurn<'a> {
         self.received_frames = self
             .received_frames
             .checked_add(1)
-            .filter(|v| *v <= self.session.bounds.receive_frames)
-            .ok_or_else(|| limit("responses.websocket.frames", "receive frame count exceeded"))?;
+            .ok_or_else(|| limit("responses.websocket.frames", "receive frame count overflow"))?;
         let bytes = match frame {
             WsFrame::Text(v) => v.len(),
             WsFrame::Binary(v) | WsFrame::Ping(v) | WsFrame::Pong(v) => v.len(),
@@ -173,13 +172,7 @@ impl<'a> ResponsesWsTurn<'a> {
         let frames = self
             .sent_frames
             .checked_add(1)
-            .filter(|v| *v <= self.session.bounds.send_frames)
-            .ok_or_else(|| {
-                limit(
-                    "responses.websocket.pong",
-                    "Pong exceeds send frame count cap",
-                )
-            })?;
+            .ok_or_else(|| limit("responses.websocket.pong", "send frame count overflow"))?;
         self.sent_bytes = bytes;
         self.sent_frames = frames;
         self.send = SendState::Ready(WsFrame::Pong(payload));
@@ -269,12 +262,6 @@ impl Stream for ResponsesWsTurn<'_> {
             Poll::Pending => return Poll::Pending,
             Poll::Ready(Err(e)) => return Poll::Ready(Some(Err(this.fail(e)))),
             Poll::Ready(Ok(())) => {}
-        }
-        if this.received_frames >= this.session.bounds.receive_frames {
-            return Poll::Ready(Some(Err(this.fail(limit(
-                "responses.websocket.frames",
-                "receive frame count exhausted before terminal",
-            )))));
         }
         if this.received_bytes >= this.session.bounds.receive_bytes {
             return Poll::Ready(Some(Err(this.fail(limit(

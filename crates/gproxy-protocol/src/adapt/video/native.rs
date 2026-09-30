@@ -26,9 +26,7 @@ async fn input_resources<R: ResourceAccess>(
     let Some(reference) = &input.input_reference else {
         return Ok(out);
     };
-    if limits.max_resource_facts == 0 {
-        return Err(limit("video.input_reference"));
-    }
+
     let (key, reference) = match reference {
         o::NativeInputReference::File(v) => {
             (v.file_id.clone(), ResourceReference::Id(v.file_id.clone()))

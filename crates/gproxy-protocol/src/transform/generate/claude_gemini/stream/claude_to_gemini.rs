@@ -65,16 +65,11 @@ impl ClaudeToGeminiStream {
 
         Ok(Self {
             source: Some(ClaudeStreamCollector::new(ClaudeStreamLimits {
-                max_events: limits.max_events,
                 max_text_bytes: limits.max_bytes,
                 max_json_bytes: limits.max_bytes,
-                max_blocks: limits.max_blocks,
             })),
             target: Some(GeminiStreamCollector::new(GeminiStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_candidates: 1,
-                max_parts: limits.max_parts,
             })),
             flow,
             policy,
@@ -93,9 +88,8 @@ impl ClaudeToGeminiStream {
         &mut self,
         role: crate::transform::identity::IdentityRole,
         ids: &std::collections::BTreeSet<String>,
-        max: usize,
     ) -> Result<(), TransformError> {
-        self.flow.reserve_external_ids(role, ids, max).map_err(|e| {
+        self.flow.reserve_external_ids(role, ids).map_err(|e| {
             TransformError::new(
                 crate::transform::TransformErrorKind::Conflict,
                 "fanout.ids",

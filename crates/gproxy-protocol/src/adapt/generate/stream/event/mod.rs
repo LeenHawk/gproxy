@@ -20,13 +20,8 @@ use serde::{Serialize, de::DeserializeOwned};
 
 #[derive(Debug, Clone, Copy)]
 pub struct EventLimits {
-    pub max_events: usize,
     pub max_bytes: usize,
     pub max_pending_bytes: usize,
-    pub max_items: usize,
-    pub max_tools: usize,
-    pub max_parts: usize,
-    pub max_choices: usize,
 }
 
 impl EventLimits {}

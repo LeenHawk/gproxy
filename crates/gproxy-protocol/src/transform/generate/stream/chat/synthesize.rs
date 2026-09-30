@@ -20,13 +20,13 @@ pub fn synthesize_chat_stream(
             "valid identity/model/creation time required",
         ));
     }
-    if input.choices.is_empty() || input.choices.len() > limits.max_choices {
+    if input.choices.is_empty() {
         return Err(super::limit("choices"));
     }
     let mut report = Report::default();
     let mut out = Vec::new();
     let mut bytes = 0;
-    let mut tool_count = 0;
+
     let mut ids = std::collections::BTreeSet::new();
     for (expected, choice) in input.choices.iter().enumerate() {
         if choice.index != expected as i64 {
@@ -82,7 +82,6 @@ pub fn synthesize_chat_stream(
             function.name = Some(Some(call.name.clone()));
             function.arguments = Some(Some(call.arguments.clone()));
             delta.function_call = Some(Some(function));
-            tool_count += 1;
         }
         if let Some(calls) = &choice.message.tool_calls {
             let mut tool_calls = Vec::new();
@@ -111,12 +110,10 @@ pub fn synthesize_chat_stream(
                 tool.function = Some(Some(function));
                 tool_calls.push(tool);
             }
-            tool_count += tool_calls.len();
+
             delta.tool_calls = Some(Some(tool_calls));
         }
-        if tool_count > limits.max_tool_calls {
-            return Err(super::limit("tool_calls"));
-        }
+
         let has_tools = choice
             .message
             .tool_calls
@@ -179,9 +176,6 @@ fn push(
     value: s::ChatCompletionChunk,
     limits: ChatStreamLimits,
 ) -> Result<(), TransformError> {
-    if out.len() >= limits.max_events {
-        return Err(super::limit("events"));
-    }
     let remaining = limits
         .max_bytes
         .checked_sub(*bytes)

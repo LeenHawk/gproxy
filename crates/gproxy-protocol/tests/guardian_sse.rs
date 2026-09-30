@@ -374,7 +374,7 @@ fn composed_sse_reports_conversion_and_stream_limit_errors_after_send() {
         .is_err()
     );
     let mut tiny = limits();
-    tiny.stream.max_events = 1;
+    tiny.stream.max_bytes = 1;
     assert!(
         ready(gproxy_protocol::adapt::guardian::classify_sse(
             &host,

@@ -39,10 +39,6 @@ use std::time::Duration;
 
 /// OpenAI image URLs live for an hour; a published body would follow suit.
 const PUBLISH_TTL: Duration = Duration::from_secs(60 * 60);
-/// OpenAI accepts at most ten images per request.
-const MAX_IMAGES: usize = 10;
-/// Edits accept up to sixteen input images.
-const MAX_INPUT_IMAGES: usize = 16;
 
 fn codec(error: CodecError, context: &'static str) -> TransformError {
     let kind = match error.kind() {
@@ -132,13 +128,6 @@ async fn multipart_edit<C: BatchConnectionTrait + Send + Sync>(
             .map_err(|e| codec(e, "image.form"))?;
         match name.as_str() {
             "image" | "image[]" => {
-                if images.len() >= MAX_INPUT_IMAGES {
-                    return Err(TransformError::new(
-                        TransformErrorKind::Limit,
-                        "image.form",
-                        "too many input images",
-                    ));
-                }
                 images.push(serde_json::json!({ "image_url": data_url(&part.headers, &bytes)? }));
             }
             "mask" => {
@@ -269,8 +258,7 @@ pub(crate) async fn run<C: BatchConnectionTrait + Send + Sync>(
     };
     let limits = ImageLimits {
         codec: call.limits,
-        max_calls: MAX_IMAGES,
-        max_input_images: MAX_INPUT_IMAGES,
+
         max_input_bytes: call.limits.max_part_bytes,
         max_total_input_bytes: call.limits.max_body_bytes,
         max_output_bytes: call.limits.max_body_bytes,

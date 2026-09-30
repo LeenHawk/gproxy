@@ -15,9 +15,7 @@ impl ChatToResponsesStream {
             )
             .map_err(|e| TransformError::invalid_result("identity.message", e.to_string()))?
             .emitted_id;
-        if self.next_output as u64 >= self.limits.max_items as u64 {
-            return Err(limit());
-        }
+
         let index = self.next_output;
         self.next_output += 1;
         self.message = Some(MessageState {
@@ -94,9 +92,6 @@ impl ChatToResponsesStream {
         source_id: Option<String>,
         function: cs::DeltaFunctionCall,
     ) -> Result<(), TransformError> {
-        if !self.tools.contains_key(&key) && self.tools.len() >= self.limits.max_tool_calls {
-            return Err(limit());
-        }
         let t = self.tools.entry(key).or_insert_with(|| ToolState {
             source_id: None,
             name: String::new(),
@@ -142,9 +137,6 @@ impl ChatToResponsesStream {
             }
         }
         for mut item in reasoning {
-            if self.next_output as usize >= self.limits.max_items {
-                return Err(limit());
-            }
             let index = self.next_output;
             self.next_output += 1;
             item.status = Some(i::ReasoningStatus::InProgress);
@@ -310,9 +302,7 @@ impl ChatToResponsesStream {
         }
         let tools = std::mem::take(&mut self.tools);
         for (ordinal, (key, t)) in tools.into_iter().enumerate() {
-            if (key != -1 && key != ordinal as i64)
-                || self.next_output as u64 >= self.limits.max_items as u64
-            {
+            if key != -1 && key != ordinal as i64 {
                 return Err(invalid("noncontiguous tool slots or item limit"));
             }
             let source =

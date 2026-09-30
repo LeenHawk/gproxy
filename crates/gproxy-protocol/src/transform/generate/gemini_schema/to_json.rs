@@ -1,4 +1,3 @@
-use super::{Budget, SchemaLimits};
 use crate::{
     transform::{Converted, Report, TransformError},
     wire::gemini::content::{Schema, SchemaType},
@@ -7,29 +6,17 @@ use serde_json::{Map, Value};
 
 /// Read only declared schema fields. Formal `default` and `example` JSON values
 /// retain all their members, including members named `rest`.
-pub fn to_json(
-    input: &Schema,
-    limits: SchemaLimits,
-) -> Result<Converted<Map<String, Value>>, TransformError> {
+pub fn to_json(input: &Schema) -> Result<Converted<Map<String, Value>>, TransformError> {
     let mut report = Report::default();
-    let value = convert(
-        input,
-        &mut Budget { limits, nodes: 0 },
-        0,
-        "schema",
-        &mut report,
-    )?;
+    let value = convert(input, "schema", &mut report)?;
     Ok(Converted { value, report })
 }
 
 fn convert(
     input: &Schema,
-    budget: &mut Budget,
-    depth: usize,
     path: &str,
     report: &mut Report,
 ) -> Result<Map<String, Value>, TransformError> {
-    budget.enter(depth, path)?;
     let mut out = Map::new();
     let type_name = match input.type_ {
         SchemaType::Unspecified => None,
@@ -114,8 +101,6 @@ fn convert(
                 name.clone(),
                 Value::Object(convert(
                     schema,
-                    budget,
-                    depth + 1,
                     &format!("{path}.properties.{name}"),
                     report,
                 )?),
@@ -126,13 +111,7 @@ fn convert(
     if let Some(items) = &input.items {
         out.insert(
             "items".into(),
-            Value::Object(convert(
-                items,
-                budget,
-                depth + 1,
-                &format!("{path}.items"),
-                report,
-            )?),
+            Value::Object(convert(items, &format!("{path}.items"), report)?),
         );
     }
     if let Some(values) = &input.any_of {
@@ -146,8 +125,6 @@ fn convert(
         for (index, value) in values.iter().enumerate() {
             variants.push(Value::Object(convert(
                 value,
-                budget,
-                depth + 1,
                 &format!("{path}.anyOf[{index}]"),
                 report,
             )?));

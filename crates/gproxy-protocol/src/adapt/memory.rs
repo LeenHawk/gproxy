@@ -13,8 +13,6 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct MemoryLimits {
-    pub max_calls: usize,
-    pub max_trace_items: usize,
     pub max_bytes: u64,
     pub codec: CodecLimits,
 }
@@ -98,9 +96,7 @@ pub async fn summarize_with_reasoning<U: Upstream>(
         )
         .into());
     }
-    if traces.len() > limits.max_calls {
-        return Err(limit("max_calls").into());
-    }
+
     let reasoning = reasoning.into_declared();
     let mut planned = Vec::new();
     let mut ids = std::collections::BTreeSet::new();
@@ -114,9 +110,7 @@ pub async fn summarize_with_reasoning<U: Upstream>(
     // first side effect; a malformed later trace cannot cause partial execution.
     for trace in traces {
         let trace = trace.into_declared();
-        if trace.items.len() > limits.max_trace_items {
-            return Err(limit("max_trace_items").into());
-        }
+
         if !ids.insert(trace.id.clone()) {
             return Err(TransformError::shape("trace.id", "duplicate trace identity").into());
         }
