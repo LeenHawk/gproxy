@@ -93,6 +93,7 @@ jobs:
     environment: release
     permissions:
       contents: read
+      packages: write
       actions: read
       id-token: write
       attestations: write
@@ -165,9 +166,10 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: ./.github/actions/ghcr-rust-cache
         with:
-          shared-key: packages-${{ matrix.target }}
+          key: packages-${{ matrix.target }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       - if: ${{ matrix.builder == 'cargo-ndk' }}
         run: cargo install cargo-ndk --locked
       - name: Configure native Windows ARM64 dependencies
@@ -447,7 +449,7 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: read
-      packages: read
+      packages: write
       actions: read
       id-token: write
       attestations: write
@@ -484,10 +486,10 @@ jobs:
           name: console-dist
           path: console/dist
       - run: node console/scripts/sync-to-embed.mjs
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: ./.github/actions/ghcr-rust-cache
         with:
-          shared-key: ohos-container-cli-${{ matrix.target }}
-          cache-on-failure: true
+          key: ohos-container-cli-${{ matrix.target }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       - run: bash scripts/ohos/build.sh cli
       - uses: ./.github/actions/attest-release
         with:
@@ -507,7 +509,7 @@ jobs:
     timeout-minutes: 120
     permissions:
       contents: read
-      packages: read
+      packages: write
       actions: read
       id-token: write
       attestations: write
@@ -545,11 +547,10 @@ jobs:
           path: console/dist
       - run: node console/scripts/sync-to-embed.mjs
       - run: python3 scripts/ohos/prepare-tauri.py
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: ./.github/actions/ghcr-rust-cache
         with:
-          shared-key: ohos-container-tauri
-          cache-all-crates: true
-          cache-on-failure: true
+          key: ohos-container-tauri
+          token: ${{ secrets.GITHUB_TOKEN }}
       - run: bash scripts/ohos/build.sh application
       - uses: ./.github/actions/attest-release
         with:
@@ -573,7 +574,7 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     permissions:
       contents: read
-      packages: read
+      packages: write
       actions: read
       id-token: write
       attestations: write
@@ -600,9 +601,10 @@ jobs:
           name: console-dist
           path: console/dist
       - run: node console/scripts/sync-to-embed.mjs
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: ./.github/actions/ghcr-rust-cache
         with:
-          shared-key: cross-packages-${{ matrix.target }}
+          key: cross-packages-${{ matrix.target }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build, compress and run CLI with QEMU
         run: CI_PROJECT_DIR="$PWD" bash scripts/gitlab/package-cross.sh cli
       - uses: actions/upload-artifact@v7.0.1
@@ -742,9 +744,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: ./.github/actions/ghcr-rust-cache
         with:
-          key: publish-crates
+          key: linux-checks
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish MIT crates
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -757,6 +760,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
       id-token: write
       attestations: write
     steps:
@@ -769,9 +773,10 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: ./.github/actions/ghcr-rust-cache
         with:
           key: release-edge
+          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: pnpm/action-setup@v6.1.0
         with:
           package_json_file: console/package.json
@@ -881,3 +886,22 @@ jobs:
       version: ${{ needs.prepare.outputs.version }}
     secrets:
       MS_STORE_CLIENT_SECRET: ${{ secrets.MS_STORE_CLIENT_SECRET }}
+
+  cache-cleanup:
+    name: Clean old GHCR build caches
+    needs: [native, riscv, ohos-cli, ohos-application, edge]
+    if: ${{ always() && !cancelled() && github.ref == 'refs/heads/dev' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+      - name: Delete untagged cache versions older than seven days
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/actions/ghcr-rust-cache/runtime/cache.cjs cleanup
