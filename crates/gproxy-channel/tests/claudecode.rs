@@ -221,7 +221,10 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     assert_eq!(h["x-claude-code-session-id"], "session-1");
     assert_eq!(h["x-stainless-package-version"], "0.112.1");
     assert_eq!(h["anthropic-dangerous-direct-browser-access"], "true");
-    assert!(h.get("x-request-id").is_none(), "not on the default allow-list");
+    assert!(
+        h.get("x-request-id").is_none(),
+        "not on the default allow-list"
+    );
     let HttpBody::Bytes(bytes) = request.into_body() else {
         panic!("buffered");
     };

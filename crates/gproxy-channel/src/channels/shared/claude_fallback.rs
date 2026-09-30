@@ -157,6 +157,7 @@ fn write_beta(headers: &mut HeaderMap, values: Vec<String>) {
 }
 
 /// Reseller fallback has no Anthropic model exclusion or beta requirement.
+#[cfg(feature = "openrouter")]
 pub(crate) fn reseller(
     body: &mut Value,
     mode: &FallbackMode,

@@ -131,6 +131,7 @@ pub(crate) async fn create_bound(
 
 /// Case-insensitive keyword filter over the text of a summary's named
 /// fields, as the vendors' `search` routes do.
+#[cfg(feature = "claudecode")]
 pub(crate) fn keyword_filter(
     items: Vec<Value>,
     keywords: &[String],
@@ -154,6 +155,7 @@ pub(crate) fn keyword_filter(
 }
 
 /// Lower-cased `keywords` array of a search body.
+#[cfg(feature = "claudecode")]
 pub(crate) fn keywords(body: Option<&Value>) -> Vec<String> {
     body.and_then(|value| value.get("keywords"))
         .and_then(Value::as_array)
