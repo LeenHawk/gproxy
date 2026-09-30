@@ -422,7 +422,7 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
                     .send(Ok(error_frame(
                         400,
                         lane,
-                        "steering has no equivalent cross-protocol generation operation".into(),
+                        "steering and injection have no equivalent cross-protocol generation operation".into(),
                     )))
                     .await;
                 continue;

@@ -134,6 +134,7 @@ pub(super) fn to_responses(
             0,
         )?;
         output.push(r::ResponseOutputItem::Message(i::ResponseOutputMessage {
+            agent: None,
             id,
             content: parts,
             role: i::OutputMessageRole::Assistant,
@@ -176,6 +177,7 @@ pub(super) fn to_responses(
             0,
         )?;
         output.push(r::ResponseOutputItem::FunctionCall(i::FunctionCall {
+            agent: None,
             async_: None,
             type_: i::FunctionCallType::FunctionCall,
             arguments: call.arguments,
@@ -220,6 +222,7 @@ pub(super) fn to_responses(
                     index,
                 )?;
                 output.push(bindings.restore(i::FunctionCall {
+                    agent: None,
                     async_: None,
                     type_: i::FunctionCallType::FunctionCall,
                     arguments: call.function.arguments,
@@ -256,6 +259,7 @@ pub(super) fn to_responses(
                     index,
                 )?;
                 output.push(r::ResponseOutputItem::CustomToolCall(i::CustomToolCall {
+                    agent: None,
                     async_: None,
                     type_: i::CustomToolCallType::CustomToolCall,
                     call_id,
@@ -295,6 +299,9 @@ pub(super) fn to_chat(
     let mut logs = Vec::new();
     let mut calls = Vec::new();
     for (index, item) in output.into_iter().enumerate() {
+        if crate::transform::generate::multi_agent::omit_output(&item, report) {
+            continue;
+        }
         match item {
             r::ResponseOutputItem::Message(message) => {
                 match message.status {
@@ -430,6 +437,9 @@ pub(super) fn to_chat(
             | r::ResponseOutputItem::ToolSearchCall(_)
             | r::ResponseOutputItem::ToolSearchOutput(_)
             | r::ResponseOutputItem::AdditionalTools(_)
+            | r::ResponseOutputItem::MultiAgentCall(_)
+            | r::ResponseOutputItem::MultiAgentCallOutput(_)
+            | r::ResponseOutputItem::AgentMessage(_)
             | r::ResponseOutputItem::ConfigurationUpdate(_)
             | r::ResponseOutputItem::Compaction(_)
             | r::ResponseOutputItem::ImageGenerationCall(_)

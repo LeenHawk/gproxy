@@ -77,6 +77,7 @@ pub(super) fn user_message(
     };
     Ok(responses::input::InputItem::Easy(
         responses::input::EasyInputMessage {
+            agent: None,
             content,
             role: responses::input::MessageRole::User,
             phase: None,

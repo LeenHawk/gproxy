@@ -70,6 +70,19 @@ impl ResponsesStreamCollector {
         result
     }
     fn push_inner(&mut self, event: s::StreamEvent) -> Result<(), TransformError> {
+        let event = crate::transform::generate::multi_agent::attribute_event(event)?;
+        if let (Some(agent), Some(index)) = (event.agent(), event.output_index())
+            && let Some(item) = usize::try_from(index)
+                .ok()
+                .and_then(|index| self.items.get(index))
+            && item
+                .value
+                .agent()
+                .map_or("/root", |owner| owner.agent_name.as_str())
+                != agent.agent_name
+        {
+            return Err(invalid("event agent differs from its output item"));
+        }
         if self.events >= self.limits.max_events {
             return Err(limit());
         }

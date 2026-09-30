@@ -15,6 +15,9 @@ pub(crate) fn project_input(
 ) {
     if let Some(i::Input::Items(items)) = input {
         items.retain(|item| {
+            if super::multi_agent::omit_input(item, report) {
+                return false;
+            }
             if let i::InputItem::ConfigurationUpdate(update) = item {
                 if let Some(effort) = update.reasoning.as_ref().and_then(|v| v.effort) {
                     reasoning
@@ -48,6 +51,12 @@ pub(crate) fn project_request(
     input: &mut r::GenerateContentRequestBody,
     report: &mut Report,
 ) -> Result<(), TransformError> {
+    if input.multi_agent.take().flatten().is_some() {
+        report.omitted(
+            "multi_agent",
+            "target has no OpenAI-hosted multi-agent execution",
+        );
+    }
     if let Some(cache) = &input.prompt_cache_options {
         if cache.prewarm == Some(true) {
             return Err(TransformError::unsupported(
@@ -89,9 +98,17 @@ pub(crate) fn project_request(
 
 fn gpt6(model: &str) -> bool {
     let model = model.to_ascii_lowercase();
-    ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"]
+    ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna"]
         .iter()
         .any(|name| crate::transform::instructions::family(&model, name))
+}
+
+fn requires_reasoning(model: &str) -> bool {
+    // https://developers.openai.com/api/docs/guides/latest-model#migration-quickstart
+    // Astra and 6.1 Sol require reasoning; 6 Sol and Luna still accept `none`.
+    ["gpt-6-astra", "gpt-6.1-sol"]
+        .iter()
+        .any(|name| crate::transform::instructions::family(model, name))
 }
 
 pub(crate) fn target_responses(out: &mut r::GenerateContentRequestBody, report: &mut Report) {
@@ -143,9 +160,9 @@ pub(crate) fn target_chat(out: &mut c::GenerateContentRequestBody, report: &mut 
     if !gpt6(&model) {
         return;
     }
-    let astra = crate::transform::instructions::family(&model, "gpt-6-astra");
+    let requires_reasoning = requires_reasoning(&model);
     if out.reasoning_effort == Some(Some(c::ReasoningEffort::Minimal))
-        || astra && out.reasoning_effort == Some(Some(c::ReasoningEffort::None))
+        || requires_reasoning && out.reasoning_effort == Some(Some(c::ReasoningEffort::None))
     {
         out.reasoning_effort = Some(Some(c::ReasoningEffort::Low));
         report.changed(
@@ -168,7 +185,7 @@ pub(crate) fn target_chat(out: &mut c::GenerateContentRequestBody, report: &mut 
             }
         }
     }
-    if astra || out.reasoning_effort.flatten() != Some(c::ReasoningEffort::None) {
+    if requires_reasoning || out.reasoning_effort.flatten() != Some(c::ReasoningEffort::None) {
         for (present, field) in [
             (out.tools.take().is_some(), "tools"),
             (out.tool_choice.take().is_some(), "tool_choice"),
@@ -198,10 +215,10 @@ pub(crate) fn target_reasoning(
     if !gpt6(&model) {
         return;
     }
-    let astra = crate::transform::instructions::family(&model, "gpt-6-astra");
+    let requires_reasoning = requires_reasoning(&model);
     if let Some(Some(reasoning)) = reasoning
         && (matches!(reasoning.effort, Some(Some(i::ReasoningEffort::Minimal)))
-            || astra && reasoning.effort == Some(Some(i::ReasoningEffort::None)))
+            || requires_reasoning && reasoning.effort == Some(Some(i::ReasoningEffort::None)))
     {
         reasoning.effort = Some(Some(i::ReasoningEffort::Low));
         report.changed(

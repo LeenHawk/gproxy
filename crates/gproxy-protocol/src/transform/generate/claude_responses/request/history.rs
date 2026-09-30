@@ -175,7 +175,10 @@ pub(crate) fn to_claude(
                     "item_reference resolved history",
                 ));
             }
-            r::InputItem::ConfigurationUpdate(_)
+            r::InputItem::MultiAgentCall(_)
+            | r::InputItem::MultiAgentCallOutput(_)
+            | r::InputItem::AgentMessage(_)
+            | r::InputItem::ConfigurationUpdate(_)
             | r::InputItem::Compaction(_)
             | r::InputItem::ComputerCall(_)
             | r::InputItem::ComputerCallOutput(_)

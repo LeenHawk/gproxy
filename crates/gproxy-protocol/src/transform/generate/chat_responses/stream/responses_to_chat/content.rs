@@ -10,6 +10,16 @@ impl ResponsesToChatStream {
         if self.items.len() >= self.limits.max_items {
             return Err(crate::transform::generate::chat_responses::stream::common::limit());
         }
+        if crate::transform::generate::multi_agent::omit_output(&item, &mut self.report) {
+            self.items.insert(
+                index,
+                ItemState {
+                    id: item_id(&item).map(str::to_owned),
+                    kind: ItemKind::Excluded,
+                },
+            );
+            return Ok(());
+        }
         let (id, kind) = match item {
             r::ResponseOutputItem::Message(v) => {
                 if v.phase.is_some() {
@@ -99,6 +109,13 @@ impl ResponsesToChatStream {
         part_index: i64,
         part: rs::OutputContentPart,
     ) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, ItemKind::Excluded))
+        {
+            return Ok(());
+        }
         let Some(ItemState {
             kind: ItemKind::Message { parts, .. },
             ..
@@ -133,6 +150,13 @@ impl ResponsesToChatStream {
         text: String,
         refusal: bool,
     ) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, ItemKind::Excluded))
+        {
+            return Ok(());
+        }
         self.bind_item(index, Some(id))?;
         let Some(ItemState {
             kind: ItemKind::Message { parts, .. },

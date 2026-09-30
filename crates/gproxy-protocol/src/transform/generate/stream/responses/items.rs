@@ -13,6 +13,9 @@ pub(super) struct Item {
 
 pub(super) fn item_id(item: &r::ResponseOutputItem) -> Option<&str> {
     match item {
+        r::ResponseOutputItem::MultiAgentCall(v) => Some(&v.id),
+        r::ResponseOutputItem::MultiAgentCallOutput(v) => Some(&v.id),
+        r::ResponseOutputItem::AgentMessage(v) => Some(&v.id),
         r::ResponseOutputItem::Message(v) => Some(&v.id),
         r::ResponseOutputItem::FileSearchCall(v) => Some(&v.id),
         r::ResponseOutputItem::FunctionCall(v) => v.id.as_deref(),
@@ -121,6 +124,16 @@ impl Item {
         }
     }
     pub fn finish(&mut self, final_item: r::ResponseOutputItem) -> Result<(), TransformError> {
+        if self
+            .value
+            .agent()
+            .map_or("/root", |owner| owner.agent_name.as_str())
+            != final_item
+                .agent()
+                .map_or("/root", |owner| owner.agent_name.as_str())
+        {
+            return Err(invalid("output item agent changed"));
+        }
         if self.done
             || std::mem::discriminant(&self.value) != std::mem::discriminant(&final_item)
             || item_id(&self.value) != item_id(&final_item)

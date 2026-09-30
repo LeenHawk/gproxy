@@ -401,6 +401,9 @@ pub fn responses_to_gemini_response_with_modalities(
             );
             continue;
         }
+        if crate::transform::generate::multi_agent::omit_output(&item, &mut report) {
+            continue;
+        }
         match item {
             r::ResponseOutputItem::Message(message) => {
                 if message.status == i::OutputMessageStatus::InProgress
@@ -475,6 +478,9 @@ pub fn responses_to_gemini_response_with_modalities(
             | r::ResponseOutputItem::ToolSearchCall(_)
             | r::ResponseOutputItem::ToolSearchOutput(_)
             | r::ResponseOutputItem::AdditionalTools(_)
+            | r::ResponseOutputItem::MultiAgentCall(_)
+            | r::ResponseOutputItem::MultiAgentCallOutput(_)
+            | r::ResponseOutputItem::AgentMessage(_)
             | r::ResponseOutputItem::ConfigurationUpdate(_)
             | r::ResponseOutputItem::Compaction(_)
             | r::ResponseOutputItem::CodeInterpreterCall(_)

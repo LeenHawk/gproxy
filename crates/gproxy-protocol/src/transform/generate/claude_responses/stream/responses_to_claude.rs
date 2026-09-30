@@ -138,6 +138,7 @@ impl ResponsesToClaudeStream {
         &mut self,
         event: s::StreamEvent,
     ) -> Result<Converted<Vec<cs::StreamEvent>>, TransformError> {
+        let event = crate::transform::generate::multi_agent::attribute_event(event)?;
         self.budget.input(&event)?;
         self.source
             .as_mut()

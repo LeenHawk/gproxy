@@ -209,6 +209,7 @@ impl GeminiToResponsesStream {
         self.item_count += 1;
         self.target.emit(&mut self.budget, out, |sequence_number| {
             s::StreamEvent::OutputItemAdded(s::OutputItemEvent {
+                agent: None,
                 sequence_number,
                 output_index: index,
                 item,

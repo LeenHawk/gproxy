@@ -66,6 +66,7 @@ impl ResponseEvents {
         };
         self.emit(budget, out, |sequence_number| {
             s::StreamEvent::ContentPartAdded(s::ContentPartEvent {
+                agent: None,
                 sequence_number,
                 item_id: id,
                 output_index: index,
@@ -87,6 +88,7 @@ impl ResponseEvents {
         self.emit(budget, out, |sequence_number| {
             if reasoning {
                 s::StreamEvent::ReasoningTextDelta(s::ReasoningTextDelta {
+                    agent: None,
                     sequence_number,
                     item_id: id,
                     output_index: index,
@@ -96,6 +98,7 @@ impl ResponseEvents {
                 })
             } else {
                 s::StreamEvent::OutputTextDelta(s::OutputTextDelta {
+                    agent: None,
                     sequence_number,
                     item_id: id,
                     output_index: index,
@@ -119,6 +122,7 @@ impl ResponseEvents {
         self.emit(budget, out, |sequence_number| {
             if mcp {
                 s::StreamEvent::McpArgumentsDelta(s::McpArgumentsDelta {
+                    agent: None,
                     sequence_number,
                     item_id: id,
                     output_index: index,
@@ -127,6 +131,7 @@ impl ResponseEvents {
                 })
             } else {
                 s::StreamEvent::FunctionCallArgumentsDelta(s::FunctionCallArgumentsDelta {
+                    agent: None,
                     sequence_number,
                     item_id: id,
                     output_index: index,
@@ -146,6 +151,7 @@ impl ResponseEvents {
         match item {
             r::ResponseOutputItem::FunctionCall(v) => self.emit(budget, out, |sequence_number| {
                 s::StreamEvent::FunctionCallArgumentsDone(s::FunctionCallArgumentsDone {
+                    agent: None,
                     sequence_number,
                     item_id: v.id.clone().expect("allocated item ID"),
                     output_index: index,
@@ -156,6 +162,7 @@ impl ResponseEvents {
             }),
             r::ResponseOutputItem::McpCall(v) => self.emit(budget, out, |sequence_number| {
                 s::StreamEvent::McpArgumentsDone(s::McpArgumentsDone {
+                    agent: None,
                     sequence_number,
                     item_id: v.id.clone(),
                     output_index: index,
@@ -182,6 +189,7 @@ impl ResponseEvents {
                     let annotation = serde_json::to_value(annotation)?;
                     self.emit(budget, out, |sequence_number| {
                         s::StreamEvent::OutputTextAnnotationAdded(s::OutputTextAnnotationAdded {
+                            agent: None,
                             sequence_number,
                             item_id: v.id.clone(),
                             output_index: index,
@@ -194,6 +202,7 @@ impl ResponseEvents {
                 }
                 self.emit(budget, out, |sequence_number| {
                     s::StreamEvent::OutputTextDone(s::OutputTextDone {
+                        agent: None,
                         sequence_number,
                         item_id: v.id.clone(),
                         output_index: index,
@@ -205,6 +214,7 @@ impl ResponseEvents {
                 })?;
                 self.emit(budget, out, |sequence_number| {
                     s::StreamEvent::ContentPartDone(s::ContentPartEvent {
+                        agent: None,
                         sequence_number,
                         item_id: v.id.clone(),
                         output_index: index,
@@ -222,6 +232,7 @@ impl ResponseEvents {
                     .ok_or_else(|| invalid("missing reasoning content"))?;
                 self.emit(budget, out, |sequence_number| {
                     s::StreamEvent::ReasoningTextDone(s::ReasoningTextDone {
+                        agent: None,
                         sequence_number,
                         item_id: v.id.clone(),
                         output_index: index,
@@ -232,6 +243,7 @@ impl ResponseEvents {
                 })?;
                 self.emit(budget, out, |sequence_number| {
                     s::StreamEvent::ContentPartDone(s::ContentPartEvent {
+                        agent: None,
                         sequence_number,
                         item_id: v.id.clone(),
                         output_index: index,
@@ -252,6 +264,7 @@ impl ResponseEvents {
                 ) {
                     self.emit(budget, out, |sequence_number| {
                         let event = s::McpCallEvent {
+                            agent: None,
                             sequence_number,
                             item_id: v.id.clone(),
                             output_index: index,
@@ -268,6 +281,7 @@ impl ResponseEvents {
             r::ResponseOutputItem::CustomToolCall(call) => {
                 self.emit(budget, out, |sequence_number| {
                     s::StreamEvent::CustomToolInputDone(s::CustomToolInputDone {
+                        agent: None,
                         sequence_number,
                         output_index: index,
                         item_id: call.id.clone().expect("allocated custom tool ID"),
@@ -284,6 +298,7 @@ impl ResponseEvents {
         }
         self.emit(budget, out, |sequence_number| {
             s::StreamEvent::OutputItemDone(s::OutputItemEvent {
+                agent: None,
                 sequence_number,
                 output_index: index,
                 item,

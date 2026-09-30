@@ -185,6 +185,9 @@ pub fn responses_text(input: r::GenerateContentResponseBody) -> Result<String, T
     }
     let mut text = String::new();
     for item in input.output {
+        if crate::transform::generate::multi_agent::excluded_output(&item) {
+            continue;
+        }
         match item {
             r::ResponseOutputItem::Message(message) => {
                 if message.status != r::OutputMessageStatus::Completed {
@@ -227,6 +230,9 @@ pub fn responses_text(input: r::GenerateContentResponseBody) -> Result<String, T
             | r::ResponseOutputItem::ToolSearchCall(_)
             | r::ResponseOutputItem::ToolSearchOutput(_)
             | r::ResponseOutputItem::AdditionalTools(_)
+            | r::ResponseOutputItem::MultiAgentCall(_)
+            | r::ResponseOutputItem::MultiAgentCallOutput(_)
+            | r::ResponseOutputItem::AgentMessage(_)
             | r::ResponseOutputItem::ConfigurationUpdate(_)
             | r::ResponseOutputItem::Compaction(_)
             | r::ResponseOutputItem::ImageGenerationCall(_)

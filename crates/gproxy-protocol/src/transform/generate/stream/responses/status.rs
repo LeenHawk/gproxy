@@ -114,7 +114,10 @@ pub(super) fn item(
         r::ResponseOutputItem::ProgramOutput(v) => {
             (false, v.status == i::ProgramOutputStatus::Incomplete)
         }
-        r::ResponseOutputItem::AdditionalTools(_)
+        r::ResponseOutputItem::MultiAgentCall(_)
+        | r::ResponseOutputItem::MultiAgentCallOutput(_)
+        | r::ResponseOutputItem::AgentMessage(_)
+        | r::ResponseOutputItem::AdditionalTools(_)
         | r::ResponseOutputItem::ConfigurationUpdate(_)
         | r::ResponseOutputItem::Compaction(_)
         | r::ResponseOutputItem::Program(_)
