@@ -471,9 +471,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             }
             let index = usable.len();
             usable.push((credential.clone(), version));
-            if named {
-                selected = Some(index);
-            } else if selected.is_none() && !matches!(view, ServiceView::Credential(_)) {
+            if wanted {
                 selected = Some(index);
             }
         }
