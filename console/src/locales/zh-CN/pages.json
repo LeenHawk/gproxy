@@ -370,6 +370,13 @@
     }
   },
   "rules": {
+    "editorMode": "规则编辑模式",
+    "formMode": "表单",
+    "jsonMode": "高级 JSON",
+    "ruleJson": "规则 JSON",
+    "jsonHelp": "粘贴一个 v4 规则对象。所属规则集和规则顺序由页面管理，保存时会校验规则是否有效。",
+    "formatJson": "格式化 JSON",
+    "invalidJsonField": "规则字段无效或不支持：{{field}}。",
     "allModels": "所有模型",
     "advancedBindings": "高级：规则集关联",
     "inactive": "此组规则未启用",

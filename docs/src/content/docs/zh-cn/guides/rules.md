@@ -18,6 +18,24 @@ description: "设置提示词、缓存断点、JSON 与文本重写，以及上�
 
 系统提示词支持 Claude、OpenAI Chat、Responses（含 WebSocket）和 Gemini。缓存断点支持 Claude 与 OpenAI 协议；具体位置和有效期见[提示缓存](/zh-cn/guides/claude-caching/)。
 
+## 高级 JSON 编辑
+
+在规则集内新建或编辑规则时，切换到“高级 JSON”即可直接粘贴一个 v4 规则对象。供应商的重写规则页面也提供此入口。表单和 JSON 可以相互切换，并支持格式化；JSON 有误时会保留输入并提示，保存时还会校验规则是否可执行。
+
+例如，将正文中的 `"type":"function"}` 替换为 `"type":"function","strict":false}`：
+
+```json
+{
+  "action": "replace",
+  "phase": "request",
+  "target": "body",
+  "pattern": "\"type\":\"function\"\\}",
+  "replacement": "\"type\":\"function\",\"strict\":false}"
+}
+```
+
+这里使用 v4 的 `action`、`pattern`、`replacement` 字段。规则集、ID 和顺序由页面管理，不填入 JSON；可选的过滤条件及 `enabled` 可以一并填写。省略过滤条件表示不限制匹配，省略 `enabled` 表示启用。一次编辑一条规则，不接受规则数组。
+
 ## 执行位置与顺序
 
 请求先转换为上游协议，再执行请求重写，然后由渠道发送。响应先执行响应重写，再转换为客户端协议。因此，规则中的字段路径必须使用**上游格式**。

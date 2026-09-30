@@ -370,6 +370,13 @@
     }
   },
   "rules": {
+    "editorMode": "Rule editor mode",
+    "formMode": "Form",
+    "jsonMode": "Advanced JSON",
+    "ruleJson": "Rule JSON",
+    "jsonHelp": "Paste one v4 rule object. The selected rule set and rule order stay outside the JSON. Saving validates the rule on the server.",
+    "formatJson": "Format JSON",
+    "invalidJsonField": "Invalid or unsupported rule field: {{field}}.",
     "allModels": "All models",
     "advancedBindings": "Advanced: rule set bindings",
     "inactive": "This group of rules is disabled",
