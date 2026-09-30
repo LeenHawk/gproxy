@@ -325,7 +325,8 @@ pub(crate) async fn open_connection(config: &AppConfig) -> Result<Connection> {
 /// journal, and `synchronous = NORMAL`, which in WAL mode syncs at checkpoints
 /// rather than on every commit: a power cut can lose the last commits, never
 /// corrupt the file. Together they are the difference between a commit costing
-/// an fsync and costing a write. The rest keeps the working set in memory.
+/// an fsync and costing a write. Page caching and mmap bound the working set;
+/// temporary databases use files so VACUUM need not hold a full copy in memory.
 /// Applied on every connect, so a connection the pool reopens is tuned too.
 fn tuned(
     options: sea_orm::sqlx::sqlite::SqliteConnectOptions,
@@ -338,7 +339,7 @@ fn tuned(
         // 64 MiB of page cache (negative is KiB), 256 MiB of mapped file.
         .pragma("cache_size", "-65536")
         .pragma("mmap_size", "268435456")
-        .pragma("temp_store", "memory")
+        .pragma("temp_store", "file")
 }
 
 /// Shared transient state: TTL entries, rate-limit counters, concurrency
