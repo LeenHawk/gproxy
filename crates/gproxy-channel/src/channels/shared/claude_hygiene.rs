@@ -91,6 +91,7 @@ pub(crate) fn count_tokens(body: &Value, headers: &mut HeaderMap) {
 
 /// The OpenAI compatibility layer inherits Anthropic's prefill rule but none
 /// of the Messages betas, which it does not read.
+#[cfg(feature = "claudeapi")]
 pub(crate) fn chat(body: &mut Value) {
     coerce_prefill(body);
 }
