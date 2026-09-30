@@ -26,8 +26,8 @@
 //! affinity. They are account plumbing for the CLI, not model traffic.
 
 use crate::{
-    BudgetOwner, Core, CoreError, CoreResult, CredentialBlocks, CredentialData, CredentialStatus,
-    CredentialVersion, ExecutionTarget, RefreshMode, api::lifecycle::now_ms, ids,
+    BudgetOwner, Core, CoreError, CoreResult, CredentialData, CredentialStatus, CredentialVersion,
+    ExecutionTarget, RefreshMode, api::lifecycle::now_ms, ids,
 };
 use futures_util::StreamExt;
 pub use gproxy_channel::channel::{CallerRole, ServiceView};
@@ -35,7 +35,7 @@ use gproxy_channel::{
     ChannelError,
     channel::{
         CallerIdentity, CallerUsage, CallerUsageWindow, CredentialContext, OperationFuture,
-        QuotaScope, ResourceBindingRecord, ServiceCaller, ServiceContext,
+        ResourceBindingRecord, ServiceCaller, ServiceContext,
     },
 };
 use gproxy_protocol::{HttpBody, WireRequest, WireResponse, capability::UpstreamConnection};
@@ -72,16 +72,6 @@ pub struct ServiceRequest<B = HttpBody> {
     pub budgets: Vec<BudgetOwner>,
     /// The client's request as received, vendor path included.
     pub request: WireRequest<B>,
-}
-
-/// A block that makes the credential unusable for everything, not only for
-/// one model or operation: services have neither.
-fn blocked_credential_wide(blocks: &CredentialBlocks, now_ms: i64) -> bool {
-    blocks.blocks.iter().any(|block| {
-        block.until_ms > now_ms
-            && block.operation.is_none()
-            && matches!(block.scope, QuotaScope::All | QuotaScope::Unknown)
-    })
 }
 
 fn host_error(error: impl std::fmt::Display) -> ChannelError {
@@ -423,9 +413,9 @@ struct Selected {
 
 impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
     /// The usable credentials of the target and the one this call runs with:
-    /// under `Credential(id)` the named one; otherwise the first that is not
-    /// blocked credential-wide, as `select_credential` would pick without
-    /// strategy or affinity. Material about to expire is refreshed first.
+    /// under `Credential(id)` the named one; otherwise the first live one.
+    /// Services are account plumbing and ignore generation cooldowns and quota
+    /// blocks. Material about to expire is refreshed first.
     ///
     /// Takes the target and the view rather than the whole `ServiceRequest`,
     /// which carries the client's `HttpBody`: a streaming body is `Send` but
@@ -484,12 +474,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             if named {
                 selected = Some(index);
             } else if selected.is_none() && !matches!(view, ServiceView::Credential(_)) {
-                let blocks = self
-                    .read_blocks(&credential.provider_id, &credential.id)
-                    .await?;
-                if !blocked_credential_wide(&blocks, now) {
-                    selected = Some(index);
-                }
+                selected = Some(index);
             }
         }
         match selected {

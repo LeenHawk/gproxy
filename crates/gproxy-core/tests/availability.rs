@@ -27,7 +27,7 @@ fn family_prefix_blocks_only_that_family_and_unknown_blocks_everything() {
 
     let unknown = block(QuotaScope::Unknown, None, 100);
     assert!(unknown.applies_to(Some("anything"), Operation::GenerateContent));
-    assert!(unknown.applies_to(None, Operation::ListModels));
+    assert!(!unknown.applies_to(None, Operation::ListModels));
 }
 
 #[test]

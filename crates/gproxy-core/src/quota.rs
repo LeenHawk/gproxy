@@ -62,7 +62,7 @@ fn dimension_applies(
     let operation_ok = dimension
         .operations
         .as_ref()
-        .is_none_or(|ops| ops.contains(&operation));
+        .map_or(operation.produces_usage(), |ops| ops.contains(&operation));
     let scope_ok = match &dimension.scope {
         QuotaScope::All => true,
         QuotaScope::Unknown => false,
@@ -1054,7 +1054,7 @@ async fn meter<C: BatchConnectionTrait>(
             };
             let block = CredentialBlock {
                 scope,
-                operation: None,
+                operation: (!operation.produces_usage()).then_some(operation),
                 until_ms: end,
                 source: BlockSource::Counted {
                     dimension: dimension.id.clone(),
