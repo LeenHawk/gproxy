@@ -61,7 +61,9 @@ impl ResponsesToGeminiStream {
         if self.items.len() >= self.limits.max_items {
             return Err(limit());
         }
-        if self.image_only && !matches!(value, r::ResponseOutputItem::ImageGenerationCall(_)) {
+        if crate::transform::generate::multi_agent::excluded_output(&value)
+            || self.image_only && !matches!(value, r::ResponseOutputItem::ImageGenerationCall(_))
+        {
             if self
                 .items
                 .insert(

@@ -38,6 +38,7 @@ impl ClaudeToResponsesStream {
                 )?;
                 (
                     Some(r::ResponseOutputItem::Message(i::ResponseOutputMessage {
+                        agent: None,
                         id,
                         content: Vec::new(),
                         role: i::OutputMessageRole::Assistant,
@@ -61,6 +62,7 @@ impl ClaudeToResponsesStream {
                 )?;
                 (
                     Some(r::ResponseOutputItem::Reasoning(i::ReasoningItem {
+                        agent: None,
                         type_: i::ReasoningItemType::ReasoningItem,
                         id,
                         summary: Vec::new(),
@@ -111,6 +113,7 @@ impl ClaudeToResponsesStream {
                     .transpose()?;
                 (
                     Some(r::ResponseOutputItem::FunctionCall(i::FunctionCall {
+                        agent: None,
                         async_: None,
                         type_: i::FunctionCallType::FunctionCall,
                         arguments: String::new(),
@@ -175,6 +178,7 @@ impl ClaudeToResponsesStream {
             if !deferred {
                 self.events.emit(&mut self.budget, out, |sequence_number| {
                     s::StreamEvent::OutputItemAdded(s::OutputItemEvent {
+                        agent: None,
                         sequence_number,
                         output_index: n,
                         item: value.clone(),
@@ -295,6 +299,7 @@ impl ClaudeToResponsesStream {
             };
             self.events.emit(&mut self.budget, out, |sequence_number| {
                 s::StreamEvent::OutputItemAdded(s::OutputItemEvent {
+                    agent: None,
                     sequence_number,
                     output_index: block.output_index.unwrap(),
                     item: item.clone(),

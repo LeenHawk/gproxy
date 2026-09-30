@@ -75,6 +75,7 @@ pub(super) fn to_responses(
                     })
                 };
                 r::ResponseOutputItem::Message(r::ResponseOutputMessage {
+                    agent: None,
                     id: id(
                         flow,
                         policy,
@@ -150,6 +151,7 @@ pub(super) fn to_responses(
                     .transpose()?
                     .flatten();
                 let restored = crate::transform::optional(bindings.restore(r::FunctionCall {
+                    agent: None,
                     async_: None,
                     type_: r::FunctionCallType::FunctionCall,
                     arguments: serde_json::to_string(&block.input)?,
@@ -176,6 +178,7 @@ pub(super) fn to_responses(
             // Claude upstream restores the block; see `signature`.
             c::ResponseContentBlock::Thinking(block) => {
                 r::ResponseOutputItem::Reasoning(r::ReasoningItem {
+                    agent: None,
                     type_: r::ReasoningItemType::ReasoningItem,
                     id: id(
                         flow,
@@ -270,6 +273,9 @@ pub(super) fn to_claude(
     };
     let mut calls = std::collections::BTreeSet::new();
     for (index, item) in output.into_iter().enumerate() {
+        if crate::transform::generate::multi_agent::omit_output(&item, report) {
+            continue;
+        }
         match item {
             r::ResponseOutputItem::Message(message) => {
                 match message.status {
@@ -429,6 +435,9 @@ pub(super) fn to_claude(
             | r::ResponseOutputItem::ToolSearchCall(_)
             | r::ResponseOutputItem::ToolSearchOutput(_)
             | r::ResponseOutputItem::AdditionalTools(_)
+            | r::ResponseOutputItem::MultiAgentCall(_)
+            | r::ResponseOutputItem::MultiAgentCallOutput(_)
+            | r::ResponseOutputItem::AgentMessage(_)
             | r::ResponseOutputItem::ConfigurationUpdate(_)
             | r::ResponseOutputItem::Compaction(_)
             | r::ResponseOutputItem::ImageGenerationCall(_)

@@ -15,3 +15,5 @@ pub(crate) mod openai_controls;
 pub(crate) mod reasoning_details;
 pub mod signature;
 pub mod stream;
+
+pub(crate) mod multi_agent;

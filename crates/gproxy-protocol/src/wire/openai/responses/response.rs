@@ -436,6 +436,9 @@ pub struct ResponseOutputTokensDetails {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseOutputItem {
+    MultiAgentCall(super::multi_agent::ResponseMultiAgentCall),
+    MultiAgentCallOutput(super::multi_agent::ResponseMultiAgentCallOutput),
+    AgentMessage(super::multi_agent::ResponseAgentMessage),
     ConfigurationUpdate(input::ConfigurationUpdate),
     Message(input::ResponseOutputMessage),
     FileSearchCall(input::FileSearchCall),
@@ -473,6 +476,12 @@ pub enum ResponseOutputItem {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseFunctionCallOutput {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     pub call_id: String,
     pub output: input::CustomOutput,
@@ -513,6 +522,12 @@ pub struct ResponseFunctionCallOutput {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseComputerCallOutput {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     pub call_id: String,
     pub output: input::ComputerScreenshot,
@@ -555,6 +570,12 @@ pub enum ResponseComputerOutputStatus {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseToolSearchCall {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     // Source line 10675 explicitly permits unknown (arbitrary JSON) arguments.
     pub arguments: serde_json::Value,
@@ -581,6 +602,12 @@ pub struct ResponseToolSearchCall {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseToolSearchOutput {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     #[wire(required)]
     #[serde(deserialize_with = "required_nullable")]
@@ -606,6 +633,12 @@ pub struct ResponseToolSearchOutput {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseAdditionalTools {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     pub role: ResponseAdditionalToolsRole,
     pub tools: Vec<tools::Tool>,
@@ -643,6 +676,12 @@ pub enum ResponseAdditionalToolsRole {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseCompaction {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     pub encrypted_content: String,
     #[serde(rename = "type")]
@@ -663,6 +702,12 @@ pub struct ResponseCompaction {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseShellCall {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     pub action: ResponseShellAction,
     pub call_id: String,
@@ -732,6 +777,12 @@ pub struct ResponseLocalEnvironment {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseShellCallOutput {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     pub call_id: String,
     #[wire(required)]
@@ -782,6 +833,12 @@ pub struct ResponseShellOutputContent {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseApplyPatchCall {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     pub call_id: String,
     pub operation: input::ApplyPatchOperation,
@@ -810,6 +867,12 @@ pub struct ResponseApplyPatchCall {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseApplyPatchCallOutput {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     pub call_id: String,
     pub status: input::ApplyPatchOutputStatus,
@@ -843,6 +906,12 @@ pub struct ResponseApplyPatchCallOutput {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseMcpApprovalResponse {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     pub approval_request_id: String,
     pub approve: bool,
@@ -864,6 +933,12 @@ pub struct ResponseMcpApprovalResponse {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseCustomToolCallOutput {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     pub call_id: String,
     pub output: input::CustomOutput,
@@ -923,4 +998,82 @@ pub struct MisalignmentSteer {
     pub message: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
+}
+
+impl ResponseOutputItem {
+    pub fn agent(&self) -> Option<&super::multi_agent::Agent> {
+        match self {
+            Self::ConfigurationUpdate(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::Message(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::FileSearchCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::FunctionCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::FunctionCallOutput(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::WebSearchCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ComputerCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ComputerCallOutput(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::Reasoning(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::Program(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ProgramOutput(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ToolSearchCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ToolSearchOutput(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::AdditionalTools(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::Compaction(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ImageGenerationCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::CodeInterpreterCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::LocalShellCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::LocalShellCallOutput(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ShellCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ShellCallOutput(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ApplyPatchCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ApplyPatchCallOutput(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::McpCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::McpListTools(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::McpApprovalRequest(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::McpApprovalResponse(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::CustomToolCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::CustomToolCallOutput(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::MultiAgentCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::MultiAgentCallOutput(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::AgentMessage(v) => v.agent.as_ref().and_then(Option::as_ref),
+        }
+    }
+}
+
+impl ResponseOutputItem {
+    pub(crate) fn set_agent(&mut self, agent: super::multi_agent::Agent) {
+        match self {
+            Self::MultiAgentCall(v) => v.agent = Some(Some(agent)),
+            Self::MultiAgentCallOutput(v) => v.agent = Some(Some(agent)),
+            Self::AgentMessage(v) => v.agent = Some(Some(agent)),
+            Self::ConfigurationUpdate(v) => v.agent = Some(Some(agent)),
+            Self::Message(v) => v.agent = Some(Some(agent)),
+            Self::FileSearchCall(v) => v.agent = Some(Some(agent)),
+            Self::FunctionCall(v) => v.agent = Some(Some(agent)),
+            Self::FunctionCallOutput(v) => v.agent = Some(Some(agent)),
+            Self::WebSearchCall(v) => v.agent = Some(Some(agent)),
+            Self::ComputerCall(v) => v.agent = Some(Some(agent)),
+            Self::ComputerCallOutput(v) => v.agent = Some(Some(agent)),
+            Self::Reasoning(v) => v.agent = Some(Some(agent)),
+            Self::Program(v) => v.agent = Some(Some(agent)),
+            Self::ProgramOutput(v) => v.agent = Some(Some(agent)),
+            Self::ToolSearchCall(v) => v.agent = Some(Some(agent)),
+            Self::ToolSearchOutput(v) => v.agent = Some(Some(agent)),
+            Self::AdditionalTools(v) => v.agent = Some(Some(agent)),
+            Self::Compaction(v) => v.agent = Some(Some(agent)),
+            Self::ImageGenerationCall(v) => v.agent = Some(Some(agent)),
+            Self::CodeInterpreterCall(v) => v.agent = Some(Some(agent)),
+            Self::LocalShellCall(v) => v.agent = Some(Some(agent)),
+            Self::LocalShellCallOutput(v) => v.agent = Some(Some(agent)),
+            Self::ShellCall(v) => v.agent = Some(Some(agent)),
+            Self::ShellCallOutput(v) => v.agent = Some(Some(agent)),
+            Self::ApplyPatchCall(v) => v.agent = Some(Some(agent)),
+            Self::ApplyPatchCallOutput(v) => v.agent = Some(Some(agent)),
+            Self::McpCall(v) => v.agent = Some(Some(agent)),
+            Self::McpListTools(v) => v.agent = Some(Some(agent)),
+            Self::McpApprovalRequest(v) => v.agent = Some(Some(agent)),
+            Self::McpApprovalResponse(v) => v.agent = Some(Some(agent)),
+            Self::CustomToolCall(v) => v.agent = Some(Some(agent)),
+            Self::CustomToolCallOutput(v) => v.agent = Some(Some(agent)),
+        }
+    }
 }

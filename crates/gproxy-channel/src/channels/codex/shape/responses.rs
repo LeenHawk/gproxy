@@ -30,6 +30,7 @@ pub(super) fn request(
         .take_if(|input| matches!(input, Input::Text(_)))
     {
         request.input = Some(Input::Items(vec![InputItem::Easy(EasyInputMessage {
+            agent: None,
             type_: Some(MessageType::Message),
             role: MessageRole::User,
             content: MessageContent::Text(text),

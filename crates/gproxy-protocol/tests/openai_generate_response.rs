@@ -50,6 +50,9 @@ fn all_output_variants_preserve_known_fields_and_extensions() {
     for wire in fixtures {
         let value: ResponseOutputItem = serde_json::from_value(wire.clone()).unwrap();
         match &value {
+            ResponseOutputItem::MultiAgentCall(x) => assert!(x.rest.is_empty()),
+            ResponseOutputItem::MultiAgentCallOutput(x) => assert!(x.rest.is_empty()),
+            ResponseOutputItem::AgentMessage(x) => assert!(x.rest.is_empty()),
             ResponseOutputItem::ConfigurationUpdate(x) => assert!(x.rest.is_empty()),
             ResponseOutputItem::FileSearchCall(x) => {
                 assert!(x.rest.is_empty(), "FileSearchCall: {:?}", x.rest)

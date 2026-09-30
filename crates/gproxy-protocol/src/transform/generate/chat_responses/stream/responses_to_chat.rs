@@ -25,6 +25,7 @@ pub(super) struct TextPart {
 }
 
 pub(super) enum ItemKind {
+    Excluded,
     Message {
         parts: BTreeMap<i64, TextPart>,
         cursor: i64,
@@ -160,6 +161,7 @@ impl ResponsesToChatStream {
         &mut self,
         event: rs::StreamEvent,
     ) -> Result<Converted<Vec<cs::ChatCompletionChunk>>, TransformError> {
+        let event = crate::transform::generate::multi_agent::attribute_event(event)?;
         self.budget.input(&event)?;
         self.source
             .as_mut()

@@ -2,6 +2,7 @@
 pub mod diagnostics;
 pub mod generate;
 pub mod input;
+pub mod multi_agent;
 pub mod response;
 pub mod steering;
 pub mod stream;

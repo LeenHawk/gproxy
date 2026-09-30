@@ -4,6 +4,7 @@ pub(super) struct Emitter {
     pub events: Vec<s::StreamEvent>,
     collector: Option<ResponsesStreamCollector>,
     sequence: i64,
+    agent: Option<crate::wire::openai::responses::multi_agent::Agent>,
 }
 
 impl Emitter {
@@ -12,6 +13,7 @@ impl Emitter {
             events: Vec::new(),
             collector: Some(ResponsesStreamCollector::new(limits)),
             sequence: 0,
+            agent: None,
         }
     }
     pub fn push(&mut self, f: impl FnOnce(i64) -> s::StreamEvent) -> Result<(), TransformError> {
@@ -22,7 +24,8 @@ impl Emitter {
         if collector.events >= collector.limits.max_events {
             return Err(limit());
         }
-        let event = f(self.sequence);
+        let mut event = f(self.sequence);
+        event.set_agent(self.agent.clone());
         bounded(
             &event,
             collector.limits.max_bytes.saturating_sub(collector.bytes),
@@ -43,6 +46,7 @@ impl Emitter {
         Ok(())
     }
     pub fn item(&mut self, index: i64, item: &r::ResponseOutputItem) -> Result<(), TransformError> {
+        self.agent = item.agent().cloned();
         let mut start = item.clone();
         match &mut start {
             r::ResponseOutputItem::Message(v) => {
@@ -75,6 +79,7 @@ impl Emitter {
         }
         self.push(|sequence_number| {
             s::StreamEvent::OutputItemAdded(s::OutputItemEvent {
+                agent: None,
                 sequence_number,
                 output_index: index,
                 item: start,
@@ -124,6 +129,7 @@ impl Emitter {
             r::ResponseOutputItem::FunctionCall(v) => {
                 self.push(|sequence_number| {
                     s::StreamEvent::FunctionCallArgumentsDelta(s::FunctionCallArgumentsDelta {
+                        agent: None,
                         sequence_number,
                         item_id: id.into(),
                         output_index: index,
@@ -133,6 +139,7 @@ impl Emitter {
                 })?;
                 self.push(|sequence_number| {
                     s::StreamEvent::FunctionCallArgumentsDone(s::FunctionCallArgumentsDone {
+                        agent: None,
                         sequence_number,
                         item_id: id.into(),
                         output_index: index,
@@ -145,6 +152,7 @@ impl Emitter {
             r::ResponseOutputItem::CustomToolCall(v) => {
                 self.push(|sequence_number| {
                     s::StreamEvent::CustomToolInputDelta(s::CustomToolInputDelta {
+                        agent: None,
                         sequence_number,
                         item_id: id.into(),
                         output_index: index,
@@ -154,6 +162,7 @@ impl Emitter {
                 })?;
                 self.push(|sequence_number| {
                     s::StreamEvent::CustomToolInputDone(s::CustomToolInputDone {
+                        agent: None,
                         sequence_number,
                         item_id: id.into(),
                         output_index: index,
@@ -165,6 +174,7 @@ impl Emitter {
             r::ResponseOutputItem::McpCall(v) => {
                 self.push(|sequence_number| {
                     s::StreamEvent::McpArgumentsDelta(s::McpArgumentsDelta {
+                        agent: None,
                         sequence_number,
                         item_id: id.into(),
                         output_index: index,
@@ -174,6 +184,7 @@ impl Emitter {
                 })?;
                 self.push(|sequence_number| {
                     s::StreamEvent::McpArgumentsDone(s::McpArgumentsDone {
+                        agent: None,
                         sequence_number,
                         item_id: id.into(),
                         output_index: index,
@@ -186,6 +197,7 @@ impl Emitter {
                 if let Some(code) = &v.code {
                     self.push(|sequence_number| {
                         s::StreamEvent::CodeInterpreterCodeDelta(s::CodeInterpreterCodeDelta {
+                            agent: None,
                             sequence_number,
                             item_id: id.into(),
                             output_index: index,
@@ -195,6 +207,7 @@ impl Emitter {
                     })?;
                     self.push(|sequence_number| {
                         s::StreamEvent::CodeInterpreterCodeDone(s::CodeInterpreterCodeDone {
+                            agent: None,
                             sequence_number,
                             item_id: id.into(),
                             output_index: index,
@@ -208,6 +221,7 @@ impl Emitter {
         }
         self.push(|sequence_number| {
             s::StreamEvent::OutputItemDone(s::OutputItemEvent {
+                agent: None,
                 sequence_number,
                 output_index: index,
                 item: item.clone(),
@@ -236,6 +250,7 @@ impl Emitter {
         if summary {
             self.push(|sequence_number| {
                 s::StreamEvent::ReasoningSummaryPartAdded(s::ReasoningSummaryPartAddedEvent {
+                    agent: None,
                     sequence_number,
                     item_id: id.into(),
                     output_index: index,
@@ -251,6 +266,7 @@ impl Emitter {
         } else {
             self.push(|sequence_number| {
                 s::StreamEvent::ContentPartAdded(s::ContentPartEvent {
+                    agent: None,
                     sequence_number,
                     item_id: id.into(),
                     output_index: index,
@@ -265,6 +281,7 @@ impl Emitter {
                 let logs = super::parts::stream_logs(&v.logprobs);
                 self.push(|sequence_number| {
                     s::StreamEvent::OutputTextDelta(s::OutputTextDelta {
+                        agent: None,
                         sequence_number,
                         item_id: id.into(),
                         output_index: index,
@@ -276,6 +293,7 @@ impl Emitter {
                 })?;
                 self.push(|sequence_number| {
                     s::StreamEvent::OutputTextDone(s::OutputTextDone {
+                        agent: None,
                         sequence_number,
                         item_id: id.into(),
                         output_index: index,
@@ -289,6 +307,7 @@ impl Emitter {
             s::OutputContentPart::Refusal(v) => {
                 self.push(|sequence_number| {
                     s::StreamEvent::RefusalDelta(s::RefusalDelta {
+                        agent: None,
                         sequence_number,
                         item_id: id.into(),
                         output_index: index,
@@ -299,6 +318,7 @@ impl Emitter {
                 })?;
                 self.push(|sequence_number| {
                     s::StreamEvent::RefusalDone(s::RefusalDone {
+                        agent: None,
                         sequence_number,
                         item_id: id.into(),
                         output_index: index,
@@ -312,6 +332,7 @@ impl Emitter {
                 if summary {
                     self.push(|sequence_number| {
                         s::StreamEvent::ReasoningSummaryTextDelta(s::ReasoningSummaryTextDelta {
+                            agent: None,
                             sequence_number,
                             item_id: id.into(),
                             output_index: index,
@@ -322,6 +343,7 @@ impl Emitter {
                     })?;
                     self.push(|sequence_number| {
                         s::StreamEvent::ReasoningSummaryTextDone(s::ReasoningSummaryTextDone {
+                            agent: None,
                             sequence_number,
                             item_id: id.into(),
                             output_index: index,
@@ -333,6 +355,7 @@ impl Emitter {
                 } else {
                     self.push(|sequence_number| {
                         s::StreamEvent::ReasoningTextDelta(s::ReasoningTextDelta {
+                            agent: None,
                             sequence_number,
                             item_id: id.into(),
                             output_index: index,
@@ -343,6 +366,7 @@ impl Emitter {
                     })?;
                     self.push(|sequence_number| {
                         s::StreamEvent::ReasoningTextDone(s::ReasoningTextDone {
+                            agent: None,
                             sequence_number,
                             item_id: id.into(),
                             output_index: index,
@@ -360,6 +384,7 @@ impl Emitter {
             };
             self.push(|sequence_number| {
                 s::StreamEvent::ReasoningSummaryPartDone(s::ReasoningSummaryPartDoneEvent {
+                    agent: None,
                     sequence_number,
                     item_id: id.into(),
                     output_index: index,
@@ -376,6 +401,7 @@ impl Emitter {
         } else {
             self.push(|sequence_number| {
                 s::StreamEvent::ContentPartDone(s::ContentPartEvent {
+                    agent: None,
                     sequence_number,
                     item_id: id.into(),
                     output_index: index,

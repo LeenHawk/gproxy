@@ -135,6 +135,7 @@ impl ResponsesToGeminiStream {
         &mut self,
         event: s::StreamEvent,
     ) -> Result<Converted<Vec<g::GenerateContentResponseBody>>, TransformError> {
+        let event = crate::transform::generate::multi_agent::attribute_event(event)?;
         self.budget.input(&event)?;
         self.source
             .as_mut()

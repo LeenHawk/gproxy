@@ -202,8 +202,8 @@ pub fn decode_request(
     }
     let ClientEvent::ResponseCreate(request) = message.event else {
         return Err(TransformError::unsupported(
-            "responses.websocket.steer",
-            "steering has no equivalent cross-protocol generation operation",
+            "responses.websocket.control",
+            "steering and injection have no equivalent cross-protocol generation operation",
         ));
     };
     Ok(request)
@@ -239,8 +239,8 @@ pub fn decode_message(
     }
     let ClientEvent::ResponseCreate(request) = &mut message.event else {
         return Err(TransformError::unsupported(
-            "responses.websocket.steer",
-            "steering has no equivalent cross-protocol generation operation",
+            "responses.websocket.control",
+            "steering and injection have no equivalent cross-protocol generation operation",
         ));
     };
     if request.background.flatten() == Some(true) {

@@ -44,8 +44,8 @@ impl<'a> ResponsesWsTurn<'a> {
     ) -> Result<Self, TransformError> {
         let ClientEvent::ResponseCreate(body) = &mut request.event else {
             return Err(TransformError::unsupported(
-                "responses.websocket.steer",
-                "steering requires a duplex continuation driver, not a single response turn",
+                "responses.websocket.control",
+                "steering and injection require a duplex continuation driver, not a single response turn",
             ));
         };
         if body.background.flatten() == Some(true) {
@@ -219,8 +219,8 @@ impl<'a> ResponsesWsTurn<'a> {
         }
         let ServerEvent::Response(event) = message.event else {
             return Err(TransformError::unsupported(
-                "responses.websocket.steer",
-                "steering events require a duplex continuation driver",
+                "responses.websocket.control",
+                "steering and injection events require a duplex continuation driver",
             ));
         };
         if matches!(event, StreamEvent::Failed(_) | StreamEvent::Error(_)) {

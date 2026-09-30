@@ -21,6 +21,12 @@ pub struct GenerateContentRequestBody {
         deserialize_with = "present_nullable",
         skip_serializing_if = "Option::is_none"
     )]
+    pub multi_agent: Option<Option<super::multi_agent::MultiAgentConfig>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub background: Option<Option<bool>>,
     #[serde(
         default,

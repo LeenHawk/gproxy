@@ -121,6 +121,8 @@ pub enum StreamEvent {
 }
 macro_rules! event_struct { ($name:ident { $($field:ident : $ty:ty),* $(,)? }) => { #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)] #[serde(rename_all="snake_case")] #[cfg_attr(not(feature="exhaustive"), non_exhaustive)] #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct $name { pub sequence_number: i64, $(pub $field: $ty,)* #[serde(default, flatten, skip_serializing_if="serde_json::Map::is_empty")] pub rest: Rest } }; }
+macro_rules! agent_event_struct { ($name:ident { $($field:ident : $ty:ty),* $(,)? }) => { #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)] #[serde(rename_all="snake_case")] #[cfg_attr(not(feature="exhaustive"), non_exhaustive)] #[derive(gproxy_protocol_macros::DeclaredFields)]
+pub struct $name { #[serde(default, deserialize_with = "super::input::present_nullable", skip_serializing_if = "Option::is_none")] pub agent: Option<Option<super::multi_agent::Agent>>, pub sequence_number: i64, $(pub $field: $ty,)* #[serde(default, flatten, skip_serializing_if="serde_json::Map::is_empty")] pub rest: Rest } }; }
 event_struct!(ResponseCreated {
     response: GenerateContentResponseBody
 });
@@ -139,50 +141,50 @@ event_struct!(ResponseFailed {
 event_struct!(ResponseIncomplete {
     response: GenerateContentResponseBody
 });
-event_struct!(OutputItemEvent {
+agent_event_struct!(OutputItemEvent {
     output_index: i64,
     item: ResponseOutputItem
 });
-event_struct!(ContentPartEvent {
+agent_event_struct!(ContentPartEvent {
     item_id: String,
     output_index: i64,
     content_index: i64,
     part: OutputContentPart
 });
-event_struct!(OutputTextDelta { item_id: String, output_index: i64, content_index: i64, delta: String, logprobs: Vec<StreamLogprob> });
-event_struct!(OutputTextDone { item_id: String, output_index: i64, content_index: i64, text: String, logprobs: Vec<StreamLogprob> });
-event_struct!(OutputTextAnnotationAdded {
+agent_event_struct!(OutputTextDelta { item_id: String, output_index: i64, content_index: i64, delta: String, logprobs: Vec<StreamLogprob> });
+agent_event_struct!(OutputTextDone { item_id: String, output_index: i64, content_index: i64, text: String, logprobs: Vec<StreamLogprob> });
+agent_event_struct!(OutputTextAnnotationAdded {
     item_id: String,
     output_index: i64,
     content_index: i64,
     annotation_index: i64,
     annotation: serde_json::Value
 });
-event_struct!(RefusalDelta {
+agent_event_struct!(RefusalDelta {
     item_id: String,
     output_index: i64,
     content_index: i64,
     delta: String
 });
-event_struct!(RefusalDone {
+agent_event_struct!(RefusalDone {
     item_id: String,
     output_index: i64,
     content_index: i64,
     refusal: String
 });
-event_struct!(ReasoningTextDelta {
+agent_event_struct!(ReasoningTextDelta {
     item_id: String,
     output_index: i64,
     content_index: i64,
     delta: String
 });
-event_struct!(ReasoningTextDone {
+agent_event_struct!(ReasoningTextDone {
     item_id: String,
     output_index: i64,
     content_index: i64,
     text: String
 });
-event_struct!(ReasoningSummaryPartAddedEvent {
+agent_event_struct!(ReasoningSummaryPartAddedEvent {
     item_id: String,
     output_index: i64,
     summary_index: i64,
@@ -193,6 +195,12 @@ event_struct!(ReasoningSummaryPartAddedEvent {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ReasoningSummaryPartDoneEvent {
+    #[serde(
+        default,
+        deserialize_with = "super::input::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent: Option<Option<super::multi_agent::Agent>>,
     pub sequence_number: i64,
     pub item_id: String,
     pub output_index: i64,
@@ -214,87 +222,87 @@ pub enum SummaryPartStatus {
     #[serde(rename = "incomplete")]
     Incomplete,
 }
-event_struct!(ReasoningSummaryTextDelta {
+agent_event_struct!(ReasoningSummaryTextDelta {
     item_id: String,
     output_index: i64,
     summary_index: i64,
     delta: String
 });
-event_struct!(ReasoningSummaryTextDone {
+agent_event_struct!(ReasoningSummaryTextDone {
     item_id: String,
     output_index: i64,
     summary_index: i64,
     text: String
 });
-event_struct!(FunctionCallArgumentsDelta {
+agent_event_struct!(FunctionCallArgumentsDelta {
     item_id: String,
     output_index: i64,
     delta: String
 });
-event_struct!(FunctionCallArgumentsDone {
+agent_event_struct!(FunctionCallArgumentsDone {
     item_id: String,
     output_index: i64,
     name: String,
     arguments: String
 });
-event_struct!(CustomToolInputDelta {
+agent_event_struct!(CustomToolInputDelta {
     item_id: String,
     output_index: i64,
     delta: String
 });
-event_struct!(CustomToolInputDone {
+agent_event_struct!(CustomToolInputDone {
     item_id: String,
     output_index: i64,
     input: String
 });
-event_struct!(CodeInterpreterCodeDelta {
+agent_event_struct!(CodeInterpreterCodeDelta {
     item_id: String,
     output_index: i64,
     delta: String
 });
-event_struct!(CodeInterpreterCodeDone {
+agent_event_struct!(CodeInterpreterCodeDone {
     item_id: String,
     output_index: i64,
     code: String
 });
-event_struct!(AudioDelta { delta: String });
-event_struct!(AudioDone {});
-event_struct!(AudioTranscriptDelta { delta: String });
-event_struct!(AudioTranscriptDone {});
-event_struct!(ImagePartial {
+agent_event_struct!(AudioDelta { delta: String });
+agent_event_struct!(AudioDone {});
+agent_event_struct!(AudioTranscriptDelta { delta: String });
+agent_event_struct!(AudioTranscriptDone {});
+agent_event_struct!(ImagePartial {
     item_id: String,
     output_index: i64,
     partial_image_index: i64,
     partial_image_b64: String
 });
-event_struct!(ImageCall {
+agent_event_struct!(ImageCall {
     item_id: String,
     output_index: i64
 });
 pub type ImageCallEvent = ImageCall;
-event_struct!(CodeInterpreterEvent {
+agent_event_struct!(CodeInterpreterEvent {
     item_id: String,
     output_index: i64
 });
-event_struct!(ToolCallEvent {
+agent_event_struct!(ToolCallEvent {
     item_id: String,
     output_index: i64
 });
-event_struct!(McpArgumentsDelta {
+agent_event_struct!(McpArgumentsDelta {
     item_id: String,
     output_index: i64,
     delta: String
 });
-event_struct!(McpArgumentsDone {
+agent_event_struct!(McpArgumentsDone {
     item_id: String,
     output_index: i64,
     arguments: String
 });
-event_struct!(McpCallEvent {
+agent_event_struct!(McpCallEvent {
     item_id: String,
     output_index: i64
 });
-event_struct!(McpListToolsEvent {
+agent_event_struct!(McpListToolsEvent {
     item_id: String,
     output_index: i64
 });
@@ -405,4 +413,159 @@ pub struct ResponseErrorEvent {
     pub sequence_number: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
+}
+
+impl StreamEvent {
+    pub fn agent(&self) -> Option<&super::multi_agent::Agent> {
+        match self {
+            Self::OutputItemAdded(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::OutputItemDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ContentPartAdded(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ContentPartDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::OutputTextDelta(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::OutputTextDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::OutputTextAnnotationAdded(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::RefusalDelta(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::RefusalDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ReasoningTextDelta(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ReasoningTextDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ReasoningSummaryPartAdded(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ReasoningSummaryPartDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ReasoningSummaryTextDelta(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ReasoningSummaryTextDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::FunctionCallArgumentsDelta(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::FunctionCallArgumentsDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::CustomToolInputDelta(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::CustomToolInputDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::CodeInterpreterCodeDelta(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::CodeInterpreterCodeDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::AudioDelta(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::AudioDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::AudioTranscriptDelta(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::AudioTranscriptDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ImagePartial(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ImageCall(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ImageGenerating(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::ImageCompleted(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::CodeInterpreterInProgress(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::CodeInterpreterInterpreting(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::CodeInterpreterCompleted(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::FileSearchInProgress(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::FileSearchSearching(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::FileSearchCompleted(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::WebSearchInProgress(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::WebSearchSearching(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::WebSearchCompleted(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::McpArgumentsDelta(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::McpArgumentsDone(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::McpInProgress(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::McpCompleted(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::McpFailed(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::McpListToolsInProgress(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::McpListToolsCompleted(v) => v.agent.as_ref().and_then(Option::as_ref),
+            Self::McpListToolsFailed(v) => v.agent.as_ref().and_then(Option::as_ref),
+            _ => None,
+        }
+    }
+    pub(crate) fn set_agent(&mut self, agent: Option<super::multi_agent::Agent>) {
+        match self {
+            Self::OutputItemAdded(v) => v.agent = agent.map(Some),
+            Self::OutputItemDone(v) => v.agent = agent.map(Some),
+            Self::ContentPartAdded(v) => v.agent = agent.map(Some),
+            Self::ContentPartDone(v) => v.agent = agent.map(Some),
+            Self::OutputTextDelta(v) => v.agent = agent.map(Some),
+            Self::OutputTextDone(v) => v.agent = agent.map(Some),
+            Self::OutputTextAnnotationAdded(v) => v.agent = agent.map(Some),
+            Self::RefusalDelta(v) => v.agent = agent.map(Some),
+            Self::RefusalDone(v) => v.agent = agent.map(Some),
+            Self::ReasoningTextDelta(v) => v.agent = agent.map(Some),
+            Self::ReasoningTextDone(v) => v.agent = agent.map(Some),
+            Self::ReasoningSummaryPartAdded(v) => v.agent = agent.map(Some),
+            Self::ReasoningSummaryPartDone(v) => v.agent = agent.map(Some),
+            Self::ReasoningSummaryTextDelta(v) => v.agent = agent.map(Some),
+            Self::ReasoningSummaryTextDone(v) => v.agent = agent.map(Some),
+            Self::FunctionCallArgumentsDelta(v) => v.agent = agent.map(Some),
+            Self::FunctionCallArgumentsDone(v) => v.agent = agent.map(Some),
+            Self::CustomToolInputDelta(v) => v.agent = agent.map(Some),
+            Self::CustomToolInputDone(v) => v.agent = agent.map(Some),
+            Self::CodeInterpreterCodeDelta(v) => v.agent = agent.map(Some),
+            Self::CodeInterpreterCodeDone(v) => v.agent = agent.map(Some),
+            Self::AudioDelta(v) => v.agent = agent.map(Some),
+            Self::AudioDone(v) => v.agent = agent.map(Some),
+            Self::AudioTranscriptDelta(v) => v.agent = agent.map(Some),
+            Self::AudioTranscriptDone(v) => v.agent = agent.map(Some),
+            Self::ImagePartial(v) => v.agent = agent.map(Some),
+            Self::ImageCall(v) => v.agent = agent.map(Some),
+            Self::ImageGenerating(v) => v.agent = agent.map(Some),
+            Self::ImageCompleted(v) => v.agent = agent.map(Some),
+            Self::CodeInterpreterInProgress(v) => v.agent = agent.map(Some),
+            Self::CodeInterpreterInterpreting(v) => v.agent = agent.map(Some),
+            Self::CodeInterpreterCompleted(v) => v.agent = agent.map(Some),
+            Self::FileSearchInProgress(v) => v.agent = agent.map(Some),
+            Self::FileSearchSearching(v) => v.agent = agent.map(Some),
+            Self::FileSearchCompleted(v) => v.agent = agent.map(Some),
+            Self::WebSearchInProgress(v) => v.agent = agent.map(Some),
+            Self::WebSearchSearching(v) => v.agent = agent.map(Some),
+            Self::WebSearchCompleted(v) => v.agent = agent.map(Some),
+            Self::McpArgumentsDelta(v) => v.agent = agent.map(Some),
+            Self::McpArgumentsDone(v) => v.agent = agent.map(Some),
+            Self::McpInProgress(v) => v.agent = agent.map(Some),
+            Self::McpCompleted(v) => v.agent = agent.map(Some),
+            Self::McpFailed(v) => v.agent = agent.map(Some),
+            Self::McpListToolsInProgress(v) => v.agent = agent.map(Some),
+            Self::McpListToolsCompleted(v) => v.agent = agent.map(Some),
+            Self::McpListToolsFailed(v) => v.agent = agent.map(Some),
+            _ => {}
+        }
+    }
+}
+
+impl StreamEvent {
+    pub(crate) fn output_index(&self) -> Option<i64> {
+        match self {
+            Self::OutputItemAdded(v) => Some(v.output_index),
+            Self::OutputItemDone(v) => Some(v.output_index),
+            Self::ContentPartAdded(v) => Some(v.output_index),
+            Self::ContentPartDone(v) => Some(v.output_index),
+            Self::OutputTextDelta(v) => Some(v.output_index),
+            Self::OutputTextDone(v) => Some(v.output_index),
+            Self::OutputTextAnnotationAdded(v) => Some(v.output_index),
+            Self::RefusalDelta(v) => Some(v.output_index),
+            Self::RefusalDone(v) => Some(v.output_index),
+            Self::ReasoningTextDelta(v) => Some(v.output_index),
+            Self::ReasoningTextDone(v) => Some(v.output_index),
+            Self::ReasoningSummaryPartAdded(v) => Some(v.output_index),
+            Self::ReasoningSummaryPartDone(v) => Some(v.output_index),
+            Self::ReasoningSummaryTextDelta(v) => Some(v.output_index),
+            Self::ReasoningSummaryTextDone(v) => Some(v.output_index),
+            Self::FunctionCallArgumentsDelta(v) => Some(v.output_index),
+            Self::FunctionCallArgumentsDone(v) => Some(v.output_index),
+            Self::CustomToolInputDelta(v) => Some(v.output_index),
+            Self::CustomToolInputDone(v) => Some(v.output_index),
+            Self::CodeInterpreterCodeDelta(v) => Some(v.output_index),
+            Self::CodeInterpreterCodeDone(v) => Some(v.output_index),
+            Self::ImagePartial(v) => Some(v.output_index),
+            Self::ImageCall(v) | Self::ImageGenerating(v) | Self::ImageCompleted(v) => {
+                Some(v.output_index)
+            }
+            Self::CodeInterpreterInProgress(v) => Some(v.output_index),
+            Self::CodeInterpreterInterpreting(v) => Some(v.output_index),
+            Self::CodeInterpreterCompleted(v) => Some(v.output_index),
+            Self::FileSearchInProgress(v) => Some(v.output_index),
+            Self::FileSearchSearching(v) => Some(v.output_index),
+            Self::FileSearchCompleted(v) => Some(v.output_index),
+            Self::WebSearchInProgress(v) => Some(v.output_index),
+            Self::WebSearchSearching(v) => Some(v.output_index),
+            Self::WebSearchCompleted(v) => Some(v.output_index),
+            Self::McpArgumentsDelta(v) => Some(v.output_index),
+            Self::McpArgumentsDone(v) => Some(v.output_index),
+            Self::McpInProgress(v) => Some(v.output_index),
+            Self::McpCompleted(v) => Some(v.output_index),
+            Self::McpFailed(v) => Some(v.output_index),
+            Self::McpListToolsInProgress(v) => Some(v.output_index),
+            Self::McpListToolsCompleted(v) => Some(v.output_index),
+            Self::McpListToolsFailed(v) => Some(v.output_index),
+            _ => None,
+        }
+    }
 }

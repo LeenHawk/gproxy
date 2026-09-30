@@ -58,6 +58,18 @@ impl ResponsesToClaudeStream {
         if self.items.len() >= self.limits.max_items {
             return Err(limit());
         }
+        if crate::transform::generate::multi_agent::omit_output(&value, &mut self.report) {
+            self.items.insert(
+                index,
+                Item {
+                    id: None,
+                    kind: Kind::Excluded,
+                    done: false,
+                    held: 0,
+                },
+            );
+            return Ok(());
+        }
         let (id, kind, held) = match value {
             r::ResponseOutputItem::Message(v) => {
                 let mut parts = BTreeMap::new();

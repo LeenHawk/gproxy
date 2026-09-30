@@ -32,6 +32,7 @@ pub(crate) fn call(
         index,
     )?;
     Ok(r::McpCall {
+        agent: None,
         type_: r::McpCallType::McpCall,
         id,
         arguments: serde_json::to_string(&source.input)?,

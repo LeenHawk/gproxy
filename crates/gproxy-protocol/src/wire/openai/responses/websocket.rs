@@ -14,6 +14,8 @@ use super::{generate::GenerateContentRequestBody, stream::StreamEvent};
 // Preserve the established by-value response.create constructor.
 #[allow(clippy::large_enum_variant)]
 pub enum ClientEvent {
+    #[serde(rename = "response.inject")]
+    ResponseInject(super::multi_agent::InjectRequest),
     #[serde(rename = "response.create")]
     ResponseCreate(GenerateContentRequestBody),
     #[serde(rename = "response.steer")]
@@ -34,6 +36,7 @@ pub enum ClientEvent {
 // Match the by-value event DTOs used by native generation streams.
 #[allow(clippy::large_enum_variant)]
 pub enum ServerEvent {
+    Injection(super::multi_agent::InjectionEvent),
     Steering(super::steering::SteeringEvent),
     Response(StreamEvent),
 }

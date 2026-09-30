@@ -30,6 +30,7 @@ impl ChatToResponsesStream {
             logs: None,
         });
         let item = r::ResponseOutputItem::Message(i::ResponseOutputMessage {
+            agent: None,
             id,
             content: Vec::new(),
             role: i::OutputMessageRole::Assistant,
@@ -39,6 +40,7 @@ impl ChatToResponsesStream {
             rest: Default::default(),
         });
         self.emit(rs::StreamEvent::OutputItemAdded(rs::OutputItemEvent {
+            agent: None,
             sequence_number: self.sequence,
             output_index: index,
             item,
@@ -59,6 +61,7 @@ impl ChatToResponsesStream {
         };
         if added {
             self.emit(rs::StreamEvent::ContentPartAdded(rs::ContentPartEvent {
+                agent: None,
                 sequence_number: self.sequence,
                 item_id: id.clone(),
                 output_index: index,
@@ -74,6 +77,7 @@ impl ChatToResponsesStream {
             }))?;
         }
         self.emit(rs::StreamEvent::OutputTextDelta(rs::OutputTextDelta {
+            agent: None,
             sequence_number: self.sequence,
             item_id: id,
             output_index: index,
@@ -145,6 +149,7 @@ impl ChatToResponsesStream {
             self.next_output += 1;
             item.status = Some(i::ReasoningStatus::InProgress);
             self.emit(rs::StreamEvent::OutputItemAdded(rs::OutputItemEvent {
+                agent: None,
                 sequence_number: self.sequence,
                 output_index: index,
                 item: r::ResponseOutputItem::Reasoning(item.clone()),
@@ -158,6 +163,7 @@ impl ChatToResponsesStream {
             let item = r::ResponseOutputItem::Reasoning(item);
             self.output.insert(index, item.clone());
             self.emit(rs::StreamEvent::OutputItemDone(rs::OutputItemEvent {
+                agent: None,
                 sequence_number: self.sequence,
                 output_index: index,
                 item,
@@ -184,6 +190,7 @@ impl ChatToResponsesStream {
                 crate::transform::generate::chat_responses::stream::common::stream_logs(&logs);
             if state.text_part {
                 self.emit(rs::StreamEvent::OutputTextDone(rs::OutputTextDone {
+                    agent: None,
                     sequence_number: self.sequence,
                     item_id: state.id.clone(),
                     output_index: state.index,
@@ -193,6 +200,7 @@ impl ChatToResponsesStream {
                     rest: Default::default(),
                 }))?;
                 self.emit(rs::StreamEvent::ContentPartDone(rs::ContentPartEvent {
+                    agent: None,
                     sequence_number: self.sequence,
                     item_id: state.id.clone(),
                     output_index: state.index,
@@ -210,6 +218,7 @@ impl ChatToResponsesStream {
             if state.refusal_part {
                 let content_index = if state.text_part { 1 } else { 0 };
                 self.emit(rs::StreamEvent::ContentPartAdded(rs::ContentPartEvent {
+                    agent: None,
                     sequence_number: self.sequence,
                     item_id: state.id.clone(),
                     output_index: state.index,
@@ -224,6 +233,7 @@ impl ChatToResponsesStream {
                     rest: Default::default(),
                 }))?;
                 self.emit(rs::StreamEvent::RefusalDelta(rs::RefusalDelta {
+                    agent: None,
                     sequence_number: self.sequence,
                     item_id: state.id.clone(),
                     output_index: state.index,
@@ -232,6 +242,7 @@ impl ChatToResponsesStream {
                     rest: Default::default(),
                 }))?;
                 self.emit(rs::StreamEvent::RefusalDone(rs::RefusalDone {
+                    agent: None,
                     sequence_number: self.sequence,
                     item_id: state.id.clone(),
                     output_index: state.index,
@@ -240,6 +251,7 @@ impl ChatToResponsesStream {
                     rest: Default::default(),
                 }))?;
                 self.emit(rs::StreamEvent::ContentPartDone(rs::ContentPartEvent {
+                    agent: None,
                     sequence_number: self.sequence,
                     item_id: state.id.clone(),
                     output_index: state.index,
@@ -274,6 +286,7 @@ impl ChatToResponsesStream {
             .flatten()
             .collect();
             let item = r::ResponseOutputItem::Message(i::ResponseOutputMessage {
+                agent: None,
                 id: state.id.clone(),
                 content,
                 role: i::OutputMessageRole::Assistant,
@@ -288,6 +301,7 @@ impl ChatToResponsesStream {
             });
             self.output.insert(state.index, item.clone());
             self.emit(rs::StreamEvent::OutputItemDone(rs::OutputItemEvent {
+                agent: None,
                 sequence_number: self.sequence,
                 output_index: state.index,
                 item,
@@ -338,6 +352,7 @@ impl ChatToResponsesStream {
                 // Emit only after the complete action can be validated, preserving
                 // the original client executor and call/item identity roles.
                 let item = self.client_tools.restore(i::FunctionCall {
+                    agent: None,
                     async_: None,
                     type_: i::FunctionCallType::FunctionCall,
                     arguments: t.arguments,
@@ -354,6 +369,7 @@ impl ChatToResponsesStream {
                     rest: Default::default(),
                 })?;
                 self.emit(rs::StreamEvent::OutputItemAdded(rs::OutputItemEvent {
+                    agent: None,
                     sequence_number: self.sequence,
                     output_index,
                     item: item.clone(),
@@ -361,6 +377,7 @@ impl ChatToResponsesStream {
                 }))?;
                 self.output.insert(output_index, item.clone());
                 self.emit(rs::StreamEvent::OutputItemDone(rs::OutputItemEvent {
+                    agent: None,
                     sequence_number: self.sequence,
                     output_index,
                     item,
@@ -369,6 +386,7 @@ impl ChatToResponsesStream {
                 continue;
             }
             let item = self.client_tools.restore(i::FunctionCall {
+                agent: None,
                 async_: None,
                 type_: i::FunctionCallType::FunctionCall,
                 arguments: String::new(),
@@ -386,6 +404,7 @@ impl ChatToResponsesStream {
             };
             let restored_name = restored.name.clone();
             self.emit(rs::StreamEvent::OutputItemAdded(rs::OutputItemEvent {
+                agent: None,
                 sequence_number: self.sequence,
                 output_index,
                 item,
@@ -393,6 +412,7 @@ impl ChatToResponsesStream {
             }))?;
             self.emit(rs::StreamEvent::FunctionCallArgumentsDelta(
                 rs::FunctionCallArgumentsDelta {
+                    agent: None,
                     sequence_number: self.sequence,
                     item_id: item_id.clone(),
                     output_index,
@@ -402,6 +422,7 @@ impl ChatToResponsesStream {
             ))?;
             self.emit(rs::StreamEvent::FunctionCallArgumentsDone(
                 rs::FunctionCallArgumentsDone {
+                    agent: None,
                     sequence_number: self.sequence,
                     item_id: item_id.clone(),
                     output_index,
@@ -411,6 +432,7 @@ impl ChatToResponsesStream {
                 },
             ))?;
             let item = self.client_tools.restore(i::FunctionCall {
+                agent: None,
                 async_: None,
                 type_: i::FunctionCallType::FunctionCall,
                 arguments: t.arguments,
@@ -428,6 +450,7 @@ impl ChatToResponsesStream {
             })?;
             self.output.insert(output_index, item.clone());
             self.emit(rs::StreamEvent::OutputItemDone(rs::OutputItemEvent {
+                agent: None,
                 sequence_number: self.sequence,
                 output_index,
                 item,
