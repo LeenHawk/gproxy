@@ -76,7 +76,7 @@ fn parse_catalog() -> Result<DefaultModelCatalogDto, String> {
 }
 
 pub struct Catalog<'a, C> {
-    writer: Writer<'a, C>,
+    pub(super) writer: Writer<'a, C>,
 }
 
 impl<'a, C> Catalog<'a, C> {

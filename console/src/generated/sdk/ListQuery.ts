@@ -8,16 +8,24 @@
  * ignored rather than rejected. `page` is 1-based; both fields have defaults
  * so an empty query is a valid first page.
  */
-export type ListQuery = { 
+export type ListQuery = {
 /**
  * 1-based. Zero and absent both mean the first page.
  */
-page: number | null, 
+page: number | null,
 /**
  * Clamped to 1..=500; absent means 50.
  */
-pageSize: number | null, 
+pageSize: number | null,
 /**
  * Case-insensitive substring of the family's natural name column.
  */
-search: string | null, providerId: string | null, routeId: string | null, ruleSetId: string | null, priceRuleId: string | null, credentialId: string | null, modelId: string | null, ownerKind: string | null, ownerId: string | null, enabled: boolean | null, };
+search: string | null, providerId: string | null, routeId: string | null, ruleSetId: string | null, priceRuleId: string | null, credentialId: string | null, modelId: string | null,
+/**
+ * Exact pricing pattern (not a runtime wildcard match).
+ */
+modelPattern: string | null,
+/**
+ * Restrict price rules to the global scope.
+ */
+globalOnly: boolean | null, ownerKind: string | null, ownerId: string | null, enabled: boolean | null, };

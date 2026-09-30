@@ -5,17 +5,19 @@ import { Download, Link2, Star, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { SETTINGS_KEY, readSettings, saveSettings, vocabularies } from "@/api/settings"
 import {
-  MODEL_CATALOG_KEY,
   VOCABULARIES_KEY,
   bindVocabulary,
   deleteVocabulary,
   downloadVocabulary,
-  modelCatalog,
   vocabularyProgress,
 } from "@/api/tokenizer"
-import type { ModelDto, TokenizerFetch, VocabularyDto } from "@/generated/sdk"
+import { models } from "@/api/models"
+import { optionSource } from "@/api/options"
+import { SearchableSelect } from "@/components/searchable-select"
+import { usePagination } from "@/lib/use-pagination"
+import type { TokenizerFetch, VocabularyDto } from "@/generated/sdk"
 import { Page, PageHeader } from "@/components/page"
-import { DataTable } from "@/components/data-table"
+import { DataTable, Pagination } from "@/components/data-table"
 import { InstantCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
 import { EmptyNotice, ErrorNotice, QueryState } from "@/components/state"
@@ -34,14 +36,6 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DownloadProgress } from "@/components/download-progress"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Link } from "@/lib/router"
 
 function size(bytes: number) {
@@ -56,12 +50,11 @@ export function TokenizerPage() {
   const [search, setSearch] = useState("")
   const list = useQuery({ queryKey: VOCABULARIES_KEY, queryFn: vocabularies })
   const settings = useQuery({ queryKey: SETTINGS_KEY, queryFn: readSettings })
-  const models = useQuery({ queryKey: MODEL_CATALOG_KEY, queryFn: modelCatalog })
   const invalidate = async () => {
     await Promise.all([
       client.invalidateQueries({ queryKey: VOCABULARIES_KEY }),
       client.invalidateQueries({ queryKey: SETTINGS_KEY }),
-      client.invalidateQueries({ queryKey: MODEL_CATALOG_KEY }),
+      client.invalidateQueries({ queryKey: ["admin", "/models"] }),
     ])
   }
   const changeDefault = useMutation({
@@ -141,8 +134,8 @@ export function TokenizerPage() {
           {t("tokenizer.downloadDisabled")}
         </p>
       ) : null}
-      {changeDefault.error || remove.error || settings.error || models.error ? (
-        <ErrorNotice error={changeDefault.error ?? remove.error ?? settings.error ?? models.error} />
+      {changeDefault.error || remove.error || settings.error ? (
+        <ErrorNotice error={changeDefault.error ?? remove.error ?? settings.error} />
       ) : null}
       <QueryState isPending={list.isPending} error={list.error}>
         <DataTable storageKey="tokenizers" paginate resetPageKey={search}
@@ -163,9 +156,7 @@ export function TokenizerPage() {
             {
               key: "linkedModels",
               cell: (row) =>
-                row.models
-                  .map((id) => models.data?.find((model) => model.id === id)?.name ?? id)
-                  .join(", ") || "—",
+                row.models.length ? row.models.map((id) => <ModelName key={id} id={id} />) : "—",
             },
             { key: "createdAtMs", cell: (row) => <InstantCell value={row.createdAtMs} /> },
           ]}
@@ -183,7 +174,7 @@ export function TokenizerPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={busy || models.isPending || !!models.error}
+                disabled={busy}
                 onClick={() => setBinding(row)}
               >
                 <Link2 data-icon="inline-start" />
@@ -218,7 +209,6 @@ export function TokenizerPage() {
           </DialogHeader>
           {downloading ? (
             <DownloadForm
-              models={models.data ?? []}
               pending={fetch.isPending}
               error={fetch.error}
               onSubmit={(request) => fetch.mutate(request)}
@@ -242,7 +232,6 @@ export function TokenizerPage() {
             <ModelBindings
               key={binding.fileId}
               vocabulary={binding}
-              models={models.data ?? []}
               onSaved={async () => {
                 setBinding(null)
                 await invalidate()
@@ -257,14 +246,12 @@ export function TokenizerPage() {
 }
 
 function DownloadForm({
-  models,
   pending,
   error,
   onSubmit,
   progress,
   progressError,
 }: {
-  models: Array<ModelDto>
   pending: boolean
   error: unknown
   onSubmit: (request: TokenizerFetch) => void
@@ -312,21 +299,7 @@ function DownloadForm({
           </Field>
           <Field>
             <FieldLabel htmlFor="vocab-model">{t("tokenizer.bind")}</FieldLabel>
-            <Select value={model} onValueChange={setModel} disabled={pending}>
-              <SelectTrigger id="vocab-model" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="__none">{t("tokenizer.noBinding")}</SelectItem>
-                  {models.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <SearchableSelect id="vocab-model" label={t("tokenizer.bind")} value={model} onChange={setModel} disabled={pending} emptyValue="__none" emptyLabel={t("tokenizer.noBinding")} source={optionSource(models, row => ({ value: row.id, label: row.name }))} />
           </Field>
           <Field>
             <FieldLabel htmlFor="vocab-default">{t("tokenizer.setDefault")}</FieldLabel>
@@ -361,22 +334,22 @@ function DownloadForm({
 
 function ModelBindings({
   vocabulary,
-  models,
   onSaved,
 }: {
   vocabulary: VocabularyDto
-  models: Array<ModelDto>
   onSaved: () => Promise<void>
 }) {
   const { t } = useTranslation()
   const [selected, setSelected] = useState(new Set(vocabulary.models))
+  const [search, setSearch] = useState("")
+  const { page, pageSize, setPage, setPageSize } = usePagination("tokenizer-models", search)
+  const request = { page, pageSize, search: search.trim() || undefined }
+  const list = useQuery({ queryKey: ["admin", "/models", request], queryFn: () => models.list(request) })
   const saved = useMutation({
     mutationFn: async () => {
-      for (const model of models) {
-        const wanted = selected.has(model.id)
-        if (wanted && model.vocabularyFileId !== vocabulary.fileId)
-          await bindVocabulary(model.id, vocabulary.fileId)
-        else if (!wanted && model.vocabularyFileId === vocabulary.fileId) await bindVocabulary(model.id, null)
+      const previous = new Set(vocabulary.models)
+      for (const id of new Set([...previous, ...selected])) {
+        if (previous.has(id) !== selected.has(id)) await bindVocabulary(id, selected.has(id) ? vocabulary.fileId : null)
       }
     },
     onSuccess: onSaved,
@@ -385,11 +358,13 @@ function ModelBindings({
     <>
       <DialogBody>
         {saved.error ? <ErrorNotice error={saved.error} /> : null}
-        {models.length === 0 ? (
+        <Input aria-label={t("actions.search")} placeholder={t("actions.search")} value={search} onChange={event => setSearch(event.target.value)} />
+        <QueryState isPending={list.isPending} error={list.error}>
+        {!list.data?.items.length ? (
           <EmptyNotice title={t("tokenizer.noModels")} />
         ) : (
           <div className="flex flex-col gap-3">
-            {models.map((model) => (
+            {list.data.items.map((model) => (
               <label key={model.id} className="flex items-center gap-3">
                 <Checkbox
                   disabled={saved.isPending}
@@ -408,12 +383,19 @@ function ModelBindings({
             ))}
           </div>
         )}
+        <Pagination page={page} pageSize={pageSize} total={list.data?.total ?? 0} onPage={setPage} onPageSize={setPageSize} />
+        </QueryState>
       </DialogBody>
       <DialogFooter>
-        <Button disabled={saved.isPending || models.length === 0} onClick={() => saved.mutate()}>
+        <Button disabled={saved.isPending || !list.data} onClick={() => saved.mutate()}>
           {t("actions.save")}
         </Button>
       </DialogFooter>
     </>
   )
+}
+
+function ModelName({ id }: { id: string }) {
+  const model = useQuery({ queryKey: ["admin", "/models", "detail", id], queryFn: () => models.get(id) })
+  return <span className="mr-2">{model.data?.name ?? id}</span>
 }

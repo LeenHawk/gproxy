@@ -2,7 +2,8 @@ import { KeyCreateDialog } from "@/components/keys/create-dialog"
 import { KeySettingsDialog } from "@/components/keys/settings-dialog"
 import { RecordDialog, type FormField } from "@/components/record-form"
 import { providers } from "@/api/configuration"
-import { directory, models } from "@/api/models"
+import { optionSource } from "@/api/options"
+import { models } from "@/api/models"
 import { useConsoleContext } from "@/capability/session"
 import { ScopedBudgetObjects } from "./scoped-budgets"
 import { QuotaButton } from "@/pages/quotas"
@@ -19,7 +20,7 @@ import { QuotaButton } from "@/pages/quotas"
 //! `double_option` turns into "clear it".
 
 import { useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import * as admin from "@/api/admin"
@@ -81,9 +82,8 @@ export function ApiKeysPage() {
   const client = useQueryClient()
   const context = useConsoleContext()
   const [editing, setEditing] = useState<{ row: ApiKeyDto; tab: "basic" | "budget" } | null>(null)
-  const users = useQuery({ queryKey: ["admin", "/users", "directory"], queryFn: () => directory(admin.users) })
   const fields: FormField[] = [
-    { name: "userId", kind: "select", required: true, createOnly: true, choices: (users.data ?? []).map(user => ({ value: user.id, label: user.name })) },
+    { name: "userId", kind: "searchable", required: true, createOnly: true, source: optionSource(admin.users, user => ({ value: user.id, label: user.name })) },
     { name: "name", kind: "text", required: true },
     { name: "organizationId", kind: "text", nullable: true },
     { name: "teamId", kind: "text", nullable: true },
@@ -106,7 +106,7 @@ export function ApiKeysPage() {
       <CollectionPage
         id="api-keys"
         family={admin.apiKeys}
-        groupBy={row => ({ id: row.userId, label: users.data?.find(user => user.id === row.userId)?.name ?? row.userId })}
+        resolveGroups={rows => Promise.all(rows.map(async row => ({ id: row.userId, label: (await client.fetchQuery({ staleTime: 30000, queryKey: ["admin", "/users", "detail", row.userId], queryFn: () => admin.users.get(row.userId) })).name })))}
         searchable
         create={(body) => admin.createApiKey(body as Parameters<typeof admin.createApiKey>[0])}
         onCreated={(created) => { setToken((created as ApiKeyCreated).token); void client.invalidateQueries({ queryKey: ["portal", "keys"] }); void client.invalidateQueries({ queryKey: ["admin", "/quotas"] }) }}
@@ -123,7 +123,7 @@ export function ApiKeysPage() {
         ]}
         fields={fields}
         onEdit={row => setEditing({ row, tab: "basic" })}
-        renderForm={props => <KeyCreateDialog {...props} error={props.error ?? users.error} pending={props.pending || users.isPending} fields={fields} defaults={{ userId: context.userId, enabled: true, retainSecret: true }} title={t("create.api-keys")} canSetBudget={context.has("configuration.quotas.write")} />}
+        renderForm={props => <KeyCreateDialog {...props} error={props.error} pending={props.pending} fields={fields} defaults={{ userId: context.userId, enabled: true, retainSecret: true }} title={t("create.api-keys")} canSetBudget={context.has("configuration.quotas.write")} />}
 
         rowActions={(row) => (
           <>
@@ -235,16 +235,13 @@ function InstanceTeamsPage() {
 
 export function PermissionsPage() {
   const { t } = useTranslation()
-  const users = useQuery({ queryKey: ["admin", "/users", "directory"], queryFn: () => directory(admin.users) })
-  const keys = useQuery({ queryKey: ["admin", "/api-keys", "directory"], queryFn: () => directory(admin.apiKeys) })
-  const channels = useQuery({ queryKey: ["admin", "/providers", "directory"], queryFn: () => directory(providers) })
-  const modelList = useQuery({ queryKey: ["admin", "/models", "directory"], queryFn: () => directory(models) })
+  const client = useQueryClient()
   const fields: FormField[] = [
     { name: "action", label: t("fields.permissionEffect"), kind: "select", options: ACTIONS, required: true },
-    { name: "modelPattern", kind: "searchable", allowCustom: true, emptyValue: "*", emptyLabel: t("form.all"), choices: (modelList.data ?? []).map(row => ({ value: row.name, label: row.name })) },
-    { name: "userId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), choices: (users.data ?? []).map(row => ({ value: row.id, label: `${row.name} (${row.id})` })) },
-    { name: "apiKeyId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), choices: (keys.data ?? []).map(row => ({ value: row.id, label: `${row.name} (${row.prefix})` })) },
-    { name: "providerId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), choices: (channels.data ?? []).map(row => ({ value: row.id, label: `${row.name} (${row.id})` })) },
+    { name: "modelPattern", kind: "searchable", allowCustom: true, emptyValue: "*", emptyLabel: t("form.all"), source: optionSource(models, row => ({ value: row.name, label: row.name })) },
+    { name: "userId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), source: optionSource(admin.users, row => ({ value: row.id, label: `${row.name} (${row.id})` })) },
+    { name: "apiKeyId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), source: optionSource(admin.apiKeys, row => ({ value: row.id, label: `${row.name} (${row.prefix})` })) },
+    { name: "providerId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), source: optionSource(providers, row => ({ value: row.id, label: `${row.name} (${row.id})` })) },
     { name: "operation", kind: "text", nullable: true },
     { name: "priority", kind: "number" },
   ]
@@ -252,10 +249,7 @@ export function PermissionsPage() {
     <CollectionPage
       id="permissions"
       family={admin.permissions}
-      groupBy={row => {
-        const userId = row.userId ?? keys.data?.find(key => key.id === row.apiKeyId)?.userId
-        return { id: userId ?? row.apiKeyId ?? "global", label: userId ? users.data?.find(user => user.id === userId)?.name ?? userId : row.apiKeyId ?? t("management.allUsers") }
-      }}
+      resolveGroups={rows => Promise.all(rows.map(row => ownerGroup(client, row, t("management.allUsers"))))}
       rowId={(row: PermissionDto) => row.id}
       rowLabel={(row) => row.modelPattern}
       columns={[
@@ -268,7 +262,7 @@ export function PermissionsPage() {
         { key: "priority", cell: (row) => row.priority },
       ]}
       fields={fields}
-      renderForm={props => <RecordDialog {...props} mode={props.original ? "edit" : "create"} title={t(props.original ? "edit.permissions" : "create.permissions")} fields={fields} error={props.error ?? users.error ?? keys.error ?? channels.error ?? modelList.error} /> }
+      renderForm={props => <RecordDialog {...props} mode={props.original ? "edit" : "create"} title={t(props.original ? "edit.permissions" : "create.permissions")} fields={fields} error={props.error} /> }
     />
   )
 }
@@ -278,16 +272,12 @@ export function PermissionsPage() {
 export function RateLimitsPage() {
   const { t } = useTranslation()
   const context = useConsoleContext()
-  const users = useQuery({ queryKey: ["admin", "/users", "directory"], queryFn: () => directory(admin.users), enabled: context.has("identity.users") })
-  const keys = useQuery({ queryKey: ["admin", "/api-keys", "directory"], queryFn: () => directory(admin.apiKeys), enabled: context.has("identity.api-keys") })
+  const client = useQueryClient()
   return (
     <CollectionPage
       id="rate-limits"
       family={admin.rateLimits}
-      groupBy={row => {
-        const userId = row.userId ?? keys.data?.find(key => key.id === row.apiKeyId)?.userId
-        return { id: userId ?? row.apiKeyId ?? "global", label: userId ? users.data?.find(user => user.id === userId)?.name ?? userId : row.apiKeyId ?? t("management.allUsers") }
-      }}
+      resolveGroups={rows => Promise.all(rows.map(row => ownerGroup(client, row, t("management.allUsers"), context.has("identity.users"), context.has("identity.api-keys"))))}
       rowId={(row: RateLimitDto) => row.id}
       rowLabel={(row) => row.metric}
       columns={[
@@ -361,4 +351,10 @@ export function OAuthClientsPage() {
       }
     />
   )
+}
+
+async function ownerGroup(client: import("@tanstack/react-query").QueryClient, row: { userId: string | null; apiKeyId: string | null }, globalLabel: string, readUsers = true, readKeys = true) {
+  const userId = row.userId ?? (row.apiKeyId && readKeys ? (await client.fetchQuery({ staleTime: 30000, queryKey: ["admin", "/api-keys", "detail", row.apiKeyId], queryFn: () => admin.apiKeys.get(row.apiKeyId!) })).userId : null)
+  const label = userId && readUsers ? (await client.fetchQuery({ staleTime: 30000, queryKey: ["admin", "/users", "detail", userId], queryFn: () => admin.users.get(userId) })).name : userId ?? row.apiKeyId ?? globalLabel
+  return { id: userId ?? row.apiKeyId ?? "global", label }
 }

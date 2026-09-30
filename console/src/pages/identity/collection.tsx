@@ -52,6 +52,7 @@ export type CollectionProps<D, W, P> = {
   createLabel?: string
   searchable?: boolean
   groupBy?: (row: D) => { id: string; label: string }
+  resolveGroups?: (rows: D[]) => Promise<Array<{ id: string; label: string }>>
   /** Filters held constant for this page, e.g. a parent id. */
   filter?: ListFilter
   /** Row actions this family has and the others do not. */
@@ -69,7 +70,7 @@ export type CollectionProps<D, W, P> = {
 }
 
 export function CollectionPage<D, W, P>({
-  id, family, columns, fields, rowId, rowLabel, searchable, groupBy, filter, embedded = false,
+  id, family, columns, fields, rowId, rowLabel, searchable, groupBy, resolveGroups, filter, embedded = false,
   rowActions, onOpen, onEdit, deletable = true, rowDeletable = deletable, creatable = true, onCreated, create, renderForm, createLabel, paginate = true, batchEnabled = fields.some(field => field.name === "enabled"),
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
@@ -89,6 +90,7 @@ export function CollectionPage<D, W, P>({
   } })
   if (paginate && list.data && page > Math.max(1, Math.ceil(list.data.total / pageSize))) setPage(Math.max(1, Math.ceil(list.data.total / pageSize)))
 
+  const resolvedGroups = useQuery({ queryKey: [...key, "groups", list.dataUpdatedAt], queryFn: () => resolveGroups!(list.data!.items), enabled: !!resolveGroups && !!list.data })
   const invalidate = () => invalidateConfiguration(client, family.path)
 
   const created = useMutation({
@@ -138,9 +140,9 @@ export function CollectionPage<D, W, P>({
     />
   ) : null
 
-  const groups = groupBy && list.data?.items.length ? new Map<string, { label: string; rows: D[] }>() : null
-  if (groups && groupBy) for (const row of list.data!.items) {
-    const group = groupBy(row)
+  const groups = (groupBy || resolvedGroups.data) && list.data?.items.length ? new Map<string, { label: string; rows: D[] }>() : null
+  if (groups) for (const [index, row] of list.data!.items.entries()) {
+    const group = resolvedGroups.data?.[index] ?? groupBy!(row)
     if (!groups.has(group.id)) groups.set(group.id, { label: group.label, rows: [] })
     groups.get(group.id)!.rows.push(row)
   }
@@ -174,7 +176,7 @@ export function CollectionPage<D, W, P>({
         <><PageHeader title={t(`nav.${id}`)} actions={<>{batch.trigger}{add}</>} />{searchInput}</>
       )}
       {batch.toolbar}
-      <QueryState isPending={list.isPending} error={list.error}>
+      <QueryState isPending={list.isPending || (!!resolveGroups && resolvedGroups.isPending)} error={list.error ?? resolvedGroups.error}>
         <div className="flex flex-col gap-3">
           {groups ? <div className="flex flex-col gap-3"><p className="text-xs text-muted-foreground">{t("management.groupedPage")}</p>{[...groups].map(([id, group]) => <Collapsible key={id} defaultOpen={groups.size === 1} className="rounded-lg border">
             <CollapsibleTrigger asChild><Button variant="ghost" className="group h-auto w-full justify-start whitespace-normal p-3"><ChevronRight data-icon="inline-start" className="transition-transform group-data-[state=open]:rotate-90" /><span className="min-w-0 flex-1 break-words text-left">{group.label}</span><Badge variant="secondary">{group.rows.length}</Badge></Button></CollapsibleTrigger>

@@ -4,13 +4,11 @@ import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { configFamily } from "@/api/config-family"
 import { providers as providerFamily } from "@/api/configuration"
-import { directory } from "@/api/models"
 import type { RouteDto, RouteWrite, RoutePatch, RouteMemberDto, RouteMemberWrite, RouteMemberPatch } from "@/generated/sdk"
 import { CollectionPage } from "@/pages/identity/collection"
 import { ManagementDialog } from "@/components/management-dialog"
 import { BoolCell } from "@/components/cells"
 import { Button } from "@/components/ui/button"
-import { QueryState } from "@/components/state"
 
 const routes = configFamily<RouteDto, Partial<RouteWrite>, Partial<RoutePatch>>("/routes")
 const members = configFamily<RouteMemberDto, Partial<RouteMemberWrite>, Partial<RouteMemberPatch>>("/route-members")
@@ -26,11 +24,15 @@ export function ModelRoutesPage() {
   </>
 }
 function RouteDetails({ route, onClose }: { route: RouteDto; onClose: () => void }) {
-  const providers = useQuery({ queryKey: ["admin", "/providers", "directory"], queryFn: () => directory(providerFamily) })
-  return <ManagementDialog title={route.name} onClose={onClose}><QueryState isPending={providers.isPending} error={providers.error}>
-    <CollectionPage renderForm={props => props.open ? <MemberForm original={props.original} providers={providers.data ?? []} onSubmit={props.onSubmit} onClose={() => props.onOpenChange(false)} pending={props.pending} error={props.error} /> : null} embedded id="route-members" family={members} filter={{ routeId: route.id }} create={body => members.create({ ...body, routeId: route.id })} rowId={row => row.id} rowLabel={row => row.upstreamModel}
-      columns={[{ key: "providerId", cell: row => providers.data?.find(provider => provider.id === row.providerId)?.name ?? row.providerId }, { key: "upstreamModel", cell: row => row.upstreamModel }, { key: "tier", cell: row => row.tier }, { key: "weight", cell: row => row.weight }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
-      fields={[{ name: "providerId", kind: "select", required: true, choices: (providers.data ?? []).map(row => ({ value: row.id, label: row.displayName ?? row.name })) }, { name: "upstreamModel", kind: "text", required: true }, { name: "tier", kind: "number" }, { name: "weight", kind: "number" }, { name: "enabled", kind: "switch" }]}
+  return <ManagementDialog title={route.name} onClose={onClose}>
+    <CollectionPage renderForm={props => props.open ? <MemberForm original={props.original} onSubmit={props.onSubmit} onClose={() => props.onOpenChange(false)} pending={props.pending} error={props.error} /> : null} embedded id="route-members" family={members} filter={{ routeId: route.id }} create={body => members.create({ ...body, routeId: route.id })} rowId={row => row.id} rowLabel={row => row.upstreamModel}
+      columns={[{ key: "providerId", cell: row => <ProviderName id={row.providerId} /> }, { key: "upstreamModel", cell: row => row.upstreamModel }, { key: "tier", cell: row => row.tier }, { key: "weight", cell: row => row.weight }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
+      fields={[{ name: "providerId", kind: "select", required: true }, { name: "upstreamModel", kind: "text", required: true }, { name: "tier", kind: "number" }, { name: "weight", kind: "number" }, { name: "enabled", kind: "switch" }]}
     />
-  </QueryState></ManagementDialog>
+  </ManagementDialog>
+}
+
+function ProviderName({ id }: { id: string }) {
+  const provider = useQuery({ queryKey: ["admin", "/providers", "detail", id], queryFn: () => providerFamily.get(id) })
+  return provider.data?.name ?? id
 }

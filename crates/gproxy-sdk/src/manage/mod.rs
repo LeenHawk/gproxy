@@ -18,6 +18,7 @@
 //! cheap `reload_credentials` path. Everything else rebuilds the snapshot.
 
 mod catalog;
+mod catalog_page;
 mod connectivity;
 mod credentials;
 mod crud;

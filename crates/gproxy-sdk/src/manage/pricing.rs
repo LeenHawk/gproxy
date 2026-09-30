@@ -125,6 +125,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for PriceRules<'_
     }
     fn select(&self, query: &ListQuery) -> Select<Self::Entity> {
         let mut select = price_rule::Entity::find();
+        if query.global_only == Some(true) {
+            select = select.filter(price_rule::Column::ProviderId.is_null());
+        }
+        if let Some(pattern) = &query.model_pattern {
+            select = select.filter(price_rule::Column::ModelPattern.eq(pattern));
+        }
         if let Some(provider_id) = crud::optional_text(query.provider_id.clone()) {
             select = select.filter(price_rule::Column::ProviderId.eq(provider_id));
         }

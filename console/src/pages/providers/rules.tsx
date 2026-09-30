@@ -1,8 +1,8 @@
 import { useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { bindings, providerDefaultSetId, ruleSetDirectory, endpoints, effectiveRouting, saveRoutingMapping, resetRoutingMapping, applyDefaultRouting } from "@/api/routing-rules"
-import { directory } from "@/api/models"
+import { bindings, providerDefaultSetId, ruleSets, endpoints, effectiveRouting, saveRoutingMapping, resetRoutingMapping, applyDefaultRouting } from "@/api/routing-rules"
+import { optionSource } from "@/api/options"
 import { RulesEditor } from "@/pages/rules/editor"
 import { CollectionPage } from "@/pages/identity/collection"
 import { BoolCell } from "@/components/cells"
@@ -10,7 +10,8 @@ import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { DataTable } from "@/components/data-table"
+import { usePagination } from "@/lib/use-pagination"
+import { DataTable, Pagination } from "@/components/data-table"
 import { ConfirmButton } from "@/components/confirm"
 import { toast } from "sonner"
 import type { OperationRoutingDto, RoutingMappingWrite } from "@/generated/sdk"
@@ -21,17 +22,23 @@ import { RoutingRuleDialog } from "@/pages/providers/routing-rule-dialog"
 
 export function ProviderRules({ providerId, providerName }: { providerId: string; providerName: string }) {
   const { t } = useTranslation()
-  const sets = useQuery({ queryKey: ["admin", "/rule-sets", "directory"], queryFn: ruleSetDirectory })
-  const attached = useQuery({ queryKey: ["admin", "/provider-rule-sets", "directory"], queryFn: () => directory(bindings) })
-  const rows = (attached.data ?? []).filter(binding => binding.providerId === providerId).sort((a, b) => a.sortOrder - b.sortOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-  return <QueryState isPending={sets.isPending || attached.isPending} error={sets.error ?? attached.error}>
+  const { page, pageSize, setPage, setPageSize } = usePagination("provider-rule-sets", providerId)
+  const request = { providerId, page, pageSize }
+  const attached = useQuery({ queryKey: ["admin", "/provider-rule-sets", request], queryFn: () => bindings.list(request) })
+  const rows = attached.data?.items ?? []
+  const currentPage = Math.min(page, Math.max(1, Math.ceil((attached.data?.total ?? 0) / pageSize)))
+  if (attached.data && currentPage !== page) setPage(currentPage)
+  const sets = useQueries({ queries: rows.map(binding => ({ queryKey: ["admin", "/rule-sets", "detail", binding.ruleSetId], queryFn: () => ruleSets.get(binding.ruleSetId) })) })
+  const available = sets.flatMap(set => set.data ? [set.data] : [])
+  return <QueryState isPending={sets.some(set => set.isPending) || attached.isPending} error={sets.find(set => set.error)?.error ?? attached.error}>
     <div className="flex flex-col gap-6">
-      <RulesEditor key={providerId} sets={rows.flatMap(binding => sets.data?.find(set => set.id === binding.ruleSetId) ?? [])} availableSets={sets.data ?? []} attachments={attached.data ?? []} providerId={providerId} providerName={providerName} defaultSetId={providerDefaultSetId(providerId)} />
+      <RulesEditor key={providerId} sets={available} attachments={rows} providerId={providerId} providerName={providerName} defaultSetId={providerDefaultSetId(providerId)} />
+      <Pagination page={currentPage} pageSize={pageSize} total={attached.data?.total ?? 0} onPage={setPage} onPageSize={setPageSize} />
       <details><summary className="cursor-pointer text-sm text-muted-foreground">{t("rules.advancedBindings")}</summary>
         <div className="mt-4">
-          <CollectionPage embedded id="provider-rule-sets" createLabel={t("rules.attach")} family={bindings} filter={{ providerId }} create={(body) => bindings.create({ ...body, providerId })} rowId={(r) => r.id} rowLabel={(r) => sets.data?.find((s) => s.id === r.ruleSetId)?.name ?? r.ruleSetId}
-            columns={[{ key: "ruleSetId", cell: (r) => sets.data?.find((s) => s.id === r.ruleSetId)?.name ?? r.ruleSetId }, { key: "sortOrder", cell: (r) => r.sortOrder }, { key: "enabled", cell: (r) => <BoolCell value={r.enabled} /> }]}
-            fields={[{ name: "ruleSetId", kind: "select", required: true, createOnly: true, choices: sets.data?.map((s) => ({ value: s.id, label: s.name })) ?? [] }, { name: "sortOrder", kind: "number" }, { name: "enabled", kind: "switch" }]}
+          <CollectionPage embedded id="provider-rule-sets" createLabel={t("rules.attach")} family={bindings} filter={{ providerId }} create={(body) => bindings.create({ ...body, providerId })} rowId={(r) => r.id} rowLabel={(r) => available.find((s) => s.id === r.ruleSetId)?.name ?? r.ruleSetId}
+            columns={[{ key: "ruleSetId", cell: (r) => <RuleSetName id={r.ruleSetId} /> }, { key: "sortOrder", cell: (r) => r.sortOrder }, { key: "enabled", cell: (r) => <BoolCell value={r.enabled} /> }]}
+            fields={[{ name: "ruleSetId", kind: "searchable", required: true, createOnly: true, source: optionSource(ruleSets, row => ({ value: row.id, label: row.name })) }, { name: "sortOrder", kind: "number" }, { name: "enabled", kind: "switch" }]}
           />
         </div>
       </details>
@@ -84,4 +91,9 @@ export function ProviderEndpoints({ providerId }: { providerId: string }) {
     columns={[{ key: "operation", cell: (r) => t(`operation.${r.operation}`, { defaultValue: r.operation }) }, { key: "dialect", cell: (r) => t(`providerOption.${r.dialect}`, { defaultValue: r.dialect }) }, { key: "transport", cell: (r) => r.transport }, { key: "url", cell: (r) => r.url }, { key: "enabled", cell: (r) => <BoolCell value={r.enabled} /> }]}
     fields={[{ name: "operation", kind: "select", choices: operationChoices.map((choice) => ({ ...choice, label: t(`operation.${choice.value}`, { defaultValue: choice.value }) })), required: true }, { name: "dialect", kind: "select", choices: dialects.map((value) => ({ value, label: t(`providerOption.${value}`, { defaultValue: value }) })), required: true }, { name: "transport", kind: "select", options: ["http", "websocket"] }, { name: "url", kind: "text", required: true }, { name: "enabled", kind: "switch" }]}
   />
+}
+
+function RuleSetName({ id }: { id: string }) {
+  const set = useQuery({ queryKey: ["admin", "/rule-sets", "detail", id], queryFn: () => ruleSets.get(id) })
+  return set.data?.name ?? id
 }

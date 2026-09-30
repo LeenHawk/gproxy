@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query"
 import { users, apiKeys } from "@/api/admin"
 import { credentials, providers, providerModels } from "@/api/configuration"
-import { directory } from "@/api/models"
+import { optionSource } from "@/api/options"
+import type { OptionSource } from "@/components/searchable-select"
 import { useConsoleContext } from "@/capability/session"
 import { SearchableSelect } from "@/components/searchable-select"
 import { operationChoices } from "@/pages/providers/operation-options"
@@ -21,18 +21,15 @@ export function HistoryFilters({ onApply, logs = false, summary = false, reasons
   const { t } = useTranslation()
   const id = useId()
   const context = useConsoleContext()
-  const userOptions = useQuery({ queryKey: ["admin", "/users", "directory"], queryFn: () => directory(users), enabled: context.has("identity.users") })
-  const keyOptions = useQuery({ queryKey: ["admin", "/api-keys", "directory"], queryFn: () => directory(apiKeys), enabled: context.has("identity.api-keys") })
-  const providerOptions = useQuery({ queryKey: ["admin", "/providers", "directory"], queryFn: () => directory(providers), enabled: logs && context.has("configuration.providers") })
-  const credentialOptions = useQuery({ queryKey: ["admin", "/credentials", "directory"], queryFn: () => directory(credentials), enabled: logs && context.has("configuration.credentials") })
-  const modelOptions = useQuery({ queryKey: ["admin", "/provider-models", "directory"], queryFn: () => directory(providerModels), enabled: context.has("configuration.provider-models") })
   const [draft, setDraft] = useState<Record<string, string>>({})
+  const sources: Record<string, OptionSource | undefined> = {
+    userId: context.has("identity.users") ? optionSource(users, row => ({ value: row.id, label: row.name })) : undefined,
+    apiKeyId: context.has("identity.api-keys") ? optionSource(apiKeys, row => ({ value: row.id, label: `${row.name} · ${row.prefix}` }), { userId: draft.userId || undefined }) : undefined,
+    providerId: context.has("configuration.providers") ? optionSource(providers, row => ({ value: row.id, label: row.displayName ?? row.name })) : undefined,
+    credentialId: context.has("configuration.credentials") ? optionSource(credentials, row => ({ value: row.id, label: row.label ?? row.id }), { providerId: draft.providerId || undefined }) : undefined,
+    model: context.has("configuration.provider-models") ? optionSource(providerModels, row => ({ value: row.upstreamName, label: row.upstreamName })) : undefined,
+  }
   const options: Record<string, Array<{ value: string; label: string }>> = {
-    userId: (userOptions.data ?? []).map(row => ({ value: row.id, label: row.name })),
-    apiKeyId: (keyOptions.data ?? []).filter(row => !draft.userId || row.userId === draft.userId).map(row => ({ value: row.id, label: `${row.name} · ${row.prefix}` })),
-    providerId: (providerOptions.data ?? []).map(row => ({ value: row.id, label: row.displayName ?? row.name })),
-    credentialId: (credentialOptions.data ?? []).filter(row => !draft.providerId || row.providerId === draft.providerId).map(row => ({ value: row.id, label: row.label ?? row.id })),
-    model: [...new Set((modelOptions.data ?? []).map(row => row.upstreamName))].sort().map(value => ({ value, label: value })),
     operation: operationChoices.map(row => ({ value: row.value, label: t(`operation.${row.value}`, { defaultValue: row.value }) })),
     status: STATUS_OPTIONS,
   }
@@ -51,7 +48,7 @@ export function HistoryFilters({ onApply, logs = false, summary = false, reasons
     <FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {["fromMs", "toMs", ...fields, ...(logs ? ["status"] : [])].map(name => <Field key={name}>
         <FieldLabel htmlFor={`${id}-${name}`}>{t(`observation.${name}`)}</FieldLabel>
-        {options[name] ? <SearchableSelect id={`${id}-${name}`} label={t(`observation.${name}`)} value={draft[name] ?? ""} options={options[name]} allowCustom={name !== "status"} emptyLabel={t("form.all")} onChange={value => setDraft(previous => ({ ...previous, [name]: value, ...(name === "userId" ? { apiKeyId: "" } : name === "providerId" ? { credentialId: "" } : {}) }))} /> : <Input id={`${id}-${name}`} type={name.endsWith("Ms") ? "datetime-local" : "text"} min={name === "toMs" ? draft.fromMs : undefined} max={name === "fromMs" ? draft.toMs : undefined} value={draft[name] ?? ""} onChange={event => setDraft({ ...draft, [name]: event.target.value })} />}
+        {options[name] || name in sources ? <SearchableSelect id={`${id}-${name}`} label={t(`observation.${name}`)} value={draft[name] ?? ""} options={options[name]} source={sources[name]} allowCustom={name !== "status"} emptyLabel={t("form.all")} onChange={value => setDraft(previous => ({ ...previous, [name]: value, ...(name === "userId" ? { apiKeyId: "" } : name === "providerId" ? { credentialId: "" } : {}) }))} /> : <Input id={`${id}-${name}`} type={name.endsWith("Ms") ? "datetime-local" : "text"} min={name === "toMs" ? draft.fromMs : undefined} max={name === "fromMs" ? draft.toMs : undefined} value={draft[name] ?? ""} onChange={event => setDraft({ ...draft, [name]: event.target.value })} />}
       </Field>)}
       {reasons ? <Field>
         <FieldLabel htmlFor={`${id}-reason`}>{t("observation.reason")}</FieldLabel>

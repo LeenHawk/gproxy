@@ -24,12 +24,12 @@ export function ModelPricingDialog({ providerId, model, onClose }: { providerId:
   const { t } = useTranslation(), client = useQueryClient()
   const [profile, setProfile] = useState("generation"), [selected, setSelected] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ kind: "rule" | "rate" | "tier"; row?: PriceRuleDto | PriceRateDto | PriceTierDto; metric?: string } | null>(null)
-  const list = useQuery({ queryKey: ["admin", "/price-rules", providerId], queryFn: () => directory(priceRules, providerId ? { providerId } : {}) })
+  const list = useQuery({ queryKey: ["admin", "/price-rules", providerId, model], queryFn: () => directory(priceRules, { modelPattern: model, ...(providerId ? { providerId } : { globalOnly: true }) }) })
   const candidates = list.data?.filter(r => r.modelPattern === model && r.providerId === providerId) ?? []
   const rule = candidates.find(r => r.id === selected) ?? candidates.find(r => r.operation === null) ?? candidates[0]
   const rates = useQuery({ queryKey: ["admin", "/price-rates", rule?.id], queryFn: () => directory(priceRates, { priceRuleId: rule!.id }), enabled: !!rule })
   const tiers = useQuery({ queryKey: ["admin", "/price-tiers", rule?.id], queryFn: () => directory(priceTiers, { priceRuleId: rule!.id }), enabled: !!rule })
-  const refresh = () => Promise.all(["/price-rules", "/price-rates", "/price-tiers"].map(path => client.invalidateQueries({ queryKey: ["admin", path] })))
+  const refresh = () => Promise.all([client.invalidateQueries({ queryKey: ["model-catalog"] }), ...["/price-rules", "/price-rates", "/price-tiers", "/provider-models"].map(path => client.invalidateQueries({ queryKey: ["admin", path] }))])
   const save = useMutation({ mutationFn: async (body: Record<string, unknown>) => {
     if (editing!.kind === "rule") return editing!.row ? priceRules.update(editing!.row.id, body) : priceRules.create({ currency: "USD", ...body, providerId, modelPattern: model })
     if (editing!.kind === "tier") return editing!.row ? priceTiers.update(editing!.row.id, body) : priceTiers.create({ ...body, priceRuleId: rule!.id })

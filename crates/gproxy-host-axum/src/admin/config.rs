@@ -274,6 +274,9 @@ where
         .route("/tls-presets", get(tls_presets::<C>))
         .route("/rule-presets", get(rule_presets::<C>))
         .route("/default-model-catalog", get(default_models::<C>))
+        .route("/model-catalog", get(model_catalog::<C>))
+        .route("/model-names", get(model_names::<C>))
+        .route("/operation-keys", get(operation_keys::<C>))
         .route("/models/openrouter", get(openrouter_models::<C>))
         .route(
             "/default-model-catalog/apply-prices",
@@ -1121,4 +1124,74 @@ where
         )
     })
     .await
+}
+
+async fn model_catalog<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Query(query): Query<ListQuery>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        gate!("models", scope);
+        gate!("providers", scope);
+        gate!("provider-models", scope);
+        gate!("price-rules", scope);
+        reply_sdk(
+            state
+                .app()
+                .gproxy()
+                .manage()
+                .catalog()
+                .models_page(query)
+                .await,
+        )
+    })
+    .await
+}
+
+async fn model_names<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Query(query): Query<ListQuery>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        gate!("models", scope);
+        gate!("provider-models", scope);
+        gate!("routes", scope);
+        reply_sdk(
+            state
+                .app()
+                .gproxy()
+                .manage()
+                .catalog()
+                .model_names(query)
+                .await,
+        )
+    })
+    .await
+}
+
+async fn operation_keys<C>(
+    State(_state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    gate!("catalog", scope);
+    crate::error::ok_json(
+        &gproxy_protocol::spec::OPERATION_SPECS
+            .iter()
+            .map(|spec| gproxy_sdk::dto::RoutingTargetDto {
+                operation: spec.key.operation.id().into(),
+                dialect: spec.key.dialect.id().into(),
+            })
+            .collect::<Vec<_>>(),
+    )
 }

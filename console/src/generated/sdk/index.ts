@@ -10,6 +10,8 @@ export * from "./BudgetStatusDto";
 export * from "./CaptureDetailDto";
 export * from "./CaptureEventDto";
 export * from "./CaptureRecordDto";
+export * from "./CatalogModelDto";
+export * from "./CatalogProviderDto";
 export * from "./ChannelCapabilities";
 export * from "./ChannelDescriptor";
 export * from "./ConfigKey";

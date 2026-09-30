@@ -6,20 +6,21 @@ import { useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { applyDefaultPrices, defaultModels, discoverModels } from "@/api/models"
+import { applyDefaultPrices, defaultModels, discoverModels, directory } from "@/api/models"
 import { providerModels } from "@/api/configuration"
-import type { ProviderModelDto } from "@/generated/sdk"
 import { object } from "@/components/providers/provider-model-state"
 import { ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-export function ModelImportDialog({ mode, providerId, models, onClose, onSaved }: { mode: "models" | "metadata"; providerId: string; models: ProviderModelDto[]; onClose: () => void; onSaved: () => Promise<unknown> }) {
+export function ModelImportDialog({ mode, providerId, onClose, onSaved }: { mode: "models" | "metadata"; providerId: string; onClose: () => void; onSaved: () => Promise<unknown> }) {
   const { t } = useTranslation()
   const [credentialId, setCredentialId] = useState<string | null>(null)
   const [search, setSearch] = useState(""), [selected, setSelected] = useState<Set<string>>(new Set()), [prices, setPrices] = useState(true)
   const { page, pageSize, setPage, setPageSize } = usePagination("model-import", search)
+  const existing = useQuery({ queryKey: ["admin", "/provider-models", "import", providerId], queryFn: () => directory(providerModels, { providerId }) })
+  const models = existing.data ?? []
   const catalog = useQuery({ queryKey: ["default-model-catalog"], queryFn: defaultModels })
   const discovery = useQuery({ queryKey: ["discover-models", providerId, credentialId], queryFn: () => discoverModels(providerId, credentialId), enabled: mode === "models", retry: false, staleTime: 0 })
   const rows = mode === "models" ? (discovery.data ?? []).map(m => ({ name: m.upstreamName, metadata: m.metadata, price: m.hasDefaultPrice })) : models.flatMap(model => {
@@ -44,13 +45,13 @@ export function ModelImportDialog({ mode, providerId, models, onClose, onSaved }
   }, onSuccess: async () => { await onSaved(); toast.success(t("toast.saved")); onClose() } })
   return <Dialog open onOpenChange={open => { if (!open && !apply.isPending) onClose() }}><DialogContent className="sm:max-w-3xl" aria-describedby={undefined}>
     <DialogHeader><DialogTitle>{t(mode === "models" ? "providers.models.pullTitle" : "modelUI.defaultMetadata")}</DialogTitle></DialogHeader>
-    <DialogBody className="flex flex-col gap-3">{mode === "models" ? <CredentialPicker providerId={providerId} value={credentialId} onChange={id => { setCredentialId(id); setSelected(new Set()); setPage(1) }} disabled={apply.isPending} /> : null}<QueryState isPending={catalog.isPending || (mode === "models" && discovery.isPending)} error={catalog.error || discovery.error}>
+    <DialogBody className="flex flex-col gap-3">{mode === "models" ? <CredentialPicker providerId={providerId} value={credentialId} onChange={id => { setCredentialId(id); setSelected(new Set()); setPage(1) }} disabled={apply.isPending} /> : null}<QueryState isPending={existing.isPending || catalog.isPending || (mode === "models" && discovery.isPending)} error={existing.error || catalog.error || discovery.error}>
       <div className="flex gap-2"><Input aria-label={t("actions.search")} placeholder={t("actions.search")} value={search} onChange={e => setSearch(e.target.value)} />{mode === "models" ? <Button variant="outline" onClick={() => void discovery.refetch()} disabled={discovery.isFetching}>{t("modelUI.refresh")}</Button> : null}</div>
       <label className="flex items-center gap-2"><Checkbox checked={all} onCheckedChange={() => setSelected(previous => { const next = new Set(previous); visible.forEach(r => all ? next.delete(r.name) : next.add(r.name)); return next })} />{t("modelUI.selectAll")} ({selected.size}/{rows.length})</label>
       {mode === "models" ? <label className="flex items-center gap-2"><Checkbox checked={prices} onCheckedChange={v => setPrices(v === true)} />{t("modelUI.importPrices")}</label> : null}
       <div className="flex flex-col divide-y">{visible.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(r => <label key={r.name} className="flex items-center gap-3 py-3"><Checkbox checked={selected.has(r.name)} onCheckedChange={checked => setSelected(previous => { const next = new Set(previous); if (checked) next.add(r.name); else next.delete(r.name); return next })} /><span className="min-w-0 flex-1 break-all">{r.name}</span>{models.some(m => m.upstreamName === r.name) ? <span className="text-xs text-muted-foreground">{t("modelUI.known")}</span> : null}{r.price ? <span className="text-xs text-muted-foreground">{t("providers.models.priced")}</span> : null}</label>)}</div>
       <Pagination page={currentPage} pageSize={pageSize} total={visible.length} onPage={setPage} onPageSize={setPageSize} />
     </QueryState>{apply.error ? <ErrorNotice error={apply.error} /> : null}</DialogBody>
-    <DialogFooter><Button variant="outline" disabled={apply.isPending} onClick={onClose}>{t("actions.cancel")}</Button><Button disabled={apply.isPending || !selected.size} onClick={() => apply.mutate()}>{t("modelUI.importSelected")}</Button></DialogFooter>
+    <DialogFooter><Button variant="outline" disabled={apply.isPending} onClick={onClose}>{t("actions.cancel")}</Button><Button disabled={apply.isPending || !selected.size || !existing.data} onClick={() => apply.mutate()}>{t("modelUI.importSelected")}</Button></DialogFooter>
   </DialogContent></Dialog>
 }
