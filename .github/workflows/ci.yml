@@ -238,7 +238,7 @@ jobs:
           config="$(jq -cn --arg version "$GPROXY_BUILD_VERSION" '{version:$version}')"
           pnpm --dir crates/gproxy-host-tauri exec tauri build --ci --target "$TARGET" --no-bundle --config "$config" -- --locked
           if [ "$TARGET" = aarch64-pc-windows-msvc ]; then
-            upx --best --nrv2e "target/$TARGET/release/gproxy-desktop.exe"
+            upx --fast --nrv2e "target/$TARGET/release/gproxy-desktop.exe"
           else
             upx --best --lzma "target/$TARGET/release/gproxy-desktop.exe"
           fi

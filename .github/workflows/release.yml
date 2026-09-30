@@ -224,7 +224,7 @@ jobs:
         env:
           UPX_VERSION: ${{ matrix.upx_version }}
         run: scripts/install-upx.sh
-      - name: Install UPX with ARM64 entry-stub fix
+      - name: Install UPX with ARM64 TLS and loader fixes
         if: matrix.upx && matrix.target == 'aarch64-pc-windows-msvc'
         shell: pwsh
         run: scripts/install-windows-arm64-upx.ps1
