@@ -14,6 +14,7 @@ import { EmptyNotice, LoadingRows } from "@/components/state"
 import { Page, PageHeader } from "@/components/page"
 import { useRoute, useScrollReset } from "@/lib/router"
 
+const AboutPage = lazy(() => import("@/pages/about").then(module => ({ default: module.AboutPage })))
 const ApiKeysPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.ApiKeysPage })))
 const OAuthClientsPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.OAuthClientsPage })))
 const OrganizationsPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.OrganizationsPage })))
@@ -43,6 +44,7 @@ const DownstreamLogsPage = lazy(() => import("@/pages/observation/logs").then(mo
 const UpstreamLogsPage = lazy(() => import("@/pages/observation/logs").then(module => ({ default: module.UpstreamLogsPage })))
 
 const ROUTES: Record<string, ComponentType> = {
+  "/about": AboutPage,
   "/model-routes": ModelRoutesPage,
   "/transfer": TransferPage,
   "/": OverviewPage,

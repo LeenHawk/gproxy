@@ -270,6 +270,10 @@ where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
     Router::new()
+        .route(
+            "/robots.txt",
+            get(|| async { "User-agent: *\nDisallow: /\n" }),
+        )
         .route("/healthz", get(healthz::<C>))
         .route("/info", get(runtime_settings::info::<C>))
         .route(
@@ -286,6 +290,15 @@ where
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             runtime_settings::cors::<C>,
+        ))
+        .layer(axum::middleware::map_response(
+            |mut response: Response| async move {
+                response.headers_mut().insert(
+                    "x-robots-tag",
+                    HeaderValue::from_static("noindex, nofollow"),
+                );
+                response
+            },
         ))
         .with_state(state)
 }
