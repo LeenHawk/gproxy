@@ -1,5 +1,8 @@
 import { useEffect, useEffectEvent, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { Copy, ExternalLink } from "lucide-react"
+import { toast } from "sonner"
+import { copyText } from "@/lib/copy-text"
 import { useTranslation } from "react-i18next"
 import type { CredentialProviderDto } from "@/generated/app"
 import type { AuthCodeStarted, DeviceStarted } from "@/generated/sdk"
@@ -61,8 +64,14 @@ export function CredentialLoginDialog({ provider, onClose }: { provider: Credent
   }, [device, polling, client])
   const busy = start.isPending || complete.isPending || poll.isPending
   const started = !!auth || !!device
-  return <ManagementDialog title={`${provider.displayName ?? provider.name} · ${t("management.loginAdd")}`} onClose={onClose} busy={busy}>
-    <FieldGroup>
+  const authorizationUrl = auth?.authorizeUrl ?? (device ? device.verificationUriComplete ?? device.verificationUri : null)
+  const copyAuthorizationUrl = async () => {
+    if (!authorizationUrl) return
+    try { await copyText(authorizationUrl); toast.success(t("keys.copied")) }
+    catch { toast.error(t("keys.copyFailed")) }
+  }
+  return <ManagementDialog title={`${provider.displayName ?? provider.name} · ${t("management.loginAdd")}`} onClose={onClose} busy={busy} className="sm:max-w-lg">
+    <FieldGroup className="sm:grid-cols-1">
       {!started ? <>
         <Field><FieldLabel htmlFor="login-mode">{t("management.loginMode")}</FieldLabel><Select value={mode} onValueChange={value => setMode(value as typeof mode)} disabled={busy}><SelectTrigger id="login-mode"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{modes.map(value => <SelectItem key={value} value={value}>{t(`management.${value}`)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
         <Field><FieldLabel htmlFor="login-label">{t("fields.label")}</FieldLabel><Input id="login-label" value={label} onChange={e => setLabel(e.target.value)} disabled={busy} /></Field>
@@ -70,15 +79,21 @@ export function CredentialLoginDialog({ provider, onClose }: { provider: Credent
         {mode === "cookie" ? <Field><FieldLabel htmlFor="login-cookie">Cookie</FieldLabel><Input id="login-cookie" type="password" autoComplete="off" value={cookie} onChange={e => setCookie(e.target.value)} disabled={busy} /></Field> : null}
         <Button className="self-start" disabled={busy || (mode === "cookie" && !cookie.trim())} onClick={() => start.mutate()}>{t("management.startLogin")}</Button>
       </> : null}
+      {authorizationUrl ? <Field>
+        <FieldLabel htmlFor="login-authorization-url">{t("management.authorizationUrl")}</FieldLabel>
+        <Input id="login-authorization-url" readOnly value={authorizationUrl} onFocus={event => event.currentTarget.select()} />
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => void copyAuthorizationUrl()}><Copy data-icon="inline-start" />{t("actions.copy")}</Button>
+          <Button asChild variant="outline"><a href={authorizationUrl} target="_blank" rel="noopener noreferrer"><ExternalLink data-icon="inline-start" />{t("management.openAuthorization")}</a></Button>
+        </div>
+      </Field> : null}
       {auth ? <>
-        <Button asChild variant="outline"><a href={auth.authorizeUrl} target="_blank" rel="noreferrer">{t("management.openAuthorization")}</a></Button>
         <p className="text-sm text-muted-foreground">{t("management.callbackHelp")}</p>
         <Field><FieldLabel htmlFor="login-callback">{t("management.callbackUrl")}</FieldLabel><Textarea id="login-callback" autoComplete="off" value={callback} onChange={e => setCallback(e.target.value)} disabled={busy} /></Field>
         <Button disabled={busy || !callback.trim()} onClick={() => complete.mutate()}>{t("management.completeLogin")}</Button>
       </> : null}
       {device ? <>
         <code className="select-all break-all">{device.userCode}</code>
-        <Button asChild variant="outline"><a href={device.verificationUriComplete ?? device.verificationUri} target="_blank" rel="noreferrer">{t("management.openAuthorization")}</a></Button>
         <p>{t(terminal ? `management.${terminal}` : polling ? "management.waiting" : "management.pollStopped")}</p>
         {device.expiresAtMs ? <p>{t("fields.expiresAtMs")}: {new Date(device.expiresAtMs).toLocaleString()}</p> : null}
         {!polling && !terminal ? <Button onClick={() => { setPollError(null); setPolling(true) }}>{t("actions.refresh")}</Button> : null}
