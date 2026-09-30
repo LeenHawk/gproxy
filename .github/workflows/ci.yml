@@ -15,6 +15,9 @@ concurrency:
 jobs:
   backend:
     name: Rust (backend · desktop · wasm)
+    permissions:
+      contents: read
+      packages: write
     needs: console
     runs-on: ubuntu-latest
     env:
@@ -49,10 +52,10 @@ jobs:
           toolchain: stable
           components: clippy, rustfmt
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: ./.github/actions/ghcr-rust-cache
         with:
           key: linux-checks
-          cache-targets: true
+          token: ${{ secrets.GITHUB_TOKEN }}
       - run: cargo fmt --all --check
       # Check both the default members and the desktop shell with one target
       # directory and dependency cache, preserving their separate feature sets.
@@ -132,6 +135,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
+      packages: read
       id-token: write
       attestations: write
     strategy:
@@ -168,9 +172,10 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: ./.github/actions/ghcr-rust-cache
         with:
-          shared-key: packages-${{ matrix.target }}
+          key: packages-${{ matrix.target }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Release version
         id: version
         shell: bash

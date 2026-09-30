@@ -1,0 +1,17 @@
+name: GHCR Rust cache runtime
+description: Restore Cargo archives and upload the updated cache after a successful job
+inputs:
+  key:
+    description: Build configuration and target
+    required: true
+  token:
+    description: GitHub token with package access
+    required: true
+  save:
+    description: Whether this job may update the cache
+    required: true
+runs:
+  using: node24
+  main: cache.cjs
+  post: cache.cjs
+  post-if: success()
