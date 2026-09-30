@@ -95,7 +95,7 @@ case "${1:?prepare|cli|application|upload|edge}" in
     if [ "$UPX_ENABLED" = true ]; then
       # NRV2E's exhaustive search is a serial bottleneck on ARM64 PE files.
       # Fast mode retains the fixed ARM64 loader and compression checks.
-      if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then upx --fast --nrv2e "$binary"
+      if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then upx --best --nrv2e "$binary"
       else upx --best --lzma "$binary"; fi
       upx --test "$binary"
     fi
@@ -144,7 +144,7 @@ case "${1:?prepare|cli|application|upload|edge}" in
         )
         if [ "$TARGET_OS" = windows ]; then
           binary="target/$TARGET_TRIPLE/release/gproxy-desktop.exe"
-          if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then upx --fast --nrv2e "$binary"
+          if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then upx --best --nrv2e "$binary"
           else upx --best --lzma "$binary"; fi
           upx --test "$binary"
           (cd crates/gproxy-host-tauri && pnpm exec tauri bundle --target "$TARGET_TRIPLE" --bundles nsis --config "$config" --no-binary-patching)
