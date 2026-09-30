@@ -6,7 +6,7 @@
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "build:worker": "cd ../../crates/gproxy-host-edge && CARGO_PROFILE_RELEASE_STRIP=none worker-build --release && rm -rf ../../deploy/cloudflare/build && cp -R build ../../deploy/cloudflare/build",
-    "build:assets": "pnpm --dir ../../console build && rm -rf public && mkdir -p public && cp -R ../../console/dist public/console && cp public/console/index.html public/index.html && cp _headers public/_headers",
+    "build:assets": "pnpm --dir ../../console build && rm -rf public && mkdir -p public && cp -R ../../console/dist public/console && cp public/console/index.html public/index.html && cp public/console/robots.txt public/robots.txt && cp _headers public/_headers",
     "build": "pnpm run build:worker && pnpm run build:assets",
     "check": "wrangler deploy --dry-run --outdir .wrangler/dry-run",
     "dev": "wrangler dev",

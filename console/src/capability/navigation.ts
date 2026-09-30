@@ -14,7 +14,7 @@
 
 import {
   BookOpenText, Boxes, Building2, ChartLine, CircleUserRound, Fingerprint, Gauge,
-  KeyRound, LayoutDashboard, ListChecks, MonitorSmartphone, ScrollText, Settings2, ShieldCheck, UsersRound, Waypoints,
+  Info, KeyRound, LayoutDashboard, ListChecks, MonitorSmartphone, ScrollText, Settings2, ShieldCheck, UsersRound, Waypoints,
   type LucideIcon,
 } from "lucide-react"
 
@@ -56,6 +56,7 @@ const SELF: NavSection = {
     { id: "usage", route: "/usage", needs: SELF_READ, icon: ChartLine },
     { id: "requests", route: "/requests", needs: SELF_LOGS_READ, icon: ScrollText },
     { id: "account", route: "/account", needs: SELF_READ, icon: Settings2 },
+    { id: "about", route: "/about", needs: SELF_READ, icon: Info },
   ],
 }
 

@@ -3,6 +3,7 @@
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer
+  X-Robots-Tag: noindex, nofollow
 
 /console/assets/*
   Cache-Control: public, max-age=31536000, immutable
