@@ -11,7 +11,7 @@
  */
 export type PortalModelDto = { 
 /**
- * Either an exposed model name or a `channel/model` form.
+ * Either an exposed model name or a `providerName/model` form.
  */
 name: string, providerCount: number, 
 /**

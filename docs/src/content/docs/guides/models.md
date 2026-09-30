@@ -198,9 +198,11 @@ keeps its edit and is reported as skipped.
 
 ## What a Caller Sees
 
-`GET /v1/models` returns the configured catalogue: route names, `channel/model`
-and `provider/model`, filtered to names the caller may use. It does not rotate
+`GET /v1/models` returns the configured catalogue: route names and
+`provider/model`, filtered to names the caller may use. It does not rotate
 between upstream directories. Add or import provider models to publish them here.
+The prefix is the configured provider route name; `channel/model` remains callable
+but is not automatically added as a second listing.
 
 The two forms are equivalent: base URL `/provider-A/v1` with model `gpt-5`, or
 base URL `/v1` with model `provider-A/gpt-5`. `GET /provider-A/v1/models` queries
@@ -213,7 +215,7 @@ curl -s http://127.0.0.1:8787/portal/api/models -H "Authorization: Bearer $GPROX
 ```
 
 ```json
-[{"name":"custom/gpt-4o-mini","providerCount":1,"channelIds":["custom"],"permitted":true},
+[{"name":"provider-A/gpt-4o-mini","providerCount":1,"channelIds":["custom"],"permitted":true},
  {"name":"fast","providerCount":1,"channelIds":["custom"],"permitted":true}]
 ```
 

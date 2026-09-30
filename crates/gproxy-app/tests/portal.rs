@@ -23,7 +23,7 @@ use gproxy_app::{
     dto::{PortalKeyCreate, PortalPasswordChange, PortalUsageQuery, UserPatch, UserWrite},
 };
 use gproxy_sdk::dto::{
-    InstanceSettingsPatch, RouteMemberWrite, RouteWrite, SettingsPatch, UsageGroupBy,
+    InstanceSettingsPatch, ProviderPatch, RouteMemberWrite, RouteWrite, SettingsPatch, UsageGroupBy,
 };
 use gproxy_store::entity::{
     identity::{api_key, membership_role::MembershipRole},
@@ -115,6 +115,19 @@ async fn context_renders_the_callers_own_memberships_and_roles() {
 #[tokio::test]
 async fn models_reflect_the_callers_permissions() {
     let app = fixture().await;
+    app.gproxy()
+        .manage()
+        .providers()
+        .update(
+            "p1",
+            ProviderPatch {
+                name: Some("my-provider".into()),
+                ..ProviderPatch::default()
+            },
+        )
+        .await
+        .unwrap();
+    app.reload_all().await.unwrap();
     let alice = support::caller_for(&app, "ka").await;
     let data = app.data();
     let ops = Operations::new(app.gproxy(), &data, app.config());
@@ -127,14 +140,14 @@ async fn models_reflect_the_callers_permissions() {
             .unwrap_or_else(|| panic!("`{name}` is missing from {models:?}"))
     };
 
-    // Both channel forms are listed — nothing is omitted — and only the one
+    // Both provider forms are listed, and only the one
     // Alice's rule reaches is permitted.
-    let permitted = named("test/m1");
+    let permitted = named("my-provider/m1");
     assert!(permitted.permitted);
     assert_eq!(permitted.provider_count, 1);
     assert_eq!(permitted.channel_ids, vec!["test".to_string()]);
 
-    let denied = named("test/m2");
+    let denied = named("p2/m2");
     assert!(
         !denied.permitted,
         "p2 is not in alice's rule, so its model is not callable"
@@ -152,6 +165,11 @@ async fn models_reflect_the_callers_permissions() {
     let mut sorted = names.clone();
     sorted.sort_unstable();
     assert_eq!(names, sorted);
+    assert_eq!(
+        names,
+        ["my-provider/m1", "p2/m2"],
+        "channel aliases must not duplicate provider names"
+    );
 }
 
 #[tokio::test]

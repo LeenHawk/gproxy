@@ -180,9 +180,10 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/default-model-catalog/apply-pric
 
 ## 调用方看到什么
 
-`GET /v1/models` 返回已配置的模型清单，包括路由名、`渠道/模型` 和
+`GET /v1/models` 返回已配置的模型清单，包括路由名和
 `Provider 名/模型`，只列出调用方有权使用的名字，不会轮流返回某一家上游的目录。
-新增或导入供应商模型后，它会出现在这份清单中。
+新增或导入供应商模型后，它会出现在这份清单中，前缀使用配置的供应商路由名。
+`渠道/模型` 仍可用于调用，但不会再自动添加为另一条记录。
 
 两种调用方式等价：API 地址用 `/供应商A/v1`、模型填 `gpt-5`；
 或者地址用 `/v1`、模型填 `供应商A/gpt-5`。
@@ -195,7 +196,7 @@ curl -s http://127.0.0.1:8787/portal/api/models -H "Authorization: Bearer $GPROX
 ```
 
 ```json
-[{"name":"custom/gpt-4o-mini","providerCount":1,"channelIds":["custom"],"permitted":true},
+[{"name":"provider-A/gpt-4o-mini","providerCount":1,"channelIds":["custom"],"permitted":true},
  {"name":"fast","providerCount":1,"channelIds":["custom"],"permitted":true}]
 ```
 

@@ -122,7 +122,7 @@ pub struct PortalFeaturesDto {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalModelDto {
-    /// Either an exposed model name or a `channel/model` form.
+    /// Either an exposed model name or a `providerName/model` form.
     pub name: String,
     pub provider_count: u64,
     /// The channels behind the name, sorted and deduplicated.
