@@ -873,7 +873,6 @@
     "emptyBudget": "尚未配置费用预算",
     "noObservation": "尚未获取上游额度",
     "unlimited": "不限",
-    "blockedUntil": "暂不可用，解除时间：{{at}}",
     "changeStatus": "修改凭证状态",
     "resetOutcome": {
       "ineligible": "所选重置已不符合使用条件。",

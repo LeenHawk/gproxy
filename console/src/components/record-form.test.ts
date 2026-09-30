@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildPatch, buildWrite, type FormField } from "@/components/record-form"
+import { buildPatch, buildWrite, type FormField } from "@/components/record-form-values"
 
 const FIELDS: ReadonlyArray<FormField> = [
   { name: "name", kind: "text", required: true },

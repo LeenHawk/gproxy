@@ -10,7 +10,7 @@ import { EmptyNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Link } from "@/lib/router"
+import { Link } from "@/components/link"
 
 /** Tenant administrators use the same provider context without gateway configuration. */
 export function ScopedProvidersPage({ providerId, tab }: { providerId?: string; tab: string }) {

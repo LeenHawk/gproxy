@@ -26,7 +26,8 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { SUPPORTED_LANGS, setLanguage, type LangCode } from "@/i18n"
-import { Link, useRoute } from "@/lib/router"
+import { Link } from "@/components/link"
+import { useRoute } from "@/lib/router"
 import { useTheme } from "@/lib/theme-context"
 import { cn } from "@/lib/utils"
 

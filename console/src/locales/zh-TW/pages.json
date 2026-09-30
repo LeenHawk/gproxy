@@ -873,7 +873,6 @@
     "emptyBudget": "尚未設定費用預算",
     "noObservation": "尚未取得上游額度",
     "unlimited": "不限",
-    "blockedUntil": "暫時無法使用，解除時間：{{at}}",
     "changeStatus": "修改憑證狀態",
     "resetOutcome": {
       "ineligible": "所選重置已不符合使用條件。",

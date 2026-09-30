@@ -14,7 +14,7 @@ import { Page, PageHeader, PageSection } from "@/components/page"
 import { QuotaWindows } from "@/components/quota-windows"
 import { LoadingRows, QueryState } from "@/components/state"
 import { UsageSummary } from "@/components/usage-summary"
-import { Link } from "@/lib/router"
+import { Link } from "@/components/link"
 
 const UsageTrend = lazy(() => import("@/components/usage-trend"))
 
