@@ -850,6 +850,7 @@ async fn caller_usage_reads_persisted_user_attribution_instead_of_opaque_scope()
         let response = h
             .core
             .call_service(ServiceRequest {
+                cancellation: tokio_util::sync::CancellationToken::new(),
                 scope: "tenant".into(),
                 user_id: user_id.map(str::to_owned),
                 caller: CallerRole::Member,

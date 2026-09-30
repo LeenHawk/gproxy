@@ -39,6 +39,7 @@ fn request(
     path: &str,
 ) -> ServiceRequest {
     ServiceRequest {
+        cancellation: tokio_util::sync::CancellationToken::new(),
         scope: scope.into(),
         user_id: None,
         caller,
@@ -311,6 +312,7 @@ async fn bindings_are_scoped_to_the_caller_or_to_the_targets_credentials() {
         async move {
             let response = core
                 .call_service(ServiceRequest {
+                    cancellation: tokio_util::sync::CancellationToken::new(),
                     scope,
                     user_id: None,
                     caller,
@@ -380,5 +382,119 @@ async fn bindings_are_scoped_to_the_caller_or_to_the_targets_credentials() {
     assert!(
         rows.iter()
             .all(|r| r.provider_id == "p" && r.generation == 0)
+    );
+}
+
+#[tokio::test]
+async fn cancelled_services_do_not_reach_the_channel() {
+    let h = harness(full(), "round_robin").await;
+    h.channel.expose_services.store(true, Ordering::Relaxed);
+    let call = request(
+        &h,
+        "tenant",
+        CallerRole::Member,
+        ServiceView::Caller,
+        Method::GET,
+        "/api/oauth/profile",
+    );
+    call.cancellation.cancel();
+    assert!(matches!(
+        h.core.call_service(call).await,
+        Err(CoreError::Cancelled)
+    ));
+
+    let connect = ServiceRequest {
+        cancellation: tokio_util::sync::CancellationToken::new(),
+        scope: "tenant".into(),
+        user_id: None,
+        caller: CallerRole::Admin,
+        view: ServiceView::Caller,
+        target: h.target("p"),
+        budgets: Vec::new(),
+        request: WireRequest {
+            method: Method::GET,
+            path: "/socket".into(),
+            query: None,
+            headers: HeaderMap::new(),
+            body: (),
+        },
+    };
+    connect.cancellation.cancel();
+    assert!(matches!(
+        h.core.connect_service(connect).await,
+        Err(CoreError::Cancelled)
+    ));
+    assert!(h.channel.service_calls.lock().unwrap().is_empty());
+    assert!(h.client.seen.lines().is_empty());
+}
+
+#[tokio::test]
+async fn cancellation_drops_an_in_flight_service_upload() {
+    let h = harness(full(), "round_robin").await;
+    h.channel.expose_services.store(true, Ordering::Relaxed);
+    let mut call = request(
+        &h,
+        "tenant",
+        CallerRole::Member,
+        ServiceView::Caller,
+        Method::POST,
+        "/upload",
+    );
+    let cancellation = call.cancellation.clone();
+    let dropped = tokio_util::sync::CancellationToken::new();
+    let guard = dropped.clone().drop_guard();
+    call.request.body = HttpBody::Stream(Box::pin(futures_util::stream::unfold(
+        guard,
+        |guard| async move {
+            std::future::pending::<()>().await;
+            Some((Ok(Bytes::new()), guard))
+        },
+    )));
+    let (result, ()) = tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::join!(h.core.call_service(call), async {
+            while h.channel.service_calls.lock().unwrap().is_empty() {
+                tokio::task::yield_now().await;
+            }
+            cancellation.cancel();
+        })
+    })
+    .await
+    .unwrap();
+    assert!(matches!(result, Err(CoreError::Cancelled)));
+    assert!(dropped.is_cancelled(), "the pending upload must be dropped");
+}
+
+#[tokio::test]
+async fn cancellation_interrupts_a_service_response_after_its_head() {
+    use futures_util::StreamExt;
+    let h = harness(full(), "round_robin").await;
+    h.channel.expose_services.store(true, Ordering::Relaxed);
+    h.script(vec![(
+        StatusCode::OK,
+        vec![],
+        vec![Bytes::from_static(b"first"), Bytes::from_static(b"second")],
+    )]);
+    let call = request(
+        &h,
+        "tenant",
+        CallerRole::Member,
+        ServiceView::Caller,
+        Method::GET,
+        "/download",
+    );
+    let cancellation = call.cancellation.clone();
+    let response = h.core.call_service(call).await.unwrap();
+    let HttpBody::Stream(mut stream) = response.body else {
+        panic!("stream expected")
+    };
+    assert_eq!(stream.next().await.unwrap().unwrap(), "first");
+    cancellation.cancel();
+    assert_eq!(
+        stream.next().await.unwrap().unwrap_err().to_string(),
+        "request cancelled"
+    );
+    assert!(
+        stream.next().await.is_none(),
+        "cancellation is a terminal error"
     );
 }

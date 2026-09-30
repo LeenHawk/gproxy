@@ -931,6 +931,7 @@ async fn pool_usage_merges_the_open_cycles_of_the_target() {
     let response = h
         .core
         .call_service(ServiceRequest {
+            cancellation: tokio_util::sync::CancellationToken::new(),
             scope: "tenant".into(),
             user_id: None,
             caller: CallerRole::Admin,

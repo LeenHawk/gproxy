@@ -50,6 +50,7 @@ fn socket_request() -> WireRequest<()> {
 
 fn service_request<B>(h: &Harness, body: B) -> ServiceRequest<B> {
     ServiceRequest {
+        cancellation: tokio_util::sync::CancellationToken::new(),
         scope: "tenant".into(),
         user_id: None,
         caller: CallerRole::Admin,

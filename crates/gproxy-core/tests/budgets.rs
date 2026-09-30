@@ -617,6 +617,7 @@ async fn the_caller_service_view_renders_budget_windows() {
     run(&h, context(&h, "r1", vec![user("u")], "gpt-x")).await;
     let call = |budgets: Vec<BudgetOwner>| {
         h.core.call_service(ServiceRequest {
+            cancellation: tokio_util::sync::CancellationToken::new(),
             scope: "tenant".into(),
             user_id: Some("u".into()),
             caller: CallerRole::Member,

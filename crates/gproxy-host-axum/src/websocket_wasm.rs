@@ -66,6 +66,7 @@ pub async fn service<C>(
     _request: ServiceRequestIn,
     _max_frame_bytes: u64,
     _capture: Option<gproxy_app::capture::DownstreamCapture>,
+    _cancel: CancelOnDrop,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,

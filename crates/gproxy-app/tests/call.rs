@@ -311,6 +311,7 @@ async fn service_world() -> gproxy_app::App<sea_orm::DatabaseConnection> {
 fn service(view: RequestedView) -> gproxy_app::ServiceRequestIn {
     let (parts, body) = support::service_parts("/api/profile");
     gproxy_app::ServiceRequestIn {
+        cancellation: None,
         request_id: "svc-1".into(),
         parts,
         body,
@@ -602,4 +603,19 @@ async fn app_preserves_inferred_affinity_and_managed_reset_selection() {
         *client.authorizations.lock().unwrap(),
         ["Bearer k-c-shared", "Bearer k-c-shared", "Bearer k-c-later"]
     );
+}
+
+#[tokio::test]
+async fn service_passes_host_cancellation_to_core() {
+    let app = service_world().await;
+    let caller = support::caller_for(&app, "k-member").await;
+    let mut request = service(RequestedView::Caller);
+    let cancellation = tokio_util::sync::CancellationToken::new();
+    cancellation.cancel();
+    request.cancellation = Some(cancellation);
+    let error = app.call_service(&caller, request).await.unwrap_err();
+    assert!(matches!(
+        error,
+        gproxy_app::AppError::Core(gproxy_core::CoreError::Cancelled)
+    ));
 }

@@ -297,7 +297,7 @@ async fn collect(body: HttpBody) -> (Bytes, bool) {
 ///
 /// A service records its downstream handshake and frames without acquiring a
 /// model-call lease or settling usage. The capture-only trailer is finalized
-/// by the same pump as model traffic; the core service API has no cancellation token.
+/// by the same pump as model traffic; cancellation also covers the upstream handshake.
 ///
 /// Which credential the socket may speak for is the channel's: the Codex
 /// channel refuses a synthesized view outright, so `x-gproxy-view:
@@ -310,11 +310,12 @@ pub async fn service<C>(
     request: ServiceRequestIn,
     max_frame_bytes: u64,
     capture: Option<gproxy_app::capture::DownstreamCapture>,
+    cancel: CancelOnDrop,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let mut trailer = Trailer::service(app.clone(), capture);
+    let mut trailer = Trailer::service(app.clone(), capture, cancel);
     match app.connect_service(caller, request).await {
         Err(error) => {
             let response = crate::ErrorResponse(error).into_response();

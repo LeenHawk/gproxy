@@ -226,12 +226,7 @@ fn service_route<'a>(
 /// is the one in the tree — is upgraded instead of called. See
 /// [`crate::websocket`] for what a service socket does and does not hold.
 ///
-/// **No cancellation token.** A service call runs outside the observation
-/// funnel, takes no `Admitted` and — the deciding part — has nowhere to put one:
-/// neither [`ServiceRequestIn`] nor core's `ServiceRequest` carries a
-/// cancellation field, so giving a service call a token means changing two other
-/// crates for a call that is short, buffered and unmetered. It is left out; see
-/// the crate README.
+/// The request cancellation guard follows the response body or socket.
 #[allow(clippy::too_many_arguments)]
 async fn service_call<C>(
     state: &HostState<C>,
@@ -279,7 +274,9 @@ where
         Ok(view) => view,
         Err(error) => return Some(ErrorResponse(error).into_response()),
     };
+    let mut cancel = CancelOnDrop::new();
     let mut request = ServiceRequestIn {
+        cancellation: Some(cancel.token()),
         request_id: crate::request_id(),
         parts: parts.clone(),
         body: body.clone(),
@@ -303,6 +300,7 @@ where
                 request,
                 core.limits.max_ws_frame_bytes,
                 capture,
+                cancel,
             )
             .await
         }
@@ -312,11 +310,12 @@ where
                     capture.record_response_head(response.status, &response.headers);
                 }
                 crate::response::leased(
-                    crate::response::Trailer::service(state.app().clone(), capture),
+                    crate::response::Trailer::service(state.app().clone(), capture, cancel),
                     response,
                 )
             }
             Err(error) => {
+                cancel.disarm();
                 let response = ErrorResponse(error).into_response();
                 if let Some(mut capture) = capture {
                     capture.record_response_head(response.status(), response.headers());

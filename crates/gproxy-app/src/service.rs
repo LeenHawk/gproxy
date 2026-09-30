@@ -74,6 +74,9 @@ pub enum RequestedView {
 /// `parts` and `body` are forwarded as received — the vendor path is part of
 /// the request and the channel matches its own routes against it.
 pub struct ServiceRequestIn {
+    /// Host cancellation, shared through preparation and response streaming.
+    /// For WebSocket services this covers the handshake.
+    pub cancellation: Option<tokio_util::sync::CancellationToken>,
     /// The downstream capture ID. Services do not produce model usage rows.
     pub request_id: String,
     pub parts: http::request::Parts,
@@ -212,7 +215,7 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
         Ok(self
             .gproxy()
             .core()
-            .call_service(plan.into_request(target, wire))
+            .call_service(plan.into_request(target, wire, request.cancellation.unwrap_or_default()))
             .await?)
     }
 
@@ -235,7 +238,11 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
         Ok(self
             .gproxy()
             .core()
-            .connect_service(plan.into_request(target, wire))
+            .connect_service(plan.into_request(
+                target,
+                wire,
+                request.cancellation.unwrap_or_default(),
+            ))
             .await?)
     }
 
@@ -277,8 +284,10 @@ impl ServicePlan {
         self,
         target: ExecutionTarget,
         request: WireRequest<B>,
+        cancellation: tokio_util::sync::CancellationToken,
     ) -> ServiceRequest<B> {
         ServiceRequest {
+            cancellation,
             scope: self.scope,
             user_id: self.user_id,
             caller: self.role,
