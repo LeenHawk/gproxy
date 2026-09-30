@@ -8,6 +8,7 @@ import { ChevronsUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 
 export type SelectOption = { value: string; label: string }
 export type OptionSource = { key: readonly unknown[]; list: (search: string, page: number, pageSize: number) => Promise<{ items: SelectOption[]; total: number }> }
@@ -19,6 +20,7 @@ type Props = {
   source?: OptionSource
   disabled?: boolean
   allowCustom?: boolean
+  wrap?: boolean
   emptyValue?: string
   emptyLabel?: string
   onChange: (value: string) => void
@@ -38,7 +40,7 @@ function RemoteSelect(props: Props & { source: OptionSource }) {
   }} />
 }
 
-function SelectControl({ id, label, value, options = [], allowCustom, emptyLabel, emptyValue = "", disabled, onChange, remote }: Props & { remote?: RemoteState }) {
+function SelectControl({ id, label, value, options = [], allowCustom, wrap, emptyLabel, emptyValue = "", disabled, onChange, remote }: Props & { remote?: RemoteState }) {
   const { t } = useTranslation()
   const listId = useId()
   const [localOpen, setLocalOpen] = useState(false), [localSearch, setLocalSearch] = useState("")
@@ -49,10 +51,11 @@ function SelectControl({ id, label, value, options = [], allowCustom, emptyLabel
   const visible = [...new Map((remote?.items ?? options).map(option => [option.value, option])).values()]
   const custom = search.trim()
   const select = (next: string) => { setChosen(visible.find(option => option.value === next) ?? null); onChange(next); setOpen(false) }
+  const labelClass = cn("min-w-0", wrap ? "whitespace-normal wrap-anywhere text-left" : "truncate")
   return <Popover modal open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild>
-      <Button id={id} disabled={disabled} type="button" variant="outline" role="combobox" aria-label={label} aria-expanded={open} aria-controls={listId} className="w-full min-w-0 justify-between">
-        <span className="truncate">{(chosen?.value === value ? chosen.label : undefined) ?? options.find(option => option.value === value)?.label ?? visible.find(option => option.value === value)?.label ?? (value === emptyValue ? emptyLabel || t("form.choose") : value || emptyLabel || t("form.choose"))}</span>
+      <Button id={id} disabled={disabled} type="button" variant="outline" role="combobox" aria-label={label} aria-expanded={open} aria-controls={listId} className={cn("w-full min-w-0 justify-between", wrap && "h-auto min-h-8 py-1.5")}>
+        <span className={labelClass}>{(chosen?.value === value ? chosen.label : undefined) ?? options.find(option => option.value === value)?.label ?? visible.find(option => option.value === value)?.label ?? (value === emptyValue ? emptyLabel || t("form.choose") : value || emptyLabel || t("form.choose"))}</span>
         <ChevronsUpDown data-icon="inline-end" />
       </Button>
     </PopoverTrigger>
@@ -63,8 +66,8 @@ function SelectControl({ id, label, value, options = [], allowCustom, emptyLabel
           <CommandEmpty>{t(remote?.loading ? "state.loading" : "state.emptyTitle")}</CommandEmpty>
           <CommandGroup>
             {emptyLabel ? <CommandItem value="__empty" keywords={[emptyLabel]} onSelect={() => select(emptyValue)} data-checked={value === emptyValue || !value}>{emptyLabel}</CommandItem> : null}
-            {visible.map(option => <CommandItem key={option.value} value={option.value} keywords={[option.label]} onSelect={() => select(option.value)} data-checked={option.value === value}><span className="truncate">{option.label}</span></CommandItem>)}
-            {allowCustom && custom && !visible.some(option => option.value === custom) ? <CommandItem value={custom} onSelect={() => select(custom)}>{t("form.useCustom", { value: custom })}</CommandItem> : null}
+            {visible.map(option => <CommandItem key={option.value} value={option.value} keywords={[option.label]} onSelect={() => select(option.value)} data-checked={option.value === value}><span className={labelClass}>{option.label}</span></CommandItem>)}
+            {allowCustom && custom && !visible.some(option => option.value === custom) ? <CommandItem value={custom} onSelect={() => select(custom)}><span className={labelClass}>{t("form.useCustom", { value: custom })}</span></CommandItem> : null}
           </CommandGroup>
         </CommandList>
       </Command>

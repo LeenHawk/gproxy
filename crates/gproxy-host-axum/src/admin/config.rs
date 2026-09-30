@@ -1161,9 +1161,10 @@ where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
     crate::send(async move {
-        gate!("models", scope);
         gate!("provider-models", scope);
-        gate!("routes", scope);
+        if query.provider_id.is_none() && query.rule_set_id.is_some() {
+            gate!("provider-rule-sets", scope);
+        }
         reply_sdk(
             state
                 .app()

@@ -63,6 +63,8 @@ Header and query rules require `targetName`. `header_set` replaces the header va
 
 All supplied filters must match. Omitted filters add no restriction. Scope client-specific compatibility rules by request headers so they do not affect other clients.
 
+Model suggestions contain only saved provider models and variants. A provider's page lists that provider's models; the standalone rule-set page combines models from its attached providers. An unattached set has no suggestions, but you can still enter a model name or a pattern such as `gpt-*`. Suggestions do not fetch upstream model directories.
+
 ## Streaming responses
 
 Body rewrites operate on complete events, such as an SSE event or JSON array element, rather than network chunks. An event exceeding `settings.maxStreamEventBytes` fails. Use an event filter to target particular event types.

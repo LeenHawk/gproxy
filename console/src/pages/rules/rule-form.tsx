@@ -36,8 +36,8 @@ export function RuleSetSelect({ value, choices, remote, onChange, disabled }: { 
   </Field>
 }
 
-type Props = { remoteSets?: boolean; original?: RewriteRuleDto; choices: SetChoice[]; defaultSetId: string; onClose: () => void; onSubmit: (write: RewriteRuleWrite) => void; pending: boolean; error: unknown }
-export function RuleForm({ original, choices, remoteSets, defaultSetId, onClose, onSubmit, pending, error }: Props) {
+type Props = { providerId?: string; remoteSets?: boolean; original?: RewriteRuleDto; choices: SetChoice[]; defaultSetId: string; onClose: () => void; onSubmit: (write: RewriteRuleWrite) => void; pending: boolean; error: unknown }
+export function RuleForm({ providerId, original, choices, remoteSets, defaultSetId, onClose, onSubmit, pending, error }: Props) {
   const { t } = useTranslation()
   const initialKind = original ? ruleKind(original) : "system_text"
   const [kind, setKind] = useState<RuleKind>(initialKind)
@@ -163,8 +163,8 @@ export function RuleForm({ original, choices, remoteSets, defaultSetId, onClose,
           {input(t("fields.pattern"), pattern, setPattern, false, true)}{input(t("fields.replacement"), replacement, setReplacement, true)}
         </> : null}
         {!semantic && !(kind === "transform" && target === "query") ? select(t("fields.phase"), phase, ["request", "response", "both"], setPhase) : null}
-        <details><summary className="cursor-pointer text-sm">{t("rules.filters")}</summary><FieldGroup className="mt-3">
-          <FilterFields model={modelFilter} onModel={setModelFilter} operations={operations} onOperations={setOperations} headers={headerFilter} onHeaders={setHeaderFilter} />
+        <details data-field-span="full"><summary className="cursor-pointer text-sm">{t("rules.filters")}</summary><FieldGroup className="mt-3">
+          <FilterFields providerId={providerId} ruleSetId={setId} model={modelFilter} onModel={setModelFilter} operations={operations} onOperations={setOperations} headers={headerFilter} onHeaders={setHeaderFilter} />
           {!semantic && kind !== "header" && target === "body" ? input(t("fields.filterEventPattern"), eventFilter, setEventFilter) : null}
         </FieldGroup></details>
         <Field orientation="horizontal"><FieldLabel htmlFor="rule-enabled">{t("fields.enabled")}</FieldLabel><Switch id="rule-enabled" checked={enabled} onCheckedChange={setEnabled} /></Field>
