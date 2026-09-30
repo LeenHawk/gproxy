@@ -217,4 +217,4 @@ Console 的“模型”（`/console/model-catalog`）展示内置模型、上下
 
 默认价格是 OpenRouter 报价快照，不代表所有渠道的实际合同。应用默认价格会生成全局计费规则，已有同模式规则不覆盖；价格编辑器支持费率、上下文分段及服务等级。渠道专属规则优先于全局规则。
 
-内置数据通过 `node scripts/update-openrouter-model-catalog.mjs` 更新；可用 `--input response.json` 离线生成。公开模型接口无需 Key；可选凭证只从 `OPENROUTER_API_KEY` 环境变量读取。生成器保留原始 `source_pricing` 作为核查材料，只把能确认单位的字段写入计费结构；缺失或动态价格不应当解释为免费。额外官网价格应先确认模型版本、地区、单位和阈值，再加入，不以猜测补齐。
+内置数据通过 `node scripts/update-openrouter-model-catalog.mjs` 更新；可用 `--input response.json` 离线生成。公开模型接口无需 Key；可选凭证只从 `OPENROUTER_API_KEY` 环境变量读取。生成器保留原始 `source_pricing` 作为核查材料，只把能确认单位的字段写入计费结构。单位换算后的计费价格自动舍入到 9 位小数，采用就近舍入、中点取偶；导入默认价格时也使用相同规则。缺失或动态价格不应当解释为免费。额外官网价格应先确认模型版本、地区、单位和阈值，再加入，不以猜测补齐。

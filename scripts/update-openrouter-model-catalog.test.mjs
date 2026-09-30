@@ -1,12 +1,23 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { applyCodexCatalog, buildCatalog, normalizeCatalogNames, perMillion } from "./update-openrouter-model-catalog.mjs"
+import { applyCodexCatalog, buildCatalog, normalizeCatalogNames, perMillion, roundPrice } from "./update-openrouter-model-catalog.mjs"
 
-test("converts exact OpenRouter token decimals to per-million prices", () => {
+test("converts OpenRouter token decimals before rounding per-million prices", () => {
   assert.equal(perMillion("0.00000625"), "6.25")
-  assert.equal(perMillion("0.0000000833333333333333"), "0.0833333333333333")
+  assert.equal(perMillion("0.0000000833333333333333"), "0.083333333")
+  assert.equal(perMillion("0.00000958083832335329"), "9.580838323")
   assert.equal(perMillion("0"), "0")
+})
+
+test("price rounding uses decimal arithmetic and ties to even", () => {
+  assert.equal(roundPrice("1.0000000005"), "1")
+  assert.equal(roundPrice("1.0000000015"), "1.000000002")
+  assert.equal(roundPrice("0.9999999995"), "1")
+  assert.equal(roundPrice("0.0000000005"), "0")
+  assert.equal(roundPrice("0.0000000006"), "0.000000001")
+  assert.equal(roundPrice("9223372036.854775807"), "9223372036.854775807")
+  assert.throws(() => roundPrice("NaN"), /invalid decimal price/)
 })
 
 test("maps v3 usage metrics and omits dynamic and unsupported price units", () => {
@@ -24,8 +35,8 @@ test("maps v3 usage metrics and omits dynamic and unsupported price units", () =
           completion: "0.000002",
           input_cache_read: "0.0000001",
           input_cache_write: "0.00000125",
-          web_search: "0.005",
-          overrides: [{ min_prompt_tokens: 200000, prompt: "0.000002" }],
+          web_search: "0.0050000005",
+          overrides: [{ min_prompt_tokens: 200000, prompt: "0.0000020000000006" }],
         },
       },
       {
@@ -80,7 +91,7 @@ test("maps v3 usage metrics and omits dynamic and unsupported price units", () =
   assert(claude.pricing.rates.some((rate) =>
     rate.metric === "cache_creation_5m_tokens" && rate.price === "3.75"))
   const openai = catalog.models.find((model) => model.model_id === "gpt-test")
-  assert.deepEqual(openai.pricing.tiers, [{ min_prompt_tokens: 200000, input_price: "2" }])
+  assert.deepEqual(openai.pricing.tiers, [{ min_prompt_tokens: 200000, input_price: "2.000000001" }])
   assert(openai.pricing.rates.some((rate) =>
     rate.metric === "cache_creation_30m_tokens" && rate.unit_size === 1_000_000))
   assert(openai.pricing.rates.some((rate) =>
