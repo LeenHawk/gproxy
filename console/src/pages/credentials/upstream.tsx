@@ -1,6 +1,5 @@
 import { QuotaDiagnostics } from "./quota-diagnostics"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { QuotaBreakdownRowDto } from "@/generated/sdk"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
@@ -85,7 +84,6 @@ export function UpstreamQuota({ id, provider }: { id: string; provider: Credenti
       {open || closed.length ? <CardContent className="px-3"><UpstreamCycles open={open} closed={closed} /></CardContent> : null}
       </Card> })}
       {estimated ? <p className="text-xs text-muted-foreground">{t("limits.estimateHint")}</p> : null}
-      {(saved.data?.blocks ?? []).map(block => <Alert key={block.id} variant="destructive"><AlertDescription><p>{t("limits.blockedUntil", { at: formatInstant(block.untilMs, i18n.language) })}</p>{block.operation ? <p>{t(`operation.${block.operation}`, { defaultValue: block.operation })}</p> : null}</AlertDescription></Alert>)}
       {breakdown?.length ? <UpstreamBreakdown rows={breakdown} /> : null}
     </QueryState>
   </div>

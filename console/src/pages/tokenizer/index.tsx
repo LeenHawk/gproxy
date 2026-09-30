@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DownloadProgress } from "@/components/download-progress"
-import { Link } from "@/lib/router"
+import { Link } from "@/components/link"
 
 function size(bytes: number) {
   return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`
