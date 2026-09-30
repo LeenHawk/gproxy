@@ -886,7 +886,16 @@
     "anchor": "週期起點",
     "nameTaken": "目前物件已有同名規則，請使用不同的規則名稱。",
     "rawResponse": "查詢原始回應",
-    "rawResponseHelp": "重新查詢用量並顯示上游回應本文，包含失敗回應。已隱藏已知敏感欄位，分享前請檢查個人資訊。"
+    "rawResponseHelp": "重新查詢用量並顯示上游回應本文，包含失敗回應。已隱藏已知敏感欄位，分享前請檢查個人資訊。",
+    "quotaTrend": "使用率趨勢",
+    "quotaUsedPercent": "額度使用率",
+    "quotaTrendEmpty": "此時間範圍內暫無使用率觀測記錄。",
+    "quotaTrendOlder": "載入更早的觀測",
+    "quotaTrendHint": "圓點為上游實際觀測值，連線僅連接同一週期內的觀測。無觀測時不補點；如有更多記錄，可載入更早的觀測。",
+    "currentCycle": "目前週期",
+    "noCurrentCycle": "目前週期尚未開始，可切換時間範圍查看歷史觀測。",
+    "showQuotaTrend": "展開使用率趨勢",
+    "hideQuotaTrend": "收起使用率趨勢"
   },
   "keyBudget": {
     "enable": "設定此密鑰的費用預算",

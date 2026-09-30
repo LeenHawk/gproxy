@@ -1,4 +1,5 @@
-import { api, json } from "@/api/client"
+import { api, json, query } from "@/api/client"
+import type { Page, QuotaObservationDto, QuotaObservationQuery } from "@/generated/sdk"
 import type { CredentialProviderDto } from "@/generated/app"
 import type { AuthCodeStart, AuthCodeStarted, AuthCodeComplete, CredentialCreated, DeviceStart, DeviceStarted, DevicePollOutcome, CookieExchange, CredentialDto, CredentialSummaryDto, CredentialQuotaDto, CredentialLimitStatusDto, QuotaSnapshotDto, QuotaResetCreditsDto, QuotaResetWrite, QuotaResetDto, DiscoveredModelDto, ModelTestResultDto } from "@/generated/sdk"
 export const credentialDirectory = () => api<CredentialProviderDto[]>("/admin/api/credentials/providers")
@@ -7,6 +8,7 @@ export const revealCredential = (id: string) => api<unknown>(path(id, "reveal"),
 export const credentialStatus = (id: string, status: string, reason: string | null) => api<CredentialDto>(path(id, "status"), json("POST", { status, reason }))
 export const refreshCredential = (id: string, force: boolean) => api<CredentialSummaryDto>(path(id, `refresh?force=${force}`), { method: "POST" })
 export const credentialQuota = (id: string) => api<CredentialQuotaDto>(path(id, "quota"))
+export const credentialQuotaObservations = (id: string, filter: Partial<QuotaObservationQuery>, signal?: AbortSignal) => api<Page<QuotaObservationDto>>(path(id, "quota-observations") + query(filter), { signal })
 export const credentialLimits = (id: string) => api<CredentialLimitStatusDto[]>(path(id, "limits"))
 export const probeQuota = (id: string) => api<QuotaSnapshotDto>(path(id, "quota-probe"), { method: "POST" })
 export const quotaResetCredits = (id: string) => api<QuotaResetCreditsDto>(path(id, "quota-reset-credits"))

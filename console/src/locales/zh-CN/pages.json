@@ -886,7 +886,16 @@
     "anchor": "周期起点",
     "nameTaken": "当前对象已有同名规则，请使用不同的规则名称。",
     "rawResponse": "查询原始响应",
-    "rawResponseHelp": "重新查询用量并显示上游响应正文，包含失败响应。已隐藏已知敏感字段，分享前请检查个人信息。"
+    "rawResponseHelp": "重新查询用量并显示上游响应正文，包含失败响应。已隐藏已知敏感字段，分享前请检查个人信息。",
+    "quotaTrend": "使用率趋势",
+    "quotaUsedPercent": "额度使用率",
+    "quotaTrendEmpty": "此时间范围内暂无使用率观测记录。",
+    "quotaTrendOlder": "加载更早的观测",
+    "quotaTrendHint": "圆点为上游实际观测值，连线仅连接同一周期内的观测。无观测时不补点；如有更多记录，可加载更早的观测。",
+    "currentCycle": "当前周期",
+    "noCurrentCycle": "当前周期尚未开始，可切换时间范围查看历史观测。",
+    "showQuotaTrend": "展开使用率趋势",
+    "hideQuotaTrend": "收起使用率趋势"
   },
   "keyBudget": {
     "enable": "设置此密钥的费用预算",

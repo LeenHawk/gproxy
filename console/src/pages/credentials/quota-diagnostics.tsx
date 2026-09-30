@@ -15,6 +15,7 @@ export function QuotaDiagnostics({ id, disabled }: { id: string; disabled: boole
   const probe = useMutation({ mutationFn: () => api<QuotaProbeDto>(`/admin/api/credentials/${encodeURIComponent(id)}/quota-diagnostics`, { method: "POST" }), onSuccess: async data => {
     if (data.snapshot) client.setQueryData(["credential-quota-probe", id], data.snapshot)
     await client.invalidateQueries({ queryKey: ["credential-quota", id] })
+    await client.invalidateQueries({ queryKey: ["credential-quota-observations", id] })
   } })
   const raw = JSON.stringify(probe.data?.responses, null, 2)
   return <>

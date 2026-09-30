@@ -886,7 +886,16 @@
     "anchor": "Period start",
     "nameTaken": "A rule with this name already exists for this object. Choose a different name.",
     "rawResponse": "Query raw response",
-    "rawResponseHelp": "Runs a new quota query and shows the upstream response bodies, including failed responses. Known sensitive fields are masked. Review personal information before sharing."
+    "rawResponseHelp": "Runs a new quota query and shows the upstream response bodies, including failed responses. Known sensitive fields are masked. Review personal information before sharing.",
+    "quotaTrend": "Usage trend",
+    "quotaUsedPercent": "Quota used",
+    "quotaTrendEmpty": "No usage-rate observations in this time range.",
+    "quotaTrendOlder": "Load older observations",
+    "quotaTrendHint": "Dots are upstream observations; lines only connect readings in the same cycle. No observations are added during idle periods. Load older observations when available to see more history.",
+    "currentCycle": "Current cycle",
+    "noCurrentCycle": "No current cycle yet. Select a time range to view past observations.",
+    "showQuotaTrend": "Show usage trend",
+    "hideQuotaTrend": "Hide usage trend"
   },
   "keyBudget": {
     "enable": "Set a budget for this key",
