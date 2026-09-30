@@ -36,8 +36,8 @@ export type SetupResult = { existingAdminPreserved: boolean; baseUrl: string; ap
 async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   try { return await invoke<T>(command, args) }
   catch (error) {
-    if (error && typeof error === "object" && "message" in error) throw new Error(String(error.message))
-    throw error instanceof Error ? error : new Error(String(error))
+    if (error && typeof error === "object" && "message" in error) throw new Error(String(error.message), { cause: error })
+    throw error instanceof Error ? error : new Error(String(error), { cause: error })
   }
 }
 export const setupStatus = () => call<SetupStatus>("desktop_setup_status")
