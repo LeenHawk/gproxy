@@ -11,10 +11,8 @@ impl NativeEvent for s::StreamEvent {
     const DIALECT: Dialect = Dialect::Claude;
     fn collector(_: IdentityFlow, _: TargetIdPolicy, limits: EventLimits) -> Self::Collector {
         ClaudeStreamCollector::new(ClaudeStreamLimits {
-            max_events: limits.max_events,
             max_json_bytes: limits.max_bytes,
             max_text_bytes: limits.max_bytes,
-            max_blocks: limits.max_parts,
         })
     }
     fn collect(collector: &mut Self::Collector, event: Self) -> Result<(), TransformError> {

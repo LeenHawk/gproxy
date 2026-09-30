@@ -41,8 +41,6 @@ pub struct ResponsesToGeminiStream {
     pub(super) items: BTreeMap<i64, Item>,
     pub(super) cursor: i64,
     pub(super) held: usize,
-    pub(super) parts: usize,
-    pub(super) tools: usize,
 }
 
 impl ResponsesToGeminiStream {
@@ -64,17 +62,13 @@ impl ResponsesToGeminiStream {
         }
         Ok(Self {
             source: Some(ResponsesStreamCollector::new(ResponsesStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_items: limits.max_items,
+
                 max_text_bytes: limits.max_bytes,
                 max_json_bytes: limits.max_bytes,
             })),
             target: Some(GeminiStreamCollector::new(GeminiStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_candidates: 1,
-                max_parts: limits.max_parts,
             })),
             flow,
             policy,
@@ -96,17 +90,14 @@ impl ResponsesToGeminiStream {
             items: Default::default(),
             cursor: 0,
             held: 0,
-            parts: 0,
-            tools: 0,
         })
     }
     pub(crate) fn reserve_external_ids(
         &mut self,
         role: crate::transform::identity::IdentityRole,
         ids: &std::collections::BTreeSet<String>,
-        max: usize,
     ) -> Result<(), TransformError> {
-        self.flow.reserve_external_ids(role, ids, max).map_err(|e| {
+        self.flow.reserve_external_ids(role, ids).map_err(|e| {
             TransformError::new(
                 crate::transform::TransformErrorKind::Conflict,
                 "fanout.ids",

@@ -177,7 +177,6 @@ pub(crate) fn to_claude(
                         (Some(typed), _raw) => {
                             let converted = crate::transform::generate::gemini_schema::to_json(
                                 &typed,
-                                Default::default(),
                             )?;
                             report.diagnostics.extend(converted.report.diagnostics);
 

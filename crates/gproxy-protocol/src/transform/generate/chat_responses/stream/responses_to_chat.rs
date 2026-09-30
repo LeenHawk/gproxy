@@ -59,7 +59,6 @@ pub struct ResponsesToChatStream {
     pub(super) items: BTreeMap<i64, ItemState>,
     pub(super) content_cursor: i64,
     pub(super) tools: usize,
-    pub(super) limits: StreamLimits,
     pub(super) report: Report,
     pub(super) expected: Option<c::GenerateContentResponseBody>,
     pub(super) terminal: bool,
@@ -94,9 +93,8 @@ impl ResponsesToChatStream {
         collector_policy.preserve_source_ids = true;
         Ok(Self {
             source: Some(ResponsesStreamCollector::new(ResponsesStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_items: limits.max_items,
+
                 max_text_bytes: limits.max_bytes,
                 max_json_bytes: limits.max_bytes,
             })),
@@ -104,10 +102,7 @@ impl ResponsesToChatStream {
                 IdentityFlow::new(flow.namespace()),
                 collector_policy,
                 ChatStreamLimits {
-                    max_events: limits.max_events,
                     max_bytes: limits.max_bytes,
-                    max_choices: 1,
-                    max_tool_calls: limits.max_tool_calls,
                 },
             )),
             flow,
@@ -119,7 +114,6 @@ impl ResponsesToChatStream {
             items: BTreeMap::new(),
             content_cursor: 0,
             tools: 0,
-            limits,
             report: Report::default(),
             expected: None,
             terminal: false,
@@ -130,9 +124,8 @@ impl ResponsesToChatStream {
         &mut self,
         role: crate::transform::identity::IdentityRole,
         ids: &std::collections::BTreeSet<String>,
-        max: usize,
     ) -> Result<(), TransformError> {
-        self.flow.reserve_external_ids(role, ids, max).map_err(|e| {
+        self.flow.reserve_external_ids(role, ids).map_err(|e| {
             TransformError::new(
                 crate::transform::TransformErrorKind::Conflict,
                 "fanout.ids",

@@ -93,7 +93,7 @@ pub(super) fn to_responses(
     let typed = config
         .response_schema
         .as_ref()
-        .map(|s| super::super::gemini_schema::to_json(s, Default::default()))
+        .map(super::super::gemini_schema::to_json)
         .map(crate::transform::optional)
         .transpose()?
         .flatten();

@@ -45,13 +45,8 @@ fn settings() -> StreamSettings {
         source_framing: SourceFraming::Sse,
         client_framing: SourceFraming::Sse,
         events: EventLimits {
-            max_events: 1024,
             max_bytes: 262144,
             max_pending_bytes: 65536,
-            max_items: 64,
-            max_tools: 64,
-            max_parts: 64,
-            max_choices: 1,
         },
     }
 }
@@ -66,7 +61,6 @@ fn state(store: &Store, dialect: Dialect) -> GenerationStateAccess<'_, Store> {
         conversation_key: "image-conversation".into(),
         now: UNIX_EPOCH,
         expires_at: UNIX_EPOCH + Duration::from_secs(1000),
-        max_records: 64,
     }
 }
 fn resources(host: &Resources) -> GenerationResources<'_, Resources> {

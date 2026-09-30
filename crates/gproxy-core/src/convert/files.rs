@@ -45,9 +45,6 @@ use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde::{Serialize, de::DeserializeOwned};
 use std::collections::BTreeMap;
 
-const MAX_LIST_PAGES: usize = 16;
-const MAX_LIST_FILES: usize = 10_000;
-
 /// The three file API shapes; OpenAI Chat shares OpenAI's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Family {
@@ -540,8 +537,7 @@ async fn list<C: BatchConnectionTrait + Send + Sync>(
     let template = template(Method::GET, endpoints::files_endpoint(call.target)?.path);
     let limits = FileCrudLimits {
         codec: call.limits,
-        max_pages: MAX_LIST_PAGES,
-        max_files: MAX_LIST_FILES,
+
         max_declared_bytes: u64::MAX,
     };
     if spec.before.is_some() && target != Family::Claude {

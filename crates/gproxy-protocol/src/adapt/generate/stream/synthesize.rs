@@ -128,10 +128,8 @@ impl CompleteResponse for c::GenerateContentResponseBody {
         native::claude::synthesize_claude_stream(
             self,
             native::claude::ClaudeStreamLimits {
-                max_events: limits.max_events,
                 max_json_bytes: limits.max_bytes,
                 max_text_bytes: limits.max_bytes,
-                max_blocks: limits.max_parts,
             },
         )
     }
@@ -148,10 +146,7 @@ impl CompleteResponse for h::GenerateContentResponseBody {
         native::chat::synthesize_chat_stream(
             self,
             native::chat::ChatStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_choices: limits.max_choices,
-                max_tool_calls: limits.max_tools,
             },
         )
     }
@@ -168,10 +163,7 @@ impl CompleteResponse for g::GenerateContentResponseBody {
         native::gemini::synthesize_gemini_stream(
             self,
             native::gemini::GeminiStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_candidates: limits.max_choices,
-                max_parts: limits.max_parts,
             },
         )
     }
@@ -201,9 +193,8 @@ impl CompleteResponse for r::GenerateContentResponseBody {
             self,
             &mut IdentityFlow::new(namespace),
             native::responses::ResponsesStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_items: limits.max_items,
+
                 max_text_bytes: limits.max_bytes,
                 max_json_bytes: limits.max_bytes,
             },

@@ -10,6 +10,7 @@ use gproxy_protocol::{
     transform::TransformErrorKind,
 };
 use serde_json::json;
+
 use std::{
     future::Future,
     sync::Mutex,
@@ -61,8 +62,6 @@ impl Upstream for Host {
 
 fn limits() -> MemoryLimits {
     MemoryLimits {
-        max_calls: 8,
-        max_trace_items: 8,
         max_bytes: 64 * 1024,
         codec: CodecLimits {
             max_buffer_bytes: 64 * 1024,

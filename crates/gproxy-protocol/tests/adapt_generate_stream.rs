@@ -36,7 +36,6 @@ fn state(store: &Store) -> GenerationStateAccess<'_, Store> {
         conversation_key: "conversation".into(),
         now: UNIX_EPOCH,
         expires_at: UNIX_EPOCH + Duration::from_secs(1000),
-        max_records: 64,
     }
 }
 fn selected() -> StreamTarget {
@@ -66,13 +65,8 @@ fn settings() -> StreamSettings {
             max_parts: 64,
         },
         events: EventLimits {
-            max_events: 1024,
             max_bytes: 262144,
             max_pending_bytes: 65536,
-            max_items: 64,
-            max_parts: 64,
-            max_tools: 64,
-            max_choices: 8,
         },
         source_framing: SourceFraming::Sse,
         client_framing: SourceFraming::Sse,

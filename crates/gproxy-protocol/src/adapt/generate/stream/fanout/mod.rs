@@ -53,7 +53,7 @@ where
     emit_usage: bool,
     finished: bool,
     failed: bool,
-    events: usize,
+
     retained_bytes: usize,
 }
 
@@ -72,14 +72,7 @@ where
             .collect();
         let id = group_id(&options)?;
         let settings = children[0].settings;
-        if children.len() > settings.events.max_choices.min(options.max_children)
-            || children
-                .len()
-                .checked_add(1)
-                .is_none_or(|n| n > state.max_records)
-        {
-            return Err(limit("fanout count exceeds event/state budget"));
-        }
+
         for child in &children {
             child.binding.check(state)?;
         }
@@ -114,7 +107,7 @@ where
             emit_usage,
             finished: false,
             failed: false,
-            events: 0,
+
             retained_bytes: 0,
         })
     }
@@ -140,13 +133,6 @@ where
         &mut self,
         event: B::ClientEvent,
     ) -> Result<StreamChunk<B::ClientEvent>, TransformError> {
-        self.events = self
-            .events
-            .checked_add(1)
-            .ok_or_else(|| limit("fanout event overflow"))?;
-        if self.events > self.settings.events.max_events {
-            return Err(limit("fanout event budget exceeded"));
-        }
         let bytes = self.encoder.event(&event, self.settings.codec)?;
         Ok(StreamChunk {
             event: Some(event),

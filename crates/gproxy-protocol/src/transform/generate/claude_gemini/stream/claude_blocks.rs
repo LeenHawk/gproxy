@@ -35,8 +35,7 @@ struct Block {
 pub(super) struct Blocks {
     values: BTreeMap<i64, Block>,
     cursor: i64,
-    total_blocks: usize,
-    tool_count: usize,
+
     pending_bytes: usize,
     limits: StreamLimits,
     calls: super::super::history::Calls,
@@ -47,8 +46,7 @@ impl Blocks {
         Self {
             values: BTreeMap::new(),
             cursor: 0,
-            total_blocks: 0,
-            tool_count: 0,
+
             pending_bytes: 0,
             limits,
             calls: Default::default(),
@@ -60,10 +58,6 @@ impl Blocks {
         flow: &mut IdentityFlow,
         policy: &TargetIdPolicy,
     ) -> Result<(), TransformError> {
-        if self.total_blocks >= self.limits.max_blocks {
-            return Err(limit());
-        }
-        self.total_blocks += 1;
         let (payload, bytes) = match event.content_block {
             c::ResponseContentBlock::Text(v) => {
                 let n = v.text.len();
@@ -91,14 +85,10 @@ impl Blocks {
             c::ResponseContentBlock::ToolUse(v)
                 if v.toolset_name.as_ref().is_none_or(Option::is_none) =>
             {
-                if self.tool_count >= self.limits.max_tools {
-                    return Err(limit());
-                }
-
                 let id =
                     self.calls
                         .call(Some(v.id), &v.name, crate::Dialect::Claude, flow, policy)?;
-                self.tool_count += 1;
+
                 let n = bound(&v.input, self.limits.max_pending)?
                     .checked_add(v.name.len())
                     .and_then(|n| n.checked_add(id.len()))

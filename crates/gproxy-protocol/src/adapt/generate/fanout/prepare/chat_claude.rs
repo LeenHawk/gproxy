@@ -30,7 +30,6 @@ impl ChatViaClaudeFanout {
             children,
             endpoint: target.endpoint,
             group_id: id,
-            options: target.options,
             started: false,
         }))
     }

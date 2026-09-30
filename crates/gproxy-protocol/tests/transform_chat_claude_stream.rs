@@ -384,10 +384,7 @@ fn missing_terminals_malformed_arguments_and_limits_poison() {
     let mut stream = ClaudeToChatStream::new(
         ClaudeToChatContext { created: 7 },
         flow(),
-        StreamLimits {
-            max_bytes: 1,
-            ..Default::default()
-        },
+        StreamLimits { max_bytes: 1 },
     )
     .unwrap();
     let event = serde_json::from_value(json!({"type":"ping"})).unwrap();
@@ -504,7 +501,7 @@ fn chat_refusal_marker_with_stop_is_a_claude_refusal_and_preserves_channel_order
 }
 
 #[test]
-fn late_response_id_does_not_change_emitted_claude_identity_and_limits_close_output() {
+fn late_response_id_does_not_change_emitted_claude_identity() {
     let mut stream = ChatToClaudeStream::new(context(), flow(), Default::default()).unwrap();
     let mut first = chat(json!({"content":"a"}), None, None);
     first.id.clear();
@@ -523,23 +520,6 @@ fn late_response_id_does_not_change_emitted_claude_identity_and_limits_close_out
     stream.push_done().unwrap();
     out.extend(stream.finish().unwrap().chunks);
     assert_eq!(collect_c(out).id, emitted);
-    let mut stream = ChatToClaudeStream::new(
-        context(),
-        flow(),
-        StreamLimits {
-            max_blocks: 0,
-            ..Default::default()
-        },
-    )
-    .unwrap();
-    assert_eq!(
-        stream
-            .push(chat(json!({"content":"x"}), None, None))
-            .unwrap_err()
-            .kind(),
-        TransformErrorKind::Limit
-    );
-    assert!(stream.push_done().is_err());
 }
 
 #[test]
@@ -582,10 +562,7 @@ fn final_fact_extensions_are_removed_before_bounds_and_breakdown_has_real_total(
     let mut stream = ChatToClaudeStream::new(
         ChatToClaudeContext::default(),
         flow(),
-        StreamLimits {
-            max_bytes: 8192,
-            ..Default::default()
-        },
+        StreamLimits { max_bytes: 8192 },
     )
     .unwrap();
     assert!(

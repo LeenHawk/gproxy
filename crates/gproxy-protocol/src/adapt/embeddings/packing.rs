@@ -10,12 +10,6 @@ pub(super) fn gemini_batches(
     options: &EmbeddingBatchOptions,
     write_bytes: u64,
 ) -> Result<Vec<g::BatchEmbedContentsRequestBody>, TransformError> {
-    if options.max_calls == 0 || options.max_items_per_call == 0 {
-        return Err(TransformError::shape(
-            "embedding.batch_limits",
-            "call and item limits must be positive",
-        ));
-    }
     for facts in options.usage_per_call.iter().flatten() {
         if facts.prompt_tokens < 0 || facts.total_tokens < facts.prompt_tokens {
             return Err(TransformError::shape(
@@ -31,36 +25,22 @@ pub(super) fn gemini_batches(
     let mut batches = Vec::new();
     let mut pending = g::BatchEmbedContentsRequestBody::builder(Vec::new()).build();
     for item in input {
-        if pending.requests.len() == options.max_items_per_call {
-            push(
-                &mut batches,
-                std::mem::replace(
-                    &mut pending,
-                    g::BatchEmbedContentsRequestBody::builder(Vec::new()).build(),
-                ),
-                options.max_calls,
-            )?;
-        }
         pending.requests.push(item);
         match codec::encode_json(&pending, limits) {
             Ok(_) => {}
             Err(error) if error.kind() == CodecErrorKind::Limit && pending.requests.len() > 1 => {
                 let last = pending.requests.pop().expect("just inserted");
-                push(
-                    &mut batches,
-                    std::mem::replace(
-                        &mut pending,
-                        g::BatchEmbedContentsRequestBody::builder(vec![last]).build(),
-                    ),
-                    options.max_calls,
-                )?;
+                batches.push(std::mem::replace(
+                    &mut pending,
+                    g::BatchEmbedContentsRequestBody::builder(vec![last]).build(),
+                ));
                 encoded(&pending, limits)?;
             }
             Err(error) => return Err(encoding(error)),
         }
     }
     if !pending.requests.is_empty() {
-        push(&mut batches, pending, options.max_calls)?;
+        batches.push(pending);
     }
     if !options.usage_per_call.is_empty() && options.usage_per_call.len() != batches.len() {
         return Err(TransformError::shape(
@@ -69,22 +49,6 @@ pub(super) fn gemini_batches(
         ));
     }
     Ok(batches)
-}
-
-fn push(
-    batches: &mut Vec<g::BatchEmbedContentsRequestBody>,
-    batch: g::BatchEmbedContentsRequestBody,
-    max_calls: usize,
-) -> Result<(), TransformError> {
-    if batches.len() == max_calls {
-        return Err(TransformError::new(
-            TransformErrorKind::Limit,
-            "embedding.max_calls",
-            "batch requires more upstream calls than allowed",
-        ));
-    }
-    batches.push(batch);
-    Ok(())
 }
 
 fn encoded(

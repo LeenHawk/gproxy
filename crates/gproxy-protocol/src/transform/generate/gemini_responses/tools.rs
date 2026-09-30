@@ -113,7 +113,7 @@ fn schema(
     report: &mut Report,
 ) -> Result<Option<crate::Rest>, TransformError> {
     let typed = typed
-        .map(|s| super::super::gemini_schema::to_json(s, Default::default()))
+        .map(super::super::gemini_schema::to_json)
         .map(crate::transform::optional)
         .transpose()?
         .flatten();

@@ -21,9 +21,7 @@ impl Emitter {
             .collector
             .as_ref()
             .ok_or_else(|| invalid("emitter finished"))?;
-        if collector.events >= collector.limits.max_events {
-            return Err(limit());
-        }
+
         let mut event = f(self.sequence);
         event.set_agent(self.agent.clone());
         bounded(

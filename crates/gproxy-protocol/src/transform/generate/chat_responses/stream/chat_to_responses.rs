@@ -112,10 +112,7 @@ impl ChatToResponsesStream {
             IdentityFlow::new(flow.namespace()),
             TargetIdPolicy::new(Dialect::OpenAiChat),
             ChatStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_choices: 2,
-                max_tool_calls: limits.max_tool_calls,
             },
         );
         let usage_facts = context.response.usage;
@@ -123,9 +120,8 @@ impl ChatToResponsesStream {
             source: Some(source),
             target: Some(ResponsesStreamCollector::new(
                 crate::transform::generate::stream::responses::ResponsesStreamLimits {
-                    max_events: limits.max_events,
                     max_bytes: limits.max_bytes,
-                    max_items: limits.max_items,
+
                     max_text_bytes: limits.max_bytes,
                     max_json_bytes: limits.max_bytes,
                 },

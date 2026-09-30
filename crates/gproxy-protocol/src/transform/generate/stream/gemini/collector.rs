@@ -7,19 +7,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy)]
 pub struct GeminiStreamLimits {
-    pub max_events: usize,
     pub max_bytes: usize,
-    pub max_candidates: usize,
-    pub max_parts: usize,
 }
 
 impl Default for GeminiStreamLimits {
     fn default() -> Self {
         Self {
-            max_events: 100_000,
             max_bytes: 16 * 1024 * 1024,
-            max_candidates: 128,
-            max_parts: 100_000,
         }
     }
 }
@@ -29,9 +23,9 @@ impl Default for GeminiStreamLimits {
 /// snapshots. A failed push poisons the collector so partial state cannot pass.
 pub struct GeminiStreamCollector {
     limits: GeminiStreamLimits,
-    events: usize,
+
     bytes: usize,
-    parts: usize,
+
     failed: bool,
     body: g::GenerateContentResponseBody,
     candidates: BTreeMap<i64, g::Candidate>,
@@ -42,9 +36,9 @@ impl GeminiStreamCollector {
     pub fn new(limits: GeminiStreamLimits) -> Self {
         Self {
             limits,
-            events: 0,
+
             bytes: 0,
-            parts: 0,
+
             failed: false,
             body: g::GenerateContentResponseBody::builder().build(),
             candidates: BTreeMap::new(),
@@ -68,7 +62,6 @@ impl GeminiStreamCollector {
         &mut self,
         chunk: g::GenerateContentResponseBody,
     ) -> Result<(), TransformError> {
-        add_limit(&mut self.events, 1, self.limits.max_events, "events")?;
         // Serialization measures the already rebuilt declared event. It is
         // never used to discover fields or convert between protocols.
         let remaining = self.limits.max_bytes.saturating_sub(self.bytes) as u64;
@@ -80,7 +73,7 @@ impl GeminiStreamCollector {
                 max_body_bytes: remaining,
                 max_line_bytes: remaining,
                 max_part_bytes: remaining,
-                max_parts: self.limits.max_parts,
+                max_parts: 0,
             },
         )
         .map_err(|error| {
@@ -141,11 +134,7 @@ impl GeminiStreamCollector {
                         "duplicate index within event",
                     ));
                 }
-                if !self.candidates.contains_key(&index)
-                    && self.candidates.len() >= self.limits.max_candidates
-                {
-                    return Err(limit("candidates"));
-                }
+
                 candidate.index = Some(index);
                 let previous = self
                     .candidates
@@ -164,12 +153,6 @@ impl GeminiStreamCollector {
                     ));
                 }
                 if let Some(content) = candidate.content.take() {
-                    add_limit(
-                        &mut self.parts,
-                        content.parts.as_ref().map_or(0, Vec::len),
-                        self.limits.max_parts,
-                        "parts",
-                    )?;
                     let old = previous
                         .content
                         .get_or_insert_with(|| g::Content::builder().build());
@@ -198,7 +181,7 @@ impl GeminiStreamCollector {
             .as_ref()
             .and_then(|v| v.block_reason)
             .is_some_and(|r| r != g::BlockReason::Unspecified);
-        if self.events == 0
+        if self.bytes == 0
             || (self.candidates.is_empty() && !blocked)
             || self.candidates.values().any(|v| !terminal(v.finish_reason))
         {

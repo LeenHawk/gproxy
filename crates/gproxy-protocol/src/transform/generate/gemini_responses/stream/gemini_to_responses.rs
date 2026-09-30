@@ -37,7 +37,7 @@ pub struct GeminiToResponsesStream {
     usage_after_content: bool,
     pub(super) part_index: usize,
     pub(super) item_count: usize,
-    pub(super) tools: usize,
+
     pub(super) call_ids: std::collections::BTreeSet<String>,
     pub(super) client_tools: crate::transform::generate::client_tools::Bindings,
 }
@@ -66,10 +66,7 @@ impl GeminiToResponsesStream {
         )?;
         Ok(Self {
             source: Some(GeminiStreamCollector::new(GeminiStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_candidates: 1,
-                max_parts: limits.max_parts,
             })),
             target: ResponseEvents::new(limits),
             flow,
@@ -88,7 +85,7 @@ impl GeminiToResponsesStream {
             usage_after_content: false,
             part_index: 0,
             item_count: 0,
-            tools: 0,
+
             call_ids: Default::default(),
             client_tools,
         })

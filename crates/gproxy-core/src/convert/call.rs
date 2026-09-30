@@ -14,7 +14,6 @@ use std::time::{Duration, SystemTime};
 
 /// How long continuation state written for a conversion stays valid.
 pub(super) const STATE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
-pub(super) const STATE_MAX_RECORDS: usize = 64;
 
 /// The client's request as a conversion family reads it: the addressing parts
 /// plus the already-buffered body.
@@ -111,7 +110,6 @@ impl<'a, C: BatchConnectionTrait + Send + Sync> Call<'a, C> {
             conversation_key: self.conversation_key.to_owned(),
             expires_at: self.now() + STATE_TTL,
             now: self.now(),
-            max_records: STATE_MAX_RECORDS,
         })
     }
 }

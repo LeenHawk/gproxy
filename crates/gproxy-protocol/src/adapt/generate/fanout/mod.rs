@@ -23,7 +23,7 @@ pub use prepare::{
 #[derive(Debug, Clone)]
 pub struct FanoutOptions {
     pub namespace: IdNamespace,
-    pub max_children: usize,
+
     pub response_policy: TargetIdPolicy,
 }
 
@@ -53,7 +53,6 @@ struct Fanout<A> {
     children: Vec<A>,
     endpoint: Endpoint,
     group_id: String,
-    options: FanoutOptions,
     /// Set once the first child may have been sent. Nothing persists a group,
     /// so this flag is what keeps a second `invoke` from repeating its POSTs.
     started: bool,

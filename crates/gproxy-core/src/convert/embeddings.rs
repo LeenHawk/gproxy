@@ -19,11 +19,6 @@ use gproxy_seaorm::BatchConnectionTrait;
 use http::{HeaderMap, HeaderValue, StatusCode, header::CONTENT_TYPE};
 use serde::{Serialize, de::DeserializeOwned};
 
-/// Gemini's documented `batchEmbedContents` ceiling per request.
-const MAX_ITEMS_PER_CALL: usize = 100;
-/// Upper bound on native calls one client request may fan out into.
-const MAX_CALLS: usize = 64;
-
 fn codec(error: gproxy_protocol::codec::CodecError) -> TransformError {
     TransformError::with_source(
         if error.kind() == gproxy_protocol::codec::CodecErrorKind::Limit {
@@ -74,8 +69,6 @@ fn finish<T: Serialize>(
 
 fn options(limits: CodecLimits) -> EmbeddingBatchOptions {
     EmbeddingBatchOptions {
-        max_items_per_call: MAX_ITEMS_PER_CALL,
-        max_calls: MAX_CALLS,
         codec: limits,
         usage_per_call: Vec::new(),
     }

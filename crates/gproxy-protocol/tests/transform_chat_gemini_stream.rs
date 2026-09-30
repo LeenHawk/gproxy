@@ -334,20 +334,8 @@ fn missing_model_waits_for_factual_source_model_and_missing_usage_stays_missing(
 #[test]
 fn source_lifecycle_and_limits_poison_both_directions() {
     let chunk = chat(json!([choice(0, json!({"content":"hello"}), None)]), None);
-    for limits in [
-        StreamLimits {
-            max_bytes: 1,
-            ..Default::default()
-        },
-        StreamLimits {
-            max_events: 0,
-            ..Default::default()
-        },
-        StreamLimits {
-            max_choices: 0,
-            ..Default::default()
-        },
-    ] {
+    {
+        let limits = StreamLimits { max_bytes: 1 };
         let mut stream = ChatToGeminiStream::new(flow(), limits);
         assert_eq!(
             stream.push(chunk.clone()).unwrap_err().kind(),
@@ -388,10 +376,7 @@ fn source_lifecycle_and_limits_poison_both_directions() {
             model: None,
         },
         flow(),
-        StreamLimits {
-            max_bytes: 1,
-            ..Default::default()
-        },
+        StreamLimits { max_bytes: 1 },
     )
     .unwrap();
     assert_eq!(
@@ -688,17 +673,14 @@ fn out_of_order_candidate_arrival_is_valid_when_the_final_set_is_complete() {
     assert_eq!(actual.choices[1].message.content.as_deref(), Some("second"));
 }
 #[test]
-fn target_output_and_tool_caps_do_not_allow_success_after_overflow() {
+fn target_output_byte_caps_do_not_allow_success_after_overflow() {
     let result = GeminiToChatStream::new(
         GeminiToChatContext {
             created: 7,
             model: Some("m".repeat(1024)),
         },
         flow(),
-        StreamLimits {
-            max_bytes: 512,
-            ..Default::default()
-        },
+        StreamLimits { max_bytes: 512 },
     );
     assert!(matches!(result,Err(e) if e.kind()==TransformErrorKind::Limit));
     let mut stream = GeminiToChatStream::new(
@@ -707,47 +689,11 @@ fn target_output_and_tool_caps_do_not_allow_success_after_overflow() {
             model: Some("m".repeat(400)),
         },
         flow(),
-        StreamLimits {
-            max_bytes: 1000,
-            ..Default::default()
-        },
+        StreamLimits { max_bytes: 1000 },
     )
     .unwrap();
     assert_eq!(stream.push(gemini(json!({"candidates":[{"index":0,"content":{"parts":[{"text":"first"}]}},{"index":1,"content":{"parts":[{"text":"second"}]}}]}))).unwrap_err().kind(),TransformErrorKind::Limit);
     assert!(stream.finish().is_err());
-    let mut stream = GeminiToChatStream::new(
-        context(),
-        flow(),
-        StreamLimits {
-            max_tools: 0,
-            ..Default::default()
-        },
-    )
-    .unwrap();
-    assert_eq!(stream.push(gemini(json!({"candidates":[{"content":{"parts":[{"functionCall":{"name":"f","args":{}}}]},"finishReason":"STOP"}]}))).unwrap_err().kind(),TransformErrorKind::Limit);
-    assert!(stream.finish().is_err());
-    let mut stream = ChatToGeminiStream::new(
-        flow(),
-        StreamLimits {
-            max_tools: 0,
-            ..Default::default()
-        },
-    );
-    assert_eq!(
-        stream
-            .push(chat(
-                json!([choice(
-                    0,
-                    json!({"tool_calls":[{"index":0,"function":{"name":"f","arguments":"{}"}}]}),
-                    Some("tool_calls")
-                )]),
-                None
-            ))
-            .unwrap_err()
-            .kind(),
-        TransformErrorKind::Limit
-    );
-    assert!(stream.push_done().is_err());
 }
 #[test]
 fn late_model_facts_cannot_relabel_an_emitted_chat_stream() {

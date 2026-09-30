@@ -14,9 +14,8 @@ impl ResponseEvents {
     pub fn new(limits: StreamLimits) -> Self {
         Self {
             native: Some(ResponsesStreamCollector::new(ResponsesStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_items: limits.max_items,
+
                 max_text_bytes: limits.max_bytes,
                 max_json_bytes: limits.max_bytes,
             })),

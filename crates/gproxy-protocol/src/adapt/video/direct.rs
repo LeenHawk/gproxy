@@ -4,13 +4,6 @@ pub(super) fn facts(
     resources: &BTreeMap<String, ResolvedVideoResource>,
     limits: VideoLimits,
 ) -> Result<(), TransformError> {
-    if resources.len() > limits.max_resource_facts {
-        return Err(TransformError::new(
-            crate::transform::TransformErrorKind::Limit,
-            "video.resources",
-            "resource fact bound exceeded",
-        ));
-    }
     super::resources::bound_value(
         &resources
             .iter()
@@ -174,13 +167,6 @@ pub async fn native_create<U: Upstream>(
     request: WireRequest<o::NativeCreateVideoRequestBody>,
     limits: VideoLimits,
 ) -> Result<JsonInvocation<o::NativeVideo>, TransformError> {
-    if limits.max_resource_facts == 0 {
-        return Err(TransformError::new(
-            crate::transform::TransformErrorKind::Limit,
-            "video.resources",
-            "positive resource fact bound required",
-        ));
-    }
     if request.method != http::Method::POST
         || request
             .query

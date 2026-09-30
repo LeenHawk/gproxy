@@ -12,12 +12,12 @@ impl<A: Edge> Fanout<A> {
         &mut self,
         upstream: (&U, &U::Target),
         limits: CodecLimits,
-        state: &GenerationStateAccess<'_, S>,
+        _state: &GenerationStateAccess<'_, S>,
         progress: &mut FanoutProgress<A::Native>,
         mut facts: impl FnMut(usize, &A::Native) -> Result<A::Facts, TransformError>,
     ) -> Result<Converted<A::Client>, TransformError> {
         let (upstream, target) = upstream;
-        if self.children.len() > self.options.max_children || self.children.len() < 2 {
+        if self.children.len() < 2 {
             return Err(limit());
         }
         // Every child must fit the upstream before the first one is sent, so an
@@ -74,21 +74,9 @@ impl<A: Edge> Fanout<A> {
             natives.push(native);
         }
         for (index, (native, client)) in natives.iter().zip(&mut mapped).enumerate() {
-            output::normalize(
-                native,
-                client,
-                self.children[index].identities(),
-                &mut seen,
-                state.max_records,
-            )?;
+            output::normalize(native, client, self.children[index].identities(), &mut seen)?;
         }
-        if seen
-            .len()
-            .checked_add(1)
-            .is_none_or(|count| count > state.max_records)
-        {
-            return Err(limit());
-        }
+
         let value = A::Client::aggregate(mapped, self.group_id.clone(), &mut report)?;
         encode(&value, limits)?;
         Ok(Converted { value, report })

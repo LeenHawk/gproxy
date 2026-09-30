@@ -14,8 +14,7 @@ pub use convert::*;
 #[derive(Debug, Clone, Copy)]
 pub struct ModelListLimits {
     pub codec: CodecLimits,
-    pub max_calls: usize,
-    pub max_models: usize,
+
     /// Sum of encoded declared page sizes retained by this operation. Limits
     /// both collection memory and the amount of data traversed across pages.
     pub max_declared_bytes: u64,

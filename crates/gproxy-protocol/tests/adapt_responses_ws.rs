@@ -670,19 +670,13 @@ impl Wake for Wakes {
     }
 }
 #[test]
-fn empty_control_flood_is_counted_cooperatively_without_recursive_polling() {
+fn empty_control_frames_yield_cooperatively_without_recursive_polling() {
     let host = Host::new(vec![
         (0..10_000)
             .map(|_| Ok(WsFrame::Pong(Bytes::new())))
             .collect(),
     ]);
-    let mut session = open(
-        &host,
-        ResponsesWsLimits {
-            max_receive_frames: 8,
-            ..Default::default()
-        },
-    );
+    let mut session = open(&host, ResponsesWsLimits::default());
     let mut turn = session.turn(request()).unwrap();
     let wakes = Arc::new(Wakes::default());
     let waker = Waker::from(wakes.clone());
@@ -694,11 +688,6 @@ fn empty_control_flood_is_counted_cooperatively_without_recursive_polling() {
         );
     }
     assert_eq!(wakes.0.load(Ordering::SeqCst), 8);
-    let Poll::Ready(Some(Err(e))) = Pin::new(&mut turn).poll_next(&mut Context::from_waker(&waker))
-    else {
-        panic!()
-    };
-    assert_eq!(e.kind(), TransformErrorKind::Limit);
     assert_eq!(host.shared.lock().unwrap().receive_polls, 8);
     assert_eq!(turn.received_frames(), 8);
     drop(turn);
@@ -724,20 +713,6 @@ fn control_and_data_bytes_share_receive_budget_and_pongs_share_send_budget() {
     );
     drop(turn);
     assert_closed(&host);
-    let host = Host::new(vec![vec![Ok(WsFrame::Ping(Bytes::from_static(b"p")))]]);
-    let mut session = open(
-        &host,
-        ResponsesWsLimits {
-            max_send_frames: 1,
-            ..Default::default()
-        },
-    );
-    let mut turn = session.turn(request()).unwrap();
-    assert_eq!(
-        drain(&mut turn).unwrap_err().kind(),
-        TransformErrorKind::Limit
-    );
-    assert_eq!(host.shared.lock().unwrap().sent.len(), 1);
     let encoded =
         serde_json::to_vec(
             &gproxy_protocol::wire::openai::responses::websocket::ClientEvent::ResponseCreate(
@@ -966,22 +941,6 @@ fn native_tool_progress_and_child_failures_are_preserved_without_execution_or_re
 #[test]
 fn native_collector_and_adapter_caps_close_before_success() {
     for limits in [
-        ResponsesWsLimits {
-            collector:
-                gproxy_protocol::transform::generate::stream::responses::ResponsesStreamLimits {
-                    max_items: 0,
-                    ..Default::default()
-                },
-            ..Default::default()
-        },
-        ResponsesWsLimits {
-            collector:
-                gproxy_protocol::transform::generate::stream::responses::ResponsesStreamLimits {
-                    max_events: 2,
-                    ..Default::default()
-                },
-            ..Default::default()
-        },
         ResponsesWsLimits {
             collector:
                 gproxy_protocol::transform::generate::stream::responses::ResponsesStreamLimits {

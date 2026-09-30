@@ -8,7 +8,7 @@
 //! publication_status and release its owned handles explicitly. This adapter
 //! never deletes resources or silently compensates a partial publication.
 //!
-//! All requests, source options, byte/count caps and required delivery facts are
+//! All requests, source options, byte caps and required delivery facts are
 //! checked before the first upstream send. All output images are validated
 //! before the first publish. Non-2xx responses retain their original HTTP body;
 //! invalid decoded 2xx responses retain the typed native response, including
@@ -36,8 +36,7 @@ use base64::Engine;
 #[derive(Debug, Clone, Copy)]
 pub struct ImageLimits {
     pub codec: CodecLimits,
-    pub max_calls: usize,
-    pub max_input_images: usize,
+
     pub max_input_bytes: u64,
     pub max_total_input_bytes: u64,
     pub max_output_bytes: u64,
@@ -201,9 +200,7 @@ pub async fn generate<A: ResourceAccess, U: Upstream>(
     let delivery = context
         .response_format
         .unwrap_or(facts.default_response_format);
-    if context.n > limits.max_calls || refs.len() > limits.max_input_images {
-        return Err(limit("image.count").into());
-    }
+
     if facts.created < 0 {
         return Err(TransformError::shape(
             "image.created",

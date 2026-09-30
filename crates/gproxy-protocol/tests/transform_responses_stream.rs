@@ -272,18 +272,10 @@ fn completed_requires_done_items_and_eof_is_not_terminal() {
     assert_eq!(collect(synth(input.clone())).unwrap(), input);
 }
 #[test]
-fn limits_apply_to_events_bytes_text_and_json() {
+fn limits_apply_to_bytes_text_and_json() {
     for limits in [
         ResponsesStreamLimits {
-            max_events: 1,
-            ..Default::default()
-        },
-        ResponsesStreamLimits {
             max_bytes: 64,
-            ..Default::default()
-        },
-        ResponsesStreamLimits {
-            max_items: 0,
             ..Default::default()
         },
         ResponsesStreamLimits {
@@ -511,7 +503,7 @@ fn synth_late_failure_does_not_publish_allocated_identities_and_cache_totals_val
     );
     let mut ids = flow();
     let limits = ResponsesStreamLimits {
-        max_events: 1,
+        max_bytes: 1,
         ..Default::default()
     };
     assert!(synthesize_responses_stream(input.clone(), &mut ids, limits).is_err());

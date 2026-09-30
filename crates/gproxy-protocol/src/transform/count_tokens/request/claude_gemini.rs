@@ -254,7 +254,7 @@ fn to_claude_config(
     let typed = input
         .response_schema
         .as_ref()
-        .map(|v| crate::transform::generate::gemini_schema::to_json(v, Default::default()))
+        .map(crate::transform::generate::gemini_schema::to_json)
         .map(crate::transform::optional)
         .transpose()?
         .flatten();

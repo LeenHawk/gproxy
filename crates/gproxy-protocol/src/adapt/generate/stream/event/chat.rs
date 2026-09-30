@@ -33,10 +33,7 @@ impl NativeEvent for s::ChatCompletionChunk {
                 flow,
                 policy,
                 ChatStreamLimits {
-                    max_events: limits.max_events,
                     max_bytes: limits.max_bytes,
-                    max_tool_calls: limits.max_tools,
-                    max_choices: limits.max_choices,
                 },
             ),
             ids: BTreeMap::new(),

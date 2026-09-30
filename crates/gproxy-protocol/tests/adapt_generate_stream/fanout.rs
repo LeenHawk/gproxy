@@ -1,4 +1,5 @@
 use super::*;
+
 use gproxy_protocol::{
     HttpBody, WireRequest, WireResponse,
     adapt::generate::{
@@ -73,7 +74,6 @@ fn target(client: Dialect, _native: Dialect) -> FanoutTarget {
         options: FanoutOptions {
             response_policy: gproxy_protocol::transform::identity::TargetIdPolicy::new(client),
             namespace: IdNamespace([90; 16]),
-            max_children: 2,
         },
     }
 }

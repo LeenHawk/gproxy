@@ -60,13 +60,6 @@ async fn facts<S: StateStore>(
     names: BTreeMap<String, String>,
 ) -> Result<GenerationToolReplay, TransformError> {
     let target = state.target.dialect;
-    if ids.len() > state.max_records || names.len() > state.max_records {
-        return Err(TransformError::new(
-            TransformErrorKind::Limit,
-            "history.tool_identity",
-            "too many tool identities in history",
-        ));
-    }
     let mut replay = GenerationToolReplay {
         names,
         ..Default::default()

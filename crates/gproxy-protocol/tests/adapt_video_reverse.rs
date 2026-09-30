@@ -226,7 +226,6 @@ fn limits() -> VideoLimits {
             max_part_bytes: 64 * 1024,
             max_parts: 8,
         },
-        max_resource_facts: 8,
     }
 }
 fn template(path: &str) -> WireRequest<()> {
@@ -798,7 +797,7 @@ fn image_is_published_before_create_and_only_declared_fields_are_saved() {
     );
 }
 #[test]
-fn unsupported_native_control_and_fanout_limit_reject_before_cas_or_publication() {
+fn native_negative_prompt_is_omitted_before_sending() {
     let host = host(vec![native("video_0", "queued")]);
     let resources = Resources::default();
     let store = store();
@@ -815,18 +814,6 @@ fn unsupported_native_control_and_fanout_limit_reject_before_cas_or_publication(
             &mut ReverseVideoProgress::default()
         )
         .is_ok()
-    );
-    assert!(
-        create(
-            &host,
-            &resources,
-            &store,
-            input(3, 3),
-            ReverseVideoKind::Native,
-            expiry(),
-            &mut ReverseVideoProgress::default()
-        )
-        .is_err()
     );
     assert_eq!(host.sent.lock().unwrap().len(), 1);
     assert!(resources.published.lock().unwrap().is_empty());
@@ -1036,42 +1023,6 @@ fn publication_cas_failure_reuses_identical_id_and_does_not_recreate() {
     assert_eq!(host.sent.lock().unwrap().len(), 1);
     assert_eq!(resources.published.lock().unwrap()[1].1, id);
 }
-#[test]
-fn resource_bound_counts_inputs_across_all_fanout_children() {
-    let host = host(vec![]);
-    let resources = Resources::default();
-    let store = store();
-    let mut source = input(2, 2);
-    for instance in &mut source.instances {
-        let image = g::VideoImage::builder()
-            .bytes_base64_encoded(PNG)
-            .mime_type("image/png")
-            .build();
-        instance.image = Some(image.clone());
-        instance.last_frame = Some(image.clone());
-        instance.reference_images = Some(vec![
-            g::VideoReferenceImage::builder()
-                .image(image)
-                .reference_type(g::VideoReferenceType::Asset)
-                .build(),
-        ]);
-    }
-    assert!(
-        create(
-            &host,
-            &resources,
-            &store,
-            source,
-            ReverseVideoKind::OpenRouter,
-            expiry(),
-            &mut ReverseVideoProgress::default()
-        )
-        .is_err()
-    );
-    assert_eq!(*store.attempts.lock().unwrap(), 0);
-    assert!(resources.published.lock().unwrap().is_empty());
-}
-
 #[test]
 fn shared_fanout_fixtures_preserve_every_requested_instance_and_sample() {
     let cases: Vec<Value> =

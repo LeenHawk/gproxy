@@ -15,7 +15,6 @@ pub struct GenerationStateAccess<'a, S: StateStore> {
     pub conversation_key: String,
     pub expires_at: SystemTime,
     pub now: SystemTime,
-    pub max_records: usize,
 }
 
 /// Identity/name facts for replaying tool calls and results, all taken from

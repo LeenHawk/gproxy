@@ -42,10 +42,7 @@ pub(crate) fn gemini_tools_to_chat(
                 &function.parameters_json_schema,
             ) {
                 (Some(schema), _raw) => {
-                    let converted = crate::transform::generate::gemini_schema::to_json(
-                        schema,
-                        Default::default(),
-                    )?;
+                    let converted = crate::transform::generate::gemini_schema::to_json(schema)?;
 
                     report.diagnostics.extend(converted.report.diagnostics);
                     Some(converted.value)

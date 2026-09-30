@@ -11,10 +11,7 @@ impl NativeEvent for g::GenerateContentResponseBody {
     const DIALECT: Dialect = Dialect::Gemini;
     fn collector(_: IdentityFlow, _: TargetIdPolicy, limits: EventLimits) -> Self::Collector {
         GeminiStreamCollector::new(GeminiStreamLimits {
-            max_events: limits.max_events,
             max_bytes: limits.max_bytes,
-            max_parts: limits.max_parts,
-            max_candidates: limits.max_choices,
         })
     }
     fn collect(collector: &mut Self::Collector, event: Self) -> Result<(), TransformError> {

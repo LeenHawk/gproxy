@@ -1,7 +1,7 @@
 use super::{EmbeddingBatchOptions, packing};
 use crate::{
     codec::{self, CodecErrorKind},
-    transform::{TransformError, TransformErrorKind},
+    transform::TransformError,
     wire::openai::embeddings as o,
 };
 
@@ -10,12 +10,6 @@ pub(super) fn batches(
     options: &EmbeddingBatchOptions,
     write_bytes: u64,
 ) -> Result<Vec<o::CreateEmbeddingRequestBody>, TransformError> {
-    if options.max_calls == 0 || options.max_items_per_call == 0 {
-        return Err(TransformError::shape(
-            "embedding.batch_limits",
-            "call and item limits must be positive",
-        ));
-    }
     if !options.usage_per_call.is_empty() {
         return Err(TransformError::shape(
             "embedding.usage_per_call",
@@ -42,7 +36,6 @@ pub(super) fn batches(
             && previous.encoding_format == next.encoding_format
             && previous.user == next.user
             && let o::EmbeddingInput::Texts(texts) = &mut previous.input
-            && texts.len() < options.max_items_per_call
         {
             texts.push(text);
             match codec::encode_json(previous, limits) {
@@ -56,13 +49,7 @@ pub(super) fn batches(
                 Err(error) => return Err(packing::encoding(error)),
             }
         }
-        if out.len() == options.max_calls {
-            return Err(TransformError::new(
-                TransformErrorKind::Limit,
-                "embedding.max_calls",
-                "batch requires more upstream calls than allowed",
-            ));
-        }
+
         out.push(next);
     }
     Ok(out)

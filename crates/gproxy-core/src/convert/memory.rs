@@ -18,10 +18,6 @@ use http::{HeaderMap, HeaderValue, StatusCode, header::CONTENT_TYPE};
 
 /// Output budget per trace summary.
 const SUMMARY_MAX_TOKENS: i64 = 2048;
-/// Upper bound on traces, and therefore native calls, per client request.
-const MAX_CALLS: usize = 64;
-/// Upper bound on items inside one trace.
-const MAX_TRACE_ITEMS: usize = 512;
 
 fn codec(error: gproxy_protocol::codec::CodecError) -> TransformError {
     TransformError::with_source(
@@ -80,8 +76,6 @@ pub(crate) async fn run<C: BatchConnectionTrait + Send + Sync>(
         SUMMARY_MAX_TOKENS,
         input.reasoning,
         MemoryLimits {
-            max_calls: MAX_CALLS,
-            max_trace_items: MAX_TRACE_ITEMS,
             max_bytes: limits.max_body_bytes,
             codec: limits,
         },

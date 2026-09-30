@@ -213,8 +213,7 @@ fn limits() -> ImageLimits {
             max_part_bytes: 65536,
             max_parts: 16,
         },
-        max_calls: 8,
-        max_input_images: 8,
+
         max_input_bytes: 65536,
         max_total_input_bytes: 65536,
         max_output_bytes: 65536,
@@ -573,31 +572,24 @@ fn zero_images_is_refused_before_send() {
     }
 }
 #[test]
-fn n_caps_and_publication_facts_preflight_before_send() {
-    for missing in [false, true] {
-        let host = Host::new(vec![]);
-        let mut cap = limits();
-        let mut facts = facts();
-        if missing {
-            facts.publish_expires_at = None;
-        } else {
-            cap.max_calls = 1;
-        }
-        let result = ready(images::generate(
-            &Resources::default(),
-            &(),
-            &host,
-            &(),
-            create(json!({"prompt":"draw","n":2,"response_format":"url"})),
-            ImageDialect::Responses,
-            &models(),
-            &facts,
-            cap,
-            &mut ImageProgress::default(),
-        ));
-        assert!(result.is_err());
-        assert!(host.sent.lock().unwrap().is_empty());
-    }
+fn publication_facts_preflight_before_send() {
+    let host = Host::new(vec![]);
+    let mut facts = facts();
+    facts.publish_expires_at = None;
+    let result = ready(images::generate(
+        &Resources::default(),
+        &(),
+        &host,
+        &(),
+        create(json!({"prompt":"draw","n":2,"response_format":"url"})),
+        ImageDialect::Responses,
+        &models(),
+        &facts,
+        limits(),
+        &mut ImageProgress::default(),
+    ));
+    assert!(result.is_err());
+    assert!(host.sent.lock().unwrap().is_empty());
 }
 #[test]
 fn all_outputs_validated_before_any_publication_and_aggregate_cap_retains_completed_call() {

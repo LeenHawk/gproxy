@@ -13,19 +13,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ChatStreamLimits {
-    pub max_events: usize,
     pub max_bytes: usize,
-    pub max_choices: usize,
-    pub max_tool_calls: usize,
 }
 
 impl Default for ChatStreamLimits {
     fn default() -> Self {
         Self {
-            max_events: 100_000,
             max_bytes: 16 * 1024 * 1024,
-            max_choices: 128,
-            max_tool_calls: 100_000,
         }
     }
 }
@@ -51,9 +45,9 @@ pub struct ChatStreamCollector {
     flow: IdentityFlow,
     target: TargetIdPolicy,
     limits: ChatStreamLimits,
-    events: usize,
+
     bytes: usize,
-    tools: usize,
+
     report: Report,
 }
 
@@ -78,9 +72,9 @@ impl ChatStreamCollector {
             flow,
             target,
             limits,
-            events: 0,
+
             bytes: 0,
-            tools: 0,
+
             report: Default::default(),
         }
     }
@@ -105,11 +99,7 @@ impl ChatStreamCollector {
                 "native Chat collection requires OpenAiChat target policy",
             ));
         }
-        self.events = self
-            .events
-            .checked_add(1)
-            .filter(|n| *n <= self.limits.max_events)
-            .ok_or_else(|| super::limit("events"))?;
+
         let remaining = self
             .limits
             .max_bytes
@@ -174,19 +164,9 @@ impl ChatStreamCollector {
                     "negative or duplicate choice index",
                 ));
             }
-            if !self.choices.contains_key(&choice.index)
-                && self.choices.len() >= self.limits.max_choices
-            {
-                return Err(super::limit("choices"));
-            }
+
             let state = self.choices.entry(choice.index).or_default();
-            let before = state.tool_count();
             state.push(choice)?;
-            self.tools = self
-                .tools
-                .checked_add(state.tool_count() - before)
-                .filter(|v| *v <= self.limits.max_tool_calls)
-                .ok_or_else(|| super::limit("tool_calls"))?;
         }
         Ok(())
     }

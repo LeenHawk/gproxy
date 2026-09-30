@@ -197,13 +197,7 @@ impl IdentityFlow {
         &mut self,
         role: IdentityRole,
         ids: &BTreeSet<String>,
-        max: usize,
     ) -> Result<(), IdentityError> {
-        if self.used_ids.len().saturating_add(ids.len()) > max {
-            return Err(IdentityError::InvalidIdentity(
-                "external identity budget exceeded".into(),
-            ));
-        }
         if ids.iter().any(|id| {
             self.by_emitted.contains_key(&EmittedLookup {
                 role,

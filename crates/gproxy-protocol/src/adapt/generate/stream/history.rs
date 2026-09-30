@@ -303,11 +303,9 @@ impl History {
             }
         }
         input.extend(items(expanded.input.take()));
-        if input.len() > state.max_records {
-            return Err(super::limit("Responses history item budget exceeded"));
-        }
         expanded.input = Some(r::input::Input::Items(input.clone()));
         expanded.previous_response_id = None;
+        // Apply the byte budget to the complete expanded request.
         crate::codec::encode_json(&expanded, limits).map_err(super::codec_error)?;
         Ok((
             Self {
@@ -329,11 +327,6 @@ impl History {
         }
         if response.id.is_empty() {
             return Err(super::invalid("cannot save history without response ID"));
-        }
-        if self.input.len().saturating_add(response.output.len()) > state.max_records {
-            return Err(super::limit(
-                "Responses completed history item budget exceeded",
-            ));
         }
         let snapshot = Snapshot {
             schema: 1,

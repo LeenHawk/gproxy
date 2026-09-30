@@ -18,8 +18,7 @@ pub use upload::{
 #[derive(Debug, Clone, Copy)]
 pub struct FileCrudLimits {
     pub codec: CodecLimits,
-    pub max_pages: usize,
-    pub max_files: usize,
+
     pub max_declared_bytes: u64,
 }
 

@@ -18,13 +18,11 @@ pub use single::{gemini_single_to_openai, openai_to_gemini_single};
 
 #[derive(Debug, Clone)]
 pub struct EmbeddingBatchOptions {
-    pub max_items_per_call: usize,
-    pub max_calls: usize,
     /// Bounds each HTTP call and the aggregate encoded successful output.
     pub codec: CodecLimits,
     /// Optional actual usage for each planned call, used only where the target
     /// does not return it. Empty means no supplements; otherwise length must
-    /// equal the number of calls after packing by both bytes and item count.
+    /// equal the number of calls after packing by encoded bytes.
     pub usage_per_call: Vec<Option<OpenAiUsageFacts>>,
 }
 

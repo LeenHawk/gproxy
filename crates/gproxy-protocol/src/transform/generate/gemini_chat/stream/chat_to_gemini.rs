@@ -12,7 +12,6 @@ pub struct ChatToGeminiStream {
     policy: TargetIdPolicy,
     flow: IdentityFlow,
     budget: Budget,
-    limits: StreamLimits,
     choices: BTreeMap<i64, ChatChoice>,
     next_tool: u64,
     failed: bool,
@@ -43,10 +42,7 @@ impl ChatToGeminiStream {
             IdentityFlow::new(flow.namespace()),
             TargetIdPolicy::new(crate::Dialect::OpenAiChat),
             ChatStreamLimits {
-                max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
-                max_choices: limits.max_choices,
-                max_tool_calls: limits.max_tools,
             },
         );
         Ok(Self {
@@ -54,7 +50,6 @@ impl ChatToGeminiStream {
             policy,
             flow,
             budget: Budget::new(limits),
-            limits,
             choices: BTreeMap::new(),
             next_tool: 0,
             failed: false,
@@ -117,9 +112,7 @@ impl ChatToGeminiStream {
                     vec![g::Part::builder().text(text).thought(true).build()],
                 ));
             }
-            if !self.choices.contains_key(&index) && self.choices.len() >= self.limits.max_choices {
-                return Err(limit());
-            }
+
             let state = self.choices.entry(index).or_default();
             if let Some(text) = d.content.flatten() {
                 output.push(candidate(
@@ -134,9 +127,6 @@ impl ChatToGeminiStream {
                 let tool = match state.tools.entry(call.index) {
                     std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
                     std::collections::btree_map::Entry::Vacant(entry) => {
-                        if self.next_tool >= self.limits.max_tools as u64 {
-                            return Err(limit());
-                        }
                         let ordinal = self.next_tool;
                         self.next_tool += 1;
                         entry.insert(ChatTool {
@@ -151,9 +141,6 @@ impl ChatToGeminiStream {
                 let legacy = match &mut state.legacy {
                     Some(tool) => tool,
                     slot => {
-                        if self.next_tool >= self.limits.max_tools as u64 {
-                            return Err(limit());
-                        }
                         let ordinal = self.next_tool;
                         self.next_tool += 1;
                         slot.insert(ChatTool {

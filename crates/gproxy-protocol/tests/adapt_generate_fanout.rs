@@ -9,6 +9,7 @@ use gproxy_protocol::{
     transform::{TransformError, TransformErrorKind, generate::claude_chat, identity::IdNamespace},
 };
 use serde_json::{Value, json};
+
 use std::{sync::Mutex, time::Duration};
 fn ready<F: std::future::Future>(future: F) -> F::Output {
     let mut future = Box::pin(future);
@@ -121,7 +122,6 @@ fn state(store: &Store, dialect: Dialect) -> GenerationStateAccess<'_, Store> {
         conversation_key: "conversation".into(),
         expires_at: std::time::UNIX_EPOCH + Duration::from_secs(1000),
         now: std::time::UNIX_EPOCH,
-        max_records: 64,
     }
 }
 
@@ -189,7 +189,6 @@ fn setup(client: Dialect, _upstream: Dialect) -> FanoutTarget {
         options: FanoutOptions {
             response_policy: gproxy_protocol::transform::identity::TargetIdPolicy::new(client),
             namespace: IdNamespace([5; 16]),
-            max_children: 8,
         },
     }
 }

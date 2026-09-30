@@ -10,12 +10,8 @@ mod sealed {
 
 /// The four single-result upstream edges that can serve a multi-candidate client.
 pub trait FanoutBridge: StreamBridge + sealed::Edge {
-    fn reserve(
-        &mut self,
-        role: IdentityRole,
-        ids: &BTreeSet<String>,
-        max: usize,
-    ) -> Result<(), TransformError>;
+    fn reserve(&mut self, role: IdentityRole, ids: &BTreeSet<String>)
+    -> Result<(), TransformError>;
 }
 
 macro_rules! edge {
@@ -26,9 +22,8 @@ macro_rules! edge {
                 &mut self,
                 role: IdentityRole,
                 ids: &BTreeSet<String>,
-                max: usize,
             ) -> Result<(), TransformError> {
-                self.reserve_external_ids(role, ids, max)
+                self.reserve_external_ids(role, ids)
             }
         }
     };
@@ -43,8 +38,7 @@ impl FanoutBridge for gr::ResponsesToGeminiStream {
         &mut self,
         role: IdentityRole,
         ids: &BTreeSet<String>,
-        max: usize,
     ) -> Result<(), TransformError> {
-        self.reserve_external_ids(role, ids, max)
+        self.reserve_external_ids(role, ids)
     }
 }

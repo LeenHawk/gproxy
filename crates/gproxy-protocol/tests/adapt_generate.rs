@@ -238,7 +238,6 @@ fn state(store: &Store, dialect: Dialect) -> GenerationStateAccess<'_, Store> {
         conversation_key: "conversation".into(),
         expires_at: std::time::UNIX_EPOCH + Duration::from_secs(1000),
         now: std::time::UNIX_EPOCH,
-        max_records: 64,
     }
 }
 

@@ -105,9 +105,7 @@ pub(super) async fn resolve_resources<R: ResourceAccess>(
     limits: VideoLimits,
 ) -> Result<BTreeMap<String, ResolvedVideoResource>, TransformError> {
     let needs = video::resource_needs(input);
-    if needs.len() > limits.max_resource_facts {
-        return Err(limit("video.resources"));
-    }
+
     let mut out = BTreeMap::new();
     let mut remaining = limits.codec.max_body_bytes;
     for need in needs {
@@ -268,9 +266,7 @@ pub(super) async fn outputs<R: ResourceAccess>(
     let Some(samples) = samples else {
         return Ok(BTreeMap::new());
     };
-    if samples.len() > limits.max_resource_facts {
-        return Err(limit("video.outputs"));
-    }
+
     let mut remaining = limits.codec.max_body_bytes;
     let mut out = BTreeMap::new();
     for (index, sample) in samples.iter().enumerate() {

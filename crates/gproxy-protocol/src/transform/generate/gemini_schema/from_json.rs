@@ -1,4 +1,3 @@
-use super::{Budget, SchemaLimits};
 use crate::{
     transform::{Converted, Report, TransformError},
     wire::gemini::content::{Schema, SchemaType},
@@ -7,29 +6,17 @@ use serde_json::{Map, Value};
 
 /// Convert the exact typed Gemini subset. Unknown validation keywords fail;
 /// callers can choose an endpoint's raw JSON Schema field where supported.
-pub fn from_json(
-    input: &Map<String, Value>,
-    limits: SchemaLimits,
-) -> Result<Converted<Schema>, TransformError> {
+pub fn from_json(input: &Map<String, Value>) -> Result<Converted<Schema>, TransformError> {
     let mut report = Report::default();
-    let value = convert(
-        input,
-        &mut Budget { limits, nodes: 0 },
-        0,
-        "schema",
-        &mut report,
-    )?;
+    let value = convert(input, "schema", &mut report)?;
     Ok(Converted { value, report })
 }
 
 fn convert(
     input: &Map<String, Value>,
-    budget: &mut Budget,
-    depth: usize,
     path: &str,
     report: &mut Report,
 ) -> Result<Schema, TransformError> {
-    budget.enter(depth, path)?;
     let (kind, nullable) = match input.get("type") {
         Some(Value::String(name)) => (schema_type(name, path)?, false),
         Some(Value::Array(names)) => {
@@ -108,26 +95,12 @@ fn convert(
                     let child = format!("{field}.{name}");
                     properties.insert(
                         name.clone(),
-                        Box::new(convert(
-                            object(value, &child)?,
-                            budget,
-                            depth + 1,
-                            &child,
-                            report,
-                        )?),
+                        Box::new(convert(object(value, &child)?, &child, report)?),
                     );
                 }
                 out.properties = Some(properties);
             }
-            "items" => {
-                out.items = Some(Box::new(convert(
-                    object(value, &field)?,
-                    budget,
-                    depth + 1,
-                    &field,
-                    report,
-                )?))
-            }
+            "items" => out.items = Some(Box::new(convert(object(value, &field)?, &field, report)?)),
             "anyOf" => {
                 let values = value.as_array().filter(|v| !v.is_empty()).ok_or_else(|| {
                     TransformError::shape(&field, "anyOf must be a nonempty array")
@@ -135,13 +108,7 @@ fn convert(
                 let mut variants = Vec::with_capacity(values.len());
                 for (index, value) in values.iter().enumerate() {
                     let child = format!("{field}[{index}]");
-                    variants.push(Box::new(convert(
-                        object(value, &child)?,
-                        budget,
-                        depth + 1,
-                        &child,
-                        report,
-                    )?));
+                    variants.push(Box::new(convert(object(value, &child)?, &child, report)?));
                 }
                 out.any_of = Some(variants);
             }
