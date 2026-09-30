@@ -37,6 +37,7 @@
 //! A provider mount restricts resolution to that provider, including operations
 //! that name no model. Root model listings come from the published catalogue.
 
+mod models;
 pub mod surface;
 
 use std::sync::Arc;
@@ -438,6 +439,12 @@ where
     }
     let outcome = app.call(&caller, request).await;
     Some(match outcome {
+        Ok(outcome)
+            if matched.operation.operation == gproxy_protocol::Operation::ListModels
+                && matched.operation.dialect == gproxy_protocol::Dialect::OpenAi =>
+        {
+            models::response(app, outcome, cancel, core.limits.codec())
+        }
         Ok(outcome) => streamed(app, outcome, cancel),
         Err(error) => {
             // Nothing is left running: `App::call` gave every charge back and
@@ -469,12 +476,22 @@ where
         Err(error) => return ErrorResponse(error).into_response(),
     };
     let prefix = format!("{}/", mount.prefix().trim_start_matches('/'));
+    let core = state.app().gproxy().core().snapshot();
+    let routing = state.app().gproxy().routing();
+    let mut codex_models = Vec::new();
     let models: Vec<_> = models
         .into_iter()
         .filter(|model| model.permitted)
-        .filter_map(|model| match mount {
-            Mount::Namespace(_) => model.name.strip_prefix(&prefix).map(str::to_owned),
-            _ => Some(model.name),
+        .filter_map(|model| {
+            let name = match mount {
+                Mount::Namespace(_) => model.name.strip_prefix(&prefix)?.to_owned(),
+                _ => model.name.clone(),
+            };
+            if dialect == Dialect::OpenAi {
+                let metadata = models::metadata(&core, &routing, &model.name);
+                codex_models.push(models::project(&name, &metadata));
+            }
+            Some(name)
         })
         .map(|name| match dialect {
             Dialect::Claude => json!({
@@ -492,7 +509,7 @@ where
             "has_more": false, "data": models
         }),
         Dialect::Gemini => json!({"models": models}),
-        _ => json!({"object": "list", "data": models}),
+        _ => json!({"object": "list", "data": models, "models": codex_models}),
     };
     axum::Json(body).into_response()
 }
