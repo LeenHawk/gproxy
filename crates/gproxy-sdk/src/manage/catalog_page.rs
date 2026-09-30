@@ -239,7 +239,8 @@ fn catalog_sql(backend: DbBackend) -> String {
 }
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Catalog<'_, C> {
-    /// Distinct names for rewrite matchers; no model metadata or provider rows.
+    /// Saved provider model and variant names for rewrite matchers.
+    /// A provider takes precedence over the providers attached to a rule set.
     pub async fn model_names(&self, query: ListQuery) -> SdkResult<Page<String>> {
         let backend = self.writer.backend();
         let (offset, limit) = query.bounds();
@@ -258,32 +259,52 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Catalog<'_, C> {
                 "?".into()
             }
         };
+        let mut values: Vec<sea_orm::Value> = Vec::new();
+        let scope = if let Some(provider_id) = query.provider_id {
+            values.push(provider_id.into());
+            format!("provider_id = {}", parameter(1))
+        } else if let Some(rule_set_id) = query.rule_set_id {
+            values.push(rule_set_id.into());
+            format!(
+                "provider_id IN (SELECT provider_id FROM provider_rewrite_rule_sets WHERE rule_set_id = {})",
+                parameter(1)
+            )
+        } else {
+            "TRUE".to_owned()
+        };
+        let variants = match backend {
+            DbBackend::Postgres => {
+                "SELECT jsonb_array_elements_text(metadata::jsonb->'variants') AS name FROM saved"
+            }
+            DbBackend::MySql => {
+                "SELECT v.name FROM saved s JOIN JSON_TABLE(s.metadata, '$.variants[*]' COLUMNS (name VARCHAR(1024) PATH '$')) AS v ON TRUE"
+            }
+            _ => "SELECT v.value AS name FROM saved s, json_each(s.metadata, '$.variants') v",
+        };
+        values.push(needle.into());
         let sql = format!(
-            "WITH names AS (SELECT name FROM models UNION SELECT upstream_name AS name FROM provider_models WHERE enabled = TRUE UNION SELECT name FROM routes WHERE enabled = TRUE) SELECT name FROM names WHERE LOWER(name) LIKE {} ESCAPE '!'",
-            parameter(1)
+            "WITH saved AS (SELECT upstream_name, metadata FROM provider_models WHERE {scope}), names AS (SELECT upstream_name AS name FROM saved UNION {variants}) SELECT name FROM names WHERE LOWER(name) LIKE {} ESCAPE '!'",
+            parameter(values.len())
         );
         let count = BatchQuery::new(
             Statement::from_sql_and_values(
                 backend,
                 format!("SELECT COUNT(*) AS total FROM ({sql}) matched"),
-                [needle.clone().into()],
+                values.clone(),
             ),
             Projection::new().column("total", D1Type::I64, false)?,
         );
+        let page_sql = format!(
+            "{sql} ORDER BY name LIMIT {} OFFSET {}",
+            parameter(values.len() + 1),
+            parameter(values.len() + 2)
+        );
+        values.extend([
+            (limit as i64).into(),
+            (offset.min(i64::MAX as u64) as i64).into(),
+        ]);
         let page = BatchQuery::new(
-            Statement::from_sql_and_values(
-                backend,
-                format!(
-                    "{sql} ORDER BY name LIMIT {} OFFSET {}",
-                    parameter(2),
-                    parameter(3)
-                ),
-                [
-                    needle.into(),
-                    (limit as i64).into(),
-                    (offset.min(i64::MAX as u64) as i64).into(),
-                ],
-            ),
+            Statement::from_sql_and_values(backend, page_sql, values),
             Projection::new().column("name", D1Type::Text, false)?,
         );
         let mut result = self

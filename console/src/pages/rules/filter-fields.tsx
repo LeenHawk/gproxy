@@ -13,7 +13,8 @@ const clients = [["OpenCode", "^user-agent: opencode/"], ["Claude CLI", "^user-a
 type OperationKey = { operation: string; dialect: string }
 const key = (value: OperationKey) => JSON.stringify([value.operation, value.dialect])
 
-export function FilterFields({ model, onModel, operations, onOperations, headers, onHeaders }: {
+export function FilterFields({ providerId, ruleSetId, model, onModel, operations, onOperations, headers, onHeaders }: {
+  providerId?: string; ruleSetId: string
   model: string; onModel: (value: string) => void
   operations: string; onOperations: (value: string) => void
   headers: string; onHeaders: (value: string) => void
@@ -27,8 +28,8 @@ export function FilterFields({ model, onModel, operations, onOperations, headers
     selected = Array.isArray(value) && value.every(v => v && typeof v.operation === "string" && typeof v.dialect === "string") ? value : null
   } catch { selected = null }
   return <>
-    <Field><FieldLabel htmlFor={`${id}-model`}>{t("fields.filterModelPattern")}</FieldLabel>
-      <SearchableSelect id={`${id}-model`} label={t("fields.filterModelPattern")} value={model} onChange={onModel} allowCustom emptyLabel={t("rules.allModels")} source={{ key: ["model-names"], list: async (search, page, pageSize) => { const result = await api<Page<string>>(`/admin/api/model-names${query({ search, page, pageSize })}`); return { items: result.items.map(value => ({ value, label: value })), total: result.total } } }} />
+    <Field data-field-span="full"><FieldLabel htmlFor={`${id}-model`}>{t("fields.filterModelPattern")}</FieldLabel>
+      <SearchableSelect id={`${id}-model`} label={t("fields.filterModelPattern")} value={model} onChange={onModel} allowCustom wrap emptyLabel={t("rules.allModels")} source={{ key: ["model-names", providerId, ruleSetId], list: async (search, page, pageSize) => { const result = await api<Page<string>>(`/admin/api/model-names${query({ providerId, ruleSetId: providerId ? undefined : ruleSetId, search, page, pageSize })}`); return { items: result.items.map(value => ({ value, label: value })), total: result.total } } }} />
     </Field>
     <Field><FieldLabel htmlFor={`${id}-operations`}>{t("fields.filterOperationKeys")}</FieldLabel>
       <Textarea id={`${id}-operations`} value={operations} onChange={e => onOperations(e.target.value)} />

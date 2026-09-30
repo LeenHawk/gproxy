@@ -91,7 +91,7 @@ export function RulesEditor({ sets, availableSets = sets, attachments = [], prov
         </Card></li>
       }} />
     })}</div> : <EmptyNotice title={t("rules.empty")} />}
-    {editing !== null ? <RuleForm key={editing === "new" ? "new" : editing.id} original={editing === "new" ? undefined : editing} choices={choices} remoteSets={!!providerId} defaultSetId={defaultSetId} pending={save.isPending} error={save.error} onClose={() => setEditing(null)} onSubmit={write => save.mutate(write)} /> : null}
+    {editing !== null ? <RuleForm key={editing === "new" ? "new" : editing.id} providerId={providerId} original={editing === "new" ? undefined : editing} choices={choices} remoteSets={!!providerId} defaultSetId={defaultSetId} pending={save.isPending} error={save.error} onClose={() => setEditing(null)} onSubmit={write => save.mutate(write)} /> : null}
     {showPresets ? <PresetDialog choices={choices} remoteSets={!!providerId} defaultSetId={defaultSetId} pending={apply.isPending} error={apply.error} onClose={() => setShowPresets(false)} onSubmit={(setId, preset) => apply.mutate({ setId, preset })} /> : null}
   </>
 }
