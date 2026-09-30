@@ -556,6 +556,25 @@ async fn the_catalogues_are_readable_and_the_prices_are_idempotent() {
         .await
         .unwrap();
     assert_eq!(unknown.unmatched, 1);
+
+    // Every bundled billing price must reach the real fixed-point columns.
+    let model_ids: Vec<_> = models
+        .models
+        .iter()
+        .filter(|model| model.pricing.is_some())
+        .map(|model| model.model_id.clone())
+        .collect();
+    let count = model_ids.len() as u64;
+    let all = catalog
+        .apply_default_prices(ApplyDefaultPricesRequest {
+            provider_id: None,
+            model_ids,
+            overwrite: false,
+        })
+        .await
+        .unwrap();
+    assert_eq!(all.unmatched, 0);
+    assert_eq!(all.created + all.skipped, count);
 }
 
 #[tokio::test]

@@ -13,14 +13,22 @@ const DECIMAL = /^(?:0|[1-9]\d*)(?:\.\d+)?$/
 const SUPPORTED_OUTPUT_MODALITIES = new Set(["text", "image", "embeddings", "rerank"])
 const TOKEN_UNIT = 1_000_000
 
-export function perMillion(value) {
+// Match FixedDecimal::rounded: nine places, nearest with ties to even.
+function scaledPrice(value, shift) {
   if (value == null) return null
   if (typeof value !== "string" || !DECIMAL.test(value)) {
     throw new Error(`invalid decimal price: ${String(value)}`)
   }
   const [integer, fraction = ""] = value.split(".")
-  const coefficient = BigInt(`${integer}${fraction}`)
-  const scale = fraction.length - 6
+  let coefficient = BigInt(`${integer}${fraction}`)
+  let scale = fraction.length - shift
+  if (scale > 9) {
+    const divisor = 10n ** BigInt(scale - 9)
+    const remainder = coefficient % divisor
+    coefficient /= divisor
+    if (remainder * 2n > divisor || (remainder * 2n === divisor && coefficient % 2n !== 0n)) coefficient += 1n
+    scale = 9
+  }
   if (coefficient === 0n) return "0"
   if (scale <= 0) return (coefficient * (10n ** BigInt(-scale))).toString()
   const digits = coefficient.toString().padStart(scale + 1, "0")
@@ -29,18 +37,18 @@ export function perMillion(value) {
   return decimal ? `${whole}.${decimal}` : whole
 }
 
+export function perMillion(value) { return scaledPrice(value, 6) }
+export function roundPrice(value) { return scaledPrice(value, 0) }
+
 function tokenRate(metric, value, priority, required = false) {
   const price = perMillion(value)
-  if (price == null || (!required && price === "0")) return null
+  if (price == null || (!required && /^0(?:\.0+)?$/.test(value))) return null
   return { metric, unit_size: TOKEN_UNIT, price, priority }
 }
 
 function scalarRate(metric, value, priority) {
   if (value == null || value === "0") return null
-  if (typeof value !== "string" || !DECIMAL.test(value)) {
-    throw new Error(`invalid ${metric} price: ${String(value)}`)
-  }
-  return { metric, unit_size: 1, price: value, priority }
+  return { metric, unit_size: 1, price: roundPrice(value), priority }
 }
 
 function rates(pricing, author) {

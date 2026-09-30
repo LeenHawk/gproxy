@@ -13,8 +13,9 @@ use std::{
 };
 
 use gproxy_channel::ChannelDescriptor;
-use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
+use gproxy_seaorm::{BatchConnectionTrait, BatchStatement, FixedDecimal};
 use gproxy_store::entity::pricing::{price_rate, price_rule, price_tier, price_unit::PriceUnit};
+use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::{Value, json};
 
@@ -385,6 +386,14 @@ fn rule_model(
     }
 }
 
+/// External prices may carry more digits than the fixed-point price columns.
+fn price_decimal(value: &str, field: &'static str) -> SdkResult<FixedDecimal> {
+    let amount = Decimal::from_str_exact(value.trim())
+        .map_err(|error| SdkError::invalid(format!("{field} is not a valid decimal: {error}")))?;
+    FixedDecimal::rounded(amount)
+        .map_err(|error| SdkError::invalid(format!("{field} is not a valid decimal: {error}")))
+}
+
 fn rate_model(
     rule_id: &str,
     rate: &crate::dto::DefaultModelPriceRateDto,
@@ -400,7 +409,7 @@ fn rate_model(
             false => PriceUnit::Count,
         }),
         unit_quantity: Set(crud::decimal(&rate.unit_size.to_string(), "unitSize")?),
-        value: Set(crud::decimal(&rate.price, "price")?),
+        value: Set(price_decimal(&rate.price, "price")?),
         conditions: Set(None),
         priority: Set(i32::try_from(rate.priority).unwrap_or(i32::MAX)),
     })
@@ -408,7 +417,7 @@ fn rate_model(
 
 fn tier_model(rule_id: &str, tier: &DefaultModelTierDto) -> SdkResult<price_tier::ActiveModel> {
     let money = |value: &Option<String>, field: &'static str| match value {
-        Some(value) => crud::decimal(value, field).map(Some),
+        Some(value) => price_decimal(value, field).map(Some),
         None => Ok(None),
     };
     Ok(price_tier::ActiveModel {
@@ -846,6 +855,15 @@ mod tests {
         let catalog = catalog().expect("the bundled catalog parses");
         assert_eq!(catalog.models.len(), catalog.source.total_models);
         assert!(catalog.source.priced_models > 400);
+        for model in &catalog.models {
+            if let Some(pricing) = &model.pricing {
+                for rate in &pricing.rates {
+                    rate.price.parse::<FixedDecimal>().unwrap_or_else(|error| {
+                        panic!("{} {}: {error}", model.model_id, rate.metric)
+                    });
+                }
+            }
+        }
         let found = model_for(catalog, "claude-sonnet-4").expect("a bare name resolves");
         assert_eq!(found.model_id, "claude-sonnet-4");
         let pricing = price_for(catalog, "anthropic/claude-sonnet-4").expect("a glob covers it");
@@ -856,6 +874,22 @@ mod tests {
                 .iter()
                 .any(|rate| rate.metric == "input_tokens")
         );
+    }
+
+    #[test]
+    fn imported_prices_round_to_storage_precision() {
+        for (raw, expected) in [
+            ("0.0833333333333333", "0.083333333"),
+            ("9.58083832335329", "9.580838323"),
+            ("1.0000000005", "1"),
+            ("1.0000000015", "1.000000002"),
+            ("0.9999999995", "1"),
+            ("9223372036.854775807", "9223372036.854775807"),
+        ] {
+            assert_eq!(price_decimal(raw, "price").unwrap().to_string(), expected);
+        }
+        assert!(price_decimal("NaN", "price").is_err());
+        assert!(price_decimal("9223372036.8547758075", "price").is_err());
     }
 
     #[test]
