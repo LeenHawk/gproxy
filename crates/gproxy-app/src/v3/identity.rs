@@ -864,6 +864,83 @@ fn named(entity: &'static str, id: i64, error: AppError) -> Error {
     Error::other(format!("v3 {entity} {id}: {error}"))
 }
 
+/// Resume identity import at a row boundary. Original rows remain available in
+/// the archived tables; retries repeat at most one small, idempotent chunk.
+pub(crate) async fn step<C>(
+    app: &Arc<App<C>>,
+    document: &Document,
+    bridge: &Bridge,
+    dropped: &std::collections::BTreeSet<i64>,
+    cursor: usize,
+) -> Result<(Report, Option<usize>)>
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    let sizes = [
+        document.data.organizations.len(),
+        document.data.teams.len(),
+        document.data.users.len(),
+        document.data.users.len(),
+        document.data.user_keys.len(),
+        document.data.permissions.len(),
+        document.data.rate_limits.len(),
+        document.data.oauth_clients.len(),
+    ];
+    let mut offset = cursor;
+    let Some((group, size)) = sizes.into_iter().enumerate().find(|(_, n)| {
+        if offset < *n {
+            true
+        } else {
+            offset -= *n;
+            false
+        }
+    }) else {
+        return Ok((Report::default(), None));
+    };
+    let end = (offset + 16).min(size);
+    let mut data = document.data.clone();
+    let mut report = Report::default();
+    let users = existing(app.gproxy().store().users()).await?;
+    let keys = existing(app.gproxy().store().api_keys()).await?;
+    match group {
+        0 => {
+            data.organizations = data.organizations[offset..end].to_vec();
+            organizations(app, &data, &mut report).await?;
+        }
+        1 => {
+            data.teams = data.teams[offset..end].to_vec();
+            teams(app, &data, &mut report).await?;
+        }
+        2 => {
+            data.users = data.users[offset..end].to_vec();
+            self::users(app, &data, &mut report).await?;
+        }
+        3 => {
+            data.users = data.users[offset..end].to_vec();
+            memberships(app, &data, &users, &mut report).await?;
+        }
+        4 => {
+            data.user_keys = data.user_keys[offset..end].to_vec();
+            api_keys(app, &data, &users, bridge, &mut report).await?;
+        }
+        5 => {
+            data.permissions = data.permissions[offset..end].to_vec();
+            permissions(app, &data, &users, &keys, dropped, &mut report).await?;
+        }
+        6 => {
+            data.rate_limits = data.rate_limits[offset..end].to_vec();
+            rate_limits(app, &data, &users, &keys, &mut report).await?;
+        }
+        7 => {
+            data.oauth_clients = data.oauth_clients[offset..end].to_vec();
+            oauth_clients(app, &data, &mut report).await?;
+        }
+        _ => unreachable!(),
+    }
+    app.reload_all().await?;
+    Ok((report, Some(cursor + end - offset)))
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -941,81 +1018,4 @@ mod tests {
         }
         assert!(unmappable_subject("surface").contains("neither a user nor a key"));
     }
-}
-
-/// Resume identity import at a row boundary. Original rows remain available in
-/// the archived tables; retries repeat at most one small, idempotent chunk.
-pub(crate) async fn step<C>(
-    app: &Arc<App<C>>,
-    document: &Document,
-    bridge: &Bridge,
-    dropped: &std::collections::BTreeSet<i64>,
-    cursor: usize,
-) -> Result<(Report, Option<usize>)>
-where
-    C: BatchConnectionTrait + Send + Sync + 'static,
-{
-    let sizes = [
-        document.data.organizations.len(),
-        document.data.teams.len(),
-        document.data.users.len(),
-        document.data.users.len(),
-        document.data.user_keys.len(),
-        document.data.permissions.len(),
-        document.data.rate_limits.len(),
-        document.data.oauth_clients.len(),
-    ];
-    let mut offset = cursor;
-    let Some((group, size)) = sizes.into_iter().enumerate().find(|(_, n)| {
-        if offset < *n {
-            true
-        } else {
-            offset -= *n;
-            false
-        }
-    }) else {
-        return Ok((Report::default(), None));
-    };
-    let end = (offset + 16).min(size);
-    let mut data = document.data.clone();
-    let mut report = Report::default();
-    let users = existing(app.gproxy().store().users()).await?;
-    let keys = existing(app.gproxy().store().api_keys()).await?;
-    match group {
-        0 => {
-            data.organizations = data.organizations[offset..end].to_vec();
-            organizations(app, &data, &mut report).await?;
-        }
-        1 => {
-            data.teams = data.teams[offset..end].to_vec();
-            teams(app, &data, &mut report).await?;
-        }
-        2 => {
-            data.users = data.users[offset..end].to_vec();
-            self::users(app, &data, &mut report).await?;
-        }
-        3 => {
-            data.users = data.users[offset..end].to_vec();
-            memberships(app, &data, &users, &mut report).await?;
-        }
-        4 => {
-            data.user_keys = data.user_keys[offset..end].to_vec();
-            api_keys(app, &data, &users, bridge, &mut report).await?;
-        }
-        5 => {
-            data.permissions = data.permissions[offset..end].to_vec();
-            permissions(app, &data, &users, &keys, dropped, &mut report).await?;
-        }
-        6 => {
-            data.rate_limits = data.rate_limits[offset..end].to_vec();
-            rate_limits(app, &data, &users, &keys, &mut report).await?;
-        }
-        7 => {
-            data.oauth_clients = data.oauth_clients[offset..end].to_vec();
-            oauth_clients(app, &data, &mut report).await?;
-        }
-        _ => unreachable!(),
-    }
-    app.reload_all().await?;
-    Ok((report, Some(cursor + end - offset)))
 }

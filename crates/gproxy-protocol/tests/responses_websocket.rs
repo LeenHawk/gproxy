@@ -8,12 +8,8 @@ fn response_create_uses_flat_native_fields_and_preserves_extensions() {
         "previous_response_id": null, "stream": true, "future": {"preserved": true}
     });
     let event: ClientEvent = serde_json::from_value(wire.clone()).unwrap();
-    #[allow(clippy::infallible_destructuring_match)]
-    let body = match &event {
-        ClientEvent::ResponseCreate(body) => body,
-        ClientEvent::ResponseSteer(_) => panic!("unexpected steering event"),
-        #[cfg(not(feature = "exhaustive"))]
-        _ => panic!("unexpected event"),
+    let ClientEvent::ResponseCreate(body) = &event else {
+        panic!("expected response.create");
     };
     assert_eq!(body.model.as_deref(), Some("gpt-5"));
     assert!(!body.rest.contains_key("type"));
