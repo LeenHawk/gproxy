@@ -5,19 +5,17 @@
 //!
 //! 1. every **exposed model** — the names an operator published through the
 //!    routing table;
-//! 2. every **`channel/model`** form — a registered channel id, a slash, and a
-//!    model some live provider of that channel lists in its catalogue.
+//! 2. every **`providerName/model`** form — the configured provider route name
+//!    and a model in its catalogue. Channel-qualified forms remain callable,
+//!    but are not automatically listed alongside the provider names.
 //!
-//! Provider-qualified names (`providerName/model`) are also listed, so clients
-//! can use the same model through either the root or the provider's base URL.
-//!
-//! # Nothing is omitted; `permitted` says whether you may call it
+//! # Permission restrictions are marked, not hidden
 //!
 //! A name the caller's rules do not reach stays in the list with `permitted:
 //! false`. v3 dropped such rows; this does not, for two reasons. A list that
 //! silently omits makes "this model 404s" and "you are not allowed this model"
 //! the same observation, which is a support ticket rather than an answer. And
-//! there is nothing to protect: an exposed name and a `channel/model` form are
+//! there is nothing to protect: an exposed name and a `providerName/model` form are
 //! instance configuration — the same strings the operator publishes — not
 //! another tenant's data. What *is* withheld is the provider ids behind them;
 //! the DTO reports a count and a channel, which say how redundant a name is
@@ -90,18 +88,17 @@ impl<C> Portal<'_, C> {
             }
         }
 
-        // Then the channel forms, straight off the catalogues. Generating them
-        // from a live provider's own rows is what makes every name here one
-        // that resolves.
+        // Publish the configured provider route name, not an additional alias
+        // under its channel implementation id (for example `custom/model`).
         for provider in core.providers.values() {
             let channel = &provider.entity.channel;
             for model in &provider.models {
                 for name in model.exposed_names() {
-                    for prefix in [channel, &provider.entity.name] {
-                        let entry = names.entry(format!("{prefix}/{name}")).or_default();
-                        entry.provider_ids.insert(provider.entity.id.clone());
-                        entry.channel_ids.insert(channel.clone());
-                    }
+                    let entry = names
+                        .entry(format!("{}/{name}", provider.entity.name))
+                        .or_default();
+                    entry.provider_ids.insert(provider.entity.id.clone());
+                    entry.channel_ids.insert(channel.clone());
                 }
             }
         }

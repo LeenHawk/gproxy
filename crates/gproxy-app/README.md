@@ -955,7 +955,7 @@ portal.password().change(change).await?;
 | Operation | Answers |
 |---|---|
 | `context()` | user, organizations, teams, feature flags |
-| `models()` | every exposed name and `channel/model` form, each with `permitted` |
+| `models()` | every exposed name and `providerName/model` form, each with `permitted` |
 | `keys()` | `list`, `create`, `rotate`, `reveal`, `delete` over the caller's own |
 | `usage(query)` | summary, optional grouped cut, optional trend |
 | `quota()` | the current window of every budget in the caller's chain |
@@ -1038,19 +1038,20 @@ statement about this caller, and a 403 would invite them to go looking for a
 permission they are not missing. `context().features.canSeeLogs` carries the
 same value so the tab can be hidden instead.
 
-### The model list omits nothing
+### The model list marks permissions
 
-`models()` lists every exposed name and every `channel/model` form, and marks
+`models()` lists every exposed name and every `providerName/model` form, and marks
 each with `permitted`. A name the caller's rules do not reach stays in the list
 with `permitted: false`. v3 dropped such rows; this does not, because a list
 that silently omits makes "this model 404s" and "you are not allowed this
 model" the same observation — and there is nothing to protect: an exposed name
-and a `channel/model` form are instance configuration, the same strings the
+and a `providerName/model` form are instance configuration, the same strings the
 operator publishes. What is withheld is the provider ids behind them; the DTO
 reports a count and a channel, which say how redundant a name is without naming
 the machinery.
 
-`providerName/model` is also listed. It is equivalent to the provider base URL
+Channel-qualified forms remain callable but are not automatically listed.
+`providerName/model` is equivalent to the provider base URL
 with an unqualified model name; renaming the provider changes both prefixes.
 
 `permitted` is computed by `admission::permission::allowed_providers` — the

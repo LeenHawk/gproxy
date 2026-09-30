@@ -771,7 +771,7 @@ portal.password().change(change).await?;
 | 操作 | 返回 |
 |---|---|
 | `context()` | 用户、组织、团队、功能开关 |
-| `models()` | 全部暴露名与 `渠道/模型` 形式，各带 `permitted` |
+| `models()` | 全部暴露名与 `Provider名/模型` 形式，各带 `permitted` |
 | `keys()` | 对调用方自己的 key 做 `list`、`create`、`rotate`、`reveal`、`delete` |
 | `usage(query)` | 汇总，可选的分组切片，可选的趋势 |
 | `quota()` | 调用方预算链上每条预算的当前窗口 |
@@ -835,15 +835,16 @@ portal.password().change(change).await?;
 评价，回 403 只会让他去找一个其实并不缺的权限。`context().features.canSeeLogs` 携带同一个
 值，于是页签可以直接隐藏。
 
-### 模型列表不省略任何名字
+### 模型列表标明调用权限
 
-`models()` 列出每一个暴露名和每一个 `渠道/模型` 形式，并为每个标上 `permitted`。调用方
+`models()` 列出每一个暴露名和每一个 `Provider名/模型` 形式，并为每个标上 `permitted`。调用方
 规则够不到的名字仍然留在列表里，只是 `permitted: false`。v3 会把这种行丢掉，这里不丢：
 静默省略会让"这个模型 404"和"你没被允许用这个模型"变成同一个观察结果——而且也没什么要保护
-的：暴露名和 `渠道/模型` 形式是实例配置，就是运营者发布出去的那些字符串。被扣下的是它们
+的：暴露名和 `Provider名/模型` 形式是实例配置，就是运营者发布出去的那些字符串。被扣下的是它们
 背后的 Provider id；DTO 只报一个数量和一个渠道，这说明了一个名字有多冗余，却没点名任何机器。
 
-`Provider名/模型` 同样列出，它与使用 Provider 专属 API 地址并填写原模型名等价。
+`渠道/模型` 仍可用于调用，但不再自动加入清单。
+`Provider名/模型` 与使用 Provider 专属 API 地址并填写原模型名等价。
 Provider 改名后，模型前缀和专属 API 地址也随之改变。
 
 `permitted` 由 `admission::permission::allowed_providers` 算出——正是请求漏斗调用的那个
