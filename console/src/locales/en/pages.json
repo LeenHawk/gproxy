@@ -791,6 +791,7 @@
     "cyclePeriod": "Period",
     "cycleFinalPercent": "Final",
     "monthCycle": "Calendar month",
+    "fullReset": "Full reset",
     "resetCardNumber": "Card {{number}}",
     "weeklyBreakdown": "Weekly usage breakdown",
     "usageSources": {
