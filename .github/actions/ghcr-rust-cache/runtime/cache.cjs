@@ -58,7 +58,9 @@ function archives() {
 }
 
 function sourceFiles() {
-  const tracked = run('git', ['ls-files', '-z'], {
+  // checkout's temporary safe.directory config is not shared with container
+  // post actions. Trust only this job's checked-out workspace for this command.
+  const tracked = run('git', ['-c', `safe.directory=${env.GITHUB_WORKSPACE}`, 'ls-files', '-z'], {
     cwd: env.GITHUB_WORKSPACE, stdio: ['ignore', 'pipe', 'inherit'],
   }).split('\0').filter(Boolean);
   const files = new Set(tracked);
