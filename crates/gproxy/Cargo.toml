@@ -65,7 +65,7 @@ xai = ["gproxy-sdk/xai"]
 
 # Database drivers. SQLite is always compiled in; these add the others, and
 # `GPROXY_PERSISTENCE`/`GPROXY_DSN` are refused at startup without them.
-postgres = ["gproxy-sdk/postgres", "sea-orm/sqlx-postgres"]
+postgres = ["gproxy-sdk/postgres", "sea-orm/sqlx-postgres", "gproxy-seaorm/postgres-schema"]
 mysql = ["gproxy-sdk/mysql", "sea-orm/sqlx-mysql"]
 
 # Shared transient state. `memory` is one process; `redis` is what several

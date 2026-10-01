@@ -9,6 +9,8 @@ repository.workspace = true
 
 [features]
 default = []
+# Transaction-scoped PostgreSQL schema selection, including PgBouncer pools.
+postgres-schema = ["sea-orm/sqlx-postgres"]
 # libSQL / Turso over the Hrana HTTP pipeline (`/v2/pipeline`), through a
 # caller-supplied HTTP transport; every target.
 # On wasm32 rows come back through SeaORM's proxy types (already enabled);

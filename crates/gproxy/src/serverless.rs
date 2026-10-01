@@ -7,12 +7,13 @@ use std::{sync::Arc, time::Duration};
 use axum::{extract::State, middleware::Next, response::Response};
 use gproxy_app::{App, AppPublicationUrl, config::StoreBackendConfig};
 use gproxy_sdk::{GproxyBuilder, SyncMode};
+use gproxy_seaorm::PostgresSchemaConnection;
 use gproxy_store::{Store, StoreCache, entity::config::setting};
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, TransactionTrait};
+use sea_orm::{ConnectOptions, ConnectionTrait, Database, TransactionTrait};
 
 use crate::{Error, Result, Settings};
 
-type Application = Arc<App<DatabaseConnection>>;
+type Application = Arc<App<PostgresSchemaConnection>>;
 
 pub async fn run(mut settings: Settings) -> Result<()> {
     let StoreBackendConfig::Url { dsn } = &settings.config.store else {
@@ -51,7 +52,6 @@ pub async fn run(mut settings: Settings) -> Result<()> {
         .connect_timeout(Duration::from_secs(10))
         .acquire_timeout(Duration::from_secs(10))
         .idle_timeout(Duration::from_secs(30))
-        .set_schema_search_path("gproxy")
         .sqlx_logging(false);
     let connection = Database::connect(options).await?;
     // Serialize cold starts, including first-admin creation. The transaction
@@ -66,6 +66,7 @@ pub async fn run(mut settings: Settings) -> Result<()> {
     connection
         .execute_unprepared("CREATE SCHEMA IF NOT EXISTS gproxy")
         .await?;
+    let connection = PostgresSchemaConnection::new(connection, "gproxy")?;
     let store = Arc::new(Store::new(connection.clone()));
     store.sync().await?;
     if store.settings().get().await?.is_none() {

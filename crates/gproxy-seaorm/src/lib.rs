@@ -29,6 +29,10 @@ pub mod group;
 /// several statements; they are still submitted as one atomic database batch.
 pub const D1_MAX_BIND_PARAMETERS: usize = 100;
 pub use sea_orm_migration;
+#[cfg(all(feature = "postgres-schema", not(target_arch = "wasm32")))]
+mod postgres_schema;
+#[cfg(all(feature = "postgres-schema", not(target_arch = "wasm32")))]
+pub use postgres_schema::PostgresSchemaConnection;
 
 mod migration_support;
 pub mod schema;
