@@ -44,6 +44,7 @@
     "useCustom": "Use “{{value}}”",
     "choose": "Choose…",
     "invalidJson": "Invalid JSON. Check the value and try again.",
+    "credentialSecretHint": "For API Key authentication, paste a single key or enter JSON. Other authentication methods require JSON.",
     "unset": "Inherit"
   },
   "pagination": {
@@ -209,7 +210,7 @@
     "config": "Configuration (JSON)",
     "label": "Label",
     "authKind": "Authentication",
-    "secret": "Secret (JSON)",
+    "secret": "Secret",
     "metadata": "Metadata (JSON)",
     "status": "Status",
     "upstreamName": "Upstream model",

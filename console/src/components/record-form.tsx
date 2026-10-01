@@ -63,6 +63,7 @@ function Control({ field, value, onChange, original }: {
     return (
       <Textarea
         id={id}
+        aria-describedby={field.description ? `${id}-description` : undefined}
         rows={3}
         autoComplete="off"
         spellCheck={false}

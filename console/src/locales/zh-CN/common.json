@@ -44,6 +44,7 @@
     "useCustom": "使用“{{value}}”",
     "choose": "请选择…",
     "invalidJson": "JSON 格式不正确，请检查后重试。",
+    "credentialSecretHint": "API Key 认证可直接粘贴单个密钥，也可填写 JSON；其他认证方式请填写 JSON。",
     "unset": "继承"
   },
   "pagination": {
@@ -209,7 +210,7 @@
     "config": "配置（JSON）",
     "label": "名称",
     "authKind": "认证方式",
-    "secret": "密钥数据（JSON）",
+    "secret": "密钥数据",
     "metadata": "元数据（JSON）",
     "status": "状态",
     "upstreamName": "上游模型",
