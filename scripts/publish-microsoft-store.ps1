@@ -36,6 +36,38 @@ if (@($versions | Where-Object { $_ -ge [version]"$Version.0" }).Count -gt 0) {
     exit 0
 }
 
-msstore publish $bundle --appId $product --uploadTimeout 600
-if ($LASTEXITCODE -ne 0) { throw 'Microsoft Store upload or submission commit failed' }
+$response = & gh release view "v$Version" --repo $env:GITHUB_REPOSITORY --json 'body,url'
+if ($LASTEXITCODE -ne 0) { throw 'Could not read the source release notes' }
+$release = ($response -join "`n") | ConvertFrom-Json
+$heading = "$env:MS_STORE_DISPLAY_NAME $Version`n`n"
+$footer = "`n`n$($release.url)"
+$body = [string]$release.body
+$maximumBodyLength = 1500 - $heading.Length - $footer.Length
+if ($body.Length -gt $maximumBodyLength) { $body = $body.Substring(0, $maximumBodyLength) }
+$releaseNotes = $heading + $body + $footer
+
+msstore publish $bundle --appId $product --uploadTimeout 600 --noCommit
+if ($LASTEXITCODE -ne 0) { throw 'Microsoft Store package upload failed' }
+$response = & msstore submission get $product
+if ($LASTEXITCODE -ne 0) { throw 'Could not read the uploaded draft' }
+$draft = ($response -join "`n") | ConvertFrom-Json
+if ($draft.status -ne 'PendingCommit' -or $draft.id -eq $submission.id) {
+    throw 'Expected a new uncommitted Store draft after upload'
+}
+foreach ($listing in $draft.listings.PSObject.Properties) {
+    $listing.Value.baseListing | Add-Member -NotePropertyName releaseNotes -NotePropertyValue $releaseNotes -Force
+    if ($listing.Value.platformOverrides) {
+        foreach ($platform in $listing.Value.platformOverrides.PSObject.Properties) {
+            $platform.Value | Add-Member -NotePropertyName releaseNotes -NotePropertyValue $releaseNotes -Force
+        }
+    }
+}
+$metadataPath = Join-Path $env:RUNNER_TEMP "store-$product-metadata.json"
+$draft | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 $metadataPath
+try {
+    $response = & msstore submission updateMetadata $product $metadataPath
+    if ($LASTEXITCODE -ne 0) { throw 'Could not update the Store release notes; the draft has not been committed' }
+} finally { Remove-Item -LiteralPath $metadataPath -ErrorAction SilentlyContinue }
+msstore submission publish $product
+if ($LASTEXITCODE -ne 0) { throw 'Microsoft Store submission commit failed' }
 "$env:MS_STORE_DISPLAY_NAME $Version was submitted to Microsoft Store (product $product). Certification and publication follow Partner Center processing and the existing publishing settings." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append

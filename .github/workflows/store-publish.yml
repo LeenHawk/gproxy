@@ -143,4 +143,6 @@ jobs:
       - name: Upload and submit Store update
         if: ${{ !inputs.prepare_only }}
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: scripts/publish-microsoft-store.ps1 -Version $env:VERSION

@@ -1,132 +1,95 @@
-# Microsoft Store onboarding
+# Microsoft Store publication
 
-MSIX replaces the Windows MSI. Store signing and distribution are pending;
-GitHub Releases offer the portable ZIP and unsigned Tauri MSIX packages.
-SignPath still applies only to the portable EXE.
+GPROXY has two independent Microsoft Store products. Renaming the original
+product keeps its package identity and update history.
 
-## Account and product
+| Edition | Display name | Product ID | Package identity |
+| --- | --- | --- | --- |
+| Desktop | GPROXY Desktop | 9P2FJRB9RS4Z | LeenHawk.GPROXYGateway |
+| CLI | GPROXY CLI | 9NBMH3S5K0L9 | LeenHawk.GPROXYCLI |
 
-1. Register at <https://developer.microsoft.com/microsoft-store/register/>.
-   Choose the account type matching the actual publisher. Personal account
-   login, identity verification and agreement acceptance are done by the owner.
-2. In Partner Center's Apps and games workspace, create an **MSIX or PWA app**
-   and reserve the display name **GPROXY Gateway**.
-3. Open the product's **Product identity** page. Copy these public values
-   exactly; do not invent a publisher or use a local test certificate:
+The shared publisher is `CN=7D76D0DD-9AFE-4262-832E-3A611C4CB5C3`; its display
+name is `Leen Hawk`. The CLI identity is assigned by Partner Center, not derived
+by appending `.CLI` to the desktop identity.
 
-   | Partner Center field | Repository Actions variable |
-   | --- | --- |
-   | Reserved product name | `MS_STORE_DISPLAY_NAME` |
-   | Package/Identity/Name | `MS_STORE_IDENTITY_NAME` |
-   | Package/Identity/Publisher | `MS_STORE_IDENTITY_PUBLISHER` |
-   | Package/Properties/PublisherDisplayName | `MS_STORE_PUBLISHER_DISPLAY_NAME` |
+## Configuration
 
-   The Store product ID can be used for the eventual public download link.
-   These values are public identifiers, not passwords or signing secrets.
-   Do not send account credentials or identity documents to the repository.
+Configure these repository Actions variables from Partner Center:
 
-## Build and inspect
+| Desktop | CLI |
+| --- | --- |
+| `MS_STORE_PRODUCT_ID` | `MS_STORE_CLI_PRODUCT_ID` |
+| `MS_STORE_IDENTITY_NAME` | `MS_STORE_CLI_IDENTITY_NAME` |
+| `MS_STORE_DISPLAY_NAME` | `MS_STORE_CLI_DISPLAY_NAME` |
 
-The Release application's Windows jobs build x64 and ARM64 Tauri MSIX packages
-for nightly, prerelease and stable releases. All four Store identity variables
-are required. CI also builds the application on both architectures and validates
-Store packaging for same-repository builds using a stable workspace version;
-this CI-only validation skips an entirely unconfigured identity.
+Both editions use `MS_STORE_IDENTITY_PUBLISHER`,
+`MS_STORE_PUBLISHER_DISPLAY_NAME`, `MS_STORE_TENANT_ID`, `MS_STORE_SELLER_ID`,
+`MS_STORE_CLIENT_ID`, and the `MS_STORE_CLIENT_SECRET` Actions secret. Set
+`MS_STORE_PUBLISH_ENABLED=true` to enable stable-release submissions.
+The Entra application must have the Partner Center Manager role.
 
-Stable releases retain unsigned MSIX files in Actions artifacts named
-`microsoft-store-unsigned-gproxy-tauri-windows-*` for 30 days. The same unsigned
-MSIX files are also published on GitHub, with build attestations. They require
-signing before normal installation; Microsoft signs the Store-distributed copies
-after certification. No separate GitHub MSIX signing service is configured.
+Creating a product, reserving its name and completing its first age-rating
+questionnaire are Partner Center onboarding steps. The submission API does not
+create a new MSIX product. Complete each first submission in Partner Center;
+the automatic publisher skips products that have not yet been published.
 
-To reproduce on Windows, build the `gproxy-desktop.exe` Tauri target first, then
-run `scripts/package-windows-msix.ps1` with `-Target`, `-Artifact`, `-Version`,
-`-IdentityName`, `-DisplayName`, `-Publisher` and `-PublisherDisplayName`. Use the
-four real Partner Center values. The script maps the version to `major.minor.patch.0`,
-packages the Tauri executable and project icons, and invokes Windows SDK MakeAppx
-with manifest validation enabled. Default output is `dist/store/*.msix`.
+## Stable release updates
 
-Before submission, run the Windows App Certification Kit and install a locally
-signed test copy on Windows 10 version 2004 or later and Windows 11. Test both
-architectures where hardware is available. Never distribute a local test
-certificate as the production installation path.
+Tagged stable releases call `store-publish.yml` after publishing the GitHub
+release. Desktop and CLI jobs each download their own x64 and ARM64 artifacts,
+validate the exact package identity, publisher, architecture and release
+version, and create a bundle. Every version comes from the release workflow's
+`version` input; no release version is embedded in these scripts.
 
-Verify first-run administrator setup, browser opening, loopback inference,
-background process/logs, Windows Startup settings, restart, uninstall and Store
-update behavior. Data and the generated master key live under
-`%LOCALAPPDATA%\Packages\<PackageFamilyName>\LocalState\GPROXY`.
-MSIX uninstall removes package-private data. Export/back up before uninstalling.
+The publisher checks the corresponding Partner Center product and refuses to
+replace an existing draft or active review. It skips duplicate or older
+versions. Microsoft Store CLI uploads a new draft with `--noCommit`, then the
+script updates release notes from the selected GitHub release and commits that
+draft. The notes are limited to the Store field length, with the full release
+URL retained. Other listing text, screenshots and publishing settings are
+preserved. Failed metadata updates leave an uncommitted draft for inspection.
 
-Existing MSI installs are not silently migrated. Export configuration, stop
-the old process and disable its startup entry before launching Store GPROXY,
-then import into the new instance. Back up the original DB and master key.
+Store jobs use the protected `release` environment. Nightly/dev, beta/staging
+and prerelease builds never submit to Microsoft Store. Store publication does
+not modify any of those update channels.
 
-## Automatic release updates
+## Retry or prepare a first submission
 
-Stable tag releases call `.github/workflows/store-publish.yml` after the GitHub
-Release is published. It uses the official
-[`microsoft/microsoft-store-apppublisher@v1.4`](https://github.com/microsoft/microsoft-store-apppublisher)
-Action with Microsoft Store CLI v0.4.2. Windows SDK bundles the x64 and ARM64
-MSIX files into one `.msixbundle`; the official `msstore publish` command uploads
-it and commits the update. Existing listings, screenshots and publishing settings
-are inherited from the Store submission.
+Dispatch **Publish Microsoft Store** with an existing stable version (without
+`v`) and the corresponding Release workflow run ID. The workflow verifies the
+source workflow, tag, commit and public stable release before using its files.
 
-Configure once, after the first manual Store submission is published:
+- Default: use the retained MSIX artifacts and submit both edition updates.
+- `prepare_only=true`: produce upload bundles without accessing Store
+  credentials or submitting. This uses the `store-packaging` environment,
+  keeping package preparation separate from protected release publication.
+- `repackage=true`: download the selected release's portable ZIPs, verify
+  `SHA256SUMS` and executable product versions, and package the same binaries
+  using the current Partner Center names and identities. This supports first
+  submissions or a reserved display-name change without modifying released
+  binaries or replacing public release attachments.
 
-| Kind | Name | Value |
-| --- | --- | --- |
-| Actions variable | `MS_STORE_PRODUCT_ID` | `9P2FJRB9RS4Z` (already configured) |
-| Actions variable | `MS_STORE_TENANT_ID` | Microsoft Entra tenant ID |
-| Actions variable | `MS_STORE_SELLER_ID` | Partner Center seller ID, from Account settings / Legal info |
-| Actions variable | `MS_STORE_CLIENT_ID` | Entra application ID with Partner Center Manager role |
-| Actions secret | `MS_STORE_CLIENT_SECRET` | Secret for that Entra application |
-| Actions variable | `MS_STORE_PUBLISH_ENABLED` | `true` once authorization and the first publication are complete |
+The two `microsoft-store-<edition>-<version>` artifacts contain the bundles for
+manual upload. A preparation job succeeding means the packages were built and
+validated; it does not mean they were submitted or certified. A publishing job
+succeeding means the submission was committed; certification remains a Store
+process.
 
-Associate the Entra application with Partner Center under Account settings /
-Users and give it the Manager role. Follow Microsoft's
-[submission API setup](https://learn.microsoft.com/en-us/windows/uwp/monetize/create-and-manage-submissions-using-windows-store-services#how-to-associate-an-azure-ad-application-with-your-partner-center-account).
-Add the secret through GitHub Actions secrets or interactive
-`gh secret set MS_STORE_CLIENT_SECRET`; do not paste it into chat or source.
-The workflow uses it through environment variables on a disposable GitHub-hosted
-Windows runner. CLI credential storage is not cached or uploaded. Configure the
-CLI before changing its settings; its interactive reset command is not used in CI.
+## Packages and listing material
 
-The job validates both package identities and versions before upload. It skips
-the update with a notice until the first manual submission is published. It also
-skips an already published version or an older release, and refuses to replace a
-pending submission because the official CLI otherwise deletes it. This preserves
-manual drafts and ongoing reviews. Store submissions run serially without
-cancelling an active upload. Prerelease and staging builds do not submit to Store.
+`scripts/package-windows-msix.ps1 -Mode application` uses the desktop identity
+variables. `-Mode cli` uses the CLI identity variables. Explicit `-IdentityName`
+and `-DisplayName` values are used exactly as supplied. Both modes require the
+real shared publisher values. Configure the same public identity variables in
+any other CI service that invokes this packaging script.
 
-A successful job means Microsoft accepted the upload and submission commit;
-certification and public availability remain Microsoft's processing steps.
-If another submission is pending, finish it in Partner Center and rerun the
-failed Store job. The job does not recreate the first submission or rewrite
-store text/screenshots on each release.
+The GitHub release MSIX files and preparation bundles are unsigned submission
+packages. Microsoft signs the Store-distributed copies after certification.
+Use the portable ZIPs for ordinary direct installation or WinGet community
+packages; do not submit unsigned MSIX files as installable WinGet packages.
 
-To retry an existing release with a newer workflow fix, run **Publish Microsoft
-Store** manually on `main`, supplying its version (without `v`) and the original
-Release workflow run ID. This reuses the MSIX artifacts without rebuilding or
-changing a public release tag. The workflow verifies the source run, public
-release and tag commit before downloading packages.
-
-## Submission material
-
-Create a submission for the reserved product, upload both architecture MSIX
-packages, and use [listing.md](listing.md) as a starting point for listing text
-and the `runFullTrust` justification. Supply real product screenshots and
-complete Partner Center's age-rating and availability questions accurately.
-The privacy description is published at
-<https://gproxy.leenhawk.com/deployment/code-signing/#privacy>; deploy the revised
-policy before using it in the listing. Confirm the product's support URL and
-publisher display name with the account owner.
-
-MSIX contains `runFullTrust` because it launches a native Rust HTTP gateway and
-its first-run setup helper. It does not install a system service or request
-administrator privileges. Windows package identity disables native update,
-rollback, GitHub update notices and registry-based startup management. Updates
-come from Store; startup is a manifest StartupTask controlled by Windows.
-
-Microsoft re-signs the package after certification. This does not sign the
-portable ZIP's EXE or issue a reusable Microsoft certificate to the project.
-Publish a Store download link only after the listing is actually available.
+Use [listing.md](listing.md), [listings.json](listings.json) and
+[PRIVACY.md](../../PRIVACY.md) for the bilingual/trilingual submission material.
+Test first-run setup, launch, listener access, persistence, restart, uninstall
+and updates on Windows. Do not claim accessibility certification, performance
+numbers or hardware requirements without supporting evidence.
