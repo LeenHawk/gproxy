@@ -20,6 +20,11 @@ path = "src/lib.rs"
 name = "gproxy"
 path = "src/main.rs"
 
+[[bin]]
+name = "gproxy-serverless"
+path = "src/bin/serverless.rs"
+required-features = ["postgres"]
+
 [features]
 # A single-node SQLite instance with every channel this repository implements.
 default = ["channels", "memory", "fs", "bundled-vocabulary"]

@@ -38,6 +38,8 @@ pub mod binding {
     /// 32 bytes, as 64 hex digits or as base64. Absent means secrets are
     /// stored in plaintext, which the host warns about once.
     pub const MASTER_KEY: &str = "GPROXY_MASTER_KEY";
+    /// Optional external libSQL URL, taking precedence over the D1 binding.
+    pub const DATABASE_URL: &str = "GPROXY_DATABASE_URL";
     /// The libSQL/Turso bearer token, when the store is libSQL.
     pub const LIBSQL_TOKEN: &str = "GPROXY_LIBSQL_TOKEN";
     /// S3/R2 credentials, when file storage is configured.
@@ -49,8 +51,9 @@ pub mod binding {
     pub const ADMIN_PASSWORD: &str = "GPROXY_ADMIN_PASSWORD";
 
     /// Shared AppConfig secrets. The bootstrap password is read separately.
-    pub const SECRETS: [&str; 4] = [
+    pub const SECRETS: [&str; 5] = [
         MASTER_KEY,
+        DATABASE_URL,
         LIBSQL_TOKEN,
         S3_ACCESS_KEY_ID,
         S3_SECRET_ACCESS_KEY,
@@ -65,6 +68,7 @@ pub mod binding {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Secrets {
     pub master_key: Option<String>,
+    pub database_url: Option<String>,
     pub libsql_token: Option<String>,
     pub s3_access_key_id: Option<String>,
     pub s3_secret_access_key: Option<String>,
@@ -140,6 +144,21 @@ pub fn resolve(document: Option<&str>, secrets: &Secrets) -> Result<AppConfig, C
         },
     };
 
+    if let Some(url) = text(&secrets.database_url) {
+        if !["libsql://", "https://", "http://"]
+            .iter()
+            .any(|scheme| url.starts_with(scheme))
+        {
+            return Err(invalid(format!(
+                "{} must be a libSQL/Turso HTTP URL, not a PostgreSQL or local database URL",
+                binding::DATABASE_URL
+            )));
+        }
+        config.store = StoreBackendConfig::Libsql {
+            url: url.to_owned(),
+            token: None,
+        };
+    }
     if let Some(key) = text(&secrets.master_key) {
         config.master_key.key = encoded(key, binding::MASTER_KEY)?;
     }

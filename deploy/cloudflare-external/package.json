@@ -1,0 +1,28 @@
+{
+  "name": "gproxy-cloudflare-external-deploy",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node prepare-release.mjs",
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run"
+  },
+  "devDependencies": { "fflate": "0.8.2", "wrangler": "^4.32.0" },
+  "cloudflare": {
+    "bindings": {
+      "GPROXY_DATABASE_URL": {
+        "description": "External libSQL/Turso database URL (libsql:// or https://). This deployment does not create D1."
+      },
+      "GPROXY_LIBSQL_TOKEN": {
+        "description": "Database access token for the libSQL/Turso URL."
+      },
+      "GPROXY_ADMIN_PASSWORD": {
+        "description": "Administrator password (at least 8 characters). Applied on startup. Sign in as admin at /console/."
+      },
+      "GPROXY_MASTER_KEY": {
+        "description": "Saved 32-byte credential encryption key, encoded as 64 hex characters. Reuse it when updating."
+      }
+    }
+  },
+  "engines": { "node": ">=22" }
+}

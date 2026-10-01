@@ -196,6 +196,13 @@ def verify_packages():
     directory = Path("dist/release")
     matrix = json.loads(Path("scripts/release-targets.json").read_text())["include"]
     expected = ["gproxy-edge.wasm", "gproxy-edge-cloudflare.zip", "gproxy-edge.provenance.json"]
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        for arch in ("x86_64", "aarch64"):
+            name = f"gproxy-serverless-linux-{arch}-musl"
+            expected += [name + ".zip", name + ".provenance.json"]
+            with zipfile.ZipFile(directory / (name + ".zip")) as archive:
+                if "gproxy-serverless" not in archive.namelist():
+                    raise ValueError(f"Missing serverless executable: {name}")
     extensions = {"linux": ".deb", "macos": ".dmg", "windows": ".msix", "android": ".apk", "ohos": ".hap"}
     for row in matrix:
         cli = row["artifact"]

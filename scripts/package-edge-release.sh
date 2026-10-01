@@ -17,7 +17,7 @@ command -v worker-build >/dev/null || {
   exit 1
 }
 
-# Default features: every channel and D1. A deployment that wants a smaller
+# Default features: every channel, D1 and external libSQL. A deployment that wants a smaller
 # Worker builds from source with the channels it forwards to.
 #
 # The workspace release profile strips symbols, and stripping also drops the

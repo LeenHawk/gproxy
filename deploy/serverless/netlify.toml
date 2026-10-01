@@ -1,0 +1,16 @@
+[build]
+command = "npm run build"
+publish = "public"
+functions = "netlify/functions"
+
+[build.environment]
+NODE_VERSION = "22"
+
+[functions]
+node_bundler = "esbuild"
+included_files = [".gproxy/**"]
+external_node_modules = ["@netlify/database"]
+
+[template.environment]
+GPROXY_ADMIN_PASSWORD = "Administrator password (at least 8 characters). Sign in as admin at /console/."
+GPROXY_MASTER_KEY = "Save a 32-byte encryption key, encoded as 64 hex characters. Keep the same key when redeploying."

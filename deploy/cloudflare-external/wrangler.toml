@@ -1,0 +1,15 @@
+name = "gproxy"
+main = "build/worker/shim.mjs"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/*", "!/", "!/console", "!/console/*"]
+
+[vars]
+GPROXY_CONFIG = '{"cache":{"kind":"store"}}'
+
+[secrets]
+required = ["GPROXY_DATABASE_URL", "GPROXY_LIBSQL_TOKEN", "GPROXY_ADMIN_PASSWORD", "GPROXY_MASTER_KEY"]

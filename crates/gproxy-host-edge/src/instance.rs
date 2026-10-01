@@ -137,6 +137,7 @@ async fn assemble(env: &Env) -> Result<Assembled, worker::Error> {
         binding(env, config::binding::CONFIG).as_deref(),
         &config::Secrets {
             master_key: binding(env, config::binding::MASTER_KEY),
+            database_url: binding(env, config::binding::DATABASE_URL),
             libsql_token: binding(env, config::binding::LIBSQL_TOKEN),
             s3_access_key_id: binding(env, config::binding::S3_ACCESS_KEY_ID),
             s3_secret_access_key: binding(env, config::binding::S3_SECRET_ACCESS_KEY),

@@ -18,7 +18,7 @@ crate-type = ["cdylib", "rlib"]
 # account anywhere else, and the database-backed cache is the only one an
 # isolate can share. `bundled-vocabulary` is deliberately absent: it is
 # hundreds of kilobytes of tokenizer in a binary Cloudflare size-limits.
-default = ["channels", "d1"]
+default = ["channels", "d1", "libsql"]
 
 # Which store backends this build can open. Naming neither leaves the Worker
 # with nothing to connect to, and assembly says so.

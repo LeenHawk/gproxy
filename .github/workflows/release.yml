@@ -750,6 +750,55 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: scripts/publish-crates.sh
 
+  serverless:
+    name: Serverless (${{ matrix.arch }})
+    needs: [prepare, console]
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+          - arch: aarch64
+            target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+    env:
+      ARTIFACT_NAME: gproxy-serverless-linux-${{ matrix.arch }}-musl
+      TARGET_TRIPLE: ${{ matrix.target }}
+      GPROXY_BUILD_HASH: ${{ github.sha }}
+      GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
+      BUILDER: cargo-alpine
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: console-dist
+          path: crates/gproxy-host-axum/assets/web
+      - uses: ./.github/actions/ghcr-rust-cache
+        with:
+          key: serverless-${{ matrix.target }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - run: bash scripts/build-serverless.sh "$TARGET_TRIPLE"
+      - run: target/${{ matrix.target }}/release/gproxy-serverless --version
+      - run: bash scripts/package-serverless-release.sh
+      - run: bash scripts/build-provenance.sh
+      - uses: ./.github/actions/attest-release
+        with:
+          artifact: ${{ env.ARTIFACT_NAME }}
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: serverless-${{ matrix.target }}
+          path: dist/release/${{ env.ARTIFACT_NAME }}.*
+          if-no-files-found: error
+          retention-days: 1
+
   edge:
     name: Edge bundles
     needs: [prepare, console]
@@ -838,7 +887,7 @@ jobs:
   publish:
     if: ${{ always() && !failure() && !cancelled() }}
     name: Publish GitHub, GitLab and CNB releases
-    needs: [prepare, native, riscv, ohos-cli, ohos-application, edge, edge-check, container-manifest, publish-crates]
+    needs: [prepare, native, riscv, ohos-cli, ohos-application, serverless, edge, edge-check, container-manifest, publish-crates]
     runs-on: ubuntu-latest
     concurrency:
       group: gproxy-release-publication
@@ -857,6 +906,11 @@ jobs:
         with:
           name: edge-bundles
           path: dist/release
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: serverless-*
+          path: dist/release
+          merge-multiple: true
       - uses: actions/download-artifact@v8.0.1
         with:
           pattern: application-*
@@ -888,7 +942,7 @@ jobs:
 
   cache-cleanup:
     name: Clean old GHCR build caches
-    needs: [native, riscv, ohos-cli, ohos-application, edge]
+    needs: [native, riscv, ohos-cli, ohos-application, serverless, edge]
     if: ${{ always() && !cancelled() && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
     permissions:

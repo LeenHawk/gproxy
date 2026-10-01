@@ -1,0 +1,13 @@
+{
+  "name": "gproxy-serverless-deploy",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "node prepare-release.mjs"
+  },
+  "dependencies": {
+    "@netlify/database": "2.0.1",
+    "fflate": "0.8.2"
+  }
+}

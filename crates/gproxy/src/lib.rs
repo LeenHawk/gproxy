@@ -52,6 +52,8 @@ pub mod maintenance;
 pub mod rotate;
 pub mod runtime;
 pub mod serve;
+#[cfg(feature = "postgres")]
+pub mod serverless;
 pub mod service;
 pub mod telemetry;
 pub mod transfer;

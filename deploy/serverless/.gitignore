@@ -1,0 +1,8 @@
+node_modules/
+.gproxy/
+.netlify/
+.vercel/
+public/
+.env
+.env.*
+!.env.example
