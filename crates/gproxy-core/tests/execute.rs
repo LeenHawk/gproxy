@@ -11,7 +11,7 @@ use gproxy_core::{
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest,
     capability::UpstreamConnection,
-    connection::{Bytes, WebSocket, WsFrame, WsReceiver},
+    connection::{Bytes, WebSocket, WsFrame},
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::json;
@@ -867,135 +867,6 @@ async fn chat_two_candidates_stream_through_two_claude_sse_calls() {
     assert_eq!(report.state, UsageState::Completed);
     assert_eq!(report.exchanges.len(), 2);
     assert_eq!(h.client.seen.lines().len(), 2);
-}
-
-fn claude_sse(text: &str) -> Vec<Bytes> {
-    vec![
-        // Native message ids are unique per upstream response, as they are live.
-        Bytes::from(format!("event: message_start\ndata: {{\"type\":\"message_start\",\"message\":{{\"id\":\"msg_{text}\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"gpt-x\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{{\"input_tokens\":4,\"output_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}}}}}}\n\nevent: content_block_start\ndata: {{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{{\"type\":\"text\",\"text\":\"\"}}}}\n\n")),
-        Bytes::from(format!("event: content_block_delta\ndata: {{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{{\"type\":\"text_delta\",\"text\":\"{text}\"}}}}\n\n")),
-        Bytes::from_static(b"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":2}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"),
-    ]
-}
-
-#[tokio::test]
-async fn responses_websocket_client_is_served_turn_by_turn_over_a_claude_sse_upstream() {
-    let h = harness(full(), "round_robin").await;
-    h.script(vec![
-        (
-            StatusCode::OK,
-            vec![("content-type", "text/event-stream")],
-            claude_sse("hello"),
-        ),
-        (
-            StatusCode::OK,
-            vec![("content-type", "text/event-stream")],
-            claude_sse("again"),
-        ),
-    ]);
-    let ctx = h.context_for(
-        "claude",
-        OperationKey {
-            operation: Operation::StreamGenerateContent,
-            dialect: Dialect::OpenAiResponsesWebSocket,
-        },
-        "r1",
-        1,
-        Some("session-ws"),
-    );
-    let execution = h
-        .core
-        .stream_generate_content_websocket(
-            ctx,
-            WireRequest {
-                method: Method::GET,
-                path: "/v1/responses".into(),
-                query: None,
-                headers: HeaderMap::new(),
-                body: (),
-            },
-        )
-        .await
-        .unwrap();
-    let (connection, completion) = execution.into_parts();
-    let UpstreamConnection::Connected { handshake, socket } = connection else {
-        panic!("the fabricated handshake is accepted");
-    };
-    assert_eq!(handshake.status, StatusCode::SWITCHING_PROTOCOLS);
-    let WebSocket {
-        mut incoming,
-        mut outgoing,
-    } = socket;
-
-    let collect_turn = async |incoming: &mut WsReceiver, lane: Option<&str>| {
-        let mut text = String::new();
-        loop {
-            let frame = incoming.next().await.unwrap().unwrap();
-            let WsFrame::Text(payload) = frame else {
-                panic!("server messages are text frames: {frame:?}");
-            };
-            let event: serde_json::Value = serde_json::from_str(&payload).unwrap();
-            assert_ne!(event["type"], "error", "{payload}");
-            assert_eq!(
-                event["stream_id"].as_str(),
-                lane,
-                "every event carries the request lane: {payload}"
-            );
-            if event["type"] == "response.output_text.delta" {
-                text.push_str(event["delta"].as_str().unwrap());
-            }
-            if event["type"] == "response.completed" {
-                assert_eq!(event["response"]["status"], "completed");
-                return text;
-            }
-        }
-    };
-
-    outgoing
-        .send(WsFrame::Text(
-            "{\"type\":\"response.create\",\"model\":\"alias\",\"max_output_tokens\":32,\"input\":\"hi\"}".into(),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(collect_turn(&mut incoming, None).await, "hello");
-    outgoing
-        .send(WsFrame::Text(
-            "{\"type\":\"response.create\",\"stream_id\":\"main\",\"model\":\"alias\",\"max_output_tokens\":32,\"input\":\"more\"}".into(),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(collect_turn(&mut incoming, Some("main")).await, "again");
-
-    // A malformed message is answered on the socket, not by closing it.
-    outgoing
-        .send(WsFrame::Text("{\"type\":\"nope\"}".into()))
-        .await
-        .unwrap();
-    let WsFrame::Text(error) = incoming.next().await.unwrap().unwrap() else {
-        panic!("error message");
-    };
-    let error: serde_json::Value = serde_json::from_str(&error).unwrap();
-    assert_eq!(error["type"], "error");
-    assert_eq!(error["status"], 400);
-
-    outgoing.send(WsFrame::Close(None)).await.unwrap();
-    assert_eq!(
-        incoming.next().await.unwrap().unwrap(),
-        WsFrame::Close(None)
-    );
-    assert!(incoming.next().await.is_none());
-    let report = completion.await.unwrap();
-    assert_eq!(report.state, UsageState::Completed);
-    assert_eq!(report.exchanges.len(), 2, "one native exchange per turn");
-    let seen = h.client.seen.lines();
-    assert_eq!(seen.len(), 2);
-    assert!(
-        seen.iter().all(
-            |line| line.starts_with("POST https://claude.example/v1/messages")
-                && line.contains("\"stream\":true")
-        ),
-        "{seen:?}"
-    );
 }
 
 #[tokio::test]

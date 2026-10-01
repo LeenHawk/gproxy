@@ -103,6 +103,10 @@ let (response, usage) = execution.into_parts();
 `connect` 是同一套 builder 的 websocket 握手版本。应用层决定的一切——允许的 Provider
 与凭证、预算链、会话——都由调用方传入；这里不对任何人做鉴权。
 
+Responses 的 `connect().send()` 使用会话驱动，逐轮准入生成和 steering 后继，
+支持 HTTP/SSE 桥接，用量也按轮记录。自行管理准入的宿主使用
+`open_responses()` 和 `begin_responses_turn()`。
+
 ## 解析
 
 模型名按第一条命中的规则解析：

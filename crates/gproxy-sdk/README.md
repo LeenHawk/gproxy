@@ -114,6 +114,11 @@ let (response, usage) = execution.into_parts();
 application layer decided — the allowed providers and credentials, the budget
 chain, the session — is passed in; nothing here authenticates anyone.
 
+For Responses, `connect().send()` uses the managed session driver: creates and
+steering successors are admitted separately, including HTTP/SSE bridging, and
+usage is recorded per turn. Hosts that admit turns themselves use
+`open_responses()` and `begin_responses_turn()` instead.
+
 ## Resolution
 
 A model name is resolved by the first rule that matches:

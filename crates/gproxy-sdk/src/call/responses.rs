@@ -96,3 +96,117 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ResponsesHttpExecutor for 
         })
     }
 }
+
+/// Ordinary SDK connections admit their turns automatically. Hosts that own
+/// admission use open_responses/begin_responses_turn themselves.
+pub(super) async fn connect<C: BatchConnectionTrait + Send + Sync + 'static>(
+    mut builder: ConnectBuilder<'_, C>,
+) -> SdkResult<WebSocketExecution> {
+    use futures_util::SinkExt;
+    use gproxy_protocol::connection::{WebSocket, WsFrame};
+    if builder.options.session.is_none() {
+        builder.options.session = Some(
+            session::extract(&builder.request.headers, None, builder.operation).unwrap_or_else(
+                || SessionIdentity {
+                    id: random_id(),
+                    source: SessionSource::Generic,
+                    field: Some("responses.chain".into()),
+                    agent_session_id: None,
+                },
+            ),
+        );
+    }
+    let session = ResponsesSession::new();
+    let automatic = Automatic {
+        gproxy: builder.gproxy.clone(),
+        operation: builder.operation,
+        headers: builder.request.headers.clone(),
+        options: builder.options.clone(),
+        session: session.clone(),
+        request: None,
+    };
+    let execution = builder.open_responses(session).await?;
+    Ok(execution.map_response(|connection| match connection {
+        UpstreamConnection::Connected { handshake, socket } => {
+            let (errors, receive) = tokio::sync::mpsc::channel(16);
+            let incoming = futures_util::stream::unfold((socket.incoming, receive), |(mut incoming, mut receive)| async move {
+                let frame = tokio::select! {
+                    frame = incoming.next() => frame?,
+                    Some(error) = receive.recv() => Ok(error),
+                };
+                Some((frame, (incoming, receive)))
+            });
+            let outgoing = futures_util::sink::unfold((socket.outgoing, automatic, errors), |(mut outgoing, mut automatic, errors), frame| async move {
+                if let WsFrame::Text(text) = &frame {
+                    let result = match serde_json::from_str::<Value>(text) {
+                        Ok(value) => automatic.admit(&value).await,
+                        Err(error) => Err(SdkError::invalid(error.to_string())),
+                    };
+                    if let Err(error) = result {
+                        let lane = serde_json::from_str::<Value>(text).ok().and_then(|value| value.get("stream_id").cloned());
+                        let event = serde_json::json!({"type":"error","status":error.status_code(),"stream_id":lane,"error":{"type":"invalid_request_error","message":error.to_string()}});
+                        let _ = errors.send(WsFrame::Text(event.to_string())).await;
+                        return Ok((outgoing, automatic, errors));
+                    }
+                }
+                outgoing.send(frame).await?;
+                Ok((outgoing, automatic, errors))
+            });
+            UpstreamConnection::Connected { handshake, socket: WebSocket { incoming: Box::pin(incoming), outgoing: Box::pin(outgoing) } }
+        }
+        rejected => rejected,
+    }))
+}
+
+struct Automatic<C> {
+    gproxy: Gproxy<C>,
+    operation: OperationKey,
+    headers: HeaderMap,
+    options: Options,
+    session: ResponsesSession,
+    request: Option<Value>,
+}
+
+impl<C: BatchConnectionTrait + Send + Sync + 'static> Automatic<C> {
+    async fn admit(&mut self, value: &Value) -> SdkResult<()> {
+        let (pending, body) = match value["type"].as_str() {
+            Some("response.create") => (false, value.clone()),
+            Some("response.steer") => {
+                let mut body = self
+                    .request
+                    .clone()
+                    .ok_or_else(|| SdkError::invalid("no response to steer"))?;
+                body["previous_response_id"] = value["previous_response_id"].clone();
+                (true, body)
+            }
+            _ => return Ok(()),
+        };
+        let mut options = self.options.clone();
+        options.request_id = Some(random_id());
+        if (!self.session.is_http_bridge() || body["previous_response_id"].is_string())
+            && let Some(binding) = self.session.binding()
+        {
+            options.providers = Some(BTreeSet::from([binding.provider_id]));
+            options.credentials = Some(BTreeSet::from([binding.credential_id]));
+        }
+        let builder = ConnectBuilder {
+            gproxy: &self.gproxy,
+            operation: self.operation,
+            options,
+            request: WireRequest {
+                method: http::Method::GET,
+                path: "/v1/responses".into(),
+                query: None,
+                headers: self.headers.clone(),
+                body: (),
+            },
+        };
+        let _ = builder
+            .begin_responses_turn(&self.session, &body, value["stream_id"].as_str(), pending)
+            .await?;
+        if !pending {
+            self.request = Some(body);
+        }
+        Ok(())
+    }
+}

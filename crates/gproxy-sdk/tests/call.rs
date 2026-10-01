@@ -629,3 +629,99 @@ async fn managed_reset_strategy_and_affinity_reach_core_for_http_and_websocket()
             .all(|(_, s)| s.id == "s" && s.source == SessionSource::OpenCode)
     );
 }
+
+#[tokio::test]
+async fn ordinary_responses_connect_uses_managed_warmup_and_controls() {
+    use futures_util::{SinkExt, StreamExt};
+    use gproxy_protocol::{
+        capability::UpstreamConnection,
+        connection::{WsFrame, WsReceiver},
+    };
+    let (gproxy, client, _) = seed::handle().await;
+    seed::provider(&gproxy, "p", "test", &["m1"]).await;
+    seed::credential(&gproxy, "c", "p").await;
+    seed::publish(&gproxy).await;
+    client.script(vec![
+        Reply::DelayedHttp(
+            std::time::Duration::from_secs(60),
+            StatusCode::OK,
+            json!({}),
+        ),
+        Reply::DelayedHttp(
+            std::time::Duration::from_secs(60),
+            StatusCode::OK,
+            json!({}),
+        ),
+    ]);
+    let execution = gproxy
+        .connect(
+            OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: Dialect::OpenAiResponsesWebSocket,
+            },
+            WireRequest {
+                method: Method::GET,
+                path: "/v1/responses".into(),
+                query: None,
+                headers: HeaderMap::new(),
+                body: (),
+            },
+        )
+        .scope("user:u1")
+        .model("p/m1")
+        .send()
+        .await
+        .unwrap();
+    let (connection, completion) = execution.into_parts();
+    let UpstreamConnection::Connected { mut socket, .. } = connection else {
+        panic!("connection rejected")
+    };
+    let next = async |incoming: &mut WsReceiver| {
+        let WsFrame::Text(text) =
+            tokio::time::timeout(std::time::Duration::from_secs(5), incoming.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap()
+        else {
+            panic!("expected event")
+        };
+        serde_json::from_str::<serde_json::Value>(&text).unwrap()
+    };
+    socket.outgoing.send(WsFrame::Text(json!({"type":"response.create","model":"p/m1","input":"warmup","generate":false,"store":false}).to_string())).await.unwrap();
+    assert_eq!(next(&mut socket.incoming).await["type"], "response.created");
+    let warmup = next(&mut socket.incoming).await;
+    assert_eq!(warmup["type"], "response.completed");
+    assert!(client.urls().is_empty());
+    socket.outgoing.send(WsFrame::Text(json!({"type":"response.create","model":"p/m1","input":"continue","previous_response_id":warmup["response"]["id"],"store":false}).to_string())).await.unwrap();
+    let current = next(&mut socket.incoming).await;
+    assert_eq!(current["type"], "response.created");
+    socket.outgoing.send(WsFrame::Text(json!({"type":"response.inject","response_id":current["response"]["id"],"input":[{"role":"user","content":"extra"}]}).to_string())).await.unwrap();
+    assert_eq!(
+        next(&mut socket.incoming).await["type"],
+        "response.inject.created"
+    );
+    socket.outgoing.send(WsFrame::Text(json!({"type":"response.steer","previous_response_id":current["response"]["id"],"input":"changed"}).to_string())).await.unwrap();
+    assert_eq!(
+        next(&mut socket.incoming).await["type"],
+        "response.steer.accepted"
+    );
+    assert_eq!(
+        next(&mut socket.incoming).await["type"],
+        "response.incomplete"
+    );
+    let successor = next(&mut socket.incoming).await;
+    assert_eq!(successor["type"], "response.created");
+    socket.outgoing.send(WsFrame::Text(json!({"type":"response.interrupt","response_id":successor["response"]["id"],"mode":"discard_partial_items"}).to_string())).await.unwrap();
+    assert_eq!(
+        next(&mut socket.incoming).await["type"],
+        "response.interrupt.accepted"
+    );
+    assert_eq!(
+        next(&mut socket.incoming).await["type"],
+        "response.incomplete"
+    );
+    socket.outgoing.send(WsFrame::Close(None)).await.unwrap();
+    while socket.incoming.next().await.is_some() {}
+    completion.await.unwrap();
+}
