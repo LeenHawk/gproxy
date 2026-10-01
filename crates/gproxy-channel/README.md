@@ -244,6 +244,19 @@ outlive the login must be returned from the exchange — public facts in
 `provider_fields`, secret ones in `OAuthCredential::provider_secrets`, which is
 sealed with the tokens and never becomes metadata.
 
+Codex and Claude Code support a per-credential `metadata.allow_paid_usage`
+boolean, defaulting to `false`. The Console exposes it as **Allow credit
+balance usage**. `QuotaModel::allows_paid_usage` identifies the subscription
+windows it may bypass. Core retains their exhaustion records and applies the
+current permission during selection, so switching it off enforces the known
+limits again. Local budgets and actual upstream refusal cooldowns still apply.
+
+This permission does not enable upstream billing or buy credits. Claude Code
+requires extra usage to be enabled on the account already. Inspection of
+Claude Code 2.1.285 found account-level `overage_spend_limit` settings, not a
+per-request no-overage flag. The local switch cannot prevent charges on a
+request already sent or one that first reveals an exhausted subscription.
+
 ## Adding a Channel
 
 Channels are built in, not plugged in: a new one is a module of this crate

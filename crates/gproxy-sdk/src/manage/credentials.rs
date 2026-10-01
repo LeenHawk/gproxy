@@ -171,7 +171,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
     /// the blocks still in force.
     pub async fn quota_read(&self, id: &str) -> SdkResult<CredentialQuotaDto> {
         let row = crud::row::<C, Self>(self, id).await?;
-        crate::query::quota::credential_quota(self.writer.store(), &row.id).await
+        crate::query::quota::credential_quota(
+            self.writer.store(),
+            &row.id,
+            &self.writer.core().snapshot(),
+        )
+        .await
     }
 
     /// One page of the raw upstream readings behind the cycles, newest first.

@@ -12,6 +12,7 @@ export type FormField = {
   emptyLabel?: string
   proxyScope?: (original?: Record<string, unknown>) => ProxyScope
   label?: string
+  description?: string
   kind: FieldKind
   /** Initial value for a switch on a new record; enabled switches default on. */
   defaultChecked?: boolean

@@ -170,7 +170,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> QuotaQueries<'_, C> {
     /// still exist: a cycle is a historical reference, and the point of
     /// reading it here is to look at what a deleted credential did.
     pub async fn credential_cycles(&self, credential_id: &str) -> SdkResult<CredentialQuotaDto> {
-        credential_quota(&self.inner.store, credential_id).await
+        credential_quota(&self.inner.store, credential_id, &self.inner.core.snapshot()).await
     }
 
     /// One page of a credential's raw quota readings, newest first. See
@@ -255,6 +255,7 @@ const DEFAULT_OBSERVATION_SPAN_MS: i64 = 24 * 60 * 60 * 1000;
 pub(crate) async fn credential_quota<C: BatchConnectionTrait>(
     store: &Store<C>,
     credential_id: &str,
+    snapshot: &gproxy_core::CoreData,
 ) -> SdkResult<CredentialQuotaDto> {
     let cycles = store
         .credential_cycles()
@@ -272,7 +273,20 @@ pub(crate) async fn credential_quota<C: BatchConnectionTrait>(
         .await?;
     Ok(CredentialQuotaDto {
         cycles: cycles.into_iter().map(CredentialCycleDto::from).collect(),
-        blocks: blocks.into_iter().map(CredentialBlockDto::from).collect(),
+        blocks: blocks
+            .into_iter()
+            .filter(|block| {
+                let Some(credential) = snapshot.credentials.get(credential_id) else {
+                    return true;
+                };
+                let Some(provider) = snapshot.providers.get(&credential.provider_id) else {
+                    return true;
+                };
+                serde_json::from_value::<gproxy_core::BlockSource>(block.source.clone())
+                    .map_or(true, |source| source.is_enforced(provider, credential))
+            })
+            .map(CredentialBlockDto::from)
+            .collect(),
     })
 }
 

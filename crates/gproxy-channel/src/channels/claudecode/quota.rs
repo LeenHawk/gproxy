@@ -91,6 +91,18 @@ fn dimension(
 }
 
 impl QuotaModel for Claudecode {
+    fn allows_paid_usage(&self, credential: CredentialView<'_>, dimension: &str) -> bool {
+        credential
+            .metadata
+            .get("allow_paid_usage")
+            .and_then(Value::as_bool)
+            == Some(true)
+            && (matches!(dimension, "five_hour" | "seven_day")
+                || SCOPED_FAMILIES
+                    .iter()
+                    .any(|family| dimension == family_window_id(family)))
+    }
+
     /// Every plan has the account's `five_hour` and `seven_day` windows plus
     /// per-family weekly windows; other keys the endpoint may report
     /// (`seven_day_oauth_apps`, codenamed keys, surfaces, the weekly

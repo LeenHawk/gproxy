@@ -703,6 +703,9 @@
     "metadataImported": "Imported metadata for {{count}} models."
   },
   "management": {
+    "allowPaidUsage": "Allow credit balance usage",
+    "codexPaidUsageHint": "Allow this credential to use available credits after subscription limits are reached. Off by default; stops at known exhausted subscription limits when off.",
+    "claudePaidUsageHint": "Allow this credential to use extra usage after subscription limits are reached. Extra usage must already be enabled on the Claude account. Off by default; stops at known exhausted subscription limits when off.",
     "select": "Select",
     "selectPage": "Batch select",
     "selected": "{{count}} selected",

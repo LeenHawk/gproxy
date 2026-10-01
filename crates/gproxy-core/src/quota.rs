@@ -386,12 +386,17 @@ async fn record_observation<C: BatchConnectionTrait>(
         )
         .await?;
     }
+    // Keep all exhaustion blocks above, but report only enforced ones to the
+    // retry path. A real 429 during paid usage still needs its own cooldown.
+    if let Some(provider) = data.providers.get(&credential.provider_id) {
+        blocks.retain(|block| block.source.is_enforced(provider, credential));
+    }
     Ok(blocks)
 }
 
-/// Whether observing `entries` blocks the credential: an exhausted entry on a
-/// Reported, blocking dimension. This is the condition under which
-/// `record_observation` returns blocks, decided from the entries alone.
+/// Whether exhaustion must be persisted before returning the answer. Keep
+/// this synchronous even when paid usage is allowed, so disabling it can
+/// enforce the latest subscription exhaustion without another upstream call.
 fn blocks_on(data: &crate::CoreData, credential: &CredentialData, entries: &[QuotaEntry]) -> bool {
     let model = quota_model(data, credential);
     entries.iter().any(|entry| {

@@ -197,6 +197,14 @@ pub trait QuotaModel: Send + Sync {
         credential: CredentialView<'_>,
     ) -> Vec<QuotaDimension>;
 
+    /// Whether this credential permits paid usage past an exhausted subscription
+    /// dimension. The host retains the exhaustion reading so disabling the
+    /// permission takes effect immediately. Local budgets and upstream refusal
+    /// cooldowns are never bypassed by this permission.
+    fn allows_paid_usage(&self, _credential: CredentialView<'_>, _dimension: &str) -> bool {
+        false
+    }
+
     /// The dimension an observed entry reports on, as the host should apply
     /// it; None makes the entry observe-only. `declared` is what `dimensions`
     /// returned for this credential, plus any host-added dimensions. The

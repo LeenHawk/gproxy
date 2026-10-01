@@ -35,6 +35,15 @@ fn window_dimension(id: String, label: String, seconds: i64) -> QuotaDimension {
 }
 
 impl QuotaModel for Codex {
+    fn allows_paid_usage(&self, credential: CredentialView<'_>, dimension: &str) -> bool {
+        credential
+            .metadata
+            .get("allow_paid_usage")
+            .and_then(serde_json::Value::as_bool)
+            == Some(true)
+            && matches!(dimension, "codex_5h" | "codex_7d")
+    }
+
     /// `primary`/`secondary` are slots, not lengths: a Pro account reported
     /// a single 7-day window in the primary slot (2026-09-26) while other
     /// plans carry 5h and 7d, so the account windows are declared by length.

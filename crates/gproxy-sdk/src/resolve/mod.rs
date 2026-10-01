@@ -461,6 +461,10 @@ impl<C> Gproxy<C> {
         let (blocked, usable): (Vec<_>, Vec<_>) = candidates
             .into_iter()
             .zip(blocks)
+            .map(|(credential, mut blocks)| {
+                blocks.retain_enforced(&candidate.provider, &credential);
+                (credential, blocks)
+            })
             .partition(|(_, blocks)| blocks.blocked_by(model, operation, now_ms).is_some());
         let usable: Vec<_> = usable
             .into_iter()

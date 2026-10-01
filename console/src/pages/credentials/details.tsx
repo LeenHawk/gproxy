@@ -62,7 +62,7 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
             {provider.capabilities.refresh ? <Button variant="outline" size="sm" disabled={busy || !provider.enabled} onClick={() => { setSecret(null); action.mutate("refresh") }}>{t("management.refresh")}</Button> : null}
           </div>
           {revealError ? <ErrorNotice error={revealError} /> : null}
-        </div>} key={JSON.stringify(original)} inline open original={original} providerId={provider.id} onOpenChange={() => {}} onSubmit={body => save.mutate(body)} pending={busy} error={save.error} />
+        </div>} key={JSON.stringify(original)} inline open original={original} providerId={provider.id} channel={provider.channel} onOpenChange={() => {}} onSubmit={body => save.mutate(body)} pending={busy} error={save.error} />
           <section className="mt-4 flex flex-col gap-3 border-t pt-4" aria-label={t("fields.status")}>
             <div className="flex flex-wrap items-center gap-2"><span>{t("fields.status")}</span><Badge variant={current.status === "dead" ? "destructive" : "success"}>{t(`values.${current.status}`)}</Badge>
               <Button variant="outline" size="sm" disabled={busy} onClick={() => { setStatus(current.status); setReason(""); setEditingStatus(true); action.reset() }}>{t("limits.changeStatus")}</Button>
