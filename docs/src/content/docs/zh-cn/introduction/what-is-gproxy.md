@@ -40,7 +40,7 @@ GPROXY 是一个可自行部署的大模型 API 网关。把上游账户接入 G
 | --- | --- |
 | Application | 在桌面或手机上使用，通过应用内向导和控制台管理。 |
 | CLI / 容器 | 部署到服务器，提供 HTTP API 和浏览器控制台。 |
-| Cloudflare Workers | 使用边缘运行环境和远程存储；当前不支持 WebSocket / Realtime。 |
+| Cloudflare Workers | 使用边缘运行环境和远程存储，支持 WebSocket / Realtime。 |
 
 安装包和平台限制见[安装](/zh-cn/getting-started/installation/)。从 v3 更新时，请先阅读[迁移说明](/zh-cn/deployment/v3-to-v4/)。
 

@@ -77,7 +77,7 @@ docker logs gproxy
 
 ## Cloudflare Workers
 
-选择 `gproxy-edge-cloudflare.zip`，按[边缘部署](/zh-cn/deployment/edge/)配置数据库和 secrets 后部署。控制台由 Workers Assets 提供；WebSocket / Realtime 当前不支持。
+选择 `gproxy-edge-cloudflare.zip`，按[边缘部署](/zh-cn/deployment/edge/)配置数据库和 secrets 后部署。控制台由 Workers Assets 提供；WebSocket / Realtime 使用与原生部署相同的路由。
 
 ## 从 v3 升级
 

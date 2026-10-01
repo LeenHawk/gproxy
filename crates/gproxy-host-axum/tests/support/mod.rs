@@ -63,6 +63,9 @@ impl BaseChannel for TestChannel {
     }
 
     fn native_dialects(&self, provider: ProviderView<'_>, _: Operation) -> Vec<Dialect> {
+        if let Some(dialects) = provider.config.get("test_dialects") {
+            return serde_json::from_value(dialects.clone()).unwrap();
+        }
         if let Some(dialect) = provider.config.get("test_dialect") {
             return vec![serde_json::from_value(dialect.clone()).unwrap()];
         }
@@ -242,6 +245,7 @@ impl ChannelServices for TestChannel {
 
 /// What the upstream answers next.
 pub enum Reply {
+    Failed,
     Sse(StatusCode, tokio::sync::mpsc::UnboundedReceiver<Bytes>),
     Http(StatusCode, Value),
     /// A streaming body whose end the test decides: every value sent on the
@@ -449,6 +453,13 @@ impl OutboundClient for ScriptClient {
             let mut headers = HeaderMap::new();
             headers.insert("content-type", HeaderValue::from_static("application/json"));
             let (status, body) = match reply {
+                Reply::Failed => {
+                    return Err(CapabilityError::new(
+                        CapabilityErrorKind::Transport,
+                        CapabilityErrorStage::Start,
+                        "connection lost after sending request",
+                    ));
+                }
                 Reply::Sse(status, receiver) => {
                     headers.insert(
                         "content-type",

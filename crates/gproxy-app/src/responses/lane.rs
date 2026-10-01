@@ -1,10 +1,7 @@
 use super::*;
 use std::collections::BTreeSet;
 
-use futures_util::{
-    SinkExt,
-    stream::{BoxStream, SelectAll},
-};
+use futures_util::{SinkExt, stream::SelectAll};
 use gproxy_core::{ResponsesSession, SessionIdentity, SessionSource, UsageCompletion};
 use gproxy_protocol::{
     WireRequest,
@@ -22,6 +19,8 @@ struct Binding {
     credential: String,
     model: String,
     expires_at_ms: i64,
+    #[serde(default)]
+    http_bridge: bool,
 }
 
 struct Chain {
@@ -40,6 +39,11 @@ struct Turn {
     capture: Option<DownstreamCapture>,
     response_id: Option<String>,
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+use futures_util::stream::BoxStream;
+#[cfg(target_arch = "wasm32")]
+use futures_util::stream::LocalBoxStream as BoxStream;
 
 type Incoming = BoxStream<'static, (String, Option<Result<WsFrame, TransportError>>)>;
 
@@ -88,7 +92,7 @@ pub(super) async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
     for session in sessions {
         session.close().await;
     }
-    let _ = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+    let _ = crate::rt::timeout(std::time::Duration::from_secs(5), async {
         for chain in runner.chains.values_mut() {
             let _ = chain.outgoing.send(WsFrame::Close(None)).await;
         }
@@ -396,7 +400,10 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
         admitted.session = Some(SessionIdentity { id: chain_id.clone(), source: SessionSource::Generic,
             field: Some("responses.chain".into()), agent_session_id });
         if !self.chains.contains_key(&chain_id) {
-            let session = remembered.as_ref().map(|b| ResponsesSession::with_expiry(b.expires_at_ms))
+            let session = remembered.as_ref().map(|b| {
+                let session = ResponsesSession::with_expiry(b.expires_at_ms);
+                if b.http_bridge { session.with_http_bridge() } else { session }
+            })
                 .unwrap_or_default();
             let mut handshake = request.parts.clone();
             // The chain's cancellation belongs to the client connection, not
@@ -425,7 +432,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
                 && remembered.model != bound.model
             { return Err(AppError::invalid("continuation model differs from its bound model")); }
             let binding = Binding { chain: chain_id.clone(), provider: bound.provider_id,
-                credential: bound.credential_id, model: bound.model, expires_at_ms: bound.expires_at_ms };
+                credential: bound.credential_id, model: bound.model, expires_at_ms: bound.expires_at_ms, http_bridge: session.is_http_bridge() };
             let id = chain_id.clone();
             self.incoming.push(Box::pin(socket.incoming.map(Some)
                 .chain(futures_util::stream::once(async { None }))
@@ -436,8 +443,10 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
             let chain = self.chains.get(&chain_id).unwrap();
             (chain.session.clone(), chain.binding.clone())
         };
-        admitted.providers.retain(|p| p == &binding.provider);
-        admitted.credentials.retain(|c| c == &binding.credential);
+        if remembered.is_some() || !session.is_http_bridge() {
+            admitted.providers.retain(|p| p == &binding.provider);
+            admitted.credentials.retain(|c| c == &binding.credential);
+        }
         let builder = drive!(self.context.app.gproxy().connect(request.operation, wire(&request.parts)), admitted, request, Some(model));
         let (_, usage) = builder.begin_responses_turn(&session, body, self.lane.as_deref(), pending).await?.into_parts();
         Ok::<_, AppError>((chain_id, usage))
@@ -452,6 +461,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
     }
 
     async fn receive(&mut self, chain_id: &str, frame: Option<Result<WsFrame, TransportError>>) {
+        if let Some(chain) = self.chains.get_mut(chain_id)
+            && let Some(binding) = chain.session.binding()
+        {
+            chain.binding.provider = binding.provider_id;
+            chain.binding.credential = binding.credential_id;
+            chain.binding.model = binding.model;
+            chain.binding.http_bridge = chain.session.is_http_bridge();
+        }
         let frame = match frame {
             Some(Ok(WsFrame::Ping(bytes))) => {
                 if let Some(chain) = self.chains.get_mut(chain_id) {
@@ -630,6 +647,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
     }
 
     async fn refresh_caller(&mut self) -> Result<Caller, AppError> {
+        // An edge isolate has no background synchronizer. A WS turn can arrive
+        // long after the upgrade's tick, including after permissions changed.
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.context.app.gproxy().tick().await?;
+            self.context.app.tick().await?;
+        }
         let data = self.context.app.data();
         let authentication = self
             .context

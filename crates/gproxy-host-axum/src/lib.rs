@@ -75,7 +75,6 @@
 //! | Native only | Why |
 //! |---|---|
 //! | [`console`] | `rust-embed` and a filesystem; a Worker serves its console from Workers Assets |
-//! | [`websocket`] | hyper's `OnUpgrade` and `axum`'s `ws`; a Worker upgrades with a `WebSocketPair` |
 //! | [`peer_ip`] | `ConnectInfo` is axum's `tokio` feature, and a Worker has `cf-connecting-ip` instead |
 //!
 //! No route is in that table, and none may join it. `/admin/api/update` is not
@@ -110,10 +109,6 @@ pub mod runtime_settings;
 pub mod serve;
 pub mod session;
 pub mod update;
-// Two implementations of one module: hyper's upgrade natively, and a refusal
-// on a fetch runtime, where `WebSocketPair` has no `http::Response` shape.
-// `ingress` calls the same three functions either way and does not branch.
-#[cfg_attr(target_arch = "wasm32", path = "websocket_wasm.rs")]
 pub mod websocket;
 
 pub use error::{ErrorResponse, OAuthEnvelope};

@@ -7,7 +7,7 @@ Workers uses the same HTTP routes as the native server, with remote database and
 
 ## Current limitations
 
-- WebSocket / Realtime upgrades return `501`; use a native deployment for these requests.
+- Responses WebSocket, Realtime and channel service sockets share the native deployment’s routes, authentication and limits.
 - D1 is enabled by default. libSQL and S3/R2 require their corresponding build features.
 - Local SQLite, TCP databases, filesystem storage, and in-memory cache are unsupported. Current Worker assembly uses `store` cache and does not provide a Redis client.
 - First startup creates an administrator from the `GPROXY_ADMIN_PASSWORD` secret. The username defaults to `admin`; set `GPROXY_ADMIN_USER` to change it. Workers does not show the Application wizard.

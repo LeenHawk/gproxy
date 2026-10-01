@@ -2796,6 +2796,7 @@ dependencies = [
  "form_urlencoded",
  "futures-util",
  "getrandom 0.4.3",
+ "gloo-timers",
  "gproxy-cache",
  "gproxy-channel",
  "gproxy-core",
@@ -2959,9 +2960,11 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
+ "gloo-timers",
  "gproxy-app",
  "gproxy-cache",
  "gproxy-channel",
+ "gproxy-client",
  "gproxy-core",
  "gproxy-protocol",
  "gproxy-sdk",
@@ -2985,6 +2988,7 @@ dependencies = [
  "tower",
  "tracing",
  "web-time",
+ "worker",
 ]
 
 [[package]]

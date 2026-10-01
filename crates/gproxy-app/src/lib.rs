@@ -54,7 +54,6 @@ pub mod auth;
 pub use auth::{Authenticator, Caller, CallerKind, GrantContext};
 
 pub mod call;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod responses;
 pub use call::{CallOutcome, ConnectOutcome, DataPlaneRequest};
 

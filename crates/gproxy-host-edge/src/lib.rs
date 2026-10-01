@@ -32,16 +32,12 @@
 //!   single-threaded: `gproxy_app::App` holds its handle in a `SendWrapper`,
 //!   and `gproxy_host_axum::send` wraps each handler's body.
 //!
-//! # What this host does not serve
+//! # WebSockets and assets
 //!
-//! | Surface | Why |
-//! |---|---|
-//! | websocket / realtime | a Worker upgrades with a `WebSocketPair`, which has no `http::Response` shape; the handshake is refused with `501` |
-//! | the embedded console | the bundle belongs in Workers Assets, in front of this Worker, not inside a size-limited binary |
-//!
-//! Everything else — the data plane, the OAuth issuer, `/admin/api`,
-//! `/portal/api`, `/publications/{id}` and `/healthz` — is the axum router's,
-//! unchanged.
+//! `WebSocketPair` supplies the downstream socket; the shared host pump owns
+//! authentication, limits, cancellation, capture and settlement. `worker`'s
+//! HTTP adapter reads the client socket from response extensions, so upgrades
+//! use this same fetch handler. The console bundle belongs in Workers Assets.
 //!
 //! # The shape of a request
 //!
@@ -93,12 +89,14 @@ mod entry {
     /// stream.
     #[event(fetch)]
     async fn fetch(
-        request: HttpRequest,
+        mut request: HttpRequest,
         env: Env,
-        _ctx: Context,
+        ctx: Context,
     ) -> worker::Result<http::Response<axum::body::Body>> {
         let instance = crate::instance::instance(&env).await?;
         instance.tick().await;
+        // The socket pump uses wait_until so settlement can finish after close.
+        request.extensions_mut().insert(std::sync::Arc::new(ctx));
         let mut router = instance.router();
         // Infallible: `Router`'s error type is `Infallible`, which is the
         // whole reason every refusal in this gateway is a `Response` rather

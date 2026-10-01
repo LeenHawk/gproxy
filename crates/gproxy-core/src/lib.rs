@@ -32,7 +32,7 @@ pub mod publication;
 mod quota;
 pub mod realtime;
 pub mod responses;
-pub use responses::{ResponsesBinding, ResponsesSession};
+pub use responses::{ResponsesBinding, ResponsesHttpExecutor, ResponsesSession};
 mod refresh;
 pub mod rewrite;
 mod rt;

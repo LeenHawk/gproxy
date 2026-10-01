@@ -333,9 +333,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
     /// The capture to feed, while the response or the socket is still running.
     ///
     /// Only [`crate::websocket`]'s pump needs it — an HTTP body feeds its own
-    /// capture from inside [`LeasedBody`] — so it is native-only for as long
-    /// as sockets are.
-    #[cfg(not(target_arch = "wasm32"))]
+    /// capture from inside [`LeasedBody`].
     pub(crate) fn capture_mut(&mut self) -> Option<&mut DownstreamCapture> {
         self.capture.as_mut()
     }
@@ -343,7 +341,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
     /// The client is gone and the holder knows it before it lets go of this
     /// value. Only the websocket pump needs it; an HTTP body learns the same
     /// thing by being dropped.
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn cancel(&mut self) {
         self.cancel.cancel();
     }
@@ -391,7 +388,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
 
     /// The same, for a caller that can simply await it — a socket pump runs in
     /// its own task and has no stream to thread a future through.
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) async fn settle(self, outcome: CaptureOutcome) {
         self.finish(outcome).await;
     }

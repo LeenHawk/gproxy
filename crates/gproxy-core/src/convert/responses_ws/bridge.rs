@@ -6,10 +6,7 @@ mod segment;
 
 use super::*;
 use gproxy_protocol::{
-    adapt::generate::{
-        Endpoint,
-        stream::{ResponsesHistoryCache, response_output_as_input},
-    },
+    adapt::generate::stream::{ResponsesHistoryCache, response_output_as_input},
     wire::openai::responses::{
         self as r,
         input::{Input, InputItem},
@@ -20,16 +17,9 @@ use std::collections::BTreeMap;
 use tokio_util::sync::CancellationToken;
 
 pub(super) struct Config<C> {
-    pub store: Arc<gproxy_store::Store<C>>,
-    pub cache: Arc<dyn gproxy_cache::Cache>,
-    pub owned: Arc<OwnedState<C>>,
-    pub target: Dialect,
-    pub model: String,
-    pub endpoint: Endpoint,
+    pub owned: OwnedState<C>,
     pub settings: StreamSettings,
     pub headers: HeaderMap,
-    pub channel_state: Arc<dyn gproxy_channel::channel::ChannelState>,
-    pub instance_id: Arc<str>,
     pub cancellation: CancellationToken,
 }
 
@@ -55,7 +45,7 @@ struct Current {
 }
 
 struct Driver<C> {
-    config: Arc<Config<C>>,
+    config: Config<C>,
     session: crate::ResponsesSession,
     history: ResponsesHistoryCache,
     output: Outgoing,
@@ -76,7 +66,7 @@ pub(super) fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
             1024,
             usize::try_from(config.settings.codec.max_body_bytes).unwrap_or(usize::MAX),
         ),
-        config: Arc::new(config),
+        config,
         session,
         output,
         current: None,
@@ -100,7 +90,7 @@ pub(super) fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
                 event = async { driver.segment.as_mut().unwrap().events.recv().await }, if driver.segment.is_some() => {
                     match event {
                         Some(Ok(event)) => driver.event(event).await,
-                        Some(Err((status, message))) => driver.fail(status, &message).await,
+                        Some(Err(failure)) => driver.failure(failure).await,
                         None => driver.segment_finished().await,
                     }
                 }
@@ -225,33 +215,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Driver<C> {
 
     async fn next_segment(&mut self) {
         let current = self.current.as_mut().unwrap();
-        if current.turn.attempt.request.snapshot.observation.settlement {
-            let pending = current.turn.funnel.pending_cost().await;
-            if let Err(error) = crate::budget::check_pending(
-                &self.config.store,
-                &current.turn.attempt.request,
-                now_ms(),
-                pending.as_ref(),
-            )
-            .await
-            {
-                self.fail(429, &error.to_string()).await;
-                return;
-            }
-        }
         current.offset = current.output.len() as u64;
-        if current.segments > 0
-            && let Err(error) = crate::quota::charge_responses_segment(
-                &self.config.store,
-                &self.config.cache,
-                &current.turn.attempt,
-                Operation::StreamGenerateContent,
-            )
-            .await
-        {
-            self.fail(429, &error.to_string()).await;
-            return;
-        }
         current.segments += 1;
         current.terminal = None;
         current.injected = false;
@@ -259,7 +223,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Driver<C> {
         input.input = Some(Input::Items(current.transcript.clone()));
         input.previous_response_id = None;
         self.segment = Some(segment::start(
-            self.config.clone(),
+            self.config.settings,
+            self.config.headers.clone(),
+            self.session.clone(),
             current.turn.clone(),
             input,
         ));
@@ -281,12 +247,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Driver<C> {
             return;
         }
         if kind == "error" {
-            let message = event["message"]
-                .as_str()
-                .or_else(|| event["error"]["message"].as_str())
-                .unwrap_or("upstream stream error")
-                .to_owned();
-            self.fail(502, &message).await;
+            self.failure(segment::Failure::event(&event)).await;
             return;
         }
         if let Some(index) = event["output_index"].as_u64() {
@@ -483,6 +444,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Driver<C> {
     }
 
     async fn complete(&mut self, status: &str, reason: Option<&str>) -> bool {
+        // The first accepted segment may have failed over from the provisional
+        // handshake target. Save history under the account that really ran it.
+        if let Some(binding) = self.session.binding() {
+            self.config.owned.scope.provider_id = binding.provider_id.clone();
+            self.config.owned.target = IdentityTarget::new(&binding.model, binding.dialect)
+                .and_then(|target| target.with_origin(&binding.provider_id))
+                .unwrap();
+        }
         let Some(current) = &mut self.current else {
             return false;
         };
@@ -532,22 +501,21 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Driver<C> {
     }
 
     async fn fail(&mut self, status: u16, message: &str) {
+        self.failure(segment::Failure::new(status, message)).await;
+    }
+
+    async fn failure(&mut self, failure: segment::Failure) {
         if let Some(segment) = self.segment.take() {
             segment.stop().await;
         }
-        self.reject_steering(message).await;
-        if let Some(current) = &self.current {
-            let mut response = current.response.clone();
-            response["status"] = "failed".into();
-            response["output"] = serde_json::to_value(&current.output).unwrap();
-            response["error"] = json!({"code":"server_error","message":message});
-            self.session.finish_turn(UsageState::Failed).await;
-            self.emit(json!({"type":"response.failed","response":response}))
-                .await;
+        self.reject_steering(failure.message()).await;
+        self.session.finish_turn(UsageState::Failed).await;
+        let event = json!({"type":"error","status":failure.status,"error":failure.detail});
+        if self.current.is_some() {
+            self.emit(event).await;
             self.current = None;
         } else {
-            self.session.finish_turn(UsageState::Failed).await;
-            self.error(status, None, message).await;
+            let _ = self.output.send(Ok(WsFrame::Text(event.to_string()))).await;
         }
     }
 

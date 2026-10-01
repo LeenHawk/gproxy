@@ -75,24 +75,16 @@ documentation:
    the wrapper is at the handler rather than a `cfg` on the router. A route
    that cannot compile for the edge cannot silently fail to exist here.
 
-## What this host does not serve
+## WebSocket and console
 
-| Surface | Why |
-|---|---|
-| websocket / realtime | a Worker upgrades by constructing a `WebSocketPair` and returning the client half in a `Response`'s `webSocket` field — a mechanism with no `http::Response` shape at all. A handshake is refused with `501`. |
-| the embedded console | the bundle belongs in Workers Assets, in front of this Worker; see `wrangler.toml.example`. |
+Responses WebSocket, Realtime and channel service sockets use the same routes,
+authentication, limits, capture and settlement as the native host. Workers
+upgrades use `WebSocketPair`; the `worker` crate carries the client socket in
+`http::Response` extensions back to its fetch handler. Responses supports both
+native upstream sockets and HTTP/SSE bridging.
 
-Everything else is the axum router's, unchanged: the data plane and its
-channel service routes, the OAuth issuer, `/admin/api`, `/portal/api`,
-`/publications/{id}` and `/healthz`.
-
-Making realtime real needs two pieces, neither of them a routing question: a
-`WebSocketPair` implementation of `gproxy_protocol::connection::WebSocket`, and
-a way for a handler to hand the prepared JS `Response` back to the fetch entry
-point. The second has a seam already — `http::Extensions` accepts a
-`Send + Sync + Clone` value, and a `SendWrapper<web_sys::Response>` is all
-three. It is deliberately not done here: an upgrade path that has never been
-run against a real client is worth less than an honest refusal.
+The console bundle is served by Workers Assets rather than embedded in the
+WASM binary; see `wrangler.toml.example`.
 
 ## Synchronization is one line
 

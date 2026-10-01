@@ -24,6 +24,7 @@
 //! therefore cannot cost more upstream calls than its `max_attempts`.
 
 mod affinity;
+mod responses;
 use affinity::RouteAffinity;
 
 use std::{collections::BTreeSet, num::NonZeroU32, sync::Arc, time::Duration};
@@ -344,26 +345,29 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ConnectBuilder<'_, C> {
             )
             .await?;
         let mut walk = Walk::new(prepared);
+        let mut contexts = Vec::new();
         while let Some(step) = walk.next() {
-            if step.context.target.provider.entity.id == binding.provider_id {
-                return self
-                    .gproxy
-                    .core()
-                    .begin_responses_turn(
-                        step.context,
-                        session,
-                        &self.request.headers,
-                        lane,
-                        pending,
-                        body["generate"] == false,
-                    )
-                    .await
-                    .map_err(Into::into);
-            }
+            contexts.push(step.context);
         }
-        Err(SdkError::invalid(
-            "Responses continuation is outside the admitted plan",
-        ))
+        let context = contexts
+            .iter()
+            .find(|context| context.target.provider.entity.id == binding.provider_id)
+            .cloned()
+            .ok_or_else(|| {
+                SdkError::invalid("Responses continuation is outside the admitted plan")
+            })?;
+        let http = session.is_http_bridge().then(|| {
+            Arc::new(responses::HttpExecutor {
+                gproxy: self.gproxy.clone(),
+                contexts,
+                affinity: walk.prepared.route_affinity,
+            }) as Arc<dyn gproxy_core::ResponsesHttpExecutor>
+        });
+        self.gproxy
+            .core()
+            .begin_responses_turn(context, session, &self.request.headers, lane, pending, http)
+            .await
+            .map_err(Into::into)
     }
 
     async fn send_inner(

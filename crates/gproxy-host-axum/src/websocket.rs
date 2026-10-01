@@ -14,7 +14,7 @@
 //! happens while this is still an HTTP request: the caller is authenticated,
 //! the handshake shape is checked, admission runs, and the upstream handshake
 //! is performed. Only when all four have succeeded is
-//! [`WebSocketUpgrade::on_upgrade`] called.
+//! `WebSocketUpgrade::on_upgrade` (or the Workers `WebSocketPair`) called.
 //!
 //! That order also decides the one rule this module exists to honour:
 //!
@@ -85,13 +85,10 @@
 
 use std::sync::Arc;
 
-use axum::{
-    extract::{
-        FromRequestParts as _,
-        ws::{CloseFrame, Message, WebSocket as ClientSocket, WebSocketUpgrade},
-    },
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
+#[cfg_attr(not(target_arch = "wasm32"), path = "websocket/native.rs")]
+#[cfg_attr(target_arch = "wasm32", path = "websocket/workers.rs")]
+mod upgrade;
 use futures_util::{SinkExt as _, StreamExt as _};
 use gproxy_app::{
     App, AppError, Caller, CaptureDirection, CaptureOutcome, CapturedFrame, ConnectOutcome,
@@ -104,6 +101,8 @@ use gproxy_protocol::{
 };
 use gproxy_seaorm::BatchConnectionTrait;
 use http::{HeaderMap, StatusCode, header};
+use upgrade::accept;
+pub use upgrade::{Upgrade, extract};
 
 use crate::response::{CancelOnDrop, Trailer, passthrough, sanitize};
 
@@ -121,35 +120,6 @@ const CLOSE_NORMAL: u16 = 1000;
 /// its socket is dropped. Short, because the session is over either way and
 /// the only thing still waiting is the request slot it is holding.
 const CLOSE_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
-
-/// Take the upgrade out of the request, or say why this is not one.
-///
-/// Runs **after** authentication and before anything is accepted: an
-/// anonymous caller learns nothing about this gateway's transports, and a
-/// client that did authenticate is told plainly what is wrong with its
-/// handshake. Nothing is upgraded here — the `101` is only written by
-/// [`WebSocketUpgrade::on_upgrade`] — so a request that is refused after this
-/// point is still refused over HTTP.
-///
-/// `max_frame_bytes` becomes the codec's message cap, one byte over the
-/// configured limit, so a frame exactly at the limit is accepted and one over
-/// it is caught by this host (with a close code the client can read) rather
-/// than by tungstenite (with a protocol error it cannot). The codec is still
-/// the memory bound: nothing larger than that is ever buffered.
-pub async fn extract(
-    parts: &mut http::request::Parts,
-    max_frame_bytes: u64,
-) -> Result<Upgrade, Box<Response>> {
-    let upgrade = WebSocketUpgrade::from_request_parts(parts, &())
-        .await
-        .map_err(|rejection| Box::new(reject(rejection)))?;
-    let max = usize::try_from(max_frame_bytes.saturating_add(1)).unwrap_or(usize::MAX);
-    Ok(Upgrade(upgrade.max_message_size(max).max_frame_size(max)))
-}
-
-/// The extracted handshake, so a caller cannot confuse it with anything else
-/// and cannot accidentally accept it without a decision.
-pub struct Upgrade(WebSocketUpgrade);
 
 /// Responses names its model in the first message, after the HTTP upgrade.
 pub fn responses<C: BatchConnectionTrait + Send + Sync + 'static>(
@@ -176,12 +146,6 @@ pub fn responses<C: BatchConnectionTrait + Send + Sync + 'static>(
             cancel.disarm();
             crate::ErrorResponse(error).into_response()
         }
-    }
-}
-
-impl std::fmt::Debug for Upgrade {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Upgrade { .. }")
     }
 }
 
@@ -368,44 +332,6 @@ where
     }
 }
 
-/// Write the `101` and start the pump.
-///
-/// The upstream's negotiated headers are appended to axum's response without
-/// overwriting any of its own: a subprotocol the upstream chose has to reach
-/// the client, and `sec-websocket-accept` must stay the one computed from the
-/// client's key.
-fn accept<C>(
-    upgrade: Upgrade,
-    upstream: UpstreamSocket,
-    max_frame_bytes: u64,
-    trailer: Option<Trailer<C>>,
-    negotiated: &HeaderMap,
-) -> Response
-where
-    C: BatchConnectionTrait + Send + Sync + 'static,
-{
-    let mut response = upgrade.0.on_upgrade(move |downstream| {
-        Pump {
-            downstream,
-            incoming: upstream.incoming.fuse(),
-            outgoing: upstream.outgoing,
-            limit: max_frame_bytes,
-            trailer,
-        }
-        .run()
-    });
-    let headers = response.headers_mut();
-    for name in negotiated.keys() {
-        if headers.contains_key(name) {
-            continue;
-        }
-        for value in negotiated.get_all(name) {
-            headers.append(name, value.clone());
-        }
-    }
-    response
-}
-
 /// How one side's message left the loop.
 enum Step {
     /// Keep pumping.
@@ -416,7 +342,7 @@ enum Step {
 
 /// Both halves of one session and everything it holds open.
 struct Pump<C> {
-    downstream: ClientSocket,
+    downstream: UpstreamSocket,
     incoming: futures_util::stream::Fuse<WsReceiver>,
     outgoing: WsSender,
     limit: u64,
@@ -425,6 +351,21 @@ struct Pump<C> {
 }
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Pump<C> {
+    fn new(
+        downstream: UpstreamSocket,
+        upstream: UpstreamSocket,
+        limit: u64,
+        trailer: Option<Trailer<C>>,
+    ) -> Self {
+        Self {
+            downstream,
+            incoming: upstream.incoming.fuse(),
+            outgoing: upstream.outgoing,
+            limit,
+            trailer,
+        }
+    }
+
     /// Forward frames until one side stops, then finish the closing handshake
     /// and settle.
     async fn run(mut self) {
@@ -438,7 +379,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Pump<C> {
             ..
         } = self;
         let _ = outgoing.close().await;
-        let _ = downstream.flush().await;
+        let _ = downstream.outgoing.flush().await;
         // **Both halves go before the settlement is awaited.** Core arms the
         // exchange's settlement inside the socket it handed over — the guard
         // that finishes it lives in the incoming stream — so awaiting the
@@ -468,7 +409,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Pump<C> {
     /// slot for ever.
     async fn drain_upstream(&mut self) {
         let drain = async { while self.incoming.next().await.is_some() {} };
-        if tokio::time::timeout(CLOSE_GRACE, drain).await.is_err() {
+        if !upgrade::timeout(drain).await {
             tracing::debug!("the upstream did not answer the close within the grace period");
         }
     }
@@ -476,7 +417,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Pump<C> {
     async fn duplex(&mut self) -> CaptureOutcome {
         loop {
             let step = tokio::select! {
-                message = self.downstream.recv() => match message {
+                message = self.downstream.incoming.next() => match message {
                     Some(Ok(message)) => self.client_message(message).await,
                     // A client that hung up without a close frame. The
                     // upstream is told so the session stops costing money.
@@ -522,25 +463,20 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Pump<C> {
     }
 
     /// One message from the client, on its way upstream.
-    async fn client_message(&mut self, message: Message) -> Step {
+    async fn client_message(&mut self, message: WsFrame) -> Step {
         let frame = match message {
-            Message::Text(text) => WsFrame::Text(text.as_str().to_owned()),
-            Message::Binary(bytes) => WsFrame::Binary(bytes),
-            Message::Ping(payload) => {
+            frame @ (WsFrame::Text(_) | WsFrame::Binary(_)) => frame,
+            WsFrame::Ping(payload) => {
                 // Answered by the downstream codec, not forwarded: it measures
                 // the client's link to this gateway.
                 self.record(CaptureDirection::Request, &WsFrame::Ping(payload));
                 return Step::Go;
             }
-            Message::Pong(payload) => {
+            WsFrame::Pong(payload) => {
                 self.record(CaptureDirection::Request, &WsFrame::Pong(payload));
                 return Step::Go;
             }
-            Message::Close(frame) => {
-                let close = frame.map(|frame| WsClose {
-                    code: frame.code,
-                    reason: frame.reason.as_str().to_owned(),
-                });
+            WsFrame::Close(close) => {
                 self.close_upstream(close).await;
                 return Step::Stop(CaptureOutcome::Complete);
             }
@@ -564,8 +500,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Pump<C> {
         }
         self.record(CaptureDirection::Response, &frame);
         let message = match frame {
-            WsFrame::Text(text) => Message::Text(text.into()),
-            WsFrame::Binary(bytes) => Message::Binary(bytes),
+            frame @ (WsFrame::Text(_) | WsFrame::Binary(_)) => frame,
             WsFrame::Ping(payload) => {
                 // Answered upstream rather than forwarded, for the same reason
                 // the client's ping stays downstream — and here it has to be
@@ -596,7 +531,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Pump<C> {
                 return Step::Stop(CaptureOutcome::Complete);
             }
         };
-        if let Err(error) = self.downstream.send(message).await {
+        if let Err(error) = self.downstream.outgoing.send(message).await {
             tracing::debug!(%error, "client send failed");
             self.close_upstream(None).await;
             self.client_gone();
@@ -659,11 +594,15 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Pump<C> {
     }
 
     async fn relay_close_to_client(&mut self, code: u16, reason: &str) {
-        let frame = CloseFrame {
+        let frame = WsClose {
             code,
-            reason: reason.to_owned().into(),
+            reason: reason.to_owned(),
         };
-        let _ = self.downstream.send(Message::Close(Some(frame))).await;
+        let _ = self
+            .downstream
+            .outgoing
+            .send(WsFrame::Close(Some(frame)))
+            .await;
     }
 
     /// The same for the upstream's side.
@@ -718,38 +657,4 @@ pub(crate) fn upgrade_required(message: impl Into<String>) -> Response {
         .headers_mut()
         .insert(header::UPGRADE, http::HeaderValue::from_static("websocket"));
     response
-}
-
-/// The refusal a malformed handshake earns.
-///
-/// Axum's own rejections render as `405`, `400` and `426`; this maps them onto
-/// the two answers a client can act on, in this crate's error envelope:
-///
-/// - **`426`** when the request is not an upgrade this connection can serve —
-///   the wrong method, no `Connection: upgrade`, no `Upgrade: websocket`, or a
-///   connection that cannot be upgraded at all (HTTP/1.0, or HTTP/2 without
-///   extended CONNECT). All of those are answered by *re-sending* the request
-///   as a handshake over HTTP/1.1, which is exactly what `426` plus
-///   `Upgrade: websocket` tells a client to do. A `405` would be wrong:
-///   the path is not method-restricted, it is transport-restricted.
-/// - **`400`** when it *is* a handshake and is malformed — a missing
-///   `Sec-WebSocket-Key`, a version that is not 13. Re-sending it unchanged
-///   will not help.
-fn reject(rejection: axum::extract::ws::rejection::WebSocketUpgradeRejection) -> Response {
-    use axum::extract::ws::rejection::WebSocketUpgradeRejection as R;
-    match rejection {
-        R::MethodNotGet(_)
-        | R::MethodNotConnect(_)
-        | R::InvalidConnectionHeader(_)
-        | R::InvalidUpgradeHeader(_)
-        | R::InvalidProtocolPseudoheader(_)
-        | R::ConnectionNotUpgradable(_) => {
-            upgrade_required("this surface is a websocket; send an Upgrade request")
-        }
-        other => crate::ErrorResponse(AppError::invalid(format!(
-            "websocket handshake: {}",
-            other.body_text()
-        )))
-        .into_response(),
-    }
 }
