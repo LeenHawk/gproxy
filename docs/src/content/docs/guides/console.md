@@ -141,6 +141,15 @@ Read the returned warnings and skipped counts: a reload failure is reported
 as an already-imported configuration with a runtime warning, not as a rolled
 back import.
 
+## Fonts
+
+The Console uses Noto Sans, Noto Sans SC/TC and Noto Sans Mono. CLI and
+Application download the required font subsets from
+`https://gproxy.leenhawk.com/fonts/` on first use and cache them in `fonts/`
+under their data directory. Cached fonts work offline and survive restarts.
+Edge loads fonts directly from the same Cloudflare CDN into the browser cache.
+System fonts render the page while a download is pending or unavailable.
+
 ## Building the Console
 
 Run `pnpm --dir console lint`, `pnpm --dir console test`, and

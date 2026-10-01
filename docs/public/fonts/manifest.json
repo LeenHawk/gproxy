@@ -1,0 +1,9 @@
+{
+  "stylesheet": "f5fb74dd5b788c07aaca6ad28edde7950f085bd870fd9866eca3ce0351ce00b9.css",
+  "packages": {
+    "@fontsource-variable/noto-sans": "5.3.0",
+    "@fontsource-variable/noto-sans-sc": "5.3.0",
+    "@fontsource-variable/noto-sans-tc": "5.3.0",
+    "@fontsource-variable/noto-sans-mono": "5.3.0"
+  }
+}

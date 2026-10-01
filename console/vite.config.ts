@@ -12,6 +12,8 @@ const workspace = readFileSync(path.resolve(consoleDir, "../Cargo.toml"), "utf8"
 const version = /\[workspace\.package\][\s\S]*?version\s*=\s*"([^"]+)"/.exec(workspace)?.[1] ?? "unknown"
 const buildHash = process.env.GPROXY_BUILD_HASH
   ?? execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { cwd: path.resolve(consoleDir, ".."), encoding: "utf8" }).trim()
+const fontDir = path.resolve(consoleDir, "../docs/public/fonts")
+const { stylesheet: fontStylesheet } = JSON.parse(readFileSync(path.join(fontDir, "manifest.json"), "utf8")) as { stylesheet: string }
 
 // `gproxy-host-axum` serves the bundle under `/console`, and only under it:
 // `console::asset_name` strips exactly that prefix, so a document loaded from
@@ -23,7 +25,30 @@ export default defineConfig({
     __GPROXY_VERSION__: JSON.stringify(version),
     __GPROXY_BUILD_HASH__: JSON.stringify(buildHash),
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), {
+    name: "console-fonts",
+    transformIndexHtml() {
+      return [{ tag: "meta", attrs: { name: "gproxy-fonts", content: `/console/fonts/${fontStylesheet}` }, injectTo: "head" }]
+    },
+    generateBundle() {
+      // Font files live on the documentation site's CDN, outside the native
+      // binary and the Workers Assets bundle. Only the face definitions ship.
+      this.emitFile({ type: "asset", fileName: `fonts/${fontStylesheet}`, source: readFileSync(path.join(fontDir, fontStylesheet)) })
+    },
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const file = request.url?.split("?")[0].match(/\/(?:console\/)?fonts\/([a-f0-9]{64}\.(?:css|woff2))$/)?.[1]
+        if (!file) return next()
+        try {
+          const bytes = readFileSync(path.join(fontDir, file))
+          response.setHeader("Content-Type", file.endsWith(".css") ? "text/css" : "font/woff2")
+          response.end(bytes)
+        } catch {
+          next()
+        }
+      })
+    },
+  }],
   resolve: { alias: { "@": path.join(consoleDir, "src") } },
   server: {
     proxy: {

@@ -2970,6 +2970,7 @@ dependencies = [
  "http",
  "hyper-util",
  "mime_guess",
+ "reqwest 0.13.5",
  "rust-embed",
  "ruzstd",
  "sea-orm",

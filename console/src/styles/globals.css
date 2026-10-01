@@ -1,10 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/noto-sans";
-@import "@fontsource-variable/noto-sans-sc";
-@import "@fontsource-variable/noto-sans-tc";
-@import "@fontsource-variable/noto-sans-mono";
 
 @custom-variant dark (&:is(.dark *));
 

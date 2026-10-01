@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:"
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline' gproxy-fonts: http://gproxy-fonts.localhost https://gproxy-fonts.localhost; img-src 'self' data: blob:; font-src 'self' data: gproxy-fonts: http://gproxy-fonts.localhost https://gproxy-fonts.localhost"
     }
   },
   "bundle": {
