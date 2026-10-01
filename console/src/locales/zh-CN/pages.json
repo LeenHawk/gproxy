@@ -703,6 +703,9 @@
     "metadataImported": "已导入 {{count}} 个模型的元数据。"
   },
   "management": {
+    "allowPaidUsage": "允许使用积分余额",
+    "codexPaidUsageHint": "开启后，此凭证可在订阅额度耗尽后使用已有积分。默认关闭；关闭时，在已知订阅额度耗尽后停止使用。",
+    "claudePaidUsageHint": "开启后，此凭证可在订阅额度耗尽后使用额外用量，Claude 账号需已开通额外用量。默认关闭；关闭时，在已知订阅额度耗尽后停止使用。",
     "select": "选择",
     "selectPage": "批量选择",
     "selected": "已选 {{count}} 项",

@@ -703,6 +703,9 @@
     "metadataImported": "已匯入 {{count}} 個模型的中繼資料。"
   },
   "management": {
+    "allowPaidUsage": "允許使用積分餘額",
+    "codexPaidUsageHint": "開啟後，此憑證可在訂閱額度耗盡後使用已有積分。預設關閉；關閉時，在已知訂閱額度耗盡後停止使用。",
+    "claudePaidUsageHint": "開啟後，此憑證可在訂閱額度耗盡後使用額外用量，Claude 帳號需已開通額外用量。預設關閉；關閉時，在已知訂閱額度耗盡後停止使用。",
     "select": "選擇",
     "selectPage": "批次選取",
     "selected": "已選 {{count}} 項",

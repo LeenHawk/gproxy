@@ -235,9 +235,10 @@ impl<C: BatchConnectionTrait> Core<C> {
                 exhausted_cycle_id: None,
             });
         }
-        let blocks = self
+        let mut blocks = self
             .read_blocks(&credential.provider_id, &credential.id)
             .await?;
+        blocks.retain_enforced(&request.target.provider, credential);
         let model = request.target.upstream_model.as_deref();
         Ok(
             match blocks

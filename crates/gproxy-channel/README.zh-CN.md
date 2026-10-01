@@ -217,6 +217,16 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
 由 `exchange` 返回——公开事实进 `provider_fields`，secret 进
 `OAuthCredential::provider_secrets`，后者与 token 一同封存，永远不会变成 metadata。
 
+Codex 和 Claude Code 支持凭证级的 `metadata.allow_paid_usage` 布尔值，默认
+`false`。Console 显示为「允许使用积分余额」。`QuotaModel::allows_paid_usage`
+指定它可放行的订阅窗口；Core 保留额度耗尽记录，在选择凭证时应用当前开关，关闭后
+即可重新执行已知额度限制。本地预算和上游实际拒绝请求产生的冷却仍然有效。
+
+此开关不会开通上游计费或购买积分，Claude Code 账号需已开通额外用量。对
+Claude Code 2.1.285 的检查发现的是账号级 `overage_spend_limit` 设置，没有找到
+单次请求的禁扣参数。因此，本地开关不能阻止已经发出的请求，或首次获知订阅额度
+耗尽的请求产生费用。
+
 ## 添加一个渠道
 
 渠道是内建的，不是插件：新渠道就是本 crate 里一个由自己的 feature 门控的模块。

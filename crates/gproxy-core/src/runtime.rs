@@ -101,6 +101,26 @@ pub enum BlockSource {
 }
 
 impl BlockSource {
+    /// Paid usage only bypasses subscription exhaustion declared by the channel.
+    /// The exhaustion record remains available when the permission is disabled.
+    pub fn is_enforced(
+        &self,
+        provider: &crate::ProviderData,
+        credential: &crate::CredentialData,
+    ) -> bool {
+        let Self::QuotaExhausted { dimension, .. } = self else {
+            return true;
+        };
+        let Some(model) = provider.channel.quota_model() else {
+            return true;
+        };
+        let version = credential.state.load();
+        !model.allows_paid_usage(
+            crate::execute::prepare::credential_view(credential, &version),
+            dimension,
+        )
+    }
+
     /// Same kind and, for quota blocks, the same dimension: a fresh observation
     /// replaces the previous block for that origin rather than stacking.
     pub fn same_origin(&self, other: &Self) -> bool {
@@ -178,6 +198,17 @@ pub struct CredentialBlocks {
     pub last_success_at_ms: Option<i64>,
 }
 impl CredentialBlocks {
+    /// Apply current credential permissions to a read-only copy of the blocks.
+    /// Never write this filtered copy back to the cache or Store.
+    pub fn retain_enforced(
+        &mut self,
+        provider: &crate::ProviderData,
+        credential: &crate::CredentialData,
+    ) {
+        self.blocks
+            .retain(|block| block.source.is_enforced(provider, credential));
+    }
+
     /// Insert or replace the block for the same scope, operation and origin,
     /// dropping blocks that already expired.
     pub fn upsert(&mut self, block: CredentialBlock, now_ms: i64) {

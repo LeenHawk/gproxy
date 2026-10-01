@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -42,7 +42,7 @@ function Control({ field, value, onChange, original }: {
   const id = `field-${field.name}`
   if (field.kind === "proxy") return <ProxyControl id={id} value={value ? JSON.parse(String(value)) as ProxySettings : null} onChange={v => onChange(v ? JSON.stringify(v) : "")} scope={field.proxyScope?.(original) ?? { scope: "global" }} />
   if (field.kind === "switch") {
-    return <Switch id={id} checked={Boolean(value)} onCheckedChange={(next) => onChange(next)} />
+    return <Switch id={id} aria-describedby={field.description ? `${id}-description` : undefined} checked={Boolean(value)} onCheckedChange={(next) => onChange(next)} />
   }
   if (field.kind === "searchable") return <SearchableSelect id={id} label={field.label ?? t(`fields.${field.name}`)} value={String(value)} options={field.choices ?? []} source={field.source} allowCustom={field.allowCustom} emptyLabel={field.emptyLabel} emptyValue={field.emptyValue} onChange={onChange} />
   if (field.kind === "select") {
@@ -127,10 +127,13 @@ function RecordForm({ fields, original, mode, onSubmit, pending, submitDisabled,
 
   const missing = offered.some((field) => field.required && mode === "create" && !String(values[field.name] ?? "").trim())
 
-  const renderField = (field: FormField) => <Fragment key={field.name}><Field orientation={field.kind === "switch" ? "horizontal" : "vertical"}>
-    <FieldLabel htmlFor={`field-${field.name}`}>{field.label ?? t(`fields.${field.name}`)}{field.required && mode === "create" ? <span aria-hidden className="text-destructive"> *</span> : null}</FieldLabel>
-    <Control field={field} original={original} value={values[field.name] ?? ""} onChange={next => setValues(current => ({ ...current, [field.name]: next }))} />
-  </Field>{extraAfter === field.name ? extra : null}</Fragment>
+  const renderField = (field: FormField) => {
+    const label = <FieldLabel htmlFor={`field-${field.name}`}>{field.label ?? t(`fields.${field.name}`)}{field.required && mode === "create" ? <span aria-hidden className="text-destructive"> *</span> : null}</FieldLabel>
+    return <Fragment key={field.name}><Field orientation={field.kind === "switch" ? "horizontal" : "vertical"}>
+      {field.description ? <FieldContent>{label}<FieldDescription id={`field-${field.name}-description`}>{field.description}</FieldDescription></FieldContent> : label}
+      <Control field={field} original={original} value={values[field.name] ?? ""} onChange={next => setValues(current => ({ ...current, [field.name]: next }))} />
+    </Field>{extraAfter === field.name ? extra : null}</Fragment>
+  }
   const secondary = offered.filter(field => advancedFields?.includes(field.name))
   const controls = <>
     {parseError || error ? <ErrorNotice error={parseError ?? error} /> : null}

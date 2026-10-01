@@ -101,6 +101,10 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
         let mut eligible: Vec<(Arc<CredentialData>, CredentialBlocks)> = candidates
             .into_iter()
             .zip(blocks)
+            .map(|(credential, mut blocks)| {
+                blocks.retain_enforced(provider, &credential);
+                (credential, blocks)
+            })
             .filter(|(_, blocks)| blocks.blocked_by(model, operation, now_ms).is_none())
             .collect();
         if eligible.is_empty() {
