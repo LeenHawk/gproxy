@@ -16,7 +16,7 @@ case "$TARGET_OS" in
     bundle=deb
     [ "$TARGET_OS" != macos ] || bundle=dmg
     if [ "$TARGET_OS" = linux ]; then
-      pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
+      bash "$root/scripts/with-tauri-desktop-lib.sh" pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
       binary="$root/target/$TARGET_TRIPLE/release/gproxy-desktop"
       upx_args=(--best --lzma)
       if [[ "$TARGET_TRIPLE" == riscv64gc-* ]]; then upx_args+=(--no-filter); fi
@@ -25,7 +25,7 @@ case "$TARGET_OS" in
       pnpm exec tauri bundle --target "$TARGET_TRIPLE" --bundles "$bundle" --config "$config" --no-binary-patching
     else
       # Keep the .app as a requested output; DMG-only bundling deletes it before ZIP packaging.
-      pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --bundles app,dmg --config "$config" -- --locked
+      bash "$root/scripts/with-tauri-desktop-lib.sh" pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --bundles app,dmg --config "$config" -- --locked
     fi
     files=("$root/target/$TARGET_TRIPLE/release/bundle/$bundle/"*."$bundle")
     test "${#files[@]}" -eq 1 && test -f "${files[0]}"
@@ -45,21 +45,7 @@ case "$TARGET_OS" in
     fi
     ;;
   windows)
-    (
-      # Android needs the cdylib entry point; the desktop executable only uses
-      # the Rust library. Avoid linking an unused DLL before linking the EXE.
-      manifest_backup="$(mktemp)"
-      cp Cargo.toml "$manifest_backup"
-      trap 'cp "$manifest_backup" Cargo.toml; rm -f "$manifest_backup"' EXIT
-      node -e '
-        const fs = require("node:fs");
-        const text = fs.readFileSync("Cargo.toml", "utf8");
-        const types = "crate-type = [\"lib\", \"cdylib\"]";
-        if (!text.includes(types)) throw new Error("Unexpected Tauri library crate types");
-        fs.writeFileSync("Cargo.toml", text.replace(types, "crate-type = [\"lib\"]"));
-      '
-      pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
-    )
+    bash "$root/scripts/with-tauri-desktop-lib.sh" pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
     binary="$root/target/$TARGET_TRIPLE/release/gproxy-desktop.exe"
     if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
       upx --best --nrv2e "$binary"

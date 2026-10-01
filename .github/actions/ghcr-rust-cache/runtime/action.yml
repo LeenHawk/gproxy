@@ -4,6 +4,9 @@ inputs:
   key:
     description: Build configuration and target
     required: true
+  restore-key:
+    description: Previous compatible build key to restore on a cache miss
+    default: ''
   token:
     description: GitHub token with package access
     required: true
