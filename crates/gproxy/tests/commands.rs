@@ -197,7 +197,7 @@ async fn bootstrap_creates_exactly_one_admin_and_is_a_no_op_the_second_time() {
 }
 
 #[tokio::test]
-async fn an_existing_user_is_never_touched_even_with_a_password_configured() {
+async fn an_explicit_admin_password_overrides_on_restart_without_replacing_keys() {
     let directory = tempfile::tempdir().unwrap();
     let first = settings(directory.path(), AdminOptions::default());
     let instance = open(&first).await;
@@ -206,9 +206,7 @@ async fn an_existing_user_is_never_touched_even_with_a_password_configured() {
         .unwrap();
     let before = users(&instance).await;
 
-    // A restart with a password in the environment must not reset anybody's
-    // password: an operator whose container still carries GPROXY_ADMIN_PASSWORD
-    // is not asking for a reset on every start.
+    // A supplied password is authoritative; the bootstrap key is still first-run only.
     let again = settings(
         directory.path(),
         AdminOptions {
@@ -221,11 +219,25 @@ async fn an_existing_user_is_never_touched_even_with_a_password_configured() {
         .await
         .unwrap();
     assert!(!report.created());
+    assert!(matches!(report, bootstrap::Report::PasswordUpdated { .. }));
 
     let after = users(&instance).await;
     assert_eq!(after.len(), 1);
-    assert_eq!(after[0].password_hash, before[0].password_hash);
+    assert_ne!(after[0].password_hash, before[0].password_hash);
+    assert!(gproxy_app::auth::password::verify(
+        "a-different-password",
+        after[0].password_hash.as_deref().unwrap()
+    ));
     assert_eq!(keys(&instance).await.len(), 1);
+
+    let repeated = bootstrap::ensure_admin(&instance.app, &again.admin)
+        .await
+        .unwrap();
+    assert!(matches!(repeated, bootstrap::Report::AlreadySetUp { .. }));
+    assert_eq!(
+        users(&instance).await[0].password_hash,
+        after[0].password_hash
+    );
 
     instance.app.gproxy().shutdown();
 }

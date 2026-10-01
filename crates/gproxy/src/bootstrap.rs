@@ -7,14 +7,10 @@
 //!
 //! # Idempotency
 //!
-//! The trigger is an **empty `users` table**. Any user at all — administrator or
-//! not — means this instance has been set up, and nothing is touched: no
-//! password is reset, no key is minted, no row is changed. That is deliberately
-//! blunt. The alternative ("no *administrator* exists") sounds more useful but
-//! means a second start can silently mint a new key and print a new password
-//! for an instance that already has users on it, and an operator restarting a
-//! container with `GPROXY_ADMIN_PASSWORD` still set would be resetting a
-//! password they did not mean to touch.
+//! An **empty `users` table** triggers account and key creation. On an existing
+//! instance, an explicit password overrides the named administrator's password.
+//! If it already matches, no write occurs and sessions remain valid. No new
+//! API key is minted on restart.
 //!
 //! # Why it goes through `Operations`
 //!
@@ -60,6 +56,8 @@ const GENERATED_PASSWORD_BYTES: usize = 24;
 pub enum Report {
     /// The instance already had users. Nothing was written.
     AlreadySetUp { users: u64 },
+    /// An explicit password replaced the named administrator’s password.
+    PasswordUpdated { user: String },
     Created {
         user: String,
         /// Present only when this process generated it. A password the operator
@@ -79,6 +77,12 @@ impl Report {
                 tracing::info!(
                     users,
                     "the instance already has users; bootstrap did nothing"
+                );
+            }
+            Self::PasswordUpdated { user } => {
+                tracing::info!(
+                    user = user.as_str(),
+                    "administrator password updated from the command line or environment"
                 );
             }
             Self::Created {
@@ -109,7 +113,8 @@ impl Report {
     }
 }
 
-/// Create the first administrator if, and only if, no user exists.
+/// Create the first administrator on an empty database, or apply an explicit
+/// password to the named administrator on an existing instance.
 ///
 /// Refreshes the identity snapshot before returning, so a key minted here
 /// authenticates on the very next request rather than after the next poll.
@@ -126,6 +131,19 @@ where
         .await?
         .len();
     if existing > 0 {
+        if let Some(password) = options.password.as_deref() {
+            let data = app.data();
+            let changed = Operations::new(app.gproxy(), &data, app.config())
+                .users()
+                .apply_admin_password(&options.user, password)
+                .await?;
+            if changed {
+                app.reload_all().await?;
+                return Ok(Report::PasswordUpdated {
+                    user: options.user.clone(),
+                });
+            }
+        }
         return Ok(Report::AlreadySetUp {
             users: existing as u64,
         });

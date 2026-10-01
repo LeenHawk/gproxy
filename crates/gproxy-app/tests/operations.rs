@@ -308,6 +308,144 @@ async fn the_last_enabled_administrator_cannot_be_removed_disabled_or_demoted() 
 }
 
 #[tokio::test]
+async fn bootstrap_admin_overrides_only_changed_passwords_and_revokes_sessions() {
+    let gproxy = handle().await;
+    let config = AppConfig::default();
+    let data = snapshot(gproxy.store()).await;
+    let operations = Operations::new(&gproxy, &data, &config);
+    assert!(
+        operations
+            .users()
+            .bootstrap_admin("root", None)
+            .await
+            .is_err()
+    );
+    assert!(
+        operations
+            .users()
+            .bootstrap_admin("root", Some("old-password"))
+            .await
+            .unwrap()
+    );
+
+    let data = snapshot(gproxy.store()).await;
+    let operations = Operations::new(&gproxy, &data, &config);
+    let root = gproxy
+        .store()
+        .users()
+        .query(user::Entity::find())
+        .await
+        .unwrap()
+        .remove(0);
+    let session = Authenticator::new(gproxy.store(), &data, &config)
+        .create_session(&root.id, 1_000)
+        .await
+        .unwrap();
+    let before = revision(gproxy.store()).await;
+    assert!(
+        !operations
+            .users()
+            .bootstrap_admin("root", None)
+            .await
+            .unwrap()
+    );
+    assert!(
+        !operations
+            .users()
+            .bootstrap_admin("root", Some("old-password"))
+            .await
+            .unwrap()
+    );
+    assert_eq!(revision(gproxy.store()).await, before);
+    assert!(
+        Authenticator::new(gproxy.store(), &data, &config)
+            .authenticate_session(&session.token, 2_000)
+            .await
+            .is_ok()
+    );
+
+    assert!(
+        operations
+            .users()
+            .bootstrap_admin("root", Some("new-password"))
+            .await
+            .unwrap()
+    );
+    assert_eq!(revision(gproxy.store()).await, before + 1);
+    let changed = gproxy
+        .store()
+        .users()
+        .get_many(std::slice::from_ref(&root.id))
+        .await
+        .unwrap()
+        .remove(0)
+        .unwrap();
+    let hash = changed.password_hash.as_deref().unwrap();
+    assert!(gproxy_app::auth::password::verify("new-password", hash));
+    assert!(!gproxy_app::auth::password::verify("old-password", hash));
+    assert!(
+        Authenticator::new(gproxy.store(), &data, &config)
+            .authenticate_session(&session.token, 2_000)
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn bootstrap_admin_rejects_invalid_passwords_and_non_admin_targets() {
+    let gproxy = handle().await;
+    let root = seed_admin(&gproxy).await;
+    let config = AppConfig::default();
+    let data = snapshot(gproxy.store()).await;
+    let operations = Operations::new(&gproxy, &data, &config);
+    let ordinary = operations
+        .users()
+        .create(UserWrite {
+            name: "ordinary".into(),
+            ..UserWrite::default()
+        })
+        .await
+        .unwrap();
+    let before = revision(gproxy.store()).await;
+    for (name, password) in [
+        ("root", "short"),
+        ("ordinary", "new-password"),
+        ("missing", "new-password"),
+    ] {
+        assert!(
+            operations
+                .users()
+                .bootstrap_admin(name, Some(password))
+                .await
+                .is_err()
+        );
+    }
+    assert_eq!(revision(gproxy.store()).await, before);
+    assert!(
+        gproxy
+            .store()
+            .users()
+            .get_many(std::slice::from_ref(&root))
+            .await
+            .unwrap()
+            .remove(0)
+            .unwrap()
+            .password_hash
+            .is_none()
+    );
+    let ordinary = gproxy
+        .store()
+        .users()
+        .get_many(std::slice::from_ref(&ordinary.id))
+        .await
+        .unwrap()
+        .remove(0)
+        .unwrap();
+    assert_eq!(ordinary.role, "user");
+    assert!(ordinary.password_hash.is_none());
+}
+
+#[tokio::test]
 async fn a_password_change_rehashes_and_ends_every_session() {
     let gproxy = handle().await;
     let root = seed_admin(&gproxy).await;

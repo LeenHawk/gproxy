@@ -9,7 +9,9 @@ The release bundle `gproxy-edge-cloudflare.zip` includes the built Worker and co
 Enter its `cloudflare/` directory and install the package dependencies before using Wrangler.
 The Worker synchronizes the schema during first assembly. Set `GPROXY_ADMIN_PASSWORD` before the first request. It creates the initial
 `admin` user only when the database has no users; `GPROXY_ADMIN_USER` can change
-the initial name. Existing accounts are never reset. Sign in at `/console/`
+the name. On subsequent starts, the secret overrides that administrator’s
+password. An unchanged password preserves sessions; a changed password ends them.
+Without the secret, an existing instance keeps its stored password. Sign in at `/console/`
 and create a gateway API key after deployment.
 
 ```sh

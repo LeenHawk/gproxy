@@ -50,7 +50,7 @@ Windows 在 PowerShell 中运行：
 .\gproxy.exe serve --data-dir .\data --port 8787
 ```
 
-全新实例会在终端显示生成的管理员密码和 API Key，**只显示一次，请保存**。已有实例不会在重启时重置账户。
+全新实例会在终端显示生成的管理员密码和 API Key，**只显示一次，请保存**。已有实例重启时，显式设置的 `GPROXY_ADMIN_PASSWORD` 会覆盖指定管理员的密码；未设置则保留现状。
 
 打开 **http://127.0.0.1:8787/console/**，使用管理员账户登录。个人页面和管理页面都在这个控制台内。CLI 不使用 Application 的设置向导。
 

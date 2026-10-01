@@ -361,9 +361,9 @@ Save these before closing this terminal; they are not stored in a form
 this instance can show you again.
 ```
 
-- 触发条件是 **`users` 表为空**。只要存在任何一个用户，就说明这个实例已经被设置过，
-  什么都不碰：不重置密码、不铸 key、不改任何行。一个重启了「环境里仍带着
-  `GPROXY_ADMIN_PASSWORD` 的容器」的运维，并不是在要求重置密码。
+- **`users` 表为空**时创建管理员和 API Key。已有实例中，显式设置的
+  `GPROXY_ADMIN_PASSWORD` 会覆盖指定管理员的密码。密码相同时保留会话，变化时注销
+  该用户的会话；未设置密码时不修改账户，重启不会生成新的 API Key。
 - **只打印运维还不知道的东西。** 提供了 `GPROXY_ADMIN_PASSWORD` 就使用它但不回显；
   提供了 `GPROXY_BOOTSTRAP_ADMIN_API_KEY` 就铸造那把确切的 key，而不是新的。
 - 输出走 **stdout 的 `println!`，绝不进日志**，密钥因此不会落进 journal 或把 journal

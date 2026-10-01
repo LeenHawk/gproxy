@@ -40,7 +40,7 @@ GPROXY_CONFIG = """
 # Secrets, never here:
 #     wrangler secret put GPROXY_MASTER_KEY
 
-# First-run administrator (only used while the users table is empty):
+# Administrator password (overrides the named account on startup):
 #     wrangler secret put GPROXY_ADMIN_PASSWORD
 # Optional username binding: GPROXY_ADMIN_USER (default: admin).
 # After signing in at /console/, create a gateway API key.

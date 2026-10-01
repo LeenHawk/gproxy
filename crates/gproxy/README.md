@@ -400,10 +400,10 @@ Save these before closing this terminal; they are not stored in a form
 this instance can show you again.
 ```
 
-- The trigger is an **empty `users` table**. Any user at all means the instance
-  has been set up, and nothing is touched: no password is reset, no key is
-  minted, no row is changed. An operator restarting a container that still
-  carries `GPROXY_ADMIN_PASSWORD` is not asking for a password reset.
+- An **empty `users` table** triggers account and key creation. On an existing
+  instance, an explicit `GPROXY_ADMIN_PASSWORD` overrides the named administrator’s
+  password. Matching passwords preserve sessions; changed passwords end them.
+  Without an explicit password, accounts are left unchanged. No new key is minted.
 - **Only what the operator does not already know is printed.** Supply
   `GPROXY_ADMIN_PASSWORD` and it is used but not echoed; supply
   `GPROXY_BOOTSTRAP_ADMIN_API_KEY` and that exact key is minted, not a new one.

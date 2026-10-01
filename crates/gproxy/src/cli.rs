@@ -205,12 +205,12 @@ pub struct Options {
     #[arg(long, global = true, env = LOG_FILTER, value_name = "FILTER")]
     pub log_filter: Option<String>,
 
-    /// Name of the administrator created on a first start. [default: admin]
+    /// Administrator name for first-run setup or password override. [default: admin]
     #[arg(long = "admin-user", alias = "user", global = true, env = ADMIN_USER, value_name = "NAME")]
     pub admin_user: Option<String>,
 
-    /// Password for that administrator. One is generated and printed once when
-    /// this is unset.
+    /// Password for that administrator; overrides their existing password on
+    /// startup. If unset, a password is generated only for a new instance.
     #[arg(
         long = "admin-password",
         alias = "password",

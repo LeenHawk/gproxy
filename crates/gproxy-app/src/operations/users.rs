@@ -58,12 +58,16 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Users<'_, C> {
         crud::create(self, write).await
     }
 
-    /// Host-only first-run setup. Any existing user disables bootstrap.
+    /// Host-only setup. An explicit password overrides the named administrator;
+    /// without one, an existing instance is left unchanged.
     /// The conditional insert also covers concurrent isolates with different names.
     pub async fn bootstrap_admin(&self, name: &str, password: Option<&str>) -> Result<bool> {
         let users = self.writer.store().users();
         if !users.query(user::Entity::find().limit(1)).await?.is_empty() {
-            return Ok(false);
+            return match password {
+                Some(password) => self.apply_admin_password(name, password).await,
+                None => Ok(false),
+            };
         }
         let name = crud::text(name, "administrator name")?;
         let plaintext = password.ok_or_else(|| {
@@ -96,6 +100,35 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Users<'_, C> {
                 "administrator initialization returned no write result",
             )),
         }
+    }
+
+    /// Apply a host-supplied password to an existing administrator. An unchanged
+    /// password preserves its hash and sessions across restarts and Worker isolates.
+    pub async fn apply_admin_password(&self, name: &str, plaintext: &str) -> Result<bool> {
+        let name = crud::text(name, "administrator name")?;
+        password::validate(plaintext)?;
+        let administrator = self
+            .writer
+            .store()
+            .users()
+            .query(
+                user::Entity::find()
+                    .filter(user::Column::Name.eq(&name))
+                    .filter(user::Column::Role.eq(ADMIN)),
+            )
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::invalid(format!("no administrator named `{name}`")))?;
+        if administrator
+            .password_hash
+            .as_deref()
+            .is_some_and(|hash| password::verify(plaintext, hash))
+        {
+            return Ok(false);
+        }
+        self.set_password(&administrator.id, plaintext).await?;
+        Ok(true)
     }
 
     /// Patch a user, refusing the two changes that could leave the instance
