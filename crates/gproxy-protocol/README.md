@@ -27,7 +27,7 @@ The Cargo dependency for the v4 prerelease is:
 
 ```toml
 [dependencies]
-gproxy-protocol = "4.0.0-dev"
+gproxy-protocol = "4.0.0"
 ```
 
 Until that version is published, use a local checkout of the repository's `4.0` branch:

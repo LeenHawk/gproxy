@@ -6,7 +6,7 @@
 
 GPROXY 是可自行部署的 LLM API 网关。它统一管理上游账户，支持 OpenAI、Claude 和 Gemini 协议转换、模型路由、凭证故障切换、访问控制，以及用量和费用记录。
 
-本分支面向 **4.0.0**，正式版正在准备中。试用 v4 可选择 Releases 中的 `nightly`；正式版上线后，请选择对应版本的附件。
+正式使用请下载 **[4.0.0 稳定版](https://github.com/LeenHawk/gproxy/releases/tag/v4.0.0)**；滚动更新的 `nightly` 提供开发快照。
 
 ## 快速开始
 

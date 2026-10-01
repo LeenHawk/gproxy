@@ -6,7 +6,7 @@ description: "Choose a GPROXY 4.0 application, CLI, container, or Cloudflare Wor
 
 Choose **Application** for a local graphical app, or **CLI** for a server. Both provide the same gateway features, with different startup and management interfaces.
 
-Select a version on [Releases](https://github.com/LeenHawk/gproxy/releases), then download the file for your OS and architecture. Version 4.0.0 is being prepared; until it is published, use `nightly` to try v4. Nightly builds change with development and are not stable releases.
+Select the stable [4.0.0 release](https://github.com/LeenHawk/gproxy/releases/tag/v4.0.0), then download the file for your OS and architecture. The rolling `nightly` release provides development snapshots.
 
 ## Choose a package
 

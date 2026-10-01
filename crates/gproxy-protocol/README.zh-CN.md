@@ -22,7 +22,7 @@ v4 预发布版本对应的 Cargo 依赖为：
 
 ```toml
 [dependencies]
-gproxy-protocol = "4.0.0-dev"
+gproxy-protocol = "4.0.0"
 ```
 
 该版本发布前，可使用仓库 `4.0` 分支的本地检出：
