@@ -860,8 +860,8 @@ jobs:
     needs: edge
     runs-on: ubuntu-latest
     # `wrangler deploy --dry-run` validates the packaged Worker and its
-    # configuration without an account. It installs wrangler from npm with no
-    # lockfile, so it runs here, apart from the attestation token and from the
+    # configuration without an account. It installs the locked Wrangler in a
+    # separate job, apart from the attestation token and from the
     # files being attested, and checks the bundle exactly as it was packaged.
     permissions:
       contents: read
@@ -881,7 +881,7 @@ jobs:
           work="$RUNNER_TEMP/edge"
           mkdir -p "$work"
           unzip -q dist/release/gproxy-edge-cloudflare.zip -d "$work"
-          pnpm --dir "$work/cloudflare" install --no-frozen-lockfile --ignore-scripts
+          pnpm --dir "$work/cloudflare" install --frozen-lockfile --ignore-scripts
           pnpm --dir "$work/cloudflare" check
 
   publish:
