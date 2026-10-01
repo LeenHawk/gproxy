@@ -16,7 +16,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1.2.4
+    - uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2.0.1
       id: oras
       continue-on-error: true
       with:
@@ -27,7 +27,7 @@ runs:
         checksum: ${{ runner.os == 'Windows' && 'b050e93aa0dc7a79a61fa8e4074dfa302c41d4af01b634fe393c5dd687536aee' || '' }}
     - name: Retry ORAS installation after a download failure
       if: steps.oras.outcome == 'failure'
-      uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1.2.4
+      uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2.0.1
       continue-on-error: true
       with:
         version: 1.3.0
