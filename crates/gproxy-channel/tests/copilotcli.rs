@@ -278,7 +278,11 @@ async fn the_seat_probe_presents_the_github_token_and_skips_unmetered_features()
     );
     assert_eq!(snapshot.entries[0].id, "premium_interactions");
     assert_eq!(snapshot.entries[0].source_id, QUOTA_SOURCE);
-    assert_eq!(snapshot.entries[0].model_scope, QuotaScope::All);
+    assert_eq!(
+        snapshot.entries[0].model_scope,
+        QuotaScope::Unknown,
+        "without catalog billing facts, included models must stay usable"
+    );
     let QuotaValue::Window(window) = &snapshot.entries[0].value else {
         panic!("a window");
     };
@@ -293,6 +297,61 @@ async fn the_seat_probe_presents_the_github_token_and_skips_unmetered_features()
         &[],
         &snapshot.entries,
         &["premium_interactions", "chat", "completions"],
+    );
+}
+
+#[tokio::test]
+async fn premium_exhaustion_only_covers_models_the_catalog_bills_for() {
+    struct Client {
+        account: OneShot,
+        models: OneShot,
+    }
+    impl gproxy_channel::OutboundClient for Client {
+        fn send<'a>(
+            &'a self,
+            request: http::Request<HttpBody>,
+        ) -> gproxy_protocol::capability::CapabilityFuture<
+            'a,
+            Result<gproxy_protocol::WireResponse, gproxy_protocol::capability::CapabilityError>,
+        > {
+            let client = if request.uri().path() == "/models" {
+                &self.models
+            } else {
+                &self.account
+            };
+            gproxy_channel::OutboundClient::send(client, request)
+        }
+    }
+    let client = Client {
+        account: OneShot::new(StatusCode::OK, json!({
+            "quota_reset_date":"2099-01-01",
+            "quota_snapshots":{"premium_interactions":{"entitlement":300,"remaining":0,"percent_remaining":0}}
+        }).to_string()),
+        models: OneShot::new(StatusCode::OK, json!({"data":[
+            {"id":"premium-model","billing":{"multiplier":1}},
+            {"id":"included-model","billing":{"multiplier":0}}
+        ]}).to_string()),
+    };
+    let secret = secret();
+    let config = json!({});
+    let credential = credential("oauth", &secret, &Value::Null);
+    let provider = provider("copilotcli", &config, None);
+    let snapshot = CopilotCli
+        .query(CredentialContext {
+            provider,
+            credential,
+            client: &client,
+        })
+        .await
+        .unwrap();
+    let quota = CopilotCli.quota_model().unwrap();
+    let dimensions = quota.dimensions(provider, credential);
+    let dimension = quota.classify(&dimensions, &snapshot.entries[0]).unwrap();
+    assert!(dimension.scope.matches("premium-model"));
+    assert!(!dimension.scope.matches("included-model"));
+    assert_eq!(
+        client.models.call(0).1["authorization"],
+        format!("Bearer {COPILOT}")
     );
 }
 

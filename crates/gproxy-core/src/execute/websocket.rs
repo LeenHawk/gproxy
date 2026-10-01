@@ -400,7 +400,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
             }
             UpstreamConnection::Rejected(response) => {
                 let status = response.status;
-                let refreshable = provider.channel.credential_refresh().is_some();
+                let refreshable = crate::refresh::can_refresh(&provider, &credential, &version);
                 let retry_same = matches!(status.as_u16(), 401 | 403)
                     && refreshable
                     && !refreshed.contains(&credential.id);

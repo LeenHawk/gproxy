@@ -462,7 +462,7 @@ impl<C> Gproxy<C> {
             .into_iter()
             .zip(blocks)
             .map(|(credential, mut blocks)| {
-                blocks.retain_enforced(&candidate.provider, &credential);
+                blocks.retain_enforced(&candidate.provider, &credential, model);
                 (credential, blocks)
             })
             .partition(|(_, blocks)| blocks.blocked_by(model, operation, now_ms).is_some());

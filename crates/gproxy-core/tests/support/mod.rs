@@ -500,6 +500,14 @@ impl QuotaQuery for TestChannel {
     }
 }
 impl CredentialRefresh for TestChannel {
+    fn supports(&self, credential: &CredentialView<'_>) -> bool {
+        credential
+            .secret
+            .get("refreshable")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true)
+    }
+
     fn refresh<'a>(
         &'a self,
         context: RefreshContext<'a>,

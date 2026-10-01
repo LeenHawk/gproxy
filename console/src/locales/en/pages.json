@@ -704,6 +704,7 @@
   },
   "management": {
     "allowPaidUsage": "Allow credit balance usage",
+    "paidUsageHint": "Allow continued use after known subscription limits are reached, using extra credits or paid usage available on the upstream account. Off by default. This does not enable upstream billing or change the requested model.",
     "codexPaidUsageHint": "Allow this credential to use available credits after subscription limits are reached. Off by default; stops at known exhausted subscription limits when off.",
     "claudePaidUsageHint": "Allow this credential to use extra usage after subscription limits are reached. Extra usage must already be enabled on the Claude account. Off by default; stops at known exhausted subscription limits when off.",
     "select": "Select",

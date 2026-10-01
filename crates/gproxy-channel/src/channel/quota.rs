@@ -7,14 +7,16 @@ use std::borrow::Cow;
 
 use super::{ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView};
 
-/// Serialized as `"all"`, `{"models":[..]}`, `{"model_prefixes":[..]}` or
-/// `"unknown"`; this is the JSON shape persisted by the host for scopes.
+/// Serialized as `"all"`, `{"models":[..]}`, `{"except_models":[..]}`,
+/// `{"model_prefixes":[..]}` or `"unknown"`; persisted by the host as JSON.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum QuotaScope {
     All,
     Models(Vec<String>),
-    /// Exact prefix or prefix followed by a hyphen, e.g. a Claude model family.
+    /// One account-wide pool, excluding models with independent/free billing.
+    ExceptModels(Vec<String>),
+    /// Exact prefix or a family/path boundary (`-` or `/`).
     ModelPrefixes(Vec<String>),
     #[default]
     Unknown,
@@ -27,14 +29,25 @@ impl QuotaScope {
         match self {
             Self::All => true,
             Self::Models(models) => models.iter().any(|m| m == model),
+            Self::ExceptModels(models) => !models.iter().any(|m| m == model),
             Self::ModelPrefixes(prefixes) => prefixes.iter().any(|prefix| {
                 model == prefix
                     || model
                         .strip_prefix(prefix.as_str())
-                        .is_some_and(|rest| rest.starts_with('-'))
+                        .is_some_and(|rest| rest.starts_with('-') || rest.starts_with('/'))
             }),
             Self::Unknown => false,
         }
+    }
+
+    /// A changing exclusion list still reports the same account-wide pool.
+    pub fn same_pool(&self, other: &Self) -> bool {
+        self == other
+            || matches!(
+                (self, other),
+                (Self::All | Self::ExceptModels(_), Self::ExceptModels(_))
+                    | (Self::ExceptModels(_), Self::All)
+            )
     }
 }
 
@@ -203,6 +216,12 @@ pub trait QuotaModel: Send + Sync {
     /// cooldowns are never bypassed by this permission.
     fn allows_paid_usage(&self, _credential: CredentialView<'_>, _dimension: &str) -> bool {
         false
+    }
+
+    /// Whether an exhausted dimension covers the requested model. This also
+    /// applies to previously persisted blocks, whose scope may be outdated.
+    fn block_applies_to(&self, _dimension: &str, _model: Option<&str>) -> bool {
+        true
     }
 
     /// The dimension an observed entry reports on, as the host should apply

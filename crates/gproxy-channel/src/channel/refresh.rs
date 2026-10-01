@@ -17,6 +17,12 @@ pub struct CredentialUpdate {
 }
 
 pub trait CredentialRefresh: Send + Sync {
+    /// Whether this credential can be renewed. Channels that also accept
+    /// static API keys must distinguish those from renewable login material.
+    fn supports(&self, _credential: &CredentialView<'_>) -> bool {
+        true
+    }
+
     fn connection_purpose(&self, credential: &CredentialView<'_>) -> ConnectionPurpose {
         let _ = credential;
         ConnectionPurpose::Request

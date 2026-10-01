@@ -773,6 +773,9 @@ impl BaseChannel for Kiro {
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
+    fn quota_model(&self) -> Option<&dyn crate::channel::QuotaModel> {
+        Some(self)
+    }
     fn response_reason_observer(
         &self,
         _status: http::StatusCode,

@@ -204,20 +204,38 @@ impl CredentialBlocks {
         &mut self,
         provider: &crate::ProviderData,
         credential: &crate::CredentialData,
+        model: Option<&str>,
     ) {
-        self.blocks
-            .retain(|block| block.source.is_enforced(provider, credential));
+        self.blocks.retain(|block| {
+            block.source.is_enforced(provider, credential)
+                && match (&block.source, provider.channel.quota_model()) {
+                    (BlockSource::QuotaExhausted { dimension, .. }, Some(quota)) => {
+                        quota.block_applies_to(dimension, model)
+                    }
+                    _ => true,
+                }
+        });
     }
 
     /// Insert or replace the block for the same scope, operation and origin,
     /// dropping blocks that already expired.
     pub fn upsert(&mut self, block: CredentialBlock, now_ms: i64) {
-        self.blocks.retain(|existing| {
+        let same_origin = |existing: &CredentialBlock| {
+            existing.operation == block.operation
+                && existing.source.same_origin(&block.source)
+                && (existing.scope == block.scope
+                    || matches!(block.source, BlockSource::QuotaExhausted { .. })
+                        && existing.scope.same_pool(&block.scope))
+        };
+        if self.blocks.iter().any(|existing| {
             existing.until_ms > now_ms
-                && !(existing.scope == block.scope
-                    && existing.operation == block.operation
-                    && existing.source.same_origin(&block.source))
-        });
+                && same_origin(existing)
+                && existing.observed_at_ms > block.observed_at_ms
+        }) {
+            return;
+        }
+        self.blocks
+            .retain(|existing| existing.until_ms > now_ms && !same_origin(existing));
         self.blocks.push(block);
     }
     /// The longest-lasting block covering this model/operation at `now_ms`.

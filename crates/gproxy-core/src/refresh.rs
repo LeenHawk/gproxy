@@ -30,6 +30,21 @@ const LEASE_WAIT: Duration = Duration::from_secs(10);
 /// `IfNeeded` refreshes when the material expires within this margin.
 pub const REFRESH_MARGIN_MS: i64 = 60_000;
 
+pub(crate) fn can_refresh(
+    provider: &crate::ProviderData,
+    credential: &CredentialData,
+    version: &CredentialVersion,
+) -> bool {
+    provider
+        .channel
+        .credential_refresh()
+        .is_some_and(|refresher| {
+            refresher.supports(&crate::execute::prepare::credential_view(
+                credential, version,
+            ))
+        })
+}
+
 /// Whether `IfNeeded` should act on this version now.
 pub(crate) fn needs_refresh(version: &CredentialVersion, now_ms: i64) -> bool {
     version
@@ -160,6 +175,9 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             },
             client: credential.client.as_ref(),
         };
+        if !refresher.supports(&context.credential) {
+            return Err(CoreError::Channel(ChannelError::UnsupportedService));
+        }
         let cookie_client = if refresher.connection_purpose(&context.credential)
             == gproxy_channel::channel::ConnectionPurpose::CookieLogin
             && row.connection_profile_id.is_none()

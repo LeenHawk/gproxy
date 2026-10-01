@@ -446,9 +446,10 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                 named || (selected.is_none() && !matches!(view, ServiceView::Credential(_)));
             // Material about to expire is refreshed before it is used; a
             // failed refresh still lets the call try the current material.
+            let version = credential.state.load();
             if wanted
-                && crate::refresh::needs_refresh(&credential.state.load(), now)
-                && target.provider.channel.credential_refresh().is_some()
+                && crate::refresh::needs_refresh(&version, now)
+                && crate::refresh::can_refresh(&target.provider, credential, &version)
             {
                 let _ = self
                     .refresh_credential(

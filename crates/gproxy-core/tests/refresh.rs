@@ -22,6 +22,147 @@ async fn stored_version(h: &Harness, id: &str) -> (i64, CredentialStatus, Option
     (row.version, row.status, row.status_reason)
 }
 
+async fn static_api_key(h: &Harness) {
+    h.core
+        .store()
+        .credentials()
+        .refresh_many(vec![RefreshRow {
+            id: "a".into(),
+            expected_version: 0,
+            secret: gproxy_core::PlaintextCodec
+                .seal("a", &json!({"api_key": "ka", "refreshable": false}))
+                .unwrap(),
+            // Even an imported expiry must not make a static key renewable.
+            expires_at_ms: Some(1),
+        }])
+        .await
+        .unwrap();
+    h.core.reload_credentials(&["a".into()]).await.unwrap();
+}
+
+#[tokio::test]
+async fn static_api_key_auth_errors_do_not_refresh_or_mark_dead() {
+    for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
+        let h = harness(full(), "sticky").await;
+        static_api_key(&h).await;
+        h.script(vec![
+            json_reply(status, json!({"error": "refused"})),
+            json_reply(status, json!({"error": "refused"})),
+        ]);
+        let mut ctx = h.context("static-key", 2, None);
+        std::sync::Arc::make_mut(&mut ctx)
+            .target
+            .credentials
+            .truncate(1);
+        let execution = h
+            .core
+            .stream_generate_content(ctx, request("{}"))
+            .await
+            .unwrap();
+        let (response, completion) = execution.into_parts();
+        assert_eq!(response.status, status);
+        read(response.body).await;
+        completion.await.unwrap();
+        assert_eq!(h.client.seen.lines().len(), 2);
+        assert!(h.channel.refresh_calls.lock().unwrap().is_empty());
+        assert_eq!(
+            stored_version(&h, "a").await,
+            (1, CredentialStatus::Active, None)
+        );
+        assert_eq!(
+            h.core.snapshot().credentials["a"].state.load().status,
+            CredentialStatus::Active
+        );
+    }
+}
+
+#[tokio::test]
+async fn static_api_key_quota_auth_errors_preserve_the_upstream_error() {
+    for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
+        let h = harness(full(), "sticky").await;
+        static_api_key(&h).await;
+        h.channel.quota_errors.lock().unwrap().push_back(
+            gproxy_channel::ChannelError::UpstreamResponse {
+                status,
+                body: Default::default(),
+            },
+        );
+        let error = h.core.query_credential_quota("p", "a").await.unwrap_err();
+        assert!(
+            matches!(error, CoreError::Channel(gproxy_channel::ChannelError::UpstreamResponse { status: actual, .. }) if actual == status)
+        );
+        assert_eq!(*h.channel.quota_versions.lock().unwrap(), vec![1]);
+        assert!(h.channel.refresh_calls.lock().unwrap().is_empty());
+        assert_eq!(
+            stored_version(&h, "a").await,
+            (1, CredentialStatus::Active, None)
+        );
+    }
+}
+
+#[tokio::test]
+async fn manual_refresh_of_a_static_api_key_is_unsupported_without_marking_dead() {
+    let h = harness(full(), "sticky").await;
+    static_api_key(&h).await;
+    for mode in [RefreshMode::Force, RefreshMode::IfNeeded] {
+        let error = h.core.refresh_credential("p", "a", mode).await.unwrap_err();
+        assert!(matches!(
+            error,
+            CoreError::Channel(gproxy_channel::ChannelError::UnsupportedService)
+        ));
+        assert_eq!(
+            stored_version(&h, "a").await,
+            (1, CredentialStatus::Active, None)
+        );
+    }
+    assert!(h.channel.refresh_calls.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn static_api_key_websocket_auth_errors_do_not_refresh_or_mark_dead() {
+    for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
+        let h = harness(full(), "sticky").await;
+        static_api_key(&h).await;
+        h.script_ws(vec![
+            WsReply::Rejected(status, "refused"),
+            WsReply::Rejected(status, "refused"),
+        ]);
+        let mut ctx = h.context("static-key-ws", 2, None);
+        let ctx_mut = std::sync::Arc::make_mut(&mut ctx);
+        ctx_mut.target.credentials.truncate(1);
+        ctx_mut.operation = OperationKey {
+            operation: Operation::ConnectRealtime,
+            dialect: Dialect::OpenAi,
+        };
+        let execution = h
+            .core
+            .connect_realtime(
+                ctx,
+                gproxy_protocol::WireRequest {
+                    method: http::Method::GET,
+                    path: "/v1/realtime".into(),
+                    query: None,
+                    headers: http::HeaderMap::new(),
+                    body: (),
+                },
+            )
+            .await
+            .unwrap();
+        let (connection, completion) = execution.into_parts();
+        let gproxy_protocol::capability::UpstreamConnection::Rejected(response) = connection else {
+            panic!("upstream auth refusal must be returned");
+        };
+        assert_eq!(response.status, status);
+        read(response.body).await;
+        completion.await.unwrap();
+        assert!(h.channel.refresh_calls.lock().unwrap().is_empty());
+        assert_eq!(
+            stored_version(&h, "a").await,
+            (1, CredentialStatus::Active, None)
+        );
+    }
+}
+
 #[tokio::test]
 async fn force_refresh_rotates_the_secret_persists_by_cas_and_publishes() {
     let h = harness(full(), "round_robin").await;

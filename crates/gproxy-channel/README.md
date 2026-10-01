@@ -244,7 +244,8 @@ outlive the login must be returned from the exchange — public facts in
 `provider_fields`, secret ones in `OAuthCredential::provider_secrets`, which is
 sealed with the tokens and never becomes metadata.
 
-Codex and Claude Code support a per-credential `metadata.allow_paid_usage`
+Codex, Claude Code, Cline, Antigravity, Devin, Kiro, Copilot CLI and Grok Build
+support a per-credential `metadata.allow_paid_usage`
 boolean, defaulting to `false`. The Console exposes it as **Allow credit
 balance usage**. `QuotaModel::allows_paid_usage` identifies the subscription
 windows it may bypass. Core retains their exhaustion records and applies the
@@ -256,6 +257,16 @@ requires extra usage to be enabled on the account already. Inspection of
 Claude Code 2.1.285 found account-level `overage_spend_limit` settings, not a
 per-request no-overage flag. The local switch cannot prevent charges on a
 request already sent or one that first reveals an exhausted subscription.
+
+Cline plan windows cover `cline-pass/` models. Zero credits do not block
+subscription models or `cline-free/` and `:free` models, including when an older
+version persisted an account-wide balance block. Cline also reads its recommended
+catalog to exclude free models without a naming prefix. New catalog scopes
+replace older balance scopes. Copilot scopes premium exhaustion using catalog
+billing metadata; an unknown scope stays observe-only.
+Kiro includes an active free-trial allowance before applying its monthly limit.
+Kimi/Moonshot and OpenCode Go/Zen are separate products; this switch does not
+move requests between them or change the requested model.
 
 ## Adding a Channel
 

@@ -253,6 +253,14 @@ impl OAuthDeviceCode for super::Kimi {
 }
 
 impl CredentialRefresh for super::Kimi {
+    fn supports(&self, credential: &crate::channel::CredentialView<'_>) -> bool {
+        credential
+            .secret
+            .get("refresh_token")
+            .and_then(Value::as_str)
+            .is_some_and(|token| !token.trim().is_empty())
+    }
+
     fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let config = KimiConfig::from_view(context.provider)?;

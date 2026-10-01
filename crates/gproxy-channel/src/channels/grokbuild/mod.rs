@@ -390,6 +390,9 @@ impl BaseChannel for GrokBuild {
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
+    fn quota_model(&self) -> Option<&dyn crate::channel::QuotaModel> {
+        Some(self)
+    }
     fn usage_extras(&self) -> Option<&dyn UsageExtras> {
         Some(self)
     }

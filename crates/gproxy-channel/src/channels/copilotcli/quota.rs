@@ -9,24 +9,105 @@
 //! a full window. `quota_reset_date` is a bare `YYYY-MM-DD`, not a timestamp
 //! (v3 `copilotcli/quota.rs`).
 //!
-//! No `QuotaModel`: which of the three features a seat meters is a plan fact
-//! the reply carries and nothing on the credential states it, so a declared
-//! dimension would be a guess. The readings arrive under the feature names.
+//! Premium interactions are a monthly subscription allowance. The model
+//! catalog identifies charged models so exhaustion leaves included models
+//! usable. A paid-usage permission can bypass that subscription window.
 
 use super::auth;
 use super::config::{CopilotCliConfig, ID};
 use crate::channel::{
-    CredentialContext, OperationFuture, QuotaAllowance, QuotaEntry, QuotaResetBehavior, QuotaScope,
-    QuotaSnapshot, QuotaSubject, QuotaValue,
+    CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
+    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaResetBehavior, QuotaScope,
+    QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
 };
 use crate::channels::shared::compatible::ability::{require_success, send};
 use crate::channels::shared::compatible::http::invalid_response;
 use http::Method;
 use rust_decimal::Decimal;
 use serde::Deserialize;
+use serde_json::Value;
+use std::borrow::Cow;
 
 /// The source every Copilot feature window is observed under.
 pub const QUOTA_SOURCE: &str = "copilot_quota";
+const PREMIUM_DIMENSION: &str = "copilot_premium_interactions";
+
+impl QuotaModel for super::CopilotCli {
+    fn dimensions(&self, _: ProviderView<'_>, _: CredentialView<'_>) -> Vec<QuotaDimension> {
+        vec![QuotaDimension {
+            id: PREMIUM_DIMENSION.into(),
+            label: Some("premium interactions".into()),
+            scope: QuotaScope::Unknown,
+            operations: None,
+            metric: QuotaMetric::Requests,
+            window: QuotaWindow::CalendarMonth,
+            limit: None,
+            tracking: QuotaTracking::Reported,
+            blocking: true,
+        }]
+    }
+
+    fn allows_paid_usage(&self, credential: CredentialView<'_>, dimension: &str) -> bool {
+        credential
+            .metadata
+            .get("allow_paid_usage")
+            .and_then(Value::as_bool)
+            == Some(true)
+            && dimension == PREMIUM_DIMENSION
+    }
+
+    fn classify<'d>(
+        &self,
+        declared: &'d [QuotaDimension],
+        entry: &QuotaEntry,
+    ) -> Option<Cow<'d, QuotaDimension>> {
+        if entry.source_id != QUOTA_SOURCE || entry.id != "premium_interactions" {
+            return crate::channel::classify_by_id(declared, entry);
+        }
+        // The catalog identifies charged models. An unknown catalog must not
+        // turn a spent premium allowance into a ban on included models.
+        if !matches!(entry.model_scope, QuotaScope::ExceptModels(_)) {
+            return None;
+        }
+        let mut dimension = declared.iter().find(|d| d.id == PREMIUM_DIMENSION)?.clone();
+        dimension.scope = entry.model_scope.clone();
+        Some(Cow::Owned(dimension))
+    }
+}
+
+async fn included_models(
+    context: &CredentialContext<'_>,
+    config: &CopilotCliConfig,
+) -> Option<Vec<String>> {
+    let mut headers = http::HeaderMap::new();
+    super::identity::apply(&mut headers, &context.credential, None).ok()?;
+    let (status, _, body) = send(
+        context.client,
+        Method::GET,
+        &format!(
+            "{}/models",
+            auth::base_url(config, context.provider, &context.credential)
+        ),
+        headers,
+        None,
+    )
+    .await
+    .ok()?;
+    let payload: Value = serde_json::from_slice(&require_success(status, body).ok()?).ok()?;
+    let mut models = Vec::new();
+    for model in payload.get("data")?.as_array()? {
+        let id = model.get("id")?.as_str()?;
+        let multiplier = model.pointer("/billing/multiplier").and_then(Value::as_f64);
+        let premium = model
+            .pointer("/billing/is_premium")
+            .and_then(Value::as_bool);
+        let charged = multiplier.map(|value| value > 0.0).or(premium)?;
+        if !charged {
+            models.push(id.to_owned());
+        }
+    }
+    Some(models)
+}
 
 #[derive(Deserialize)]
 struct CopilotUser {
@@ -111,13 +192,7 @@ fn entries(payload: &CopilotUser) -> Vec<QuotaEntry> {
             source_id: QUOTA_SOURCE.into(),
             label: Some(feature.replace('_', " ")),
             subject: QuotaSubject::Account,
-            // Premium interactions are charged on every model; the other two
-            // name a Copilot feature rather than a model family.
-            model_scope: if feature == "premium_interactions" {
-                QuotaScope::All
-            } else {
-                QuotaScope::Unknown
-            },
+            model_scope: QuotaScope::Unknown,
             value: QuotaValue::Window(QuotaAllowance {
                 used: limit
                     .zip(remaining)
@@ -157,10 +232,18 @@ impl crate::channel::QuotaQuery for super::CopilotCli {
             let body = require_success(status, body)?;
             let payload: CopilotUser = serde_json::from_slice(&body)
                 .map_err(|error| invalid_response(format!("{ID} account: {error}")))?;
+            let mut entries = entries(&payload);
+            if let Some(entry) = entries
+                .iter_mut()
+                .find(|entry| entry.id == "premium_interactions")
+                && let Some(models) = included_models(&context, &config).await
+            {
+                entry.model_scope = QuotaScope::ExceptModels(models);
+            }
             Ok(QuotaSnapshot {
                 // The host stamps receipt; the payload carries no clock.
                 observed_at_ms: 0,
-                entries: entries(&payload),
+                entries,
             })
         })
     }
@@ -189,7 +272,7 @@ mod tests {
         assert_eq!(entries.len(), 1, "unlimited features report nothing");
         assert_eq!(entries[0].id, "premium_interactions");
         assert_eq!(entries[0].source_id, QUOTA_SOURCE);
-        assert_eq!(entries[0].model_scope, QuotaScope::All);
+        assert_eq!(entries[0].model_scope, QuotaScope::Unknown);
         let QuotaValue::Window(window) = &entries[0].value else {
             panic!("a window");
         };
