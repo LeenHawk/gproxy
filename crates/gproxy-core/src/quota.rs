@@ -417,7 +417,7 @@ struct ObservationSlot(Arc<AtomicUsize>);
 impl ObservationSlot {
     fn take(in_flight: &Arc<AtomicUsize>) -> Option<Self> {
         in_flight
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                 (n < DETACHED_OBSERVATIONS).then_some(n + 1)
             })
             .ok()
