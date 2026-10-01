@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod chat;
+pub mod codex;
 pub mod compact;
 pub mod conversation;
 pub mod count_tokens;
@@ -9,6 +10,7 @@ pub mod guardian;
 pub mod images;
 pub mod memory;
 pub mod models;
+pub mod moderation;
 pub mod realtime;
 pub mod rerank;
 pub mod responses;

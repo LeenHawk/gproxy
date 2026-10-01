@@ -325,6 +325,14 @@ pub trait BaseChannel: Send + Sync {
         operations::http(self, Operation::StreamGenerateContent, context)
     }
 
+    /// Standard OpenAI content moderation, returning category scores as JSON.
+    fn create_moderation<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        operations::http(self, Operation::CreateModeration, context)
+    }
+
     /// Review content for safety.
     fn guardian_review<'a>(
         &'a self,

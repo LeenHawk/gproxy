@@ -41,6 +41,8 @@ use http::{HeaderValue, Method, StatusCode, header};
 use serde_json::{Map, Value, json};
 use std::sync::OnceLock;
 
+mod usage;
+
 /// The identity probe answered locally.
 const WHOAMI_PATH: &str = "/v1/user-auth-credential/whoami";
 /// The remote-control socket; a WebSocket in `connect`, refused in `call`.
@@ -116,6 +118,69 @@ const ROUTE_TABLE: &[(&str, &str, ServiceTransport, bool, ServiceClass)] = &[
     ),
     // Usage and rate-limit reset credits (`backend-client/src/client/*`).
     ("GET", "/backend-api/wham/usage", Http, true, Usage),
+    (
+        "POST",
+        "/backend-api/wham/usage/thread_usage/query_v2",
+        Http,
+        true,
+        Usage,
+    ),
+    (
+        "GET",
+        "/backend-api/wham/usage/plan_limit_history",
+        Http,
+        true,
+        Usage,
+    ),
+    (
+        "GET",
+        "/backend-api/wham/usage/daily-token-usage-breakdown",
+        Http,
+        true,
+        Usage,
+    ),
+    (
+        "GET",
+        "/backend-api/wham/usage/credit-usage-events",
+        Http,
+        true,
+        Usage,
+    ),
+    (
+        "GET",
+        "/backend-api/wham/usage/daily-workspace-user-token-usage-breakdown",
+        Http,
+        true,
+        Usage,
+    ),
+    (
+        "GET",
+        "/backend-api/wham/usage/daily-workspace-user-credit-usage",
+        Http,
+        true,
+        Usage,
+    ),
+    (
+        "GET",
+        "/backend-api/wham/analytics/daily-workspace-usage-counts",
+        Http,
+        true,
+        Usage,
+    ),
+    (
+        "GET",
+        "/backend-api/wham/analytics/daily-plugin-usage-metrics",
+        Http,
+        true,
+        Usage,
+    ),
+    (
+        "GET",
+        "/backend-api/wham/analytics/daily-skill-usage-metrics",
+        Http,
+        true,
+        Usage,
+    ),
     (
         "POST",
         "/backend-api/wham/usage/thread_usage/query",
@@ -490,6 +555,24 @@ fn canonical_path(path: &str) -> Option<String> {
             .filter(|rest| rest.starts_with('/'))
         {
             return Some(format!("{mount}{rest}"));
+        }
+    }
+    // These aliases are exposed only under the host's provider/namespace
+    // mount. Match known rows rather than turning all of /v1 into a proxy.
+    if let Some(rest) = path.strip_prefix("/v1/") {
+        for mount in [
+            "/backend-api/wham",
+            "/backend-api",
+            "/backend-api/ps",
+            "/backend-api/codex",
+        ] {
+            let candidate = format!("{mount}/{rest}");
+            if routes().iter().any(|route| {
+                route.class != Prefix
+                    && crate::channel::match_template(route.path_template, &candidate).is_some()
+            }) {
+                return Some(candidate);
+            }
         }
     }
     None
@@ -935,6 +1018,13 @@ impl ChannelServices for Codex {
         routes()
     }
 
+    fn route(&self, method: &Method, path: &str) -> Option<&ServiceRoute> {
+        let path = canonical_path(path)?;
+        routes()
+            .iter()
+            .find(|route| route.matches(method, &path).is_some())
+    }
+
     fn call<'a>(&'a self, ctx: ServiceContext<'a>) -> OperationFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             let path = canonical_path(&ctx.request.path).ok_or(ChannelError::UnsupportedService)?;
@@ -986,6 +1076,9 @@ impl ChannelServices for Codex {
                 }
                 Identity => Ok(json_response(StatusCode::OK, &identity_answer(&path, &ctx))),
                 Usage => {
+                    if let Some(response) = usage::answer(&path, ctx.request).await? {
+                        return Ok(response);
+                    }
                     let usage = ctx.caller.usage().await?;
                     Ok(json_response(
                         StatusCode::OK,

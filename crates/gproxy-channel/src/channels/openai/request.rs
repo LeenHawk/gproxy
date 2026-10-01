@@ -126,7 +126,11 @@ impl OpenAi {
             url
         };
         let source_query = request.query.take();
-        let query = if operation == Operation::ConnectRealtime {
+        let live_sideband = matches!(
+            gproxy_protocol::wire::openai::realtime::RealtimeRoute::from_path(&request.path),
+            Some(gproxy_protocol::wire::openai::realtime::RealtimeRoute::Live { call_id: Some(_) })
+        );
+        let query = if operation == Operation::ConnectRealtime && !live_sideband {
             Some(realtime_query(source_query)?)
         } else {
             query(source_query)
@@ -246,6 +250,7 @@ impl BaseChannel for OpenAi {
             Operation::ListModels
             | Operation::GetModel
             | Operation::CompactContent
+            | Operation::CreateModeration
             | Operation::CreateEmbedding
             | Operation::CreateImage
             | Operation::EditImage
@@ -262,6 +267,7 @@ impl BaseChannel for OpenAi {
             | Operation::ListVideos
             | Operation::DeleteVideo
             | Operation::DownloadVideoContent
+            | Operation::CreateRealtimeCall
             | Operation::ConnectRealtime => vec![Dialect::OpenAi],
             _ => Vec::new(),
         }

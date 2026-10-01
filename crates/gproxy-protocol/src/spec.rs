@@ -214,6 +214,16 @@ pub const OPERATION_SPECS: &[OperationSpec] = &[
     },
     OperationSpec {
         key: OperationKey {
+            operation: Operation::CreateModeration,
+            dialect: Dialect::OpenAi,
+        },
+        transport: OperationTransport::Http {
+            request: &[HttpBodyFormat::Json],
+            response: &[HttpBodyFormat::Json],
+        },
+    },
+    OperationSpec {
+        key: OperationKey {
             operation: Operation::GuardianReview,
             dialect: Dialect::OpenAi,
         },

@@ -203,6 +203,11 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     if !converting {
         if let Some(model) = upstream_model.as_deref() {
             prepare::apply_model(&mut wire, operation.dialect, model);
+            if operation.operation == gproxy_protocol::Operation::CreateRealtimeCall {
+                let mut codec = limits.codec();
+                codec.max_body_bytes = limits.max_request_body_bytes;
+                crate::realtime::request::apply_model(&mut wire, model, codec).await?;
+            }
         }
         if !request_rules.headers.is_empty() {
             apply_headers(&request_rules.headers, &mut wire.headers)?;

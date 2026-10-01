@@ -85,6 +85,7 @@ impl<'a> ChannelBinding<'a> {
             Operation::GenerateContent => self.channel.generate_content(context).await,
             Operation::StreamGenerateContent => self.channel.stream_generate_content(context).await,
             Operation::GuardianReview => self.channel.guardian_review(context).await,
+            Operation::CreateModeration => self.channel.create_moderation(context).await,
             Operation::GuardianClassify => self.channel.guardian_classify(context).await,
             Operation::CompactContent => self.channel.compact_content(context).await,
             Operation::SummarizeMemory => self.channel.summarize_memory(context).await,

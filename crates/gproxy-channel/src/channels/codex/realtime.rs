@@ -94,6 +94,22 @@ pub(super) fn prepare_buffered(ctx: &mut PrepareContext<'_>) -> Result<(), Chann
     if !backend(ctx.provider, ctx.endpoint_override)? {
         return Ok(());
     }
+    if matches!(
+        RealtimeRoute::from_request(&ctx.request.method, &ctx.request.path),
+        Some(RealtimeRoute::CreateLiveCall)
+    ) {
+        let mut query = url::form_urlencoded::Serializer::new(String::new());
+        if let Some(source) = &ctx.request.query {
+            query.extend_pairs(
+                url::form_urlencoded::parse(source.as_bytes())
+                    .filter(|(key, _)| key != "intent" && key != "architecture"),
+            );
+        }
+        query
+            .append_pair("intent", "quicksilver")
+            .append_pair("architecture", "avas");
+        ctx.request.query = Some(query.finish());
+    }
     if let HttpBody::Bytes(bytes) = &ctx.request.body
         && let Some(boundary) = boundary(&ctx.request.headers)?
     {
@@ -104,6 +120,24 @@ pub(super) fn prepare_buffered(ctx: &mut PrepareContext<'_>) -> Result<(), Chann
         json_headers(&mut ctx.request.headers);
     }
     Ok(())
+}
+
+pub(super) fn call_path(
+    provider: crate::channel::ProviderView<'_>,
+    path: &str,
+) -> Result<&'static str, ChannelError> {
+    Ok(
+        if !backend(provider, None)?
+            && matches!(
+                RealtimeRoute::from_path(path),
+                Some(RealtimeRoute::Live { call_id: None })
+            )
+        {
+            "/live"
+        } else {
+            "/realtime/calls"
+        },
+    )
 }
 
 fn json_headers(headers: &mut HeaderMap) {

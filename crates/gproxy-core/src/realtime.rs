@@ -1,4 +1,5 @@
 //! Realtime route dispatch and scope-isolated call-to-credential continuations.
+pub mod request;
 use crate::{Core, CoreError, CoreResult, RequestContext, keys};
 pub use gproxy_protocol::wire::openai::realtime::RealtimeRoute;
 use gproxy_protocol::{Operation, WireRequest};

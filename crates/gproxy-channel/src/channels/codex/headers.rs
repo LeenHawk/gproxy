@@ -85,6 +85,8 @@ pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
         "x-openai-subagent",
         "x-oai-attestation",
         "x-openai-fedramp",
+        "x-openai-codex-luna-reserve",
+        "x-openai-internal-codex-responses-lite",
         "oai-product-sku",
     ],
     prefixes: &["x-codex-"],

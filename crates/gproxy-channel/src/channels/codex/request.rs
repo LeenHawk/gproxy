@@ -30,6 +30,8 @@ fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
         Operation::CreateImage => "/images/generations",
         Operation::EditImage => "/images/edits",
         Operation::SummarizeMemory => "/memories/trace_summarize",
+        Operation::GuardianReview => "/guardian",
+        Operation::GuardianClassify => "/guardian-classifier",
         Operation::CreateRealtimeCall => "/realtime/calls",
         Operation::WebSearch => "/alpha/search",
         other => {
@@ -415,7 +417,12 @@ impl Codex {
             Some(url) => url.to_owned(),
             None => {
                 let (base, _) = base_urls(ctx.provider);
-                format!("{base}{}", operation_path(ctx.operation.operation)?)
+                let path = if ctx.operation.operation == Operation::CreateRealtimeCall {
+                    realtime::call_path(ctx.provider, &request.path)?
+                } else {
+                    operation_path(ctx.operation.operation)?
+                };
+                format!("{base}{path}")
             }
         };
         let url = if websocket {
@@ -541,6 +548,8 @@ impl BaseChannel for Codex {
             | Operation::GetModel
             | Operation::CompactContent
             | Operation::SummarizeMemory
+            | Operation::GuardianReview
+            | Operation::GuardianClassify
             | Operation::CreateRealtimeCall
             | Operation::ConnectRealtime
             | Operation::WebSearch

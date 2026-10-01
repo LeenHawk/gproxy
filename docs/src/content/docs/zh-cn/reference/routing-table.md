@@ -82,8 +82,9 @@ Gemini 把它写在路径里，这也是那个方言有两行的原因。
 
 | 方法 | 路径 | 操作 / 方言 |
 | --- | --- | --- |
+| `POST` | `/v1/responses/compact` | `compact_content` / `openai` |
 | `POST` | `/v1/embeddings` | `create_embedding` / `openai` |
-| `POST` | `/v1/moderations` | `guardian_classify` / `openai` |
+| `POST` | `/v1/moderations` | `create_moderation` / `openai` |
 | `POST` | `/v1/rerank` | `rerank` / `openai` |
 | `POST` | `/v1/conversations` | `create_conversation` / `openai` |
 | `POST` | `/v1/images/generations` | `create_image` / `openai` |
@@ -120,9 +121,11 @@ Gemini 把它写在路径里，这也是那个方言有两行的原因。
 | 方法 | 路径 | 操作 / 方言 |
 | --- | --- | --- |
 | `POST` | `/v1/realtime/calls` | `create_realtime_call` / `openai` |
+| `POST` | `/v1/live` | `create_realtime_call` / `openai` |
 | `GET` | `/v1/realtime` | `connect_realtime` / `openai`——升级 |
 | `GET` | `/v1/live` | 同上，WebRTC 写法 |
 | `GET` | `/v1/live/{call_id}` | 把 call 放在路径里的续接 |
+| `GET` | `/v1/responses` | `generate_content` / `openai_responses_websocket` |
 | `GET` | `/v1/responses/ws` | `generate_content` / `openai_responses_websocket` |
 | `GET` | `/ws/v1beta/BidiGenerateContent` | `connect_realtime` / `gemini`——Gemini Live |
 
@@ -142,6 +145,21 @@ realtime 会话**绝不被转换**：只有同方言直通，因为一个能在�
 
 一个套接字持有它的并发租约直到它**关闭**，而不是到 `101` 被写出为止。跑一小时的会话就占
 一小时的名额。
+
+### Codex 专有接口
+
+Codex 专有方法仅在使用 Codex 渠道的 Provider 挂载点下提供。假设 Provider 名为
+`codex`，可调用 `POST /codex/v1/memories/trace_summarize`、
+`POST /codex/v1/guardian` 和 `POST /codex/v1/guardian-classifier`。
+它们使用正常的操作准入、模型路由和结算流程；公共 `/v1` 不提供这三条路径。
+标准 `/v1/moderations` 使用独立的 `create_moderation` JSON 契约。
+
+账号服务也可在 `/codex/v1` 下调用，包括 `usage/thread_usage/query_v2`（POST）、
+`usage/plan_limit_history`，以及每日 Token、积分、工作区、插件和技能统计（GET）。
+原有 `/codex/api/codex/**`、`/codex/backend-api/**`、`/codex/ps/**` 写法保留。
+管理员设置 `x-gproxy-view: credential:<id>` 可读取指定凭据的上游报表；默认 Caller
+和 Pool 视图中，无法从本地记录重建的历史额度和厂商积分会明确标为不可用，金额为
+`null`，不会借用其他账号的数据或伪造零用量。
 
 ### 有歧义的那几条路径
 
