@@ -6,7 +6,7 @@ English | [简体中文](README.zh-CN.md) · [Documentation](https://gproxy.leen
 
 GPROXY is a self-hosted LLM API gateway. It manages upstream accounts, translates OpenAI, Claude, and Gemini requests, routes models, switches credentials on failure, enforces access rules, and records usage and costs.
 
-This branch targets **4.0.0**, which is being prepared for release. To try v4 now, choose `nightly` on Releases. Once the stable version is published, choose its versioned attachments.
+Download the stable **[4.0.0 release](https://github.com/LeenHawk/gproxy/releases/tag/v4.0.0)** for production use. The rolling `nightly` release contains development snapshots.
 
 ## Quick start
 

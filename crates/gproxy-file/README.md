@@ -22,7 +22,7 @@ An embedding crate can make the entire dependency optional:
 
 ```toml
 [dependencies]
-gproxy-file = { version = "4.0.0-dev", optional = true, default-features = false, features = ["fs", "s3"] }
+gproxy-file = { version = "4.0.0", optional = true, default-features = false, features = ["fs", "s3"] }
 ```
 
 ## Local files

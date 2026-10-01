@@ -9,14 +9,14 @@ description: "gproxy-sdk 是可嵌入的句柄：装配、管理写入、登录�
 的失败转移，以及被计量的结算。这也是为什么数据库在它内部不能省掉——Claude 每次刷新都轮换
 refresh token，一个把凭证放内存里的句柄会在第一次刷新就把它弄死。
 
-workspace 里没有任何东西发布到 registry。嵌入意味着一个 git 或路径依赖。
+通过 Git tag 或路径依赖嵌入 `gproxy-sdk`。MIT 协议的配套库也会单独发布到 crates.io。
 
 ```toml
 [dependencies]
-gproxy-sdk = { git = "https://github.com/LeenHawk/gproxy", branch = "4.0" }
+gproxy-sdk = { git = "https://github.com/LeenHawk/gproxy", tag = "v4.0.0" }
 ```
 
-workspace 是 Rust edition 2024，版本 `4.0.0-dev`。**公开接口尚不稳定。**
+workspace 使用 Rust edition 2024。本示例固定使用 `4.0.0`；v4 的 Rust API 和管理 API 与 v3 不同。
 
 ## 装配一个
 

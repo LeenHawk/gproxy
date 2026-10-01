@@ -6,7 +6,7 @@ description: "选择 GPROXY 4.0 的应用、命令行程序、容器或 Cloudfla
 
 日常在电脑上使用，选 **Application**；部署到服务器，选 **CLI** 或容器。两者使用相同的网关功能，主要区别是如何启动和管理。
 
-在 [Releases](https://github.com/LeenHawk/gproxy/releases) 选择版本，再下载对应系统和架构的文件。4.0.0 正在准备发布；正式版上线前可使用 `nightly` 试用，`nightly` 会随开发更新，不是稳定版。
+选择 [4.0.0 稳定版](https://github.com/LeenHawk/gproxy/releases/tag/v4.0.0)，再下载对应系统和架构的文件。滚动更新的 `nightly` 提供开发快照。
 
 ## 选择下载文件
 

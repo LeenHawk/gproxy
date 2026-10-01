@@ -21,7 +21,7 @@ Cloudflare R2 使用 S3 后端。统一读写接口为本 crate 重新导出的 
 
 ```toml
 [dependencies]
-gproxy-file = { version = "4.0.0-dev", optional = true, default-features = false, features = ["fs", "s3"] }
+gproxy-file = { version = "4.0.0", optional = true, default-features = false, features = ["fs", "s3"] }
 ```
 
 ## 本地文件

@@ -12,16 +12,16 @@ and metered settlement. That is also why the database is not optional inside
 it. Claude rotates its refresh token on every refresh, so a handle that kept
 credentials in memory would kill the credential on the first refresh.
 
-Nothing in the workspace is published to a registry. Embedding means a git or
-path dependency.
+Embed `gproxy-sdk` through a Git tag or path dependency. The MIT support libraries
+are also published separately to crates.io.
 
 ```toml
 [dependencies]
-gproxy-sdk = { git = "https://github.com/LeenHawk/gproxy", branch = "4.0" }
+gproxy-sdk = { git = "https://github.com/LeenHawk/gproxy", tag = "v4.0.0" }
 ```
 
-The workspace is Rust edition 2024 at `4.0.0-dev`. **The public surface is not
-stable.**
+The workspace uses Rust edition 2024. This example pins version `4.0.0`; the v4
+Rust and management APIs differ from v3.
 
 ## Assembling One
 
