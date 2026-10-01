@@ -198,62 +198,103 @@ async fn responses_lanes_are_independent_and_an_unknown_model_does_not_close_the
 
 #[tokio::test(flavor = "multi_thread")]
 async fn responses_steering_waits_for_real_tool_results_before_its_successor() {
-    let host = responses_instance("openai", Some(1)).await;
-    let (first, rx) = tokio::sync::mpsc::unbounded_channel();
-    let (second, rx2) = tokio::sync::mpsc::unbounded_channel();
-    host.client.script(vec![
-        support::Reply::Sse(StatusCode::OK, rx),
-        support::Reply::Sse(StatusCode::OK, rx2),
-    ]);
-    let bound = host.bind().await;
-    let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
-        .await
-        .unwrap();
-    ws_send(&mut client, json!({"type":"response.create","model":"p1/m1","input":"start","store":false,
+    let cases = [
+        (
+            json!({"id":"fc","type":"function_call","call_id":"call","name":"run","arguments":"{}","status":"completed"}),
+            json!({"type":"function_call_output","call_id":"call","output":"42"}),
+        ),
+        (
+            json!({"id":"custom","type":"custom_tool_call","call_id":"call","name":"run","input":"hi","status":"completed"}),
+            json!({"type":"custom_tool_call_output","call_id":"call","output":"42"}),
+        ),
+        (
+            json!({"id":"computer","type":"computer_call","call_id":"call","action":{"type":"screenshot"},"pending_safety_checks":[],"status":"completed"}),
+            json!({"type":"computer_call_output","call_id":"call","output":{"type":"computer_screenshot","image_url":"data:image/png;base64,AA=="}}),
+        ),
+        (
+            json!({"id":"shell","type":"shell_call","call_id":"call","action":{"commands":["pwd"],"max_output_length":null,"timeout_ms":null},"environment":{"type":"local"},"status":"completed"}),
+            json!({"type":"shell_call_output","call_id":"call","output":[{"stdout":"/","stderr":"","outcome":{"type":"exit","exit_code":0}}]}),
+        ),
+        (
+            json!({"id":"patch","type":"apply_patch_call","call_id":"call","operation":{"type":"delete_file","path":"a"},"status":"completed"}),
+            json!({"type":"apply_patch_call_output","call_id":"call","status":"completed"}),
+        ),
+        (
+            json!({"id":"search","type":"tool_search_call","call_id":"call","arguments":{},"execution":"client","status":"completed"}),
+            json!({"type":"tool_search_output","call_id":"call","execution":"client","tools":[]}),
+        ),
+        (
+            json!({"id":"call","type":"mcp_approval_request","name":"run","arguments":"{}","server_label":"local"}),
+            json!({"type":"mcp_approval_response","approval_request_id":"call","approve":true}),
+        ),
+    ];
+    for (call, result) in cases {
+        let host = responses_instance("openai", Some(1)).await;
+        let (first, rx) = tokio::sync::mpsc::unbounded_channel();
+        let (second, rx2) = tokio::sync::mpsc::unbounded_channel();
+        host.client.script(vec![
+            support::Reply::Sse(StatusCode::OK, rx),
+            support::Reply::Sse(StatusCode::OK, rx2),
+        ]);
+        let bound = host.bind().await;
+        let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
+            .await
+            .unwrap();
+        ws_send(&mut client, json!({"type":"response.create","model":"p1/m1","input":"start","store":false,
         "tools":[{"type":"function","name":"run","parameters":{"type":"object","properties":{}},"strict":false,"async":true}]})).await;
-    let response = ws_json(&mut client).await;
-    assert_eq!(response["type"], "response.created", "{response}");
-    let id = response["response"]["id"].clone();
-    let call = json!({"id":"fc","type":"function_call","call_id":"call","name":"run","arguments":"{}","status":"completed"});
-    first
-        .send(sse(
-            json!({"type":"response.output_item.added","output_index":0,"item":call}),
-        ))
-        .unwrap();
-    first
-        .send(sse(
-            json!({"type":"response.output_item.done","output_index":0,"item":call}),
-        ))
-        .unwrap();
-    let emitted = until_type(&mut client, "response.output_item.done").await;
-    assert_eq!(emitted["item"]["async"], true);
-    ws_send(
-        &mut client,
-        json!({"type":"response.steer","previous_response_id":id,"input":"explain the result"}),
-    )
-    .await;
-    let pending = until_type(&mut client, "response.steer.pending").await;
-    assert_eq!(pending["required_input"][0]["call_id"], "call");
-    assert_eq!(host.client.urls().len(), 1, "no tool result is invented");
-    ws_send(
-        &mut client,
-        json!({"type":"response.inject","response_id":id,
-        "input":[{"type":"function_call_output","call_id":"call","output":"42"}]}),
-    )
-    .await;
-    until_type(&mut client, "response.incomplete").await;
-    let next = until_type(&mut client, "response.created").await;
-    assert_ne!(next["response"]["id"], id);
-    finish_http_segment(second, response_item("answer", "42"), 5, 2);
-    until_type(&mut client, "response.completed").await;
-    let requests = host.client.bodies();
-    let input = requests[1]["input"].as_array().unwrap();
-    assert_eq!(input.len(), 4);
-    assert_eq!(input[1]["call_id"], "call");
-    assert_eq!(input[2]["output"], "42");
-    assert_eq!(input[3]["content"], "explain the result");
-    client.close(None).await.unwrap();
-    let _ = recv(&mut client).await;
+        let response = ws_json(&mut client).await;
+        assert_eq!(response["type"], "response.created", "{response}");
+        let id = response["response"]["id"].clone();
+        first
+            .send(sse(
+                json!({"type":"response.output_item.added","output_index":0,"item":call}),
+            ))
+            .unwrap();
+        first
+            .send(sse(
+                json!({"type":"response.output_item.done","output_index":0,"item":call}),
+            ))
+            .unwrap();
+        let emitted = until_type(&mut client, "response.output_item.done").await;
+        if call["type"] == "function_call" {
+            assert_eq!(emitted["item"]["async"], true);
+        }
+        ws_send(
+            &mut client,
+            json!({"type":"response.steer","previous_response_id":id,"input":"explain the result"}),
+        )
+        .await;
+        let pending = until_type(&mut client, "response.steer.pending").await;
+        let required = &pending["required_input"][0];
+        assert_eq!(required["type"], result["type"]);
+        if call["type"] == "mcp_approval_request" {
+            assert_eq!(required["approval_request_id"], "call");
+            ws_send(&mut client, json!({"type":"response.inject","response_id":id,"input":[{"type":"mcp_approval_response","approval_request_id":"wrong","approve":true}]})).await;
+            assert_eq!(ws_json(&mut client).await["type"], "error");
+        } else {
+            assert_eq!(required["call_id"], "call");
+        }
+        assert_eq!(host.client.urls().len(), 1, "no tool result is invented");
+        ws_send(
+            &mut client,
+            json!({"type":"response.inject","response_id":id,
+        "input":[result]}),
+        )
+        .await;
+        until_type(&mut client, "response.incomplete").await;
+        let next = until_type(&mut client, "response.created").await;
+        assert_ne!(next["response"]["id"], id);
+        finish_http_segment(second, response_item("answer", "42"), 5, 2);
+        until_type(&mut client, "response.completed").await;
+        let requests = host.client.bodies();
+        let input = requests[1]["input"].as_array().unwrap();
+        assert_eq!(input.len(), 4);
+        assert_eq!(input[1]["type"], call["type"]);
+        assert_eq!(input[2]["type"], result["type"]);
+        assert_eq!(input[3]["content"], "explain the result");
+        client.close(None).await.unwrap();
+        let _ = recv(&mut client).await;
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
