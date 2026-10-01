@@ -2,6 +2,9 @@
 //! A host opens a chain once, then admits each create/automatic successor before
 //! forwarding it. Only actual generation exchanges contribute usage.
 
+mod http_executor;
+pub use http_executor::ResponsesHttpExecutor;
+
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
@@ -21,7 +24,8 @@ use crate::{
 };
 
 /// An opaque, connection-owned chain. Clones share the current and reserved
-/// turn, but never move the chain to another principal, provider or account.
+/// turn. An HTTP chain's provisional target can change on explicit rejection;
+/// after acceptance, continuations keep its principal, provider and account.
 #[derive(Clone, Default)]
 pub struct ResponsesSession(Arc<Mutex<State>>);
 
@@ -33,6 +37,7 @@ struct State {
     pending_acknowledged: bool,
     closed: bool,
     expires_at_ms: Option<i64>,
+    http_bridge: bool,
 }
 
 #[derive(Clone)]
@@ -60,6 +65,8 @@ pub(crate) struct Turn {
     pub exchange: Option<Arc<Exchange>>,
     pub request_rules: SelectedRules,
     pub response_rules: SelectedRules,
+    pub http_executor: Option<Arc<dyn ResponsesHttpExecutor>>,
+    http_committed: AtomicBool,
     started: AtomicBool,
 }
 
@@ -81,6 +88,17 @@ impl ResponsesSession {
             expires_at_ms: Some(expires_at_ms),
             ..State::default()
         })))
+    }
+
+    /// Restore a locally managed chain even if its provider also offers a
+    /// native WS endpoint, which cannot resolve the gateway's response IDs.
+    pub fn with_http_bridge(self) -> Self {
+        self.0.lock().unwrap().http_bridge = true;
+        self
+    }
+
+    pub fn is_http_bridge(&self) -> bool {
+        self.0.lock().unwrap().http_bridge
     }
 
     pub fn binding(&self) -> Option<ResponsesBinding> {
@@ -105,6 +123,7 @@ impl ResponsesSession {
         let mut state = self.0.lock().unwrap();
         let maximum = request.started_at_ms + 24 * 60 * 60 * 1000;
         state.expires_at_ms = Some(state.expires_at_ms.unwrap_or(maximum).min(maximum));
+        state.http_bridge = connection_id.is_none();
         state.binding = Some(Binding {
             request,
             credential,
@@ -283,6 +302,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
 
     /// Admission and resolution happen above core for every turn. A bound
     /// connection only narrows their result, and never grants access itself.
+    /// HTTP generation needs the upper layer's admitted executor; native WS
+    /// turns and local warmups can leave it absent.
     pub async fn begin_responses_turn(
         &self,
         context: Arc<RequestContext>,
@@ -290,7 +311,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
         headers: &http::HeaderMap,
         lane: Option<&str>,
         pending: bool,
-        warmup: bool,
+        http_executor: Option<Arc<dyn ResponsesHttpExecutor>>,
     ) -> CoreResult<Execution<()>> {
         let binding =
             session.0.lock().unwrap().binding.clone().ok_or_else(|| {
@@ -337,14 +358,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
             credential: binding.credential,
             agent_assignment: binding.agent_assignment,
         });
-        if !warmup || binding.dialect == Dialect::OpenAiResponsesWebSocket {
-            let operation = if binding.dialect == Dialect::OpenAiResponsesWebSocket {
-                context.operation.operation
-            } else {
-                gproxy_protocol::Operation::StreamGenerateContent
-            };
-            crate::quota::charge_responses_segment(self.store(), self.cache(), &attempt, operation)
-                .await?;
+        if binding.dialect == Dialect::OpenAiResponsesWebSocket {
+            crate::quota::charge_responses_segment(
+                self.store(),
+                self.cache(),
+                &attempt,
+                context.operation.operation,
+            )
+            .await?;
         }
         let provider = &context.target.provider;
         let rules = RewriteContext {
@@ -378,6 +399,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
             exchange,
             request_rules,
             response_rules,
+            http_executor,
+            http_committed: AtomicBool::new(false),
             started: AtomicBool::new(false),
         });
         if let Some(exchange) = &turn.exchange {
@@ -409,7 +432,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
                 "Responses lane is closed or busy".into(),
             ));
         }
-        funnel.trace(TraceEvent::AttemptStarted(&turn.attempt));
+        if binding.dialect == Dialect::OpenAiResponsesWebSocket {
+            funnel.trace(TraceEvent::AttemptStarted(&turn.attempt));
+        }
         let settled = funnel.arm();
         drop(guard);
         Ok(Execution::new((), completion, settled))

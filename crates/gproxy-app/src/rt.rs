@@ -72,3 +72,28 @@ where
     wasm_bindgen_futures::spawn_local(future);
     true
 }
+
+/// Await an operation with a deadline on either runtime.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) async fn timeout<F: Future>(
+    duration: std::time::Duration,
+    future: F,
+) -> Option<F::Output> {
+    tokio::time::timeout(duration, future).await.ok()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) async fn timeout<F: Future>(
+    duration: std::time::Duration,
+    future: F,
+) -> Option<F::Output> {
+    use futures_util::future::{Either, select};
+    let timer = std::pin::pin!(gloo_timers::future::TimeoutFuture::new(
+        u32::try_from(duration.as_millis()).unwrap_or(u32::MAX)
+    ));
+    let future = std::pin::pin!(future);
+    match select(future, timer).await {
+        Either::Left((value, _)) => Some(value),
+        Either::Right(_) => None,
+    }
+}

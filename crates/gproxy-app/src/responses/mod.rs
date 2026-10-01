@@ -101,12 +101,15 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
     let (events, mut receive) = mpsc::channel(QUEUE);
     let mut lanes: HashMap<Lane, mpsc::Sender<Message>> = HashMap::new();
     let mut owners: HashMap<String, Vec<Lane>> = HashMap::new();
-    let mut tasks = tokio::task::JoinSet::new();
+    let mut tasks = futures_util::stream::FuturesUnordered::<
+        gproxy_protocol::capability::CapabilityFuture<'static, ()>,
+    >::new();
     let mut close = None;
     let mut outcome = CaptureOutcome::Complete;
     loop {
         tokio::select! {
             () = context.cancellation.cancelled() => { outcome = CaptureOutcome::Cancelled; break; }
+            _ = tasks.next(), if !tasks.is_empty() => {}
             event = receive.recv() => {
                 if let Some(event) = event
                     && !deliver(event, &output, &mut capture, &mut owners).await { break; }
@@ -155,7 +158,7 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
                 }
                 let sender = lanes.entry(lane.clone()).or_insert_with(|| {
                     let (tx, rx) = mpsc::channel(QUEUE);
-                    tasks.spawn(lane::run(context.clone(), lane.clone(), rx, events.clone()));
+                    tasks.push(Box::pin(lane::run(context.clone(), lane.clone(), rx, events.clone())));
                     tx
                 });
                 let message = Message { value, text, request_id: random_id() };
@@ -170,7 +173,11 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
     drop(lanes);
     drop(events);
     // Workers finish their usage and logs before the parent connection row.
-    while let Some(event) = receive.recv().await {
+    loop {
+        let event = tokio::select! {
+            event = receive.recv() => match event { Some(event) => event, None => break },
+            _ = tasks.next(), if !tasks.is_empty() => continue,
+        };
         if let Event::Finished {
             capture: Some(turn),
             outcome,
@@ -180,7 +187,7 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
             parent.append_turn(*turn, outcome);
         }
     }
-    while tasks.join_next().await.is_some() {}
+    while tasks.next().await.is_some() {}
     if let Some(capture) = capture {
         let _ = capture.finish(context.app.gproxy().store(), outcome).await;
     }

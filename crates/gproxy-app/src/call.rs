@@ -219,7 +219,6 @@ macro_rules! drive {
         builder
     }};
 }
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) use drive;
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {

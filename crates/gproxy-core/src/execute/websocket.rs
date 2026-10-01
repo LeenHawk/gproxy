@@ -93,6 +93,36 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     let operation = request.operation;
     let upstream_model = request.target.upstream_model.clone();
 
+    if session
+        .as_ref()
+        .is_some_and(|session| session.is_http_bridge())
+    {
+        let http_operation = gproxy_protocol::OperationKey {
+            operation: gproxy_protocol::Operation::StreamGenerateContent,
+            dialect: Dialect::OpenAi,
+        };
+        let target =
+            match convert::route_for_model(&provider, http_operation, upstream_model.as_deref())? {
+                Route::Passthrough => Dialect::OpenAi,
+                Route::TransformTo { target } => {
+                    if target.dialect == Dialect::OpenAiResponsesWebSocket {
+                        Dialect::OpenAi
+                    } else {
+                        target.dialect
+                    }
+                }
+                _ => {
+                    return Err(CoreError::InvalidTarget(
+                        "Responses bridge target is no longer supported".into(),
+                    ));
+                }
+            };
+        return convert::responses_ws::serve(
+            core, request, &wire, funnel, completion, target, session,
+        )
+        .await;
+    }
+
     match convert::route_for_model(&provider, operation, upstream_model.as_deref()) {
         Ok(Route::Passthrough) => {}
         Ok(Route::Local | Route::Unsupported) => {

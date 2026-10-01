@@ -77,7 +77,7 @@ Save the credentials from the first startup log and open `/console/`. The image 
 
 ## Cloudflare Workers
 
-Use `gproxy-edge-cloudflare.zip` and follow [Edge deployment](/deployment/edge/) to configure the database and secrets. Workers Assets serves the console. WebSocket / Realtime is currently unsupported.
+Use `gproxy-edge-cloudflare.zip` and follow [Edge deployment](/deployment/edge/) to configure the database and secrets. Workers Assets serves the console. WebSocket / Realtime uses the same routes as native deployments.
 
 ## Upgrade from v3
 

@@ -16,6 +16,8 @@
 //! queued [`WsReply`], and a connected one hands the test both ends of the
 //! socket the gateway is pumping.
 
+#[path = "websocket/responses_retry.rs"]
+mod responses_retry;
 mod support;
 
 use std::time::Duration;

@@ -241,7 +241,6 @@ impl std::fmt::Debug for DownstreamCapture {
 }
 
 impl DownstreamCapture {
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn open_responses(
         switches: &ObservationSwitches,
         request: &DataPlaneRequest,
@@ -259,7 +258,6 @@ impl DownstreamCapture {
         )
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn open_turn(
         switches: &ObservationSwitches,
         request: &DataPlaneRequest,
@@ -290,7 +288,6 @@ impl DownstreamCapture {
         Some(capture)
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn append_turn(&mut self, capture: Self, outcome: CaptureOutcome) {
         self.turns.push((capture, outcome));
     }

@@ -8,8 +8,8 @@
 //!   `response.create` message, converts it as one HTTP stream and writes
 //!   the Responses server events back as text frames on the same lane.
 //!
-//! Neither direction fails over mid-turn; a rejected upstream answer becomes
-//! the Responses error message, not a second send.
+//! HTTP segments reuse the admitted retry plan for explicit rejections. Once
+//! accepted, the stream is never replayed after a transport or event failure.
 
 mod bridge;
 mod responses_http;
@@ -378,16 +378,9 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
     if let Some(session) = session {
         return Ok(bridge::serve(
             bridge::Config {
-                store: core.store().clone(),
-                cache: core.cache().clone(),
-                owned: Arc::new(owned),
-                target,
-                model,
-                endpoint,
+                owned,
                 settings,
                 headers: wire.headers.clone(),
-                channel_state,
-                instance_id: core.instance_id().clone(),
                 cancellation: request.cancellation.clone(),
             },
             session,

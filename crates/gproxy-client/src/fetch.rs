@@ -276,7 +276,7 @@ impl OutboundClient for FetchClient {
 }
 
 #[cfg(feature = "workers")]
-mod workers {
+pub(crate) mod workers {
     use super::*;
     use gproxy_protocol::connection::{WebSocket, WsClose, WsFrame};
     use wasm_bindgen::closure::Closure;
@@ -320,7 +320,7 @@ mod workers {
 
     /// `accept()` the Workers-side socket, then expose it as the protocol's
     /// independent incoming stream and outgoing sink.
-    pub(super) fn accept(socket: web_sys::WebSocket) -> Result<WebSocket, CapabilityError> {
+    pub fn accept(socket: web_sys::WebSocket) -> Result<WebSocket, CapabilityError> {
         let accept = Reflect::get(&socket, &"accept".into())
             .ok()
             .and_then(|f| f.dyn_into::<Function>().ok())
@@ -350,10 +350,18 @@ mod workers {
         let close = {
             let tx = tx.clone();
             Closure::<dyn FnMut(web_sys::CloseEvent)>::new(move |event: web_sys::CloseEvent| {
-                let _ = tx.send(Ok(WsFrame::Close(Some(WsClose {
-                    code: event.code(),
-                    reason: event.reason(),
-                }))));
+                let frame = match event.code() {
+                    // These are local observations, not legal wire close codes.
+                    1005 => Ok(WsFrame::Close(None)),
+                    1006 => Err(Box::new(std::io::Error::other(
+                        "WebSocket disconnected without a closing handshake",
+                    )) as TransportError),
+                    code => Ok(WsFrame::Close(Some(WsClose {
+                        code,
+                        reason: event.reason(),
+                    }))),
+                };
+                let _ = tx.send(frame);
             })
         };
         let error = Closure::<dyn FnMut(web_sys::Event)>::new(move |_: web_sys::Event| {
@@ -387,7 +395,12 @@ mod workers {
         let outgoing = futures_util::sink::unfold(socket, |socket, frame: WsFrame| async move {
             let result = match &frame {
                 WsFrame::Text(text) => socket.send_with_str(text),
-                WsFrame::Binary(bytes) => socket.send_with_u8_array(bytes),
+                WsFrame::Binary(bytes) => {
+                    // workerd sends asynchronously without copying a borrowed
+                    // WASM view. Keep the payload in a JS-owned buffer.
+                    let owned = Uint8Array::from(bytes.as_ref());
+                    socket.send_with_array_buffer(&owned.buffer())
+                }
                 // The JS API has no ping/pong surface; the runtime answers pings.
                 WsFrame::Ping(_) | WsFrame::Pong(_) => Ok(()),
                 WsFrame::Close(Some(close)) => {

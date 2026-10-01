@@ -6,17 +6,19 @@ use crate::{
     UsageCompletion, UsageReport, UsageState,
 };
 use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicBool, Ordering},
+    Arc, Mutex, OnceLock,
+    atomic::{AtomicBool, AtomicU32, Ordering},
 };
 use tokio::sync::oneshot;
 
 pub(crate) struct Funnel {
     request: Arc<RequestContext>,
+    settlement_target: OnceLock<crate::ExecutionTarget>,
     policy: ObservationPolicy,
     observer: Arc<dyn Observer>,
     exchanges: Mutex<Vec<ExchangeUsage>>,
     finished: AtomicBool,
+    attempts: AtomicU32,
     handed_off: AtomicBool,
     exchanges_closed: Mutex<Vec<oneshot::Receiver<()>>>,
     sender: Mutex<Option<oneshot::Sender<crate::CoreResult<UsageReport>>>>,
@@ -51,10 +53,12 @@ impl Funnel {
         let (sender, receiver) = oneshot::channel();
         let funnel = Arc::new(Self {
             request,
+            settlement_target: OnceLock::new(),
             policy,
             observer,
             exchanges: Mutex::new(Vec::new()),
             finished: AtomicBool::new(false),
+            attempts: AtomicU32::new(0),
             handed_off: AtomicBool::new(false),
             exchanges_closed: Mutex::new(Vec::new()),
             sender: Mutex::new(Some(sender)),
@@ -64,6 +68,16 @@ impl Funnel {
         let completion: UsageCompletion =
             Box::pin(async move { receiver.await.unwrap_or(Err(crate::CoreError::Cancelled)) });
         (funnel, completion)
+    }
+
+    pub fn next_attempt(&self) -> u32 {
+        self.attempts.fetch_add(1, Ordering::Relaxed) + 1
+    }
+
+    /// A bridged turn can reject provisional providers before its first
+    /// accepted segment. Model-specific budgets belong to the accepted target.
+    pub fn settle_on(&self, target: &crate::ExecutionTarget) {
+        self.settlement_target.get_or_init(|| target.clone());
     }
 
     pub fn open_exchange(&self) -> oneshot::Sender<()> {
@@ -168,6 +182,15 @@ impl Funnel {
         for closed in pending {
             let _ = closed.await;
         }
+        let request = self
+            .settlement_target
+            .get()
+            .map(|target| {
+                let mut request = (*self.request).clone();
+                request.target = target.clone();
+                Arc::new(request)
+            })
+            .unwrap_or_else(|| self.request.clone());
         let mut report = UsageReport {
             request_id: self.request.request_id.clone(),
             downstream_usage: None,
@@ -182,13 +205,13 @@ impl Funnel {
         if self.policy.usage {
             let dedup = self.realtime_dedup.lock().unwrap().clone();
             if let Some(dedup) = dedup
-                && let Err(error) = dedup.filter(&self.request, &mut report).await
+                && let Err(error) = dedup.filter(&request, &mut report).await
             {
                 // Fail closed on shared-ledger errors: do not charge an
                 // aggregate whose response ownership could not be established.
                 report.exchanges.clear();
                 report.state = UsageState::Failed;
-                self.observer.usage(&self.request, &report).await;
+                self.observer.usage(&request, &report).await;
                 if let Some(sender) = self.sender.lock().unwrap().take() {
                     let _ = sender.send(Err(error));
                 }
@@ -196,20 +219,20 @@ impl Funnel {
             }
             // Cost is computed here, once, so the meter's budget settlement
             // and the Observer's record agree on the number.
-            if self.request.snapshot.observation.settlement {
+            if request.snapshot.observation.settlement {
                 crate::pricing::price_report(
-                    &self.request.snapshot.pricing,
-                    self.request.operation.operation,
+                    &request.snapshot.pricing,
+                    request.operation.operation,
                     &mut report,
                 );
                 let meter = self.meter.lock().unwrap().clone();
                 if let Some(meter) = meter
                     && !report.exchanges.is_empty()
                 {
-                    meter.charge(&self.request, &report).await;
+                    meter.charge(&request, &report).await;
                 }
             }
-            self.observer.usage(&self.request, &report).await;
+            self.observer.usage(&request, &report).await;
         }
         if let Some(sender) = self.sender.lock().unwrap().take() {
             let _ = sender.send(Ok(report));

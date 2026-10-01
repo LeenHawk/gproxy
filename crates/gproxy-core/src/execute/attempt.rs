@@ -30,29 +30,32 @@ fn remaining(request: &RequestContext) -> Option<Duration> {
 }
 
 /// What one attempt produced for the caller.
-struct Answer(WireResponse<HttpBody>);
+pub(crate) struct Answer {
+    pub response: WireResponse<HttpBody>,
+    pub attempt: Option<Arc<AttemptContext>>,
+}
 
 impl Answer {
     /// Drain a superseded rejection through observation before retrying. The
     /// observed stream retains its byte/idle/cancellation limits; a total cap
     /// prevents a slow rejection from holding retries indefinitely.
     async fn discard(self, timeout: Duration) {
-        let body = self.0.body;
+        let body = self.response.body;
         super::stream::drain(body, timeout).await;
     }
 
     fn status(&self) -> StatusCode {
-        self.0.status
+        self.response.status
     }
     fn headers(&self) -> &http::HeaderMap {
-        &self.0.headers
+        &self.response.headers
     }
     async fn deliver(
         self,
         funnel: &Arc<Funnel>,
         completion: crate::UsageCompletion,
     ) -> HttpExecution {
-        let mut response = self.0;
+        let mut response = self.response;
         let state = if response.status.is_client_error() || response.status.is_server_error() {
             UsageState::Failed
         } else {
@@ -104,7 +107,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
 ) -> CoreResult<HttpExecution> {
     let (funnel, completion) = Funnel::new(request.clone(), core.observer().clone());
     let _request_guard = funnel.guard();
-    let result = run_http_inner(core, request, wire, funnel.clone(), completion).await;
+    let result = run_http_attempts(core, request, wire, funnel.clone(), true).await;
     if let Err(error) = &result {
         let state = if matches!(error, CoreError::Cancelled) {
             UsageState::Cancelled
@@ -113,16 +116,19 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
         };
         funnel.finish(state).await;
     }
-    result
+    match result {
+        Ok(answer) => Ok(answer.deliver(&funnel, completion).await),
+        Err(error) => Err(error),
+    }
 }
 
-async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
+pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 'static>(
     core: &Core<C>,
     request: Arc<RequestContext>,
     wire: WireRequest<HttpBody>,
     funnel: Arc<Funnel>,
-    completion: crate::UsageCompletion,
-) -> CoreResult<HttpExecution> {
+    retry_transport: bool,
+) -> CoreResult<Answer> {
     funnel.set_meter(core.usage_meter());
     reject_when_over_budget(core, &request, &funnel).await?;
     let snapshot = request.snapshot.clone();
@@ -134,7 +140,6 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     let route = match convert::route_for_model(&provider, operation, upstream_model.as_deref()) {
         Ok(route) => route,
         Err(error) => {
-            funnel.finish(UsageState::Failed).await;
             return Err(error.into());
         }
     };
@@ -174,7 +179,6 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
 
     let converting = matches!(route, Route::TransformTo { .. });
     if converting && convert::is_websocket(operation) {
-        funnel.finish(UsageState::Failed).await;
         return Err(CoreError::Transform(TransformError::unsupported(
             "route",
             "WebSocket operations are passthrough only over HTTP",
@@ -193,7 +197,6 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     let (mut wire, replayable) =
         prepare::buffer_request(wire, want_replay, limits.max_request_body_bytes).await;
     if (converting || remap_model || local) && !replayable {
-        funnel.finish(UsageState::Failed).await;
         return Err(CoreError::Transform(TransformError::new(
             TransformErrorKind::Limit,
             "client.body",
@@ -232,8 +235,10 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         {
             response.body = HttpBody::Bytes(Bytes::from(rewritten));
         }
-        let settled = funnel.finish(UsageState::Completed).await;
-        return Ok(HttpExecution::new(response, completion, settled));
+        return Ok(Answer {
+            response,
+            attempt: None,
+        });
     }
     let attempts = if replayable {
         request.max_attempts.get()
@@ -255,24 +260,21 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         let now = now_ms();
         if request.cancellation.is_cancelled() {
             drop(held.take());
-            funnel.finish(UsageState::Cancelled).await;
             return Err(CoreError::Cancelled);
         }
         let budget = remaining(&request);
         if budget.is_some_and(|left| left.is_zero()) {
             drop(held.take());
-            funnel.finish(UsageState::Failed).await;
             return Err(CoreError::DeadlineExceeded);
         }
         let selection = match core.select_credential(&request, &excluded, now).await {
             Ok(selection) => selection,
             Err(CoreError::NoUsableCredential) if held.is_some() => {
                 let answer = held.take().expect("held");
-                return Ok(answer.deliver(&funnel, completion).await);
+                return Ok(answer);
             }
             Err(error) => {
                 drop(held.take());
-                funnel.finish(UsageState::Failed).await;
                 return Err(error);
             }
         };
@@ -335,10 +337,11 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
             continue;
         }
         let version = credential.state.load();
+        let attempt_ordinal = funnel.next_attempt();
         let attempt = Arc::new(AttemptContext {
-            attempt_id: format!("{}-{ordinal}", request.request_id),
+            attempt_id: format!("{}-{attempt_ordinal}", request.request_id),
             request: request.clone(),
-            ordinal,
+            ordinal: attempt_ordinal,
             credential: credential.clone(),
             credential_version: version.clone(),
             agent_assignment: assignment.as_ref().map(|h| h.reference.clone()),
@@ -391,7 +394,10 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                         {
                             Err(Fault::Client(error.into()))
                         } else {
-                            Ok(Answer(response))
+                            Ok(Answer {
+                                response,
+                                attempt: Some(attempt.clone()),
+                            })
                         }
                     }
                     Err(fault) => Err(fault),
@@ -454,12 +460,18 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                 };
                 converted.map(|converted| match converted {
                     convert::Converted::Success(response)
-                    | convert::Converted::Rejected(response) => Answer(response),
-                    convert::Converted::Stream(response) => Answer(WireResponse {
-                        status: response.status,
-                        headers: response.headers,
-                        body: HttpBody::Stream(response.body),
-                    }),
+                    | convert::Converted::Rejected(response) => Answer {
+                        response,
+                        attempt: Some(attempt.clone()),
+                    },
+                    convert::Converted::Stream(response) => Answer {
+                        response: WireResponse {
+                            status: response.status,
+                            headers: response.headers,
+                            body: HttpBody::Stream(response.body),
+                        },
+                        attempt: Some(attempt.clone()),
+                    },
                 })
             }
             Route::Unsupported => unreachable!("unsupported route rejected before attempting"),
@@ -486,13 +498,6 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     finished_at,
                 )
                 .await;
-                funnel
-                    .finish(if cancelled {
-                        UsageState::Cancelled
-                    } else {
-                        UsageState::Failed
-                    })
-                    .await;
                 return Err(if cancelled {
                     CoreError::Cancelled
                 } else {
@@ -509,7 +514,6 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     finished_at_ms: finished_at,
                 });
                 let _ = settle(core, &mut assignment, failed(false, "client"), finished_at).await;
-                funnel.finish(UsageState::Failed).await;
                 return Err(error);
             }
             Err(Fault::Failed(CoreError::Channel(
@@ -533,7 +537,6 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     finished_at,
                 )
                 .await?;
-                funnel.finish(UsageState::Failed).await;
                 return Err(CoreError::ContinuationElsewhere { instance_id });
             }
             Err(Fault::Failed(error)) => {
@@ -568,8 +571,7 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                 {
                     excluded.insert(credential.id.clone());
                 }
-                if ordinal >= attempts || wire.is_none() {
-                    funnel.finish(UsageState::Failed).await;
+                if !retry_transport || ordinal >= attempts || wire.is_none() {
                     return Err(error);
                 }
                 continue;
@@ -578,7 +580,11 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
 
         let status = answer.status();
         let refreshable = provider.channel.credential_refresh().is_some();
-        let classified = classify(status, refreshable, refreshed.contains(&credential.id));
+        let classified = classify(
+            status,
+            refreshable && ordinal < attempts && wire.is_some(),
+            refreshed.contains(&credential.id),
+        );
 
         // Every answer's headers may carry account quota; exhaustion recorded
         // here replaces the generic rate-limit block below. A final answer is
@@ -633,13 +639,10 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     finished_at,
                 )
                 .await?;
-                return Ok(answer.deliver(&funnel, completion).await);
+                return Ok(answer);
             }
             Classified::Refresh => {
                 refreshed.insert(credential.id.clone());
-                answer
-                    .discard(limits.capability(remaining(&request)).operation_total)
-                    .await;
                 match core
                     .refresh_credential(
                         &credential.provider_id,
@@ -658,17 +661,9 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                             outcome: &outcome,
                             finished_at_ms: finished_at,
                         });
-                        if wire.is_none() {
-                            let _ = settle(
-                                core,
-                                &mut assignment,
-                                failed(false, "unauthorized"),
-                                finished_at,
-                            )
+                        answer
+                            .discard(limits.capability(remaining(&request)).operation_total)
                             .await;
-                            funnel.finish(UsageState::Failed).await;
-                            return Err(CoreError::NoUsableCredential);
-                        }
                         // Same credential again with fresh material: the
                         // reservation is still being prepared.
                         carried = assignment.take();
@@ -691,6 +686,7 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                         )
                         .await?;
                         excluded.insert(credential.id.clone());
+                        held = Some(answer);
                     }
                 }
             }
@@ -743,16 +739,15 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                 }
                 if ordinal >= attempts || wire.is_none() {
                     // Budget spent: the last upstream answer is the answer.
-                    return Ok(answer.deliver(&funnel, completion).await);
+                    return Ok(answer);
                 }
                 held = Some(answer);
             }
         }
     }
     if let Some(answer) = held.take() {
-        return Ok(answer.deliver(&funnel, completion).await);
+        return Ok(answer);
     }
-    funnel.finish(UsageState::Failed).await;
     Err(CoreError::NoUsableCredential)
 }
 
@@ -783,7 +778,6 @@ pub(crate) async fn reject_when_over_budget<C: BatchConnectionTrait>(
                     resets_at_ms: *resets_at_ms,
                 });
             }
-            funnel.finish(UsageState::Failed).await;
             Err(error)
         }
     }

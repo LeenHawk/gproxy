@@ -35,6 +35,8 @@ mod pool;
 pub use client::Client;
 #[cfg(all(target_arch = "wasm32", feature = "fetch"))]
 pub use fetch::FetchClient;
+#[cfg(all(target_arch = "wasm32", feature = "workers"))]
+pub use fetch::workers::accept as accept_workers_websocket;
 #[cfg(target_arch = "wasm32")]
 pub use pool::ClientFactory;
 pub use pool::ClientPool;

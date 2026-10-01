@@ -64,6 +64,10 @@ axum = { workspace = true, features = [
 # by design and axum's handler bound is not. `send_wrapper` is the bridge, and
 # `crate::send` is the only place that names it.
 send_wrapper = { workspace = true }
+gproxy-client = { workspace = true, default-features = false, features = ["fetch", "workers"] }
+gloo-timers = { workspace = true }
+tokio = { workspace = true, features = ["macros", "sync"] }
+worker = { workspace = true, features = ["http"] }
 
 [dev-dependencies]
 async-trait = { workspace = true }

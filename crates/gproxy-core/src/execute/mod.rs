@@ -14,7 +14,7 @@ mod stream;
 mod websocket;
 
 pub(crate) use attempt::reject_when_over_budget as check_budget;
-pub(crate) use attempt::run_http;
+pub(crate) use attempt::{run_http, run_http_attempts};
 pub(crate) use exchange::{Exchange, ObservedClient};
 pub(crate) use funnel::Funnel;
 pub(crate) use websocket::observe_generation_socket;

@@ -66,21 +66,14 @@ async fn fetch(request: HttpRequest, env: Env, _ctx: Context)
    强制机制，也是为什么包在 handler 上而不是给路由加 `cfg`：编译不过的路由，不可能在
    边缘悄无声息地"不存在"。
 
-## 这个宿主不提供什么
+## WebSocket 与控制台
 
-| 面 | 原因 |
-|---|---|
-| websocket / 实时 | Worker 的升级方式是造一个 `WebSocketPair`、把客户端那一半塞进 `Response` 的 `webSocket` 字段——这套机制根本没有 `http::Response` 的形状。握手回 `501`。 |
-| 内嵌 console | 打包产物归 Workers Assets，挡在这个 Worker 前面；见 `wrangler.toml.example`。 |
+Responses WebSocket、Realtime 和渠道 service socket 复用原生宿主的路由、鉴权、
+帧大小限制、日志与结算逻辑。Workers 通过 `WebSocketPair` 升级，`worker` 库从
+`http::Response` 扩展中取出客户端 socket 并返回。Responses 同时支持原生上游 WS
+和 HTTP/SSE 桥接。
 
-其余全是 axum 路由的，原样：数据面及各渠道的 service 路由、OAuth issuer、
-`/admin/api`、`/portal/api`、`/publications/{id}`、`/healthz`。
-
-要把实时做成真的，缺两块，都不是路由问题：一个 `WebSocketPair` 版的
-`gproxy_protocol::connection::WebSocket` 实现，以及一条让 handler 把备好的 JS
-`Response` 交回 fetch 入口的路。第二条已经有现成的缝——`http::Extensions` 收
-`Send + Sync + Clone` 的值，而 `SendWrapper<web_sys::Response>` 三样都满足。
-这里故意没做：一条从没对着真客户端跑过的升级路径，不如一次诚实的拒绝值钱。
+控制台由 Workers Assets 提供，不嵌入 WASM 二进制；配置见 `wrangler.toml.example`。
 
 ## 同步只有一行
 

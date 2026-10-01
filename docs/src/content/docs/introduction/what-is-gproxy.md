@@ -40,7 +40,7 @@ Secrets are encrypted when a master key is configured. Without one, the CLI stor
 | --- | --- |
 | Application | Desktop or mobile use, with an in-app setup wizard and console. |
 | CLI / container | Server deployment with HTTP APIs and a browser console. |
-| Cloudflare Workers | Edge deployment with remote storage; currently without WebSocket / Realtime. |
+| Cloudflare Workers | Edge deployment with remote storage and WebSocket / Realtime support. |
 
 See [Installation](/getting-started/installation/) for packages and platform restrictions. When updating from v3, read the [migration guide](/deployment/v3-to-v4/) first.
 

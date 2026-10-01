@@ -7,7 +7,7 @@ Workers 使用与原生服务相同的 HTTP 路由，数据库和文件存储需
 
 ## 当前限制
 
-- WebSocket / Realtime 升级返回 `501`，请使用原生部署处理这类请求。
+- Responses WebSocket、Realtime 和渠道 service socket 复用原生部署的路由、鉴权与限制。
 - 默认支持 D1；libSQL 与 S3/R2 需要在构建时启用对应 feature。
 - 不支持本地 SQLite、TCP 数据库、本地文件目录或进程内缓存。当前 Worker 装配使用 `store` 缓存，不提供 Redis 客户端。
 - 首次启动通过 `GPROXY_ADMIN_PASSWORD` Secret 创建管理员，默认用户名为 `admin`；可用 `GPROXY_ADMIN_USER` 修改。Workers 不显示 Application 设置向导。
