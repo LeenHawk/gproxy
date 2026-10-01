@@ -32,29 +32,29 @@ beforeEach(() => {
   vi.mocked(checkUpdate).mockImplementation(async (selection) => ({ ...report, ...selection }))
 })
 
-it("checks the selected source and does not offer an install from the previous source", async () => {
+it.each([["cnb", "CNB"], ["gitlab", "GitLab"]])("checks %s and does not offer an install from the previous source", async (source, label) => {
   mount()
   await screen.findByText("Update available: new-commit")
   fireEvent.keyDown(screen.getByRole("combobox", { name: "Update source" }), { key: "Enter" })
-  fireEvent.click(await screen.findByRole("option", { name: "CNB" }))
+  fireEvent.click(await screen.findByRole("option", { name: label }))
   expect(screen.getByRole("button", { name: "Install update" })).toBeDisabled()
   expect(screen.queryByText("Update available: new-commit")).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Check for updates" }))
   await screen.findByText("Update available: new-commit")
-  expect(vi.mocked(checkUpdate).mock.calls[0][0]).toEqual({ channel: "dev", source: "cnb" })
+  expect(vi.mocked(checkUpdate).mock.calls[0][0]).toEqual({ channel: "dev", source })
   expect(screen.getByRole("button", { name: "Install update" })).toBeEnabled()
 })
 
-it("saves both source and channel and restores them when the page is reopened", async () => {
+it.each([["cnb", "CNB"], ["gitlab", "GitLab"]])("saves %s and channel and restores them when the page is reopened", async (source, label) => {
   const view = mount()
   await screen.findByText("Update available: new-commit")
   fireEvent.keyDown(screen.getByRole("combobox", { name: "Update source" }), { key: "Enter" })
-  fireEvent.click(await screen.findByRole("option", { name: "CNB" }))
+  fireEvent.click(await screen.findByRole("option", { name: label }))
   fireEvent.click(screen.getByRole("button", { name: "Save" }))
-  await waitFor(() => expect(saveSettings).toHaveBeenCalledWith({ instance: { updateChannel: "dev", updateSource: "cnb" } }))
+  await waitFor(() => expect(saveSettings).toHaveBeenCalledWith({ instance: { updateChannel: "dev", updateSource: source } }))
   await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeDisabled())
   view.unmount()
   mount()
-  await waitFor(() => expect(screen.getByRole("combobox", { name: "Update source" })).toHaveTextContent("CNB"))
+  await waitFor(() => expect(screen.getByRole("combobox", { name: "Update source" })).toHaveTextContent(label))
   expect(screen.getByRole("combobox", { name: "Update channel" })).toHaveTextContent("Dev")
 })

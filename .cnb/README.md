@@ -50,12 +50,17 @@ No private key or long-lived CNB token belongs in this repository.
 
 ## Update sources
 
-The Console update page independently selects **GitHub / CNB** and
+The Console update page independently selects **GitHub / GitLab / CNB** and
 **dev / beta / release**. Saving persists both settings. The command line has
-`--update-source github|cnb` (`GPROXY_UPDATE_SOURCE`). CNB-built binaries default
+`--update-source github|gitlab|cnb` (`GPROXY_UPDATE_SOURCE`). CNB-built binaries default
 to CNB via `GPROXY_BUILD_UPDATE_SOURCE=cnb`; GitHub builds retain GitHub.
-`GPROXY_UPDATE_MANIFEST_URL` remains an explicit URL override. Both sources
+`GPROXY_UPDATE_MANIFEST_URL` remains an explicit URL override. All sources
 verify the same signing key.
+
+GitLab channel manifests are hosted under
+`https://gitlab.com/leenhawk1/gproxy/-/releases/{nightly|beta|release}/downloads/manifest.json`.
+The `release` pointer selects stable releases, independently of newer nightly
+or beta publications.
 
 CNB channel manifests are hosted under
 `https://cnb.cool/LeenHawk/gproxy/-/releases/download/{nightly|beta|release}/manifest.json`.

@@ -332,6 +332,7 @@
   "settingsOption": {
     "github": "GitHub",
     "cnb": "CNB",
+    "gitlab": "GitLab",
     "off": "Off",
     "error": "Error",
     "warn": "Warning",

@@ -55,7 +55,7 @@ GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模
 | `GPROXY_IMPORT_SOURCE_MASTER_KEY` | `--source-master-key` | — | 仅 `import`：源实例的钥匙 |
 | `GPROXY_ENV_FILE` | — | `.env` | 加载哪个 `.env` |
 | `GPROXY_UPDATE_CHANNEL` | `--update-channel` | 构建渠道 | `dev`、`beta` 或 `release` |
-| `GPROXY_UPDATE_SOURCE` | `--update-source` | 构建来源 | `github` 或 `cnb` |
+| `GPROXY_UPDATE_SOURCE` | `--update-source` | 构建来源 | `github`、`gitlab` 或 `cnb` |
 | `GPROXY_UPDATE_MANIFEST_URL` | `--update-manifest-url` | 来源与渠道对应 URL | 自定义签名更新清单 |
 | `GPROXY_UPDATE_RESTART` | `--update-restart` | `re-exec` | 更新后 `none`、`supervisor`（退出码 42）或 `re-exec` |
 | `GPROXY_UPDATE_CHECK_INTERVAL` | `--update-check-interval` | `21600` | 检查间隔秒数，`0` 关闭定时检查 |

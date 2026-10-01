@@ -239,7 +239,7 @@ pub struct Options {
     #[arg(long, global = true, env = UPDATE_CHANNEL, value_name = "CHANNEL")]
     pub update_channel: Option<String>,
 
-    /// Release host: `github` or `cnb`. [default: the build's release host]
+    /// Release host: `github`, `gitlab` or `cnb`. [default: the build's release host]
     #[arg(long, global = true, env = UPDATE_SOURCE, value_name = "SOURCE")]
     pub update_source: Option<String>,
 

@@ -216,9 +216,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
                 let value = crud::optional_text(value);
                 if value
                     .as_deref()
-                    .is_some_and(|v| !matches!(v, "github" | "cnb"))
+                    .is_some_and(|v| !matches!(v, "github" | "gitlab" | "cnb"))
                 {
-                    return Err(SdkError::invalid("updateSource must be github or cnb"));
+                    return Err(SdkError::invalid(
+                        "updateSource must be github, gitlab or cnb",
+                    ));
                 }
                 row.update_source = Set(value);
             }

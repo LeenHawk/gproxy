@@ -139,10 +139,11 @@ impl Default for Channel {
 }
 
 /// Where a channel's signed releases are hosted. The signing identity is the
-/// same for both sources; choosing a host never changes signature verification.
+/// same for all sources; choosing a host never changes signature verification.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Source {
     Github,
+    Gitlab,
     Cnb,
 }
 
@@ -150,6 +151,7 @@ impl Source {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Github => "github",
+            Self::Gitlab => "gitlab",
             Self::Cnb => "cnb",
         }
     }
@@ -157,9 +159,10 @@ impl Source {
     pub fn parse(value: &str) -> Result<Self, UpdateError> {
         match value.trim().to_ascii_lowercase().as_str() {
             "github" => Ok(Self::Github),
+            "gitlab" => Ok(Self::Gitlab),
             "cnb" => Ok(Self::Cnb),
             other => Err(UpdateError::Configuration(format!(
-                "`{other}` is not an update source; expected `github` or `cnb`"
+                "`{other}` is not an update source; expected `github`, `gitlab` or `cnb`"
             ))),
         }
     }
@@ -175,6 +178,14 @@ impl Source {
                     "nightly"
                 } else {
                     "beta"
+                },
+            ),
+            (Self::Gitlab, channel) => format!(
+                "https://gitlab.com/leenhawk1/gproxy/-/releases/{}/downloads/manifest.json",
+                match channel {
+                    Channel::Dev => "nightly",
+                    Channel::Beta => "beta",
+                    Channel::Release => "release",
                 },
             ),
             (Self::Cnb, channel) => format!(
@@ -568,10 +579,12 @@ mod tests {
             manifest_url: Some("http://127.0.0.1:9/manifest.json".into()),
             ..UpdateOptions::default()
         };
-        assert_eq!(
-            named.manifest_url(Channel::Dev, Source::Cnb),
-            "http://127.0.0.1:9/manifest.json"
-        );
+        for source in [Source::Github, Source::Gitlab, Source::Cnb] {
+            assert_eq!(
+                named.manifest_url(Channel::Dev, source),
+                "http://127.0.0.1:9/manifest.json"
+            );
+        }
     }
 
     #[test]
@@ -590,12 +603,35 @@ mod tests {
                 }
             )));
         }
-        let options = UpdateOptions::from_cli(&crate::cli::Options {
-            update_source: Some("cnb".into()),
-            ..Default::default()
-        })
-        .unwrap();
-        assert_eq!(options.source, Source::Cnb);
+        for (channel, url) in [
+            (
+                Channel::Dev,
+                "https://gitlab.com/leenhawk1/gproxy/-/releases/nightly/downloads/manifest.json",
+            ),
+            (
+                Channel::Beta,
+                "https://gitlab.com/leenhawk1/gproxy/-/releases/beta/downloads/manifest.json",
+            ),
+            (
+                Channel::Release,
+                "https://gitlab.com/leenhawk1/gproxy/-/releases/release/downloads/manifest.json",
+            ),
+        ] {
+            assert_eq!(Source::Gitlab.manifest_url(channel), url);
+        }
+        for (name, source) in [
+            ("github", Source::Github),
+            ("gitlab", Source::Gitlab),
+            ("cnb", Source::Cnb),
+        ] {
+            let options = UpdateOptions::from_cli(&crate::cli::Options {
+                update_source: Some(name.into()),
+                ..Default::default()
+            })
+            .unwrap();
+            assert_eq!(options.source, source);
+            assert_eq!(options.source.as_str(), name);
+        }
         let error = UpdateOptions::from_cli(&crate::cli::Options {
             update_source: Some("untrusted".into()),
             ..Default::default()

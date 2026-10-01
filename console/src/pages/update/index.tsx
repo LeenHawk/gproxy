@@ -62,7 +62,7 @@ export function UpdatePage() {
           <FieldLabel htmlFor="update-source">{t("update.source")}</FieldLabel>
           <Select value={source} disabled={busy || !settings.data} onValueChange={(v) => { setSelectedSource(v); checked.reset(); installed.reset(); saved.reset() }}>
             <SelectTrigger id="update-source"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectGroup>{["github", "cnb"].map((v) => <SelectItem value={v} key={v}>{t(`settingsOption.${v}`)}</SelectItem>)}</SelectGroup></SelectContent>
+            <SelectContent><SelectGroup>{["github", "gitlab", "cnb"].map((v) => <SelectItem value={v} key={v}>{t(`settingsOption.${v}`)}</SelectItem>)}</SelectGroup></SelectContent>
           </Select>
         </Field>
         <Field>

@@ -60,7 +60,7 @@ Common environment variables are listed below. `gproxy --help` shows the flags a
 | `GPROXY_IMPORT_SOURCE_MASTER_KEY` | `--source-master-key` | — | `import` only: the source instance's key |
 | `GPROXY_ENV_FILE` | — | `.env` | which `.env` to load |
 | `GPROXY_UPDATE_CHANNEL` | `--update-channel` | build channel | `dev`, `beta`, or `release` |
-| `GPROXY_UPDATE_SOURCE` | `--update-source` | build source | `github` or `cnb` |
+| `GPROXY_UPDATE_SOURCE` | `--update-source` | build source | `github`, `gitlab` or `cnb` |
 | `GPROXY_UPDATE_MANIFEST_URL` | `--update-manifest-url` | source/channel URL | Custom signed update manifest |
 | `GPROXY_UPDATE_RESTART` | `--update-restart` | `re-exec` | After update: `none`, `supervisor` (exit 42), or `re-exec` |
 | `GPROXY_UPDATE_CHECK_INTERVAL` | `--update-check-interval` | `21600` | Check interval in seconds; `0` disables scheduled checks |

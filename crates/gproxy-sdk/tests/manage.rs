@@ -934,7 +934,7 @@ async fn a_settings_write_reaches_the_active_snapshot() {
 #[tokio::test]
 async fn update_source_is_persisted_validated_and_can_follow_the_build_default() {
     let (gproxy, _, _) = support::sdk_parts().await;
-    for source in [Some("cnb"), Some("github"), None] {
+    for source in [Some("cnb"), Some("gitlab"), Some("github"), None] {
         let settings = gproxy
             .manage()
             .settings()
@@ -966,7 +966,7 @@ async fn update_source_is_persisted_validated_and_can_follow_the_build_default()
     assert!(
         error
             .to_string()
-            .contains("updateSource must be github or cnb")
+            .contains("updateSource must be github, gitlab or cnb")
     );
     assert!(
         gproxy

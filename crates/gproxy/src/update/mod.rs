@@ -1038,14 +1038,16 @@ mod runtime_tests {
         assert_eq!(updater.channel(None).unwrap(), Channel::Beta);
         assert_eq!(updater.source(None).unwrap(), Source::Cnb);
         assert_eq!(updater.source(Some("github")).unwrap(), Source::Github);
+        assert_eq!(updater.source(Some("gitlab")).unwrap(), Source::Gitlab);
         assert!(updater.source(Some("other")).is_err());
         assert_eq!(updater.recorded().source, "cnb");
         assert!(updater.interval().is_none());
         updater
-            .configure(Some("dev"), Some("github"), true)
+            .configure(Some("dev"), Some("gitlab"), true)
             .unwrap();
         assert_eq!(updater.channel(None).unwrap(), Channel::Dev);
-        assert_eq!(updater.source(None).unwrap(), Source::Github);
+        assert_eq!(updater.source(None).unwrap(), Source::Gitlab);
+        assert_eq!(updater.recorded().source, "gitlab");
         assert!(updater.task.lock().unwrap().is_some());
         updater.configure(None, None, false).unwrap();
         assert!(updater.task.lock().unwrap().is_none());
