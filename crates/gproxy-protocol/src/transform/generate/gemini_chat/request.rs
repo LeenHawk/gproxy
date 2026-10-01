@@ -92,7 +92,7 @@ pub(crate) fn gemini_to_openai_request_with_calls(
 /// The selected Gemini model is an HTTP path resource, not a field of this body.
 pub fn openai_to_gemini_request(
     input: &c::GenerateContentRequestBody,
-    _target_model: impl Into<String>,
+    target_model: impl Into<String>,
     function_names: &BTreeMap<String, String>,
 ) -> Result<Converted<g::GenerateContentRequestBody>, TransformError> {
     let mut names = function_names.clone();
@@ -227,5 +227,6 @@ pub fn openai_to_gemini_request(
     if !system.is_empty() {
         out.system_instruction = Some(g::Content::builder().parts(system).build());
     }
+    super::super::gemini_controls::for_model(&mut out, &target_model.into(), &mut report);
     Ok(Converted { value: out, report })
 }

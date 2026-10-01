@@ -202,7 +202,8 @@ pub fn gemini_to_claude_response(
         | g::FinishReason::Spii
         | g::FinishReason::ImageSafety
         | g::FinishReason::ImageProhibitedContent
-        | g::FinishReason::ImageRecitation => c::StopReason::Refusal,
+        | g::FinishReason::ImageRecitation
+        | g::FinishReason::Escalation => c::StopReason::Refusal,
         g::FinishReason::Unspecified
         | g::FinishReason::Other
         | g::FinishReason::MalformedFunctionCall
@@ -211,7 +212,8 @@ pub fn gemini_to_claude_response(
         | g::FinishReason::UnexpectedToolCall
         | g::FinishReason::TooManyToolCalls
         | g::FinishReason::MissingThoughtSignature
-        | g::FinishReason::MalformedResponse => {
+        | g::FinishReason::MalformedResponse
+        | g::FinishReason::PupLimitedDisabled => {
             return Err(TransformError::invalid_result(
                 "finish_reason",
                 "unsuccessful generation cannot become Claude success",
@@ -225,6 +227,7 @@ pub fn gemini_to_claude_response(
     // Thought text collected until its run closes; see `thinking`.
     let mut run: Option<String> = None;
     for p in candidate.content.and_then(|v| v.parts).unwrap_or_default() {
+        crate::transform::generate::gemini_controls::omitted(&p, &mut report);
         if super::thinking::is_empty_text(&p) {
             continue;
         }

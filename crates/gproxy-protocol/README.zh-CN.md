@@ -127,6 +127,12 @@ Chat Completions 的 `[DONE]` 等非 JSON 传输标记也由调用方的分帧�
 | 视频 | `wire::openai::video`，扩展格式与原生格式独立 |
 | Responses WebSocket | `wire::openai::responses::websocket` |
 | 实时 / WebRTC | `wire::openai::realtime`、`wire::gemini::live` |
+| Gemini 声音管理 | `wire::gemini::voices`（snake_case 创建、列表、查询、删除的报文与查询参数） |
+
+2026-10-01 的 Gemini 文档核对补充了自定义声音、语音样式、视频动态处理、
+转写配置及结果、Computer Use 配置和最新安全类别及结束原因。共享音频类型位于
+`wire::gemini::audio`，原有 Live 导出路径保持可用。Voices 类型建模不包含网关路由；
+Interactions 专属的 Omni、音乐和托管 Agent 操作不属于现有 GenerateContent 方言。
 
 multipart 表单包含明确的元数据字段和真实的 `MultipartPart` 文件流，下载响应保留原始 body。
 类型本身不上传文件、不抓取结果 URL，也不在原生与扩展视频格式之间执行转换。

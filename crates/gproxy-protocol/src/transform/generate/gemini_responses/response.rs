@@ -54,7 +54,8 @@ pub fn gemini_to_responses_response(
         | g::FinishReason::Spii
         | g::FinishReason::ImageSafety
         | g::FinishReason::ImageProhibitedContent
-        | g::FinishReason::ImageRecitation => Some(r::ResponseIncompleteReason::ContentFilter),
+        | g::FinishReason::ImageRecitation
+        | g::FinishReason::Escalation => Some(r::ResponseIncompleteReason::ContentFilter),
         g::FinishReason::Unspecified
         | g::FinishReason::Other
         | g::FinishReason::MalformedFunctionCall
@@ -63,7 +64,8 @@ pub fn gemini_to_responses_response(
         | g::FinishReason::UnexpectedToolCall
         | g::FinishReason::TooManyToolCalls
         | g::FinishReason::MissingThoughtSignature
-        | g::FinishReason::MalformedResponse => {
+        | g::FinishReason::MalformedResponse
+        | g::FinishReason::PupLimitedDisabled => {
             return Err(TransformError::invalid_result(
                 "finish_reason",
                 "non-successful Gemini generation",
@@ -100,6 +102,7 @@ pub fn gemini_to_responses_response(
         .into_iter()
         .enumerate()
     {
+        crate::transform::generate::gemini_controls::omitted(&part, &mut report);
         // A call's or an image's signature travels on an empty reasoning item
         // right before it; see `signature`.
         let carried = next_signature(&part);

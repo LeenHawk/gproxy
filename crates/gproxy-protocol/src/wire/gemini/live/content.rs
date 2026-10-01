@@ -35,6 +35,8 @@ pub struct LivePart {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "media_resolution")]
     pub media_resolution: Option<MediaResolution>,
+    #[serde(alias = "speech_metadata", skip_serializing_if = "Option::is_none")]
+    pub speech_metadata: Option<crate::gemini::audio::SpeechMetadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -80,14 +82,4 @@ pub struct LivePart {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[derive(gproxy_protocol_macros::DeclaredFields)]
-pub enum LiveMediaProcessing {
-    #[serde(rename = "MEDIA_PROCESSING_UNSPECIFIED")]
-    Unspecified,
-    #[serde(rename = "STATIC")]
-    Static,
-    #[serde(rename = "AGENTIC")]
-    Agentic,
-}
+pub use crate::gemini::content::MediaProcessing as LiveMediaProcessing;

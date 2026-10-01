@@ -141,6 +141,7 @@ impl GeminiToResponsesStream {
             self.usage_after_content = true;
         }
         let mut out = Vec::new();
+        let mut report = Report::default();
         self.start(&mut out)?;
         for candidate in chunk.candidates.into_iter().flatten() {
             if candidate.index.is_some_and(|n| n != 0) {
@@ -151,6 +152,7 @@ impl GeminiToResponsesStream {
                     return Err(invalid("generated content must have model role"));
                 }
                 for part in content.parts.into_iter().flatten() {
+                    crate::transform::generate::gemini_controls::omitted(&part, &mut report);
                     if !usage_present {
                         self.usage_after_content = false;
                     }
@@ -171,10 +173,7 @@ impl GeminiToResponsesStream {
                 }
             }
         }
-        Ok(Converted {
-            value: out,
-            report: Report::default(),
-        })
+        Ok(Converted { value: out, report })
     }
     fn start(&mut self, out: &mut Vec<s::StreamEvent>) -> Result<(), TransformError> {
         if self.started {

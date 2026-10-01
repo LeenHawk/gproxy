@@ -104,5 +104,6 @@ pub fn responses_to_gemini_request(
     if !system.is_empty() {
         out.system_instruction = Some(g::Content::builder().parts(system).build());
     }
+    super::super::gemini_controls::for_model(&mut out, &model, &mut report);
     Ok(Converted { value: out, report })
 }

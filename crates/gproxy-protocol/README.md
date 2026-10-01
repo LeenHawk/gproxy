@@ -136,6 +136,14 @@ such as Chat Completions' `[DONE]` remain the caller's framing responsibility.
 | Video | `wire::openai::video` (extended and native formats are distinct) |
 | Responses WebSocket | `wire::openai::responses::websocket` |
 | Realtime / WebRTC | `wire::openai::realtime`, `wire::gemini::live` |
+| Gemini voices | `wire::gemini::voices` (snake_case create/list/get/delete envelopes and query fields) |
+
+Gemini's October 1, 2026 documentation audit adds custom voice selectors,
+speech metadata, agentic video processing, transcription settings/results,
+Computer Use controls and current safety/finish reasons. Shared audio settings
+live in `wire::gemini::audio`; existing Live exports remain available. Voices
+types do not add gateway routes. Interactions-only Omni, music and managed-agent
+operations remain outside the modeled GenerateContent dialect.
 
 Multipart forms expose typed metadata and actual `MultipartPart` file streams. Download
 responses retain raw bodies. No model performs uploads, fetches result URLs, or converts

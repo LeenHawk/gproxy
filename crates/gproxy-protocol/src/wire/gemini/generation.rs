@@ -1,3 +1,7 @@
+pub use super::audio::{
+    AudioTranscriptionConfig, AudioTranscriptionMode, LanguageAuto, LanguageHints,
+    TranslationConfig,
+};
 use super::content::*;
 use crate::Rest;
 use serde::{Deserialize, Serialize};
@@ -167,7 +171,11 @@ pub struct SpeechConfig {
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct VoiceConfig {
     #[serde(alias = "prebuilt_voice_config")]
-    pub prebuilt_voice_config: PrebuiltVoiceConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prebuilt_voice_config: Option<PrebuiltVoiceConfig>,
+    /// Prebuilt speaker name, stored `voice_...` ID, or client-managed `voicekey_...`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -179,7 +187,8 @@ pub struct VoiceConfig {
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct PrebuiltVoiceConfig {
     #[serde(alias = "voice_name")]
-    pub voice_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice_name: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -329,6 +338,8 @@ pub struct EmbeddedGenerateContentRequest {
     #[serde(alias = "safety_settings")]
     pub safety_settings: Option<Vec<SafetySetting>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub labels: Option<std::collections::BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "system_instruction")]
     pub system_instruction: Option<Content>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -416,6 +427,18 @@ pub struct GenerationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "response_format")]
     pub response_format: Option<ResponseFormatConfig>,
+    #[serde(
+        alias = "enable_affective_dialog",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub enable_affective_dialog: Option<bool>,
+    #[serde(alias = "translation_config", skip_serializing_if = "Option::is_none")]
+    pub translation_config: Option<TranslationConfig>,
+    #[serde(
+        alias = "audio_transcription_config",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub audio_transcription_config: Option<AudioTranscriptionConfig>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }

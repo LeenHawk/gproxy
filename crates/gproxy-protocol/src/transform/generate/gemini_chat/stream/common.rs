@@ -98,7 +98,8 @@ pub(super) fn chat_finish(
         | g::FinishReason::Spii
         | g::FinishReason::ImageSafety
         | g::FinishReason::ImageProhibitedContent
-        | g::FinishReason::ImageRecitation => c::FinishReason::ContentFilter,
+        | g::FinishReason::ImageRecitation
+        | g::FinishReason::Escalation => c::FinishReason::ContentFilter,
         g::FinishReason::Unspecified
         | g::FinishReason::Other
         | g::FinishReason::MalformedFunctionCall
@@ -107,7 +108,8 @@ pub(super) fn chat_finish(
         | g::FinishReason::UnexpectedToolCall
         | g::FinishReason::TooManyToolCalls
         | g::FinishReason::MissingThoughtSignature
-        | g::FinishReason::MalformedResponse => {
+        | g::FinishReason::MalformedResponse
+        | g::FinishReason::PupLimitedDisabled => {
             return Err(invalid(
                 "Gemini ended with an unrepresentable failure reason",
             ));

@@ -192,6 +192,7 @@ impl GeminiToClaudeStream {
             }
         }
         let mut out = Vec::new();
+        let mut report = Report::default();
         self.ensure_start(&mut out)?;
         for candidate in chunk.candidates.unwrap_or_default() {
             if candidate.index.is_some_and(|v| v != 0) {
@@ -206,13 +207,11 @@ impl GeminiToClaudeStream {
                 return Err(invalid("candidate.role", "model role required"));
             }
             for part in candidate.content.and_then(|v| v.parts).unwrap_or_default() {
+                crate::transform::generate::gemini_controls::omitted(&part, &mut report);
                 self.part(part, &mut out)?;
             }
         }
-        Ok(Converted {
-            value: out,
-            report: Report::default(),
-        })
+        Ok(Converted { value: out, report })
     }
     fn ensure_start(&mut self, out: &mut Vec<s::StreamEvent>) -> Result<(), TransformError> {
         if self.started {

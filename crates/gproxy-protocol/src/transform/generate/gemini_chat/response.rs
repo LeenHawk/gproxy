@@ -156,7 +156,8 @@ pub fn gemini_to_openai_response(
             | g::FinishReason::Spii
             | g::FinishReason::ImageSafety
             | g::FinishReason::ImageProhibitedContent
-            | g::FinishReason::ImageRecitation => c::FinishReason::ContentFilter,
+            | g::FinishReason::ImageRecitation
+            | g::FinishReason::Escalation => c::FinishReason::ContentFilter,
             g::FinishReason::Unspecified
             | g::FinishReason::Other
             | g::FinishReason::MalformedFunctionCall
@@ -165,7 +166,8 @@ pub fn gemini_to_openai_response(
             | g::FinishReason::UnexpectedToolCall
             | g::FinishReason::TooManyToolCalls
             | g::FinishReason::MissingThoughtSignature
-            | g::FinishReason::MalformedResponse => {
+            | g::FinishReason::MalformedResponse
+            | g::FinishReason::PupLimitedDisabled => {
                 return Err(TransformError::invalid_result(
                     "candidate.finish_reason",
                     "Gemini generation did not finish with a representable successful reason",

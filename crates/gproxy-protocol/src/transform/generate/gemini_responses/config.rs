@@ -13,6 +13,7 @@ pub(super) fn to_responses(
 ) -> Result<(), TransformError> {
     for (present, field) in [
         (input.cached_content.is_some(), "cached_content"),
+        (input.labels.is_some(), "labels"),
         (input.safety_settings.is_some(), "safety_settings"),
         (input.service_tier.is_some(), "service_tier"),
     ] {
@@ -41,6 +42,15 @@ pub(super) fn to_responses(
             "frequency_penalty",
         ),
         (config.speech_config.is_some(), "speech_config"),
+        (
+            config.enable_affective_dialog.is_some(),
+            "enable_affective_dialog",
+        ),
+        (config.translation_config.is_some(), "translation_config"),
+        (
+            config.audio_transcription_config.is_some(),
+            "audio_transcription_config",
+        ),
         (config.media_resolution.is_some(), "media_resolution"),
         (
             config

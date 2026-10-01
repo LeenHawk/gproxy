@@ -10,6 +10,7 @@ pub(super) fn to_chat(
 ) -> Result<(), TransformError> {
     for (present, field) in [
         (input.cached_content.is_some(), "cached_content"),
+        (input.labels.is_some(), "labels"),
         (input.safety_settings.is_some(), "safety_settings"),
         (input.service_tier.is_some(), "service_tier"),
     ] {
@@ -22,6 +23,15 @@ pub(super) fn to_chat(
         for (present, field) in [
             (config.top_k.is_some(), "top_k"),
             (config.speech_config.is_some(), "speech_config"),
+            (
+                config.enable_affective_dialog.is_some(),
+                "enable_affective_dialog",
+            ),
+            (config.translation_config.is_some(), "translation_config"),
+            (
+                config.audio_transcription_config.is_some(),
+                "audio_transcription_config",
+            ),
             (config.image_config.is_some(), "image_config"),
             (config.media_resolution.is_some(), "media_resolution"),
             (config.response_format.is_some(), "response_format"),

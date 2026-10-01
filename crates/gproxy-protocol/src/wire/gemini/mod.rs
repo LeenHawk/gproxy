@@ -1,3 +1,4 @@
+pub mod audio;
 pub mod content;
 pub mod count_tokens;
 pub mod generate_content;
@@ -5,6 +6,7 @@ pub mod generation;
 pub mod models;
 pub mod stream;
 pub mod video;
+pub mod voices;
 
 pub use content::*;
 pub use count_tokens::*;

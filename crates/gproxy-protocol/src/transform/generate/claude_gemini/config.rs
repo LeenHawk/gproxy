@@ -141,6 +141,12 @@ pub(super) fn to_claude(
             "Claude has no equivalent Gemini service tier field",
         );
     }
+    if input.labels.is_some() {
+        report.omitted(
+            "labels",
+            "Gemini request labels have no Claude representation",
+        );
+    }
     let Some(config) = &input.generation_config else {
         return Ok(());
     };
@@ -166,6 +172,15 @@ pub(super) fn to_claude(
             "enhanced_civic_answers",
         ),
         (config.speech_config.is_some(), "speech_config"),
+        (
+            config.enable_affective_dialog.is_some(),
+            "enable_affective_dialog",
+        ),
+        (config.translation_config.is_some(), "translation_config"),
+        (
+            config.audio_transcription_config.is_some(),
+            "audio_transcription_config",
+        ),
         (config.image_config.is_some(), "image_config"),
         (config.media_resolution.is_some(), "media_resolution"),
         (config.response_format.is_some(), "response_format"),
