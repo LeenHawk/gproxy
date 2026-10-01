@@ -308,141 +308,100 @@ async fn the_last_enabled_administrator_cannot_be_removed_disabled_or_demoted() 
 }
 
 #[tokio::test]
-async fn bootstrap_admin_overrides_only_changed_passwords_and_revokes_sessions() {
+async fn bootstrap_admin_prefers_same_name_then_recovers_zero() {
     let gproxy = handle().await;
+    seed_admin(&gproxy).await;
     let config = AppConfig::default();
     let data = snapshot(gproxy.store()).await;
     let operations = Operations::new(&gproxy, &data, &config);
-    assert!(
-        operations
-            .users()
-            .bootstrap_admin("root", None)
-            .await
-            .is_err()
-    );
-    assert!(
-        operations
-            .users()
-            .bootstrap_admin("root", Some("old-password"))
-            .await
-            .unwrap()
-    );
-
-    let data = snapshot(gproxy.store()).await;
-    let operations = Operations::new(&gproxy, &data, &config);
-    let root = gproxy
-        .store()
+    operations
         .users()
-        .query(user::Entity::find())
-        .await
-        .unwrap()
-        .remove(0);
-    let session = Authenticator::new(gproxy.store(), &data, &config)
-        .create_session(&root.id, 1_000)
+        .bootstrap_admin("operator", Some("first-password"))
         .await
         .unwrap();
-    let before = revision(gproxy.store()).await;
-    assert!(
-        !operations
-            .users()
-            .bootstrap_admin("root", None)
-            .await
-            .unwrap()
-    );
-    assert!(
-        !operations
-            .users()
-            .bootstrap_admin("root", Some("old-password"))
-            .await
-            .unwrap()
-    );
-    assert_eq!(revision(gproxy.store()).await, before);
-    assert!(
-        Authenticator::new(gproxy.store(), &data, &config)
-            .authenticate_session(&session.token, 2_000)
-            .await
-            .is_ok()
-    );
-
-    assert!(
-        operations
-            .users()
-            .bootstrap_admin("root", Some("new-password"))
-            .await
-            .unwrap()
-    );
-    assert_eq!(revision(gproxy.store()).await, before + 1);
-    let changed = gproxy
+    operations
+        .users()
+        .update(
+            "0",
+            UserPatch {
+                enabled: Some(false),
+                role: Some("user".into()),
+                ..UserPatch::default()
+            },
+        )
+        .await
+        .unwrap();
+    let zero = gproxy
         .store()
         .users()
-        .get_many(std::slice::from_ref(&root.id))
+        .get_many(&["0".into()])
         .await
         .unwrap()
         .remove(0)
         .unwrap();
-    let hash = changed.password_hash.as_deref().unwrap();
-    assert!(gproxy_app::auth::password::verify("new-password", hash));
-    assert!(!gproxy_app::auth::password::verify("old-password", hash));
-    assert!(
-        Authenticator::new(gproxy.store(), &data, &config)
-            .authenticate_session(&session.token, 2_000)
-            .await
-            .is_err()
-    );
-}
-
-#[tokio::test]
-async fn bootstrap_admin_rejects_invalid_passwords_and_non_admin_targets() {
-    let gproxy = handle().await;
-    let root = seed_admin(&gproxy).await;
-    let config = AppConfig::default();
-    let data = snapshot(gproxy.store()).await;
-    let operations = Operations::new(&gproxy, &data, &config);
     let ordinary = operations
         .users()
         .create(UserWrite {
-            name: "ordinary".into(),
+            name: "matching".into(),
+            enabled: Some(false),
             ..UserWrite::default()
         })
         .await
         .unwrap();
-    let before = revision(gproxy.store()).await;
-    for (name, password) in [
-        ("root", "short"),
-        ("ordinary", "new-password"),
-        ("missing", "new-password"),
-    ] {
-        assert!(
-            operations
-                .users()
-                .bootstrap_admin(name, Some(password))
-                .await
-                .is_err()
-        );
-    }
-    assert_eq!(revision(gproxy.store()).await, before);
-    assert!(
-        gproxy
-            .store()
-            .users()
-            .get_many(std::slice::from_ref(&root))
-            .await
-            .unwrap()
-            .remove(0)
-            .unwrap()
-            .password_hash
-            .is_none()
-    );
-    let ordinary = gproxy
+
+    // A matching name takes priority even when it belongs to a non-admin user.
+    operations
+        .users()
+        .bootstrap_admin("matching", Some("changed-password"))
+        .await
+        .unwrap();
+    let rows = gproxy
         .store()
         .users()
-        .get_many(std::slice::from_ref(&ordinary.id))
+        .get_many(&["0".into(), ordinary.id.clone()])
+        .await
+        .unwrap();
+    assert_eq!(rows[0].as_ref().unwrap(), &zero);
+    let matched = rows[1].as_ref().unwrap();
+    assert_eq!(matched.name, "matching");
+    assert_eq!(matched.role, "user");
+    assert!(!matched.enabled);
+    assert!(gproxy_app::auth::password::verify(
+        "changed-password",
+        matched.password_hash.as_deref().unwrap()
+    ));
+
+    // With no matching name, recover the fixed account instead of adding a new ID.
+    operations
+        .users()
+        .bootstrap_admin("recovered", Some("recovery-password"))
+        .await
+        .unwrap();
+    let recovered = gproxy
+        .store()
+        .users()
+        .get_many(&["0".into()])
         .await
         .unwrap()
         .remove(0)
         .unwrap();
-    assert_eq!(ordinary.role, "user");
-    assert!(ordinary.password_hash.is_none());
+    assert_eq!(recovered.name, "recovered");
+    assert_eq!(recovered.role, "admin");
+    assert!(recovered.enabled);
+    assert_eq!(recovered.created_at_ms, zero.created_at_ms);
+    assert!(gproxy_app::auth::password::verify(
+        "recovery-password",
+        recovered.password_hash.as_deref().unwrap()
+    ));
+    assert_eq!(
+        operations
+            .users()
+            .list(ListQuery::default())
+            .await
+            .unwrap()
+            .total,
+        3
+    );
 }
 
 #[tokio::test]

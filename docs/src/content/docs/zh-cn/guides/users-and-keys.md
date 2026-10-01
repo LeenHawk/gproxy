@@ -17,7 +17,7 @@ export GPROXY_BOOTSTRAP_ADMIN_API_KEY='your-initial-gateway-key'
 ./gproxy serve
 ```
 
-空库初始化时，密码和密钥变量均可省略，由程序生成。**显式设置的 `GPROXY_ADMIN_PASSWORD` 也会在重启时覆盖指定管理员的密码；API Key 选项只用于首次初始化。** 不再支持通过 `GPROXY_BOOTSTRAP_CHANNELS` 自动创建供应商，请在控制台添加。
+空库初始化时，密码和密钥变量均可省略，由程序生成。**显式设置的 `GPROXY_ADMIN_PASSWORD` 会在启动时优先更新同名用户的密码；没有同名用户时恢复并重命名 0 号管理员；API Key 选项只用于首次初始化。** 不再支持通过 `GPROXY_BOOTSTRAP_CHANNELS` 自动创建供应商，请在控制台添加。
 
 CLI / 容器的登录入口是 `/console/`。个人页和管理页共用登录会话，HTTP 会话 Cookie 名为 `gproxy_session`，生命周期由 `session_ttl_secs` 配置。Application 使用应用内控制台。
 

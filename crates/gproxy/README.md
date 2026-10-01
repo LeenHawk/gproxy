@@ -401,8 +401,9 @@ this instance can show you again.
 ```
 
 - An **empty `users` table** triggers account and key creation. On an existing
-  instance, an explicit `GPROXY_ADMIN_PASSWORD` overrides the named administrator’s
-  password. Matching passwords preserve sessions; changed passwords end them.
+  instance, an explicit `GPROXY_ADMIN_PASSWORD` updates a same-name user’s
+  password; otherwise it recovers and renames administrator `0`. Unchanged credentials
+  preserve sessions; a password change or recovery ends the target user’s sessions.
   Without an explicit password, accounts are left unchanged. No new key is minted.
 - **Only what the operator does not already know is printed.** Supply
   `GPROXY_ADMIN_PASSWORD` and it is used but not echoed; supply

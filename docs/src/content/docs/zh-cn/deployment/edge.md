@@ -17,14 +17,14 @@ Workers 使用与原生服务相同的 HTTP 路由，数据库和文件存储需
 4. 保留检测到的构建命令 `npm run build` 和部署命令 `npm run deploy`。
 5. 部署完成后打开 `/console/`，使用 `admin` 和所设密码登录，再添加供应商、创建网关 API Key。
 
-模板在 `prepare-release.mjs` 中固定版本。更新时保留 D1 数据库和主密钥；启动时，`GPROXY_ADMIN_PASSWORD` 会覆盖 `GPROXY_ADMIN_USER` 指定的管理员密码（默认 `admin`）。密码相同时保留现有会话，密码变化时注销该用户的会话。
+模板在 `prepare-release.mjs` 中固定版本。更新时保留 D1 数据库和主密钥；启动时，若设置 `GPROXY_ADMIN_PASSWORD`，优先查找 `GPROXY_ADMIN_USER` 指定的同名用户，只更新其密码；若不存在同名用户，则启用 0 号管理员并更新用户名和密码，0 号用户不存在时创建它。未发生变更时保留会话，密码变化或恢复 0 号用户时注销目标用户的会话。
 
 ## 当前限制
 
 - Responses WebSocket、Realtime 和渠道 service socket 复用原生部署的路由、鉴权与限制。
 - 默认支持 D1；libSQL 与 S3/R2 需要在构建时启用对应 feature。
 - 不支持本地 SQLite、TCP 数据库、本地文件目录或进程内缓存。当前 Worker 装配使用 `store` 缓存，不提供 Redis 客户端。
-- 空库通过 `GPROXY_ADMIN_PASSWORD` Secret 创建管理员；后续启动时该 Secret 覆盖指定管理员的密码。用户名默认 `admin`，可用 `GPROXY_ADMIN_USER` 指定。Workers 不显示 Application 设置向导。
+- 空库通过 `GPROXY_ADMIN_PASSWORD` Secret 创建 0 号管理员；后续启动按“同名用户优先，否则恢复 0 号用户”的规则应用覆盖。用户名默认 `admin`，可用 `GPROXY_ADMIN_USER` 指定。Workers 不显示 Application 设置向导。
 
 ## 使用发布包
 
@@ -76,7 +76,7 @@ GPROXY_CONFIG = """
 
 | Secret | 用途 |
 | --- | --- |
-| `GPROXY_ADMIN_PASSWORD` | 管理员密码，至少 8 个字符；启动时覆盖指定管理员的密码 |
+| `GPROXY_ADMIN_PASSWORD` | 密码覆盖，至少 8 个字符；同名用户优先，否则恢复 0 号管理员 |
 | `GPROXY_MASTER_KEY` | 加密凭证的主密钥 |
 | `GPROXY_LIBSQL_TOKEN` | libSQL / Turso 令牌，仅启用该后端时需要 |
 | `GPROXY_S3_ACCESS_KEY_ID` | S3 / R2 访问标识 |
@@ -96,7 +96,7 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/*", "!/", "!/console", "!/console/*"]
 ```
 
-首次请求完成初始化后，访问 `/console/`，使用 `admin` 和配置的初始密码登录。然后在控制台创建网关 API Key。已有数据库时，新 Worker 实例装配会将 Secret 应用到指定管理员；删除该 Secret 后保留数据库里的密码。密码不符合要求或指定管理员不存在时，启动会报错；空库也必须提供该 Secret。`/healthz` 仅用于健康检查，不能代替登录和上游请求验证。
+首次请求完成初始化后，访问 `/console/`，使用 `admin` 和配置的初始密码登录。然后在控制台创建网关 API Key。已有数据库时，新 Worker 实例装配按上述规则应用 Secret；删除该 Secret 后保留已有账户。密码不符合要求时启动报错；空库也必须提供该 Secret。`/healthz` 仅用于健康检查，不能代替登录和上游请求验证。
 
 ## 数据库与配置同步
 

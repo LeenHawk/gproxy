@@ -211,7 +211,7 @@ GPROXY_MASTER_KEY=<new> gproxy serve
 
 ## 首次初始化
 
-CLI 在 users 表为空时创建管理员和网关 API Key。已有实例启动时，`GPROXY_ADMIN_PASSWORD`（或 `--admin-password`）会覆盖指定管理员的密码。密码相同时保留会话，变化时注销该用户的会话。未显式设置密码时不修改账户，重启不会生成新的 API Key。
+CLI 在 users 表为空时创建 0 号管理员和网关 API Key。已有实例启动时，`GPROXY_ADMIN_PASSWORD`（或 `--admin-password`）按以下规则覆盖：优先查找 `GPROXY_ADMIN_USER` 指定的同名用户，只更新其密码；若不存在同名用户，则启用 0 号管理员并更新用户名和密码，0 号用户不存在时创建它。未发生变更时保留会话，密码变化或恢复 0 号用户时注销目标用户的会话。未显式设置密码时不修改账户，重启不会生成新的 API Key。
 
 空库初始化时，`GPROXY_ADMIN_PASSWORD` 和 `GPROXY_BOOTSTRAP_ADMIN_API_KEY` 可指定初始值；省略时自动生成。程序只显示生成的凭据，输出到标准输出。服务管理器和容器可能收集标准输出，因此首次启动日志同样需要保管。
 

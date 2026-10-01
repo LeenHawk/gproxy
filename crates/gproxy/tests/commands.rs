@@ -177,6 +177,7 @@ async fn bootstrap_creates_exactly_one_admin_and_is_a_no_op_the_second_time() {
 
     let rows = users(&instance).await;
     assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0].id, "0");
     assert_eq!(rows[0].role, "admin");
     assert!(rows[0].enabled);
     assert!(rows[0].password_hash.is_some());
@@ -219,7 +220,10 @@ async fn an_explicit_admin_password_overrides_on_restart_without_replacing_keys(
         .await
         .unwrap();
     assert!(!report.created());
-    assert!(matches!(report, bootstrap::Report::PasswordUpdated { .. }));
+    assert!(matches!(
+        report,
+        bootstrap::Report::AdministratorUpdated { .. }
+    ));
 
     let after = users(&instance).await;
     assert_eq!(after.len(), 1);
@@ -238,6 +242,20 @@ async fn an_explicit_admin_password_overrides_on_restart_without_replacing_keys(
         users(&instance).await[0].password_hash,
         after[0].password_hash
     );
+
+    let renamed = AdminOptions {
+        user: "recovered-admin".into(),
+        ..again.admin.clone()
+    };
+    bootstrap::ensure_admin(&instance.app, &renamed)
+        .await
+        .unwrap();
+    let recovered = users(&instance).await;
+    assert_eq!(recovered.len(), 1);
+    assert_eq!(recovered[0].id, "0");
+    assert_eq!(recovered[0].name, "recovered-admin");
+    assert_eq!(keys(&instance).await.len(), 1);
+    assert_eq!(keys(&instance).await[0].user_id, "0");
 
     instance.app.gproxy().shutdown();
 }

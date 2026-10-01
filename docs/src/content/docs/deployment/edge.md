@@ -17,14 +17,14 @@ The template downloads and verifies the official v4.0.1 Worker and console bundl
 4. Keep the detected build command `npm run build` and deploy command `npm run deploy`.
 5. Open `/console/` after deployment and sign in as `admin` with your password. Add providers and create a gateway API key.
 
-The template pins its version in `prepare-release.mjs`. Keep D1 and the master key when updating. On startup, `GPROXY_ADMIN_PASSWORD` overrides the password of the administrator named by `GPROXY_ADMIN_USER` (default `admin`). An unchanged password preserves existing sessions; a changed password ends them.
+The template pins its version in `prepare-release.mjs`. Keep D1 and the master key when updating. On startup, when `GPROXY_ADMIN_PASSWORD` is set, a user matching `GPROXY_ADMIN_USER` takes priority: only their password is updated. If no name matches, user `0` is enabled as an administrator and given the configured name and password; user `0` is created if missing. Unchanged credentials preserve sessions; a password change or recovery of user `0` ends that user’s sessions.
 
 ## Current limitations
 
 - Responses WebSocket, Realtime and channel service sockets share the native deployment’s routes, authentication and limits.
 - D1 is enabled by default. libSQL and S3/R2 require their corresponding build features.
 - Local SQLite, TCP databases, filesystem storage, and in-memory cache are unsupported. Current Worker assembly uses `store` cache and does not provide a Redis client.
-- An empty database gets an administrator from `GPROXY_ADMIN_PASSWORD`. On later starts, the secret overrides that administrator’s password. The username defaults to `admin`; set `GPROXY_ADMIN_USER` to select it. Workers does not show the Application wizard.
+- An empty database gets administrator `0` from `GPROXY_ADMIN_PASSWORD`. On later starts, a same-name user takes priority; otherwise the override recovers user `0`. The username defaults to `admin`; set `GPROXY_ADMIN_USER` to select it. Workers does not show the Application wizard.
 
 ## Use a release bundle
 
@@ -76,7 +76,7 @@ GPROXY_CONFIG = """
 
 | Secret | Purpose |
 | --- | --- |
-| `GPROXY_ADMIN_PASSWORD` | Administrator password, at least 8 characters; overrides the named administrator’s password on startup |
+| `GPROXY_ADMIN_PASSWORD` | Password override, at least 8 characters; targets a same-name user first, otherwise administrator `0` |
 | `GPROXY_MASTER_KEY` | Master key for credential encryption |
 | `GPROXY_LIBSQL_TOKEN` | libSQL / Turso token, when that backend is enabled |
 | `GPROXY_S3_ACCESS_KEY_ID` | S3 / R2 access identifier |
@@ -96,7 +96,7 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/*", "!/", "!/console", "!/console/*"]
 ```
 
-After the first request initializes the instance, sign in at `/console/` with `admin` and the configured password, then create a gateway API key. For an existing database, a supplied secret overrides the named administrator’s password when a Worker isolate initializes. Removing the secret keeps the stored password. Invalid passwords or a missing named administrator fail startup; a new database also requires the secret. `/healthz` is a health check, not a substitute for authentication and upstream-request validation.
+After the first request initializes the instance, sign in at `/console/` with `admin` and the configured password, then create a gateway API key. For an existing database, each Worker isolate applies the rule above on initialization. Removing the secret keeps existing accounts unchanged. Invalid passwords fail startup; a new database also requires the secret. `/healthz` is a health check, not a substitute for authentication and upstream-request validation.
 
 ## Database and configuration synchronization
 

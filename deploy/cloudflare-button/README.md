@@ -13,9 +13,9 @@ checks the release SHA-256, and deploys with D1. No Rust build is needed.
    create a gateway API key in the console.
 
 The template pins its release in `prepare-release.mjs`. Keep the D1 database and
-master key when updating. On startup, the administrator password secret overrides the stored password
-for `admin` (or `GPROXY_ADMIN_USER`). An unchanged password preserves sessions;
-a changed password ends them. Removing the secret keeps the stored password.
+master key when updating. On startup, when the password secret is set, a user matching `GPROXY_ADMIN_USER` takes priority: only their password is updated. If no name matches, user `0` is enabled as an administrator and given the configured name and password; user `0` is created if missing.
+Unchanged credentials preserve sessions; a password change or recovery ends
+the target user’s sessions. Removing the secret keeps existing accounts unchanged.
 
 For local validation: `npm install`, `npm run build`, then `npm run check`.
 A dry run checks packaging, not Cloudflare account limits or live upstream access.

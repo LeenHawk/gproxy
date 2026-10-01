@@ -95,7 +95,7 @@ pub use portal::{
 pub use rate_limits::RateLimits;
 pub use scoped::{ScopedCredentials, ScopedManage, ScopedQuotas};
 pub use sessions::Sessions;
-pub use users::Users;
+pub use users::{BOOTSTRAP_ADMIN_ID, Users};
 
 pub(crate) use crud::random_id;
 

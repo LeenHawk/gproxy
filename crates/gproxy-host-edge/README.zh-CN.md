@@ -193,4 +193,4 @@ D1 binding 查找、libSQL 传输和 `tick()`，跑它们需要一个 Workers �
 
 ## 首次管理员
 
-部署前执行 `wrangler secret put GPROXY_ADMIN_PASSWORD`，设置至少 8 个字符的初始密码。首次装配在空库创建 `admin` 用户，`GPROXY_ADMIN_USER` 可修改用户名。后续 isolate 装配时，若提供该 Secret，则覆盖指定管理员的密码。密码相同时保留哈希和会话，变化时注销该用户的会话；未提供 Secret 时不修改已有账户。密码不符合要求或指定管理员不存在时启动报错。登录 `/console/` 后创建网关 API Key。数据库内的条件插入防止多个 isolate 重复创建。
+部署前执行 `wrangler secret put GPROXY_ADMIN_PASSWORD`，设置至少 8 个字符的初始密码。首次装配在空库创建名为 `admin` 的 0 号用户，`GPROXY_ADMIN_USER` 可修改用户名。后续 isolate 装配时，若提供该 Secret，优先查找 `GPROXY_ADMIN_USER` 指定的同名用户，只更新其密码；若不存在同名用户，则启用 0 号管理员并更新用户名和密码，0 号用户不存在时创建它。未发生变更时保留哈希和会话，密码变化或恢复 0 号用户时注销目标用户的会话；未提供 Secret 时不修改已有账户。密码不符合要求时启动报错。登录 `/console/` 后创建网关 API Key。数据库内的条件插入防止多个 isolate 重复创建。

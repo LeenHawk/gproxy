@@ -50,7 +50,7 @@ On Windows, use PowerShell:
 .\gproxy.exe serve --data-dir .\data --port 8787
 ```
 
-A new instance prints a generated administrator password and API key **once**. Save them. On restart, an explicit `GPROXY_ADMIN_PASSWORD` overrides the named administrator’s password; otherwise accounts are left unchanged.
+A new instance prints a generated administrator password and API key **once**. Save them. On restart, an explicit `GPROXY_ADMIN_PASSWORD` updates a same-name user’s password, or recovers and renames administrator `0` if no name matches; otherwise accounts are left unchanged.
 
 Open **http://127.0.0.1:8787/console/** and sign in. Personal and administrative pages share this console. The CLI does not use the Application setup wizard.
 

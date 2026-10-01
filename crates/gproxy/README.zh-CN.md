@@ -362,7 +362,7 @@ this instance can show you again.
 ```
 
 - **`users` 表为空**时创建管理员和 API Key。已有实例中，显式设置的
-  `GPROXY_ADMIN_PASSWORD` 会覆盖指定管理员的密码。密码相同时保留会话，变化时注销
+  `GPROXY_ADMIN_PASSWORD` 优先更新同名用户的密码；没有同名用户时恢复并重命名 0 号管理员。未发生变更时保留会话，密码变化或恢复 0 号用户时注销
   该用户的会话；未设置密码时不修改账户，重启不会生成新的 API Key。
 - **只打印运维还不知道的东西。** 提供了 `GPROXY_ADMIN_PASSWORD` 就使用它但不回显；
   提供了 `GPROXY_BOOTSTRAP_ADMIN_API_KEY` 就铸造那把确切的 key，而不是新的。

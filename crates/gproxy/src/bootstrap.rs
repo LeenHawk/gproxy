@@ -8,9 +8,9 @@
 //! # Idempotency
 //!
 //! An **empty `users` table** triggers account and key creation. On an existing
-//! instance, an explicit password overrides the named administrator's password.
-//! If it already matches, no write occurs and sessions remain valid. No new
-//! API key is minted on restart.
+//! instance, explicit credentials update a same-name user's password, or recover
+//! and rename administrator 0 if no name matches. Unchanged credentials keep
+//! sessions valid. No new API key is minted on restart.
 //!
 //! # Why it goes through `Operations`
 //!
@@ -33,6 +33,7 @@ use std::sync::Arc;
 use gproxy_app::{
     App, Operations,
     dto::{ApiKeyWrite, UserWrite},
+    operations::BOOTSTRAP_ADMIN_ID,
 };
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::identity::user;
@@ -56,8 +57,8 @@ const GENERATED_PASSWORD_BYTES: usize = 24;
 pub enum Report {
     /// The instance already had users. Nothing was written.
     AlreadySetUp { users: u64 },
-    /// An explicit password replaced the named administrator’s password.
-    PasswordUpdated { user: String },
+    /// Host-supplied credentials updated a same-name user or recovered user 0.
+    AdministratorUpdated { user: String },
     Created {
         user: String,
         /// Present only when this process generated it. A password the operator
@@ -79,10 +80,10 @@ impl Report {
                     "the instance already has users; bootstrap did nothing"
                 );
             }
-            Self::PasswordUpdated { user } => {
+            Self::AdministratorUpdated { user } => {
                 tracing::info!(
                     user = user.as_str(),
-                    "administrator password updated from the command line or environment"
+                    "administrator override applied from the command line or environment"
                 );
             }
             Self::Created {
@@ -114,7 +115,7 @@ impl Report {
 }
 
 /// Create the first administrator on an empty database, or apply an explicit
-/// password to the named administrator on an existing instance.
+/// password to a same-name user, falling back to administrator 0.
 ///
 /// Refreshes the identity snapshot before returning, so a key minted here
 /// authenticates on the very next request rather than after the next poll.
@@ -139,7 +140,7 @@ where
                 .await?;
             if changed {
                 app.reload_all().await?;
-                return Ok(Report::PasswordUpdated {
+                return Ok(Report::AdministratorUpdated {
                     user: options.user.clone(),
                 });
             }
@@ -164,7 +165,7 @@ where
     let admin = operations
         .users()
         .create(UserWrite {
-            id: None,
+            id: Some(BOOTSTRAP_ADMIN_ID.to_owned()),
             name: options.user.clone(),
             password: Some(password),
             role: Some(ADMIN_ROLE.to_owned()),

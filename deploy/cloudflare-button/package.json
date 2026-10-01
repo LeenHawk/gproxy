@@ -17,7 +17,7 @@
         "description": "D1 database for GPROXY configuration, accounts, and usage. Cloudflare creates it during deployment."
       },
       "GPROXY_ADMIN_PASSWORD": {
-        "description": "Choose an admin password of at least 8 characters. This secret overrides the stored admin password on startup. Sign in as admin at /console/."
+        "description": "Choose an admin password of at least 8 characters. On startup, this changes a same-name user’s password, or enables and renames administrator 0 if no name matches. Sign in as admin at /console/."
       },
       "GPROXY_MASTER_KEY": {
         "description": "Credential encryption key: generate with `openssl rand -hex 32` and keep a backup. Reuse the same key when updating."

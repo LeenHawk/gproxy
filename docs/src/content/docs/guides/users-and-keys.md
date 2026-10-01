@@ -17,7 +17,7 @@ export GPROXY_BOOTSTRAP_ADMIN_API_KEY='your-initial-gateway-key'
 ./gproxy serve
 ```
 
-On a new instance, the password and key are generated if omitted. **An explicit `GPROXY_ADMIN_PASSWORD` also overrides the named administrator’s password on restart; the API key option is first-run only.** `GPROXY_BOOTSTRAP_CHANNELS` no longer creates providers; add providers in the console.
+On a new instance, the password and key are generated if omitted. **An explicit `GPROXY_ADMIN_PASSWORD` also updates a same-name user’s password, or recovers and renames administrator `0` if no name matches on restart; the API key option is first-run only.** `GPROXY_BOOTSTRAP_CHANNELS` no longer creates providers; add providers in the console.
 
 CLI / container users sign in at `/console/`. Personal and management pages share the `gproxy_session` HTTP session cookie, whose lifetime is configured by `session_ttl_secs`. Application uses its in-app console.
 

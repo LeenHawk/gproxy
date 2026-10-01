@@ -5,8 +5,8 @@
 //! **An instance keeps at least one enabled administrator.** Deleting,
 //! disabling or demoting the last one is refused. The role is not a
 //! membership and cannot be granted by anybody who is not already an admin, so
-//! losing it is unrecoverable from inside the product: the operator would have
-//! to go to the database. v3 had the same guard for the same reason.
+//! losing it requires host-level recovery. v3 had the same guard for the
+//! same reason.
 //!
 //! **A password change ends the user's sessions**, in the same transaction.
 //! A session outlives the credential that opened it otherwise, which is
@@ -36,6 +36,8 @@ use crate::{
 /// a membership role and is a different column in a different table.
 pub const ROLES: [&str; 2] = ["admin", "user"];
 const ADMIN: &str = "admin";
+/// The fallback account used by host-level administrator setup and recovery.
+pub const BOOTSTRAP_ADMIN_ID: &str = "0";
 
 pub struct Users<'a, C> {
     writer: Writer<'a, C>,
@@ -58,77 +60,104 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Users<'_, C> {
         crud::create(self, write).await
     }
 
-    /// Host-only setup. An explicit password overrides the named administrator;
-    /// without one, an existing instance is left unchanged.
-    /// The conditional insert also covers concurrent isolates with different names.
+    /// Host-only setup. Explicit credentials update a same-name user's password;
+    /// otherwise user 0 is created or enabled and renamed. Without a password,
+    /// an existing instance is left unchanged.
     pub async fn bootstrap_admin(&self, name: &str, password: Option<&str>) -> Result<bool> {
-        let users = self.writer.store().users();
-        if !users.query(user::Entity::find().limit(1)).await?.is_empty() {
-            return match password {
-                Some(password) => self.apply_admin_password(name, password).await,
-                None => Ok(false),
-            };
+        if let Some(password) = password {
+            return self.apply_admin_password(name, password).await;
         }
+        if self
+            .writer
+            .store()
+            .users()
+            .query(user::Entity::find().limit(1))
+            .await?
+            .is_empty()
+        {
+            return Err(AppError::invalid(
+                "an initial administrator password is required for an empty database",
+            ));
+        }
+        Ok(false)
+    }
+
+    /// Prefer a same-name user without renaming or changing their role/status.
+    /// Only when that name is absent does the override recover administrator 0.
+    pub async fn apply_admin_password(&self, name: &str, plaintext: &str) -> Result<bool> {
         let name = crud::text(name, "administrator name")?;
-        let plaintext = password.ok_or_else(|| {
-            AppError::invalid("an initial administrator password is required for an empty database")
-        })?;
         password::validate(plaintext)?;
-        let row = user::ActiveModel {
-            id: Set(crud::id_or_new(None)?),
-            name: Set(name),
+        let users = self.writer.store().users();
+        if let Some(existing) = users
+            .query(user::Entity::find().filter(user::Column::Name.eq(&name)))
+            .await?
+            .into_iter()
+            .next()
+        {
+            if existing
+                .password_hash
+                .as_deref()
+                .is_some_and(|hash| password::verify(plaintext, hash))
+            {
+                return Ok(false);
+            }
+            self.set_password(&existing.id, plaintext).await?;
+            return Ok(true);
+        }
+
+        let existing = users
+            .get_many(&[BOOTSTRAP_ADMIN_ID.to_owned()])
+            .await?
+            .into_iter()
+            .next()
+            .flatten();
+        let mut row = user::ActiveModel {
+            id: Set(BOOTSTRAP_ADMIN_ID.to_owned()),
+            name: Set(name.clone()),
             password_hash: Set(Some(password::hash(plaintext)?)),
             role: Set(ADMIN.to_owned()),
             enabled: Set(true),
-            oauth_client_allowlist: Set(None),
-            created_at_ms: Set(crate::now_ms()),
+            ..Default::default()
         };
-        let condition =
-            Condition::all().add(Expr::exists(user::Entity::find().limit(1).into_query()).not());
+        let mut statements = Vec::new();
+        if existing.is_some() {
+            statements.push(BatchStatement::Execute(
+                users
+                    .update_statement(row)?
+                    .ok_or_else(|| AppError::internal("administrator override set no column"))?,
+            ));
+            statements.push(BatchStatement::Execute(
+                self.writer.store().user_sessions().delete_where_statement(
+                    user_session::Entity::delete_many()
+                        .filter(user_session::Column::UserId.eq(BOOTSTRAP_ADMIN_ID)),
+                ),
+            ));
+        } else {
+            row.oauth_client_allowlist = Set(None);
+            row.created_at_ms = Set(crate::now_ms());
+            // The condition is evaluated in the database, including across isolates.
+            let target = user::Entity::find()
+                .filter(
+                    Condition::any()
+                        .add(user::Column::Id.eq(BOOTSTRAP_ADMIN_ID))
+                        .add(user::Column::Name.eq(name)),
+                )
+                .limit(1);
+            let condition = Condition::all().add(Expr::exists(target.into_query()).not());
+            statements.push(BatchStatement::Execute(
+                users.insert_if_statement(row, condition)?,
+            ));
+        }
         let (_, results) = self
             .writer
-            .commit_results(
-                vec![BatchStatement::Execute(
-                    users.insert_if_statement(row, condition)?,
-                )],
-                &[Scope::Identity],
-            )
+            .commit_results(statements, &[Scope::Identity])
             .await?;
         match results.first() {
             Some(BatchResult::Executed(result)) => Ok(result.rows_affected() == 1),
             _ => Err(AppError::internal(
-                "administrator initialization returned no write result",
+                "administrator override returned no write result",
             )),
         }
-    }
-
-    /// Apply a host-supplied password to an existing administrator. An unchanged
-    /// password preserves its hash and sessions across restarts and Worker isolates.
-    pub async fn apply_admin_password(&self, name: &str, plaintext: &str) -> Result<bool> {
-        let name = crud::text(name, "administrator name")?;
-        password::validate(plaintext)?;
-        let administrator = self
-            .writer
-            .store()
-            .users()
-            .query(
-                user::Entity::find()
-                    .filter(user::Column::Name.eq(&name))
-                    .filter(user::Column::Role.eq(ADMIN)),
-            )
-            .await?
-            .into_iter()
-            .next()
-            .ok_or_else(|| AppError::invalid(format!("no administrator named `{name}`")))?;
-        if administrator
-            .password_hash
-            .as_deref()
-            .is_some_and(|hash| password::verify(plaintext, hash))
-        {
-            return Ok(false);
-        }
-        self.set_password(&administrator.id, plaintext).await?;
-        Ok(true)
     }
 
     /// Patch a user, refusing the two changes that could leave the instance

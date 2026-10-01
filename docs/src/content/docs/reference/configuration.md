@@ -215,7 +215,7 @@ mistaken for a rotation that happened.
 
 ## Bootstrap
 
-The CLI creates an administrator and gateway API key only when the users table is empty. On an existing instance, `GPROXY_ADMIN_PASSWORD` (or `--admin-password`) overrides the password of the named administrator. An unchanged password preserves sessions; a changed password ends them. Without an explicit password, accounts are left unchanged. No new API key is created on restart.
+The CLI creates administrator `0` and a gateway API key when the users table is empty. On an existing instance, `GPROXY_ADMIN_PASSWORD` (or `--admin-password`) uses the following rule. A user matching `GPROXY_ADMIN_USER` takes priority: only their password is updated. If no name matches, user `0` is enabled as an administrator and given the configured name and password; user `0` is created if missing. Unchanged credentials preserve sessions; a password change or recovery of user `0` ends that user’s sessions. Without an explicit password, accounts are left unchanged. No new API key is created on restart.
 
 On a fresh database, `GPROXY_ADMIN_PASSWORD` and `GPROXY_BOOTSTRAP_ADMIN_API_KEY` supply initial values; omitted values are generated. Only generated credentials are printed, to stdout. Service managers and containers may collect stdout, so protect the first startup log.
 
