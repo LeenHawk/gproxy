@@ -42,6 +42,8 @@ axum = { workspace = true, features = ["form", "http1", "http2", "json", "matche
 # never takes effect under it.
 hyper-util = { workspace = true, features = ["server-auto", "server-graceful", "service", "tokio"] }
 mime_guess = { workspace = true }
+reqwest = { workspace = true, features = ["rustls", "system-proxy"] }
+sha2 = { workspace = true }
 # The console bundle, when one was built into the binary. The folder is empty
 # in a source checkout, which is what makes `/console` answer 404 rather than
 # pretend to serve an application that is not there.

@@ -103,6 +103,13 @@ Application 全新实例先显示三步设置向导，完成后进入应用内�
 导入使用事务，提交后宿主重载运行态设置。请查看返回的警告和跳过数量：重载失败表示配置已经导入、
 运行态重载出现问题，不表示数据库写入已经回滚。
 
+## 字体
+
+控制台使用 Noto Sans、Noto Sans SC/TC 和 Noto Sans Mono。CLI 和 Application
+在首次使用时从 `https://gproxy.leenhawk.com/fonts/` 下载页面需要的字体分片，缓存在
+数据目录的 `fonts/` 下，重启后和离线时都可复用。Edge 由浏览器直接从同一个
+Cloudflare CDN 加载并缓存字体。下载期间或下载失败时，页面使用系统字体显示。
+
 ## 构建控制台
 
 运行 `pnpm --dir console lint`、`pnpm --dir console test` 和 `pnpm --dir console build`。

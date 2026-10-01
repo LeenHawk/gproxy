@@ -27,6 +27,8 @@ use gproxy_app::config::ConsoleConfig;
 use http::{HeaderValue, Method, StatusCode, header};
 use rust_embed::RustEmbed;
 
+mod fonts;
+
 /// Where the console is served from, `/console` and below.
 pub const CONSOLE_PATH: &str = "/console";
 
@@ -37,7 +39,13 @@ struct Embedded;
 
 /// The console bundle this instance serves, resolved once.
 #[derive(Debug)]
-pub enum Console {
+pub struct Console {
+    source: Source,
+    fonts: fonts::FontCache,
+}
+
+#[derive(Debug)]
+enum Source {
     /// The switch is off, or nothing was embedded and no directory was named.
     Disabled,
     /// The bundle compiled into this binary.
@@ -48,21 +56,30 @@ pub enum Console {
 
 impl Console {
     pub fn from_config(config: &ConsoleConfig) -> Self {
-        if !config.enabled {
-            return Self::Disabled;
-        }
-        match config.path.as_deref() {
-            Some(path) if !path.trim().is_empty() => Self::Directory(path.trim().into()),
+        let source = match (config.enabled, config.path.as_deref()) {
+            (false, _) => Source::Disabled,
+            (true, Some(path)) if !path.trim().is_empty() => Source::Directory(path.trim().into()),
             // `index.html` is the one file whose presence proves a bundle was
             // built into this binary; `Embedded::iter()` would be true for a
             // stray asset.
-            _ if Embedded::get("index.html").is_some() => Self::Embedded,
-            _ => Self::Disabled,
+            _ if Embedded::get("index.html").is_some() => Source::Embedded,
+            _ => Source::Disabled,
+        };
+        Self {
+            source,
+            fonts: fonts::FontCache::new("data/fonts".into()),
         }
     }
 
+    /// The CLI uses its instance data directory; the app can use this before
+    /// the first-run wizard has created an instance or opened a database.
+    pub fn with_font_cache(mut self, path: impl Into<std::path::PathBuf>) -> Self {
+        self.fonts = fonts::FontCache::new(path.into());
+        self
+    }
+
     pub fn is_enabled(&self) -> bool {
-        !matches!(self, Self::Disabled)
+        !matches!(self.source, Source::Disabled)
     }
 
     /// Serve `path` (the request path, mount-relative), or `None` when this is
@@ -76,6 +93,16 @@ impl Console {
         let head = method == Method::HEAD;
         match self.read(&asset).await {
             Some(bytes) => Some(asset_response(&asset, bytes, head)),
+            None if fonts::filename(&asset).is_some() => {
+                let filename = fonts::filename(&asset).unwrap();
+                Some(match self.fonts.read(filename).await {
+                    Ok(bytes) => asset_response(&asset, bytes, head),
+                    Err(error) => {
+                        tracing::warn!(%error, filename, "could not cache console font");
+                        (StatusCode::BAD_GATEWAY, "font download unavailable").into_response()
+                    }
+                })
+            }
             // The SPA fallback: a document request for a route the bundle
             // owns. An asset request that missed stays a 404.
             None if is_document(&asset) => match self.read("index.html").await {
@@ -87,10 +114,10 @@ impl Console {
     }
 
     async fn read(&self, asset: &str) -> Option<Vec<u8>> {
-        match self {
-            Self::Disabled => None,
-            Self::Embedded => Embedded::get(asset).map(|file| file.data.into_owned()),
-            Self::Directory(root) => {
+        match &self.source {
+            Source::Disabled => None,
+            Source::Embedded => Embedded::get(asset).map(|file| file.data.into_owned()),
+            Source::Directory(root) => {
                 // `asset_name` has already rejected `..` and absolute paths, so
                 // the join cannot leave the root.
                 tokio::fs::read(root.join(asset)).await.ok()
@@ -270,7 +297,10 @@ mod tests {
 
         // The answer when there is nothing to serve, which is the part that
         // must never become a blank page.
-        let empty = Console::Disabled;
+        let empty = Console::from_config(&ConsoleConfig {
+            enabled: false,
+            path: None,
+        });
         let response = empty.serve(&Method::GET, "/console").await.unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         // And a non-console path is still nobody's.
@@ -296,6 +326,6 @@ mod tests {
             enabled: false,
             path: Some("/srv/console".into()),
         });
-        assert!(matches!(console, Console::Disabled));
+        assert!(!console.is_enabled());
     }
 }
