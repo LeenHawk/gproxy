@@ -126,8 +126,17 @@ Gemini 把它写在路径里，这也是那个方言有两行的原因。
 | `GET` | `/v1/live` | 同上，WebRTC 写法 |
 | `GET` | `/v1/live/{call_id}` | 把 call 放在路径里的续接 |
 | `GET` | `/v1/responses` | `generate_content` / `openai_responses_websocket` |
-| `GET` | `/v1/responses/ws` | `generate_content` / `openai_responses_websocket` |
 | `GET` | `/ws/v1beta/BidiGenerateContent` | `connect_realtime` / `gemini`——Gemini Live |
+
+Responses 的 HTTP POST 与 WebSocket GET 共用 `/v1/responses`。握手先认证调用者，
+再由每条 `response.create` 中的模型完成权限、选路和生成限流。不同 `stream_id` 可以并发；
+新的响应链可以重新选择目标，携带 `previous_response_id` 的续接保持原目标绑定。
+空闲 Responses 连接不占用生成并发名额。
+
+原生 Responses WS 转发上游控制事件。对 Responses HTTP、Chat、Claude、Gemini 的桥接
+支持本地上下文预热、中断、steering 后继，以及在 HTTP 生成段之间吸收 injection 输入。
+本地预热不代表上游缓存预填充。`store:false` 历史仅在客户端连接内保留；持久化续接保存
+隔离后的历史和目标绑定。已经开始或发送结果不确定的生成不会换目标重放。
 
 `POST /v1/realtime/calls` 是一个携带 SDP offer 的 HTTP multipart 请求，而续接它的握手
 **完全不带 body**。活过升级的是 call id——在路径里，或在 `?call_id=` 里——引擎用它把套接字
@@ -136,14 +145,14 @@ Gemini 把它写在路径里，这也是那个方言有两行的原因。
 realtime 会话**绝不被转换**：只有同方言直通，因为一个能在响应中途继续说话的客户端，在
 半双工方言里没有对应物。
 
-**任何东西在被允许之前都不会被升级。** 先认证、再看握手形状、再准入、再是上游握手；
+**Realtime 在准入之后升级。** 先认证、再看握手形状、再准入、再是上游握手；
 `101` 最后才写。因此每一次拒绝都是客户端读得到的 HTTP 应答——一个被接受又立刻关闭的套接字
 不带状态、不带 body、也不带 code。
 
 **被拒绝的上游握手原样转达。** 厂商的
 `429 {"error":{"code":"insufficient_quota"}}` 比这个网关能编出来的任何 502 都值钱。
 
-一个套接字持有它的并发租约直到它**关闭**，而不是到 `101` 被写出为止。跑一小时的会话就占
+Realtime 套接字持有它的并发租约直到它**关闭**，而不是到 `101` 被写出为止。跑一小时的会话就占
 一小时的名额。
 
 ### Codex 专有接口

@@ -1068,6 +1068,165 @@ async fn chat_stream_client_is_served_over_a_responses_websocket_upstream() {
 }
 
 #[tokio::test]
+async fn responses_http_and_sse_use_the_same_native_websocket_without_a_foreign_protocol() {
+    use gproxy_protocol::transform::{
+        generate::stream::responses::synthesize_responses_stream,
+        identity::{IdNamespace, IdentityFlow},
+    };
+    let h = harness(full(), "round_robin").await;
+    let native: gproxy_protocol::wire::openai::responses::GenerateContentResponseBody = serde_json::from_value(json!({
+        "id":"native-response","object":"response","created_at":123,"status":"completed","model":"gpt-x",
+        "error":null,"incomplete_details":null,"instructions":null,"metadata":null,
+        "parallel_tool_calls":true,"temperature":null,"tool_choice":"auto","tools":[],"top_p":null,
+        "output":[{"id":"message","type":"message","role":"assistant","status":"completed",
+            "content":[{"type":"output_text","text":"native answer","annotations":[],"logprobs":[]}]}],
+        "usage":{"input_tokens":5,"output_tokens":7,"total_tokens":12,
+            "input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}
+    })).unwrap();
+    for streaming in [false, true] {
+        let frames = synthesize_responses_stream(
+            native.clone(),
+            &mut IdentityFlow::new(IdNamespace::with_bytes([9; 16])),
+            Default::default(),
+        )
+        .unwrap()
+        .value
+        .into_iter()
+        .map(|event| WsFrame::Text(serde_json::to_string(&event).unwrap()))
+        .collect();
+        h.script_ws(vec![WsReply::Connected(frames)]);
+        let operation = if streaming {
+            Operation::StreamGenerateContent
+        } else {
+            Operation::GenerateContent
+        };
+        let ctx = h.context_for(
+            "ws",
+            OperationKey {
+                operation,
+                dialect: Dialect::OpenAi,
+            },
+            if streaming { "stream" } else { "buffered" },
+            1,
+            None,
+        );
+        let request = WireRequest {
+            method: Method::POST,
+            path: "/v1/responses".into(),
+            query: None,
+            headers: HeaderMap::new(),
+            body: HttpBody::Bytes(Bytes::from(
+                json!({"model":"alias","input":"hello","stream":streaming}).to_string(),
+            )),
+        };
+        let (response, usage) = h.core.send(ctx, request).await.unwrap().into_parts();
+        let text = read(response.body).await;
+        if streaming {
+            assert!(text.contains("event: response.completed"), "{text}");
+        } else {
+            let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+            assert_eq!(value["output"][0]["content"][0]["text"], "native answer");
+        }
+        let report = tokio::time::timeout(std::time::Duration::from_secs(5), usage)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(report.exchanges.len(), 1);
+        assert_eq!(report.exchanges[0].usage.tokens.input_tokens, Some(5));
+        assert_eq!(report.state, UsageState::Completed);
+    }
+}
+
+#[tokio::test]
+async fn a_late_websocket_steer_releases_an_unstarted_successor_after_terminal_commit() {
+    let h = harness(full(), "round_robin").await;
+    let key = OperationKey {
+        operation: Operation::GenerateContent,
+        dialect: Dialect::OpenAiResponsesWebSocket,
+    };
+    let context = |id| {
+        let mut context = (*h.context_for("claude", key, id, 1, Some("chain"))).clone();
+        context.started_at_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+        Arc::new(context)
+    };
+    let first = context("first");
+    let session = gproxy_core::ResponsesSession::new();
+    let (connection, connection_usage) = h
+        .core
+        .connect_responses_session(
+            first.clone(),
+            WireRequest {
+                method: Method::GET,
+                path: "/v1/responses".into(),
+                query: None,
+                headers: HeaderMap::new(),
+                body: (),
+            },
+            session.clone(),
+        )
+        .await
+        .unwrap()
+        .into_parts();
+    let UpstreamConnection::Connected { mut socket, .. } = connection else {
+        panic!("connection")
+    };
+    let (_, first_usage) = h
+        .core
+        .begin_responses_turn(first, &session, &HeaderMap::new(), None, false, true)
+        .await
+        .unwrap()
+        .into_parts();
+    let (_, pending_usage) = h
+        .core
+        .begin_responses_turn(
+            context("next"),
+            &session,
+            &HeaderMap::new(),
+            None,
+            true,
+            false,
+        )
+        .await
+        .unwrap()
+        .into_parts();
+    socket.outgoing.send(WsFrame::Text(json!({"type":"response.create","model":"alias","input":"warm","generate":false,"store":false}).to_string())).await.unwrap();
+    socket.incoming.next().await.unwrap().unwrap();
+    let WsFrame::Text(terminal) = socket.incoming.next().await.unwrap().unwrap() else {
+        panic!("terminal")
+    };
+    let terminal: serde_json::Value = serde_json::from_str(&terminal).unwrap();
+    assert_eq!(terminal["type"], "response.completed");
+    assert_eq!(first_usage.await.unwrap().state, UsageState::Completed);
+    // The reservation already moved to current, but its control frame lost
+    // the race with completion. It must not hold a lease forever.
+    socket.outgoing.send(WsFrame::Text(json!({"type":"response.steer","previous_response_id":terminal["response"]["id"],"input":"late"}).to_string())).await.unwrap();
+    let WsFrame::Text(error) = socket.incoming.next().await.unwrap().unwrap() else {
+        panic!("error")
+    };
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&error).unwrap()["type"],
+        "error"
+    );
+    assert_eq!(
+        tokio::time::timeout(std::time::Duration::from_secs(2), pending_usage)
+            .await
+            .unwrap()
+            .unwrap()
+            .state,
+        UsageState::Cancelled
+    );
+    assert!(session.current_request_id().is_none());
+    socket.outgoing.send(WsFrame::Close(None)).await.unwrap();
+    while socket.incoming.next().await.is_some() {}
+    drop(socket);
+    assert_eq!(connection_usage.await.unwrap().state, UsageState::Skipped);
+    assert!(h.client.seen.lines().is_empty());
+}
+
+#[tokio::test]
 async fn a_channel_keeps_state_across_requests_scoped_to_its_credential() {
     let h = harness(full(), "sticky").await;
     h.script(vec![

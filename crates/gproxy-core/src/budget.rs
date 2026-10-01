@@ -336,6 +336,39 @@ fn status_of(budget: &BudgetData, window: quota_window::Model) -> BudgetStatus {
     }
 }
 
+/// Include already observed, not-yet-settled segments before starting another
+/// segment of the same logical response. No charge is made here.
+pub(crate) async fn check_pending<C: BatchConnectionTrait>(
+    store: &Store<C>,
+    request: &RequestContext,
+    now_ms: i64,
+    pending: Option<&crate::pricing::Cost>,
+) -> CoreResult<()> {
+    if !request.operation.operation.produces_usage() {
+        return Ok(());
+    }
+    let budgets = applicable(
+        &request.snapshot.budgets,
+        &request.budgets,
+        request.target.upstream_model.as_deref(),
+    );
+    let windows = current_windows(store, &budgets, now_ms).await?;
+    for (budget, window) in budgets.iter().zip(windows) {
+        let extra = pending
+            .filter(|cost| cost.currency.eq_ignore_ascii_case(&budget.quota.unit))
+            .map(|cost| cost.amount)
+            .unwrap_or(Decimal::ZERO);
+        if window.used.decimal() + extra >= budget.limit {
+            return Err(CoreError::BudgetExhausted {
+                quota_id: budget.quota.id.clone(),
+                window_key: budget.quota.window_key.clone(),
+                resets_at_ms: window.ends_at_ms,
+            });
+        }
+    }
+    Ok(())
+}
+
 impl<C: BatchConnectionTrait> Core<C> {
     /// Every applicable budget must have room before the first attempt. The
     /// first exhausted one is the error; nothing was sent or reserved.
@@ -344,29 +377,7 @@ impl<C: BatchConnectionTrait> Core<C> {
         request: &RequestContext,
         now_ms: i64,
     ) -> CoreResult<()> {
-        // Cost budgets gate inference, not catalog queries or resource cleanup.
-        if !request.operation.operation.produces_usage() {
-            return Ok(());
-        }
-        let budgets = applicable(
-            &request.snapshot.budgets,
-            &request.budgets,
-            request.target.upstream_model.as_deref(),
-        );
-        if budgets.is_empty() {
-            return Ok(());
-        }
-        let windows = current_windows(self.store(), &budgets, now_ms).await?;
-        for (budget, window) in budgets.iter().zip(windows) {
-            if window.used.decimal() >= budget.limit {
-                return Err(CoreError::BudgetExhausted {
-                    quota_id: budget.quota.id.clone(),
-                    window_key: budget.quota.window_key.clone(),
-                    resets_at_ms: window.ends_at_ms,
-                });
-            }
-        }
-        Ok(())
+        check_pending(self.store(), request, now_ms, None).await
     }
 
     /// The current window of every enabled budget of `owners`, whatever

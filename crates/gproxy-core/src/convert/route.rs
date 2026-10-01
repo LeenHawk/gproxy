@@ -50,7 +50,10 @@ pub fn can_convert(source: OperationKey, target: OperationKey) -> bool {
         GenerateContent => {
             matches!(target.operation, GenerateContent | StreamGenerateContent)
                 && (generation(source.dialect) || source.dialect == OpenAiResponsesWebSocket)
-                && generation(target.dialect)
+                && (generation(target.dialect)
+                    || (source.dialect == OpenAi
+                        && target.dialect == OpenAiResponsesWebSocket
+                        && target.operation == StreamGenerateContent))
         }
         StreamGenerateContent => {
             matches!(target.operation, StreamGenerateContent | GenerateContent)
@@ -191,6 +194,15 @@ fn default_with_native(
             supported.contains(&target.dialect)
         })
         .collect();
+    // WS generation is incremental even though the ingress operation is
+    // GenerateContent. Prefer its HTTP streaming counterpart and, when a
+    // channel accepts several wires, keep Responses before crossing dialects.
+    if source.dialect == Dialect::OpenAiResponsesWebSocket {
+        targets.retain(|t| t.operation == Operation::StreamGenerateContent);
+        if let Some(target) = targets.iter().find(|t| t.dialect == Dialect::OpenAi) {
+            return Route::TransformTo { target: *target };
+        }
+    }
     // Prefer the same response mode when the channel supports it.
     if matches!(
         source.operation,

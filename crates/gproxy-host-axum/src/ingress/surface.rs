@@ -155,7 +155,6 @@ surfaces! { table;
     GET "/v1/realtime" => ConnectRealtime / OpenAi, upgrade: true;
     GET "/v1/live" => ConnectRealtime / OpenAi, upgrade: true;
     GET "/v1/live/{call_id}" => ConnectRealtime / OpenAi, upgrade: true;
-    GET "/v1/responses/ws" => GenerateContent / OpenAiResponsesWebSocket, upgrade: true;
     GET "/v1/responses" => GenerateContent / OpenAiResponsesWebSocket, upgrade: true;
     GET "/ws/v1beta/BidiGenerateContent" => ConnectRealtime / Gemini, upgrade: true;
 }

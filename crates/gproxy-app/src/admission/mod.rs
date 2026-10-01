@@ -220,6 +220,17 @@ impl<'a, C> Admission<'a, C> {
     /// asked for an operation outside its baseline, and `RateLimited` when a
     /// configured limit refused the request or could not be evaluated.
     pub async fn admit(&self, request: AdmissionRequest<'_>) -> Result<Admitted, AppError> {
+        self.admit_with_rates(request, true, true).await
+    }
+
+    /// A warmup performs policy checks without a generation charge. A
+    /// steering successor reserves counters while reusing its lane's permit.
+    pub(crate) async fn admit_with_rates(
+        &self,
+        request: AdmissionRequest<'_>,
+        counters: bool,
+        permits: bool,
+    ) -> Result<Admitted, AppError> {
         let AdmissionRequest {
             caller,
             operation,
@@ -261,8 +272,16 @@ impl<'a, C> Admission<'a, C> {
         let session = session::extract(headers, body, operation, request_id, agent_session_id);
 
         // Last: the only step that consumes a shared allowance.
-        let rate_limit_leases =
-            rate_limit::apply(self.snapshot, self.cache, caller, model, now_ms).await?;
+        let rate_limit_leases = rate_limit::apply_selected(
+            self.snapshot,
+            self.cache,
+            caller,
+            model,
+            now_ms,
+            counters,
+            permits,
+        )
+        .await?;
 
         Ok(Admitted {
             scope,

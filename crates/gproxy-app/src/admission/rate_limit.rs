@@ -187,9 +187,28 @@ pub async fn apply(
     model: Option<&str>,
     now_ms: i64,
 ) -> Result<Vec<RateLease>, AppError> {
+    apply_selected(snapshot, cache, caller, model, now_ms, true, true).await
+}
+
+pub(crate) async fn apply_selected(
+    snapshot: &AppData,
+    cache: &Arc<dyn Cache>,
+    caller: &Caller,
+    model: Option<&str>,
+    now_ms: i64,
+    counters: bool,
+    permits: bool,
+) -> Result<Vec<RateLease>, AppError> {
     let mut held: Vec<RateLease> = Vec::new();
     for row in &snapshot.rate_limits {
         if !applies(row, caller, model) {
+            continue;
+        }
+        if if row.metric.eq_ignore_ascii_case(CONCURRENCY_METRIC) {
+            !permits
+        } else {
+            !counters
+        } {
             continue;
         }
         match charge(cache, row, now_ms).await {

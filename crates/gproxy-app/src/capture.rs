@@ -226,6 +226,7 @@ pub struct DownstreamCapture {
     /// both directions. Empty for an HTTP exchange, which uses the inline
     /// body columns instead.
     events: Vec<event::ActiveModel>,
+    turns: Vec<(DownstreamCapture, CaptureOutcome)>,
 }
 
 impl std::fmt::Debug for DownstreamCapture {
@@ -240,6 +241,60 @@ impl std::fmt::Debug for DownstreamCapture {
 }
 
 impl DownstreamCapture {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn open_responses(
+        switches: &ObservationSwitches,
+        request: &DataPlaneRequest,
+        caller: &Caller,
+    ) -> Option<Self> {
+        Self::open_exchange(
+            switches,
+            &request.request_id,
+            &request.parts,
+            &[],
+            caller,
+            None,
+            request.operation.operation.id(),
+            request.client_ip.clone(),
+        )
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn open_turn(
+        switches: &ObservationSwitches,
+        request: &DataPlaneRequest,
+        caller: &Caller,
+        connection_id: &str,
+        lane: Option<&str>,
+    ) -> Option<Self> {
+        let mut capture = Self::open_exchange(
+            switches,
+            &request.request_id,
+            &request.parts,
+            &[],
+            caller,
+            request.model.clone(),
+            request.operation.operation.id(),
+            request.client_ip.clone(),
+        )?;
+        capture.row.kind = Set(record::CaptureKind::WsTurn);
+        capture.row.session_id = Set(Some(connection_id.to_owned()));
+        capture.row.stream_key = Set(lane.map(str::to_owned));
+        capture.row.request_method = Set(None);
+        capture.row.request_url = Set(None);
+        capture.row.request_query = Set(None);
+        capture.row.request_headers = Set(None);
+        capture.row.request_body = Set(None);
+        capture.row.request_framing = Set(record::BodyFraming::WebSocket);
+        capture.row.response_framing = Set(record::BodyFraming::WebSocket);
+        Some(capture)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn append_turn(&mut self, capture: Self, outcome: CaptureOutcome) {
+        self.turns.push((capture, outcome));
+    }
+
     /// Start capturing, or answer `None` when `enable_downstream_log` is off.
     ///
     /// `None` is the whole of the "off" behaviour: no allocation, no clone of
@@ -352,6 +407,7 @@ impl DownstreamCapture {
             response_body: Vec::new(),
             status: None,
             events: Vec::new(),
+            turns: Vec::new(),
         })
     }
 
@@ -411,6 +467,15 @@ impl DownstreamCapture {
     /// [`DownstreamCapture::record_response_chunk`]: a frame *is* the body of
     /// a socket, so it is gated by the body switch rather than by a third one.
     pub fn record_frame(&mut self, direction: CaptureDirection, frame: CapturedFrame<'_>) {
+        self.record_turn_frame(direction, frame, None);
+    }
+
+    pub(crate) fn record_turn_frame(
+        &mut self,
+        direction: CaptureDirection,
+        frame: CapturedFrame<'_>,
+        turn_id: Option<&str>,
+    ) {
         if !self.switches.downstream_log_body {
             return;
         }
@@ -424,7 +489,7 @@ impl DownstreamCapture {
         self.events.push(event::ActiveModel {
             capture_id: Set(self.id.clone()),
             sequence: Set(self.events.len() as i64),
-            turn_id: Set(None),
+            turn_id: Set(turn_id.map(str::to_owned)),
             direction: Set(direction),
             kind: Set(kind),
             payload: Set(payload),
@@ -479,6 +544,7 @@ impl DownstreamCapture {
             response_body,
             status,
             events,
+            turns,
         } = self;
 
         let (state, error) = match &outcome {
@@ -514,6 +580,9 @@ impl DownstreamCapture {
         row.response_body = Set(response_body);
 
         let mut statements = vec![store.downstream_records().insert_statement(row)?];
+        for (turn, outcome) in turns {
+            statements.extend(turn.into_statements(store, outcome)?);
+        }
         // Every frame the socket carried, in observed order, after the record
         // they belong to: `downstream_events.capture_id` is
         // a foreign key onto the row just inserted.

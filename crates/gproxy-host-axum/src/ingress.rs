@@ -407,9 +407,8 @@ where
     }
 
     // The handshake is taken out of the request once there is a caller and
-    // before anything is accepted. Nothing is upgraded here — the `101` is
-    // only written once the engine has a socket — so admission below still
-    // refuses over HTTP, which is the only way a client can be told why.
+    // before anything is accepted. Realtime still admits before `101`;
+    // Responses admits each model-bearing create after the upgrade.
     let upgrade = if matched.upgrade {
         match crate::websocket::extract(parts, core.limits.max_ws_frame_bytes).await {
             Ok(upgrade) => Some(upgrade),
@@ -465,6 +464,21 @@ where
 
     let app = Arc::clone(state.app());
     if let Some(upgrade) = upgrade {
+        if matched.operation.dialect == gproxy_protocol::Dialect::OpenAiResponsesWebSocket {
+            let prefix = match mount {
+                Mount::Aggregated => None,
+                Mount::Namespace(name) | Mount::Provider(name) => Some(name.clone()),
+            };
+            return Some(crate::websocket::responses(
+                app,
+                upgrade,
+                caller,
+                request,
+                prefix,
+                core.limits.max_ws_frame_bytes,
+                cancel,
+            ));
+        }
         return Some(
             crate::websocket::data_plane(
                 app,

@@ -215,6 +215,28 @@ pub fn decode_message(
     bytes: &[u8],
     limits: crate::codec::CodecLimits,
 ) -> Result<RequestMessage, TransformError> {
+    let message = decode_session_message(bytes, limits)?;
+    if message.generate == Some(false) {
+        return Err(TransformError::unsupported(
+            "responses.websocket.generate",
+            "prefill-only warmup requires a Responses session driver",
+        ));
+    }
+    if !matches!(message.event, ClientEvent::ResponseCreate(_)) {
+        return Err(TransformError::unsupported(
+            "responses.websocket.control",
+            "control messages require a Responses session driver",
+        ));
+    }
+    Ok(message)
+}
+
+/// Decode controls for an actual duplex session. Single-response adapters
+/// keep using `decode_message` and cannot silently accept these controls.
+pub fn decode_session_message(
+    bytes: &[u8],
+    limits: crate::codec::CodecLimits,
+) -> Result<RequestMessage, TransformError> {
     let mut message = crate::codec::decode_json::<RequestMessage>(bytes, limits)
         .map_err(|error| {
             let kind = if error.kind() == crate::codec::CodecErrorKind::Limit {
@@ -231,17 +253,20 @@ pub fn decode_message(
         })?
         .into_declared();
 
-    if message.generate == Some(false) {
-        return Err(TransformError::unsupported(
-            "responses.websocket.generate",
-            "prefill-only warmup has no equivalent selected cross-protocol generation operation",
+    if let Some(lane) = &message.stream_id
+        && (lane.is_empty()
+            || lane.len() > 256
+            || !lane
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"_.-".contains(&b)))
+    {
+        return Err(TransformError::shape(
+            "responses.websocket.stream_id",
+            "invalid lane",
         ));
     }
     let ClientEvent::ResponseCreate(request) = &mut message.event else {
-        return Err(TransformError::unsupported(
-            "responses.websocket.control",
-            "steering and injection have no equivalent cross-protocol generation operation",
-        ));
+        return Ok(message);
     };
     if request.background.flatten() == Some(true) {
         return Err(TransformError::unsupported(

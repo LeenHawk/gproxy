@@ -15,6 +15,7 @@ pub mod synthesize;
 pub mod websocket;
 
 pub use history::ResponsesHistoryCache;
+pub use history::response_output_as_input;
 pub use invoke::{StreamChunk, StreamInvocation, StreamSettings, StreamStart, StreamTarget};
 pub use prepare::{
     ChatViaGeminiStreamFacts, ClaudeViaGeminiStreamFacts, GeminiViaClaudeStreamFacts,

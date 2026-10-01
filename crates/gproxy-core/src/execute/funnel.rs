@@ -31,6 +31,23 @@ impl Funnel {
         observer: Arc<dyn Observer>,
     ) -> (Arc<Self>, UsageCompletion) {
         let policy = observer.policy(&request);
+        Self::with_policy(request, observer, policy)
+    }
+
+    pub fn connection(
+        request: Arc<RequestContext>,
+        observer: Arc<dyn Observer>,
+    ) -> (Arc<Self>, UsageCompletion) {
+        let mut policy = observer.policy(&request);
+        policy.usage = false;
+        Self::with_policy(request, observer, policy)
+    }
+
+    fn with_policy(
+        request: Arc<RequestContext>,
+        observer: Arc<dyn Observer>,
+        policy: ObservationPolicy,
+    ) -> (Arc<Self>, UsageCompletion) {
         let (sender, receiver) = oneshot::channel();
         let funnel = Arc::new(Self {
             request,
@@ -94,6 +111,26 @@ impl Funnel {
 
     pub fn record_exchange_usage(&self, usage: ExchangeUsage) {
         self.exchanges.lock().unwrap().push(usage);
+    }
+
+    pub async fn pending_cost(&self) -> Option<crate::pricing::Cost> {
+        let pending = std::mem::take(&mut *self.exchanges_closed.lock().unwrap());
+        for closed in pending {
+            let _ = closed.await;
+        }
+        let mut report = UsageReport {
+            request_id: self.request.request_id.clone(),
+            downstream_usage: None,
+            exchanges: self.exchanges.lock().unwrap().clone(),
+            cost: None,
+            state: UsageState::Collecting,
+        };
+        crate::pricing::price_report(
+            &self.request.snapshot.pricing,
+            self.request.operation.operation,
+            &mut report,
+        );
+        report.cost
     }
 
     /// The response body/socket handed to the caller will call `finish` when it

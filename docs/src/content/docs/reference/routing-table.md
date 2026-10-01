@@ -137,8 +137,21 @@ does.
 | `GET` | `/v1/live` | the same, at the WebRTC spelling |
 | `GET` | `/v1/live/{call_id}` | the continuation with the call in the path |
 | `GET` | `/v1/responses` | `generate_content` / `openai_responses_websocket` |
-| `GET` | `/v1/responses/ws` | `generate_content` / `openai_responses_websocket` |
 | `GET` | `/ws/v1beta/BidiGenerateContent` | `connect_realtime` / `gemini` — Gemini Live |
+
+Responses uses the same `/v1/responses` path for HTTP POST and WebSocket GET.
+Its handshake authenticates the caller; each `response.create` then supplies
+the model for permissions, routing and generation limits. Independent
+`stream_id` lanes can run concurrently. A new response chain can choose a new
+target; `previous_response_id` continuations retain their original target.
+Idle Responses connections do not hold generation concurrency permits.
+
+Native Responses sockets forward upstream controls. HTTP bridges to Responses,
+Chat, Claude and Gemini support local context warmup, interruption, steering
+successors and injected inputs between HTTP generation segments. Local warmup
+does not prefill an upstream cache. `store:false` history lasts only for the
+client connection; stored continuations retain scoped history and target
+bindings. Started or uncertain generations are not replayed on another target.
 
 `POST /v1/realtime/calls` is an HTTP multipart request carrying an SDP offer,
 and the handshake that continues it carries **no body at all**. What survives
@@ -150,7 +163,7 @@ A realtime session is **never converted**: only same-dialect passthrough,
 because a client that can keep talking mid-response has no equivalent in a
 half-duplex dialect.
 
-**Nothing is upgraded before it is allowed.** Authentication, then the
+**Realtime is admitted before upgrading.** Authentication, then the
 handshake shape, then admission, then the upstream handshake; the `101` is
 written last. Every refusal is therefore an HTTP answer a client can read — a
 socket that is accepted and immediately closed carries no status, no body and
@@ -158,7 +171,7 @@ no code. A **refused upstream handshake is relayed verbatim**: a vendor's
 `429 {"error":{"code":"insufficient_quota"}}` is worth more than any 502 this
 gateway could invent.
 
-A socket holds its concurrency lease until it **closes**, not until the `101`
+A realtime socket holds its concurrency lease until it **closes**, not until the `101`
 was written. A session that runs for an hour holds its slot for that hour.
 
 ### Codex-only routes

@@ -887,6 +887,30 @@ pub(crate) trait UsageMeter: Send + Sync {
     ) -> CapabilityFuture<'a, ()>;
 }
 
+pub(crate) async fn charge_responses_segment<C: BatchConnectionTrait>(
+    store: &Store<C>,
+    cache: &Arc<dyn Cache>,
+    attempt: &crate::AttemptContext,
+    operation: Operation,
+) -> CoreResult<()> {
+    if meter(
+        store,
+        cache,
+        &attempt.credential,
+        operation,
+        attempt.request.target.upstream_model.as_deref(),
+        QuotaMetric::Requests,
+        Decimal::ONE,
+        now_ms(),
+    )
+    .await?
+    .is_some()
+    {
+        return Err(CoreError::NoUsableCredential);
+    }
+    Ok(())
+}
+
 struct CountedMeter<C> {
     store: Arc<Store<C>>,
     cache: Arc<dyn Cache>,

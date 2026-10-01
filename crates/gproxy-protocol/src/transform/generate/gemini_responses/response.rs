@@ -373,7 +373,9 @@ pub fn responses_to_gemini_response_with_modalities(
         {
             r::ResponseIncompleteReason::MaxOutputTokens
             | r::ResponseIncompleteReason::MaxMessages => g::FinishReason::MaxTokens,
-            r::ResponseIncompleteReason::Steered => g::FinishReason::Stop,
+            r::ResponseIncompleteReason::Steered | r::ResponseIncompleteReason::Interrupted => {
+                g::FinishReason::Stop
+            }
             r::ResponseIncompleteReason::ContentFilter => g::FinishReason::Safety,
         }
     };

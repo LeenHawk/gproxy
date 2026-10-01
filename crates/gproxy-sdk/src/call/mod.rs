@@ -310,6 +310,66 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ConnectBuilder<'_, C> {
     /// rejected HTTP answer: its status decides whether another provider is
     /// worth trying.
     pub async fn send(self) -> SdkResult<WebSocketExecution> {
+        self.send_inner(None).await
+    }
+
+    /// Open a reusable Responses chain. Its handshake is captured separately
+    /// from the turns admitted through `begin_responses_turn`.
+    pub async fn open_responses(
+        self,
+        session: gproxy_core::ResponsesSession,
+    ) -> SdkResult<WebSocketExecution> {
+        self.send_inner(Some(session)).await
+    }
+
+    pub async fn begin_responses_turn(
+        self,
+        session: &gproxy_core::ResponsesSession,
+        body: &Value,
+        lane: Option<&str>,
+        pending: bool,
+    ) -> SdkResult<gproxy_core::Execution<()>> {
+        let binding = session
+            .binding()
+            .ok_or_else(|| SdkError::invalid("Responses chain is not bound"))?;
+        let snapshot = self.gproxy.core().snapshot();
+        let prepared = self
+            .options
+            .prepare(
+                self.gproxy,
+                snapshot,
+                self.operation,
+                &self.request.headers,
+                Some(body),
+            )
+            .await?;
+        let mut walk = Walk::new(prepared);
+        while let Some(step) = walk.next() {
+            if step.context.target.provider.entity.id == binding.provider_id {
+                return self
+                    .gproxy
+                    .core()
+                    .begin_responses_turn(
+                        step.context,
+                        session,
+                        &self.request.headers,
+                        lane,
+                        pending,
+                        body["generate"] == false,
+                    )
+                    .await
+                    .map_err(Into::into);
+            }
+        }
+        Err(SdkError::invalid(
+            "Responses continuation is outside the admitted plan",
+        ))
+    }
+
+    async fn send_inner(
+        self,
+        session: Option<gproxy_core::ResponsesSession>,
+    ) -> SdkResult<WebSocketExecution> {
         let Self {
             gproxy,
             operation,
@@ -338,7 +398,16 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ConnectBuilder<'_, C> {
                 headers: headers.clone(),
                 body: (),
             };
-            match gproxy.core().connect(step.context.clone(), request).await {
+            let result = match &session {
+                Some(session) => {
+                    gproxy
+                        .core()
+                        .connect_responses_session(step.context.clone(), request, session.clone())
+                        .await
+                }
+                None => gproxy.core().connect(step.context.clone(), request).await,
+            };
+            match result {
                 Ok(execution) => {
                     let rejected = match execution.response() {
                         UpstreamConnection::Rejected(response) => Some(response.status),

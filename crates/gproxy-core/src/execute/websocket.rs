@@ -42,7 +42,7 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
 ) -> CoreResult<WebSocketExecution> {
     let (funnel, completion) = Funnel::new(request.clone(), core.observer().clone());
     let _request_guard = funnel.guard();
-    let result = run_websocket_inner(core, request, wire, funnel.clone(), completion).await;
+    let result = run_websocket_inner(core, request, wire, funnel.clone(), completion, None).await;
     if let Err(error) = &result {
         let state = if matches!(error, CoreError::Cancelled) {
             UsageState::Cancelled
@@ -54,12 +54,36 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
     result
 }
 
+pub(crate) async fn run_responses_websocket<C: BatchConnectionTrait + Send + Sync + 'static>(
+    core: &Core<C>,
+    request: Arc<RequestContext>,
+    wire: WireRequest<()>,
+    session: crate::ResponsesSession,
+) -> CoreResult<WebSocketExecution> {
+    let (funnel, completion) = Funnel::connection(request.clone(), core.observer().clone());
+    let _guard = funnel.guard();
+    let result = run_websocket_inner(
+        core,
+        request,
+        wire,
+        funnel.clone(),
+        completion,
+        Some(session),
+    )
+    .await;
+    if result.is_err() {
+        funnel.finish(UsageState::Failed).await;
+    }
+    result
+}
+
 async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     core: &Core<C>,
     request: Arc<RequestContext>,
     mut wire: WireRequest<()>,
     funnel: Arc<Funnel>,
     completion: crate::UsageCompletion,
+    session: Option<crate::ResponsesSession>,
 ) -> CoreResult<WebSocketExecution> {
     funnel.set_meter(core.usage_meter());
     super::attempt::reject_when_over_budget(core, &request, &funnel).await?;
@@ -87,7 +111,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                 )));
             }
             return convert::responses_ws::serve(
-                core, request, &wire, funnel, completion, upstream,
+                core, request, &wire, funnel, completion, upstream, session,
             )
             .await;
         }
@@ -317,10 +341,26 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     core.settle_assignment(&handle, AssignmentOutcome::Activated, finished_at)
                         .await?;
                 }
-                exchange.start_ws_usage();
+                if let Some(session) = &session {
+                    exchange.flush_capture().await;
+                    session.bind(
+                        request.clone(),
+                        credential.clone(),
+                        operation.dialect,
+                        Some(exchange.context.capture_id.clone()),
+                        attempt.agent_assignment.clone(),
+                    );
+                } else {
+                    exchange.start_ws_usage();
+                }
                 exchange.make_terminal();
-                let socket =
-                    observe_socket(exchange, socket, &request_rules, limits.max_ws_frame_bytes);
+                let socket = observe_socket(
+                    exchange,
+                    socket,
+                    &request_rules,
+                    limits.max_ws_frame_bytes,
+                    session,
+                );
                 let settled = funnel.arm();
                 return Ok(Execution::new(
                     UpstreamConnection::Connected { handshake, socket },
@@ -452,7 +492,7 @@ fn frame_len(frame: &WsFrame) -> usize {
     }
 }
 
-fn rewrite_text(
+pub(crate) fn rewrite_text(
     rules: &[Arc<crate::RewriteRuleData>],
     frame: WsFrame,
 ) -> Result<WsFrame, TransportError> {
@@ -484,11 +524,41 @@ impl Drop for Guard {
     }
 }
 
+pub(crate) fn observe_generation_socket(
+    exchange: Arc<Exchange>,
+    socket: WebSocket,
+    rules: &SelectedRules,
+    max: u64,
+) -> WebSocket {
+    exchange.start_ws_usage();
+    let socket = observe_socket(exchange.clone(), socket, rules, max, None);
+    let incoming = futures_util::stream::unfold(
+        (socket.incoming, exchange),
+        |(mut incoming, exchange)| async move {
+            let frame = incoming.next().await?;
+            let terminal = matches!(&frame, Ok(WsFrame::Text(text)) if serde_json::from_str::<serde_json::Value>(text).ok()
+            .and_then(|v| v["type"].as_str().map(str::to_owned))
+            .is_some_and(|kind| matches!(kind.as_str(), "response.completed" | "response.incomplete" | "response.failed")));
+            if terminal {
+                exchange
+                    .finish(UsageStreamEnd::Complete, None, now_ms())
+                    .await;
+            }
+            Some((frame, (incoming, exchange)))
+        },
+    );
+    WebSocket {
+        incoming: Box::pin(incoming),
+        outgoing: socket.outgoing,
+    }
+}
+
 fn observe_socket(
     exchange: Arc<Exchange>,
     socket: WebSocket,
     request_rules: &SelectedRules,
     max_frame_bytes: u64,
+    session: Option<crate::ResponsesSession>,
 ) -> WebSocket {
     let response_rules = exchange.response_rules.clone();
     let cancellation = exchange.context.attempt.request.cancellation.clone();
@@ -498,6 +568,7 @@ fn observe_socket(
         rules: Vec<Arc<crate::RewriteRuleData>>,
         max: u64,
         cancellation: tokio_util::sync::CancellationToken,
+        session: SessionGuard,
     }
     let incoming = futures_util::stream::unfold(
         Incoming {
@@ -506,6 +577,7 @@ fn observe_socket(
             rules: response_rules,
             max: max_frame_bytes,
             cancellation,
+            session: SessionGuard(session.clone()),
         },
         |mut state| async move {
             let inner = state.inner.as_mut()?;
@@ -562,13 +634,26 @@ fn observe_socket(
                         ));
                     }
                     if state.guard.0.wants_full_capture() {
+                        let turn_id = state.session.0.as_ref().and_then(|s| s.capture_id());
                         state.guard.0.record(CaptureEvent::Frame {
                             direction: CaptureDirection::Response,
                             frame: &frame,
+                            turn_id: turn_id.as_deref(),
                         });
                     }
-                    state.guard.0.observe_ws_frame(&frame);
-                    let frame = rewrite_text(&state.rules, frame);
+                    let rules = state
+                        .session
+                        .0
+                        .as_ref()
+                        .and_then(|s| s.current())
+                        .map(|t| t.response_rules.body.clone())
+                        .unwrap_or_else(|| state.rules.clone());
+                    if let Some(session) = &state.session.0 {
+                        session.observe(&frame).await;
+                    } else {
+                        state.guard.0.observe_ws_frame(&frame);
+                    }
+                    let frame = rewrite_text(&rules, frame);
                     Some((frame, state))
                 }
             }
@@ -579,10 +664,22 @@ fn observe_socket(
         exchange,
         rules: request_rules.body.clone(),
         max: max_frame_bytes,
+        session,
     };
     WebSocket {
         incoming: Box::pin(incoming),
         outgoing: Box::pin(outgoing),
+    }
+}
+
+struct SessionGuard(Option<crate::ResponsesSession>);
+impl Drop for SessionGuard {
+    fn drop(&mut self) {
+        if let Some(session) = self.0.take() {
+            crate::rt::spawn(async move {
+                session.close().await;
+            });
+        }
     }
 }
 
@@ -591,6 +688,7 @@ struct ObservedSink {
     exchange: Arc<Exchange>,
     rules: Vec<Arc<crate::RewriteRuleData>>,
     max: u64,
+    session: Option<crate::ResponsesSession>,
 }
 
 impl Sink<WsFrame> for ObservedSink {
@@ -604,7 +702,13 @@ impl Sink<WsFrame> for ObservedSink {
         if frame_len(&frame) as u64 > self.max {
             return Err(transport_error("frame exceeds the frame limit"));
         }
-        let mut frame = rewrite_text(&self.rules, frame)?;
+        let rules = self
+            .session
+            .as_ref()
+            .and_then(|s| s.current())
+            .map(|t| t.request_rules.body.clone())
+            .unwrap_or_else(|| self.rules.clone());
+        let mut frame = rewrite_text(&rules, frame)?;
         if let (WsFrame::Text(text), Some(model)) = (
             &mut frame,
             self.exchange
@@ -624,9 +728,11 @@ impl Sink<WsFrame> for ObservedSink {
             return Err(transport_error("rewritten frame exceeds the frame limit"));
         }
         if self.exchange.wants_full_capture() {
+            let turn_id = self.session.as_ref().and_then(|s| s.capture_id());
             self.exchange.record(CaptureEvent::Frame {
                 direction: CaptureDirection::Request,
                 frame: &frame,
+                turn_id: turn_id.as_deref(),
             });
         }
         self.inner.as_mut().start_send(frame)

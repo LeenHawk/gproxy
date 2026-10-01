@@ -219,6 +219,8 @@ macro_rules! drive {
         builder
     }};
 }
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use drive;
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
     /// Admit one request and execute it.
@@ -381,7 +383,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
     /// they must be what the engine can actually *use*: a credential that is
     /// disabled, retired or fully blocked is already gone from there, and
     /// admission narrows that set without ever adding to it.
-    async fn admit(
+    pub(crate) async fn admit(
         &self,
         data: &crate::AppData,
         caller: &Caller,

@@ -157,6 +157,7 @@ enum Write {
     Head(Box<record::ActiveModel>),
     Event(event::ActiveModel),
     Finish(CaptureEnd, oneshot::Sender<()>),
+    Flush(oneshot::Sender<()>),
 }
 struct StoreCapture {
     id: String,
@@ -178,6 +179,7 @@ impl StoreCapture {
         direction: event::CaptureDirection,
         kind: event::CaptureEventKind,
         payload: &[u8],
+        turn_id: Option<&str>,
     ) {
         if !self.full {
             return;
@@ -190,15 +192,22 @@ impl StoreCapture {
         self.send(Write::Event(event::ActiveModel {
             capture_id: Set(self.id.clone()),
             sequence: Set(sequence as i64),
+            turn_id: Set(turn_id.map(str::to_owned)),
             direction: Set(direction),
             kind: Set(kind),
             payload: Set(payload),
             observed_at_ms: Set(now_ms()),
-            ..Default::default()
         }));
     }
 }
 impl CaptureSink for StoreCapture {
+    fn flush(&self) -> CapabilityFuture<'static, ()> {
+        let (tx, rx) = oneshot::channel();
+        let _ = self.tx.send(Write::Flush(tx));
+        Box::pin(async move {
+            let _ = rx.await;
+        })
+    }
     fn record(&mut self, sequence: u64, event: CaptureEvent<'_>) {
         use event::{CaptureDirection as D, CaptureEventKind as K};
         let mut patch = record::ActiveModel {
@@ -206,6 +215,16 @@ impl CaptureSink for StoreCapture {
             ..Default::default()
         };
         match event {
+            CaptureEvent::TurnStart {
+                connection_id,
+                lane,
+            } => {
+                patch.kind = Set(record::CaptureKind::WsTurn);
+                patch.session_id = Set(Some(connection_id.to_owned()));
+                patch.stream_key = Set(lane.map(str::to_owned));
+                patch.request_framing = Set(record::BodyFraming::WebSocket);
+                patch.response_framing = Set(record::BodyFraming::WebSocket);
+            }
             CaptureEvent::RequestHead {
                 method,
                 uri,
@@ -249,23 +268,29 @@ impl CaptureSink for StoreCapture {
                 }
             }
             CaptureEvent::RequestChunk(bytes) => {
-                self.bytes(sequence, D::Request, K::Bytes, bytes);
+                self.bytes(sequence, D::Request, K::Bytes, bytes, None);
                 return;
             }
             CaptureEvent::ResponseChunk(bytes) => {
-                self.bytes(sequence, D::Response, K::Bytes, bytes);
+                self.bytes(sequence, D::Response, K::Bytes, bytes, None);
                 return;
             }
-            CaptureEvent::Frame { direction, frame } => {
+            CaptureEvent::Frame {
+                direction,
+                frame,
+                turn_id,
+            } => {
                 let direction = match direction {
                     crate::CaptureDirection::Request => D::Request,
                     crate::CaptureDirection::Response => D::Response,
                 };
                 match frame {
-                    WsFrame::Text(s) => self.bytes(sequence, direction, K::WsText, s.as_bytes()),
-                    WsFrame::Binary(b) => self.bytes(sequence, direction, K::WsBinary, b),
-                    WsFrame::Ping(b) => self.bytes(sequence, direction, K::WsPing, b),
-                    WsFrame::Pong(b) => self.bytes(sequence, direction, K::WsPong, b),
+                    WsFrame::Text(s) => {
+                        self.bytes(sequence, direction, K::WsText, s.as_bytes(), turn_id)
+                    }
+                    WsFrame::Binary(b) => self.bytes(sequence, direction, K::WsBinary, b, turn_id),
+                    WsFrame::Ping(b) => self.bytes(sequence, direction, K::WsPing, b, turn_id),
+                    WsFrame::Pong(b) => self.bytes(sequence, direction, K::WsPong, b, turn_id),
                     WsFrame::Close(close) => self.bytes(
                         sequence,
                         direction,
@@ -276,6 +301,7 @@ impl CaptureSink for StoreCapture {
                                 .map(|c| json!({"code": c.code, "reason": c.reason})),
                         )
                         .unwrap(),
+                        turn_id,
                     ),
                 }
                 return;
@@ -331,6 +357,31 @@ async fn write_capture<C: BatchConnectionTrait + Send + Sync + 'static>(
     let mut status = None;
     while let Some(write) = rx.recv().await {
         match write {
+            Write::Flush(ack) => {
+                if !inserted {
+                    let backend = store.connection().get_database_backend();
+                    match store.upstream_records().insert_statement(row.clone()) {
+                        Ok(statement) => match store
+                            .connection()
+                            .atomic_batch_owned(vec![
+                                statement,
+                                link_statement(backend, &link, &id),
+                            ])
+                            .await
+                        {
+                            Ok(_) => inserted = true,
+                            Err(error) => {
+                                lost.store(true, Ordering::Relaxed);
+                                tracing::error!(capture_id = %id, %error, "connection capture write failed");
+                            }
+                        },
+                        Err(error) => {
+                            tracing::error!(capture_id = %id, %error, "connection capture write failed");
+                        }
+                    }
+                }
+                let _ = ack.send(());
+            }
             Write::Head(patch) => {
                 if let sea_orm::ActiveValue::Set(s) = &patch.response_status {
                     status = *s;

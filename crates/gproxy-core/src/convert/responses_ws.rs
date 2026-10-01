@@ -11,6 +11,9 @@
 //! Neither direction fails over mid-turn; a rejected upstream answer becomes
 //! the Responses error message, not a second send.
 
+mod bridge;
+mod responses_http;
+
 use super::{
     Call, Converted,
     generate::{
@@ -80,6 +83,9 @@ pub(crate) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'stat
     call: &Call<'_, C>,
     settings: StreamSettings,
 ) -> Result<Converted, TransformError> {
+    if call.client.dialect == Dialect::OpenAi {
+        return responses_http::over_websocket(call, settings).await;
+    }
     let client = call.client.dialect;
     let upstream = call.upstream;
     let body = call.body();
@@ -258,10 +264,11 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
     funnel: Arc<Funnel>,
     completion: UsageCompletion,
     target: Dialect,
+    session: Option<crate::ResponsesSession>,
 ) -> CoreResult<WebSocketExecution> {
     if !matches!(
         target,
-        Dialect::OpenAiChat | Dialect::Claude | Dialect::Gemini
+        Dialect::OpenAi | Dialect::OpenAiChat | Dialect::Claude | Dialect::Gemini
     ) {
         funnel.finish(UsageState::Failed).await;
         return Err(CoreError::Transform(TransformError::unsupported(
@@ -281,6 +288,15 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
     let limits = snapshot.limits;
     let provider = request.target.provider.clone();
     let credential = selection.credential;
+    if let Some(session) = &session {
+        session.bind(
+            request.clone(),
+            credential.clone(),
+            target,
+            None,
+            selection.assignment.as_ref().map(|h| h.reference.clone()),
+        );
+    }
     // The socket is fabricated locally; binding the session is the whole
     // preparation, so a reservation is active as soon as it exists.
     if let Some(handle) = &selection.assignment {
@@ -309,7 +325,7 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
         attempt,
         wire.headers.clone(),
         capability,
-        channel_state,
+        channel_state.clone(),
         core.instance_id().clone(),
     );
     let Some(model) = request.target.upstream_model.clone() else {
@@ -336,7 +352,7 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
         .conversation
         .clone()
         .unwrap_or_else(|| request.request_id.clone());
-    let owned = OwnedState {
+    let mut owned = OwnedState {
         store: ProtocolState::new(core, capability),
         scope,
         target: identity_target,
@@ -347,6 +363,10 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
             + std::time::Duration::from_millis(now.max(0) as u64)
             + super::call::STATE_TTL,
     };
+    if let Some(binding) = session.as_ref().and_then(|s| s.binding()) {
+        owned.expires_at = SystemTime::UNIX_EPOCH
+            + std::time::Duration::from_millis(binding.expires_at_ms.max(0) as u64);
+    }
     let codec = limits.codec();
     let settings = stream_settings(codec, Dialect::OpenAi, None);
     let key = OperationKey {
@@ -354,6 +374,27 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
         dialect: target,
     };
     let endpoint = super::generate_endpoint(target, &model, true).map_err(CoreError::Transform)?;
+
+    if let Some(session) = session {
+        return Ok(bridge::serve(
+            bridge::Config {
+                store: core.store().clone(),
+                cache: core.cache().clone(),
+                owned: Arc::new(owned),
+                target,
+                model,
+                endpoint,
+                settings,
+                headers: wire.headers.clone(),
+                channel_state,
+                instance_id: core.instance_id().clone(),
+                cancellation: request.cancellation.clone(),
+            },
+            session,
+            funnel,
+            completion,
+        ));
+    }
 
     let (to_client, from_task) = mpsc::channel::<Result<WsFrame, TransportError>>(FRAME_QUEUE);
     let (to_task, mut from_client) = mpsc::channel::<WsFrame>(FRAME_QUEUE);
@@ -466,6 +507,10 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
                 }};
             }
             let result = match target {
+                Dialect::OpenAi => {
+                    responses_http::over_http(input, &upstream, &model, lane.clone(), codec, &out)
+                        .await
+                }
                 Dialect::OpenAiChat => {
                     serve_turn!(ResponsesViaChat, responses_over_chat_context(&input))
                 }

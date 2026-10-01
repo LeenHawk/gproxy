@@ -62,7 +62,10 @@ impl BaseChannel for TestChannel {
         "test"
     }
 
-    fn native_dialects(&self, _: ProviderView<'_>, _: Operation) -> Vec<Dialect> {
+    fn native_dialects(&self, provider: ProviderView<'_>, _: Operation) -> Vec<Dialect> {
+        if let Some(dialect) = provider.config.get("test_dialect") {
+            return vec![serde_json::from_value(dialect.clone()).unwrap()];
+        }
         vec![
             Dialect::OpenAi,
             Dialect::OpenAiChat,
@@ -239,6 +242,7 @@ impl ChannelServices for TestChannel {
 
 /// What the upstream answers next.
 pub enum Reply {
+    Sse(StatusCode, tokio::sync::mpsc::UnboundedReceiver<Bytes>),
     Http(StatusCode, Value),
     /// A streaming body whose end the test decides: every value sent on the
     /// channel becomes a chunk, and dropping the sender ends the response.
@@ -388,6 +392,7 @@ pub struct ScriptClient {
     replies: Mutex<VecDeque<Reply>>,
     sockets: Mutex<VecDeque<WsReply>>,
     seen: Mutex<Vec<String>>,
+    bodies: Mutex<Vec<Value>>,
 }
 
 impl ScriptClient {
@@ -416,6 +421,10 @@ impl ScriptClient {
     pub fn urls(&self) -> Vec<String> {
         self.seen.lock().unwrap().clone()
     }
+
+    pub fn bodies(&self) -> Vec<Value> {
+        self.bodies.lock().unwrap().clone()
+    }
 }
 
 impl OutboundClient for ScriptClient {
@@ -425,6 +434,12 @@ impl OutboundClient for ScriptClient {
     ) -> CapabilityFuture<'a, Result<WireResponse<HttpBody>, CapabilityError>> {
         Box::pin(async move {
             self.seen.lock().unwrap().push(request.uri().to_string());
+            if let HttpBody::Bytes(bytes) = request.body() {
+                self.bodies
+                    .lock()
+                    .unwrap()
+                    .push(serde_json::from_slice(bytes).unwrap_or(Value::Null));
+            }
             let reply = self
                 .replies
                 .lock()
@@ -434,6 +449,21 @@ impl OutboundClient for ScriptClient {
             let mut headers = HeaderMap::new();
             headers.insert("content-type", HeaderValue::from_static("application/json"));
             let (status, body) = match reply {
+                Reply::Sse(status, receiver) => {
+                    headers.insert(
+                        "content-type",
+                        HeaderValue::from_static("text/event-stream"),
+                    );
+                    (
+                        status,
+                        HttpBody::Stream(Box::pin(futures_util::stream::unfold(
+                            receiver,
+                            |mut receiver| async move {
+                                receiver.recv().await.map(|bytes| (Ok(bytes), receiver))
+                            },
+                        ))),
+                    )
+                }
                 Reply::Http(status, body) => {
                     let body = Bytes::from(serde_json::to_vec(&body).unwrap());
                     // As a real upstream sends it: a buffered answer declares

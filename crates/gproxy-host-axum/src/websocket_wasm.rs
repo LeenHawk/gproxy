@@ -35,6 +35,18 @@ use crate::response::CancelOnDrop;
 #[derive(Debug)]
 pub enum Upgrade {}
 
+pub fn responses<C: BatchConnectionTrait + Send + Sync + 'static>(
+    _app: Arc<App<C>>,
+    upgrade: Upgrade,
+    _caller: Caller,
+    _request: DataPlaneRequest,
+    _prefix: Option<String>,
+    _max_frame_bytes: u64,
+    _cancel: CancelOnDrop,
+) -> Response {
+    match upgrade {}
+}
+
 /// Always a refusal, and always before anything is accepted — same position in
 /// the order as the native one, so a caller that authenticated learns why and
 /// a caller that did not learns nothing.

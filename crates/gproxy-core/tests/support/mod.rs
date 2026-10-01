@@ -98,6 +98,7 @@ impl CaptureSink for Sink {
                 format!("{sequence} resp-chunk {}", String::from_utf8_lossy(bytes))
             }
             CaptureEvent::Frame { .. } => format!("{sequence} frame"),
+            CaptureEvent::TurnStart { .. } => format!("{sequence} turn"),
         };
         self.0.push(format!("{} {line}", self.1));
     }
