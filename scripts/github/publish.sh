@@ -2,6 +2,7 @@
 # Adapt the shared three-platform publisher to a GitHub Actions build.
 set -euo pipefail
 export CI_PROJECT_DIR="$GITHUB_WORKSPACE" CI_COMMIT_SHA="$GITHUB_SHA" CI_COMMIT_TAG=
+export CI_COMMIT_REF_NAME="$GITHUB_REF_NAME"
 if [ "$GITHUB_REF_TYPE" = tag ]; then export CI_COMMIT_TAG="$GITHUB_REF_NAME"; fi
 export CI_PROJECT_ID=86976712 CI_API_V4_URL=https://gitlab.com/api/v4
 export CI_PROJECT_URL=https://gitlab.com/leenhawk1/gproxy

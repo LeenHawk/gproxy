@@ -3,8 +3,10 @@ title: "从源码构建"
 description: 从源码构建 GPROXY v4 的每个目标——server、桌面宿主、Worker 与 console——并运行 CI 跑的那几道质量闸门。
 ---
 
-Release 工作流在推送 `dev` 时构建 nightly，在推送与 workspace 版本一致的 `v*`
-tag 时发布版本。下面介绍源码构建；自动打包由 `.github/workflows/release.yml` 驱动。
+`dev` 分支开发新功能，推送后只更新 `nightly`（dev 更新通道）。`main` 分支维护已发布功能和修复 bug，推送后只更新 `staging`（beta 更新通道）。
+正式版本从 `main` 发布，同时更新 release 和 beta，不覆盖独立开发的 dev 通道。版本 tag 必须与 workspace 版本一致。
+推送 dev 前执行 `bash scripts/push-dev.sh`，先 rebase 到最新 main；使用 `git config core.hooksPath .githooks` 启用本地推送检查。
+自动打包由 `.github/workflows/release.yml` 驱动。
 
 ## 发布包
 

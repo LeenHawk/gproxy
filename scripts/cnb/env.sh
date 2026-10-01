@@ -5,9 +5,11 @@ export GPROXY_BUILD_HASH="${CNB_COMMIT:?}"
 export GPROXY_BUILD_UPDATE_SOURCE=cnb
 export GPROXY_UPDATE_PUBKEY="$(cat .cnb/update-public-key)"
 export GPROXY_BUILD_CHANNEL=dev RELEASE_TAG=nightly
+export GPROXY_SOURCE_VERSION="$GPROXY_BUILD_VERSION" GPROXY_PUBLISH_BRANCH=dev
 if [[ "${CNB_BRANCH:?}" == v* ]]; then
   scripts/release-metadata.sh verify-tag "$CNB_BRANCH"
   export RELEASE_TAG="$CNB_BRANCH" GPROXY_BUILD_CHANNEL=release
+  export GPROXY_PUBLISH_BRANCH=
   [[ "$GPROXY_BUILD_VERSION" != *-* ]] || export GPROXY_BUILD_CHANNEL=beta
 elif [ "$CNB_BRANCH" != dev ]; then
   echo "CNB releases require dev or a matching version tag" >&2

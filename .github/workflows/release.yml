@@ -3,16 +3,13 @@ name: Release
 on:
   workflow_dispatch:
   push:
-    branches: [dev]
+    branches: [main, dev]
     tags:
       - "v*"
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
 
 permissions:
   contents: write
@@ -32,24 +29,11 @@ jobs:
       manifest_version: ${{ steps.metadata.outputs.manifest_version }}
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
       - id: metadata
         run: |
-          # Three channels, named the way the binary names them: dev, beta,
-          # release. A push to the development branch is a dev build; a
-          # pre-release tag is a beta; a clean version tag is a release.
-          version="$(scripts/release-metadata.sh version)"
-          manifest_version="$version"
-          channel=dev
-          if [ "$GITHUB_REF_TYPE" = tag ]; then
-            scripts/release-metadata.sh verify-tag "$GITHUB_REF_NAME"
-            channel=release
-            if [[ "$version" == *-* ]]; then channel=beta; fi
-          else
-            manifest_version="$GITHUB_SHA"
-          fi
-          echo "manifest_version=$manifest_version" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          python3 scripts/release-context.py --validate | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> "$GITHUB_OUTPUT"
           # CLI and Application get separate runners and caches, including
           # their independent LTO links and best-compression packaging.
           echo "matrix=$(jq -c '{include: [.include[] | select(.os != "ohos") | select(.target | startswith("riscv64gc-") | not) | if .application_artifact then . + {kind:"cli"}, . + {kind:"application"} else . + {kind:"cli"} end]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
@@ -856,6 +840,9 @@ jobs:
     name: Publish GitHub, GitLab and CNB releases
     needs: [prepare, native, riscv, ohos-cli, ohos-application, edge, edge-check, container-manifest, publish-crates]
     runs-on: ubuntu-latest
+    concurrency:
+      group: gproxy-release-publication
+      cancel-in-progress: false
     environment: release
     steps:
       - uses: actions/checkout@v7.0.1
@@ -902,7 +889,7 @@ jobs:
   cache-cleanup:
     name: Clean old GHCR build caches
     needs: [native, riscv, ohos-cli, ohos-application, edge]
-    if: ${{ always() && !cancelled() && github.ref == 'refs/heads/dev' }}
+    if: ${{ always() && !cancelled() && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

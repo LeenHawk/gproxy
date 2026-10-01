@@ -24,7 +24,7 @@ The zstd archives use `v2-` tags. A missing v2 cache falls back to the existing
 v1 gzip archive, so the migration does not require a cold build. `restore-key`
 can also seed a newly split job from an older compatible cache. Only the job's
 own v2 tag is updated; old workflow runs can still read their v1 archives.
-Only `dev` writes; tags, PRs and other branches can restore but cannot overwrite
+Only `main` and `dev` write; tags, PRs and other branches can restore but cannot overwrite
 these shared caches. Forks without package access simply build without a cache.
 Do not put credentials or other secrets in the cached directories.
 

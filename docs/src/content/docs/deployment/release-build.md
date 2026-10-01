@@ -3,9 +3,17 @@ title: "Building from Source"
 description: "Build every GPROXY v4 target from source — the server, the desktop shell, the Worker and the console — and run the quality gates CI runs."
 ---
 
-The Release workflow builds nightly on pushes to `dev`, and versioned releases on
+The Release workflow publishes `dev` pushes to `nightly` (the dev update channel),
+and `main` pushes to `staging` (the beta update channel). Stable version releases
+come from `main` and update both release and beta; they never overwrite dev.
+Versioned releases are built on
 `v*` tags matching the workspace version. The instructions below cover source
 builds; `.github/workflows/release.yml` drives automated packaging.
+
+Before pushing dev, run `bash scripts/push-dev.sh` to rebase on the latest main.
+Enable the local push guard with `git config core.hooksPath .githooks`.
+Public attachments contain packages, `manifest.json`, and `SHA256SUMS`;
+individual checksum files and build provenance remain internal CI inputs.
 
 ## Release packages
 
@@ -32,7 +40,7 @@ OHOS builds use a cached toolchain image and a pinned experimental Tauri branch;
 other platforms retain stable Tauri. HAP files require signing before installation.
 Device execution has not been verified; background services are not implemented.
 
-Nightly filenames also carry a commit SHA prefix. Linux x86_64 builds on Ubuntu
+Nightly filenames stay fixed; the manifest records the commit SHA. Linux x86_64 builds on Ubuntu
 22.04 and ARM64 on Ubuntu 24.04; installation requires the distribution's
 WebKitGTK 4.1 packages. macOS uses ad-hoc signing; Developer ID signing and
 notarization are not configured.

@@ -18,4 +18,7 @@ for platform in github gitlab cnb; do
   esac
   export OUT="dist/manifests/$platform/manifest.json"
   scripts/build-update-manifest.sh
+  if [ "$CHANNEL" = release ]; then
+    CHANNEL=beta OUT="dist/manifests/$platform/beta/manifest.json" scripts/build-update-manifest.sh
+  fi
 done

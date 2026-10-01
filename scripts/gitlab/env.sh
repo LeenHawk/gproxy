@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-export GPROXY_BUILD_VERSION="$(scripts/release-metadata.sh version)"
 export GPROXY_BUILD_HASH="${CI_COMMIT_SHA:?}"
-export GPROXY_BUILD_CHANNEL=dev RELEASE_TAG=nightly GPROXY_BUILD_UPDATE_SOURCE=github
-if [ -n "${CI_COMMIT_TAG:-}" ]; then
-  scripts/release-metadata.sh verify-tag "$CI_COMMIT_TAG"
-  export RELEASE_TAG="$CI_COMMIT_TAG" GPROXY_BUILD_CHANNEL=release
-  [[ "$GPROXY_BUILD_VERSION" != *-* ]] || export GPROXY_BUILD_CHANNEL=beta
-fi
+release_context="$(python3 scripts/release-context.py --shell)" || return 1
+eval "$release_context"
+export GPROXY_BUILD_UPDATE_SOURCE=github
 export GPROXY_UPDATE_PUBKEY="$(cat .gitlab/update-public-key)"
 export GPROXY_INSTALLATION_KIND=standalone
 export RUNNER_TEMP="$CI_PROJECT_DIR/.ci-tmp"

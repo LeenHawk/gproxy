@@ -13,6 +13,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  dev-base:
+    name: Dev includes latest main
+    if: github.ref == 'refs/heads/dev' || github.base_ref == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - run: |
+          git fetch origin main
+          git merge-base --is-ancestor origin/main HEAD || {
+            echo 'Rebase dev on the latest main before pushing.' >&2
+            exit 1
+          }
+
   rust:
     name: Rust (${{ matrix.check }})
     permissions:
@@ -108,8 +123,8 @@ jobs:
           cargo check --target wasm32-unknown-unknown -p gproxy-channel --all-features --lib
 
   backend:
-    # Preserve the existing required-check name while running the checks in parallel.
-    name: Rust (backend · desktop · wasm)
+    # Preserve main's protected-branch check name while running checks in parallel.
+    name: Backend (fmt · clippy · test · wasm)
     needs: rust
     if: always()
     runs-on: ubuntu-latest
@@ -154,7 +169,7 @@ jobs:
   windows:
     # dev and version-tag pushes already build and validate both Windows
     # packages in Release. PRs and other branches keep this independent check.
-    if: github.event_name != 'push' || (github.ref != 'refs/heads/dev' && !startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name != 'push' || (github.ref != 'refs/heads/dev' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/v'))
     name: Windows packages (${{ matrix.target }})
     needs: console
     runs-on: ${{ matrix.runner }}

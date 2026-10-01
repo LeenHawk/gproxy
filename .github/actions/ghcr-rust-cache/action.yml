@@ -11,8 +11,8 @@ inputs:
     description: GitHub token with package access
     required: true
   save:
-    description: Only the development branch updates shared caches
-    default: ${{ github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' }}
+    description: Main and dev update shared caches; tags and PRs only restore
+    default: ${{ (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') && github.event_name != 'pull_request' }}
 runs:
   using: composite
   steps:

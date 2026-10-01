@@ -14,6 +14,11 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
 fi
 
 head="$(git rev-parse HEAD)"
+git fetch origin main
+git merge-base --is-ancestor "$head" origin/main || {
+  echo "version releases must come from main; merge and push main first" >&2
+  exit 1
+}
 if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
   tagged="$(git rev-parse "$tag^{commit}")"
   if [ "$tagged" != "$head" ]; then

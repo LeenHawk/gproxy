@@ -14,7 +14,10 @@ asset_base_url="${ASSET_BASE_URL:-https://github.com/$REPO/releases/download/$TA
 asset_base_url="${asset_base_url%/}"
 
 case "$channel" in
-  release | beta)
+  beta)
+    if [ "$TAG" != staging ]; then scripts/release-metadata.sh verify-tag "$TAG"; fi
+    ;;
+  release)
     scripts/release-metadata.sh verify-tag "$TAG"
     if [ "$version" != "$(scripts/release-metadata.sh version)" ]; then
       echo "manifest version $version does not match workspace version" >&2

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+remote="$1"
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" != refs/heads/dev ] || [[ "$local_sha" =~ ^0+$ ]]; then continue; fi
+  git fetch --quiet "$remote" refs/heads/main
+  if ! git merge-base --is-ancestor FETCH_HEAD "$local_sha"; then
+    echo 'dev must include the latest main. Run: bash scripts/push-dev.sh' >&2
+    exit 1
+  fi
+done

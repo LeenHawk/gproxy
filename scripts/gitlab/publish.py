@@ -30,7 +30,7 @@ def request(method, url, token, body=None, header="Authorization", missing=False
         raise RuntimeError(f"{method} {urllib.parse.urlsplit(url).path}: HTTP {error.code}") from None
 
 
-def git_push(url, ref, token, username, force=False):
+def git_push(url, ref, token, username, force=False, mirror=False):
     host = urllib.parse.urlsplit(url).netloc
     env = os.environ | {
         "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_COUNT": "2",
@@ -38,7 +38,11 @@ def git_push(url, ref, token, username, force=False):
         "GIT_CONFIG_VALUE_0": "Authorization: Basic " + base64.b64encode(f"{username}:{token}".encode()).decode(),
         "GIT_CONFIG_KEY_1": "credential.helper", "GIT_CONFIG_VALUE_1": "",
     }
-    subprocess.run(["git", "push", *( ["--force"] if force else []), url,
+    options = ["--force"] if force else []
+    if mirror:
+        remote = subprocess.check_output(["git", "ls-remote", url, ref], env=env, text=True).split()
+        options = [f"--force-with-lease={ref}:{remote[0] if remote else ''}"]
+    subprocess.run(["git", "push", *options, url,
                     f"{os.environ['CI_COMMIT_SHA']}:{ref}"], env=env, check=True)
 
 
@@ -165,8 +169,9 @@ class Cnb:
 
     def sync(self):
         ref = (f"refs/tags/{os.environ['CI_COMMIT_TAG']}" if os.environ.get("CI_COMMIT_TAG")
-               else "refs/heads/dev")
-        git_push("https://cnb.cool/LeenHawk/gproxy.git", ref, os.environ["CNB_TOKEN"], "cnb")
+               else f"refs/heads/{os.environ.get('GPROXY_PUBLISH_BRANCH') or 'dev'}")
+        git_push("https://cnb.cool/LeenHawk/gproxy.git", ref, os.environ["CNB_TOKEN"], "cnb",
+                 mirror=ref.startswith("refs/heads/"))
 
     def release(self, tag, notes, prerelease):
         return self.client.release(tag, notes, prerelease)
@@ -235,6 +240,18 @@ def upload_assets(host, release, assets):
             print(f"{host.name}: uploaded {path.name}", flush=True)
 
 
+def release_assets(directory):
+    extensions = {".zip", ".deb", ".dmg", ".msix", ".apk", ".hap", ".wasm"}
+    assets = sorted(path for path in directory.iterdir()
+                    if path.is_file() and path.suffix in extensions)
+    checksums = directory / "SHA256SUMS"
+    checksums.write_text("".join(
+        f"{Path(str(path) + '.sha256').read_text().split()[0]}  {path.name}\n"
+        for path in assets
+    ))
+    return [*assets, checksums]
+
+
 def main():
     if os.environ.get("VERIFY_ONLY") == "true":
         verify_packages()
@@ -242,43 +259,59 @@ def main():
     hosts = [Github(), Gitlab(), Cnb()]
     channel = os.environ["GPROXY_BUILD_CHANNEL"]
     tag = os.environ["RELEASE_TAG"]
-    if channel == "dev" and hosts[0].api("GET", "/git/ref/heads/dev")["object"]["sha"] != os.environ["CI_COMMIT_SHA"]:
-        print("Skipping stale nightly publication: GitHub dev has advanced")
+    branch = os.environ.get("GPROXY_PUBLISH_BRANCH", "")
+    def current():
+        return not branch or hosts[0].api("GET", f"/git/ref/heads/{branch}")["object"]["sha"] == os.environ["CI_COMMIT_SHA"]
+    if not current():
+        print(f"Skipping stale publication: {branch} has advanced")
         return
     hosts[2].sync()
-    notes = Path(f"docs/release-notes/v{os.environ['GPROXY_BUILD_VERSION']}.md").read_text()
+    source_version = os.environ.get("GPROXY_SOURCE_VERSION", os.environ["GPROXY_BUILD_VERSION"])
+    notes = Path(f"docs/release-notes/v{source_version}.md").read_text()
     builder = ("GitHub Actions" if os.environ.get("GITHUB_ACTIONS") == "true"
                else "CNB CI" if os.environ.get("CNB_BUILD_ID") else "GitLab CI")
     notes += f"\n\nBuilt once by [{builder}]({os.environ['CI_PIPELINE_URL']}). CLI (`gproxy-*`) and Application (`gproxy-tauri-*`) packages are separate.\n"
-    assets = sorted(path for path in Path("dist/release").iterdir() if path.is_file())
-    if channel == "dev":
-        assets = [path for path in assets
-                  if not path.name.endswith((".sha256", ".provenance.json"))]
+    assets = release_assets(Path("dist/release"))
     # Each host gets the same package bytes and a manifest signed for its URLs.
     for host in hosts:
         release = host.release(tag, notes, channel != "release")
         upload_assets(host, release, assets)
-        if channel == "dev":
-            if hosts[0].api("GET", "/git/ref/heads/dev")["object"]["sha"] != os.environ["CI_COMMIT_SHA"]:
-                print("Skipping stale manifest: GitHub dev advanced while uploading")
+        if branch:
+            if not current():
+                print(f"Skipping stale manifest: {branch} advanced while uploading")
                 return
             host.move_tag(tag)
         manifest = Path("dist/manifests") / host.name / "manifest.json"
         host.upload(release, manifest)
         host.finish(release, notes, channel != "release", channel == "release")
-        if channel == "dev":
+        if branch:
             host.prune(release, {path.name for path in assets} | {"manifest.json"})
-        if channel != "dev" and (channel == "beta" or host.name != "github"):
+        if channel != "dev" and not branch:
             versions = [r["tag_name"][1:] for r in hosts[0].api("GET", "/releases?per_page=100")
                         if r["tag_name"].startswith("v4.") and not r["draft"]
                         and r["prerelease"] == (channel == "beta")]
             newest = subprocess.check_output(["sort", "-V"], input="\n".join(versions), text=True).splitlines()
             if newest and newest[-1] != os.environ["GPROXY_BUILD_VERSION"]:
                 continue
-            pointer = host.release(channel, f"Signed {channel} channel manifest for {tag}.", True)
-            host.move_tag(channel)
-            host.upload(pointer, manifest)
-            host.finish(pointer, f"Signed {channel} channel manifest for {tag}.", True)
+            if channel == "release" and host.name != "github":
+                pointer = host.release("release", f"Signed release channel manifest for {tag}.", True)
+                host.move_tag("release")
+                host.upload(pointer, manifest)
+                host.finish(pointer, f"Signed release channel manifest for {tag}.", True)
+            beta_manifest = manifest if channel == "beta" else manifest.parent / "beta" / "manifest.json"
+            staging = host.release("staging", notes, True)
+            upload_assets(host, staging, assets)
+            host.move_tag("staging")
+            host.upload(staging, beta_manifest)
+            host.finish(staging, notes, True)
+            host.prune(staging, {path.name for path in assets} | {"manifest.json"})
+        # v4.0.0 clients used the old beta URL; keep it as a manifest-only alias.
+        if channel in ("beta", "release"):
+            beta_manifest = manifest if channel == "beta" else manifest.parent / "beta" / "manifest.json"
+            pointer = host.release("beta", "Compatibility alias for the staging update channel.", True)
+            host.move_tag("beta")
+            host.upload(pointer, beta_manifest)
+            host.finish(pointer, "Compatibility alias for the staging update channel.", True)
         print(f"{host.name}: published {tag}", flush=True)
 
 

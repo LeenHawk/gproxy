@@ -66,8 +66,8 @@ pub enum Channel {
     /// version: there is no ordering to a branch, so "different" is the only
     /// available meaning of "newer".
     Dev,
-    /// Pre-release tags — `v4.1.0-rc.1` — ordered by semver, which puts a
-    /// release candidate correctly below its release.
+    /// Main-branch previews and published releases, read through `staging`
+    /// and ordered by semver.
     Beta,
     /// Tagged releases. The default, and what a deployment should be on.
     Release,
@@ -118,7 +118,7 @@ impl Channel {
     /// | Channel | Published by | Resolves through |
     /// |---|---|---|
     /// | `dev` | a push to `dev` | the `nightly` release, force-moved to the new commit |
-    /// | `beta` | a pre-release tag | the `beta` release, force-moved to the newest pre-release |
+    /// | `beta` | a push to `main`, or a version release | the `staging` release |
     /// | `release` | a clean version tag | GitHub's own `latest`, which the release is marked as |
     ///
     /// `release` is v3's URL unchanged. The other two are not: v3 published
@@ -177,14 +177,14 @@ impl Source {
                 if channel == Channel::Dev {
                     "nightly"
                 } else {
-                    "beta"
+                    "staging"
                 },
             ),
             (Self::Gitlab, channel) => format!(
                 "https://gitlab.com/leenhawk1/gproxy/-/releases/{}/downloads/manifest.json",
                 match channel {
                     Channel::Dev => "nightly",
-                    Channel::Beta => "beta",
+                    Channel::Beta => "staging",
                     Channel::Release => "release",
                 },
             ),
@@ -192,7 +192,7 @@ impl Source {
                 "https://cnb.cool/LeenHawk/gproxy/-/releases/download/{}/manifest.json",
                 match channel {
                     Channel::Dev => "nightly",
-                    Channel::Beta => "beta",
+                    Channel::Beta => "staging",
                     Channel::Release => "release",
                 },
             ),
@@ -568,7 +568,7 @@ mod tests {
             .collect();
         assert_eq!(urls.len(), 3);
         assert!(urls[0].contains("/latest/download/"), "{}", urls[0]);
-        assert!(urls[1].ends_with("beta/manifest.json"), "{}", urls[1]);
+        assert!(urls[1].ends_with("staging/manifest.json"), "{}", urls[1]);
         // `nightly`, not `dev`: the pipeline publishes the rolling channel
         // under a floating release tagged `nightly`, and `dev` is a branch.
         assert!(urls[2].ends_with("nightly/manifest.json"), "{}", urls[2]);
@@ -598,7 +598,7 @@ mod tests {
                 "{}/manifest.json",
                 match channel {
                     Channel::Dev => "nightly",
-                    Channel::Beta => "beta",
+                    Channel::Beta => "staging",
                     Channel::Release => "release",
                 }
             )));
@@ -610,7 +610,7 @@ mod tests {
             ),
             (
                 Channel::Beta,
-                "https://gitlab.com/leenhawk1/gproxy/-/releases/beta/downloads/manifest.json",
+                "https://gitlab.com/leenhawk1/gproxy/-/releases/staging/downloads/manifest.json",
             ),
             (
                 Channel::Release,
