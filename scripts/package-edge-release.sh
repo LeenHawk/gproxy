@@ -23,8 +23,9 @@ command -v worker-build >/dev/null || {
 # The workspace release profile strips symbols, and stripping also drops the
 # `target_features` section wasm-bindgen reads to learn reference types are on:
 # without it `worker-build`'s abort handler fails with "externref table
-# required for catch wrappers". wasm-opt still shrinks the result.
+# required for catch wrappers". Strip debug sections only after worker-build.
 (cd crates/gproxy-host-edge && CARGO_PROFILE_RELEASE_STRIP=none worker-build --release)
+node scripts/strip-wasm-debug.mjs crates/gproxy-host-edge/build/index_bg.wasm
 rm -rf "$deploy/build"
 cp -R crates/gproxy-host-edge/build "$deploy/build"
 
