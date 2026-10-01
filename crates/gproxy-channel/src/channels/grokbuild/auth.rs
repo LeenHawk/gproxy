@@ -77,6 +77,20 @@ fn insert(headers: &mut HeaderMap, name: &'static str, value: &str) -> Result<()
     Ok(())
 }
 
+/// The CLI's model catalogue uses these account headers, unlike generation.
+pub(super) fn apply_catalog_identity(
+    headers: &mut HeaderMap,
+    credential: &CredentialView<'_>,
+) -> Result<(), ChannelError> {
+    if let Some(user) = fact(credential, "sub") {
+        insert(headers, "x-userid", user)?;
+    }
+    if let Some(email) = fact(credential, "user_email") {
+        insert(headers, "x-email", email)?;
+    }
+    Ok(())
+}
+
 pub(super) fn apply(
     headers: &mut HeaderMap,
     config: &GrokBuildConfig,

@@ -64,7 +64,6 @@ use crate::channel::{UsageExtras,
 use crate::channels::shared::compatible::http::strip_query_auth;
 use config::base_url;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
-use http::Method;
 use serde_json::{Map, Value};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -99,6 +98,7 @@ const CHANNEL_HEADERS: &[&str] = &[
     "x-grok-conv-id",
     "x-grok-user-id",
     "x-userid",
+    "x-email",
     "user-agent",
     "accept",
     "cookie",
@@ -354,6 +354,9 @@ impl BaseChannel for GrokBuild {
         };
 
         let mut headers = forwardable(&source, allowlist.as_ref(), CHANNEL_HEADERS);
+        if operation == Operation::ListModels {
+            auth::apply_catalog_identity(&mut headers, &ctx.credential)?;
+        }
         let reply = match operation {
             Operation::CreateSpeech => auth::Reply::Audio,
             Operation::StreamGenerateContent => auth::Reply::Stream,
@@ -366,13 +369,7 @@ impl BaseChannel for GrokBuild {
             reply,
             conversation.as_deref(),
         )?;
-        let mut builder = http::Request::builder()
-            .method(if method == Method::default() {
-                Method::POST
-            } else {
-                method
-            })
-            .uri(uri);
+        let mut builder = http::Request::builder().method(method).uri(uri);
         if let Some(map) = builder.headers_mut() {
             *map = headers;
         }
