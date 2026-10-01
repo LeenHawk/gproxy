@@ -21,7 +21,7 @@ pub struct ClaudeGeminiRequestContext {
 
 pub fn claude_to_gemini_request(
     input: cg::GenerateContentRequestBody,
-    _target_model: impl Into<String>,
+    target_model: impl Into<String>,
     context: ClaudeGeminiRequestContext,
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
@@ -104,6 +104,7 @@ pub fn claude_to_gemini_request(
         out.system_instruction = Some(g::Content::builder().parts(system).build());
     }
     *flow = ids;
+    super::super::gemini_controls::for_model(&mut out, &target_model.into(), &mut report);
     Ok(Converted { value: out, report })
 }
 

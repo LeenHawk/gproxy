@@ -193,6 +193,7 @@ pub(super) fn gemini_content_to_chat(
     let mut details = Vec::new();
     let mut result = Vec::new();
     for mut part in content.parts.unwrap_or_default() {
+        crate::transform::generate::gemini_controls::omitted(&part, report);
         let run_part = crate::transform::generate::claude_gemini::thinking::is_run_part(&part);
         let mut call_signature = None;
         let signature = part.thought_signature.take();

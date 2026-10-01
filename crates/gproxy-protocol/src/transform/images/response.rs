@@ -448,6 +448,9 @@ pub fn image_response_from_gemini(
             || part.tool_call.is_some()
             || part.tool_response.is_some()
             || part.video_metadata.is_some()
+            || part.media_processing.is_some()
+            || part.audio_transcription.is_some()
+            || part.speech_metadata.is_some()
         {
             return Err(invalid("unexpected non-image Gemini tool or media output"));
         }

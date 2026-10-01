@@ -17,6 +17,113 @@ fn identity() -> (IdentityFlow, TargetIdPolicy) {
 }
 
 #[test]
+fn gemini_38_controls_apply_to_all_conversion_sources_and_preserve_older_models() {
+    use gproxy_protocol::{
+        Dialect,
+        transform::generate::{claude_gemini, gemini_responses},
+    };
+    let input: chat::GenerateContentRequestBody = serde_json::from_value(json!({
+        "model":"client", "messages":[{"role":"user","content":"hello"}],
+        "temperature":0.2, "top_p":0.9, "n":2, "reasoning_effort":"minimal"
+    }))
+    .unwrap();
+    let chat =
+        gemini_chat::openai_to_gemini_request(&input, "models/gemini-3.8-flash", &BTreeMap::new())
+            .unwrap();
+    let old = gemini_chat::openai_to_gemini_request(&input, "gemini-2.5-flash", &BTreeMap::new())
+        .unwrap();
+    let old_config = old.value.generation_config.unwrap();
+    assert_eq!(old_config.temperature, Some(0.2));
+    assert_eq!(old_config.top_p, Some(0.9));
+    assert_eq!(old_config.candidate_count, Some(2));
+    assert_eq!(
+        old_config.thinking_config.unwrap().thinking_level,
+        Some(gemini::ThinkingLevel::Minimal)
+    );
+    let responses = gemini_responses::responses_to_gemini_request(
+        serde_json::from_value(json!({"model":"client","input":"hello","temperature":0.2,"top_p":0.9,"reasoning":{"effort":"none"}})).unwrap(),
+        "gemini-3.8-flash", Default::default(),
+    ).unwrap();
+    let claude = claude_gemini::claude_to_gemini_request(
+        serde_json::from_value(json!({"model":"client","max_tokens":64,"messages":[{"role":"user","content":"hello"}],"temperature":0.2,"top_p":0.9,"top_k":10,"thinking":{"type":"disabled"}})).unwrap(),
+        "gemini-3.8-flash", Default::default(), &mut identity().0, &TargetIdPolicy::new(Dialect::Gemini),
+    ).unwrap();
+    for converted in [chat, responses, claude] {
+        let config = converted.value.generation_config.unwrap();
+        assert!(config.temperature.is_none());
+        assert!(config.top_p.is_none());
+        assert!(config.top_k.is_none());
+        assert!(config.candidate_count.is_none());
+        let thinking = config.thinking_config.unwrap();
+        assert!(thinking.thinking_budget.is_none());
+        assert_eq!(thinking.thinking_level, Some(gemini::ThinkingLevel::Low));
+        assert!(
+            converted
+                .report
+                .diagnostics
+                .iter()
+                .any(|d| d.field == "temperature")
+        );
+        assert!(
+            converted
+                .report
+                .diagnostics
+                .iter()
+                .any(|d| d.field == "thinking_level")
+        );
+    }
+}
+
+#[test]
+fn escalation_filters_and_account_restriction_fails_in_buffered_and_streaming_chat() {
+    use gproxy_protocol::transform::generate::gemini_chat::stream::{
+        GeminiToChatContext, GeminiToChatStream,
+    };
+    for reason in ["ESCALATION", "PUP_LIMITED_DISABLED"] {
+        let source: gemini::GenerateContentResponseBody = serde_json::from_value(json!({
+            "modelVersion":"gemini-3.8-flash", "responseId":"response",
+            "candidates":[{"index":0,"finishReason":reason,"content":{"role":"model","parts":[{"text":"partial"}]}}]
+        })).unwrap();
+        let (mut flow, policy) = identity();
+        let buffered = gemini_chat::gemini_to_openai_response(
+            source.clone(),
+            "gemini-3.8-flash",
+            &gemini_chat::GeminiChatResponseSupplement {
+                created_unix_seconds: Some(1),
+            },
+            &mut flow,
+            &policy,
+        );
+        let mut stream = GeminiToChatStream::new(
+            GeminiToChatContext {
+                created: 1,
+                model: Some("gemini-3.8-flash".into()),
+            },
+            identity().0,
+            Default::default(),
+        )
+        .unwrap();
+        let pushed = stream.push(source);
+        if reason == "ESCALATION" {
+            pushed.unwrap();
+            assert_eq!(
+                buffered.unwrap().value.choices[0].finish_reason,
+                chat::FinishReason::ContentFilter
+            );
+            assert!(stream.finish().unwrap().chunks.iter().any(|c| {
+                c.choices
+                    .iter()
+                    .any(|c| c.finish_reason == Some(Some(chat::FinishReason::ContentFilter)))
+            }));
+        } else {
+            assert!(buffered.is_err());
+            assert!(pushed.is_err());
+            assert!(stream.finish().is_err());
+        }
+    }
+}
+
+#[test]
 fn gemini_request_maps_system_media_functions_schema_and_generation() {
     let input: gemini::GenerateContentRequestBody = serde_json::from_value(json!({
         "contents":[{"role":"user","parts":[{"text":"hi"},{"inlineData":{"mimeType":"image/png","data":"AQI="}}]},{"role":"model","parts":[{"functionCall":{"name":"lookup","id":"gcall","args":{"q":"x"}}}]}],

@@ -25,6 +25,8 @@ pub struct GenerateContentRequestBody {
     #[serde(alias = "safety_settings")]
     pub safety_settings: Option<Vec<SafetySetting>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub labels: Option<std::collections::BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "system_instruction")]
     pub system_instruction: Option<Content>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -272,6 +274,10 @@ pub enum FinishReason {
     MissingThoughtSignature,
     #[serde(rename = "MALFORMED_RESPONSE")]
     MalformedResponse,
+    #[serde(rename = "ESCALATION")]
+    Escalation,
+    #[serde(rename = "PUP_LIMITED_DISABLED")]
+    PupLimitedDisabled,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]

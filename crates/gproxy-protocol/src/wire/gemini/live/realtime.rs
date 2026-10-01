@@ -37,6 +37,8 @@ pub struct BidiGenerateContentRealtimeInput {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LiveBlob {
+    #[serde(alias = "display_name", skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     #[serde(alias = "mime_type")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,

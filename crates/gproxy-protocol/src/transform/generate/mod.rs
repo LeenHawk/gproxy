@@ -8,6 +8,7 @@ pub mod claude_gemini;
 pub mod claude_responses;
 pub(crate) mod client_tools;
 pub mod gemini_chat;
+pub(crate) mod gemini_controls;
 pub mod gemini_responses;
 pub mod gemini_schema;
 pub(crate) mod openai_controls;

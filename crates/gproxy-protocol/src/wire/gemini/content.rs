@@ -74,6 +74,8 @@ pub enum HarmCategory {
     Medical,
     #[serde(rename = "HARM_CATEGORY_DANGEROUS")]
     Dangerous,
+    #[serde(rename = "HARM_CATEGORY_JAILBREAK")]
+    Jailbreak,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
@@ -203,6 +205,10 @@ pub enum ComputerEnvironment {
     Unspecified,
     #[serde(rename = "ENVIRONMENT_BROWSER")]
     Browser,
+    #[serde(rename = "ENVIRONMENT_MOBILE")]
+    Mobile,
+    #[serde(rename = "ENVIRONMENT_DESKTOP")]
+    Desktop,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
@@ -234,6 +240,12 @@ pub struct Part {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "media_resolution")]
     pub media_resolution: Option<MediaResolution>,
+    #[serde(alias = "media_processing", skip_serializing_if = "Option::is_none")]
+    pub media_processing: Option<MediaProcessing>,
+    #[serde(alias = "audio_transcription", skip_serializing_if = "Option::is_none")]
+    pub audio_transcription: Option<super::audio::AudioTranscription>,
+    #[serde(alias = "speech_metadata", skip_serializing_if = "Option::is_none")]
+    pub speech_metadata: Option<super::audio::SpeechMetadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -277,6 +289,8 @@ pub struct Blob {
     #[serde(alias = "mime_type")]
     pub mime_type: String,
     pub data: String,
+    #[serde(alias = "display_name", skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -290,6 +304,8 @@ pub struct FileData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "mime_type")]
     pub mime_type: Option<String>,
+    #[serde(alias = "display_name", skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -378,6 +394,8 @@ pub struct ToolCall {
     pub tool_type: ToolType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+    #[serde(alias = "tool_name", skip_serializing_if = "Option::is_none")]
+    pub tool_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub args: Option<Rest>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -684,6 +702,16 @@ pub struct ComputerUse {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "excluded_predefined_functions")]
     pub excluded_predefined_functions: Option<Vec<String>>,
+    #[serde(
+        alias = "enable_prompt_injection_detection",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub enable_prompt_injection_detection: Option<bool>,
+    #[serde(
+        alias = "disabled_safety_policies",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub disabled_safety_policies: Option<Vec<ComputerUseSafetyPolicy>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -798,4 +826,46 @@ pub struct SafetySetting {
     pub threshold: HarmBlockThreshold,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
+pub enum MediaProcessing {
+    #[serde(rename = "MEDIA_PROCESSING_UNSPECIFIED")]
+    Unspecified,
+    #[serde(rename = "STATIC")]
+    Static,
+    #[serde(rename = "AGENTIC")]
+    Agentic,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ComputerUseSafetyPolicy {
+    #[serde(rename = "SAFETY_POLICY_UNSPECIFIED")]
+    Unspecified,
+    #[serde(rename = "FINANCIAL_TRANSACTIONS")]
+    FinancialTransactions,
+    #[serde(rename = "SENSITIVE_DATA_MODIFICATION")]
+    SensitiveDataModification,
+    #[serde(rename = "COMMUNICATION_TOOL")]
+    CommunicationTool,
+    #[serde(rename = "ACCOUNT_CREATION")]
+    AccountCreation,
+    #[serde(rename = "DATA_MODIFICATION")]
+    DataModification,
+    #[serde(rename = "USER_CONSENT_MANAGEMENT")]
+    UserConsentManagement,
+    #[serde(rename = "LEGAL_TERMS_AND_AGREEMENTS")]
+    LegalTermsAndAgreements,
 }

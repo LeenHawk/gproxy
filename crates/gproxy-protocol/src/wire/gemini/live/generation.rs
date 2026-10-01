@@ -1,5 +1,6 @@
 use super::setup::{AudioTranscriptionConfig, VoiceConsentSignature};
 use crate::Rest;
+pub use crate::gemini::audio::TranslationConfig;
 use crate::gemini::{content::*, generation::*};
 use serde::{Deserialize, Serialize};
 
@@ -120,6 +121,8 @@ pub struct LiveSpeechConfig {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LiveVoiceConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice: Option<String>,
     #[serde(alias = "prebuilt_voice_config")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prebuilt_voice_config: Option<LivePrebuiltVoiceConfig>,
@@ -185,21 +188,6 @@ pub struct ReplicatedVoiceConfig {
     #[serde(alias = "voice_consent_signature")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub voice_consent_signature: Option<VoiceConsentSignature>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[derive(gproxy_protocol_macros::DeclaredFields)]
-pub struct TranslationConfig {
-    #[serde(alias = "echo_target_language")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub echo_target_language: Option<bool>,
-    #[serde(alias = "target_language_code")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub target_language_code: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }

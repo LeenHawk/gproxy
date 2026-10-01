@@ -25,6 +25,7 @@ pub(crate) fn to_responses(
             Some(_) => continue,
         };
         for part in content.parts.unwrap_or_default() {
+            crate::transform::generate::gemini_controls::omitted(&part, report);
             if role == r::MessageRole::Assistant
                 && let Some(blob) = &part.inline_data
             {

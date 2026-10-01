@@ -90,6 +90,9 @@ fn plain(p: &g::Part) -> bool {
         && p.tool_call.is_none()
         && p.tool_response.is_none()
         && p.video_metadata.is_none()
+        && p.media_processing.is_none()
+        && p.audio_transcription.is_none()
+        && p.speech_metadata.is_none()
         && p.part_metadata.is_none()
         && p.media_resolution.is_none()
 }

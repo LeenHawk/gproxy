@@ -257,6 +257,7 @@ pub(crate) fn to_claude(
 ) -> Result<Vec<c::ContentBlock>, TransformError> {
     let mut out = Vec::new();
     for p in parts {
+        crate::transform::generate::gemini_controls::omitted(&p, report);
         if p.part_metadata.is_some() {
             report.omitted("part_metadata", "no Claude part metadata field");
         }

@@ -42,6 +42,7 @@ fn resource(key: &str, facts: &MediaFacts, is_url: bool) -> Result<g::Part, Tran
             .file_data(g::FileData {
                 file_uri: value.file_uri.clone(),
                 mime_type: value.mime_type.clone(),
+                display_name: value.display_name.clone(),
                 rest: Default::default(),
             })
             .build());

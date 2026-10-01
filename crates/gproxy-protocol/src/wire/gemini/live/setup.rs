@@ -2,6 +2,9 @@ use super::LiveContent;
 use super::{LiveInt64, generation::LiveGenerationConfig, realtime::RealtimeInputConfig};
 use crate::Rest;
 use crate::gemini::Tool;
+pub use crate::gemini::audio::{
+    AudioTranscriptionConfig, AudioTranscriptionMode, LanguageAuto, LanguageHints,
+};
 use crate::gemini::content::SafetySetting;
 use serde::{Deserialize, Serialize};
 
@@ -145,70 +148,6 @@ pub struct CustomizedAvatar {
     pub image_data: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[derive(gproxy_protocol_macros::DeclaredFields)]
-pub struct AudioTranscriptionConfig {
-    #[serde(alias = "language_codes")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub language_codes: Option<Vec<String>>,
-    #[serde(alias = "language_auto")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub language_auto: Option<LanguageAuto>,
-    #[serde(alias = "language_hints")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub language_hints: Option<LanguageHints>,
-    #[serde(alias = "custom_vocabulary")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub custom_vocabulary: Option<Vec<String>>,
-    #[serde(alias = "adaptation_phrases")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub adaptation_phrases: Option<Vec<String>>,
-    #[serde(alias = "word_timestamp")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub word_timestamp: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub diarization: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mode: Option<AudioTranscriptionMode>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[derive(gproxy_protocol_macros::DeclaredFields)]
-pub struct LanguageAuto {
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[derive(gproxy_protocol_macros::DeclaredFields)]
-pub struct LanguageHints {
-    #[serde(alias = "language_codes")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub language_codes: Option<Vec<String>>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[derive(gproxy_protocol_macros::DeclaredFields)]
-pub enum AudioTranscriptionMode {
-    #[serde(rename = "MODE_UNSPECIFIED")]
-    ModeUnspecified,
-    #[serde(rename = "VERBATIM")]
-    Verbatim,
-    #[serde(rename = "SMART")]
-    Smart,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
