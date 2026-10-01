@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Publish one verified artifact set to GitHub, GitLab and CNB."""
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -222,6 +223,18 @@ def verify_packages():
     print("Complete CLI, Application and Edge artifact sets verified")
 
 
+def upload_assets(host, release, assets):
+    def upload(path):
+        host.upload(release, path)
+        return path
+
+    # Wait for every upload before publishing the signed manifest or moving
+    # channel pointers. A failed upload still aborts publication.
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for path in pool.map(upload, assets):
+            print(f"{host.name}: uploaded {path.name}", flush=True)
+
+
 def main():
     if os.environ.get("VERIFY_ONLY") == "true":
         verify_packages()
@@ -244,9 +257,7 @@ def main():
     # Each host gets the same package bytes and a manifest signed for its URLs.
     for host in hosts:
         release = host.release(tag, notes, channel != "release")
-        for path in assets:
-            host.upload(release, path)
-            print(f"{host.name}: uploaded {path.name}", flush=True)
+        upload_assets(host, release, assets)
         if channel == "dev":
             if hosts[0].api("GET", "/git/ref/heads/dev")["object"]["sha"] != os.environ["CI_COMMIT_SHA"]:
                 print("Skipping stale manifest: GitHub dev advanced while uploading")
