@@ -370,11 +370,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Driver<C> {
         let required = current.required(false);
         for item in &request.input {
             let item = serde_json::to_value(item).unwrap();
-            if let Some(call_id) = item["call_id"].as_str()
-                && item["type"]
-                    .as_str()
-                    .is_some_and(|t| t.ends_with("_output"))
-                && !required.iter().any(|r| r["call_id"] == call_id)
+            if (item["type"]
+                .as_str()
+                .is_some_and(|kind| kind.ends_with("_output"))
+                || item["type"] == "mcp_approval_response")
+                && !required
+                    .iter()
+                    .any(|required| matches_tool_result(required, &item))
             {
                 self.error(400, None, "tool result does not match an outstanding call")
                     .await;
@@ -580,31 +582,52 @@ impl Current {
             .collect();
         for item in &self.output {
             let item = serde_json::to_value(item).unwrap();
-            let Some(call_id) = item["call_id"].as_str() else {
-                continue;
-            };
-            let kind = match item["type"].as_str() {
-                Some("function_call") => "function_call_output",
-                Some("custom_tool_call") => "custom_tool_call_output",
-                _ => continue,
-            };
             if asynchronous_only && item["async"] != true {
                 continue;
             }
+            let (kind, field, source) = match item["type"].as_str() {
+                Some("function_call") => ("function_call_output", "call_id", "call_id"),
+                Some("custom_tool_call") => ("custom_tool_call_output", "call_id", "call_id"),
+                Some("computer_call") => ("computer_call_output", "call_id", "call_id"),
+                Some("shell_call") if item["environment"]["type"] != "container_reference" => {
+                    ("shell_call_output", "call_id", "call_id")
+                }
+                Some("apply_patch_call") => ("apply_patch_call_output", "call_id", "call_id"),
+                Some("tool_search_call") if item["execution"] == "client" => {
+                    ("tool_search_output", "call_id", "call_id")
+                }
+                Some("mcp_approval_request") => {
+                    ("mcp_approval_response", "approval_request_id", "id")
+                }
+                _ => continue,
+            };
+            let Some(id) = item[source].as_str() else {
+                continue;
+            };
+            let mut entry = json!({"type":kind,field:id});
             if results
                 .iter()
-                .any(|r| r["type"] == kind && r["call_id"] == call_id)
+                .any(|result| matches_tool_result(&entry, result))
             {
                 continue;
             }
-            let mut entry = json!({"type":kind,"call_id":call_id});
             if kind == "function_call_output" {
                 entry["name"] = item["name"].clone();
+            }
+            if kind == "tool_search_output" {
+                entry["execution"] = "client".into();
             }
             required.push(entry);
         }
         required
     }
+}
+
+fn matches_tool_result(required: &Value, result: &Value) -> bool {
+    required["type"] == result["type"]
+        && ["call_id", "approval_request_id"]
+            .iter()
+            .any(|key| required[*key].is_string() && required[*key] == result[*key])
 }
 
 fn input_items(input: Option<Input>) -> Vec<InputItem> {
