@@ -84,21 +84,14 @@ case "$mode" in
   application)
     export ARTIFACT_NAME="$APPLICATION_ARTIFACT" BUILDER=tauri-cross
     pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
-    (
-      manifest=crates/gproxy-host-tauri/Cargo.toml
-      backup="$(mktemp)"
-      cp "$manifest" "$backup"
-      trap 'cp "$backup" "$manifest"; rm -f "$backup"' EXIT
-      sed -i 's/crate-type = \["lib", "cdylib"\]/crate-type = ["lib"]/' "$manifest"
-      if [ "$TARGET_OS" = linux ]; then
-        scripts/package-tauri-release.sh
-      else
-        config="$(jq -cn --arg version "$GPROXY_BUILD_VERSION" '{version:$version,bundle:{active:true}}')"
-        (cd crates/gproxy-host-tauri && pnpm exec tauri build --ci --runner cargo-zigbuild --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked)
-        mkdir -p "dist/macos/$TARGET_TRIPLE"
-        cp "target/$TARGET_TRIPLE/release/gproxy-desktop" "dist/macos/$TARGET_TRIPLE/"
-      fi
-    )
+    if [ "$TARGET_OS" = linux ]; then
+      scripts/package-tauri-release.sh
+    else
+      config="$(jq -cn --arg version "$GPROXY_BUILD_VERSION" '{version:$version,bundle:{active:true}}')"
+      (cd crates/gproxy-host-tauri && bash "$CI_PROJECT_DIR/scripts/with-tauri-desktop-lib.sh" pnpm exec tauri build --ci --runner cargo-zigbuild --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked)
+      mkdir -p "dist/macos/$TARGET_TRIPLE"
+      cp "target/$TARGET_TRIPLE/release/gproxy-desktop" "dist/macos/$TARGET_TRIPLE/"
+    fi
     ;;
   *) exit 2 ;;
 esac

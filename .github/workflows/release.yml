@@ -50,8 +50,10 @@ jobs:
           echo "manifest_version=$manifest_version" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "channel=$channel" >> "$GITHUB_OUTPUT"
-          echo "matrix=$(jq -c '{include: [.include[] | select(.os != "ohos") | select(.target | startswith("riscv64gc-") | not)]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
-          echo "riscv_matrix=$(jq -c '{include: [.include[] | select(.target | startswith("riscv64gc-"))]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
+          # CLI and Application get separate runners and caches, including
+          # their independent LTO links and best-compression packaging.
+          echo "matrix=$(jq -c '{include: [.include[] | select(.os != "ohos") | select(.target | startswith("riscv64gc-") | not) | if .application_artifact then . + {kind:"cli"}, . + {kind:"application"} else . + {kind:"cli"} end]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
+          echo "riscv_matrix=$(jq -c '{include: [.include[] | select(.target | startswith("riscv64gc-")) | if .application_artifact then . + {kind:"cli"}, . + {kind:"application"} else . + {kind:"cli"} end]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "ohos_matrix=$(jq -c '{include: [.include[] | select(.os == "ohos")]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "ohos_app_matrix=$(jq -c '{include: [.include[] | select(.os == "ohos" and .application_artifact)]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
 
@@ -84,7 +86,7 @@ jobs:
           retention-days: 1
 
   native:
-    name: Packages (${{ matrix.target }})
+    name: ${{ matrix.kind == 'cli' && 'CLI' || 'Application' }} (${{ matrix.target }})
     needs: [prepare, console]
     runs-on: ${{ matrix.runner }}
     # The signing and publishing secrets live in the `release` environment,
@@ -119,22 +121,22 @@ jobs:
       - name: Prepare server assets
         run: cp -R console/dist/. crates/gproxy-host-axum/assets/web/
       - uses: pnpm/action-setup@v6.1.0
-        if: matrix.application_artifact
+        if: matrix.kind == 'application'
         with:
           package_json_file: console/package.json
       - uses: actions/setup-node@v7.0.0
-        if: matrix.application_artifact
+        if: matrix.kind == 'application'
         with:
           node-version: 'lts/*'
           cache: pnpm
           cache-dependency-path: crates/gproxy-host-tauri/pnpm-lock.yaml
       - name: Prepare application assets and CLI
-        if: matrix.application_artifact
+        if: matrix.kind == 'application'
         run: |
           node console/scripts/sync-to-embed.mjs
           pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
       - name: Install Linux desktop dependencies
-        if: matrix.application_artifact && matrix.os == 'linux'
+        if: matrix.kind == 'application' && matrix.os == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libdbus-1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
@@ -168,7 +170,8 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: ./.github/actions/ghcr-rust-cache
         with:
-          key: packages-${{ matrix.target }}
+          key: packages-${{ matrix.target }}-${{ matrix.kind }}
+          restore-key: packages-${{ matrix.target }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - if: ${{ matrix.builder == 'cargo-ndk' }}
         run: cargo install cargo-ndk --locked
@@ -177,6 +180,7 @@ jobs:
         shell: bash
         run: echo "CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_msvc=$(cygpath -m "$GITHUB_WORKSPACE/scripts/cmake/windows-arm64.cmake")" >> "$GITHUB_ENV"
       - name: Build
+        if: matrix.kind == 'cli'
         env:
           RUSTFLAGS: ${{ matrix.os == 'windows' && '-C target-feature=+crt-static' || '' }}
           GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
@@ -205,19 +209,19 @@ jobs:
               ;;
           esac
       - name: Stage container binary
-        if: ${{ matrix.os == 'linux' }}
+        if: ${{ matrix.kind == 'cli' && matrix.os == 'linux' }}
         run: |
           mkdir -p container-binary
           cp "target/${{ matrix.target }}/release/gproxy" container-binary/gproxy
       - name: Upload container binary
-        if: ${{ matrix.os == 'linux' }}
+        if: ${{ matrix.kind == 'cli' && matrix.os == 'linux' }}
         uses: actions/upload-artifact@v7.0.1
         with:
           name: container-bin-${{ matrix.target }}
           path: container-binary/gproxy
           retention-days: 1
       - name: Codesign binary
-        if: ${{ matrix.os == 'macos' }}
+        if: ${{ matrix.kind == 'cli' && matrix.os == 'macos' }}
         run: codesign --force --sign - "target/${{ matrix.target }}/release/gproxy"
       - name: Install pinned UPX
         if: ${{ matrix.upx && matrix.target != 'aarch64-pc-windows-msvc' }}
@@ -229,13 +233,13 @@ jobs:
         shell: pwsh
         run: scripts/install-windows-arm64-upx.ps1
       - name: Pack and run Windows executable
-        if: ${{ matrix.upx && matrix.os == 'windows' }}
+        if: ${{ matrix.kind == 'cli' && matrix.upx && matrix.os == 'windows' }}
         shell: pwsh
         env:
           TARGET: ${{ matrix.target }}
         run: scripts/pack-windows-cli.ps1 -Target $env:TARGET
       - name: Compress and verify executable
-        if: ${{ matrix.upx && matrix.os != 'windows' }}
+        if: ${{ matrix.kind == 'cli' && matrix.upx && matrix.os != 'windows' }}
         run: |
           binary="target/${{ matrix.target }}/release/gproxy${{ matrix.os == 'windows' && '.exe' || '' }}"
           upx_args=(--best --lzma)
@@ -244,7 +248,7 @@ jobs:
           upx "${upx_args[@]}" "$binary"
           upx --test "$binary"
       - name: Smoke check Windows executable
-        if: ${{ matrix.run_check && matrix.os == 'windows' }}
+        if: ${{ matrix.kind == 'cli' && matrix.run_check && matrix.os == 'windows' }}
         shell: pwsh
         env:
           TARGET: ${{ matrix.target }}
@@ -254,13 +258,13 @@ jobs:
           & "target/$env:TARGET/release/gproxy.exe" --help
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Smoke check release executable
-        if: ${{ matrix.run_check && matrix.os != 'windows' }}
+        if: ${{ matrix.kind == 'cli' && matrix.run_check && matrix.os != 'windows' }}
         run: |
           binary="target/${{ matrix.target }}/release/gproxy${{ matrix.os == 'windows' && '.exe' || '' }}"
           "$binary" --version
           "$binary" --help > "$RUNNER_TEMP/gproxy-release-help.txt"
       - name: Package Unix archive
-        if: ${{ matrix.os != 'windows' }}
+        if: ${{ matrix.kind == 'cli' && matrix.os != 'windows' }}
         env:
           TARGET_TRIPLE: ${{ matrix.target }}
           TARGET_OS: ${{ matrix.os }}
@@ -271,7 +275,7 @@ jobs:
           ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
         run: scripts/package-native-release.sh
       - name: Package and sign Windows release
-        if: ${{ matrix.os == 'windows' }}
+        if: ${{ matrix.kind == 'cli' && matrix.os == 'windows' }}
         uses: ./.github/actions/windows-release
         with:
           target: ${{ matrix.target }}
@@ -283,7 +287,7 @@ jobs:
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
       - name: Package Windows CLI MSIX
-        if: matrix.os == 'windows'
+        if: matrix.kind == 'cli' && matrix.os == 'windows'
         shell: pwsh
         env:
           MS_STORE_IDENTITY_NAME: ${{ vars.MS_STORE_IDENTITY_NAME }}
@@ -296,6 +300,7 @@ jobs:
           Copy-Item "$env:RUNNER_TEMP/cli-msix/gproxy.exe" "target/${{ matrix.target }}/release/gproxy.exe" -Force
           ./scripts/package-windows-msix.ps1 -Target '${{ matrix.target }}' -Artifact '${{ matrix.artifact }}' -Version '${{ needs.prepare.outputs.version }}' -Mode cli -OutputDir dist/release
       - name: Record build provenance
+        if: matrix.kind == 'cli'
         env:
           ARTIFACT_NAME: ${{ matrix.artifact }}
           GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
@@ -304,10 +309,12 @@ jobs:
           UPX_ENABLED: ${{ matrix.upx }}
         run: scripts/build-provenance.sh
       - name: Attest release packages
+        if: matrix.kind == 'cli'
         uses: ./.github/actions/attest-release
         with:
           artifact: ${{ matrix.artifact }}
       - uses: actions/upload-artifact@v7.0.1
+        if: matrix.kind == 'cli'
         with:
           name: native-${{ matrix.target }}
           path: |
@@ -323,10 +330,10 @@ jobs:
           retention-days: 1
 
       - name: Install Android shared-library UPX fix
-        if: matrix.os == 'android'
+        if: matrix.kind == 'application' && matrix.os == 'android'
         run: scripts/install-android-upx.sh
       - name: Build application installer
-        if: matrix.application_artifact
+        if: matrix.kind == 'application'
         env:
           TARGET_TRIPLE: ${{ matrix.target }}
           TARGET_OS: ${{ matrix.os }}
@@ -348,7 +355,7 @@ jobs:
           APPLE_SIGNING_IDENTITY: '-'
         run: scripts/package-tauri-release.sh
       - name: Preserve Store submission
-        if: matrix.os == 'windows' && needs.prepare.outputs.channel == 'release'
+        if: matrix.kind == 'application' && matrix.os == 'windows' && needs.prepare.outputs.channel == 'release'
         uses: actions/upload-artifact@v7.0.1
         with:
           name: microsoft-store-unsigned-${{ matrix.application_artifact }}
@@ -356,7 +363,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Record application build provenance
-        if: matrix.application_artifact
+        if: matrix.kind == 'application'
         env:
           ARTIFACT_NAME: ${{ matrix.application_artifact }}
           GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
@@ -365,11 +372,11 @@ jobs:
           UPX_ENABLED: ${{ matrix.os != 'macos' }}
         run: scripts/build-provenance.sh
       - uses: ./.github/actions/attest-release
-        if: matrix.application_artifact
+        if: matrix.kind == 'application'
         with:
           artifact: ${{ matrix.application_artifact }}
       - uses: actions/upload-artifact@v7.0.1
-        if: matrix.application_artifact
+        if: matrix.kind == 'application'
         with:
           name: application-${{ matrix.target }}
           path: dist/release/${{ matrix.application_artifact }}.*
@@ -563,7 +570,7 @@ jobs:
           retention-days: 1
 
   riscv:
-    name: Cross packages (${{ matrix.target }})
+    name: ${{ matrix.kind == 'cli' && 'CLI' || 'Application' }} (${{ matrix.target }})
     needs: [prepare, console, riscv-toolchain]
     runs-on: ubuntu-latest
     environment: release
@@ -603,34 +610,39 @@ jobs:
       - run: node console/scripts/sync-to-embed.mjs
       - uses: ./.github/actions/ghcr-rust-cache
         with:
-          key: cross-packages-${{ matrix.target }}
+          key: cross-packages-${{ matrix.target }}-${{ matrix.kind }}
+          restore-key: cross-packages-${{ matrix.target }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build, compress and run CLI with QEMU
+        if: matrix.kind == 'cli'
         run: CI_PROJECT_DIR="$PWD" bash scripts/gitlab/package-cross.sh cli
       - uses: actions/upload-artifact@v7.0.1
+        if: matrix.kind == 'cli'
         with:
           name: container-bin-${{ matrix.target }}
           path: dist/container/${{ matrix.target }}/gproxy
           if-no-files-found: error
           retention-days: 1
       - uses: ./.github/actions/attest-release
+        if: matrix.kind == 'cli'
         with:
           artifact: ${{ matrix.artifact }}
       - uses: actions/upload-artifact@v7.0.1
+        if: matrix.kind == 'cli'
         with:
           name: native-${{ matrix.target }}
           path: dist/release/${{ matrix.artifact }}.*
           if-no-files-found: error
           retention-days: 1
       - name: Build application DEB
-        if: matrix.application_artifact
+        if: matrix.kind == 'application'
         run: CI_PROJECT_DIR="$PWD" bash scripts/gitlab/package-cross.sh application
       - uses: ./.github/actions/attest-release
-        if: matrix.application_artifact
+        if: matrix.kind == 'application'
         with:
           artifact: ${{ matrix.application_artifact }}
       - uses: actions/upload-artifact@v7.0.1
-        if: matrix.application_artifact
+        if: matrix.kind == 'application'
         with:
           name: application-${{ matrix.target }}
           path: dist/release/${{ matrix.application_artifact }}.*
