@@ -274,8 +274,8 @@ jobs:
         if: matrix.kind == 'cli' && matrix.os == 'windows'
         shell: pwsh
         env:
-          MS_STORE_IDENTITY_NAME: ${{ vars.MS_STORE_IDENTITY_NAME }}
-          MS_STORE_DISPLAY_NAME: ${{ vars.MS_STORE_DISPLAY_NAME }}
+          MS_STORE_CLI_IDENTITY_NAME: ${{ vars.MS_STORE_CLI_IDENTITY_NAME }}
+          MS_STORE_CLI_DISPLAY_NAME: ${{ vars.MS_STORE_CLI_DISPLAY_NAME }}
           MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
           MS_STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
         run: |
@@ -283,6 +283,14 @@ jobs:
           Expand-Archive -Path "dist/release/${{ matrix.artifact }}.zip" -DestinationPath "$env:RUNNER_TEMP/cli-msix" -Force
           Copy-Item "$env:RUNNER_TEMP/cli-msix/gproxy.exe" "target/${{ matrix.target }}/release/gproxy.exe" -Force
           ./scripts/package-windows-msix.ps1 -Target '${{ matrix.target }}' -Artifact '${{ matrix.artifact }}' -Version '${{ needs.prepare.outputs.version }}' -Mode cli -OutputDir dist/release
+      - name: Preserve CLI Store submission
+        if: matrix.kind == 'cli' && matrix.os == 'windows' && needs.prepare.outputs.channel == 'release'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: microsoft-store-unsigned-${{ matrix.artifact }}
+          path: dist/release/${{ matrix.artifact }}.msix
+          if-no-files-found: error
+          retention-days: 30
       - name: Record build provenance
         if: matrix.kind == 'cli'
         env:

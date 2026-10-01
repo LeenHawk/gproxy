@@ -11,6 +11,14 @@ on:
         description: Release workflow run containing the MSIX artifacts
         required: true
         type: string
+      prepare_only:
+        description: Prepare packages for manual first submission without submitting
+        type: boolean
+        default: false
+      repackage:
+        description: Repackage the stable release ZIPs using the current Store identities
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       version:
@@ -30,17 +38,38 @@ concurrency:
 
 jobs:
   submit:
+    name: ${{ matrix.edition }} Microsoft Store
     runs-on: windows-latest
     environment: release
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - edition: Desktop
+            mode: application
+            artifact_prefix: gproxy-tauri-windows
+            executable: gproxy-desktop.exe
+            product_id: ${{ vars.MS_STORE_PRODUCT_ID }}
+            identity_name: ${{ vars.MS_STORE_IDENTITY_NAME }}
+            display_name: ${{ vars.MS_STORE_DISPLAY_NAME }}
+          - edition: CLI
+            mode: cli
+            artifact_prefix: gproxy-windows
+            executable: gproxy.exe
+            product_id: ${{ vars.MS_STORE_CLI_PRODUCT_ID }}
+            identity_name: ${{ vars.MS_STORE_CLI_IDENTITY_NAME }}
+            display_name: ${{ vars.MS_STORE_CLI_DISPLAY_NAME }}
     env:
-      MS_STORE_PRODUCT_ID: ${{ vars.MS_STORE_PRODUCT_ID }}
+      MS_STORE_PRODUCT_ID: ${{ matrix.product_id }}
       MS_STORE_TENANT_ID: ${{ vars.MS_STORE_TENANT_ID }}
       MS_STORE_SELLER_ID: ${{ vars.MS_STORE_SELLER_ID }}
       MS_STORE_CLIENT_ID: ${{ vars.MS_STORE_CLIENT_ID }}
       MS_STORE_CLIENT_SECRET: ${{ secrets.MS_STORE_CLIENT_SECRET }}
-      MS_STORE_IDENTITY_NAME: ${{ vars.MS_STORE_IDENTITY_NAME }}
+      MS_STORE_IDENTITY_NAME: ${{ matrix.identity_name }}
+      MS_STORE_DISPLAY_NAME: ${{ matrix.display_name }}
       MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
+      MS_STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
       VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v7.0.1
@@ -63,24 +92,45 @@ jobs:
       - name: Validate Store configuration
         shell: pwsh
         run: |
-          foreach ($name in @('MS_STORE_PRODUCT_ID', 'MS_STORE_TENANT_ID', 'MS_STORE_SELLER_ID', 'MS_STORE_CLIENT_ID', 'MS_STORE_CLIENT_SECRET', 'MS_STORE_IDENTITY_NAME', 'MS_STORE_IDENTITY_PUBLISHER')) {
+          foreach ($name in @('MS_STORE_PRODUCT_ID', 'MS_STORE_TENANT_ID', 'MS_STORE_SELLER_ID', 'MS_STORE_CLIENT_ID', 'MS_STORE_CLIENT_SECRET', 'MS_STORE_IDENTITY_NAME', 'MS_STORE_DISPLAY_NAME', 'MS_STORE_IDENTITY_PUBLISHER', 'MS_STORE_PUBLISHER_DISPLAY_NAME')) {
             if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "Missing $name" }
           }
       - uses: actions/download-artifact@v8.0.1
+        if: ${{ !inputs.repackage }}
         with:
-          pattern: microsoft-store-unsigned-gproxy-tauri-windows-*
+          pattern: microsoft-store-unsigned-${{ matrix.artifact_prefix }}-*
           path: dist/store
           merge-multiple: true
           run-id: ${{ inputs.run_id || github.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Repackage published binaries for the current Store identity
+        if: ${{ inputs.repackage }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT_PREFIX: ${{ matrix.artifact_prefix }}
+          EXECUTABLE: ${{ matrix.executable }}
+          PACKAGE_MODE: ${{ matrix.mode }}
+        run: scripts/repackage-store-release.ps1 -Version $env:VERSION
       - name: Bundle Windows architectures
         shell: pwsh
-        run: scripts/bundle-windows-msix.ps1 -Version $env:VERSION
+        env:
+          ARTIFACT_PREFIX: ${{ matrix.artifact_prefix }}
+        run: scripts/bundle-windows-msix.ps1 -Version $env:VERSION -ArtifactPrefix $env:ARTIFACT_PREFIX
+      - name: Preserve ready-to-upload Store packages
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: microsoft-store-${{ matrix.edition }}-${{ inputs.version }}
+          path: dist/store-upload/*.msixbundle
+          if-no-files-found: error
+          retention-days: 30
       - name: Set up Microsoft Store CLI
+        if: ${{ !inputs.prepare_only }}
         uses: microsoft/microsoft-store-apppublisher@v1.4
         with:
           version: v0.4.2
       - name: Authenticate with Partner Center
+        if: ${{ !inputs.prepare_only }}
         shell: pwsh
         run: |
           msstore reconfigure --tenantId $env:MS_STORE_TENANT_ID --sellerId $env:MS_STORE_SELLER_ID --clientId $env:MS_STORE_CLIENT_ID --clientSecret $env:MS_STORE_CLIENT_SECRET
@@ -88,5 +138,6 @@ jobs:
           msstore settings --enableTelemetry false
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload and submit Store update
+        if: ${{ !inputs.prepare_only }}
         shell: pwsh
         run: scripts/publish-microsoft-store.ps1 -Version $env:VERSION

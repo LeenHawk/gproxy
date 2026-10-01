@@ -4,18 +4,14 @@ param(
     [Parameter(Mandatory)][string]$Version,
     [string]$OutputDir = 'dist/store',
     [ValidateSet('cli', 'application')][string]$Mode = 'application',
-    [string]$IdentityName = $env:MS_STORE_IDENTITY_NAME,
-    [string]$DisplayName = $env:MS_STORE_DISPLAY_NAME,
+    [string]$IdentityName = $(if ($Mode -eq 'cli') { $env:MS_STORE_CLI_IDENTITY_NAME } else { $env:MS_STORE_IDENTITY_NAME }),
+    [string]$DisplayName = $(if ($Mode -eq 'cli') { $env:MS_STORE_CLI_DISPLAY_NAME } else { $env:MS_STORE_DISPLAY_NAME }),
     [string]$Publisher = $env:MS_STORE_IDENTITY_PUBLISHER,
     [string]$PublisherDisplayName = $env:MS_STORE_PUBLISHER_DISPLAY_NAME
 )
 $ErrorActionPreference = 'Stop'
 foreach ($value in @($IdentityName, $DisplayName, $Publisher, $PublisherDisplayName)) {
-    if ([string]::IsNullOrWhiteSpace($value)) { throw 'All four MS_STORE identity variables are required for application MSIX packaging' }
-}
-if ($Mode -eq 'cli') {
-    $IdentityName += '.CLI'
-    $DisplayName += ' CLI'
+    if ([string]::IsNullOrWhiteSpace($value)) { throw "The $Mode Store identity, display name, publisher and publisher display name are required" }
 }
 if ($Version -notmatch '^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$') { throw "Invalid version: $Version" }
 $packageVersion = (@(1, 2, 3) | ForEach-Object { [uint16]$Matches[$_] }) -join '.'

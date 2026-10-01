@@ -11,6 +11,9 @@ $response = & msstore apps get $product
 if ($LASTEXITCODE -ne 0) { throw 'Could not read the Store application' }
 $app = ($response -join "`n") | ConvertFrom-Json
 if ($app.id -ne $product) { throw 'Store application ID mismatch' }
+if ($app.packageIdentityName -cne $env:MS_STORE_IDENTITY_NAME -or $app.publisherName -cne $env:MS_STORE_IDENTITY_PUBLISHER) {
+    throw 'Partner Center identity does not match the selected Store edition'
+}
 if (-not $app.lastPublishedApplicationSubmission.id) {
     $message = 'Microsoft Store update skipped: the first submission is not yet published. The existing submission is unchanged.'
     Write-Output "::notice::$message"
@@ -35,4 +38,4 @@ if (@($versions | Where-Object { $_ -ge [version]"$Version.0" }).Count -gt 0) {
 
 msstore publish $bundle --appId $product --uploadTimeout 600
 if ($LASTEXITCODE -ne 0) { throw 'Microsoft Store upload or submission commit failed' }
-"GPROXY $Version was submitted to Microsoft Store. Certification and publication follow Partner Center processing and the existing publishing settings." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+"$env:MS_STORE_DISPLAY_NAME $Version was submitted to Microsoft Store (product $product). Certification and publication follow Partner Center processing and the existing publishing settings." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
