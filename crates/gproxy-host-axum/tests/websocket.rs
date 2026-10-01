@@ -619,10 +619,28 @@ async fn responses_stored_history_and_target_survive_reconnection_but_store_fals
         client.close(None).await.unwrap();
         let _ = recv(&mut client).await;
     }
-    assert!(
-        host.client.urls().is_empty(),
-        "all four requests are local context warmups"
-    );
+    assert!(host.client.urls().is_empty());
+    // History writes can succeed while the separate target binding fails.
+    // The client must not receive a completed response it cannot resume.
+    use sea_orm::ConnectionTrait;
+    host.handle().store().connection().execute_unprepared(
+        "CREATE TRIGGER fail_response_binding BEFORE INSERT ON protocol_states WHEN NEW.scope LIKE 'responses-target:%' BEGIN SELECT RAISE(FAIL, 'binding unavailable'); END"
+    ).await.unwrap();
+    let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
+        .await
+        .unwrap();
+    ws_send(
+        &mut client,
+        json!({"type":"response.create","model":"p1/m1","input":"save fails","generate":false}),
+    )
+    .await;
+    assert_eq!(ws_json(&mut client).await["type"], "response.created");
+    let failed = ws_json(&mut client).await;
+    assert_eq!(failed["type"], "error");
+    assert_eq!(failed["error"]["code"], "continuation_unavailable");
+    assert_eq!(failed["status"], 500);
+    client.close(None).await.unwrap();
+    let _ = recv(&mut client).await;
 }
 use tokio_tungstenite::tungstenite::{
     Message,
