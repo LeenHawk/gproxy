@@ -9,10 +9,8 @@
 //! credential has one, because that is the form the dashboard endpoint keys
 //! on (v3 `cline/quota.rs`).
 //!
-//! Which window types a plan has is a plan fact the reply carries, not
-//! something readable off the credential, so only the balance is a declared
-//! dimension; the windows arrive as observations under the ids the reply
-//! names.
+//! Known plan windows apply to `cline-pass/` models. Credits apply to paid
+//! models outside that namespace; zero credits never exhaust a subscription.
 
 use super::auth;
 use super::config::{ID, base_url};
@@ -27,34 +25,121 @@ use crate::channels::shared::compatible::http::invalid_response;
 use http::{HeaderMap, HeaderValue, Method, header};
 use rust_decimal::Decimal;
 use serde_json::Value;
+use std::borrow::Cow;
 
 /// The credits an account spends from.
 pub const BALANCE_DIMENSION: &str = "cline_balance";
 /// The source every plan window is observed under.
 pub const PLAN_SOURCE: &str = "cline_plan_usage";
 
+fn plan_dimension(kind: &str) -> Option<QuotaDimension> {
+    let window = match kind {
+        "five_hour" => QuotaWindow::Rolling {
+            seconds: 5 * 60 * 60,
+        },
+        "weekly" => QuotaWindow::Rolling {
+            seconds: 7 * 24 * 60 * 60,
+        },
+        "monthly" => QuotaWindow::CalendarMonth,
+        _ => return None,
+    };
+    Some(QuotaDimension {
+        id: format!("{PLAN_SOURCE}:{kind}"),
+        label: Some(label(kind)),
+        scope: QuotaScope::ModelPrefixes(vec!["cline-pass".into()]),
+        operations: None,
+        metric: QuotaMetric::Unit("percent".into()),
+        window,
+        limit: Some(Decimal::ONE_HUNDRED),
+        tracking: QuotaTracking::Reported,
+        blocking: true,
+    })
+}
+
 impl QuotaModel for super::Cline {
+    fn allows_paid_usage(&self, credential: CredentialView<'_>, dimension: &str) -> bool {
+        credential
+            .metadata
+            .get("allow_paid_usage")
+            .and_then(Value::as_bool)
+            == Some(true)
+            && matches!(
+                dimension,
+                "cline_plan_usage:five_hour"
+                    | "cline_plan_usage:weekly"
+                    | "cline_plan_usage:monthly"
+            )
+    }
+
+    fn block_applies_to(&self, dimension: &str, model: Option<&str>) -> bool {
+        let Some(model) = model else { return true };
+        let free = model.starts_with("cline-free/") || model.ends_with(":free");
+        if dimension == BALANCE_DIMENSION {
+            return !free && !model.starts_with("cline-pass/");
+        }
+        if dimension
+            .strip_prefix(PLAN_SOURCE)
+            .is_some_and(|suffix| suffix.starts_with(':'))
+        {
+            return !free && model.starts_with("cline-pass/");
+        }
+        true
+    }
+
     fn dimensions(
         &self,
         _: ProviderView<'_>,
         credential: CredentialView<'_>,
     ) -> Vec<QuotaDimension> {
-        // The balance endpoint is addressed by account id; without one there
-        // is nothing to declare.
-        if auth::fact(&credential, "user_id").is_none() {
-            return Vec::new();
+        let mut dimensions = Vec::new();
+        // A pasted key can query plan windows without a known account id.
+        if auth::fact(&credential, "user_id").is_some() {
+            dimensions.push(QuotaDimension {
+                id: BALANCE_DIMENSION.into(),
+                label: Some("account credits".into()),
+                scope: QuotaScope::All,
+                operations: None,
+                metric: QuotaMetric::Unit("credits".into()),
+                window: QuotaWindow::Total,
+                limit: None,
+                tracking: QuotaTracking::Reported,
+                blocking: true,
+            });
         }
-        vec![QuotaDimension {
-            id: BALANCE_DIMENSION.into(),
-            label: Some("account credits".into()),
-            scope: QuotaScope::All,
-            operations: None,
-            metric: QuotaMetric::Unit("credits".into()),
-            window: QuotaWindow::Total,
-            limit: None,
-            tracking: QuotaTracking::Reported,
-            blocking: true,
-        }]
+        dimensions.extend(
+            ["five_hour", "weekly", "monthly"]
+                .into_iter()
+                .filter_map(plan_dimension),
+        );
+        dimensions
+    }
+
+    fn classify<'d>(
+        &self,
+        declared: &'d [QuotaDimension],
+        entry: &QuotaEntry,
+    ) -> Option<Cow<'d, QuotaDimension>> {
+        if entry.source_id == PLAN_SOURCE {
+            let id = format!("{PLAN_SOURCE}:{}", entry.id);
+            return declared
+                .iter()
+                .find(|dimension| dimension.id == id)
+                .map(Cow::Borrowed);
+        }
+        let dimension = crate::channel::classify_by_id(declared, entry)?;
+        if entry.source_id == BALANCE_DIMENSION {
+            if matches!(entry.model_scope, QuotaScope::ExceptModels(_)) {
+                let mut dimension = dimension.into_owned();
+                dimension.scope = entry.model_scope.clone();
+                return Some(Cow::Owned(dimension));
+            }
+            if matches!(&entry.value, QuotaValue::Balance(balance) if balance.remaining.is_some_and(|value| value <= Decimal::ZERO))
+            {
+                // Without a catalog, the balance cannot identify paid models.
+                return None;
+            }
+        }
+        Some(dimension)
     }
 }
 
@@ -135,7 +220,7 @@ fn plan_entries(data: &Value) -> Result<Vec<QuotaEntry>, ChannelError> {
                 source_id: PLAN_SOURCE.into(),
                 label: Some(label(kind)),
                 subject: QuotaSubject::Account,
-                model_scope: QuotaScope::All,
+                model_scope: QuotaScope::ModelPrefixes(vec!["cline-pass".into()]),
                 value: QuotaValue::Window(QuotaAllowance {
                     used_percent: Some(used_percent),
                     period_end_ms,
@@ -177,6 +262,30 @@ fn encode_segment(value: &str) -> String {
         }
     }
     out
+}
+
+async fn non_credit_models(context: &CredentialContext<'_>) -> Option<Vec<String>> {
+    let mut headers = HeaderMap::new();
+    auth::apply(&mut headers, &context.credential).ok()?;
+    let (status, _, body) = send(
+        context.client,
+        Method::GET,
+        &format!("{}/ai/cline/recommended-models", base_url(context.provider)),
+        headers,
+        None,
+    )
+    .await
+    .ok()?;
+    if !status.is_success() {
+        return None;
+    }
+    let payload: Value = serde_json::from_slice(&body).ok()?;
+    let free = payload.get("free")?.as_array()?;
+    let pass = payload.get("clinePass").and_then(Value::as_array);
+    free.iter()
+        .chain(pass.into_iter().flatten())
+        .map(|model| model.get("id")?.as_str().map(str::to_owned))
+        .collect()
 }
 
 impl QuotaQuery for super::Cline {
@@ -234,7 +343,12 @@ impl QuotaQuery for super::Cline {
                 .await?;
                 match status.is_success().then(|| data(&body)) {
                     Some(Ok(data)) => match balance_entry(&data) {
-                        Ok(entry) => entries.push(entry),
+                        Ok(mut entry) => {
+                            if let Some(models) = non_credit_models(&context).await {
+                                entry.model_scope = QuotaScope::ExceptModels(models);
+                            }
+                            entries.push(entry);
+                        }
                         Err(error) => failure = failure.or(Some(error)),
                     },
                     Some(Err(error)) => failure = failure.or(Some(error)),

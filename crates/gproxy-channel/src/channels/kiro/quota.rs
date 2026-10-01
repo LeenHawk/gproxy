@@ -7,15 +7,16 @@
 //! credit units, and dates each reset with a unix timestamp that is seconds
 //! on some server generations and milliseconds on others.
 //!
-//! There is no `QuotaModel`: which buckets a credential has is only knowable
-//! once the upstream has answered, so nothing on the credential could declare
-//! them — the same reading `geminicli` and `antigravity` take.
+//! The included agentic-request allowance is a monthly subscription window.
+//! Exhaustion stops selection unless the credential permits add-on/overage
+//! usage. Other resource types remain observations.
 
 use super::config::{ID, KiroConfig};
 use super::{Plane, Target, encode_component, send, unix_now_ms};
 use crate::channel::{
-    ChannelError, CredentialContext, OperationFuture, QuotaAllowance, QuotaEntry, QuotaQuery,
-    QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaValue,
+    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
+    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior,
+    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
 };
 use http::Method;
 use rust_decimal::Decimal;
@@ -26,6 +27,31 @@ use serde_json::{Value, json};
 pub const TARGET_USAGE_LIMITS: &str = "AmazonCodeWhispererService.GetUsageLimits";
 /// The one window a single-entry breakdown means (v3 `quota.rs`).
 pub const AGENTIC_REQUEST_DIMENSION: &str = "agentic_request";
+
+impl QuotaModel for super::Kiro {
+    fn dimensions(&self, _: ProviderView<'_>, _: CredentialView<'_>) -> Vec<QuotaDimension> {
+        vec![QuotaDimension {
+            id: AGENTIC_REQUEST_DIMENSION.into(),
+            label: Some("included credits".into()),
+            scope: QuotaScope::All,
+            operations: None,
+            metric: QuotaMetric::Unit("credits".into()),
+            window: QuotaWindow::CalendarMonth,
+            limit: None,
+            tracking: QuotaTracking::Reported,
+            blocking: true,
+        }]
+    }
+
+    fn allows_paid_usage(&self, credential: CredentialView<'_>, dimension: &str) -> bool {
+        credential
+            .metadata
+            .get("allow_paid_usage")
+            .and_then(Value::as_bool)
+            == Some(true)
+            && dimension == AGENTIC_REQUEST_DIMENSION
+    }
+}
 
 /// Milliseconds and seconds are told apart at 1e12, which is the year 33658
 /// read as seconds.
@@ -51,6 +77,8 @@ struct UsageBreakdown {
     usage_limit_with_precision: Option<f64>,
     #[serde(default)]
     next_date_reset: Option<Value>,
+    #[serde(default)]
+    free_trial_info: Option<Value>,
 }
 
 /// A lowercase, underscore-joined key from a resource type.
@@ -110,8 +138,21 @@ pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
                         format!("usage_{index}")
                     }
                 });
-            let used = decimal(item.current_usage_with_precision);
-            let limit = decimal(item.usage_limit_with_precision);
+            let mut used = decimal(item.current_usage_with_precision);
+            let mut limit = decimal(item.usage_limit_with_precision);
+            if let Some(trial) = item.free_trial_info.as_ref()
+                && trial.get("freeTrialStatus").and_then(Value::as_str) == Some("ACTIVE")
+            {
+                let trial_used = decimal(
+                    trial
+                        .get("currentUsageWithPrecision")
+                        .and_then(Value::as_f64),
+                );
+                let trial_limit =
+                    decimal(trial.get("usageLimitWithPrecision").and_then(Value::as_f64));
+                used = used.zip(trial_used).map(|(base, extra)| base + extra);
+                limit = limit.zip(trial_limit).map(|(base, extra)| base + extra);
+            }
             QuotaEntry {
                 id: id.clone(),
                 source_id: id,
@@ -121,11 +162,12 @@ pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
                 value: QuotaValue::Window(QuotaAllowance {
                     used,
                     limit,
-                    remaining: limit.zip(used).map(|(limit, used)| limit.saturating_sub(used)),
+                    remaining: limit
+                        .zip(used)
+                        .map(|(limit, used)| limit.saturating_sub(used)),
                     used_percent: used.zip(limit).and_then(|(used, limit)| {
-                        used
-            .checked_div(limit)
-            .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED))
+                        used.checked_div(limit)
+                            .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED))
                     }),
                     unlimited: None,
                     unit: None,
@@ -192,6 +234,18 @@ impl QuotaQuery for super::Kiro {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_active_free_trial_is_part_of_the_included_allowance() {
+        let entries = entries(br#"{"usageBreakdownList":[{
+            "resourceType":"AGENTIC_REQUEST","currentUsageWithPrecision":0,"usageLimitWithPrecision":0,
+            "freeTrialInfo":{"freeTrialStatus":"ACTIVE","currentUsageWithPrecision":10,"usageLimitWithPrecision":50}
+        }]}"#).unwrap();
+        let QuotaValue::Window(window) = &entries[0].value else {
+            panic!("window")
+        };
+        assert_eq!(window.remaining, Some(Decimal::from(40)));
+    }
 
     #[test]
     fn one_breakdown_is_the_agentic_request_window_and_a_millisecond_reset_stays_one() {

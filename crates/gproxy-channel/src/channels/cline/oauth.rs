@@ -14,7 +14,7 @@
 //! account token is minted by Cline from the refresh token it handed out.
 
 use super::auth;
-use super::config::{DEFAULT_CLIENT_ID, ClineConfig, ID, base_url};
+use super::config::{ClineConfig, DEFAULT_CLIENT_ID, ID, base_url};
 use crate::channel::{
     ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
     LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
@@ -232,6 +232,14 @@ impl OAuthDeviceCode for super::Cline {
 }
 
 impl CredentialRefresh for super::Cline {
+    fn supports(&self, credential: &crate::channel::CredentialView<'_>) -> bool {
+        credential
+            .secret
+            .get("refresh_token")
+            .and_then(Value::as_str)
+            .is_some_and(|token| !token.trim().is_empty())
+    }
+
     fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let refresh_token = context

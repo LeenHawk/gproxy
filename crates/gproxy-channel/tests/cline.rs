@@ -305,7 +305,12 @@ fn the_balance_dimension_needs_the_identity_the_login_recorded() {
         provider("cline", &config, None),
         credential("oauth", &secret, &Value::Null),
     );
-    assert!(anonymous.is_empty(), "no account id, no balance to declare");
+    assert_eq!(
+        anonymous.len(),
+        3,
+        "plan windows do not require an account id"
+    );
+    assert!(anonymous.iter().all(|d| d.id != BALANCE_DIMENSION));
     let metadata = json!({"user_id": "user-1"});
     let known = Cline.dimensions(
         provider("cline", &config, None),
@@ -361,6 +366,10 @@ async fn the_plan_windows_and_the_credit_balance_are_one_snapshot() {
                 StatusCode::OK,
                 json!({"success": true, "data": {"balance": "12.5"}}).to_string(),
             ),
+            (
+                StatusCode::OK,
+                json!({"free":[{"id":"stealth/space-bunny-alpha"}]}).to_string(),
+            ),
         ],
         seen: std::sync::Mutex::new(Vec::new()),
     };
@@ -388,6 +397,11 @@ async fn the_plan_windows_and_the_credit_balance_are_one_snapshot() {
     };
     assert_eq!(window.used_percent, Some(25.into()));
     assert_eq!(snapshot.entries[1].id, BALANCE_DIMENSION);
+    assert!(
+        !snapshot.entries[1]
+            .model_scope
+            .matches("stealth/space-bunny-alpha")
+    );
     let QuotaValue::Balance(balance) = &snapshot.entries[1].value else {
         panic!("a balance");
     };
@@ -397,13 +411,12 @@ async fn the_plan_windows_and_the_credit_balance_are_one_snapshot() {
         provider("cline", &config, None),
         credential("oauth", &secret, &metadata),
     );
-    support::assert_quota_contract(Some(&Cline), &declared, &snapshot.entries, OBSERVE_ONLY);
+    for entry in &snapshot.entries {
+        let dimension = Cline.classify(&declared, entry).unwrap();
+        assert!(dimension.blocking);
+        assert_eq!(dimension.scope, entry.model_scope);
+    }
 }
-
-/// Plan windows are observed under the type the reply names (every one
-/// shares `PLAN_SOURCE`); the plan is not readable off the credential, so
-/// none is declared.
-const OBSERVE_ONLY: &[&str] = &["five_hour", "weekly"];
 
 #[tokio::test]
 async fn a_probe_that_reads_nothing_at_all_reports_the_refusal() {
@@ -600,7 +613,16 @@ async fn assert_plan_authorization(secret: &Value, expected: &str) {
     );
     assert_eq!(headers["authorization"], expected);
     assert_eq!(snapshot.entries.len(), 2);
-    support::assert_quota_contract(Some(&Cline), &[], &snapshot.entries, OBSERVE_ONLY);
+    let declared = Cline.dimensions(
+        provider("cline", &config, None),
+        credential("oauth", secret, &Value::Null),
+    );
+    assert!(
+        snapshot
+            .entries
+            .iter()
+            .all(|entry| Cline.classify(&declared, entry).is_some())
+    );
 }
 
 #[tokio::test]

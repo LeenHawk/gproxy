@@ -71,6 +71,15 @@ const QUOTA_IDE_VERSION: &str = "1.9600.41";
 const QUOTA_LOCALE: &str = "en";
 
 impl QuotaModel for Devin {
+    fn allows_paid_usage(&self, credential: CredentialView<'_>, dimension: &str) -> bool {
+        credential
+            .metadata
+            .get("allow_paid_usage")
+            .and_then(Value::as_bool)
+            == Some(true)
+            && matches!(dimension, DAILY_ID | WEEKLY_ID)
+    }
+
     /// Both windows exist for every plan the mirrors describe. Whether they
     /// are rolling or calendar-aligned is not evidenced — only a reset instant
     /// is reported — so they are declared rolling, as the other

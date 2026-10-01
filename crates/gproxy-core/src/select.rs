@@ -102,7 +102,7 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
             .into_iter()
             .zip(blocks)
             .map(|(credential, mut blocks)| {
-                blocks.retain_enforced(provider, &credential);
+                blocks.retain_enforced(provider, &credential, model);
                 (credential, blocks)
             })
             .filter(|(_, blocks)| blocks.blocked_by(model, operation, now_ms).is_none())

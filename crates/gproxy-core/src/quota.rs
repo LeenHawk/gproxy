@@ -678,8 +678,7 @@ impl<C: BatchConnectionTrait> Core<C> {
                         row.source["dimension"] == *dimension
                             && serde_json::from_value::<QuotaScope>(row.scope.clone())
                                 .ok()
-                                .as_ref()
-                                == Some(scope)
+                                .is_some_and(|stored| stored.same_pool(scope))
                     })
             })
             .map(|row| row.id)
@@ -697,7 +696,7 @@ impl<C: BatchConnectionTrait> Core<C> {
             let before = blocks.blocks.len();
             blocks.blocks.retain(|block| !(block.observed_at_ms <= queried_at_ms
                 && matches!(&block.source, BlockSource::QuotaExhausted { dimension, .. }
-                    if recovered.iter().any(|(id, scope)| id == dimension && *scope == block.scope))));
+                    if recovered.iter().any(|(id, scope)| id == dimension && scope.same_pool(&block.scope)))));
             if blocks.blocks.len() == before {
                 return Ok(());
             }
@@ -832,8 +831,10 @@ impl<C: BatchConnectionTrait> Core<C> {
             .ok_or_else(|| {
                 CoreError::InvalidTarget(format!("provider `{provider_id}` is not loaded"))
             })?;
-        let can_refresh = provider.channel.credential_refresh().is_some();
-        if can_refresh && crate::refresh::needs_refresh(&credential.state.load(), now_ms()) {
+        let version = credential.state.load();
+        if crate::refresh::can_refresh(&provider, &credential, &version)
+            && crate::refresh::needs_refresh(&version, now_ms())
+        {
             self.refresh_credential(provider_id, credential_id, crate::RefreshMode::IfNeeded)
                 .await?;
         }
@@ -850,7 +851,7 @@ impl<C: BatchConnectionTrait> Core<C> {
             )
             .await;
             // Imported credentials can have no expiry; allow one auth retry.
-            if can_refresh
+            if crate::refresh::can_refresh(&provider, &credential, &version)
                 && !retried
                 && matches!(&result, Err(ChannelError::UpstreamResponse { status, .. }) if *status == http::StatusCode::UNAUTHORIZED)
             {

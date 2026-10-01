@@ -6,16 +6,17 @@
 //! bare, period boundaries are upstream-exact ISO timestamps and money nests
 //! as `{"val": number-or-string}`. Per-product rows report only a percentage.
 //!
-//! There is no `QuotaModel`: which products an account is billed for is only
-//! knowable once the upstream has answered, and the window length is never
-//! stated — only its exact boundaries are.
+//! Account periods can stop selection at subscription exhaustion unless paid
+//! usage is permitted. Per-product readings remain observations; they do not
+//! identify a model scope or a separately renewable subscription allowance.
 
 use super::auth::{Reply, apply};
 use super::config::{GrokBuildConfig, ID};
 use super::unix_now_ms;
 use crate::channel::{
-    ChannelError, CredentialContext, OperationFuture, QuotaAllowance, QuotaEntry, QuotaQuery,
-    QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaValue,
+    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
+    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior,
+    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
 };
 use crate::channels::shared::compatible::ability::{decimal, require_success, send};
 use crate::channels::shared::compatible::http::invalid_response;
@@ -28,6 +29,62 @@ use serde_json::Value;
 pub const USAGE_DIMENSION: &str = "usage";
 /// The account usage page the CLI's `PurchaseCredits` action opens.
 pub const TOP_UP_URL: &str = "https://grok.com?_s=usage";
+
+impl QuotaModel for super::GrokBuild {
+    fn dimensions(&self, _: ProviderView<'_>, _: CredentialView<'_>) -> Vec<QuotaDimension> {
+        [
+            (
+                "weekly_limit",
+                QuotaWindow::Rolling {
+                    seconds: 7 * 24 * 60 * 60,
+                },
+            ),
+            ("monthly_limit", QuotaWindow::CalendarMonth),
+            (USAGE_DIMENSION, QuotaWindow::Total),
+        ]
+        .into_iter()
+        .map(|(id, window)| QuotaDimension {
+            id: id.into(),
+            label: None,
+            scope: QuotaScope::All,
+            operations: None,
+            metric: QuotaMetric::Unit("percent".into()),
+            window,
+            limit: None,
+            tracking: QuotaTracking::Reported,
+            blocking: true,
+        })
+        .collect()
+    }
+
+    fn allows_paid_usage(&self, credential: CredentialView<'_>, dimension: &str) -> bool {
+        credential
+            .metadata
+            .get("allow_paid_usage")
+            .and_then(Value::as_bool)
+            == Some(true)
+            && matches!(
+                dimension,
+                "weekly_limit" | "monthly_limit" | USAGE_DIMENSION
+            )
+    }
+
+    fn classify<'d>(
+        &self,
+        declared: &'d [QuotaDimension],
+        entry: &QuotaEntry,
+    ) -> Option<std::borrow::Cow<'d, QuotaDimension>> {
+        if entry.source_id == USAGE_DIMENSION {
+            let QuotaValue::Window(window) = &entry.value else {
+                return None;
+            };
+            // An unnamed period must carry its own reset; do not invent a
+            // month-long block from an unbounded balance-like reading.
+            window.period_end_ms?;
+        }
+        crate::channel::classify_by_id(declared, entry)
+    }
+}
 
 #[derive(Deserialize)]
 struct BillingResponse {
@@ -125,9 +182,8 @@ fn used_percent(config: &BillingConfig) -> Option<Decimal> {
     }
     let limit = config.monthly_limit.as_ref().and_then(Money::number)?;
     let used = config.used.as_ref().and_then(Money::number)?;
-    used
-            .checked_div(limit)
-            .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED))
+    used.checked_div(limit)
+        .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED))
 }
 
 fn window(id: String, label: Option<String>, allowance: QuotaAllowance) -> QuotaEntry {
@@ -186,7 +242,9 @@ pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
             QuotaAllowance {
                 used,
                 limit,
-                remaining: limit.zip(used).map(|(limit, used)| limit.saturating_sub(used)),
+                remaining: limit
+                    .zip(used)
+                    .map(|(limit, used)| limit.saturating_sub(used)),
                 used_percent: used_percent(&config),
                 unlimited: None,
                 unit: None,

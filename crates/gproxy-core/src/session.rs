@@ -238,8 +238,8 @@ impl<C: BatchConnectionTrait> Core<C> {
         let mut blocks = self
             .read_blocks(&credential.provider_id, &credential.id)
             .await?;
-        blocks.retain_enforced(&request.target.provider, credential);
         let model = request.target.upstream_model.as_deref();
+        blocks.retain_enforced(&request.target.provider, credential, model);
         Ok(
             match blocks
                 .blocked_by(model, request.operation.operation, now_ms)

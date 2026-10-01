@@ -59,7 +59,7 @@ tokio = { workspace = true, features = ["sync", "macros"] }
 wasm-bindgen-futures = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-gproxy-channel = { workspace = true, features = ["codex", "openai", "azure", "vercel"] }
+gproxy-channel = { workspace = true, features = ["codex", "openai", "azure", "vercel", "cline"] }
 gproxy-cache = { workspace = true, features = ["memory"] }
 gproxy-client = { workspace = true, features = ["reqwest"] }
 gproxy-file = { workspace = true, features = ["fs"] }

@@ -217,7 +217,8 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
 由 `exchange` 返回——公开事实进 `provider_fields`，secret 进
 `OAuthCredential::provider_secrets`，后者与 token 一同封存，永远不会变成 metadata。
 
-Codex 和 Claude Code 支持凭证级的 `metadata.allow_paid_usage` 布尔值，默认
+Codex、Claude Code、Cline、Antigravity、Devin、Kiro、Copilot CLI 和 Grok Build
+支持凭证级的 `metadata.allow_paid_usage` 布尔值，默认
 `false`。Console 显示为「允许使用积分余额」。`QuotaModel::allows_paid_usage`
 指定它可放行的订阅窗口；Core 保留额度耗尽记录，在选择凭证时应用当前开关，关闭后
 即可重新执行已知额度限制。本地预算和上游实际拒绝请求产生的冷却仍然有效。
@@ -226,6 +227,13 @@ Codex 和 Claude Code 支持凭证级的 `metadata.allow_paid_usage` 布尔值�
 Claude Code 2.1.285 的检查发现的是账号级 `overage_spend_limit` 设置，没有找到
 单次请求的禁扣参数。因此，本地开关不能阻止已经发出的请求，或首次获知订阅额度
 耗尽的请求产生费用。
+
+Cline 的套餐窗口只约束 `cline-pass/` 模型；Credits 为零不阻塞套餐模型和
+`cline-free/`、`:free` 免费模型，这也适用于旧版本保存的全局余额阻塞。
+额度查询同时读取推荐模型目录，排除没有上述前缀的免费模型；新的名单替换旧的余额阻塞范围。
+Copilot 的高级请求额度按模型目录的收费标记限定范围；目录未能确定范围时只展示读数。
+Kiro 的月度额度包含仍生效的免费试用额度；额外购买的积分和超额用量由此开关许可。
+Kimi 的订阅与 Moonshot API、OpenCode Go 与 Zen 是独立产品，没有用这个开关跨产品切换。
 
 ## 添加一个渠道
 

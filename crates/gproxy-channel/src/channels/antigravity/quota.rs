@@ -30,9 +30,9 @@ use super::{
     Antigravity, AntigravityConfig, apply_headers, base_url, catalog_request, fact, models,
 };
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView,
-    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaScope, QuotaSnapshot,
-    QuotaTracking, QuotaWindow, classify_by_id,
+    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaDimension,
+    QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaScope, QuotaSnapshot, QuotaTracking,
+    QuotaWindow, classify_by_id,
 };
 use crate::channels::shared::code_assist;
 use crate::channels::shared::code_assist::quota::{iso_to_ms, used_percent};
@@ -121,6 +121,19 @@ fn label(family: Family, span: Span) -> String {
 }
 
 impl QuotaModel for Antigravity {
+    fn allows_paid_usage(&self, credential: CredentialView<'_>, dimension: &str) -> bool {
+        credential
+            .metadata
+            .get("allow_paid_usage")
+            .and_then(Value::as_bool)
+            == Some(true)
+            && Family::ALL.into_iter().any(|family| {
+                Span::ALL
+                    .into_iter()
+                    .any(|span| dimension == bucket_id(family, span))
+            })
+    }
+
     /// Every account may have all four windows; their models arrive with
     /// each reading.
     fn dimensions(&self, _: ProviderView<'_>, _: CredentialView<'_>) -> Vec<QuotaDimension> {
