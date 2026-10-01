@@ -696,7 +696,7 @@ jobs:
         id: metadata
         with:
           images: ghcr.io/${{ github.repository_owner }}/gproxy
-          tags: type=raw,value=${{ github.sha }}-${{ matrix.arch }}${{ matrix.suffix }}
+          tags: type=raw,value=${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}${{ matrix.suffix }}
       - uses: docker/build-push-action@v7.4.0
         with:
           context: .
@@ -723,7 +723,7 @@ jobs:
       - name: Create GNU and musl manifests
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          tag="$image:$GITHUB_SHA"
+          tag="$image:$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           docker buildx imagetools create -t "$tag" \
             "$tag-amd64" "$tag-arm64" "$tag-riscv64"
           docker buildx imagetools create -t "$tag-musl" \

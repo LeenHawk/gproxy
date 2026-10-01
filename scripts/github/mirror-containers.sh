@@ -10,7 +10,7 @@ for suffix in "" -musl; do
   for destination in ghcr.io/leenhawk/gproxy "$CI_REGISTRY_IMAGE" docker.cnb.cool/leenhawk/gproxy; do
     for tag in "${tags[@]}"; do
       skopeo copy --all --preserve-digests \
-        "docker://ghcr.io/leenhawk/gproxy:$CI_COMMIT_SHA$suffix" \
+        "docker://ghcr.io/leenhawk/gproxy:$CI_COMMIT_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT$suffix" \
         "docker://$destination:$tag$suffix"
     done
   done
