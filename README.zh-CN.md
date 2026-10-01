@@ -15,13 +15,16 @@
 
 [![Documentation](https://img.shields.io/badge/文档-gproxy.leenhawk.com-2563eb?style=for-the-badge)](https://gproxy.leenhawk.com/zh-cn/)
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/dev/deploy/cloudflare-button)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D)
+[![Deploy to Deno](https://img.shields.io/badge/Deploy_to-Deno-000000?style=for-the-badge&logo=deno)](https://console.deno.com/new?clone=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&path=deploy%2Fserverless)
 
 </div>
 
 GPROXY 是用 Rust 编写、可自行部署的 LLM API 网关。把上游账户接进来，在控制台配置模型路由，客户端就可以用同一组地址和网关 API Key 调用不同服务。切换供应商、更新凭证、查看用量和费用，都在网关里完成。
 
-v4 提供带设置向导的桌面与移动应用，也可以作为命令行服务、容器或 Cloudflare Worker 运行。正式使用下载[最新稳定版](https://github.com/LeenHawk/gproxy/releases/latest)；开发快照见 [nightly](https://github.com/LeenHawk/gproxy/releases/tag/nightly)。
+v4 提供带设置向导的桌面与移动应用，也可以作为命令行服务、容器运行，或部署到 Cloudflare、Netlify、Vercel 和 Deno。正式使用下载[最新稳定版](https://github.com/LeenHawk/gproxy/releases/latest)；开发快照见 [nightly](https://github.com/LeenHawk/gproxy/releases/tag/nightly)。
 
 ## 能做什么
 
@@ -53,7 +56,7 @@ v4 提供带设置向导的桌面与移动应用，也可以作为命令行服�
 </td>
 <td valign="top">
 <h3>本地或服务器部署</h3>
-<p>个人使用可选带界面的应用，服务器可用 CLI 或容器，也支持 Cloudflare Workers。Rust 项目可通过 SDK 嵌入网关能力。</p>
+<p>个人使用可选带界面的应用，服务器可用 CLI 或容器，也可部署到 Cloudflare、Netlify、Vercel 和 Deno。Rust 项目可通过 SDK 嵌入网关能力。</p>
 </td>
 </tr>
 </table>
@@ -119,11 +122,11 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
   -d '{"model":"fast","messages":[{"role":"user","content":"你好"}],"stream":true}'
 ```
 
-### Cloudflare 一键部署
+### 托管平台一键部署
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/dev/deploy/cloudflare-button)
+Cloudflare、Netlify、Vercel 和 Deno 的模板使用 **v4.0.1** 预编译包，无需编译 Rust。Cloudflare 可选 D1 或 libSQL/Turso；其他三个平台使用 PostgreSQL。填写数据库连接、管理员密码和主密钥后部署，再打开 `/console/` 登录。
 
-模板使用 **v4.0.1** 官方预编译包，无需编译 Rust。按页面提示创建 D1，设置管理员密码和主密钥，部署后打开 `/console/`。完整步骤见[Cloudflare 部署文档](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)。
+部署入口、平台数据库与外部数据库的选择，以及 WebSocket 等能力差异，统一见[托管平台部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)。
 
 ### 其他部署方式
 
@@ -131,7 +134,7 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
 | --- | --- | --- |
 | Application | 桌面或移动设备，应用内管理 | [平台安装说明](https://gproxy.leenhawk.com/zh-cn/getting-started/installation/) |
 | CLI / 容器 | 常驻服务器，浏览器管理 | [安装与容器配置](https://gproxy.leenhawk.com/zh-cn/getting-started/installation/) |
-| Cloudflare Workers | 部署到边缘环境 | [Workers 部署](https://gproxy.leenhawk.com/zh-cn/deployment/edge/) |
+| Cloudflare / Netlify / Vercel / Deno | 托管平台，无需自备服务器 | [部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/edge/) |
 | Rust SDK | 嵌入自己的程序 | [gproxy-sdk](crates/gproxy-sdk/README.zh-CN.md) |
 
 Windows MSIX 是未签名商店提交包，普通安装可选 ZIP；macOS 应用尚未公证；鸿蒙 HAP 是需要自行签名的实验性产物。各平台要求见安装说明。

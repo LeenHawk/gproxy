@@ -15,13 +15,16 @@
 
 [![Documentation](https://img.shields.io/badge/Documentation-gproxy.leenhawk.com-2563eb?style=for-the-badge)](https://gproxy.leenhawk.com/)
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/dev/deploy/cloudflare-button)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D)
+[![Deploy to Deno](https://img.shields.io/badge/Deploy_to-Deno-000000?style=for-the-badge&logo=deno)](https://console.deno.com/new?clone=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&path=deploy%2Fserverless)
 
 </div>
 
 GPROXY is a self-hosted LLM API gateway written in Rust. Add your upstream accounts, configure model routes in the console, and call different services through the same endpoint and gateway API key. Provider changes, credential updates, usage, and costs are managed in one place.
 
-v4 runs as a desktop or mobile application with a setup wizard, a CLI service, a container, or a Cloudflare Worker. Use the [latest stable release](https://github.com/LeenHawk/gproxy/releases/latest) for regular deployments; development snapshots are available under [nightly](https://github.com/LeenHawk/gproxy/releases/tag/nightly).
+v4 runs as a desktop or mobile application with a setup wizard, a CLI service, a container, or on Cloudflare, Netlify, Vercel, and Deno. Use the [latest stable release](https://github.com/LeenHawk/gproxy/releases/latest) for regular deployments; development snapshots are available under [nightly](https://github.com/LeenHawk/gproxy/releases/tag/nightly).
 
 ## Features
 
@@ -53,7 +56,7 @@ v4 runs as a desktop or mobile application with a setup wizard, a CLI service, a
 </td>
 <td valign="top">
 <h3>Local and server deployments</h3>
-<p>Use the application on a personal device, run the CLI or container on a server, or deploy to Cloudflare Workers. Rust projects can embed the gateway through its SDK.</p>
+<p>Use the application on a personal device, run the CLI or container on a server, or deploy to Cloudflare, Netlify, Vercel, and Deno. Rust projects can embed the gateway through its SDK.</p>
 </td>
 </tr>
 </table>
@@ -119,11 +122,11 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
   -d '{"model":"fast","messages":[{"role":"user","content":"Hello"}],"stream":true}'
 ```
 
-### Deploy to Cloudflare
+### Hosted deployments
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/dev/deploy/cloudflare-button)
+Templates for Cloudflare, Netlify, Vercel, and Deno use prebuilt **v4.0.1** bundles without compiling Rust. Cloudflare supports D1 or libSQL/Turso; the other three use PostgreSQL. Configure the database, administrator password, and master key, then deploy and sign in at `/console/`.
 
-The template deploys the official prebuilt **v4.0.1** bundle without compiling Rust. Follow the form to create D1 and set the administrator password and master key, then open `/console/`. See the [Cloudflare deployment guide](https://gproxy.leenhawk.com/deployment/edge/) for details.
+See the [hosted deployment guide](https://gproxy.leenhawk.com/deployment/edge/) for deploy buttons, platform or external databases, and differences such as WebSocket support.
 
 ### Other deployment options
 
@@ -131,7 +134,7 @@ The template deploys the official prebuilt **v4.0.1** bundle without compiling R
 | --- | --- | --- |
 | Application | Desktop or mobile, managed in the app | [Platform installation](https://gproxy.leenhawk.com/getting-started/installation/) |
 | CLI / container | Persistent server with a browser console | [Installation and containers](https://gproxy.leenhawk.com/getting-started/installation/) |
-| Cloudflare Workers | Edge deployment | [Workers deployment](https://gproxy.leenhawk.com/deployment/edge/) |
+| Cloudflare / Netlify / Vercel / Deno | Hosted service without your own server | [Deployment guide](https://gproxy.leenhawk.com/deployment/edge/) |
 | Rust SDK | Embed in your own program | [gproxy-sdk](crates/gproxy-sdk/README.md) |
 
 Windows MSIX files are unsigned Store submission packages; use ZIP for a regular installation. macOS apps are not notarized. The HarmonyOS HAP is experimental and requires your own signature. See the installation guide for platform requirements.

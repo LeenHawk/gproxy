@@ -1,43 +1,130 @@
 ---
-title: "Edge deployment (Cloudflare Workers)"
-description: "Configure Workers, D1, secrets, and console assets, and review current deployment limitations."
+title: "Hosted deployments"
+description: "Deploy GPROXY on Cloudflare Workers, Netlify, Vercel, or Deno, connect a database, and sign in."
 ---
 
-Workers uses the same HTTP routes as the native server, with remote database and file-storage backends. The console is deployed as Workers Assets rather than embedded in WASM.
+GPROXY provides deployment templates for Cloudflare Workers, Netlify, Vercel, and Deno. They download prebuilt release bundles, so no Rust installation is needed. The console and API share your deployment domain; the console is at `/console/`.
 
-## One-click deployment
+## Choose a platform
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/dev/deploy/cloudflare-button)
+| Platform | Platform database | Existing database | WebSocket / Realtime |
+| --- | --- | --- | --- |
+| [Cloudflare Workers](#cloudflare-workers) | D1, created during deployment | libSQL / Turso | Supported |
+| [Netlify Functions](#netlify) | Netlify Database | PostgreSQL | Not supported |
+| [Vercel Functions](#vercel) | PostgreSQL product selected during deployment | PostgreSQL | Not supported |
+| [Deno Deploy](#deno) | PostgreSQL attached after app creation | PostgreSQL | Not supported |
 
-The template downloads and verifies the official v4.0.1 Worker and console bundle. No Rust toolchain is needed.
+For HTTP and SSE streaming, you can use any template. For WebSocket or Realtime, choose Cloudflare Workers or a [CLI / container deployment](/getting-started/installation/).
 
-1. Click the button and connect your GitHub or GitLab account.
-2. Choose the Worker and D1 database names. Cloudflare provisions and binds D1.
-3. Set `GPROXY_ADMIN_PASSWORD` (at least 8 characters) and `GPROXY_MASTER_KEY` (a saved 32-byte key, for example the output of `openssl rand -hex 32`).
-4. Keep the detected build command `npm run build` and deploy command `npm run deploy`.
-5. Open `/console/` after deployment and sign in as `admin` with your password. Add providers and create a gateway API key.
+Cloudflare runs WASM; the other three platforms run the native serverless executable. They share GPROXY's management API and console, while database types, function duration, and request size limits depend on the platform.
 
-The template pins its version in `prepare-release.mjs`. Keep D1 and the master key when updating. On startup, when `GPROXY_ADMIN_PASSWORD` is set, a user matching `GPROXY_ADMIN_USER` takes priority: only their password is updated. If no name matches, user `0` is enabled as an administrator and given the configured name and password; user `0` is created if missing. Unchanged credentials preserve sessions; a password change or recovery of user `0` ends that user’s sessions.
+## Prepare the password and encryption key
 
-## Current limitations
+Every platform needs these two settings:
 
-- Responses WebSocket, Realtime and channel service sockets share the native deployment’s routes, authentication and limits.
-- D1 is enabled by default. libSQL and S3/R2 require their corresponding build features.
-- Local SQLite, TCP databases, filesystem storage, and in-memory cache are unsupported. Current Worker assembly uses `store` cache and does not provide a Redis client.
-- An empty database gets administrator `0` from `GPROXY_ADMIN_PASSWORD`. On later starts, a same-name user takes priority; otherwise the override recovers user `0`. The username defaults to `admin`; set `GPROXY_ADMIN_USER` to select it. Workers does not show the Application wizard.
+| Setting | Value |
+| --- | --- |
+| `GPROXY_ADMIN_PASSWORD` | A login password of at least 8 characters |
+| `GPROXY_MASTER_KEY` | A 32-byte key for encrypting upstream credentials, encoded as 64 hex characters or base64 |
 
-## Use a release bundle
+You can generate a master key with `openssl rand -hex 32`. Save it and use the same value for updates and redeployments.
 
-Download `gproxy-edge-cloudflare.zip` from the selected release, extract it, and enter the `cloudflare` directory. It includes the built Worker, console assets, and `wrangler.toml`.
+The username defaults to `admin`; set `GPROXY_ADMIN_USER` to choose another. The password setting is applied on startup: a same-name user's password is updated first; if no name matches, administrator `0` is recovered and given the configured name and password. See [administrator setup and password overrides](/reference/configuration/#bootstrap).
 
-Install dependencies and create a D1 database:
+If you are using an existing database, you will also need its connection details. Each platform's steps are below.
+
+## Cloudflare Workers
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)][cloudflare-auto]
+
+[Use an external libSQL / Turso database][cloudflare-external]
+
+Use the deploy button for D1, or the external-database link for an existing libSQL/Turso database.
+
+1. Open your chosen entry and connect your GitHub or GitLab account.
+2. For D1, choose a database name; Cloudflare creates and binds it. For an external database, enter `GPROXY_DATABASE_URL` and `GPROXY_LIBSQL_TOKEN`. That entry does not create D1.
+3. Enter the administrator password and master key, keep `npm run build` and `npm run deploy`, and deploy.
+
+A Turso URL can use `libsql://your-db.turso.io` or its HTTPS equivalent. This connection uses libSQL's HTTP interface, not a PostgreSQL connection string.
+
+An existing D1 deployment can also switch to libSQL through these variables. `GPROXY_DATABASE_URL` takes precedence over D1. Changing the connection selects a different database; it does not migrate existing data.
+
+For Wrangler deployment or custom Workers configuration, see [manual Cloudflare deployment](#manual-cloudflare-deployment) below.
+
+## Netlify
+
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)][netlify-auto]
+
+[Use an existing PostgreSQL database][netlify-external]
+
+Use the deploy button for Netlify Database, or the external-database link for an existing PostgreSQL database.
+
+1. Open your chosen entry, authorize the repository, and enter the administrator password and master key.
+2. For Netlify Database, the template reads the platform connection; no manual connection string is needed. For an existing database, enter its PostgreSQL connection string as `GPROXY_DATABASE_URL`.
+3. Keep the template's build command and Functions configuration, then deploy.
+
+An external connection looks like `postgresql://user:password@db.example.com/gproxy?sslmode=require`. Use the actual connection details supplied by your database service.
+
+Both entries use the same Netlify template. Netlify may still provision a platform database when you supply an external connection; GPROXY gives `GPROXY_DATABASE_URL` precedence.
+
+## Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)][vercel-auto]
+
+[Use an existing PostgreSQL database][vercel-external]
+
+Use the deploy button if you need a new database, or the external-database link for an existing PostgreSQL database.
+
+1. Open your chosen entry. For a platform database, select and attach a PostgreSQL product when prompted. The external-database entry does not require a database product installation.
+2. Enter the administrator password and master key. For an existing database, also set `GPROXY_DATABASE_URL`.
+3. Keep the template's build command and `vercel.json`, then deploy.
+
+Platform connections are read from `DATABASE_URL` or `POSTGRES_URL`. If your product uses another variable name, put its connection string in `GPROXY_DATABASE_URL`.
+
+This template uses **Node.js Functions**. Do not switch it to Edge Runtime.
+
+## Deno
+
+[Create an application on Deno Deploy][deno]
+
+Use the current Deno Deploy at `console.deno.com`. Select the `dev` branch containing the template and use `deno.json` from `deploy/serverless`.
+
+1. Enter the administrator password and master key.
+2. For an existing PostgreSQL database, set `GPROXY_DATABASE_URL`. For a platform database, create the app, then open **Databases** to create or attach PostgreSQL.
+3. Redeploy after configuring the database. Platform bindings provide the connection through `DATABASE_URL`.
+
+The Deno entry does not create a database automatically. The app may return 503 until the database is attached; complete the configuration and redeploy.
+
+## Sign in and make a request
+
+After deployment, open `https://your-domain/console/` and sign in with `admin` (or your chosen username) and the configured password.
+
+Add a provider and credential in the console. Test the credential, create a model route and gateway API key, then follow [Your first request](/getting-started/first-request/). Clients use your deployment URL, such as `https://gateway.example.com/v1`, and authenticate with the gateway API key.
+
+If Netlify, Vercel, or Deno returns 503, check the function logs and confirm that the database is attached, its connection string works, and the password and master key are set. The PostgreSQL account also needs permission to create the `gproxy` schema and application tables.
+
+## Updates and runtime limits
+
+Configuration, accounts, and usage live in the database. Keep the database and master key when updating. Each template pins its release in `prepare-release.mjs`, currently `v4.0.1`. To upgrade, change the version and redeploy; that release must include the matching platform bundles. Hosted deployments do not use the console's in-place binary updater.
+
+The Netlify, Vercel, and Deno templates support HTTP and SSE, but reject WebSocket upgrades. Long-running inference, large files, and high concurrency remain subject to platform limits. Check the current [Netlify Functions](https://docs.netlify.com/build/functions/overview/), [Vercel Functions](https://vercel.com/docs/functions/limitations), and [Deno Deploy](https://docs.deno.com/deploy/reference/limits/) allowances for your workload.
+
+These three templates do not configure file storage. For S3/R2 or publicly downloadable files, use a custom Workers build as described below, or the CLI. On Netlify, Vercel, and Deno, `GPROXY_PUBLIC_BASE_URL` can fix the public URL; otherwise it is derived from the request.
+
+## Manual Cloudflare deployment
+
+### Use a release bundle
+
+Download `gproxy-edge-cloudflare.zip`, extract it, and enter the `cloudflare` directory. It contains the Worker, console, and `wrangler.toml`.
+
+For D1, install dependencies and create the database:
 
 ```sh
 pnpm install
 pnpm exec wrangler d1 create gproxy
 ```
 
-Copy the returned database ID into `wrangler.toml`, keeping the binding name `DB`.
+Put the returned database ID in `wrangler.toml`, keeping the binding name `DB`:
 
 ```toml
 [[d1_databases]]
@@ -46,7 +133,7 @@ database_name = "gproxy"
 database_id = "replace-with-your-database-id"
 ```
 
-Save a 32-byte master key (64 hex digits or base64), then enter it as a secret:
+Set the master key and administrator password, then deploy:
 
 ```sh
 pnpm exec wrangler secret put GPROXY_MASTER_KEY
@@ -55,38 +142,18 @@ pnpm exec wrangler deploy --dry-run
 pnpm exec wrangler deploy
 ```
 
-Keep the master key and reuse it on subsequent deployments. Without it, credentials are stored unencrypted.
+For libSQL, set `GPROXY_DATABASE_URL` and `GPROXY_LIBSQL_TOKEN` and remove the unused D1 binding. The release bundle enables libSQL; retain that feature when building your own. GPROXY creates its tables on first startup, so no separate Wrangler SQL migrations are needed.
 
-Use the dry run to check the current bundle size against platform limits. Old WASM size measurements do not establish whether a new build fits.
+### Workers configuration and static assets
 
-## Configuration
-
-`GPROXY_CONFIG` is a JSON document; named secrets override the corresponding fields. Defaults use the `DB` D1 binding and database-backed cache.
+`GPROXY_CONFIG` accepts a JSON configuration document. Named secrets override their corresponding fields. This example uses D1 and sets a public URL:
 
 ```toml
 [vars]
-GPROXY_CONFIG = """
-{
-  "store": { "kind": "d1", "binding": "DB" },
-  "cache": { "kind": "store" },
-  "public_base_url": "https://gproxy.example.workers.dev"
-}
-"""
+GPROXY_CONFIG = '{"store":{"kind":"d1","binding":"DB"},"cache":{"kind":"store"},"public_base_url":"https://gateway.example.workers.dev"}'
 ```
 
-| Secret | Purpose |
-| --- | --- |
-| `GPROXY_ADMIN_PASSWORD` | Password override, at least 8 characters; targets a same-name user first, otherwise administrator `0` |
-| `GPROXY_MASTER_KEY` | Master key for credential encryption |
-| `GPROXY_LIBSQL_TOKEN` | libSQL / Turso token, when that backend is enabled |
-| `GPROXY_S3_ACCESS_KEY_ID` | S3 / R2 access identifier |
-| `GPROXY_S3_SECRET_ACCESS_KEY` | S3 / R2 secret key |
-
-For published files or vocabularies, configure S3/R2 file storage and enable `s3`. Set `public_base_url` when upstreams need public file links.
-
-## Console and routing
-
-The bundle includes the following Assets configuration. Non-console requests go to the Worker first, including configurable provider prefixes.
+Workers Assets serves the console. Keep the template's routing configuration so `/console/` uses static assets and other requests reach the gateway:
 
 ```toml
 [assets]
@@ -96,17 +163,11 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/*", "!/", "!/console", "!/console/*"]
 ```
 
-After the first request initializes the instance, sign in at `/console/` with `admin` and the configured password, then create a gateway API key. For an existing database, each Worker isolate applies the rule above on initialization. Removing the secret keeps existing accounts unchanged. Invalid passwords fail startup; a new database also requires the secret. `/healthz` is a health check, not a substitute for authentication and upstream-request validation.
+Workers supports D1 or libSQL, without local SQLite, TCP databases, or local file directories. For S3/R2, enable the `s3` feature at build time and set `GPROXY_S3_ACCESS_KEY_ID`, `GPROXY_S3_SECRET_ACCESS_KEY`, and the file-storage configuration. See the [configuration reference](/reference/configuration/) for the fields.
 
-## Database and configuration synchronization
+### Build from source
 
-Each isolate synchronizes the Store schema during first assembly, before loading configuration and identity. The current package does not depend on separate Wrangler SQL migration files; `wrangler d1 migrations apply` is not the GPROXY initialization step.
-
-Before each request, the instance checks the configuration revision and refreshes loaded state. Other isolates observe configuration writes on subsequent requests. Back up the database before upgrading and inspect first-request logs.
-
-## Build from source
-
-From the repository root:
+Run from the repository root:
 
 ```sh
 rustup target add wasm32-unknown-unknown
@@ -117,4 +178,12 @@ pnpm --dir deploy/cloudflare build
 pnpm --dir deploy/cloudflare check
 ```
 
-Validate the database, authentication, and at least one upstream call on Cloudflare before relying on the deployment. Compilation and a Wrangler dry run do not establish live functionality.
+See [Building from source](/deployment/release-build/) for build and packaging options.
+
+[cloudflare-auto]: https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button
+[cloudflare-external]: https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-external
+[netlify-auto]: https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless
+[netlify-external]: https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless#GPROXY_DATABASE_URL=
+[vercel-auto]: https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D
+[vercel-external]: https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY%2CGPROXY_DATABASE_URL
+[deno]: https://console.deno.com/new?clone=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&path=deploy%2Fserverless

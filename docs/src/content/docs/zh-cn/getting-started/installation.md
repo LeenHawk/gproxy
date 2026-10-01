@@ -1,12 +1,12 @@
 ---
 title: "安装"
-description: "选择 GPROXY 4.0 的应用、命令行程序、容器或 Cloudflare Workers 部署。"
+description: "选择 GPROXY 4.0 的应用、命令行程序、容器或托管平台部署。"
 ---
 
 
 日常在电脑上使用，选 **Application**；部署到服务器，选 **CLI** 或容器。两者使用相同的网关功能，主要区别是如何启动和管理。
 
-选择 [4.0.0 稳定版](https://github.com/LeenHawk/gproxy/releases/tag/v4.0.0)，再下载对应系统和架构的文件。滚动更新的 `nightly` 提供开发快照。
+选择 [最新稳定版](https://github.com/LeenHawk/gproxy/releases/latest)，再下载对应系统和架构的文件。滚动更新的 `nightly` 提供开发快照。
 
 ## 选择下载文件
 
@@ -75,9 +75,11 @@ docker logs gproxy
 
 从首次启动日志保存管理员信息，再打开 `/console/`。镜像以 `65532:65532` 运行；使用宿主机目录挂载时，需要给该用户写权限。数据保存在 `/app/data`，更新容器时保留数据卷。发布流水线构建 amd64、arm64、riscv64 的 GNU 和 musl 镜像。
 
-## Cloudflare Workers
+## 托管平台
 
-选择 `gproxy-edge-cloudflare.zip`，按[边缘部署](/zh-cn/deployment/edge/)配置数据库和 secrets 后部署。控制台由 Workers Assets 提供；WebSocket / Realtime 使用与原生部署相同的路由。
+Cloudflare Workers、Netlify、Vercel 和 Deno 都提供部署模板，无需本机 Rust 工具链。Cloudflare 可用 D1 或 libSQL/Turso，其他三个平台使用 PostgreSQL；需要 WebSocket / Realtime 时选 Cloudflare。
+
+部署按钮、数据库选择和首次登录步骤统一见[托管平台部署](/zh-cn/deployment/edge/)。需要手动部署 Workers 时，同一页也提供发布包和 Wrangler 的操作步骤。
 
 ## 从 v3 升级
 

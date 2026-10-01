@@ -213,6 +213,11 @@ export default defineConfig({
           translations: { 'zh-CN': '部署' },
           items: [
             {
+              label: 'Hosted Deployments',
+              slug: 'deployment/edge',
+              translations: { 'zh-CN': '托管平台部署' },
+            },
+            {
               label: 'Building from Source',
               slug: 'deployment/release-build',
               translations: { 'zh-CN': '从源码构建' },
@@ -221,11 +226,6 @@ export default defineConfig({
               label: 'Migrating v3 to v4',
               slug: 'deployment/v3-to-v4',
               translations: { 'zh-CN': '从 v3 迁移到 v4' },
-            },
-            {
-              label: 'Edge (Cloudflare Workers)',
-              slug: 'deployment/edge',
-              translations: { 'zh-CN': '边缘部署（Cloudflare Workers）' },
             },
           ],
         },

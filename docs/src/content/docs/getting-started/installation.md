@@ -1,12 +1,12 @@
 ---
 title: "Installation"
-description: "Choose a GPROXY 4.0 application, CLI, container, or Cloudflare Workers deployment."
+description: "Choose a GPROXY 4.0 application, CLI, container, or hosted deployment."
 ---
 
 
 Choose **Application** for a local graphical app, or **CLI** for a server. Both provide the same gateway features, with different startup and management interfaces.
 
-Select the stable [4.0.0 release](https://github.com/LeenHawk/gproxy/releases/tag/v4.0.0), then download the file for your OS and architecture. The rolling `nightly` release provides development snapshots.
+Select the [latest stable release](https://github.com/LeenHawk/gproxy/releases/latest), then download the file for your OS and architecture. The rolling `nightly` release provides development snapshots.
 
 ## Choose a package
 
@@ -75,9 +75,11 @@ docker logs gproxy
 
 Save the credentials from the first startup log and open `/console/`. The image runs as `65532:65532`; a bind-mounted directory must be writable by that user. Keep the `/app/data` volume when replacing a container. The release workflow builds GNU and musl images for amd64, arm64, and riscv64.
 
-## Cloudflare Workers
+## Hosted platforms
 
-Use `gproxy-edge-cloudflare.zip` and follow [Edge deployment](/deployment/edge/) to configure the database and secrets. Workers Assets serves the console. WebSocket / Realtime uses the same routes as native deployments.
+Cloudflare Workers, Netlify, Vercel, and Deno all have deployment templates that require no local Rust toolchain. Cloudflare supports D1 or libSQL/Turso; the other three use PostgreSQL. Choose Cloudflare for WebSocket / Realtime.
+
+See [Hosted deployments](/deployment/edge/) for deploy buttons, database choices, and first login. The same page also covers release bundles and Wrangler for manual Workers deployment.
 
 ## Upgrade from v3
 
