@@ -151,7 +151,7 @@ fn resources<'a, C: BatchConnectionTrait + Send + Sync>(
 ) -> (Resources<'a, C>, ResourceScope) {
     let target = &call.upstream.attempt().request.target;
     (
-        Resources::new(call.upstream.core(), call.upstream.limits(), call.limits),
+        Resources::new(call.core, call.upstream.limits(), call.limits),
         ResourceScope {
             scope: call.state_scope.scope.clone(),
             target: ExecutionTarget {

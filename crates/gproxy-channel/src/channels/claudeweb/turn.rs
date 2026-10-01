@@ -47,11 +47,30 @@ struct Parked {
     parked_at_ms: i64,
 }
 
-// SAFETY: wasm32-unknown-unknown is single-threaded and the JS-backed body
-// stream never leaves the thread that created it; the registry only needs
-// `Send` to satisfy the target-independent `BaseChannel: Send + Sync` bound.
+/// The registry needs `Send` to satisfy `BaseChannel: Send + Sync`. On
+/// wasm32 the JS-backed body stream is not `Send`; `SendWrapper` asserts the
+/// single-threaded runtime and panics rather than crossing a thread.
+#[cfg(not(target_arch = "wasm32"))]
+type Slot = Parked;
 #[cfg(target_arch = "wasm32")]
-unsafe impl Send for Parked {}
+type Slot = send_wrapper::SendWrapper<Parked>;
+
+#[cfg(not(target_arch = "wasm32"))]
+fn slot(parked: Parked) -> Slot {
+    parked
+}
+#[cfg(target_arch = "wasm32")]
+fn slot(parked: Parked) -> Slot {
+    send_wrapper::SendWrapper::new(parked)
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn unslot(slot: Slot) -> Parked {
+    slot
+}
+#[cfg(target_arch = "wasm32")]
+fn unslot(slot: Slot) -> Parked {
+    slot.take()
+}
 
 /// Live connections cannot be serialized into `ChannelState`, so they wait
 /// here, keyed by provider, credential and tool_use id. Entries older than
@@ -59,7 +78,7 @@ unsafe impl Send for Parked {}
 /// conversation behind them is discarded by claude.ai itself.
 #[derive(Default)]
 pub struct Registry {
-    parked: Mutex<HashMap<String, Parked>>,
+    parked: Mutex<HashMap<String, Slot>>,
 }
 
 impl Registry {
@@ -67,13 +86,13 @@ impl Registry {
         let now = parked.parked_at_ms;
         let mut map = self.parked.lock().unwrap_or_else(|e| e.into_inner());
         purge(&mut map, now);
-        map.insert(key, parked);
+        map.insert(key, slot(parked));
     }
 
     fn take(&self, key: &str, now: i64) -> Option<Parked> {
         let mut map = self.parked.lock().unwrap_or_else(|e| e.into_inner());
         purge(&mut map, now);
-        map.remove(key)
+        map.remove(key).map(unslot)
     }
 
     /// Continuations this instance currently holds; visible for tests.
@@ -86,7 +105,7 @@ impl Registry {
     }
 }
 
-fn purge(map: &mut HashMap<String, Parked>, now: i64) {
+fn purge(map: &mut HashMap<String, Slot>, now: i64) {
     let ttl = i64::try_from(CONTINUATION_SECS * 1000).unwrap_or(i64::MAX);
     map.retain(|_, parked| now.saturating_sub(parked.parked_at_ms) < ttl);
 }

@@ -264,7 +264,7 @@ pub(crate) async fn run<C: BatchConnectionTrait + Send + Sync>(
         max_output_bytes: call.limits.max_body_bytes,
         max_total_output_bytes: call.limits.max_body_bytes,
     };
-    let core = call.upstream.core();
+    let core = call.core;
     let resources = Resources::new(core, call.upstream.limits(), call.limits);
     let target = &attempt.request.target;
     let scope = ResourceScope {

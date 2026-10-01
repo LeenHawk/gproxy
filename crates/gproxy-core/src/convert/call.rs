@@ -1,7 +1,7 @@
 //! One conversion call: everything a family driver needs, assembled by the
 //! attempt loop once per attempt.
 
-use crate::{AttemptUpstream, ProtocolState, StateScope};
+use crate::{AttemptUpstream, Core, ProtocolState, StateScope};
 use gproxy_protocol::{
     Dialect, HttpBody, OperationKey, WireRequest, WireResponse,
     adapt::generate::GenerationStateAccess,
@@ -51,6 +51,9 @@ impl<'a> ClientRequest<'a> {
 }
 
 pub(crate) struct Call<'a, C> {
+    /// The engine, for families that need Store-backed capabilities beyond
+    /// the attempt-bound upstream (resources).
+    pub core: &'a Core<C>,
     pub upstream: &'a AttemptUpstream,
     /// The client's operation and dialect.
     pub client: OperationKey,
