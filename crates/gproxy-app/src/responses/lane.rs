@@ -566,14 +566,24 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
             } else {
                 CaptureOutcome::Complete
             };
-            self.finish(turn, outcome, value.as_ref()).await;
+            let saved = self.finish(turn, outcome, value.as_ref()).await;
             self.current = next;
+            if !saved {
+                self.disconnected(chain_id).await;
+                return;
+            }
         }
         self.reply(turn_id, frame).await;
     }
 
-    async fn finish(&mut self, mut turn: Turn, outcome: CaptureOutcome, terminal: Option<&Value>) {
+    async fn finish(
+        &mut self,
+        mut turn: Turn,
+        mut outcome: CaptureOutcome,
+        terminal: Option<&Value>,
+    ) -> bool {
         let _ = turn.usage.await;
+        let mut saved = true;
         if turn.original["store"] != false
             && let Some(id) = terminal.and_then(|v| v["response"]["id"].as_str())
             && let Some(chain) = self.chains.get(&turn.chain)
@@ -587,7 +597,20 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
             )
             .await
             {
-                tracing::error!(%error, "Responses continuation binding could not be saved");
+                saved = false;
+                outcome = CaptureOutcome::Failed {
+                    error: error.to_string(),
+                };
+                self.reply(
+                    Some(turn.id.clone()),
+                    super::error(
+                        500,
+                        self.lane.as_deref(),
+                        "continuation_unavailable",
+                        "could not save the response continuation",
+                    ),
+                )
+                .await;
             }
         }
         turn.admitted.release().await;
@@ -598,6 +621,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
                 outcome,
             })
             .await;
+        saved
     }
 
     async fn disconnected(&mut self, chain_id: &str) {
