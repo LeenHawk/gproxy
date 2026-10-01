@@ -42,7 +42,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n== the instance ==");
     println!("data directory  {}", data.path().display());
     println!("data plane      {}", plane.base_url);
-    println!("gateway key     {}", plane.gateway_key);
     println!("secrets sealed  {}", desktop.secrets().secrets_are_sealed());
 
     println!("\n== the data plane, over HTTP ==");
