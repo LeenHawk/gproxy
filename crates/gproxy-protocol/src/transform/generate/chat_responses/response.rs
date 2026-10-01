@@ -175,7 +175,9 @@ pub fn responses_to_chat_response(
             {
                 r::ResponseIncompleteReason::MaxOutputTokens
                 | r::ResponseIncompleteReason::MaxMessages => c::FinishReason::Length,
-                r::ResponseIncompleteReason::Steered => c::FinishReason::Stop,
+                r::ResponseIncompleteReason::Steered | r::ResponseIncompleteReason::Interrupted => {
+                    c::FinishReason::Stop
+                }
                 r::ResponseIncompleteReason::ContentFilter => c::FinishReason::ContentFilter,
             },
         )

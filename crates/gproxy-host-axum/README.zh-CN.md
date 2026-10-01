@@ -274,10 +274,16 @@ POST   /portal/api/oauth/device      批准或拒绝；需要登录会话或带�
 | `GET {mount}/v1/realtime` | `ConnectRealtime` / OpenAI | realtime 会话，可用 `?call_id=` 续接一次通话 |
 | `GET {mount}/v1/live` | `ConnectRealtime` / OpenAI | 同上，WebRTC 的那种写法 |
 | `GET {mount}/v1/live/{call_id}` | `ConnectRealtime` / OpenAI | 通话 id 写在路径里的续接 |
-| `GET {mount}/v1/responses/ws` | `GenerateContent` / OpenAI Responses-over-WS | Responses 的 websocket 信封 |
+| `GET {mount}/v1/responses` | `GenerateContent` / OpenAI Responses-over-WS | Responses websocket 会话 |
 | `GET {mount}/ws/v1beta/BidiGenerateContent` | `ConnectRealtime` / Gemini | Gemini Live |
 | `GET {mount}/backend-api/…` | 渠道的 `ServiceRoute`，`ServiceTransport::WebSocket` | Codex 的远程控制服务端 |
 
+Responses 在升级前认证，再根据每条 `response.create` 的模型执行准入和选路。
+不同 lane 可以并发，续接链保持目标绑定并复用原生连接。HTTP 桥接通过后续生成段支持
+上下文预热、中断、steering 和 injection。生成并发与用量按轮次计算，空闲连接不占生成
+名额；连接事件可关联 `WsTurn`，不重复保存消息体。
+
+下面的握手与租约规则针对 realtime 会话。
 三条 OpenAI realtime 路径正好是 `Core::connect_realtime_path` 会派发的那三条
 路由，有一个测试断言两张表一致。`POST /v1/realtime/calls` **不在**其中：SDP
 offer 是一个 HTTP multipart 请求，而续接它的握手根本不带体（从这里一路到

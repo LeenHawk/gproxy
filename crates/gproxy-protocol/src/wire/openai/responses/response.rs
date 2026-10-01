@@ -270,6 +270,8 @@ pub enum ResponseIncompleteReason {
     MaxMessages,
     #[serde(rename = "steered")]
     Steered,
+    #[serde(rename = "interrupted")]
+    Interrupted,
     #[serde(rename = "max_output_tokens")]
     MaxOutputTokens,
     #[serde(rename = "content_filter")]

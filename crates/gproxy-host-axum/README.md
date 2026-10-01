@@ -305,10 +305,18 @@ Anything that reaches the end is a 404.
 | `GET {mount}/v1/realtime` | `ConnectRealtime` / OpenAI | the realtime session, optionally continuing a call with `?call_id=` |
 | `GET {mount}/v1/live` | `ConnectRealtime` / OpenAI | the same, at the WebRTC spelling |
 | `GET {mount}/v1/live/{call_id}` | `ConnectRealtime` / OpenAI | the continuation with the call in the path |
-| `GET {mount}/v1/responses/ws` | `GenerateContent` / OpenAI Responses-over-WS | the Responses websocket envelope |
+| `GET {mount}/v1/responses` | `GenerateContent` / OpenAI Responses-over-WS | the Responses websocket session |
 | `GET {mount}/ws/v1beta/BidiGenerateContent` | `ConnectRealtime` / Gemini | Gemini Live |
 | `GET {mount}/backend-api/…` | a channel `ServiceRoute` with `ServiceTransport::WebSocket` | Codex's remote-control server |
 
+Responses authenticates before upgrading, then admits and routes each
+`response.create` by its model. Independent lanes run concurrently; continuation
+chains retain their target and reuse native sockets. HTTP bridges support
+context warmup, interruption, steering and injected inputs through subsequent
+HTTP segments. Generation permits and usage belong to turns, not idle sockets.
+Connection events can identify their `WsTurn` without duplicating frame bodies.
+
+The remaining handshake and lease rules below describe realtime sessions.
 The three OpenAI realtime paths are exactly the routes
 `Core::connect_realtime_path` dispatches, and a test asserts the two tables
 agree. `POST /v1/realtime/calls` is **not** among them: the SDP offer is an

@@ -31,6 +31,597 @@ use http::StatusCode;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use serde_json::json;
 use support::{Bound, Host, WsReply, get, keyed, with};
+
+async fn responses_instance(dialect: &str, concurrency: Option<i64>) -> Host {
+    use gproxy_store::entity::upstream::{provider, provider_model};
+    let host = instance(concurrency).await;
+    provider::Entity::update(provider::ActiveModel {
+        id: Set("p1".into()),
+        config: Set(json!({"test_dialect":dialect})),
+        ..Default::default()
+    })
+    .exec(host.handle().store().connection())
+    .await
+    .unwrap();
+    provider_model::Entity::update(provider_model::ActiveModel {
+        id: Set("p1-m1".into()),
+        metadata: Set(json!({"variants":["fast"]})),
+        ..Default::default()
+    })
+    .exec(host.handle().store().connection())
+    .await
+    .unwrap();
+    host.publish().await;
+    host
+}
+
+async fn ws_json(socket: &mut Socket) -> serde_json::Value {
+    match recv(socket).await {
+        Some(Message::Text(text)) => serde_json::from_str(&text).unwrap(),
+        message => panic!("expected JSON event, received {message:?}"),
+    }
+}
+
+async fn ws_send(socket: &mut Socket, value: serde_json::Value) {
+    socket
+        .send(Message::Text(value.to_string().into()))
+        .await
+        .unwrap();
+}
+
+fn sse(value: serde_json::Value) -> Bytes {
+    Bytes::from(format!("data: {value}\n\n"))
+}
+
+fn response_item(id: &str, text: &str) -> serde_json::Value {
+    json!({"id":id,"type":"message","role":"assistant","status":"completed",
+        "content":[{"type":"output_text","text":text,"annotations":[],"logprobs":[]}]})
+}
+
+fn finish_http_segment(
+    tx: tokio::sync::mpsc::UnboundedSender<Bytes>,
+    item: serde_json::Value,
+    input: u64,
+    output: u64,
+) {
+    tx.send(sse(
+        json!({"type":"response.output_item.done","output_index":0,"item":item}),
+    ))
+    .unwrap();
+    tx.send(sse(json!({"type":"response.completed","response":{"id":"native","status":"completed","output":[item],
+        "usage":{"input_tokens":input,"output_tokens":output,"total_tokens":input+output}}}))).unwrap();
+}
+
+async fn until_type(socket: &mut Socket, kind: &str) -> serde_json::Value {
+    for _ in 0..30 {
+        let event = ws_json(socket).await;
+        assert_ne!(event["type"], "error", "{event}");
+        assert_ne!(event["type"], "response.failed", "{event}");
+        if event["type"] == kind {
+            return event;
+        }
+    }
+    panic!("missing {kind}")
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn responses_injection_keeps_one_response_and_accounts_for_both_http_segments() {
+    let host = responses_instance("openai", Some(1)).await;
+    let (first, rx) = tokio::sync::mpsc::unbounded_channel();
+    let (second, rx2) = tokio::sync::mpsc::unbounded_channel();
+    host.client.script(vec![
+        support::Reply::Sse(StatusCode::OK, rx),
+        support::Reply::Sse(StatusCode::OK, rx2),
+    ]);
+    let bound = host.bind().await;
+    let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
+        .await
+        .unwrap();
+    ws_send(
+        &mut client,
+        json!({"type":"response.create","model":"p1/m1","input":"start","store":false}),
+    )
+    .await;
+    let created = ws_json(&mut client).await;
+    let id = created["response"]["id"].clone();
+    first.send(sse(json!({"type":"response.output_item.added","output_index":0,"item":response_item("a", "first")}))).unwrap();
+    until_type(&mut client, "response.output_item.added").await;
+    ws_send(&mut client, json!({"type":"response.inject","response_id":id,"input":[{"role":"user","content":"extra"}]})).await;
+    assert_eq!(
+        ws_json(&mut client).await["type"],
+        "response.inject.created"
+    );
+    finish_http_segment(first, response_item("a", "first"), 3, 2);
+    second.send(sse(json!({"type":"response.output_item.added","output_index":0,"item":response_item("b", "second")}))).unwrap();
+    let item = until_type(&mut client, "response.output_item.added").await;
+    assert_eq!(item["output_index"], 1);
+    finish_http_segment(second, response_item("b", "second"), 4, 1);
+    let end = until_type(&mut client, "response.completed").await;
+    assert_eq!(end["response"]["id"], id);
+    assert_eq!(end["response"]["output"].as_array().unwrap().len(), 2);
+    assert_eq!(end["response"]["usage"]["input_tokens"], 7);
+    let bodies = host.client.bodies();
+    assert_eq!(bodies.len(), 2);
+    assert_eq!(bodies[1]["input"].as_array().unwrap().len(), 3);
+    assert_eq!(bodies[1]["input"][2]["content"], "extra");
+    assert_eq!(usage_rows(&host).await.len(), 2);
+    ws_send(&mut client, json!({"type":"response.inject","response_id":id,"input":[{"role":"user","content":"too late"}]})).await;
+    let refused = ws_json(&mut client).await;
+    assert_eq!(refused["type"], "response.inject.failed");
+    assert_eq!(refused["error"]["code"], "response_already_completed");
+    client.close(None).await.unwrap();
+    let _ = recv(&mut client).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn responses_lanes_are_independent_and_an_unknown_model_does_not_close_the_socket() {
+    let host = responses_instance("openai_responses_websocket", Some(2)).await;
+    let upstream_a = host.client.accept_socket();
+    let upstream_b = host.client.accept_socket();
+    let bound = host.bind().await;
+    let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
+        .await
+        .unwrap();
+    ws_send(
+        &mut client,
+        json!({"type":"response.create","model":"missing-model","input":"no"}),
+    )
+    .await;
+    assert_eq!(ws_json(&mut client).await["type"], "error");
+    assert!(host.client.urls().is_empty());
+    ws_send(
+        &mut client,
+        json!({"type":"response.create","stream_id":"a","model":"p1/m1","input":"slow"}),
+    )
+    .await;
+    assert!(upstream_a.next().await.is_some());
+    ws_send(
+        &mut client,
+        json!({"type":"response.create","stream_id":"b","model":"p1/m1","input":"fast"}),
+    )
+    .await;
+    assert!(
+        tokio::time::timeout(Duration::from_secs(5), upstream_b.next())
+            .await
+            .unwrap()
+            .is_some()
+    );
+    upstream_b.send.send(Ok(WsFrame::Text(json!({"type":"response.completed","stream_id":"b",
+        "response":{"id":"b-response","status":"completed","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}).to_string()))).unwrap();
+    let response = ws_json(&mut client).await;
+    assert_eq!(response["stream_id"], "b", "lane a must not block lane b");
+    client.close(None).await.unwrap();
+    let _ = recv(&mut client).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn responses_steering_waits_for_real_tool_results_before_its_successor() {
+    let host = responses_instance("openai", Some(1)).await;
+    let (first, rx) = tokio::sync::mpsc::unbounded_channel();
+    let (second, rx2) = tokio::sync::mpsc::unbounded_channel();
+    host.client.script(vec![
+        support::Reply::Sse(StatusCode::OK, rx),
+        support::Reply::Sse(StatusCode::OK, rx2),
+    ]);
+    let bound = host.bind().await;
+    let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
+        .await
+        .unwrap();
+    ws_send(&mut client, json!({"type":"response.create","model":"p1/m1","input":"start","store":false,
+        "tools":[{"type":"function","name":"run","parameters":{"type":"object","properties":{}},"strict":false,"async":true}]})).await;
+    let response = ws_json(&mut client).await;
+    assert_eq!(response["type"], "response.created", "{response}");
+    let id = response["response"]["id"].clone();
+    let call = json!({"id":"fc","type":"function_call","call_id":"call","name":"run","arguments":"{}","status":"completed"});
+    first
+        .send(sse(
+            json!({"type":"response.output_item.added","output_index":0,"item":call}),
+        ))
+        .unwrap();
+    first
+        .send(sse(
+            json!({"type":"response.output_item.done","output_index":0,"item":call}),
+        ))
+        .unwrap();
+    let emitted = until_type(&mut client, "response.output_item.done").await;
+    assert_eq!(emitted["item"]["async"], true);
+    ws_send(
+        &mut client,
+        json!({"type":"response.steer","previous_response_id":id,"input":"explain the result"}),
+    )
+    .await;
+    let pending = until_type(&mut client, "response.steer.pending").await;
+    assert_eq!(pending["required_input"][0]["call_id"], "call");
+    assert_eq!(host.client.urls().len(), 1, "no tool result is invented");
+    ws_send(
+        &mut client,
+        json!({"type":"response.inject","response_id":id,
+        "input":[{"type":"function_call_output","call_id":"call","output":"42"}]}),
+    )
+    .await;
+    until_type(&mut client, "response.incomplete").await;
+    let next = until_type(&mut client, "response.created").await;
+    assert_ne!(next["response"]["id"], id);
+    finish_http_segment(second, response_item("answer", "42"), 5, 2);
+    until_type(&mut client, "response.completed").await;
+    let requests = host.client.bodies();
+    let input = requests[1]["input"].as_array().unwrap();
+    assert_eq!(input.len(), 4);
+    assert_eq!(input[1]["call_id"], "call");
+    assert_eq!(input[2]["output"], "42");
+    assert_eq!(input[3]["content"], "explain the result");
+    client.close(None).await.unwrap();
+    let _ = recv(&mut client).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn responses_checks_model_permission_after_upgrade_and_can_retry_after_policy_changes() {
+    let host = responses_instance("openai_responses_websocket", None).await;
+    support::person(&host.handle(), "bob", "user").await;
+    support::api_key(&host.handle(), "k-bob", "bob", None, None).await;
+    host.publish().await;
+    let bound = host.bind().await;
+    let mut client = dial(&bound, "/v1/responses", Some("k-bob")).await.unwrap();
+    ws_send(
+        &mut client,
+        json!({"type":"response.create","model":"p1/m1","input":"denied"}),
+    )
+    .await;
+    let denied = ws_json(&mut client).await;
+    assert_eq!(denied["status"], 403);
+    assert!(host.client.urls().is_empty());
+    support::allow(&host.handle(), "bob-permission", "bob", None).await;
+    host.publish().await;
+    let upstream = host.client.accept_socket();
+    ws_send(
+        &mut client,
+        json!({"type":"response.create","model":"p1/m1","input":"allowed"}),
+    )
+    .await;
+    assert!(
+        tokio::time::timeout(Duration::from_secs(5), upstream.next())
+            .await
+            .unwrap()
+            .is_some()
+    );
+    client.close(None).await.unwrap();
+    let _ = recv(&mut client).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn responses_native_steering_rejection_releases_its_reservation_and_successor_is_metered() {
+    let host = responses_instance("openai_responses_websocket", Some(1)).await;
+    let upstream = host.client.accept_socket();
+    let bound = host.bind().await;
+    let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
+        .await
+        .unwrap();
+    ws_send(
+        &mut client,
+        json!({"type":"response.create","model":"p1/m1","input":"start"}),
+    )
+    .await;
+    upstream.next().await.unwrap();
+    upstream
+        .send
+        .send(Ok(WsFrame::Text(
+            json!({"type":"response.created","response":{"id":"r1","status":"in_progress"}})
+                .to_string(),
+        )))
+        .unwrap();
+    until_type(&mut client, "response.created").await;
+    for attempt in 0..2 {
+        ws_send(&mut client, json!({"type":"response.steer","previous_response_id":"r1","input":"new direction","extension":true})).await;
+        let frame = tokio::time::timeout(Duration::from_secs(5), upstream.next())
+            .await
+            .unwrap()
+            .unwrap();
+        let WsFrame::Text(frame) = frame else {
+            panic!("text")
+        };
+        let frame: serde_json::Value = serde_json::from_str(&frame).unwrap();
+        assert_eq!(frame["type"], "response.steer");
+        assert_eq!(frame["extension"], true);
+        if attempt == 0 {
+            upstream
+                .send
+                .send(Ok(WsFrame::Text(
+                    json!({"type":"error","status":400,
+                "error":{"type":"invalid_request_error","message":"steering refused"}})
+                    .to_string(),
+                )))
+                .unwrap();
+            assert_eq!(ws_json(&mut client).await["type"], "error");
+        }
+    }
+    for event in [
+        json!({"type":"response.steer.accepted","sequence_number":1,"steer":{"id":"s","previous_response_id":"r1"}}),
+        json!({"type":"response.incomplete","response":{"id":"r1","status":"incomplete","incomplete_details":{"reason":"steered"},
+            "usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}}),
+        json!({"type":"response.created","response":{"id":"r2","status":"in_progress"}}),
+        json!({"type":"response.completed","response":{"id":"r2","status":"completed",
+            "usage":{"input_tokens":3,"output_tokens":2,"total_tokens":5}}}),
+    ] {
+        upstream
+            .send
+            .send(Ok(WsFrame::Text(event.to_string())))
+            .unwrap();
+    }
+    until_type(&mut client, "response.incomplete").await;
+    assert_eq!(
+        until_type(&mut client, "response.created").await["response"]["id"],
+        "r2"
+    );
+    until_type(&mut client, "response.completed").await;
+    assert_eq!(usage_rows(&host).await.len(), 2);
+    client.close(None).await.unwrap();
+    let _ = recv(&mut client).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn responses_independent_turns_can_select_different_providers_on_one_client_connection() {
+    use gproxy_store::entity::upstream::provider;
+    let host = responses_instance("openai_responses_websocket", Some(1)).await;
+    support::provider(&host.handle(), "p2", &["m2"]).await;
+    support::credential(&host.handle(), "c2", "p2", None, None, None).await;
+    provider::Entity::update(provider::ActiveModel {
+        id: Set("p2".into()),
+        config: Set(json!({"test_dialect":"openai_responses_websocket"})),
+        ..Default::default()
+    })
+    .exec(host.handle().store().connection())
+    .await
+    .unwrap();
+    host.publish().await;
+    let first = host.client.accept_socket();
+    let second = host.client.accept_socket();
+    let bound = host.bind().await;
+    let mut client = dial(&bound, "/v1/responses?key=k-alice", None)
+        .await
+        .unwrap();
+    for (upstream, provider, model) in [(&first, "p1", "m1"), (&second, "p2", "m2")] {
+        ws_send(
+            &mut client,
+            json!({"type":"response.create","model":format!("{provider}/{model}"),"input":"hello"}),
+        )
+        .await;
+        let WsFrame::Text(text) = tokio::time::timeout(Duration::from_secs(5), upstream.next())
+            .await
+            .unwrap()
+            .unwrap()
+        else {
+            panic!("text")
+        };
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&text).unwrap()["model"],
+            model
+        );
+        upstream
+            .send
+            .send(Ok(WsFrame::Text(
+                json!({"type":"response.completed","response":{"id":format!("{provider}-response"),
+            "status":"completed","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}})
+                .to_string(),
+            )))
+            .unwrap();
+        until_type(&mut client, "response.completed").await;
+    }
+    assert_eq!(
+        host.client.urls(),
+        vec![
+            "https://p1.example/v1/responses",
+            "https://p2.example/v1/responses"
+        ]
+    );
+    client.close(None).await.unwrap();
+    let _ = recv(&mut client).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn responses_upstream_handshake_refusal_is_a_structured_error_after_client_upgrade() {
+    let host = responses_instance("openai_responses_websocket", None).await;
+    host.client.push_socket(WsReply::Rejected(StatusCode::TOO_MANY_REQUESTS, json!({
+        "error":{"type":"rate_limit_error","code":"insufficient_quota","message":"quota exhausted"}
+    })));
+    let bound = host.bind().await;
+    let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
+        .await
+        .unwrap();
+    ws_send(
+        &mut client,
+        json!({"type":"response.create","stream_id":"quota","model":"p1/m1","input":"hi"}),
+    )
+    .await;
+    let error = ws_json(&mut client).await;
+    assert_eq!(error["status"], 429);
+    assert_eq!(error["stream_id"], "quota");
+    assert_eq!(error["error"]["code"], "insufficient_quota");
+    assert_eq!(error["error"]["message"], "quota exhausted");
+    assert!(usage_rows(&host).await.is_empty());
+    client.close(None).await.unwrap();
+    let _ = recv(&mut client).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn responses_selects_from_first_frame_reuses_native_socket_and_settles_each_turn() {
+    let host = responses_instance("openai_responses_websocket", Some(1)).await;
+    let upstream = host.client.accept_socket();
+    let bound = host.bind().await;
+    let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
+        .await
+        .unwrap();
+    assert!(
+        host.client.urls().is_empty(),
+        "upgrade does not select an upstream"
+    );
+    for (id, previous) in [("r1", None), ("r2", Some("r1"))] {
+        ws_send(
+            &mut client,
+            json!({"type":"response.create","model":"p1/fast","input":"hello",
+            "previous_response_id":previous,"opaque_extension":{"keep":true}}),
+        )
+        .await;
+        let frame = tokio::time::timeout(Duration::from_secs(5), upstream.next())
+            .await
+            .unwrap()
+            .unwrap();
+        let WsFrame::Text(text) = frame else {
+            panic!("text")
+        };
+        let sent: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(sent["model"], "m1");
+        assert_eq!(sent["opaque_extension"]["keep"], true);
+        upstream
+            .send
+            .send(Ok(WsFrame::Text(
+                json!({"type":"response.created","response":{"id":id,"status":"in_progress"}})
+                    .to_string(),
+            )))
+            .unwrap();
+        upstream
+            .send
+            .send(Ok(WsFrame::Text(
+                json!({"type":"response.completed","response":{"id":id,"status":"completed",
+            "usage":{"input_tokens":3,"output_tokens":2,"total_tokens":5}}})
+                .to_string(),
+            )))
+            .unwrap();
+        assert_eq!(ws_json(&mut client).await["type"], "response.created");
+        assert_eq!(ws_json(&mut client).await["type"], "response.completed");
+    }
+    assert_eq!(
+        host.client.urls().len(),
+        1,
+        "the continuation reuses the physical connection"
+    );
+    assert_eq!(
+        usage_rows(&host).await.len(),
+        2,
+        "usage is settled before socket closure"
+    );
+    client.close(None).await.unwrap();
+    let _ = recv(&mut client).await;
+    settled(&host).await;
+    assert_eq!(usage_rows(&host).await.len(), 2);
+    let captures = records(&host).await;
+    assert_eq!(
+        captures
+            .iter()
+            .filter(|r| r.kind == capture_record::CaptureKind::WsConnection)
+            .count(),
+        1
+    );
+    assert_eq!(
+        captures
+            .iter()
+            .filter(|r| r.kind == capture_record::CaptureKind::WsTurn)
+            .count(),
+        2
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn responses_bridge_warmup_has_no_generation_and_store_false_continues_then_interrupts() {
+    let host = instance(Some(1)).await;
+    let bound = host.bind().await;
+    let mut client = dial(&bound, "/p1/v1/responses", Some("k-alice"))
+        .await
+        .unwrap();
+    ws_send(&mut client, json!({"type":"response.create","model":"m1","input":"warm context","store":false,"generate":false})).await;
+    let created = ws_json(&mut client).await;
+    assert_eq!(created["type"], "response.created", "{created}");
+    let warm = ws_json(&mut client).await;
+    assert_eq!(warm["type"], "response.completed");
+    assert!(host.client.urls().is_empty());
+    assert!(warm["response"]["usage"].is_null());
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    host.client.push(support::Reply::Sse(StatusCode::OK, rx));
+    ws_send(
+        &mut client,
+        json!({"type":"response.create","model":"m1","input":"continue","store":false,
+        "previous_response_id":warm["response"]["id"]}),
+    )
+    .await;
+    let created = ws_json(&mut client).await;
+    assert_eq!(created["type"], "response.created", "{created}");
+    tx.send(sse(
+        json!({"type":"response.output_item.added","output_index":0,"item":{
+        "id":"partial","type":"message","role":"assistant","status":"in_progress","content":[]}}),
+    ))
+    .unwrap();
+    tx.send(sse(json!({"type":"response.output_text.delta","item_id":"partial","output_index":0,"content_index":0,"delta":"unfinished"}))).unwrap();
+    assert_eq!(
+        ws_json(&mut client).await["type"],
+        "response.output_item.added"
+    );
+    assert_eq!(
+        ws_json(&mut client).await["type"],
+        "response.output_text.delta"
+    );
+    let bodies = host.client.bodies();
+    assert_eq!(bodies.len(), 1);
+    assert_eq!(bodies[0]["model"], "m1");
+    assert_eq!(bodies[0]["input"][0]["content"], "warm context");
+    assert_eq!(bodies[0]["input"][1]["content"], "continue");
+    ws_send(&mut client, json!({"type":"response.interrupt","response_id":created["response"]["id"],"mode":"discard_partial_items"})).await;
+    assert_eq!(
+        ws_json(&mut client).await["type"],
+        "response.interrupt.accepted"
+    );
+    assert_eq!(
+        ws_json(&mut client).await["type"],
+        "response.output_item.interrupted"
+    );
+    let end = ws_json(&mut client).await;
+    assert_eq!(end["type"], "response.incomplete", "{end}");
+    assert_eq!(
+        end["response"]["incomplete_details"]["reason"],
+        "interrupted"
+    );
+    assert_eq!(end["response"]["output"], json!([]));
+    client.close(None).await.unwrap();
+    let _ = recv(&mut client).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn responses_stored_history_and_target_survive_reconnection_but_store_false_does_not() {
+    let host = responses_instance("openai", None).await;
+    let bound = host.bind().await;
+    for stored in [true, false] {
+        let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
+            .await
+            .unwrap();
+        ws_send(&mut client, json!({"type":"response.create","model":"p1/m1","input":"saved","generate":false,"store":stored})).await;
+        until_type(&mut client, "response.created").await;
+        let previous =
+            until_type(&mut client, "response.completed").await["response"]["id"].clone();
+        client.close(None).await.unwrap();
+        let _ = recv(&mut client).await;
+        let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
+            .await
+            .unwrap();
+        ws_send(
+            &mut client,
+            json!({"type":"response.create","model":"p1/m1","input":"next",
+            "previous_response_id":previous,"generate":false,"store":stored}),
+        )
+        .await;
+        let event = ws_json(&mut client).await;
+        if stored {
+            assert_eq!(event["type"], "response.created", "{event}");
+            until_type(&mut client, "response.completed").await;
+        } else {
+            assert_eq!(event["type"], "error", "{event}");
+            assert_eq!(event["status"], 400);
+        }
+        client.close(None).await.unwrap();
+        let _ = recv(&mut client).await;
+    }
+    assert!(
+        host.client.urls().is_empty(),
+        "all four requests are local context warmups"
+    );
+}
 use tokio_tungstenite::tungstenite::{
     Message,
     client::IntoClientRequest,

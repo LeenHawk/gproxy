@@ -157,7 +157,7 @@ call, and a rejected native answer re-enters the same classification.
 
 | Family | Coverage |
 |---|---|
-| Generate | All twelve dialect pairs, buffered and streamed; Chat `n` / Gemini `candidateCount` fan out into journaled child calls; Chat, Claude and Gemini clients over a Responses WebSocket upstream; Responses WebSocket clients served turn by turn over Chat, Claude or Gemini HTTP upstreams |
+| Generate | All twelve dialect pairs, buffered and streamed; Chat `n` / Gemini `candidateCount` fan out into journaled child calls; Responses HTTP/SSE, Chat, Claude and Gemini clients over a Responses WebSocket upstream; managed Responses sessions over Responses, Chat, Claude or Gemini HTTP streams, with context warmup, interruption, steering and injection |
 | Models | List and get across OpenAI, Claude and Gemini using provider model supplements |
 | Count tokens | Claude and Gemini targets; OpenAI as a target is deliberately unsupported |
 | Embeddings | OpenAI ↔ Gemini, single and batch |

@@ -147,6 +147,47 @@ impl ResponsesHistoryCache {
         cache.entries.push_back((snapshot, state.expires_at, size));
         Ok(())
     }
+
+    /// Expand a Responses request for a connection-owned orchestration layer.
+    /// No generation is sent and previous instructions are not inherited.
+    pub async fn expand<S: StateStore>(
+        &self,
+        request: &r::GenerateContentRequestBody,
+        state: &GenerationStateAccess<'_, S>,
+        limits: crate::codec::CodecLimits,
+    ) -> Result<r::GenerateContentRequestBody, TransformError> {
+        self.bind(&super::binding::StateBinding::new(state), state)?;
+        let (_, expanded) = History::prepare_with_cache(request, state, limits, Some(self)).await?;
+        Ok(expanded)
+    }
+
+    /// Save the actual ordered transcript of a gateway response. This also
+    /// supports warmup and interrupted responses without inventing a native
+    /// generation or duplicating the output of earlier HTTP segments.
+    pub async fn save_transcript<S: StateStore>(
+        &self,
+        response_id: &str,
+        input: Vec<r::input::InputItem>,
+        store: bool,
+        state: &GenerationStateAccess<'_, S>,
+        limits: crate::codec::CodecLimits,
+    ) -> Result<(), TransformError> {
+        self.bind(&super::binding::StateBinding::new(state), state)?;
+        let snapshot = Snapshot {
+            schema: 1,
+            response_id: response_id.into(),
+            input,
+            output: vec![],
+        };
+        let payload = crate::codec::encode_json(&snapshot, limits).map_err(super::codec_error)?;
+        if store {
+            if payload.len() as u64 > state.store.limits().write_bytes {
+                return Err(super::limit("Responses history write budget exceeded"));
+            }
+            write(state, &key(state, response_id), payload.to_vec()).await?;
+        }
+        self.save(snapshot, state, payload.len())
+    }
 }
 
 fn key<S: StateStore>(state: &GenerationStateAccess<'_, S>, id: &str) -> String {
@@ -170,7 +211,7 @@ fn items(input: Option<r::input::Input>) -> Vec<r::input::InputItem> {
     }
 }
 
-fn output_item(
+pub(crate) fn output_item(
     item: r::response::ResponseOutputItem,
 ) -> Result<r::input::InputItem, TransformError> {
     use r::{input::InputItem as I, response::ResponseOutputItem as O};
@@ -199,6 +240,14 @@ fn output_item(
             ));
         }
     })
+}
+
+/// Preserve the concrete Responses history variant when replaying completed
+/// output. In particular, do not deserialize through the untagged input union.
+pub fn response_output_as_input(
+    item: r::response::ResponseOutputItem,
+) -> Result<r::input::InputItem, TransformError> {
+    output_item(item)
 }
 
 impl History {

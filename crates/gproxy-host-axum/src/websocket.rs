@@ -1,6 +1,10 @@
 //! WebSocket upgrades: the handshake, the duplex pump and what a socket holds
 //! open while it runs.
 //!
+//! Responses is handled by [`responses`]: its model arrives after the upgrade,
+//! so the application admits and settles individual turns. The admission and
+//! connection-lease rules below describe the realtime passthrough path.
+//!
 //! # Nothing is upgraded before it is allowed
 //!
 //! An accepted socket is an answer. A client that sees `101` believes it is
@@ -146,6 +150,34 @@ pub async fn extract(
 /// The extracted handshake, so a caller cannot confuse it with anything else
 /// and cannot accidentally accept it without a decision.
 pub struct Upgrade(WebSocketUpgrade);
+
+/// Responses names its model in the first message, after the HTTP upgrade.
+pub fn responses<C: BatchConnectionTrait + Send + Sync + 'static>(
+    app: Arc<App<C>>,
+    upgrade: Upgrade,
+    caller: Caller,
+    request: DataPlaneRequest,
+    prefix: Option<String>,
+    max_frame_bytes: u64,
+    mut cancel: CancelOnDrop,
+) -> Response {
+    match app.open_responses(caller, request, prefix) {
+        Ok(socket) => {
+            let trailer = Trailer::service(app, None, cancel);
+            accept(
+                upgrade,
+                socket,
+                max_frame_bytes,
+                Some(trailer),
+                &HeaderMap::new(),
+            )
+        }
+        Err(error) => {
+            cancel.disarm();
+            crate::ErrorResponse(error).into_response()
+        }
+    }
+}
 
 impl std::fmt::Debug for Upgrade {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

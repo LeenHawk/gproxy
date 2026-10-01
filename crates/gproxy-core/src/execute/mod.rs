@@ -13,9 +13,12 @@ pub(crate) mod prepare;
 mod stream;
 mod websocket;
 
+pub(crate) use attempt::reject_when_over_budget as check_budget;
 pub(crate) use attempt::run_http;
 pub(crate) use exchange::{Exchange, ObservedClient};
 pub(crate) use funnel::Funnel;
+pub(crate) use websocket::observe_generation_socket;
+pub(crate) use websocket::run_responses_websocket;
 pub(crate) use websocket::run_websocket;
 
 pub(crate) use native::NativeCall;

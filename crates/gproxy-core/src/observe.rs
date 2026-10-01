@@ -44,6 +44,11 @@ pub enum CaptureDirection {
 /// One observed unit of a physical upstream exchange. Bytes are borrowed for
 /// the duration of the call; chunks are transport chunks, not decoded events.
 pub enum CaptureEvent<'a> {
+    /// A generation carried by an existing physical WebSocket connection.
+    TurnStart {
+        connection_id: &'a str,
+        lane: Option<&'a str>,
+    },
     RequestHead {
         method: &'a Method,
         uri: &'a Uri,
@@ -59,6 +64,7 @@ pub enum CaptureEvent<'a> {
     Frame {
         direction: CaptureDirection,
         frame: &'a WsFrame,
+        turn_id: Option<&'a str>,
     },
 }
 
@@ -77,6 +83,10 @@ pub enum CaptureEnd {
 /// Recording failures are the host's concern and must not fail the request.
 pub trait CaptureSink: Send {
     fn record(&mut self, sequence: u64, event: CaptureEvent<'_>);
+    /// Persist the parent before a WS turn can reference its capture ID.
+    fn flush(&self) -> CapabilityFuture<'static, ()> {
+        Box::pin(async {})
+    }
     /// Native usage for this physical exchange, independent of body logging.
     fn usage(&mut self, _usage: &gproxy_channel::channel::NormalizedUsage) {}
     /// Channel classification; independent of whether usage/body capture is enabled.

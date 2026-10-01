@@ -20,6 +20,8 @@ pub enum ClientEvent {
     ResponseCreate(GenerateContentRequestBody),
     #[serde(rename = "response.steer")]
     ResponseSteer(super::steering::SteerRequest),
+    #[serde(rename = "response.interrupt")]
+    ResponseInterrupt(InterruptRequest),
 }
 
 /// Generation and steering have distinct lifecycles on the same connection.
@@ -36,9 +38,64 @@ pub enum ClientEvent {
 // Match the by-value event DTOs used by native generation streams.
 #[allow(clippy::large_enum_variant)]
 pub enum ServerEvent {
+    Interrupt(InterruptEvent),
     Injection(super::multi_agent::InjectionEvent),
     Steering(super::steering::SteeringEvent),
     Response(StreamEvent),
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+pub struct InterruptRequest {
+    pub response_id: String,
+    pub mode: InterruptMode,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum InterruptMode {
+    DiscardPartialItems,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(tag = "type")]
+pub enum InterruptEvent {
+    #[serde(rename = "response.interrupt.accepted")]
+    Accepted {
+        response_id: String,
+        sequence_number: i64,
+    },
+    #[serde(rename = "response.output_item.interrupted")]
+    OutputItem {
+        response_id: String,
+        item_id: String,
+        output_index: i64,
+        sequence_number: i64,
+    },
 }
 pub type HandshakeRequest = crate::WireRequest<()>;
 pub type HandshakeResponse = crate::WireResponse<()>;

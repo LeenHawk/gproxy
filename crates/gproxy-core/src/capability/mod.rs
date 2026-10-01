@@ -207,7 +207,8 @@ impl Upstream for AttemptUpstream {
                 self.limits,
                 now_ms(),
             );
-            let observed = ObservedClient::new(credential.websocket_client.clone(), exchange);
+            let observed =
+                ObservedClient::new(credential.websocket_client.clone(), exchange.clone());
             let endpoint = provider.operation_url_for(
                 *target,
                 EndpointTransport::WebSocket,
@@ -222,10 +223,24 @@ impl Upstream for AttemptUpstream {
             .state(self.channel_state.clone())
             .instance(self.instance_id.clone())
             .endpoint(endpoint.as_deref());
-            binding
+            let connection = binding
                 .connect(*target, request)
                 .await
-                .map_err(channel_error)
+                .map_err(channel_error)?;
+            Ok(match connection {
+                UpstreamConnection::Connected { handshake, socket } => {
+                    UpstreamConnection::Connected {
+                        handshake,
+                        socket: crate::execute::observe_generation_socket(
+                            exchange,
+                            socket,
+                            &request_rules,
+                            self.limits.ws_frame_bytes,
+                        ),
+                    }
+                }
+                rejected => rejected,
+            })
         })
     }
 

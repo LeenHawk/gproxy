@@ -69,6 +69,7 @@ one load, one request.
 | `auth` | the three ways a request names a caller, and the `Caller` all three produce |
 | `admission` | `Caller` → `Admitted`: providers, credentials, budget owners, scope, session, rate-limit charges |
 | `call` | `DataPlaneRequest` → `CallOutcome`: admit, then run the engine with exactly what was admitted |
+| `responses` | Native-host Responses WS sessions: model-bearing turns, independent lanes, continuation bindings and per-turn admission |
 | `service` | vendor CLI services: which credentials are in the target, and what role the caller has over them |
 | `capture` | the `downstream_records` row and its events; `capture_links` associates upstream calls |
 | `publication` | `AppPublicationUrl`, plus the read and delete behind the host's download route |
@@ -353,7 +354,8 @@ even a lost release self-heals at the boundary.
 
 ## The data plane
 
-`App::call` and `App::connect` are the whole bridge to the engine: admit, then
+`App::call` and `App::connect` bridge individual HTTP calls and preselected
+WebSocket handshakes to the engine: admit, then
 drive the handle's builder with every value out of the `Admitted` — scope,
 attribution, budget owners, the provider set, the credential set, the session —
 and with nothing that was not decided there. The engine never sees a `Caller`,
@@ -366,6 +368,16 @@ exist in both places) and then passed to the builder explicitly, so the name
 permissions and rate limits were decided against is the name resolution uses.
 A dialect that carries the model in the path instead — the Gemini shape — has
 already been parsed by the host, which sets `DataPlaneRequest::model`.
+
+On native hosts, `App::open_responses` returns a duplex session before selecting
+an upstream. It retains the authenticated caller and original handshake;
+each `response.create` supplies the model for the normal admission and SDK
+resolver. Independent lanes run concurrently. Continuations keep their target,
+while new chains can select another provider. Each turn holds its own leases
+and completion; an idle connection holds no generation permit. HTTP bridges
+use the same session for warmup, interruption, steering successors and injected
+inputs between generation segments. Upstream streams still use the existing
+concrete protocol adapters and physical-usage observation.
 
 The gateway's session header is stripped before forwarding, here as well as
 inside the handle. A client must not be able to choose another caller's
@@ -491,11 +503,13 @@ directions of ... the entire WS connection, including control messages and
 concurrent turns". So a socket is **one** record with an ordered event list
 across both directions, not one record per exchange.
 
-`turn_id` is left unset. The column identifies "the WS business turn, when
+For opaque realtime forwarding, `turn_id` is left unset. The column identifies "the WS business turn, when
 identifiable", and a turn is a dialect's notion — OpenAI's
 `response.created`/`response.done`, Gemini Live's own — which a host forwarding
 opaque frames cannot see. Inventing a boundary the wire did not draw would put
-a `WsTurn` record in the log that nothing produced.
+a `WsTurn` record in the log that nothing produced. Managed Responses sessions
+do identify their turns: they write `WsTurn` records linked to the connection,
+and tag connection events without copying their payload into the turn record.
 
 Frames are gated on `enable_downstream_log_body` like any other body. When enabled,
 all received frames are retained and written when the socket ends.

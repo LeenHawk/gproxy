@@ -136,7 +136,10 @@ impl Exchange {
     }
 
     pub fn record(&self, event: CaptureEvent<'_>) {
-        if matches!(&event, CaptureEvent::RequestHead { .. }) {
+        if matches!(
+            &event,
+            CaptureEvent::RequestHead { .. } | CaptureEvent::TurnStart { .. }
+        ) {
             *self.closed.lock().unwrap() = Some(self.funnel.open_exchange());
             let policy = self.funnel.policy().capture;
             if policy != CapturePolicy::Off {
@@ -170,6 +173,18 @@ impl Exchange {
         // Long-lived sockets must expose a discovered reason before they close.
         if let Some(sink) = self.capture.lock().unwrap().as_mut() {
             sink.reason(reason);
+        }
+    }
+
+    pub async fn flush_capture(&self) {
+        let pending = self
+            .capture
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|sink| sink.flush());
+        if let Some(pending) = pending {
+            pending.await;
         }
     }
 

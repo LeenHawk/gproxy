@@ -177,7 +177,9 @@ fn convert_to_claude(
             {
                 r::ResponseIncompleteReason::MaxOutputTokens
                 | r::ResponseIncompleteReason::MaxMessages => c::StopReason::MaxTokens,
-                r::ResponseIncompleteReason::Steered => c::StopReason::EndTurn,
+                r::ResponseIncompleteReason::Steered | r::ResponseIncompleteReason::Interrupted => {
+                    c::StopReason::EndTurn
+                }
                 r::ResponseIncompleteReason::ContentFilter => c::StopReason::Refusal,
             },
         )

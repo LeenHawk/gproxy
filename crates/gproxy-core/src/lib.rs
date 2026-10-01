@@ -31,6 +31,8 @@ pub mod pricing;
 pub mod publication;
 mod quota;
 pub mod realtime;
+pub mod responses;
+pub use responses::{ResponsesBinding, ResponsesSession};
 mod refresh;
 pub mod rewrite;
 mod rt;
