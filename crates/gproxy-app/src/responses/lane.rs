@@ -114,6 +114,19 @@ pub(super) async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
     async fn command(&mut self, message: Message) {
         let kind = message.value["type"].as_str().unwrap_or("");
+        if !matches!(kind, "response.create" | "response.steer")
+            && let Some(turn) = &self.current
+            && turn.capture.is_some()
+            && let Some(sequence) = message.capture_sequence
+        {
+            let _ = self
+                .events
+                .send(Event::RequestTurn {
+                    sequence,
+                    turn: turn.id.clone(),
+                })
+                .await;
+        }
         if kind == "response.create" {
             if self.current.is_some() {
                 self.reply(
@@ -235,6 +248,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
                 value: body,
                 text: message.text.clone(),
                 request_id: message.request_id,
+                capture_sequence: message.capture_sequence,
             };
             if !self.create(next, true).await {
                 return;
@@ -279,6 +293,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
             &self.context.request.request_id,
             self.lane.as_deref(),
         );
+        if capture.is_some()
+            && let Some(sequence) = message.capture_sequence
+        {
+            let _ = self
+                .events
+                .send(Event::RequestTurn {
+                    sequence,
+                    turn: message.request_id.clone(),
+                })
+                .await;
+        }
         let result = self.prepare(&request, &message.value, pending).await;
         let (chain_id, mut admitted, usage) = match result {
             Ok(value) => value,

@@ -464,7 +464,7 @@ impl DownstreamCapture {
     /// [`DownstreamCapture::record_response_chunk`]: a frame *is* the body of
     /// a socket, so it is gated by the body switch rather than by a third one.
     pub fn record_frame(&mut self, direction: CaptureDirection, frame: CapturedFrame<'_>) {
-        self.record_turn_frame(direction, frame, None);
+        let _ = self.record_turn_frame(direction, frame, None);
     }
 
     pub(crate) fn record_turn_frame(
@@ -472,9 +472,9 @@ impl DownstreamCapture {
         direction: CaptureDirection,
         frame: CapturedFrame<'_>,
         turn_id: Option<&str>,
-    ) {
+    ) -> Option<usize> {
         if !self.switches.downstream_log_body {
-            return;
+            return None;
         }
         // The socket's bodies are the events, not the inline columns. Said on
         // the first frame rather than at the handshake, so a socket that
@@ -492,6 +492,11 @@ impl DownstreamCapture {
             payload: Set(payload),
             observed_at_ms: Set(now_ms()),
         });
+        Some(self.events.len() - 1)
+    }
+
+    pub(crate) fn associate_turn(&mut self, sequence: usize, turn: String) {
+        self.events[sequence].turn_id = Set(Some(turn));
     }
 
     /// Await usage settlement before persisting the downstream log and events.
