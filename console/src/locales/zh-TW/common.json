@@ -44,6 +44,7 @@
     "useCustom": "使用「{{value}}」",
     "choose": "請選擇…",
     "invalidJson": "JSON 格式不正確，請檢查後重試。",
+    "credentialSecretHint": "API Key 驗證可直接貼上單個金鑰，也可填寫 JSON；其他驗證方式請填寫 JSON。",
     "unset": "繼承"
   },
   "pagination": {
@@ -209,7 +210,7 @@
     "config": "設定（JSON）",
     "label": "名稱",
     "authKind": "驗證方式",
-    "secret": "金鑰資料（JSON）",
+    "secret": "金鑰資料",
     "metadata": "中繼資料（JSON）",
     "status": "狀態",
     "upstreamName": "上游模型",

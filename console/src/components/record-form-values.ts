@@ -27,6 +27,8 @@ export type FormField = {
   createOnly?: boolean
   /** The patch clears this column with `null` rather than omitting it. */
   nullable?: boolean
+  /** Parse an input using the form's current values. */
+  parse?: (text: string, values: FormValues) => unknown
 }
 
 export type FormValues = Record<string, string | boolean>
@@ -41,7 +43,7 @@ export function readValue(field: FormField, row: Record<string, unknown> | undef
   return String(raw)
 }
 
-function writeValue(field: FormField, value: string | boolean): unknown {
+function writeValue(field: FormField, value: string | boolean, values: FormValues): unknown {
   if (field.kind === "switch") return Boolean(value)
   const text = String(value)
   if (field.kind === "lines") {
@@ -49,6 +51,7 @@ function writeValue(field: FormField, value: string | boolean): unknown {
     return entries.length ? entries : null
   }
   if (!text.trim()) return null
+  if (field.parse) return field.parse(text, values)
   if (field.kind === "json" || field.kind === "proxy") return JSON.parse(text) as unknown
   if (field.kind === "number") {
     const parsed = Number(text)
@@ -62,7 +65,7 @@ function writeValue(field: FormField, value: string | boolean): unknown {
 export function buildWrite(fields: ReadonlyArray<FormField>, values: FormValues) {
   const body: Record<string, unknown> = {}
   for (const field of fields) {
-    const value = writeValue(field, values[field.name])
+    const value = writeValue(field, values[field.name], values)
     if (value !== null) body[field.name] = value
   }
   return body
@@ -79,7 +82,7 @@ export function buildPatch(
     if (field.createOnly) continue
     const before = readValue(field, original)
     if (values[field.name] === before) continue
-    const value = writeValue(field, values[field.name])
+    const value = writeValue(field, values[field.name], values)
     // A non-nullable column has nothing to say about an emptied input; the
     // server would reject `null` anyway, so it is left alone.
     if (value === null && !field.nullable) continue
