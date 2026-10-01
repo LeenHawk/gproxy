@@ -491,11 +491,14 @@ async fn responses_selects_from_first_frame_reuses_native_socket_and_settles_eac
     settings(
         &host,
         gproxy_sdk::dto::SettingsPatch {
+            instance: Some(gproxy_sdk::dto::InstanceSettingsPatch {
+                stream_idle_timeout_ms: Some(500),
+                ..Default::default()
+            }),
             logging: Some(gproxy_sdk::dto::LoggingSettingsPatch {
                 enable_downstream_log_body: Some(true),
                 ..Default::default()
             }),
-            ..Default::default()
         },
     )
     .await;
@@ -553,8 +556,8 @@ async fn responses_selects_from_first_frame_reuses_native_socket_and_settles_eac
         2,
         "usage is settled before socket closure"
     );
-    client.close(None).await.unwrap();
-    let _ = recv(&mut client).await;
+    assert!(matches!(recv(&mut client).await, Some(Message::Close(_))));
+    assert!(matches!(upstream.next().await, Some(WsFrame::Close(_))));
     settled(&host).await;
     assert_eq!(usage_rows(&host).await.len(), 2);
     let captures = records(&host).await;
@@ -665,6 +668,17 @@ async fn responses_bridge_warmup_has_no_generation_and_store_false_continues_the
 #[tokio::test(flavor = "multi_thread")]
 async fn responses_stored_history_and_target_survive_reconnection_but_store_false_does_not() {
     let host = responses_instance("openai", None).await;
+    settings(
+        &host,
+        gproxy_sdk::dto::SettingsPatch {
+            instance: Some(gproxy_sdk::dto::InstanceSettingsPatch {
+                stream_idle_timeout_ms: Some(500),
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+    )
+    .await;
     let bound = host.bind().await;
     for stored in [true, false] {
         let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
@@ -674,8 +688,9 @@ async fn responses_stored_history_and_target_survive_reconnection_but_store_fals
         until_type(&mut client, "response.created").await;
         let previous =
             until_type(&mut client, "response.completed").await["response"]["id"].clone();
-        client.close(None).await.unwrap();
-        let _ = recv(&mut client).await;
+        // Idle lanes and their upstream connections are released; stored
+        // history remains resumable on the next connection.
+        assert!(matches!(recv(&mut client).await, Some(Message::Close(_))));
         let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
             .await
             .unwrap();

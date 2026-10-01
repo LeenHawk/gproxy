@@ -28,6 +28,8 @@ struct Chain {
     outgoing: WsSender,
     completion: UsageCompletion,
     binding: Binding,
+    cancellation: tokio_util::sync::CancellationToken,
+    last_used: web_time::Instant,
 }
 
 struct Turn {
@@ -57,6 +59,7 @@ struct Runner<C> {
     current: Option<Turn>,
     pending: Option<Turn>,
     sequence: i64,
+    activity: web_time::Instant,
 }
 
 pub(super) async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
@@ -75,8 +78,24 @@ pub(super) async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
         current: None,
         pending: None,
         sequence: 0,
+        activity: web_time::Instant::now(),
     };
+    let idle = runner
+        .context
+        .app
+        .gproxy()
+        .core()
+        .snapshot()
+        .limits
+        .stream_idle_timeout;
     loop {
+        let deadline = runner
+            .chains
+            .iter()
+            .filter(|(id, _)| !runner.active(id))
+            .map(|(_, chain)| chain.last_used + idle)
+            .min()
+            .or_else(|| runner.chains.is_empty().then_some(runner.activity + idle));
         tokio::select! {
             () = runner.context.cancellation.cancelled() => break,
             frame = runner.incoming.next(), if !runner.incoming.is_empty() => {
@@ -84,7 +103,18 @@ pub(super) async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
             }
             command = commands.recv() => {
                 let Some(command) = command else { break };
+                runner.activity = web_time::Instant::now();
                 runner.command(command).await;
+            }
+            _ = crate::rt::timeout(deadline.map(|at| at.saturating_duration_since(web_time::Instant::now())).unwrap_or_default(), std::future::pending::<()>()), if deadline.is_some() => {
+                let expired: Vec<_> = runner.chains.iter().filter(|(id, chain)| !runner.active(id) && chain.last_used.elapsed() >= idle).map(|(id, _)| id.clone()).collect();
+                for id in expired {
+                    if let Some(chain) = runner.chains.get_mut(&id) {
+                        let _ = crate::rt::timeout(std::time::Duration::from_secs(5), chain.outgoing.send(WsFrame::Close(None))).await;
+                    }
+                    runner.disconnected(&id).await;
+                }
+                if runner.chains.is_empty() && commands.is_empty() { break; }
             }
         }
     }
@@ -112,6 +142,16 @@ pub(super) async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
 }
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
+    fn active(&self, chain: &str) -> bool {
+        self.current
+            .as_ref()
+            .is_some_and(|turn| turn.chain == chain)
+            || self
+                .pending
+                .as_ref()
+                .is_some_and(|turn| turn.chain == chain)
+    }
+
     async fn command(&mut self, message: Message) {
         let kind = message.value["type"].as_str().unwrap_or("");
         if !matches!(kind, "response.create" | "response.steer")
@@ -436,7 +476,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
             handshake.method = http::Method::GET;
             let wire = wire(&handshake);
             let mut builder = drive!(self.context.app.gproxy().connect(request.operation, wire), admitted, request, Some(model));
-            builder = builder.cancellation(self.context.cancellation.child_token());
+            let cancellation = self.context.cancellation.child_token();
+            builder = builder.cancellation(cancellation.clone());
             let execution = builder.open_responses(session.clone()).await?;
             let (connection, completion) = execution.into_parts();
             let socket = match connection {
@@ -459,13 +500,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
             let binding = Binding { chain: chain_id.clone(), provider: bound.provider_id,
                 credential: bound.credential_id, model: bound.model, expires_at_ms: bound.expires_at_ms, http_bridge: session.is_http_bridge() };
             let id = chain_id.clone();
-            self.incoming.push(Box::pin(socket.incoming.map(Some)
+            self.incoming.push(Box::pin(socket.incoming.take_until(cancellation.clone().cancelled_owned()).map(Some)
                 .chain(futures_util::stream::once(async { None }))
                 .map(move |frame| (id.clone(), frame))));
-            self.chains.insert(chain_id.clone(), Chain { session, outgoing: socket.outgoing, completion, binding });
+            self.chains.insert(chain_id.clone(), Chain { session, outgoing: socket.outgoing, completion, binding, cancellation, last_used: web_time::Instant::now() });
         }
         let (session, binding) = {
-            let chain = self.chains.get(&chain_id).unwrap();
+            let chain = self.chains.get_mut(&chain_id).unwrap();
+            chain.last_used = web_time::Instant::now();
             (chain.session.clone(), chain.binding.clone())
         };
         if remembered.is_some() || !session.is_http_bridge() {
@@ -508,6 +550,10 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
             }
             Some(Ok(frame)) => frame,
         };
+        let Some(chain) = self.chains.get_mut(chain_id) else {
+            return;
+        };
+        chain.last_used = web_time::Instant::now();
         let value = match &frame {
             WsFrame::Text(text) => serde_json::from_str::<Value>(text).ok(),
             _ => None,
@@ -651,11 +697,28 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
 
     async fn disconnected(&mut self, chain_id: &str) {
         if let Some(chain) = self.chains.remove(chain_id) {
+            chain.cancellation.cancel();
             chain.session.close().await;
             drop(chain.outgoing);
             // Its incoming stream may be queued in SelectAll. Close settlement
             // is handled by that stream's guard; don't wait on it here.
             drop(chain.completion);
+        }
+        let expired: Vec<_> = self
+            .responses
+            .iter()
+            .filter(|(_, chain)| *chain == chain_id)
+            .map(|(id, _)| id.clone())
+            .collect();
+        self.responses.retain(|_, chain| chain != chain_id);
+        if !expired.is_empty() {
+            let _ = self
+                .events
+                .send(Event::Forgotten {
+                    lane: self.lane.clone(),
+                    responses: expired,
+                })
+                .await;
         }
         if self.current.as_ref().is_some_and(|t| t.chain == chain_id) {
             let turn = self.current.take().unwrap();
