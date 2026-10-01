@@ -992,7 +992,6 @@
     "chooseDirectory": "选择数据目录",
     "autoStart": "登录系统时自动启动",
     "androidAutoStart": "设备重启后自动启动",
-    "tray": "关闭窗口后在系统托盘中继续运行",
     "adminUser": "管理员用户名",
     "password": "管理员密码",
     "passwordHelp": "至少 8 个字符。",
@@ -1081,5 +1080,34 @@
       "action": "赞助 LeenHawk"
     },
     "documentation": "使用文档"
+  },
+  "shellPreferences": {
+    "title": "应用",
+    "help": "这些设置仅影响当前设备，保存后立即生效。",
+    "tray": "显示系统托盘图标",
+    "trayHelp": "后台运行需要系统托盘。关闭托盘后，关闭窗口会退出应用。",
+    "close": "关闭窗口时",
+    "background": "继续后台运行",
+    "quit": "退出应用",
+    "hidden": "自动启动时隐藏主窗口",
+    "hiddenHelp": "需要同时开启自启和系统托盘。手动打开 GPROXY 时始终显示窗口。",
+    "trayFailed": "系统托盘创建失败，窗口将保持可访问：{{error}}",
+    "ohosBackground": "允许代理持续后台运行",
+    "ohosActive": "持续后台任务已启用",
+    "ohosInactive": "持续后台任务未启用",
+    "ohosUnsupported": "当前设备的权限不支持持续后台运行，使用代理时请保持应用在前台。",
+    "ohosStartup": "请在“设置 → 应用和元服务 → 应用启动管理”中添加 GPROXY。如果当前系统无法直接打开页面，可按此路径手动进入。",
+    "ohosHelp": "系统通知会显示正在运行的后台任务，移除该通知可能停止后台运行。",
+    "ohosCancelled": "系统或用户已停止持续后台任务，可重新开启。",
+    "ohosAutoStart": "开机自启",
+    "enabled": "已开启",
+    "disabled": "未开启",
+    "unknown": "未知",
+    "openStartupSettings": "前往应用启动管理",
+    "startupUnknown": "当前系统无法返回自启状态，请到系统设置中确认。",
+    "ohosMinimized": "开机自启后进入后台",
+    "ohosMinimizedHelp": "需要开启持续后台运行。开启托盘时隐藏到状态栏，否则最小化窗口；手动打开应用时显示窗口。",
+    "ohosClose": "关闭窗口后继续运行",
+    "ohosCloseHelp": "需要开启状态栏图标和持续后台运行。"
   }
 }

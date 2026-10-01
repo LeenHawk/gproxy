@@ -992,7 +992,6 @@
     "chooseDirectory": "選擇資料目錄",
     "autoStart": "登入系統時自動啟動",
     "androidAutoStart": "裝置重新啟動後自動啟動",
-    "tray": "關閉視窗後在系統匣中繼續執行",
     "adminUser": "管理員使用者名稱",
     "password": "管理員密碼",
     "passwordHelp": "至少 8 個字元。",
@@ -1081,5 +1080,34 @@
       "action": "贊助 LeenHawk"
     },
     "documentation": "使用文件"
+  },
+  "shellPreferences": {
+    "title": "應用程式",
+    "help": "這些設定僅影響目前裝置，儲存後立即生效。",
+    "tray": "顯示系統匣圖示",
+    "trayHelp": "背景執行需要系統匣。關閉系統匣後，關閉視窗會結束應用程式。",
+    "close": "關閉視窗時",
+    "background": "繼續在背景執行",
+    "quit": "結束應用程式",
+    "hidden": "自動啟動時隱藏主視窗",
+    "hiddenHelp": "需要同時開啟自動啟動和系統匣。手動開啟 GPROXY 時一律顯示視窗。",
+    "trayFailed": "系統匣建立失敗，視窗將保持可存取：{{error}}",
+    "ohosBackground": "允許代理持續在背景執行",
+    "ohosActive": "持續背景工作已啟用",
+    "ohosInactive": "持續背景工作未啟用",
+    "ohosUnsupported": "目前裝置的權限不支援持續背景執行，使用代理時請保持應用程式在前景。",
+    "ohosStartup": "請在「設定 → 應用程式和元服務 → 應用程式啟動管理」中新增 GPROXY。如果目前系統無法直接開啟頁面，可依此路徑手動進入。",
+    "ohosHelp": "系統通知會顯示正在執行的背景工作，移除該通知可能停止背景執行。",
+    "ohosCancelled": "系統或使用者已停止持續背景工作，可重新開啟。",
+    "ohosAutoStart": "開機自動啟動",
+    "enabled": "已開啟",
+    "disabled": "未開啟",
+    "unknown": "未知",
+    "openStartupSettings": "前往應用程式啟動管理",
+    "startupUnknown": "目前系統無法傳回自動啟動狀態，請到系統設定中確認。",
+    "ohosMinimized": "開機自動啟動後進入背景",
+    "ohosMinimizedHelp": "需要開啟持續背景執行。開啟系統匣時隱藏至狀態列，否則最小化視窗；手動開啟應用程式時顯示視窗。",
+    "ohosClose": "關閉視窗後繼續執行",
+    "ohosCloseHelp": "需要開啟狀態列圖示和持續背景執行。"
   }
 }

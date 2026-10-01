@@ -46,7 +46,7 @@ try {
     $extensions = if ($Mode -eq 'cli') {
         '<uap5:Extension Category="windows.appExecutionAlias" Executable="gproxy.exe" EntryPoint="Windows.FullTrustApplication"><uap5:AppExecutionAlias desktop4:Subsystem="console"><uap5:ExecutionAlias Alias="gproxy.exe" /></uap5:AppExecutionAlias></uap5:Extension>'
     } else {
-        "<desktop:Extension Category=`"windows.startupTask`" Executable=`"gproxy-desktop.exe`" EntryPoint=`"Windows.FullTrustApplication`"><desktop:StartupTask TaskId=`"GproxyStartup`" Enabled=`"false`" DisplayName=`"$displayXml`" /></desktop:Extension>"
+        "<desktop:Extension Category=`"windows.startupTask`" uap10:Parameters=`"--autostart`" Executable=`"gproxy-desktop.exe`" EntryPoint=`"Windows.FullTrustApplication`"><desktop:StartupTask TaskId=`"GproxyStartup`" Enabled=`"false`" DisplayName=`"$displayXml`" /></desktop:Extension>"
     }
     @"
 <?xml version="1.0" encoding="utf-8"?>
@@ -54,9 +54,10 @@ try {
  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+ xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
- IgnorableNamespaces="uap uap5 desktop desktop4 rescap">
+ IgnorableNamespaces="uap uap10 uap5 desktop desktop4 rescap">
  <Identity Name="$identityXml" Publisher="$publisherXml" Version="$packageVersion" ProcessorArchitecture="$arch" />
  <Properties><DisplayName>$displayXml</DisplayName><PublisherDisplayName>$publisherDisplayXml</PublisherDisplayName><Logo>Assets\StoreLogo.png</Logo></Properties>
  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" /></Dependencies>

@@ -7,6 +7,8 @@ import { completeSetup, setupStatus, pickDataDirectory, androidSetup, validListe
 import { normalizeSourceMasterKey, parseConfiguration } from "@/api/transfer"
 import type { ConfigurationExportDto } from "@/generated/sdk"
 import { copyText } from "@/lib/copy-text"
+import { ShellNotices } from "@/components/shell-notices"
+import { ShellPreferenceFields } from "@/components/shell-preference-fields"
 import { SUPPORTED_LANGS, setLanguage, type LangCode } from "@/i18n"
 import { ErrorNotice, LoadingRows } from "@/components/state"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -15,7 +17,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const SETUP_KEY = ["desktop", "setup"] as const
@@ -25,7 +26,7 @@ export default function SetupGate({ children }: { children: ReactNode }) {
   const status = useQuery({ queryKey: SETUP_KEY, queryFn: setupStatus, retry: false, refetchOnWindowFocus: false })
   if (status.isPending) return <main className="mx-auto max-w-2xl px-5 py-16"><LoadingRows /></main>
   if (status.error) return <main className="mx-auto flex max-w-2xl flex-col gap-4 px-5 py-16"><ErrorNotice error={status.error} /><Button onClick={() => void status.refetch()}>{t("setup.retry")}</Button></main>
-  return status.data.required ? <SetupWizard initial={status.data} /> : children
+  return status.data.required ? <SetupWizard initial={status.data} /> : <><ShellNotices />{children}</>
 }
 
 export function SetupWizard({ initial }: { initial: SetupStatus }) {
@@ -41,6 +42,8 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
   const [apiKey, setApiKey] = useState("")
   const [autoStart, setAutoStart] = useState(initial.canAutoStart && initial.autoStart)
   const [tray, setTray] = useState(initial.tray)
+  const [closeToTray, setCloseToTray] = useState(initial.closeToTray)
+  const [startHidden, setStartHidden] = useState(initial.startHidden)
   const [started, setStarted] = useState(initial.started)
   const [databaseKind, setDatabaseKind] = useState<"sqlite" | "postgres" | "mysql">(initial.database.kind === "url" ? (initial.database.dsn.startsWith("mysql:") ? "mysql" : "postgres") : "sqlite")
   const [databasePath, setDatabasePath] = useState(initial.database.kind === "sqlite" ? initial.database.path : "gproxy.db")
@@ -64,6 +67,7 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
     catch { throw new Error(t("management.sourceKeyInvalid")) }
     return completeSetup({ dataDir, host: host.trim(), port: Number(port), adminUser: adminUser.trim(), password,
       apiKey: apiKey || null, autoStart: initial.canAutoStart && autoStart, tray: initial.canChooseDataDir && tray,
+      closeToTray: tray && closeToTray, startHidden, language: i18n.language,
       database: databaseKind === "sqlite" ? { kind: "sqlite", path: databasePath.trim() } : { kind: "url", dsn: databaseUrl.trim() },
       import: document ? { export: document, mode: "merge", sourceMasterKey } : null })
   }, onError: async () => {
@@ -124,8 +128,9 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
         <Field data-field-span="full" data-invalid={!!errors.dataDir}><FieldLabel htmlFor="setup-directory">{t("setup.dataDir")}</FieldLabel><div className="flex gap-2"><Input id="setup-directory" value={dataDir} onChange={e => setDataDir(e.target.value)} readOnly={!initial.canChooseDataDir} disabled={busy || started} aria-invalid={!!errors.dataDir} />{initial.canChooseDataDir ? <Button type="button" variant="outline" size="icon" aria-label={t("setup.chooseDirectory")} disabled={busy || started} onClick={() => directory.mutate()}><FolderOpen /></Button> : null}</div><FieldDescription>{t(initial.canChooseDataDir ? "setup.directoryHelp" : "setup.privateDirectory")}</FieldDescription><FieldError>{errors.dataDir}</FieldError></Field>
         <Field><FieldLabel htmlFor="setup-database-kind">{t("setup.database")}</FieldLabel><Select value={databaseKind} onValueChange={value => { setDatabaseKind(value as typeof databaseKind); setDatabaseUrl("") }} disabled={busy || started}><SelectTrigger id="setup-database-kind"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{initial.databaseKinds.map(kind => <SelectItem key={kind} value={kind}>{{ sqlite: "SQLite", postgres: "PostgreSQL", mysql: "MySQL" }[kind]}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
         <Field data-invalid={!!errors.database}><FieldLabel htmlFor="setup-database-value">{t(databaseKind === "sqlite" ? "setup.databaseFile" : "setup.databaseUrl")}</FieldLabel><Input id="setup-database-value" type={databaseKind === "sqlite" ? "text" : "password"} autoComplete="off" value={databaseKind === "sqlite" ? databasePath : databaseUrl} onChange={e => databaseKind === "sqlite" ? setDatabasePath(e.target.value) : setDatabaseUrl(e.target.value)} disabled={busy || started} aria-invalid={!!errors.database} placeholder={databaseKind === "sqlite" ? "gproxy.db" : `${databaseKind}://user:password@host:${databaseKind === "mysql" ? "3306" : "5432"}/gproxy`} /><FieldDescription>{t(databaseKind === "sqlite" ? "setup.databaseFileHelp" : "setup.databaseUrlHelp")}</FieldDescription><FieldError>{errors.database}</FieldError></Field>
-        {initial.canAutoStart ? <Field data-field-span="full" orientation="horizontal"><FieldLabel htmlFor="setup-autostart">{t(initial.canChooseDataDir ? "setup.autoStart" : "setup.androidAutoStart")}</FieldLabel><Switch id="setup-autostart" checked={autoStart} onCheckedChange={setAutoStart} disabled={busy} /></Field> : null}
-        {initial.canChooseDataDir ? <Field data-field-span="full" orientation="horizontal"><FieldLabel htmlFor="setup-tray">{t("setup.tray")}</FieldLabel><Switch id="setup-tray" checked={tray} onCheckedChange={setTray} disabled={busy} /></Field> : null}
+        <ShellPreferenceFields desktop={initial.canChooseDataDir} canAutoStart={initial.canAutoStart}
+          value={{ autoStart, tray, closeToTray, startHidden, language: i18n.language }} disabled={busy}
+          onChange={value => { setAutoStart(value.autoStart); setTray(value.tray); setCloseToTray(value.closeToTray); setStartHidden(value.startHidden) }} />
       </FieldGroup> : null}
       {step === 1 ? <FieldGroup>
         <Field data-field-span="full" data-invalid={!!errors.adminUser}><FieldLabel htmlFor="setup-user">{t("setup.adminUser")}</FieldLabel><Input id="setup-user" value={adminUser} onChange={e => setAdminUser(e.target.value)} autoComplete="username" disabled={busy || started} aria-invalid={!!errors.adminUser} /><FieldError>{errors.adminUser}</FieldError></Field>

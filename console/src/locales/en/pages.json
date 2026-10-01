@@ -992,7 +992,6 @@
     "chooseDirectory": "Choose data directory",
     "autoStart": "Launch when I sign in",
     "androidAutoStart": "Start after device reboot",
-    "tray": "Keep running in the system tray when the window closes",
     "adminUser": "Administrator username",
     "password": "Administrator password",
     "passwordHelp": "Use at least 8 characters.",
@@ -1081,5 +1080,34 @@
       "action": "Sponsor LeenHawk"
     },
     "documentation": "Documentation"
+  },
+  "shellPreferences": {
+    "title": "Application",
+    "help": "These settings apply to this device. Changes take effect immediately.",
+    "tray": "Show system tray icon",
+    "trayHelp": "Background running requires the tray. Without it, closing the window exits the application.",
+    "close": "When closing the window",
+    "background": "Keep running in the background",
+    "quit": "Exit the application",
+    "hidden": "Hide the window at automatic startup",
+    "hiddenHelp": "Requires automatic startup and the system tray. Opening GPROXY manually always shows the window.",
+    "trayFailed": "The system tray could not be created. The window will stay accessible: {{error}}",
+    "ohosBackground": "Keep the proxy running in the background",
+    "ohosActive": "Background task is active",
+    "ohosInactive": "Background task is not active",
+    "ohosUnsupported": "Continuous background running is not available with this device’s current permissions. Keep the app in the foreground while using the proxy.",
+    "ohosStartup": "Add GPROXY in Settings → Apps and meta services → App startup management. If this system cannot open the page directly, follow that path manually.",
+    "ohosHelp": "A system notification indicates an active background task. Removing it can stop background running.",
+    "ohosCancelled": "The system or user stopped the background task. Enable it again to resume.",
+    "ohosAutoStart": "Start at boot",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "unknown": "Unknown",
+    "openStartupSettings": "Open startup management",
+    "startupUnknown": "This system could not report startup status. Check it in system settings.",
+    "ohosMinimized": "Start in the background at boot",
+    "ohosMinimizedHelp": "Requires continuous background running. Hide to the status bar when enabled, or minimize the window otherwise. Opening the app manually shows its window.",
+    "ohosClose": "Keep running when closing the window",
+    "ohosCloseHelp": "Requires the status bar and an active continuous background task."
   }
 }

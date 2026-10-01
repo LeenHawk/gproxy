@@ -95,7 +95,20 @@ async fn the_data_plane_answers_on_loopback_and_refuses_an_unkeyed_request() {
     assert_eq!(status(&admin), 404, "{admin}");
     assert!(admin.contains("Tauri IPC"), "{admin}");
 
+    let mut running = desktop.running();
+    assert!(*running.borrow());
     desktop.shutdown();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        running.wait_for(|active| !*active),
+    )
+    .await
+    .expect("shutdown must stop the listener")
+    .expect("listener reports its stopped state");
+    assert!(
+        std::net::TcpListener::bind(address).is_ok(),
+        "shutdown releases the port"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -59,7 +59,7 @@ pub async fn serve(
     app: Arc<App<Connection>>,
     config: &AppConfig,
     stop: Arc<tokio::sync::Notify>,
-) -> StartResult<SocketAddr> {
+) -> StartResult<(SocketAddr, tokio::sync::watch::Receiver<bool>)> {
     let ip = config.host.parse::<std::net::IpAddr>().map_err(|_| {
         StartError::App(gproxy_app::AppError::invalid(
             "the listening host must be an IP address",
@@ -78,15 +78,16 @@ pub async fn serve(
     // unknown is deliberately not trusted, so `x-forwarded-for` is ignored and
     // every local process shares one bucket.
     let service = data_plane(HostState::new(app));
+    let (running, status) = tokio::sync::watch::channel(true);
+    let stopping = stop.notified_owned();
     tokio::spawn(async move {
-        let result =
-            gproxy_host_axum::serve::serve(listener, service, async move { stop.notified().await })
-                .await;
+        let result = gproxy_host_axum::serve::serve(listener, service, stopping).await;
+        let _ = running.send(false);
         if let Err(error) = result {
             tracing::error!(%error, "the data plane stopped");
         }
     });
-    Ok(bound)
+    Ok((bound, status))
 }
 
 /// The host's own router with the two management surfaces taken off it.

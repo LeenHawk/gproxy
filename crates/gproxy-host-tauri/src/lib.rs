@@ -98,6 +98,9 @@ pub mod engine;
 pub mod error;
 mod fonts;
 pub mod ipc;
+#[cfg(target_env = "ohos")]
+mod ohos;
+pub mod preferences;
 pub mod secrets;
 pub mod setup;
 mod startup;
@@ -137,6 +140,15 @@ pub fn run() -> StartResult<()> {
     let ohos_data_dir = engine::ohos_data_dir()?;
     let handle = engine::runtime()?.handle().clone();
 
+    let context = tauri::generate_context!();
+    #[cfg(desktop)]
+    let context = {
+        let mut context = context;
+        for window in &mut context.config_mut().app.windows {
+            window.visible = false;
+        }
+        context
+    };
     let builder = fonts::register(tauri::Builder::default())
         .invoke_handler(ipc::invoke_handler::<tauri::Wry>())
         .setup(move |app| {
@@ -145,6 +157,7 @@ pub fn run() -> StartResult<()> {
             #[cfg(not(target_env = "ohos"))]
             let data_dir = engine::data_dir(app.handle())?;
             let setup = setup::Setup::new(data_dir);
+            app.manage(preferences::RuntimeStatus::default());
             let choices = setup.choices()?;
             app.manage(fonts::FontConsole(std::sync::Arc::new(
                 gproxy_host_axum::console::Console::from_config(&Default::default())
@@ -154,10 +167,24 @@ pub fn run() -> StartResult<()> {
                 let desktop =
                     handle.block_on(engine::ensure_started(&choices.data_dir, store()))?;
                 app.manage(desktop);
+                #[cfg(target_env = "ohos")]
+                ohos::restore();
                 #[cfg(desktop)]
-                if choices.tray {
-                    tray::install(app.handle())?;
+                if choices.preferences.tray
+                    && let Err(error) = tray::install(app.handle(), &choices.preferences.language)
+                {
+                    tracing::error!(%error, "could not create the system tray");
+                    *app.state::<preferences::RuntimeStatus>().0.lock().unwrap() =
+                        Some(error.to_string());
                 }
+            }
+            #[cfg(desktop)]
+            if !choices.preferences.hides_on_launch(
+                std::env::args_os().any(|arg| arg == "--autostart"),
+                choices.completed,
+                app.tray_by_id("gproxy").is_some(),
+            ) {
+                tray::show_window(app.handle());
             }
             app.manage(setup);
             Ok(())
@@ -165,8 +192,10 @@ pub fn run() -> StartResult<()> {
 
     #[cfg(desktop)]
     let builder = builder
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            tray::show_window(app)
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            if !args.iter().any(|arg| arg == "--autostart") {
+                tray::show_window(app);
+            }
         }))
         .plugin(tauri_plugin_dialog::init());
 
@@ -182,12 +211,18 @@ pub fn run() -> StartResult<()> {
     let builder = builder.on_window_event(|window, event| {
         if let tauri::WindowEvent::CloseRequested { api, .. } = event
             && let Some(setup) = window.try_state::<setup::Setup>()
-            && setup
-                .choices()
-                .is_ok_and(|choices| choices.completed && choices.tray)
+            && setup.choices().is_ok_and(|choices| {
+                choices.completed && choices.preferences.tray && choices.preferences.close_to_tray
+            })
+            && window.app_handle().tray_by_id("gproxy").is_some()
         {
             api.prevent_close();
             let _ = window.hide();
+            return;
+        }
+        if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+            engine::shutdown();
+            window.app_handle().exit(0);
             return;
         }
         if let tauri::WindowEvent::Destroyed = event
@@ -197,9 +232,23 @@ pub fn run() -> StartResult<()> {
         }
     });
 
-    builder
-        .run(tauri::generate_context!())
-        .map_err(|error| StartError::App(gproxy_app::AppError::internal(error.to_string())))
+    let app = builder
+        .build(context)
+        .map_err(|error| StartError::App(gproxy_app::AppError::internal(error.to_string())))?;
+    app.run(|app, event| {
+        #[cfg(desktop)]
+        match event {
+            tauri::RunEvent::Exit => engine::shutdown(),
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { .. } => tray::show_window(app),
+            _ => {
+                let _ = app;
+            }
+        }
+        #[cfg(not(desktop))]
+        let _ = (app, event);
+    });
+    Ok(())
 }
 
 /// Android's entry point, called by the activity through JNI.

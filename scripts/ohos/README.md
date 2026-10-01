@@ -41,10 +41,57 @@ are not device execution tests. No HAP self-update path is implemented.
 
 The native Ability supplies the app's private data directory. The existing
 explicit private-file secret fallback is used because keyring has no OHOS
-backend. Tray, login startup and CLI service registration are not available.
-The HAP runs as an application; no background-service or boot-restart support
-is claimed. Its generated backup extension is removed so instance data and
-credentials are not enrolled in automatic backup.
+backend. CLI service registration is not available. The generated backup
+extension is removed so instance data and credentials are not enrolled in
+automatic backup.
+
+## Application startup and background behavior
+
+`application/EntryAbility.ets` extends the pinned RustAbility. Its N-API bridge
+passes Application settings commands onto the ArkTS thread; the proxy remains
+in-process. `configure-hap.py` installs these sources, native declarations, the
+existing application icon, and the `taskKeeping` permission/mode in the generated
+project. Phone, tablet and 2-in-1 devices share the HAP.
+
+- **System startup:** users add GPROXY in Settings → Apps and meta services →
+  App startup management. The UI opens `pc_app_setup_settings` in Huawei Settings
+  and retains the manual path if the device cannot open it. This deep link requires
+  HarmonyOS 6.0.0.112(SP3C00E101R12P6)+ where supported. The application never
+  changes system startup approval itself.
+- **Actual startup status:** `getAutoStartupStatusForSelf` is public on API 21+
+  phones, tablets and PC/2-in-1 devices. The bridge resolves it on the running OS
+  through N-API, retaining the API 20 build toolchain. Unavailable/failed queries
+  are unknown, not disabled. Returning to the settings page refreshes the status.
+- **PC status bar:** the native Desktop Extension Kit provides the icon and
+  localized Open/Quit menu with listener status. Closing can hide the UIAbility
+  after the status bar and continuous background task are available. Failure
+  keeps the window accessible. Removing the tray changes closing to exit.
+- **Automatic window behavior:** `LaunchReason.AUTO_STARTUP` distinguishes system
+  startup from user activation. On PC, automatic startup can hide to a working
+  status bar or minimize without a tray; manual activation shows the app. A
+  `REQUIRED_HIDE` startup-page profile suppresses the system splash. Absence of
+  all visible flashing has not been measured on hardware.
+- **Continuous tasks:** `taskKeeping` is available on API 20 PC/2-in-1 devices;
+  it defaults on there after the engine starts. On API 21+ phones/tablets it also
+  requires the restricted `KEEP_BACKGROUND_RUNNING_SYSTEM` permission. Ordinary
+  packages do not request that permission. A specially approved signing profile
+  can opt into its declaration with `GPROXY_OHOS_BACKGROUND_ACL=1`; runtime checks
+  still require an actual grant. Unsupported devices show the limitation and can
+  continue to use the foreground app. The system notification opens the app, and
+  cancelling the task is reflected in settings rather than silently restarted.
+- **Exit:** UIAbility destruction stops the engine and ends the process, matching
+  Android's cold-restart semantics for the process-global instance.
+
+The [startup API](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/js-apis-app-ability-autostartupmanager),
+[status bar API](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/statusbar-extension-manager),
+and [continuous task API](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/js-apis-resourceschedule-backgroundtaskmanager)
+have separate device restrictions. A startup approval does not by itself grant
+continuous background execution. Desktop Extension Kit's status bar is for
+PC/2-in-1 devices; it is not the phone notification bar.
+
+Local validation covers the Rust bridge's N-API types, generated configuration,
+and Console interactions with a mocked native boundary. No signed HAP/device,
+real startup, native tray or background-survival test has been performed locally.
 
 GitHub Release and the GitLab fallback use `.gitlab/Dockerfile.ohos`.
 That image only adds GPROXY's Go build dependency to the public toolchain.

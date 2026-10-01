@@ -50,5 +50,41 @@ module.write_text(json.dumps(config, indent=2) + "\n")
 module = project / "entry/src/main/module.json5"
 config = json5.loads(module.read_text())
 config["module"].pop("extensionAbilities", None)
+config["module"]["deviceTypes"] = ["phone", "tablet", "2in1"]
+permissions = config["module"].setdefault("requestPermissions", [])
+if not any(item["name"] == "ohos.permission.KEEP_BACKGROUND_RUNNING" for item in permissions):
+    permissions.append({"name": "ohos.permission.KEEP_BACKGROUND_RUNNING"})
+if os.environ.get("GPROXY_OHOS_BACKGROUND_ACL") == "1":
+    permissions.append({"name": "ohos.permission.KEEP_BACKGROUND_RUNNING_SYSTEM"})
+for ability in config["module"]["abilities"]:
+    if ability["name"] == "EntryAbility":
+        ability["launchType"] = "singleton"
+        ability["backgroundModes"] = ["taskKeeping"]
+        # Avoid the system splash before an automatic hidden/minimized launch.
+        ability["startWindow"] = "$profile:gproxy_start_window"
 module.write_text(json.dumps(config, indent=2) + "\n")
+# Keep the application bridge in source control, rather than editing generated
+# or shared SDK files. The pinned RustAbility remains the Tauri entry point.
+source = Path("scripts/ohos/application")
+entry = project / "entry/src/main"
+for name in ("EntryAbility.ets", "GproxyBackground.ets", "GproxyTray.ets"):
+    shutil.copyfile(source / name, entry / "ets/entryability" / name)
+profile = entry / "resources/base/profile/gproxy_start_window.json"
+profile.write_text(json.dumps({
+    "startWindowType": "REQUIRED_HIDE", "startWindowAppIcon": "$media:startIcon",
+    "startWindowBackgroundColor": "$color:start_window_background"
+}, indent=2) + "\n")
+raw = entry / "resources/rawfile"
+raw.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(icon, raw / "gproxy-tray.png")
+types = entry / "cpp/types/libgproxy_host_tauri"
+types.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(source / "Index.d.ts", types / "Index.d.ts")
+(types / "oh-package.json5").write_text(json.dumps({
+    "name": "libgproxy_host_tauri.so", "version": "1.0.0", "types": "./Index.d.ts"
+}, indent=2) + "\n")
+package = project / "entry/oh-package.json5"
+config = json5.loads(package.read_text())
+config.setdefault("dependencies", {})["libgproxy_host_tauri.so"] = "file:./src/main/cpp/types/libgproxy_host_tauri"
+package.write_text(json.dumps(config, indent=2) + "\n")
 print(project)

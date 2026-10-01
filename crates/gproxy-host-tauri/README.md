@@ -202,10 +202,31 @@ operation by name instead of a path.
 
 ## Desktop integration
 
-Launch-at-login uses a per-user desktop entry on Linux, a LaunchAgent on macOS,
-and a Windows Run entry or MSIX StartupTask. With the tray enabled, closing the
-window keeps the gateway running; the tray can reopen the window or quit the app.
-Launching the application again brings the existing window forward.
+Desktop preferences are available in **Settings → Application** and in first-run
+setup: launch at login, show the tray, close to background or quit, and hide on
+automatic startup. Registration uses a Linux desktop autostart entry, a macOS
+LaunchAgent, or Windows Run / MSIX StartupTask. The settings page queries OS
+registration, reports failures, and attempts rollback if tray changes or saving fails.
+AppImage registration uses the persistent AppImage path.
+
+New installations default to no login startup and an enabled tray with close to
+background. Automatic launches pass `--autostart`; a completed setup and a working
+tray are required before hiding. Manual and repeated launches show the window.
+Disabling the tray changes closing to quit. A failed tray installation leaves the
+window visible with an explanation. The localized tray menu shows the listener's
+actual status and offers Open and Quit. Quit stops the engine but keeps startup
+registration. Linux requires a tray host (such as GNOME's AppIndicator extension).
+MSIX startup arguments require OS support for `uap10:Parameters`; older systems
+may show the window. Desktop self-update remains unimplemented.
+
+The OHOS Application page queries system startup status and opens startup
+management; users add the app in **Settings → Apps and meta services → App startup
+management**. Status queries require API 21+ and show unknown on unsupported
+systems or query failure. PC/2-in-1 devices additionally support the status bar,
+close to background, and hidden/minimized automatic startup, identified using
+`AUTO_STARTUP`. Continuous tasks use `taskKeeping`; phone/tablet availability is
+checked against the OS version and actual permissions. See the
+[OHOS build and runtime guide](../../scripts/ohos/README.md).
 
 Desktop automatic updates are not implemented. Android uses its foreground
 service, boot receiver and APK updater; see [ANDROID.md](ANDROID.md).
