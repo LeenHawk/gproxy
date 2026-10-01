@@ -131,6 +131,7 @@ impl BaseChannel for Overrides {
         list_models => ListModels, get_model => GetModel, count_tokens => CountTokens,
         generate_content => GenerateContent, stream_generate_content => StreamGenerateContent,
         guardian_review => GuardianReview, guardian_classify => GuardianClassify,
+        create_moderation => CreateModeration,
         compact_content => CompactContent, summarize_memory => SummarizeMemory,
         create_conversation => CreateConversation, create_embedding => CreateEmbedding,
         batch_create_embedding => BatchCreateEmbedding, rerank => Rerank, web_search => WebSearch,

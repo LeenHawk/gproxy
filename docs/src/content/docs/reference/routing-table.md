@@ -92,8 +92,9 @@ rows.
 
 | Method | Path | Operation / dialect |
 | --- | --- | --- |
+| `POST` | `/v1/responses/compact` | `compact_content` / `openai` |
 | `POST` | `/v1/embeddings` | `create_embedding` / `openai` |
-| `POST` | `/v1/moderations` | `guardian_classify` / `openai` |
+| `POST` | `/v1/moderations` | `create_moderation` / `openai` |
 | `POST` | `/v1/rerank` | `rerank` / `openai` |
 | `POST` | `/v1/conversations` | `create_conversation` / `openai` |
 | `POST` | `/v1/images/generations` | `create_image` / `openai` |
@@ -131,9 +132,11 @@ does.
 | Method | Path | Operation / dialect |
 | --- | --- | --- |
 | `POST` | `/v1/realtime/calls` | `create_realtime_call` / `openai` |
+| `POST` | `/v1/live` | `create_realtime_call` / `openai` |
 | `GET` | `/v1/realtime` | `connect_realtime` / `openai` — upgrade |
 | `GET` | `/v1/live` | the same, at the WebRTC spelling |
 | `GET` | `/v1/live/{call_id}` | the continuation with the call in the path |
+| `GET` | `/v1/responses` | `generate_content` / `openai_responses_websocket` |
 | `GET` | `/v1/responses/ws` | `generate_content` / `openai_responses_websocket` |
 | `GET` | `/ws/v1beta/BidiGenerateContent` | `connect_realtime` / `gemini` — Gemini Live |
 
@@ -157,6 +160,24 @@ gateway could invent.
 
 A socket holds its concurrency lease until it **closes**, not until the `101`
 was written. A session that runs for an hour holds its slot for that hour.
+
+### Codex-only routes
+
+Private Codex operations require a provider mount using the Codex channel.
+For a provider named `codex`, use `POST /codex/v1/memories/trace_summarize`,
+`POST /codex/v1/guardian`, and `POST /codex/v1/guardian-classifier`.
+These use normal operation admission, model routing and settlement; the
+aggregate `/v1` surface does not expose them. Standard `/v1/moderations` uses
+its own `create_moderation` JSON contract.
+
+Account services are also available under `/codex/v1`, including
+`usage/thread_usage/query_v2` (POST), `usage/plan_limit_history`, and daily
+Token, credit, workspace, plugin and skill reports (GET). Native aliases under
+`/codex/api/codex/**`, `/codex/backend-api/**`, and `/codex/ps/**` remain available.
+Admins can read a selected account's upstream reports with
+`x-gproxy-view: credential:<id>`. Caller and Pool views explicitly mark missing
+historical allowances and vendor-credit accounting as unavailable, with null
+amounts, rather than borrowing account data or reporting fabricated zeros.
 
 ### The ambiguous paths
 

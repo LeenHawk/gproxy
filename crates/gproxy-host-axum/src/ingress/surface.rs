@@ -56,13 +56,13 @@ pub struct Matched {
 }
 
 macro_rules! surfaces {
-    ($(
+    ($table:ident; $(
         $method:ident $pattern:literal => $operation:ident / $dialect:ident
         $(, stream: $streaming:ident)?
         $(, model: $model:literal)?
         $(, upgrade: $upgrade:literal)?
     ;)*) => {
-        fn table() -> &'static [Surface] {
+        fn $table() -> &'static [Surface] {
             static TABLE: std::sync::OnceLock<Vec<Surface>> = std::sync::OnceLock::new();
             TABLE.get_or_init(|| vec![$(
                 Surface {
@@ -79,9 +79,10 @@ macro_rules! surfaces {
     };
 }
 
-surfaces! {
+surfaces! { table;
     // -------------------------------------------------- content generation --
     POST "/v1/responses" => GenerateContent / OpenAi, stream: StreamGenerateContent;
+    POST "/v1/responses/compact" => CompactContent / OpenAi;
     POST "/v1/chat/completions" => GenerateContent / OpenAiChat, stream: StreamGenerateContent;
     POST "/v1/messages" => GenerateContent / Claude, stream: StreamGenerateContent;
     POST "/v1/messages/count_tokens" => CountTokens / Claude;
@@ -102,7 +103,7 @@ surfaces! {
     GET "/v1beta/models/{id}" => GetModel / Gemini, model: "id";
     // --------------------------------------------------------- everything --
     POST "/v1/embeddings" => CreateEmbedding / OpenAi;
-    POST "/v1/moderations" => GuardianClassify / OpenAi;
+    POST "/v1/moderations" => CreateModeration / OpenAi;
     POST "/v1/rerank" => Rerank / OpenAi;
     POST "/v1/conversations" => CreateConversation / OpenAi;
     POST "/v1/search" => WebSearch / OpenAi;
@@ -150,11 +151,44 @@ surfaces! {
     // path it does not declare never reaches the engine, and a test checks the
     // two agree.
     POST "/v1/realtime/calls" => CreateRealtimeCall / OpenAi;
+    POST "/v1/live" => CreateRealtimeCall / OpenAi;
     GET "/v1/realtime" => ConnectRealtime / OpenAi, upgrade: true;
     GET "/v1/live" => ConnectRealtime / OpenAi, upgrade: true;
     GET "/v1/live/{call_id}" => ConnectRealtime / OpenAi, upgrade: true;
     GET "/v1/responses/ws" => GenerateContent / OpenAiResponsesWebSocket, upgrade: true;
+    GET "/v1/responses" => GenerateContent / OpenAiResponsesWebSocket, upgrade: true;
     GET "/ws/v1beta/BidiGenerateContent" => ConnectRealtime / Gemini, upgrade: true;
+}
+
+// These are Codex wire contracts, available only on a Codex provider mount.
+// Standard OpenAI operations remain in `table`, including on that mount.
+surfaces! { codex_table;
+    POST "/v1/memories/trace_summarize" => SummarizeMemory / OpenAi;
+    POST "/v1/guardian" => GuardianReview / OpenAi;
+    POST "/v1/guardian-classifier" => GuardianClassify / OpenAi;
+}
+
+/// Codex's native backend URLs and our scoped `/v1` spelling resolve to the
+/// same operation. This is called only after identifying a Codex provider.
+pub fn match_codex_path(
+    method: &Method,
+    path: &str,
+    headers: &HeaderMap,
+    body: Option<&Value>,
+) -> Option<Matched> {
+    let path = codex_path(path);
+    match_surfaces(codex_table(), method, &path, headers, body)
+        .or_else(|| match_path(method, &path, headers, body))
+}
+
+pub fn codex_path(path: &str) -> std::borrow::Cow<'_, str> {
+    ["/backend-api/codex/", "/api/codex/", "/codex/"]
+        .into_iter()
+        .find_map(|prefix| {
+            path.strip_prefix(prefix)
+                .map(|rest| format!("/v1/{rest}").into())
+        })
+        .unwrap_or(std::borrow::Cow::Borrowed(path))
 }
 
 /// Whether `path` is a surface this gateway serves at all, for the mount
@@ -176,11 +210,21 @@ pub fn match_path(
     headers: &HeaderMap,
     body: Option<&Value>,
 ) -> Option<Matched> {
+    match_surfaces(table(), method, path, headers, body)
+}
+
+fn match_surfaces(
+    surfaces: &[Surface],
+    method: &Method,
+    path: &str,
+    headers: &HeaderMap,
+    body: Option<&Value>,
+) -> Option<Matched> {
     let preferred = preferred_dialect(headers);
     let mut fallback: Option<&Surface> = None;
     let mut chosen: Option<&Surface> = None;
     let mut captured = Vec::new();
-    for surface in table() {
+    for surface in surfaces {
         if surface.method != method {
             continue;
         }

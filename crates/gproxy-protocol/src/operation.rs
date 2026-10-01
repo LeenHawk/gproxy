@@ -46,6 +46,8 @@ pub enum Operation {
     GenerateContent,
     StreamGenerateContent,
     // moderation
+    /// Standard OpenAI moderation JSON, distinct from Codex Guardian's SSE.
+    CreateModeration,
     GuardianReview,
     GuardianClassify,
     // context management
@@ -103,6 +105,7 @@ impl Operation {
         match self {
             Self::GenerateContent
             | Self::StreamGenerateContent
+            | Self::CreateModeration
             | Self::GuardianReview
             | Self::GuardianClassify
             | Self::CompactContent
@@ -343,6 +346,7 @@ mod tests {
                 "count_tokens",
                 "generate_content",
                 "stream_generate_content",
+                "create_moderation",
                 "guardian_review",
                 "guardian_classify",
                 "compact_content",

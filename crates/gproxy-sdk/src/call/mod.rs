@@ -219,7 +219,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
             gproxy,
             operation,
             request,
-            options,
+            mut options,
         } = self;
         let WireRequest {
             method,
@@ -234,6 +234,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
             .for_operation(operation.operation)
             .max_request_body_bytes;
         let mut payload = Payload::buffer(body, cap).await;
+        if operation.operation == gproxy_protocol::Operation::CreateRealtimeCall
+            && options.model.is_none()
+            && let Payload::Bytes(bytes) = &payload
+        {
+            let mut limits = snapshot.limits.codec();
+            limits.max_body_bytes = cap;
+            options.model = gproxy_core::realtime::request::model(&headers, bytes, limits).await?;
+        }
         let json = payload.json();
         let mut prepared = options
             .prepare(gproxy, snapshot, operation, &headers, json.as_ref())

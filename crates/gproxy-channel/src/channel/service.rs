@@ -270,6 +270,14 @@ pub trait ChannelServices: Send + Sync {
         &[]
     }
 
+    /// Resolve client-facing aliases before the host selects a service.
+    /// The returned declaration still names the canonical upstream route.
+    fn route(&self, method: &Method, path: &str) -> Option<&ServiceRoute> {
+        self.routes()
+            .iter()
+            .find(|route| route.matches(method, path).is_some())
+    }
+
     fn call<'a>(
         &'a self,
         _context: ServiceContext<'a>,

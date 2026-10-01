@@ -101,10 +101,17 @@ where
     let (mount, remainder) = Mount::parse(&path, &index, |remainder| {
         surface::is_surface(&parts.method, remainder)
             || crate::oauth::is_issuer_path(remainder)
-            || core
-                .providers
-                .values()
-                .any(|provider| service_route(provider, &parts.method, remainder).is_some())
+            || core.providers.values().any(|provider| {
+                service_route(provider, &parts.method, remainder).is_some()
+                    || (provider.channel.id() == "codex"
+                        && surface::match_codex_path(
+                            &parts.method,
+                            remainder,
+                            &parts.headers,
+                            None,
+                        )
+                        .is_some())
+            })
     });
 
     if let Some(issuer) = crate::oauth::route(&parts.method, &remainder) {
@@ -207,12 +214,7 @@ fn service_route<'a>(
     method: &Method,
     path: &str,
 ) -> Option<&'a ServiceRoute> {
-    provider
-        .channel
-        .services()?
-        .routes()
-        .iter()
-        .find(|route| route.matches(method, path).is_some())
+    provider.channel.services()?.route(method, path)
 }
 
 /// Step 4: a vendor service the channel declares, forwarded as it is.
@@ -253,7 +255,16 @@ where
             .find(|(_, provider)| service_route(provider, &parts.method, remainder).is_some())
             .map(|(id, _)| id.clone())?,
     };
-    let route = service_route(core.providers.get(&provider_id)?, &parts.method, remainder)?;
+    let provider = core.providers.get(&provider_id)?;
+    // Model operations use admission, routing and settlement, even when a
+    // vendor's catch-all service declaration also matches their native URL.
+    if surface::is_surface(&parts.method, remainder)
+        || (provider.channel.id() == "codex"
+            && surface::match_codex_path(&parts.method, remainder, &parts.headers, None).is_some())
+    {
+        return None;
+    }
+    let route = service_route(provider, &parts.method, remainder)?;
     let websocket = route.transport == ServiceTransport::WebSocket;
 
     let caller = match authenticate(state.app(), parts).await {
@@ -360,7 +371,16 @@ where
     let json: Option<serde_json::Value> = (!body.is_empty())
         .then(|| serde_json::from_slice(&body).ok())
         .flatten();
-    let matched = surface::match_path(&parts.method, remainder, &parts.headers, json.as_ref())?;
+    let codex = mount
+        .provider_name()
+        .and_then(|name| index.provider_id(name))
+        .and_then(|id| core.providers.get(id))
+        .is_some_and(|provider| provider.channel.id() == "codex");
+    let matched = if codex {
+        surface::match_codex_path(&parts.method, remainder, &parts.headers, json.as_ref())
+    } else {
+        surface::match_path(&parts.method, remainder, &parts.headers, json.as_ref())
+    }?;
     // Read up to the upload cap on the chance it was an upload; it is not.
     let allowed = core
         .limits
@@ -400,10 +420,30 @@ where
     };
 
     let mut parts = parts.clone();
-    parts.uri = rewrite_path(&parts.uri, remainder);
+    let operation_path = if codex {
+        surface::codex_path(remainder)
+    } else {
+        std::borrow::Cow::Borrowed(remainder)
+    };
+    parts.uri = rewrite_path(&parts.uri, &operation_path);
+    let offer_model = if matched.operation.operation
+        == gproxy_protocol::Operation::CreateRealtimeCall
+    {
+        let mut limits = core.limits.codec();
+        limits.max_body_bytes = allowed;
+        match gproxy_core::realtime::request::model(&parts.headers, &body, limits).await {
+            Ok(model) => model,
+            Err(error) => {
+                return Some(ErrorResponse(AppError::invalid(error.to_string())).into_response());
+            }
+        }
+    } else {
+        None
+    };
     let model = matched
         .model
         .clone()
+        .or(offer_model)
         .or_else(|| body_model(json.as_ref()))
         .map(|model| mounted_model(mount, &model));
     let mut request = DataPlaneRequest::new(crate::request_id(), matched.operation, parts, body);
