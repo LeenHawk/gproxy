@@ -28,6 +28,10 @@ struct Message {
 }
 
 enum Event {
+    Forgotten {
+        lane: Lane,
+        responses: Vec<String>,
+    },
     RequestTurn {
         sequence: usize,
         turn: String,
@@ -107,20 +111,35 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
     let mut lanes: HashMap<Lane, mpsc::Sender<Message>> = HashMap::new();
     let mut owners: HashMap<String, Vec<Lane>> = HashMap::new();
     let mut tasks = futures_util::stream::FuturesUnordered::<
-        gproxy_protocol::capability::CapabilityFuture<'static, ()>,
+        gproxy_protocol::capability::CapabilityFuture<'static, Lane>,
     >::new();
     let mut close = None;
     let mut outcome = CaptureOutcome::Complete;
+    let idle = context
+        .app
+        .gproxy()
+        .core()
+        .snapshot()
+        .limits
+        .stream_idle_timeout;
+    let mut activity = web_time::Instant::now();
     loop {
         tokio::select! {
             () = context.cancellation.cancelled() => { outcome = CaptureOutcome::Cancelled; break; }
-            _ = tasks.next(), if !tasks.is_empty() => {}
+            Some(lane) = tasks.next(), if !tasks.is_empty() => {
+                lanes.remove(&lane);
+                owners.retain(|_, found| { found.retain(|owner| owner != &lane); !found.is_empty() });
+            }
+            _ = crate::rt::timeout(idle.saturating_sub(activity.elapsed()), std::future::pending::<()>()), if tasks.is_empty() => break,
             event = receive.recv() => {
-                if let Some(event) = event
-                    && !deliver(event, &output, &mut capture, &mut owners).await { break; }
+                if let Some(event) = event {
+                    if matches!(event, Event::Frame { .. }) { activity = web_time::Instant::now(); }
+                    if !deliver(event, &output, &mut capture, &mut owners).await { break; }
+                }
             }
             frame = input.recv() => {
                 let Some(frame) = frame else { outcome = CaptureOutcome::Cancelled; break };
+                activity = web_time::Instant::now();
                 let capture_sequence = record(&mut capture, CaptureDirection::Request, &frame, None);
                 let mut text = match frame {
                     WsFrame::Close(value) => { close = value; break; }
@@ -163,7 +182,11 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
                 }
                 let sender = lanes.entry(lane.clone()).or_insert_with(|| {
                     let (tx, rx) = mpsc::channel(QUEUE);
-                    tasks.push(Box::pin(lane::run(context.clone(), lane.clone(), rx, events.clone())));
+                    let (context, lane, events) = (context.clone(), lane.clone(), events.clone());
+                    tasks.push(Box::pin(async move {
+                        lane::run(context, lane.clone(), rx, events).await;
+                        lane
+                    }));
                     tx
                 });
                 let message = Message { value, text, request_id: random_id(), capture_sequence };
@@ -214,6 +237,16 @@ async fn deliver(
     owners: &mut HashMap<String, Vec<Lane>>,
 ) -> bool {
     match event {
+        Event::Forgotten { lane, responses } => {
+            for response in responses {
+                if let Some(found) = owners.get_mut(&response) {
+                    found.retain(|owner| owner != &lane);
+                    if found.is_empty() {
+                        owners.remove(&response);
+                    }
+                }
+            }
+        }
         Event::RequestTurn { sequence, turn } => {
             if let Some(capture) = capture {
                 capture.associate_turn(sequence, turn);
