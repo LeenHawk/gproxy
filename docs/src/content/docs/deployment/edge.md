@@ -5,6 +5,20 @@ description: "Configure Workers, D1, secrets, and console assets, and review cur
 
 Workers uses the same HTTP routes as the native server, with remote database and file-storage backends. The console is deployed as Workers Assets rather than embedded in WASM.
 
+## One-click deployment
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/dev/deploy/cloudflare-button)
+
+The template downloads and verifies the official v4.0.1 Worker and console bundle. No Rust toolchain is needed. The current bundle requires a **paid Workers plan**.
+
+1. Click the button and connect your GitHub or GitLab account.
+2. Choose the Worker and D1 database names. Cloudflare provisions and binds D1.
+3. Set `GPROXY_ADMIN_PASSWORD` (at least 8 characters) and `GPROXY_MASTER_KEY` (a saved 32-byte key, for example the output of `openssl rand -hex 32`).
+4. Keep the detected build command `npm run build` and deploy command `npm run deploy`.
+5. Open `/console/` after deployment and sign in as `admin` with your password. Add providers and create a gateway API key.
+
+The template pins its version in `prepare-release.mjs`. Keep D1 and the master key when updating. The initial password only applies to an empty database; changing the secret does not reset existing accounts.
+
 ## Current limitations
 
 - Responses WebSocket, Realtime and channel service sockets share the native deployment’s routes, authentication and limits.

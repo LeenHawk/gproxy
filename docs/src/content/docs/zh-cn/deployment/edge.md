@@ -5,6 +5,20 @@ description: "配置 Workers、D1、secrets 与控制台资源，了解当前部
 
 Workers 使用与原生服务相同的 HTTP 路由，数据库和文件存储需要使用远程后端。控制台作为 Workers Assets 部署，不嵌入 WASM。
 
+## 一键部署
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/dev/deploy/cloudflare-button)
+
+该模板下载并校验官方 v4.0.1 Worker 与控制台包。无需 Rust 工具链，
+
+1. 点击按钮，连接 GitHub 或 GitLab 账户。
+2. 选择 Worker 和 D1 数据库名称。Cloudflare 会创建并绑定 D1。
+3. 设置 `GPROXY_ADMIN_PASSWORD`（至少 8 个字符）和 `GPROXY_MASTER_KEY`（保存好的 32 字节密钥，例如 `openssl rand -hex 32` 的输出）。
+4. 保留检测到的构建命令 `npm run build` 和部署命令 `npm run deploy`。
+5. 部署完成后打开 `/console/`，使用 `admin` 和所设密码登录，再添加供应商、创建网关 API Key。
+
+模板在 `prepare-release.mjs` 中固定版本。更新时保留 D1 数据库和主密钥；初始密码只用于空库，修改 Secret 不会重置现有账户密码。
+
 ## 当前限制
 
 - Responses WebSocket、Realtime 和渠道 service socket 复用原生部署的路由、鉴权与限制。

@@ -1,0 +1,3 @@
+# Set these in the deployment form; do not commit actual secrets.
+GPROXY_ADMIN_PASSWORD=
+GPROXY_MASTER_KEY=

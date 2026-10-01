@@ -1,0 +1,30 @@
+{
+  "name": "gproxy-cloudflare-button",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node prepare-release.mjs",
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "fflate": "^0.8.2",
+    "wrangler": "^4.32.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DB": {
+        "description": "D1 database for GPROXY configuration, accounts, and usage. Cloudflare creates it during deployment."
+      },
+      "GPROXY_ADMIN_PASSWORD": {
+        "description": "Choose an initial admin password of at least 8 characters. Sign in as admin at /console/ after deployment."
+      },
+      "GPROXY_MASTER_KEY": {
+        "description": "Credential encryption key: generate with `openssl rand -hex 32` and keep a backup. Reuse the same key when updating."
+      }
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
