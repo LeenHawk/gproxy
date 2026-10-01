@@ -119,6 +119,14 @@ impl<T> Execution<T> {
     pub(crate) fn new(response: T, usage: UsageCompletion, _settled: Settled) -> Self {
         Self { response, usage }
     }
+    /// Wrap the response transport while retaining its settlement completion.
+    pub fn map_response<U>(self, map: impl FnOnce(T) -> U) -> Execution<U> {
+        Execution {
+            response: map(self.response),
+            usage: self.usage,
+        }
+    }
+
     pub fn response(&self) -> &T {
         &self.response
     }

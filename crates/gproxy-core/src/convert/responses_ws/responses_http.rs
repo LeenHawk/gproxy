@@ -3,87 +3,13 @@
 
 use super::*;
 use futures_util::StreamExt;
+use gproxy_protocol::wire::openai::responses::stream::StreamEvent;
 use gproxy_protocol::{
     HttpBody,
     adapt::responses_ws::{self, ResponsesWsConnect},
     codec::{SseEvent, encode_sse_event},
     wire::openai::responses as r,
 };
-
-pub(super) async fn over_http(
-    mut input: r::GenerateContentRequestBody,
-    upstream: &AttemptUpstream,
-    model: &str,
-    lane: Option<String>,
-    limits: gproxy_protocol::codec::CodecLimits,
-    out: &Outgoing,
-) -> Result<bool, TransformError> {
-    use gproxy_protocol::{
-        capability::Upstream,
-        codec::{SseDecoder, SseFrame},
-    };
-    input.model = Some(model.into());
-    input.stream = Some(Some(true));
-    let body = gproxy_protocol::codec::encode_json(&input, limits)
-        .map_err(|e| TransformError::shape("responses.websocket", e.to_string()))?;
-    let response = upstream
-        .send(
-            &OperationKey {
-                operation: Operation::StreamGenerateContent,
-                dialect: Dialect::OpenAi,
-            },
-            WireRequest {
-                method: http::Method::POST,
-                path: "/v1/responses".into(),
-                query: None,
-                headers: HeaderMap::new(),
-                body: HttpBody::Bytes(body),
-            },
-        )
-        .await?;
-    let status = response.status;
-    let mut stream: ByteStream = match response.body {
-        HttpBody::Bytes(bytes) => Box::pin(futures_util::stream::once(async { Ok(bytes) })),
-        HttpBody::Stream(stream) => stream,
-    };
-    if !status.is_success() {
-        return Ok(out
-            .send(Ok(error_frame(
-                status.as_u16(),
-                lane,
-                format!("upstream rejected generation ({status})"),
-            )))
-            .await
-            .is_ok());
-    }
-    let mut decoder = SseDecoder::new(limits);
-    while let Some(chunk) = stream.next().await {
-        let bytes = chunk
-            .map_err(|e| TransformError::invalid_result("responses.websocket", e.to_string()))?;
-        for frame in decoder
-            .push(&bytes)
-            .map_err(|e| TransformError::invalid_result("responses.websocket", e.to_string()))?
-        {
-            if let SseFrame::Event(event) = frame {
-                let mut value: serde_json::Value = serde_json::from_str(&event.data)?;
-                if let Some(lane) = &lane {
-                    value["stream_id"] = lane.clone().into();
-                }
-                if out
-                    .send(Ok(WsFrame::Text(value.to_string())))
-                    .await
-                    .is_err()
-                {
-                    return Ok(false);
-                }
-            }
-        }
-    }
-    decoder
-        .finish()
-        .map_err(|e| TransformError::invalid_result("responses.websocket", e.to_string()))?;
-    Ok(true)
-}
 
 pub(super) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'static>(
     call: &Call<'_, C>,

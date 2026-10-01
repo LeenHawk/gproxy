@@ -55,7 +55,7 @@ use crate::{
 
 /// Everything both builders collect. Split out so the setters, the
 /// preparation and the failover loop exist once.
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Options {
     scope: Option<String>,
     attribution: UsageAttribution,
@@ -310,8 +310,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ConnectBuilder<'_, C> {
     /// Resolve, then walk the plan. A rejected handshake counts exactly as a
     /// rejected HTTP answer: its status decides whether another provider is
     /// worth trying.
+    /// Responses sockets admit create/steer turns automatically and record
+    /// usage per turn. Hosts with their own admission use `open_responses`.
     pub async fn send(self) -> SdkResult<WebSocketExecution> {
-        self.send_inner(None).await
+        if self.operation.dialect == gproxy_protocol::Dialect::OpenAiResponsesWebSocket {
+            responses::connect(self).await
+        } else {
+            self.send_inner(None).await
+        }
     }
 
     /// Open a reusable Responses chain. Its handshake is captured separately
