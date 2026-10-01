@@ -40,7 +40,7 @@ jobs:
   submit:
     name: ${{ matrix.edition }} Microsoft Store
     runs-on: windows-latest
-    environment: release
+    environment: ${{ inputs.prepare_only && 'store-packaging' || 'release' }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -65,7 +65,7 @@ jobs:
       MS_STORE_TENANT_ID: ${{ vars.MS_STORE_TENANT_ID }}
       MS_STORE_SELLER_ID: ${{ vars.MS_STORE_SELLER_ID }}
       MS_STORE_CLIENT_ID: ${{ vars.MS_STORE_CLIENT_ID }}
-      MS_STORE_CLIENT_SECRET: ${{ secrets.MS_STORE_CLIENT_SECRET }}
+      MS_STORE_CLIENT_SECRET: ${{ !inputs.prepare_only && secrets.MS_STORE_CLIENT_SECRET || '' }}
       MS_STORE_IDENTITY_NAME: ${{ matrix.identity_name }}
       MS_STORE_DISPLAY_NAME: ${{ matrix.display_name }}
       MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
@@ -92,7 +92,7 @@ jobs:
       - name: Validate Store configuration
         shell: pwsh
         run: |
-          foreach ($name in @('MS_STORE_PRODUCT_ID', 'MS_STORE_TENANT_ID', 'MS_STORE_SELLER_ID', 'MS_STORE_CLIENT_ID', 'MS_STORE_CLIENT_SECRET', 'MS_STORE_IDENTITY_NAME', 'MS_STORE_DISPLAY_NAME', 'MS_STORE_IDENTITY_PUBLISHER', 'MS_STORE_PUBLISHER_DISPLAY_NAME')) {
+          foreach ($name in @('MS_STORE_PRODUCT_ID', 'MS_STORE_IDENTITY_NAME', 'MS_STORE_DISPLAY_NAME', 'MS_STORE_IDENTITY_PUBLISHER', 'MS_STORE_PUBLISHER_DISPLAY_NAME')) {
             if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "Missing $name" }
           }
       - uses: actions/download-artifact@v8.0.1
@@ -133,6 +133,9 @@ jobs:
         if: ${{ !inputs.prepare_only }}
         shell: pwsh
         run: |
+          foreach ($name in @('MS_STORE_TENANT_ID', 'MS_STORE_SELLER_ID', 'MS_STORE_CLIENT_ID', 'MS_STORE_CLIENT_SECRET')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "Missing $name" }
+          }
           msstore reconfigure --tenantId $env:MS_STORE_TENANT_ID --sellerId $env:MS_STORE_SELLER_ID --clientId $env:MS_STORE_CLIENT_ID --clientSecret $env:MS_STORE_CLIENT_SECRET
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           msstore settings --enableTelemetry false
