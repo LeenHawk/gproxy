@@ -24,9 +24,14 @@ struct Message {
     value: Value,
     text: String,
     request_id: String,
+    capture_sequence: Option<usize>,
 }
 
 enum Event {
+    RequestTurn {
+        sequence: usize,
+        turn: String,
+    },
     Frame {
         lane: Lane,
         turn: Option<String>,
@@ -116,7 +121,7 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
             }
             frame = input.recv() => {
                 let Some(frame) = frame else { outcome = CaptureOutcome::Cancelled; break };
-                record(&mut capture, CaptureDirection::Request, &frame, None);
+                let capture_sequence = record(&mut capture, CaptureDirection::Request, &frame, None);
                 let mut text = match frame {
                     WsFrame::Close(value) => { close = value; break; }
                     WsFrame::Ping(bytes) => { let _ = output.send(WsFrame::Pong(bytes)).await; continue; }
@@ -161,7 +166,7 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
                     tasks.push(Box::pin(lane::run(context.clone(), lane.clone(), rx, events.clone())));
                     tx
                 });
-                let message = Message { value, text, request_id: random_id() };
+                let message = Message { value, text, request_id: random_id(), capture_sequence };
                 // A saturated lane must not block control/traffic on other lanes.
                 if sender.try_send(message).is_err() {
                     let _ = output.send(error(429, lane.as_deref(), "lane_busy", "Responses lane is busy")).await;
@@ -178,13 +183,21 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
             event = receive.recv() => match event { Some(event) => event, None => break },
             _ = tasks.next(), if !tasks.is_empty() => continue,
         };
-        if let Event::Finished {
-            capture: Some(turn),
-            outcome,
-        } = event
-            && let Some(parent) = &mut capture
-        {
-            parent.append_turn(*turn, outcome);
+        match event {
+            Event::Finished {
+                capture: Some(turn),
+                outcome,
+            } => {
+                if let Some(parent) = &mut capture {
+                    parent.append_turn(*turn, outcome);
+                }
+            }
+            Event::RequestTurn { sequence, turn } => {
+                if let Some(parent) = &mut capture {
+                    parent.associate_turn(sequence, turn);
+                }
+            }
+            _ => {}
         }
     }
     while tasks.next().await.is_some() {}
@@ -201,6 +214,11 @@ async fn deliver(
     owners: &mut HashMap<String, Vec<Lane>>,
 ) -> bool {
     match event {
+        Event::RequestTurn { sequence, turn } => {
+            if let Some(capture) = capture {
+                capture.associate_turn(sequence, turn);
+            }
+        }
         Event::Finished {
             capture: Some(turn),
             outcome,
@@ -220,7 +238,7 @@ async fn deliver(
                     found.push(lane);
                 }
             }
-            record(capture, CaptureDirection::Response, &frame, turn.as_deref());
+            let _ = record(capture, CaptureDirection::Response, &frame, turn.as_deref());
             return output.send(frame).await.is_ok();
         }
     }
@@ -232,8 +250,8 @@ fn record(
     direction: CaptureDirection,
     frame: &WsFrame,
     turn: Option<&str>,
-) {
-    let Some(capture) = capture else { return };
+) -> Option<usize> {
+    let capture = capture.as_mut()?;
     let frame = match frame {
         WsFrame::Text(text) => CapturedFrame::Text(text),
         WsFrame::Binary(bytes) => CapturedFrame::Binary(bytes),
@@ -244,7 +262,7 @@ fn record(
             reason: value.as_ref().map(|v| v.reason.as_str()).unwrap_or(""),
         },
     };
-    capture.record_turn_frame(direction, frame, turn);
+    capture.record_turn_frame(direction, frame, turn)
 }
 
 fn parse(text: &str) -> Result<(Value, Lane), String> {

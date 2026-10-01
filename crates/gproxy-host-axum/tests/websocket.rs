@@ -488,6 +488,17 @@ async fn responses_upstream_handshake_refusal_is_a_structured_error_after_client
 #[tokio::test(flavor = "multi_thread")]
 async fn responses_selects_from_first_frame_reuses_native_socket_and_settles_each_turn() {
     let host = responses_instance("openai_responses_websocket", Some(1)).await;
+    settings(
+        &host,
+        gproxy_sdk::dto::SettingsPatch {
+            logging: Some(gproxy_sdk::dto::LoggingSettingsPatch {
+                enable_downstream_log_body: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+    )
+    .await;
     let upstream = host.client.accept_socket();
     let bound = host.bind().await;
     let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
@@ -561,6 +572,31 @@ async fn responses_selects_from_first_frame_reuses_native_socket_and_settles_eac
             .count(),
         2
     );
+    let connection = captures
+        .iter()
+        .find(|row| row.kind == capture_record::CaptureKind::WsConnection)
+        .unwrap();
+    let events = events(&host, &connection.id).await;
+    let requests: Vec<_> = events
+        .iter()
+        .filter(|event| {
+            event.direction == capture_event::CaptureDirection::Request
+                && event.kind == capture_event::CaptureEventKind::WsText
+        })
+        .collect();
+    assert_eq!(requests.len(), 2);
+    assert_ne!(requests[0].turn_id, requests[1].turn_id);
+    for request in requests {
+        let turn = request.turn_id.as_ref().unwrap();
+        assert!(
+            captures
+                .iter()
+                .any(|row| &row.id == turn && row.session_id.as_ref() == Some(&connection.id))
+        );
+        assert!(events.iter().any(|event| event.direction
+            == capture_event::CaptureDirection::Response
+            && event.turn_id.as_ref() == Some(turn)));
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
