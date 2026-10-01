@@ -170,7 +170,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> QuotaQueries<'_, C> {
     /// still exist: a cycle is a historical reference, and the point of
     /// reading it here is to look at what a deleted credential did.
     pub async fn credential_cycles(&self, credential_id: &str) -> SdkResult<CredentialQuotaDto> {
-        credential_quota(&self.inner.store, credential_id, &self.inner.core.snapshot()).await
+        credential_quota(
+            &self.inner.store,
+            credential_id,
+            &self.inner.core.snapshot(),
+        )
+        .await
     }
 
     /// One page of a credential's raw quota readings, newest first. See
