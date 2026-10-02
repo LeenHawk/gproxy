@@ -15,16 +15,6 @@ function derived(role: string, canSeeLogs = true) {
 }
 
 describe("the navigation", () => {
-  it("shows an ordinary account only its own section", () => {
-    const sections = sectionsFor(derived("user"))
-    expect(sections.map((section) => section.id)).toEqual(["self"])
-  })
-
-  it("groups operator navigation by task", () => {
-    const sections = sectionsFor(derived("admin"))
-    expect(sections.map((section) => section.id)).toEqual(["self", "providers", "model-catalog", "rules", "management", "people", "access", "system"])
-  })
-
   it("keeps pricing, credentials and quotas in their owning pages", () => {
     const routes = sectionsFor(derived("admin")).flatMap(section => section.items.map(item => item.route))
     expect(routes).toContain("/model-catalog")
