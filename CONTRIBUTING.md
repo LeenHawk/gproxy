@@ -18,6 +18,8 @@ you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
   [Issues](https://github.com/LeenHawk/gproxy/issues). Search existing issues
   first. For anything you prefer not to post publicly, email
   <leenhawk@leenhawk.com>.
+- **Accessibility barriers** are bugs; see [ACCESSIBILITY.md](ACCESSIBILITY.md)
+  for how to report them.
 - **Larger changes** — a new channel, a new protocol, a schema change or a new
   page in the console — should start with an issue so the design can be agreed
   before you write a lot of code.
@@ -132,6 +134,7 @@ or crate you change.
 - **Bug 与功能建议**请提交到 [Issues](https://github.com/LeenHawk/gproxy/issues)，
   提交前请先搜索是否已有相同问题。不便公开的内容可以发邮件到
   <leenhawk@leenhawk.com>。
+- **无障碍障碍**同样按 Bug 处理，报告方式见 [ACCESSIBILITY.md](ACCESSIBILITY.md)。
 - **较大的改动**——新渠道、新协议、数据库结构变更或控制台新页面——请先开 Issue
   讨论方案，再动手写大量代码。
 - 新增上游渠道请参考

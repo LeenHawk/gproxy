@@ -1,0 +1,59 @@
+name: 无障碍问题 / Accessibility barrier
+description: 报告难以使用或无法使用的界面。/ Report something that is hard or impossible to use.
+title: "[A11y] "
+labels: [accessibility]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。不便公开的情况可以发邮件到 leenhawk@leenhawk.com。另见 [ACCESSIBILITY.md](https://github.com/LeenHawk/gproxy/blob/main/ACCESSIBILITY.md)。
+        Thank you for the report. If you prefer not to post publicly, email leenhawk@leenhawk.com. See also [ACCESSIBILITY.md](https://github.com/LeenHawk/gproxy/blob/main/ACCESSIBILITY.md).
+  - type: input
+    id: location
+    attributes:
+      label: 页面或界面 / Page or screen
+      placeholder: "例如 服务商 → 添加凭据 / e.g. Providers → Add credential"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: GPROXY 版本与发行形式 / Version and distribution
+      placeholder: "v4.0.3, Desktop / CLI + browser / Android"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 操作系统与浏览器 / OS and browser
+      placeholder: "Windows 11, Firefox 140"
+    validations:
+      required: true
+  - type: checkboxes
+    id: assistive
+    attributes:
+      label: 使用的辅助方式 / How you use it
+      options:
+        - label: 仅键盘 / Keyboard only
+        - label: 读屏软件 / Screen reader
+        - label: 放大或缩放 / Magnification or zoom
+        - label: 高对比度或强制颜色 / High contrast or forced colors
+        - label: 语音控制 / Voice control
+        - label: 其他 / Other
+  - type: input
+    id: technology
+    attributes:
+      label: 辅助技术名称与版本 / Assistive technology and version
+      placeholder: "NVDA 2026.2, TalkBack, Orca"
+  - type: textarea
+    id: barrier
+    attributes:
+      label: 遇到的障碍 / What happened
+      description: 你想完成什么操作，实际发生了什么，期望发生什么？/ What were you trying to do, what happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充说明 / Additional context
+      description: 读屏输出、截图或录屏等（请勿包含密钥或个人信息）。/ Screen reader output, screenshots or recordings (no secrets or personal data).
