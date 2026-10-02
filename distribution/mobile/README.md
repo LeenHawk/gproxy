@@ -93,8 +93,8 @@ launcher for the verified Gradle installation. There are no blanket scanner
 exclusions. JavaScript dependencies are installed from frozen lockfiles during
 the build. The recipe declares `NonFreeNet` for proprietary AI integrations.
 
-After these source changes are committed and published, render metadata for
-that exact commit (a prior `v4.0.2` tag does not contain this build support):
+To render metadata manually, select the exact published commit (`v4.0.3` or
+newer; the earlier `v4.0.2` tag does not contain this build support):
 
 ```sh
 python3 scripts/mobile/fdroid-metadata.py <public-commit-or-tag>
@@ -110,6 +110,27 @@ Do not submit the `.yml.in` template or claim a local APK build is an F-Droid
 isolated-server build. The full recipe, toolchain availability, source scanner
 and resulting APK still need to pass fdroiddata CI. Reproducible builds using
 the upstream signature are optional and have not been established.
+
+### Automatic release submission
+
+After the Release workflow successfully publishes a stable release, it calls
+`.github/workflows/fdroid-publish.yml`. Dev/nightly and beta/staging publications
+do not submit to F-Droid. The workflow can also be dispatched manually with a
+published version and defaults to a read-only dry run.
+
+The `release` GitHub environment must contain `FDROID_GITLAB_TOKEN`, a GitLab
+token with `api` access to the public `LeenHawk/fdroiddata` fork and permission
+to open/update merge requests at `fdroid/fdroiddata`. The fork must already exist.
+The submission script checks that the stable GitHub release is published and
+its tag belongs to `origin/main`, then pins the recipe to the full source commit.
+
+Before initial inclusion, new releases update the existing GPROXY MR. After
+inclusion, the script retains accepted build history and reviewer changes to
+the recipe when submitting the next version. If F-Droid's own tag updater has
+already added that version, or the version is already pending, submission is
+skipped. Older releases never replace a newer pending or accepted version.
+F-Droid CI and maintainer approval still determine acceptance/publication;
+successful submission does not mean the app is available in the repository.
 
 ## Native HarmonyOS AppGallery
 
