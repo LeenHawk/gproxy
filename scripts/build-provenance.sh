@@ -39,16 +39,18 @@ else
   rustc_version="$(version_of rustc --version)"
 fi
 if [ "${BUILDER:-cargo}" = termux ]; then
+  commit="$(jq -r .commit "target/${TARGET_TRIPLE:?}/release/termux-toolchain.json")"
   node_version="$(jq -r .tools.node "target/${TARGET_TRIPLE:?}/release/termux-toolchain.json")"
   pnpm_version="$(jq -r .tools.pnpm "target/${TARGET_TRIPLE:?}/release/termux-toolchain.json")"
 else
+  commit="${GITHUB_SHA:-$(git rev-parse HEAD)}"
   node_version="$(version_of node --version)"
   pnpm_version="$(version_of pnpm --version)"
 fi
 
 jq -n \
   --arg version "$GPROXY_VERSION" \
-  --arg commit "${GITHUB_SHA:-$(git rev-parse HEAD)}" \
+  --arg commit "$commit" \
   --arg tag "${GITHUB_REF_NAME:-}" \
   --arg target "${TARGET_TRIPLE:-}" \
   --arg builder "${BUILDER:-cargo}" \

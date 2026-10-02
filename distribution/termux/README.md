@@ -41,30 +41,17 @@ patch is confined to this package and does not change standalone builds.
 The package conflicts with/replaces the upstream `gproxy-cli` DEB because both
 own `$PREFIX/bin/gproxy`. User configuration and databases are not package files.
 
-## Device validation
+## Installation
 
 Install the DEB on the matching architecture inside Termux:
 
 ```sh
-pkg update
-pkg install curl
 apt install ./gproxy_4.0.3_x86_64.deb # use the actual output filename
-bash smoke-test.sh
 ```
 
-`smoke-test.sh` uses a disposable data directory and loopback port 18787.
-It checks the version, embedded Console, health endpoint, authenticated admin
-API after restart, and refusal of self-update and rollback. It does not send
-requests to a paid upstream. Provider forwarding requires a separate test
-with a configured provider and credentials.
-
-For upgrade testing, install the previous package first, then run
-`bash smoke-test.sh /absolute/path/to/candidate.deb`. The script initializes
-the old version, stops it, installs the candidate with APT, checks that the
-version changed, and verifies the same admin key against the same database.
-This also covers replacement of the upstream `gproxy-cli` DEB. Termux:Boot is
-optional and requires its separate Android app; reboot/autostart testing must
-be recorded separately.
+When upgrading, preserve the data directory, configuration and master key.
+Termux:Boot is optional and requires its separate Android app. ZIP installation
+and package-manager update instructions are included in `ZIP-README.txt`.
 
 ## Submission boundary
 
@@ -77,6 +64,29 @@ not equivalent to installing only a Rust crate with Cargo. Acceptance also
 depends on project activity/community and maintainer judgment. If the main
 repository declines inclusion, consider https://github.com/termux-user-repository/tur.
 
-Do not label a recipe as accepted, or Android CLI publication as migrated,
-until the corresponding review/build/runtime evidence exists. Current local
-validation results are recorded in `VALIDATION.md`.
+## Automatic submission
+
+After publishing a stable release, `termux-publish.yml` runs
+`scripts/termux-submit.py`. It maintains the `gproxy` branch in
+`LeenHawk/termux-packages` and opens or updates one PR against
+`termux/termux-packages`. Dev and beta releases do not submit packages.
+
+The `release` environment needs a `TERMUX_TOKEN` GitHub credential with write
+access to that fork and permission to open upstream PRs. The normal repository
+`GITHUB_TOKEN` cannot write to the fork. The workflow can also be dispatched
+manually; `dry_run` defaults to true and uploads the generated recipe for review.
+
+The script verifies the published release, main-branch ancestry, source version
+and checksum, patch application and the official package linter before pushing.
+It retains existing maintainer build commands and patches, removes the package
+revision when updating the version, skips accepted/newer releases, and reuses an
+open PR. A closed unmerged PR requires manual review before another submission.
+
+For a local preview:
+
+```sh
+python scripts/termux-submit.py --version 4.0.3 --dry-run
+```
+
+Preview files are written to `dist/termux/`. Submission validation does not
+replace full package builds or runtime testing; Termux CI and review are separate.

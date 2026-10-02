@@ -955,6 +955,16 @@ jobs:
     with:
       version: ${{ needs.prepare.outputs.version }}
 
+  termux-publish:
+    name: Submit Termux update
+    needs: [prepare, publish]
+    if: ${{ needs.prepare.outputs.channel == 'release' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/termux-publish.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+
   store-publish:
     name: Submit Microsoft Store update
     needs: [prepare, publish]
