@@ -754,6 +754,25 @@ impl Sink<WsFrame> for ObservedSink {
             value["model"] = serde_json::Value::String(model.into());
             *text = value.to_string();
         }
+        if super::thinking::enabled(
+            &self
+                .exchange
+                .context
+                .attempt
+                .request
+                .target
+                .provider
+                .entity
+                .config,
+            self.exchange.context.operation,
+        ) && let WsFrame::Text(text) = &mut frame
+            && let Some(body) = super::thinking::strip_bytes(
+                self.exchange.context.operation.dialect,
+                text.as_bytes(),
+            )
+        {
+            *text = String::from_utf8(body).expect("serialized JSON");
+        }
         if frame_len(&frame) as u64 > self.max {
             return Err(transport_error("rewritten frame exceeds the frame limit"));
         }

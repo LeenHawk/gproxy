@@ -68,6 +68,10 @@ scope 与操作分别记录，坏掉的模型既不藏在健康模型后面，�
 旧 `sticky`／`round_robin_affinity` 默认保持“轮询＋亲和”，显式亲和开关可覆盖此默认值。
 pin 按调用方 scope 与 Provider 隔离。详见[会话识别与选择](../../design/session-identity.md)。
 
+所有渠道均提供供应商配置 `forward_thinking`（默认 `true`，Console 中为“传递思考块”）。
+设为 `false` 后，在协议转换和发送上游前，移除 Claude、Responses（含 WebSocket）、Chat、
+Gemini 请求历史中的思考块及签名，保留正文和工具数据，也保留本次生成的思考参数。
+
 ## 公开 API
 
 [api/operations.rs](src/api/operations.rs) 声明与 `BaseChannel` 对应的 30 个具名 HTTP

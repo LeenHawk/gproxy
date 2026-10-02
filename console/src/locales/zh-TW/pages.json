@@ -127,6 +127,7 @@
     "select": "選擇供應商"
   },
   "providerConfig": {
+    "forward_thinking": "傳遞思考區塊",
     "account_type": "帳號類型",
     "agent_intent": "Agent 用途",
     "allowed_headers": "允許轉送的請求標頭",

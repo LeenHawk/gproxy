@@ -11,6 +11,7 @@ mod metering;
 mod native;
 pub(crate) mod prepare;
 mod stream;
+mod thinking;
 mod websocket;
 
 pub(crate) use attempt::reject_when_over_budget as check_budget;

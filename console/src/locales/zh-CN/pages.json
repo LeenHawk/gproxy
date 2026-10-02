@@ -127,6 +127,7 @@
     "select": "选择供应商"
   },
   "providerConfig": {
+    "forward_thinking": "传递思考块",
     "account_type": "账号类型",
     "agent_intent": "Agent 用途",
     "allowed_headers": "允许转发的请求头",

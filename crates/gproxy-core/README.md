@@ -86,6 +86,12 @@ and `round_robin_affinity` retain round-robin with affinity by default; an expli
 `session_affinity` overrides that default. Pins are scoped by caller and provider.
 See [session identity and selection](../../design/session-identity.md).
 
+Every channel exposes the provider config `forward_thinking` (default `true`).
+Set it to `false` to remove carried thinking/reasoning blocks and signatures from
+Claude, Responses (including WebSocket), Chat, and Gemini request history before
+conversion and upstream dispatch. Text and tool data are preserved, as are the
+controls that request thinking for the new response.
+
 ## Public API
 
 [api/operations.rs](src/api/operations.rs) declares 30 named HTTP methods and 3

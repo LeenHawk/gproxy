@@ -127,6 +127,7 @@
     "select": "Select a provider"
   },
   "providerConfig": {
+    "forward_thinking": "Forward thinking blocks",
     "account_type": "Account type",
     "agent_intent": "Agent intent",
     "allowed_headers": "Allowed headers",

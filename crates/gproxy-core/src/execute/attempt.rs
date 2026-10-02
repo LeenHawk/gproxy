@@ -188,7 +188,9 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
         && upstream_model
             .as_deref()
             .is_some_and(|model| request.attribution.model.as_deref() != Some(model));
-    let want_replay = provider.channel.claude_fallback().is_some()
+    let strip_thinking = super::thinking::enabled(&provider.entity.config, operation);
+    let want_replay = strip_thinking
+        || provider.channel.claude_fallback().is_some()
         || converting
         || local
         || remap_model
@@ -196,11 +198,11 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
         || !request_rules.body.is_empty();
     let (mut wire, replayable) =
         prepare::buffer_request(wire, want_replay, limits.max_request_body_bytes).await;
-    if (converting || remap_model || local) && !replayable {
+    if (converting || remap_model || local || strip_thinking) && !replayable {
         return Err(CoreError::Transform(TransformError::new(
             TransformErrorKind::Limit,
             "client.body",
-            "request body exceeds the buffering limit required for conversion or model mapping",
+            "request body exceeds the buffering limit required for request preparation",
         )));
     }
     if !converting {
@@ -226,6 +228,9 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
         {
             wire.body = HttpBody::Bytes(Bytes::from(rewritten));
         }
+    }
+    if strip_thinking {
+        super::thinking::strip_request(operation.dialect, &mut wire);
     }
     if local {
         let mut response = convert::local::run(&request, &wire)?;

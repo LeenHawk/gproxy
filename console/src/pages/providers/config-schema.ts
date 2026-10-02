@@ -37,7 +37,7 @@ export function controlFor(field: ConfigKey): ControlKind {
 }
 
 export function booleanDefault(name: string) {
-  return ["usage_accounting", "normalize_service_tier", "synthesize_cli_identity"].includes(name)
+  return ["forward_thinking", "usage_accounting", "normalize_service_tier", "synthesize_cli_identity"].includes(name)
 }
 
 export function setConfigValue(config: ConfigObject, name: string, value: unknown): ConfigObject {
