@@ -13,7 +13,7 @@ been created. Unchecked items below are not completed by a repository merge.
   intended bundle identity; obtain the product IDs and signing materials.
 - [ ] Confirm the developer's legal/public display name and usable support/privacy
   email address. Current text uses the project's existing public publisher name
-  **Leen Hawk** and GitHub issue contact; it is not a verified mainland operator
+  **Leen Hawk**, GitHub issue contact and leenhawk@leenhawk.com; it is not a verified mainland operator
   identity, address or private contact channel.
 - [ ] In AGC, check the mainland China APP filing and category-specific
   qualification requirements for the actual operator and service model,

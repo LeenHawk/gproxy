@@ -189,7 +189,7 @@ pnpm --dir docs build
 
 See [Building from source](https://gproxy.leenhawk.com/deployment/release-build/) for desktop and WASM checks, [Architecture](https://gproxy.leenhawk.com/introduction/architecture/) for the workspace layout, and [Adding a channel](https://gproxy.leenhawk.com/guides/adding-a-channel/) for extensions.
 
-Report bugs through [Issues](https://github.com/LeenHawk/gproxy/issues). Report vulnerabilities privately through [Security](https://github.com/LeenHawk/gproxy/security).
+Report bugs through [Issues](https://github.com/LeenHawk/gproxy/issues), or email [leenhawk@leenhawk.com](mailto:leenhawk@leenhawk.com) for anything you prefer not to post publicly. Report vulnerabilities privately through [Security](https://github.com/LeenHawk/gproxy/security) or by email; see [SECURITY.md](SECURITY.md).
 
 ## License
 

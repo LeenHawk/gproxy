@@ -56,7 +56,7 @@ in the application's settings.
 GPROXY does not automatically send gateway information to the project publisher,
 including for analytics or support. Information you choose to post in GitHub
 issues is handled by GitHub and may be public. Never post credentials, access
-tokens, or private request content in an issue.
+tokens, or private request content in an issue; use email for anything private.
 
 ## Your choices and deletion
 
@@ -75,6 +75,6 @@ must be managed separately; local deletion does not erase a provider's copies.
 ## Contact
 
 For privacy questions, use <https://github.com/LeenHawk/gproxy/issues> without
-including personal data or secrets. Product documentation is available at
+including personal data or secrets, or email <leenhawk@leenhawk.com> privately. Product documentation is available at
 <https://gproxy.leenhawk.com/>. Changes to application behavior may require this
 information to be updated alongside a release.

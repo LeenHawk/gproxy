@@ -189,7 +189,7 @@ pnpm --dir docs build
 
 桌面和 WASM 的独立检查见[从源码构建](https://gproxy.leenhawk.com/zh-cn/deployment/release-build/)。工作区结构见[架构](https://gproxy.leenhawk.com/zh-cn/introduction/architecture/)，扩展方式见[新增渠道](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)。
 
-问题请提交到 [Issues](https://github.com/LeenHawk/gproxy/issues)，安全漏洞请通过 [Security](https://github.com/LeenHawk/gproxy/security) 私下报告。
+问题请提交到 [Issues](https://github.com/LeenHawk/gproxy/issues)，不便公开的内容也可以发邮件到 [leenhawk@leenhawk.com](mailto:leenhawk@leenhawk.com)。安全漏洞请通过 [Security](https://github.com/LeenHawk/gproxy/security) 或邮件私下报告，详见 [SECURITY.md](SECURITY.md)。
 
 ## 许可
 

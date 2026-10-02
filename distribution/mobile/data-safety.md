@@ -15,7 +15,7 @@ does not by itself justify answering “no data collected or shared” in every 
 | Interface fonts | Bundled locally in mobile store builds, including licenses | Verify that the store build makes no runtime font requests; direct-distribution font downloads have different behavior |
 | System backups and migration | Android declares `allowBackup=false`; the generated HarmonyOS backup extension is removed | Verify manufacturer-specific device-transfer behavior before making absolute claims about copies outside the sandbox |
 | Application updates | F-Droid, Google Play or AppGallery for that distribution | Store policy applies; these builds have no external APK updater |
-| User-filed support issues | GitHub, only when the user chooses to post | Issues can be public; provide a suitable private privacy-contact channel before submission |
+| User-filed support issues | GitHub, only when the user chooses to post | Issues can be public; leenhawk@leenhawk.com is the private contact channel |
 
 ## Answers that cannot be inferred from the repository alone
 

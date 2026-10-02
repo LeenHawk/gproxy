@@ -7,7 +7,7 @@ by **Leen Hawk** under AGPL-3.0-or-later.
 
 Use [PRIVACY.md](../../PRIVACY.md) for the privacy information. Website:
 <https://gproxy.leenhawk.com/>. Support:
-<https://github.com/LeenHawk/gproxy/issues>.
+<https://github.com/LeenHawk/gproxy/issues>, or privately at <leenhawk@leenhawk.com>.
 
 Descriptions and feature lists are independent of release versions. The Store
 publisher reads the selected GitHub release's version, notes and URL at runtime
