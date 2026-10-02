@@ -27,6 +27,8 @@ for name in ("tauri", "tauri-build"):
 # Desktop plugins require stable Tauri 2.12 and are not part of an OHOS app.
 host = root / "crates/gproxy-host-tauri/Cargo.toml"
 host_text = host.read_text()
+# HAPs load only the shared library. Emitting an rlib alongside it disables LTO.
+host_text = host_text.replace('crate-type = ["lib", "cdylib"]', 'crate-type = ["cdylib"]')
 for name in ("tauri-plugin-dialog", "tauri-plugin-single-instance"):
     host_text = re.sub(rf'^{name} = .*\n', '', host_text, flags=re.MULTILINE)
 host.write_text(host_text + '\n[target.\'cfg(target_env = "ohos")\'.dependencies]\nnapi-ohos = "=1.2.0"\nnapi-derive-ohos = "=1.2.0"\n')

@@ -14,7 +14,7 @@ fi
 
 pack_executable() {
   if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
-    upx --fast --nrv2e "$1"
+    upx --best --nrv2e "$1"
   else
     upx --best --lzma "$1"
   fi

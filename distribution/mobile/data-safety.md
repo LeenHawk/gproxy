@@ -12,7 +12,7 @@ does not by itself justify answering “no data collected or shared” in every 
 | Prompts, requests, responses, images, audio and files supplied by clients | Forwarding to the selected AI endpoint and optional configured logging/storage | Applicable data categories, user-initiated transfer disclosures, retention settings and third-party handling |
 | Usage, quotas, request errors and timing | Gateway operation and diagnostics in the selected database | Whether content logging is enabled; retention and deletion controls |
 | Model-resource downloads, model lists and quota queries | Selected resource/provider endpoints | Network metadata received by each service; whether authentication is sent |
-| Interface fonts | Bundled locally in mobile store builds, including licenses | Verify that the store build makes no runtime font requests; direct-distribution font downloads have different behavior |
+| Interface fonts | Downloaded as needed from the publisher's documentation CDN and cached locally after the privacy notice | Hosting/CDN services receive IP addresses and normal HTTP request metadata; font requests contain no gateway prompts or credentials. License notices remain bundled |
 | System backups and migration | Android declares `allowBackup=false`; the generated HarmonyOS backup extension is removed | Verify manufacturer-specific device-transfer behavior before making absolute claims about copies outside the sandbox |
 | Application updates | F-Droid, Google Play or AppGallery for that distribution | Store policy applies; these builds have no external APK updater |
 | User-filed support issues | GitHub, only when the user chooses to post | Issues can be public; leenhawk@leenhawk.com is the private contact channel |

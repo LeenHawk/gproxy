@@ -9,12 +9,12 @@ python3 scripts/mobile/version.py >/dev/null
 export GPROXY_BUILD_VERSION="$(bash scripts/release-metadata.sh version)"
 export GPROXY_BUILD_CHANNEL=release
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
-export CARGO_PROFILE_RELEASE_LTO=thin CARGO_PROFILE_RELEASE_CODEGEN_UNITS=8
+export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
 export GPROXY_OHOS_DISTRIBUTION=appgallery
 export TARGET_TRIPLE=aarch64-unknown-linux-ohos
 export OHOS_HOME="$HARMONY_TOOLS_DIR/command-line-tools/sdk/default/openharmony"
 unset GPROXY_UPDATE_PUBKEY
-VITE_GPROXY_BUNDLED_FONTS=1 pnpm --dir console build
+pnpm --dir console build
 python3 scripts/ohos/prepare-tauri.py
 source scripts/ohos/env.sh
 export PATH="$HARMONY_TOOLS_DIR/command-line-tools/tool/node/bin:$HARMONY_TOOLS_DIR/command-line-tools/bin:$PATH"

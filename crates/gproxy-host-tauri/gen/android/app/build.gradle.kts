@@ -103,3 +103,32 @@ dependencies {
 }
 
 apply(from = "tauri.build.gradle.kts")
+
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.packaging.jniLibs.useLegacyPackaging.set(true)
+        variant.packaging.jniLibs.useLegacyPackagingFromBundle.set(true)
+    }
+}
+
+// Pack the staged libraries after AGP's strip step, before APK/AAB assembly
+// and signing. Applying this to the native task covers every release channel.
+val nativePacker = rootProject.file("../../../../scripts/pack-mobile-native.py")
+tasks.configureEach {
+    if (name.startsWith("strip") && name.endsWith("ReleaseDebugSymbols")) {
+        inputs.file(nativePacker)
+        inputs.file(rootProject.file("../../../../scripts/install-android-upx.sh"))
+        doLast {
+            val ndk = providers.environmentVariable("ANDROID_NDK_HOME").get()
+            val strip = fileTree("$ndk/toolchains/llvm/prebuilt") {
+                include("*/bin/llvm-strip")
+            }.singleFile
+            outputs.files.files.filter { it.isDirectory }.forEach { directory ->
+                project.exec {
+                    commandLine("python3", nativePacker.absolutePath,
+                        directory.absolutePath, strip.absolutePath, "--android")
+                }
+            }
+        }
+    }
+}

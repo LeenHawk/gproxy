@@ -29,7 +29,7 @@ Tools 6.0.0 Release (6.0.0.858), including the API 20 SDK, hvigor and ohpm. Cons
 
 ## Packaging and runtime boundaries
 
-CLI ZIPs contain `gproxy`, its C++ runtime, and `run-gproxy.sh`. The native
+CLI ZIPs contain the UPX-packed `gproxy`, its stripped C++ runtime, and `run-gproxy.sh`. The native
 binary remains named `gproxy` for the existing signed ZIP updater. Use
 `sh ./run-gproxy.sh --help` from an OHOS device shell. SDK system-library
 import stubs are never bundled. No Debian/Termux package is produced for OHOS.
@@ -38,6 +38,14 @@ HAP output is explicitly unsigned: no signing key or device profile is
 available to this build. It must be signed for the intended device or
 application distribution before installation. Compilation and HAP inspection
 are not device execution tests. No HAP self-update path is implemented.
+
+HAP builds emit only the `cdylib`, use fat LTO with one codegen unit, and put
+executable sections before large read-only tables so UPX can compress those
+tables. After the Rust callback, the Hvigor hook strips staged native debug
+data and packs the application library with UPX `--best --lzma` before HAP
+assembly/signing. The Cargo cache stays unpacked, and AppGallery APP assembly
+reuses the already packed libraries. The toolchain image supplies the pinned
+source-built UPX packer shared with Android releases.
 
 The native Ability supplies the app's private data directory. The existing
 explicit private-file secret fallback is used because keyring has no OHOS
@@ -94,7 +102,7 @@ and Console interactions with a mocked native boundary. No signed HAP/device,
 real startup, native tray or background-survival test has been performed locally.
 
 GitHub Release and the GitLab fallback use `.gitlab/Dockerfile.ohos`.
-That image only adds GPROXY's Go build dependency to the public toolchain.
+That image adds GPROXY's Go build dependency and pinned UPX packer to the public toolchain.
 SDK and experimental Tauri installation are maintained in the independent
 `tauri-harmony` repository. `prepare-tauri.py` verifies its source pins and
 applies the dependency overlay to the application checkout.

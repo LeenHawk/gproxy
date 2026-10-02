@@ -64,8 +64,8 @@ Gradle removes the install permission, update Activity/provider and update
 notification action. Rust excludes the JNI download entry point. Without this
 environment variable, the ordinary direct-distribution build keeps its updater.
 
-Store builds bundle the checked-in interface fonts and licenses, rather than
-fetching fonts from the publisher's CDN. All store builds open a native, offline privacy notice before Tauri or the
+Store builds use the same on-demand font download/cache as desktop applications,
+with license notices kept offline. All store builds open a native, offline privacy notice before Tauri or the
 gateway starts. Declining exits; accepting records the notice version. Boot and
 sticky service restarts cannot bypass an unaccepted notice. The running Android
 gateway's notification provides a **Privacy** action for rereading it. Application
@@ -92,8 +92,12 @@ The Android UPX packer is built from the same pinned FLOSS source revision as
 the direct-release packer, outside the scanned application checkout. Store
 builds emit only the Android `cdylib` so Cargo actually applies fat LTO, with
 one codegen unit; concurrency is controlled separately
-with `CARGO_BUILD_JOBS`. F-Droid APKs use UPX `--best --lzma --android-shlib`,
-strip native debug data, and are realigned and verified before F-Droid signing.
+with `CARGO_BUILD_JOBS`. Gradle strips native debug data and uses UPX
+`--best --lzma --android-shlib` before APK/AAB assembly and signing, covering
+F-Droid, Play, AppGallery and direct releases. APK alignment is checked afterwards.
+Release APKs also use ZIP compression for native libraries, including APKs
+generated from AABs. Android extracts those libraries during installation, so
+the smaller download is accompanied by an extracted library copy on disk.
 The scanner removes the repository's Gradle wrapper; the build step recreates a
 launcher for the verified Gradle installation. There are no blanket scanner
 exclusions. JavaScript dependencies are installed from frozen lockfiles during

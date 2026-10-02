@@ -7,10 +7,12 @@ case "$mode" in
   application)
     export OHOS_HOME="$HARMONY_TOOLS_DIR/command-line-tools/sdk/default/openharmony"
     export ARTIFACT_NAME="${APPLICATION_ARTIFACT:?}" BUILDER=tauri-ohos
+    export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
     ;;
   *) exit 2 ;;
 esac
 source scripts/ohos/env.sh
+export UPX_ENABLED=true
 if [ "$mode" = cli ]; then
   cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE"
   bash scripts/ohos/package-cli.sh
@@ -21,5 +23,4 @@ else
   (cd crates/gproxy-host-tauri && cargo tauri ohos build --ci --target "${TARGET_TRIPLE%%-*}" --ignore-version-mismatches -- --lib)
   python3 scripts/ohos/package-hap.py
 fi
-export UPX_ENABLED=false
 scripts/build-provenance.sh

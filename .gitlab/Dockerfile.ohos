@@ -2,4 +2,6 @@
 FROM golang:1.27.1-trixie AS go
 FROM ghcr.io/leenhawk/tauri-harmony@sha256:01cfb6a9fa7fa35f1cf756fb89d4333d272820b66fe8dcf032375911eebddfdd
 COPY --from=go /usr/local/go /usr/local/go
-ENV PATH="/usr/local/go/bin:${PATH}"
+COPY scripts/install-android-upx.sh /opt/gproxy-install-upx.sh
+RUN bash /opt/gproxy-install-upx.sh /opt/gproxy-upx
+ENV PATH="/opt/gproxy-upx/bin:/usr/local/go/bin:${PATH}"

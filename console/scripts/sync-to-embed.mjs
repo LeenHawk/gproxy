@@ -1,6 +1,5 @@
 import { cp, mkdir, readdir, rm, stat } from "node:fs/promises"
 import path from "node:path"
-import process from "node:process"
 import { fileURLToPath } from "node:url"
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
@@ -29,13 +28,11 @@ await empty(shellDir)
 await cp(distDir, path.join(shellDir, "console"), { recursive: true, force: true })
 await cp(path.join(distDir, "index.html"), path.join(shellDir, "index.html"), { force: true })
 
-// Store applications serve the checked-in, freely licensed font assets locally.
-// The ordinary server/desktop path keeps its existing on-demand font cache.
-if (process.env.VITE_GPROXY_BUNDLED_FONTS === "1") {
-  await cp(path.resolve(consoleDir, "../docs/public/fonts"), path.join(shellDir, "console/fonts"), { recursive: true })
-  const licenses = path.join(shellDir, "console/licenses")
-  await mkdir(licenses, { recursive: true })
-  await cp(path.resolve(consoleDir, "../LICENSE"), path.join(licenses, "GPROXY-AGPL.txt"))
-  await cp(path.resolve(consoleDir, "../crates/gproxy-tokenizer/assets/tokenizers/LICENSE"), path.join(licenses, "DeepSeek-MIT.txt"))
-  await cp(path.resolve(consoleDir, "../crates/gproxy-tokenizer/THIRD_PARTY_NOTICES.md"), path.join(licenses, "tokenizer-notices.md"))
-}
+// All native applications use the existing on-demand font cache. Keep license
+// notices available offline without embedding every language's font subset.
+const licenses = path.join(shellDir, "console/licenses")
+await mkdir(licenses, { recursive: true })
+await cp(path.resolve(consoleDir, "../docs/public/fonts/licenses"), path.join(licenses, "fonts"), { recursive: true })
+await cp(path.resolve(consoleDir, "../LICENSE"), path.join(licenses, "GPROXY-AGPL.txt"))
+await cp(path.resolve(consoleDir, "../crates/gproxy-tokenizer/assets/tokenizers/LICENSE"), path.join(licenses, "DeepSeek-MIT.txt"))
+await cp(path.resolve(consoleDir, "../crates/gproxy-tokenizer/THIRD_PARTY_NOTICES.md"), path.join(licenses, "tokenizer-notices.md"))

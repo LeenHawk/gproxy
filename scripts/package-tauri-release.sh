@@ -61,6 +61,7 @@ case "$TARGET_OS" in
       -Target "$TARGET_TRIPLE" -Artifact "$ARTIFACT_NAME" -OutputDir dist/release
     ;;
   android)
+    export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
     source "$root/scripts/android/sdk.sh"
     ndk="$(android_ndk_root)"
     export ANDROID_NDK_HOME="$ndk"
@@ -84,11 +85,9 @@ case "$TARGET_OS" in
     : "${ANDROID_SIGNING_KEY_ALIAS:?}"
     work="$(mktemp -d)"
     trap 'rm -rf "$work"' EXIT
-    strip=("$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-strip)
-    python3 scripts/pack-android-application.py "${files[0]}" "$work/packed.apk" "${strip[0]}"
     printf '%s' "$ANDROID_SIGNING_KEYSTORE_B64" | base64 -d > "$work/key.jks"
     chmod 600 "$work/key.jks"
-    "$(android_build_tool "$sdk" zipalign)" -f -P 16 4 "$work/packed.apk" "$work/aligned.apk"
+    "$(android_build_tool "$sdk" zipalign)" -f -P 16 4 "${files[0]}" "$work/aligned.apk"
     signer_args=(--ks "$work/key.jks" --ks-pass env:ANDROID_SIGNING_KEYSTORE_PASSWORD --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" --v4-signing-enabled false)
     if [ -n "${ANDROID_SIGNING_KEY_PASSWORD:-}" ]; then signer_args+=(--key-pass env:ANDROID_SIGNING_KEY_PASSWORD); fi
     signer="$(android_build_tool "$sdk" apksigner)"

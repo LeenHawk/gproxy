@@ -3,7 +3,7 @@ title: GPROXY privacy information
 description: GPROXY mobile application privacy information
 ---
 
-Effective date: 2 October 2026
+Effective date: 3 October 2026
 Publisher: Leen Hawk
 
 GPROXY is an open-source AI API gateway that runs on your device. The publisher does not provide an AI account, model subscription, or hosted gateway account. This notice covers the GPROXY application, not the separate services you choose to connect.
@@ -17,7 +17,7 @@ Configuration, credentials and records are kept in the database and storage loca
 Network transfers and third parties
 Requests and the necessary credentials are sent to the provider and endpoint you configure, including outside your country if you choose such a service. Provider sign-in, model lists, quota queries, model resource downloads and remote database connections also contact the corresponding services. Those services apply their own terms, retention rules and privacy policies. Configure them only if you agree to their processing.
 
-Mobile store builds include their interface fonts and do not download them from the publisher's website. Store-installed copies receive application updates from the store, under that store's policies. GPROXY does not automatically send gateway data to the publisher, including for analytics or support.
+After you continue past this notice, interface fonts are downloaded as needed from https://gproxy.leenhawk.com/fonts/ and cached locally. The hosting/CDN service receives your IP address and normal network request information; font requests contain no gateway prompts or credentials. If a font is unavailable, the interface uses system fonts. Store-installed copies receive application updates from the store, under that store's policies. GPROXY does not automatically send gateway data to the publisher, including for analytics or support.
 
 Permissions
 Internet access enables the gateway and configured network services. Android notifications and foreground service permissions keep a gateway that you start, or allow to start at boot, visible and provide a Stop action. On Android, optional startup and battery settings let the gateway continue when you leave the app; you can change them in application or system settings. HarmonyOS background operation depends on the device and permissions actually granted. Store copies do not request permission to install downloaded APKs.

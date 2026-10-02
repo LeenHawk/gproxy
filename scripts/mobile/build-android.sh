@@ -32,7 +32,7 @@ export "RANLIB_${target//-/_}=${ranlib[0]}"
 export "BINDGEN_EXTRA_CLANG_ARGS_${target//-/_}=--target=${target}28"
 
 # Install dependencies first with --frozen-lockfile (see distribution/mobile/README.md).
-VITE_GPROXY_BUNDLED_FONTS=1 pnpm --dir console build
+pnpm --dir console build
 formats=(--apk)
 if [ "$distribution" = google-play ]; then formats+=(--aab); fi
 (
@@ -52,14 +52,7 @@ print(elements[0]["outputFile"])
 PY
 )"
 apk="$output/gproxy-$distribution-$arch.apk"
-if [ "$distribution" = fdroid ]; then
-  strip=("$ANDROID_NDK_HOME"/toolchains/llvm/prebuilt/*/bin/llvm-strip)
-  python3 scripts/pack-android-application.py "$apk_dir/$apk_name" "$output/packed.apk" "${strip[0]}"
-  "$(android_build_tool "$(android_sdk_root)" zipalign)" -f -P 16 4 "$output/packed.apk" "$apk"
-  rm "$output/packed.apk"
-else
-  cp "$apk_dir/$apk_name" "$apk"
-fi
+cp "$apk_dir/$apk_name" "$apk"
 python3 scripts/mobile/verify-android.py "$apk"
 "$(android_build_tool "$(android_sdk_root)" zipalign)" -c -P 16 4 "$apk"
 if [ "$distribution" = google-play ]; then
