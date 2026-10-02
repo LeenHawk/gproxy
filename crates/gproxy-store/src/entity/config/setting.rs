@@ -140,6 +140,8 @@ pub struct Model {
     /// None follows the application's build channel.
     pub update_channel: Option<String>,
     pub update_source: Option<String>,
+    /// None follows the CLI setting, which defaults to signature verification.
+    pub update_verify_signature: Option<bool>,
     #[sea_orm(default_value = true)]
     pub enable_auto_update_check: bool,
 

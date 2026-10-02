@@ -5,8 +5,7 @@
 //!
 //! 1. the HTTP status, because a 404 body is not a manifest;
 //! 2. for the manifest: the **signature**, before any field of it is read as
-//!    an instruction — [`Manifest::parse_verified`] is the only constructor, so
-//!    this cannot be skipped;
+//!    an instruction, unless the operator explicitly disables verification;
 //! 3. for the artifact: the **size**, then the **hash**. Size first because a
 //!    truncated or padded download is the common failure and comparing one
 //!    integer is cheaper than hashing eighteen megabytes to learn the same
@@ -30,9 +29,8 @@ pub(super) const USER_AGENT: &str = concat!("gproxy-update/", env!("CARGO_PKG_VE
 ///
 /// Redirects are followed, which is not incidental: a GitHub release asset URL
 /// is a 302 to object storage, so an updater that did not follow one could
-/// never download anything. It is safe here for the same reason it is safe
-/// everywhere in this module — the signature and the hash are checked after
-/// the bytes arrive, so where they arrived from does not have to be trusted.
+/// never download anything. Signatures normally authenticate the manifest;
+/// when verification is disabled, the operator trusts the selected source.
 pub(super) fn client() -> Result<reqwest::Client, UpdateError> {
     reqwest::Client::builder()
         .user_agent(USER_AGENT)
@@ -50,8 +48,11 @@ pub(super) async fn manifest(
     client: &reqwest::Client,
     url: &str,
     key: Option<&str>,
+    verify_signature: bool,
 ) -> Result<Manifest, UpdateError> {
-    let key = key.ok_or(UpdateError::NoSigningKey)?;
+    if verify_signature && key.is_none() {
+        return Err(UpdateError::NoSigningKey);
+    }
     let response = client
         .get(url)
         .timeout(std::time::Duration::from_secs(30))
@@ -65,7 +66,7 @@ pub(super) async fn manifest(
         )));
     }
     let bytes = response.bytes().await.map_err(download_error)?;
-    Manifest::parse_verified(&bytes, Some(key))
+    Manifest::parse(&bytes, key, verify_signature)
 }
 
 pub(super) async fn artifact(

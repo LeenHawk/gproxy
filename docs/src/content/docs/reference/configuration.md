@@ -65,7 +65,10 @@ Common environment variables are listed below. `gproxy --help` shows the flags a
 | `GPROXY_UPDATE_RESTART` | `--update-restart` | `re-exec` | After update: `none`, `supervisor` (exit 42), or `re-exec` |
 | `GPROXY_UPDATE_CHECK_INTERVAL` | `--update-check-interval` | `21600` | Check interval in seconds; `0` disables scheduled checks |
 | `GPROXY_UPDATE_AUTOMATIC` | `--update-automatic` | `false` | Automatically install scheduled updates |
+| `GPROXY_UPDATE_VERIFY_SIGNATURE` | `--update-verify-signature` | `true` | Verify manifest signatures; `false` skips signatures but still checks package size and SHA-256 |
 | `GPROXY_AUTOSTART` | `service install --autostart` | see command help | Service installation startup option |
+
+Console → Updates → Verify update signatures saves an instance override immediately and persists across restarts. Set `instance.updateVerifySignature` to `null` through the settings API to follow the CLI/environment default again.
 
 `GPROXY_ENV_FILE` has no flag on purpose: a flag would have to be parsed by the
 very step it feeds, so it could not affect the values the parser itself reads.

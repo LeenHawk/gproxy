@@ -1306,6 +1306,7 @@ mod rows {
             max_database_size_mb: Set(instance.max_database_size_mb),
             update_channel: Set(instance.update_channel.clone()),
             update_source: Set(instance.update_source.clone()),
+            update_verify_signature: Set(instance.update_verify_signature),
             enable_auto_update_check: Set(instance.enable_auto_update_check),
             portal_recent_requests_enabled: Set(instance.portal_recent_requests_enabled),
             enable_downstream_log: Set(logging.enable_downstream_log),

@@ -36,6 +36,7 @@ pub fn start(app: &Arc<App<DatabaseConnection>>, updater: Arc<Updater>) -> Runti
                     settings.update_channel.as_deref(),
                     settings.update_source.as_deref(),
                     settings.enable_auto_update_check,
+                    settings.update_verify_signature,
                 ) {
                     tracing::error!(%error, "could not apply update settings");
                 }

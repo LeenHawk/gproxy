@@ -224,6 +224,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
                 }
                 row.update_source = Set(value);
             }
+            if let Some(value) = instance.update_verify_signature {
+                row.update_verify_signature = Set(value);
+            }
             if let Some(value) = instance.enable_auto_update_check {
                 row.enable_auto_update_check = Set(value);
             }

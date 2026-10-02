@@ -127,6 +127,7 @@ pub struct UpdateSchedule {
     /// **Off unless an operator turned it on**, and reported either way so a
     /// console can say which.
     pub automatic: bool,
+    pub verify_signature: bool,
     pub channel: String,
     pub source: String,
 }

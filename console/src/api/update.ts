@@ -1,6 +1,6 @@
 import { api, query } from "@/api/client"
 export type UpdateReport = { current: string; latest: string; available: boolean; channel: string; source: string; target: string; notes_url: string | null; notes: string | null; restart: string; rollback_available: boolean; checked_at_ms: number }
-export type UpdateSchedule = { last_check: UpdateReport | null; last_error: string | null; interval_secs: number | null; automatic: boolean; channel: string; source: string }
+export type UpdateSchedule = { last_check: UpdateReport | null; last_error: string | null; interval_secs: number | null; automatic: boolean; verify_signature: boolean; channel: string; source: string }
 export type AppliedUpdate = { version: string | null; changed: boolean; restart: string }
 export const updateSchedule = () => api<UpdateSchedule>("/admin/api/update")
 export type UpdateSelection = { channel: string; source: string }

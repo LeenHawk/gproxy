@@ -471,6 +471,8 @@
     "orderHint": "規則依規則集關聯順序、組內順序排列；上移/下移僅調整組內順序。"
   },
   "update": {
+    "verifySignature": "驗證更新簽章",
+    "verifySignatureHelp": "修改後自動儲存，用於更新檢查和安裝。關閉後將略過發布者簽章驗證，仍驗證安裝套件大小和 SHA-256。",
     "source": "更新來源",
     "current": "目前版本",
     "unsupported": "目前宿主不支援線上更新",

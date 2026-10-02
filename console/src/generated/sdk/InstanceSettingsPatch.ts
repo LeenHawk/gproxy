@@ -9,4 +9,4 @@ tokenizerAuthToken: string | null | null, retentionDays: number | null | null,
 /**
  * `null` keeps every observation.
  */
-quotaObservationRetentionDays: number | null | null, maxDatabaseSizeMb: number | null | null, updateChannel: string | null | null, updateSource: string | null | null, enableAutoUpdateCheck: boolean | null, portalRecentRequestsEnabled: boolean | null, };
+quotaObservationRetentionDays: number | null | null, maxDatabaseSizeMb: number | null | null, updateChannel: string | null | null, updateSource: string | null | null, updateVerifySignature: boolean | null | null, enableAutoUpdateCheck: boolean | null, portalRecentRequestsEnabled: boolean | null, };

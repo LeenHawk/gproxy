@@ -24,10 +24,9 @@
 //! Every step refuses rather than continues, and every step before the
 //! download costs nothing, so an instance that cannot take this release finds
 //! out for the price of a few kilobytes. The signature is checked before any
-//! *field* of the manifest is read as an instruction — [`manifest::Manifest`]
-//! has no unverified constructor — and the hash before the archive is parsed,
-//! because a zip parser fed arbitrary network bytes is an attack surface and
-//! one fed the exact bytes a signed manifest named is not.
+//! *field* of the manifest is read as an instruction, unless the operator
+//! explicitly disables signature verification. The hash is always checked
+//! before the archive is parsed.
 //!
 //! The verification key is compiled in, from `GPROXY_UPDATE_PUBKEY`. It is the
 //! one value here with no flag and no runtime variable, deliberately: an
@@ -121,7 +120,7 @@ pub struct Updater {
     /// source — see that module for why the trust root is not configurable.
     signing_key: Option<String>,
     options: UpdateOptions,
-    runtime: Mutex<Option<(Channel, Source, bool)>>,
+    runtime: Mutex<Option<(Channel, Source, bool, bool)>>,
     recorded: Mutex<Recorded>,
     progress: Mutex<Option<UpdateProgress>>,
     /// The scheduled check, aborted when this value is dropped. The task holds
@@ -217,7 +216,7 @@ impl Updater {
         if config::SIGNING_PUBLIC_KEY.is_none() {
             tracing::debug!(
                 "no update signing key was compiled into this binary (GPROXY_UPDATE_PUBKEY), so \
-                 every manifest will be refused; this is the normal state of a source build"
+                 manifests will be refused while signature verification is enabled"
             );
         }
         Ok(Arc::new(Self {
@@ -277,6 +276,7 @@ impl Updater {
         channel: Option<&str>,
         source: Option<&str>,
         enabled: bool,
+        verify_signature: Option<bool>,
     ) -> Outcome<()> {
         let channel = channel
             .map(Channel::parse)
@@ -286,12 +286,14 @@ impl Updater {
             .map(Source::parse)
             .transpose()?
             .unwrap_or(self.options.source);
+        let verify_signature = verify_signature.unwrap_or(self.options.verify_signature);
         let mut runtime = self.runtime.lock().unwrap();
-        if *runtime == Some((channel, source, enabled)) {
+        if *runtime == Some((channel, source, enabled, verify_signature)) {
             return Ok(());
         }
-        *runtime = Some((channel, source, enabled));
+        *runtime = Some((channel, source, enabled, verify_signature));
         drop(runtime);
+        *self.recorded.lock().unwrap() = Recorded::default();
         if let Some(task) = self.task.lock().unwrap().take() {
             task.abort();
         }
@@ -301,10 +303,19 @@ impl Updater {
 
     fn interval(&self) -> Option<u64> {
         match *self.runtime.lock().unwrap() {
-            Some((_, _, true)) => Some(self.options.interval_secs.unwrap_or(DEFAULT_INTERVAL_SECS)),
-            Some((_, _, false)) => None,
+            Some((_, _, true, _)) => {
+                Some(self.options.interval_secs.unwrap_or(DEFAULT_INTERVAL_SECS))
+            }
+            Some((_, _, false, _)) => None,
             None => self.options.interval_secs,
         }
+    }
+
+    fn verify_signature(&self) -> bool {
+        self.runtime
+            .lock()
+            .unwrap()
+            .map_or(self.options.verify_signature, |(_, _, _, verify)| verify)
     }
 
     pub fn options(&self) -> &UpdateOptions {
@@ -498,7 +509,7 @@ impl Updater {
                 .runtime
                 .lock()
                 .unwrap()
-                .map_or(self.options.channel, |(channel, _, _)| channel)),
+                .map_or(self.options.channel, |(channel, _, _, _)| channel)),
         }
     }
 
@@ -509,7 +520,7 @@ impl Updater {
                 .runtime
                 .lock()
                 .unwrap()
-                .map_or(self.options.source, |(_, source, _)| source)),
+                .map_or(self.options.source, |(_, source, _, _)| source)),
         }
     }
 
@@ -541,7 +552,13 @@ impl Updater {
         source: Source,
     ) -> Outcome<manifest::Manifest> {
         let url = self.options.manifest_url(channel, source);
-        let manifest = download::manifest(&self.client, &url, self.signing_key.as_deref()).await?;
+        let manifest = download::manifest(
+            &self.client,
+            &url,
+            self.signing_key.as_deref(),
+            self.verify_signature(),
+        )
+        .await?;
         if channel == Channel::Release && manifest.channel == "releases" {
             return Err(UpdateError::Configuration(
                 "this source still offers a v3 stable release; select the dev channel for v4 preview builds".into(),
@@ -677,6 +694,7 @@ impl UpdateService for Updater {
             last_error: recorded.last_error.clone(),
             interval_secs: self.interval(),
             automatic: self.options.automatic,
+            verify_signature: self.verify_signature(),
             channel: self
                 .channel(None)
                 .expect("configured channel")
@@ -1034,22 +1052,26 @@ mod runtime_tests {
     async fn settings_can_stop_and_restart_scheduled_checks() {
         let dir = tempfile::tempdir().unwrap();
         let updater = Updater::new(dir.path(), UpdateOptions::default()).unwrap();
-        updater.configure(Some("beta"), Some("cnb"), false).unwrap();
+        updater
+            .configure(Some("beta"), Some("cnb"), false, Some(false))
+            .unwrap();
         assert_eq!(updater.channel(None).unwrap(), Channel::Beta);
         assert_eq!(updater.source(None).unwrap(), Source::Cnb);
         assert_eq!(updater.source(Some("github")).unwrap(), Source::Github);
         assert_eq!(updater.source(Some("gitlab")).unwrap(), Source::Gitlab);
         assert!(updater.source(Some("other")).is_err());
         assert_eq!(updater.recorded().source, "cnb");
+        assert!(!updater.recorded().verify_signature);
         assert!(updater.interval().is_none());
         updater
-            .configure(Some("dev"), Some("gitlab"), true)
+            .configure(Some("dev"), Some("gitlab"), true, Some(true))
             .unwrap();
         assert_eq!(updater.channel(None).unwrap(), Channel::Dev);
         assert_eq!(updater.source(None).unwrap(), Source::Gitlab);
         assert_eq!(updater.recorded().source, "gitlab");
+        assert!(updater.recorded().verify_signature);
         assert!(updater.task.lock().unwrap().is_some());
-        updater.configure(None, None, false).unwrap();
+        updater.configure(None, None, false, None).unwrap();
         assert!(updater.task.lock().unwrap().is_none());
     }
 }

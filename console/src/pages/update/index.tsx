@@ -10,6 +10,7 @@ import { DownloadProgress } from "@/components/download-progress"
 import { ConfirmButton } from "@/components/confirm"
 import { EmptyNotice, ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -23,7 +24,7 @@ export function UpdatePage() {
   const [selectedSource, setSelectedSource] = useState<string | null>(null)
   const info = useQuery({ queryKey: INFO_KEY, queryFn: instanceInfo })
   const settings = useQuery({ queryKey: SETTINGS_KEY, queryFn: readSettings })
-  const schedule = useQuery({ queryKey: ["update"], queryFn: updateSchedule, retry: false })
+  const schedule = useQuery({ queryKey: ["update"], queryFn: updateSchedule, retry: false, refetchInterval: (query) => settings.data?.instance.updateVerifySignature != null && query.state.data?.verify_signature !== settings.data.instance.updateVerifySignature ? 500 : false })
   const savedChannel = settings.data?.instance.updateChannel ?? schedule.data?.channel ?? "release"
   const savedSource = settings.data?.instance.updateSource ?? schedule.data?.source ?? "github"
   const channel = selected ?? savedChannel
@@ -40,6 +41,15 @@ export function UpdatePage() {
       toast.success(t("toast.saved"))
     },
   })
+  const signature = useMutation({
+    mutationFn: (updateVerifySignature: boolean) => saveSettings({ instance: { updateVerifySignature } }),
+    onSuccess: (value) => {
+      client.setQueryData(SETTINGS_KEY, value)
+      checked.reset()
+      void client.invalidateQueries({ queryKey: ["update"] })
+      toast.success(t("toast.saved"))
+    },
+  })
   const installed = useMutation({ mutationFn: (kind: "apply" | "rollback") => kind === "apply" ? applyUpdate({ channel, source }) : rollbackUpdate() })
   const progress = useQuery({
     queryKey: ["update", "progress"],
@@ -50,7 +60,8 @@ export function UpdatePage() {
   })
   const report = checked.data?.channel === channel && checked.data.source === source ? checked.data : schedule.data?.last_check?.channel === channel && schedule.data.last_check.source === source ? schedule.data.last_check : null
   const unsupported = schedule.error instanceof ApiError && schedule.error.status === 404
-  const busy = checked.isPending || installed.isPending || saved.isPending || !!progress.data
+  const signatureSyncing = settings.data?.instance.updateVerifySignature != null && schedule.data?.verify_signature !== settings.data.instance.updateVerifySignature
+  const busy = signatureSyncing || checked.isPending || installed.isPending || saved.isPending || signature.isPending || !!progress.data
   const notesUrl = report?.notes_url && /^https?:\/\//.test(report.notes_url) ? report.notes_url : null
   return <Page>
     <PageHeader title={t("nav.update")} actions={<Link to="/settings" className="text-sm underline">{t("nav.settings")}</Link>} />
@@ -76,6 +87,14 @@ export function UpdatePage() {
       <FieldDescription>{t("update.channelHelp")}</FieldDescription>
       <div><Button disabled={busy || !settings.data || !changed} onClick={() => saved.mutate({ channel, source })}>{t("actions.save")}</Button></div>
       {saved.error ? <ErrorNotice error={saved.error} /> : null}
+      <Field className="max-w-xl">
+        <Field orientation="horizontal">
+          <Switch id="update-verify-signature" checked={settings.data?.instance.updateVerifySignature ?? schedule.data?.verify_signature ?? true} disabled={busy || !settings.data} onCheckedChange={(value) => signature.mutate(value)} aria-describedby="update-signature-help" />
+          <FieldLabel htmlFor="update-verify-signature">{t("update.verifySignature")}</FieldLabel>
+        </Field>
+        <FieldDescription id="update-signature-help">{t("update.verifySignatureHelp")}</FieldDescription>
+      </Field>
+      {signature.error ? <ErrorNotice error={signature.error} /> : null}
       <p>{schedule.data?.interval_secs ? t("update.schedule", { seconds: schedule.data.interval_secs }) : t("update.noSchedule")} · {t(schedule.data?.automatic ? "update.autoInstall" : "update.manualInstall")}</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button disabled={busy} onClick={() => checked.mutate({ channel, source })}>{checked.isPending ? t("update.checking") : t("update.check")}</Button>

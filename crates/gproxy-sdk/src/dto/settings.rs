@@ -64,6 +64,7 @@ impl From<setting::Model> for SettingsDto {
                 max_database_size_mb: row.max_database_size_mb,
                 update_channel: row.update_channel,
                 update_source: row.update_source,
+                update_verify_signature: row.update_verify_signature,
                 enable_auto_update_check: row.enable_auto_update_check,
                 portal_recent_requests_enabled: row.portal_recent_requests_enabled,
             },
@@ -137,6 +138,7 @@ pub struct InstanceSettingsDto {
     pub max_database_size_mb: Option<i64>,
     pub update_channel: Option<String>,
     pub update_source: Option<String>,
+    pub update_verify_signature: Option<bool>,
     pub enable_auto_update_check: bool,
     pub portal_recent_requests_enabled: bool,
 }
@@ -249,6 +251,8 @@ pub struct InstanceSettingsPatch {
     pub update_channel: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub update_source: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub update_verify_signature: Option<Option<bool>>,
     #[serde(default)]
     pub enable_auto_update_check: Option<bool>,
     #[serde(default)]

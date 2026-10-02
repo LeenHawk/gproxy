@@ -3,15 +3,10 @@
 //!
 //! # Where the trust root comes from, and why it is not configurable
 //!
-//! The public key a manifest's signature is checked against is baked in at
-//! **build** time, from `GPROXY_UPDATE_PUBKEY`. It is deliberately not a flag
-//! and not a runtime environment variable, so it is the one value in this
-//! crate that breaks the "every configurable value is a `clap` field" rule —
-//! because it is not configurable. An operator who can set the verification
-//! key can point the instance at their own manifest and have it install their
-//! own binary, which is the entire attack the signature exists to stop. A
-//! build with no key refuses every update, loudly, rather than accepting an
-//! unsigned one.
+//! The ed25519 public key is baked in at build time from `GPROXY_UPDATE_PUBKEY`.
+//! Signature verification defaults to enabled. Operators can explicitly disable
+//! it; artifact size and SHA-256 checks still apply. Without a key, updates are
+//! refused while signature verification is enabled.
 //!
 //! Everything else here *is* configurable, and every value has a flag and a
 //! `GPROXY_…` name in [`crate::cli`].
@@ -269,6 +264,7 @@ pub struct UpdateOptions {
     /// executable at an hour nobody chose, on a release nobody read the notes
     /// for, and restarting mid-traffic to do it.
     pub automatic: bool,
+    pub verify_signature: bool,
 }
 
 impl Default for UpdateOptions {
@@ -280,6 +276,7 @@ impl Default for UpdateOptions {
             restart: Restart::default(),
             interval_secs: Some(DEFAULT_INTERVAL_SECS),
             automatic: false,
+            verify_signature: true,
         }
     }
 }
@@ -318,6 +315,10 @@ impl UpdateOptions {
         if let Some(value) = text(&options.update_source) {
             resolved.source = Source::parse(&value)
                 .map_err(|error| Error::config(source(crate::cli::UPDATE_SOURCE), error))?;
+        }
+        if let Some(value) = text(&options.update_verify_signature) {
+            resolved.verify_signature =
+                crate::config::boolean(&value, crate::cli::UPDATE_VERIFY_SIGNATURE)?;
         }
         resolved.manifest_url = text(&options.update_manifest_url);
         if let Some(value) = text(&options.update_restart) {
@@ -494,6 +495,7 @@ mod tests {
     #[test]
     fn automatic_installation_is_off_by_default() {
         assert!(!UpdateOptions::default().automatic);
+        assert!(UpdateOptions::default().verify_signature);
         assert!(
             !UpdateOptions::from_cli(&Default::default())
                 .unwrap()
@@ -517,6 +519,7 @@ mod tests {
             update_restart: Some("supervisor".into()),
             update_check_interval: Some("900".into()),
             update_automatic: Some("true".into()),
+            update_verify_signature: Some("false".into()),
             ..Default::default()
         })
         .unwrap();
@@ -529,6 +532,7 @@ mod tests {
                 restart: Restart::Supervisor,
                 interval_secs: Some(900),
                 automatic: true,
+                verify_signature: false,
             }
         );
     }

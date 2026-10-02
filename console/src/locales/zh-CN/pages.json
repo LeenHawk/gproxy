@@ -471,6 +471,8 @@
     "orderHint": "规则按规则集关联顺序、组内顺序排列；上移/下移仅调整组内顺序。"
   },
   "update": {
+    "verifySignature": "校验更新签名",
+    "verifySignatureHelp": "修改后自动保存，用于更新检查和安装。关闭后将跳过发布者签名校验，仍校验安装包大小和 SHA-256。",
     "source": "更新源",
     "current": "当前版本",
     "unsupported": "当前宿主不支持在线更新",

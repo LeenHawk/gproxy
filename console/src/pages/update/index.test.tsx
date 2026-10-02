@@ -24,7 +24,7 @@ beforeEach(() => {
   stored = { instance: { updateChannel: "dev", updateSource: "github" }, logging: {} } as SettingsDto
   vi.mocked(instanceInfo).mockResolvedValue({ instanceName: "test", version: "4.0.0-dev", hash: "commit" })
   vi.mocked(readSettings).mockImplementation(async () => stored)
-  vi.mocked(updateSchedule).mockResolvedValue({ last_check: report, last_error: null, interval_secs: 21600, automatic: false, channel: "dev", source: "github" })
+  vi.mocked(updateSchedule).mockImplementation(async () => ({ last_check: report, last_error: null, interval_secs: 21600, automatic: false, verify_signature: stored.instance.updateVerifySignature ?? true, channel: "dev", source: "github" }))
   vi.mocked(saveSettings).mockImplementation(async (patch) => {
     stored = { ...stored, instance: { ...stored.instance, ...patch.instance } } as SettingsDto
     return stored
@@ -57,4 +57,22 @@ it.each([["cnb", "CNB"], ["gitlab", "GitLab"]])("saves %s and channel and restor
   mount()
   await waitFor(() => expect(screen.getByRole("combobox", { name: "Update source" })).toHaveTextContent(label))
   expect(screen.getByRole("combobox", { name: "Update channel" })).toHaveTextContent("Dev")
+})
+
+it("saves the signature switch immediately and restores it when reopened", async () => {
+  const view = mount()
+  const toggle = await screen.findByRole("switch", { name: "Verify update signatures" })
+  await waitFor(() => expect(toggle).toBeEnabled())
+  expect(toggle).toBeChecked()
+  fireEvent.click(toggle)
+  await waitFor(() => expect(saveSettings).toHaveBeenCalledWith({ instance: { updateVerifySignature: false } }))
+  await waitFor(() => expect(toggle).not.toBeChecked())
+  view.unmount()
+  mount()
+  const restored = await screen.findByRole("switch", { name: "Verify update signatures" })
+  await waitFor(() => expect(restored).toBeEnabled())
+  expect(restored).not.toBeChecked()
+  fireEvent.click(restored)
+  await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({ instance: { updateVerifySignature: true } }))
+  await waitFor(() => expect(restored).toBeChecked())
 })

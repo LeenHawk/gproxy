@@ -471,6 +471,8 @@
     "orderHint": "Rules follow rule set binding order, then the order within each set. Move up/down changes the order within a set."
   },
   "update": {
+    "verifySignature": "Verify update signatures",
+    "verifySignatureHelp": "Saved immediately for update checks and installations. Disabling skips publisher signature verification; package size and SHA-256 are still checked.",
     "source": "Update source",
     "current": "Running version",
     "unsupported": "This host does not support self-update",
