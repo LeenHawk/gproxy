@@ -29,6 +29,10 @@ host = root / "crates/gproxy-host-tauri/Cargo.toml"
 host_text = host.read_text()
 # HAPs load only the shared library. Emitting an rlib alongside it disables LTO.
 host_text = host_text.replace('crate-type = ["lib", "cdylib"]', 'crate-type = ["cdylib"]')
+# ohrs' initial build does not forward --lib. Do not let it build the desktop
+# executable, which needs the rlib intentionally omitted from HAP builds.
+host_text = host_text.replace('default-run = "gproxy-desktop"', 'autobins = false')
+host_text = host_text.replace('[[bin]]\nname = "gproxy-desktop"\npath = "src/main.rs"\n\n', '')
 for name in ("tauri-plugin-dialog", "tauri-plugin-single-instance"):
     host_text = re.sub(rf'^{name} = .*\n', '', host_text, flags=re.MULTILINE)
 host.write_text(host_text + '\n[target.\'cfg(target_env = "ohos")\'.dependencies]\nnapi-ohos = "=1.2.0"\nnapi-derive-ohos = "=1.2.0"\n')
