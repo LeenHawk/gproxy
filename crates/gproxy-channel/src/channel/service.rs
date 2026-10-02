@@ -127,10 +127,26 @@ impl ServiceRoute {
         method: &Method,
         path: &'p str,
     ) -> Option<Vec<(&'static str, &'p str)>> {
-        (self.method == *method)
+        (self.method == *method && unambiguous_path(path))
             .then(|| match_template(self.path_template, path))
             .flatten()
     }
+}
+
+/// Classify the same path that the HTTP client and upstream will receive.
+/// A catalog wildcard must not authorize a path whose dot segments later
+/// normalize into an account endpoint. Encoded separators are refused too:
+/// an upstream may decode them before routing even when our client does not.
+fn unambiguous_path(path: &str) -> bool {
+    if path.contains(['\\', '?', '#']) {
+        return false;
+    }
+    path.split('/').all(|segment| {
+        let segment = segment.to_ascii_lowercase();
+        !segment.contains("%2f")
+            && !segment.contains("%5c")
+            && !matches!(segment.replace("%2e", ".").as_str(), "." | "..")
+    })
 }
 
 /// Match `path` against a template of literal segments, `{name}` segments
@@ -296,6 +312,31 @@ pub trait ChannelServices: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::match_template;
+
+    #[test]
+    fn service_paths_allow_encoded_names_but_not_routing_ambiguity() {
+        for path in [
+            "/api/desktop/releases/app.zip",
+            "/api/hello/a%20b",
+            "/api/hello/v1.2",
+        ] {
+            assert!(super::unambiguous_path(path), "{path}");
+        }
+        for path in [
+            "/api/desktop/./app",
+            "/api/desktop/../oauth/profile",
+            "/api/desktop/%2e%2e/oauth/profile",
+            "/api/desktop/.%2E/oauth/profile",
+            "/api/desktop/%2e./oauth/profile",
+            "/api/hello/%2fprivate",
+            "/api/hello/%5cprivate",
+            "/api/hello/a\\b",
+            "/api/hello/a?b",
+            "/api/hello/a#b",
+        ] {
+            assert!(!super::unambiguous_path(path), "{path}");
+        }
+    }
 
     #[test]
     fn templates_capture_named_and_rest_segments() {
