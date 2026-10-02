@@ -64,33 +64,9 @@ not equivalent to installing only a Rust crate with Cargo. Acceptance also
 depends on project activity/community and maintainer judgment. If the main
 repository declines inclusion, consider https://github.com/termux-user-repository/tur.
 
-## Automatic submission
+## Upstream submission status
 
-After publishing a stable release, `termux-publish.yml` runs
-`scripts/termux-submit.py`. It maintains the `gproxy` branch in
-`LeenHawk/termux-packages` and opens or updates one PR against
-`termux/termux-packages`. Dev and beta releases do not submit packages.
-
-The `release` environment needs a `TERMUX_TOKEN` GitHub credential with write
-access to that fork and permission to open upstream PRs. The normal repository
-`GITHUB_TOKEN` cannot write to the fork. The workflow can also be dispatched
-manually; `dry_run` defaults to true and uploads the generated recipe for review.
-
-The script verifies the published release, main-branch ancestry, source version
-and checksum, patch application and the official package linter before pushing.
-It retains existing maintainer build commands and patches, removes the package
-revision when updating the version, skips accepted/newer releases, and reuses an
-open PR. A closed unmerged PR requires manual review before another submission.
-Titles follow Termux's recommended [commit guidelines](https://github.com/termux/termux-packages/blob/master/CONTRIBUTING.md#commit-guidelines):
-`addpkg(main/gproxy): AI API gateway with a web console` for a new package,
-and `bump(main/gproxy): <version>` for updates. PR bodies describe the package
-and packaging changes, with concise validation results.
-
-For a local preview:
-
-```sh
-python scripts/termux-submit.py --version 4.0.3 --dry-run
-```
-
-Preview files are written to `dist/termux/`. Submission validation does not
-replace full package builds or runtime testing; Termux CI and review are separate.
+[PR #32215](https://github.com/termux/termux-packages/pull/32215) was closed
+because the project does not yet meet Termux's adoption/community requirements.
+Automatic PR submission is disabled. The source recipe and upstream Android CLI
+ZIP/DEB builds remain available for manual installation.
