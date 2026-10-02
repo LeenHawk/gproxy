@@ -388,6 +388,9 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                     () = cancellation.cancelled() => Err(Fault::Cancelled),
                     result = crate::rt::timeout(capability.operation_total, native.send(this_wire)) => match result {
                         Some(Ok(response)) => Ok(response),
+                        Some(Err(error @ gproxy_channel::ChannelError::InvalidConfig(_))) => {
+                            Err(Fault::Client(CoreError::Channel(error)))
+                        }
                         Some(Err(error)) => Err(Fault::Failed(CoreError::Channel(error))),
                         None => Err(Fault::DeadlineExceeded),
                     },

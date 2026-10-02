@@ -303,6 +303,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                 return Err(CoreError::Cancelled);
             }
             Some(Err(error)) => {
+                let client_fault = matches!(error, gproxy_channel::ChannelError::InvalidConfig(_));
                 let outcome = AttemptOutcome::Failed(error);
                 funnel.trace(TraceEvent::AttemptFinished {
                     attempt: &attempt,
@@ -313,8 +314,22 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     .finish(UsageStreamEnd::Interrupted, None, finished_at)
                     .await;
                 if let Some(handle) = assignment.take() {
-                    core.settle_assignment(&handle, failed(true, "transport"), finished_at)
-                        .await?;
+                    core.settle_assignment(
+                        &handle,
+                        failed(
+                            !client_fault,
+                            if client_fault { "client" } else { "transport" },
+                        ),
+                        finished_at,
+                    )
+                    .await?;
+                }
+                if client_fault {
+                    let AttemptOutcome::Failed(error) = outcome else {
+                        unreachable!()
+                    };
+                    funnel.finish(UsageState::Failed).await;
+                    return Err(CoreError::Channel(error));
                 }
                 if core
                     .record_failure(
