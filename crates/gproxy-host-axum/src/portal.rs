@@ -334,6 +334,20 @@ where
     crate::send(async move {
         let secure = secure_cookie(&state, &request);
         let (parts, _body) = request.into_parts();
+        // Logout can revoke a live session and always clears the cookie, even
+        // when it was absent or expired. Check browser writes before either
+        // effect; only an explicitly presented bearer without a cookie is a
+        // script request that does not need an Origin.
+        if (session::cookie(&parts.headers, session::COOKIE_NAME).is_some()
+            || gproxy_app::auth::bearer_token(&parts.headers).is_none())
+            && let Err(error) = gproxy_app::auth::verify_same_origin(
+                &parts.method,
+                &parts.headers,
+                &crate::runtime_settings::cors_origins(state.app()),
+            )
+        {
+            return ErrorResponse(error).into_response();
+        }
         let token = session::cookie(&parts.headers, session::COOKIE_NAME)
             .map(str::to_owned)
             .or_else(|| gproxy_app::auth::bearer_token(&parts.headers).map(str::to_owned));
