@@ -120,9 +120,8 @@ class Gitlab:
         return release or {"tag_name": tag, "pending": True, "assets": {"links": []}}
 
     def upload(self, release, path):
-        # The pipeline id makes manifests immutable in the package registry,
-        # including a rerun of the same source commit.
-        version = os.environ["CI_PIPELINE_ID"]
+        # Release and beta manifests differ even within the same pipeline.
+        version = f"{os.environ['CI_PIPELINE_ID']}-{release['tag_name']}"
         url = f"{self.root}/packages/generic/gproxy/{version}/{urllib.parse.quote(path.name)}"
         with path.open("rb") as stream:
             req = urllib.request.Request(url, method="PUT", data=stream, headers={

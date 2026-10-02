@@ -7,6 +7,10 @@ on:
         description: Existing release version
         required: true
         type: string
+      repair_gitlab_manifests:
+        description: Repair the stable release and matching GitLab channel manifests
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -15,6 +19,9 @@ jobs:
   tidy:
     runs-on: ubuntu-latest
     environment: release
+    concurrency:
+      group: gproxy-release-publication
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Consolidate release checksums on all mirrors
@@ -29,4 +36,10 @@ jobs:
           CI_API_V4_URL: https://gitlab.com/api/v4
           CI_PROJECT_URL: https://gitlab.com/leenhawk1/gproxy
           CI_PIPELINE_ID: release-metadata-${{ github.run_id }}
-        run: python3 scripts/gitlab/clean-release-assets.py "$VERSION"
+          REPAIR_GITLAB_MANIFESTS: ${{ inputs.repair_gitlab_manifests }}
+          UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
+          UPDATE_SIGNING_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+        run: |
+          args=()
+          if [ "$REPAIR_GITLAB_MANIFESTS" = true ]; then args+=(--repair-gitlab-manifests); fi
+          python3 scripts/gitlab/clean-release-assets.py "$VERSION" "${args[@]}"
