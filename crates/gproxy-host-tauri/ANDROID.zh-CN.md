@@ -331,7 +331,8 @@ Android 相关的东西一样都没删。`scripts/android/`、
   何改动影响。
 
 当前图形版在安卓、鸿蒙和桌面平台统一使用 `com.leenhawk.gproxy.app`，
-为未来独立的命令行应用预留 `com.leenhawk.gproxy.cli`。v3 旧封装包仍为
+命令行版 **GPROXY CLI** 已经存在，其对应的项目命名为 `com.leenhawk.gproxy.cli`。
+此次图形版更名不修改现有 CLI 服务标识。v3 旧封装包仍为
 `io.github.leenhawk.gproxy`，早期 v4 包使用 `dev.gproxy.desktop`。
 
 更名后的应用属于新的安装身份，不能直接覆盖旧移动端包；桌面默认数据目录和

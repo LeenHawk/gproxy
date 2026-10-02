@@ -367,8 +367,10 @@ not the legacy wrapper APK. These are two different things:
   window, and unaffected by any of this.
 
 The current application identifier is `com.leenhawk.gproxy.app` across Android,
-HarmonyOS and desktop platforms. `com.leenhawk.gproxy.cli` is reserved for a
-possible separate CLI application. The legacy v3 wrapper remains
+HarmonyOS and desktop platforms. The command-line edition already exists as
+**GPROXY CLI**; its corresponding project namespace is `com.leenhawk.gproxy.cli`.
+This graphical-application rename does not change existing CLI service identities.
+The legacy v3 wrapper remains
 `io.github.leenhawk.gproxy`; early v4 packages used `dev.gproxy.desktop`.
 
 The renamed application is a new installation identity. Old mobile packages do
