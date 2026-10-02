@@ -1,19 +1,16 @@
-//! Bounded, key-paged reads of structured usage records, independent of logs.
+//! Key-paged reads of structured usage records, independent of logs.
 
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::{Store, StoreError, entity::usage::usage_record};
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
-/// How many rows one bounded read may visit before it stops and says so.
-///
-/// A month of one credential's traffic is well inside it; a year of a
-/// deployment's is not, and reading that into one fold is what the cap is
-/// for. Reaching it is reported as truncation, never as a smaller total.
+/// Maximum row budget for explicitly bounded reads, including credential spend.
+/// Unbounded usage aggregates do not apply this limit.
 pub const MAX_SCAN_ROWS: u64 = 50_000;
 
 /// How many rows one round trip reads. Small enough that a scan never holds a
-/// whole range at once, large enough that the cap is a handful of queries.
+/// whole range at once.
 pub const SCAN_CHUNK: u64 = 1_000;
 
 /// The order a scan visits rows in. Both tie-break on `request_id`
@@ -38,7 +35,7 @@ pub struct ScanOutcome {
 }
 
 /// Read every row `condition` matches in `order`, handing each to `visit`,
-/// and stop after `cap` rows (clamped to `1..=MAX_SCAN_ROWS`).
+/// and optionally stop after `cap` rows. Without a cap, read the full range.
 ///
 /// Paging is by key, not by offset: an offset would re-read everything it
 /// skipped on every chunk, and would repeat or drop rows if a request settled
@@ -47,18 +44,18 @@ async fn scan_inner<C: BatchConnectionTrait>(
     store: &Store<C>,
     condition: Condition,
     order: ScanOrder,
-    cap: u64,
+    cap: Option<u64>,
     mut visit: impl FnMut(&UsageRecord),
 ) -> Result<ScanOutcome, StoreError> {
     use usage_record::Column as Col;
     let repository = store.usage_records();
     let mut cursor: Option<(i64, String)> = None;
-    let mut budget = cap.clamp(1, MAX_SCAN_ROWS);
+    let mut budget = cap.map(|cap| cap.max(1));
     let mut outcome = ScanOutcome::default();
     'chunks: loop {
         // One row past the budget, so the last chunk can tell "that was
         // everything" from "there is more and the cap stopped us".
-        let limit = SCAN_CHUNK.min(budget + 1);
+        let limit = budget.map_or(SCAN_CHUNK, |left| SCAN_CHUNK.min(left.saturating_add(1)));
         let mut select = usage_record::Entity::find().filter(condition.clone());
         if let Some((started_at_ms, request_id)) = &cursor {
             select = select.filter(past(order, *started_at_ms, request_id));
@@ -72,13 +69,15 @@ async fn scan_inner<C: BatchConnectionTrait>(
             .await?;
         let fetched = rows.len() as u64;
         for row in &rows {
-            if budget == 0 {
+            if budget == Some(0) {
                 outcome.truncated = true;
                 break 'chunks;
             }
             cursor = Some((row.started_at_ms, row.request_id.clone()));
             visit(row);
-            budget -= 1;
+            if let Some(left) = &mut budget {
+                *left -= 1;
+            }
             outcome.scanned += 1;
         }
         if fetched < limit {
@@ -127,7 +126,7 @@ pub async fn scan<C: BatchConnectionTrait>(
     store: &Store<C>,
     condition: Condition,
     order: ScanOrder,
-    cap: u64,
+    cap: Option<u64>,
     visit: impl FnMut(&UsageRecord),
 ) -> Result<ScanOutcome, StoreError> {
     scan_inner(store, condition, order, cap, visit).await
@@ -149,7 +148,7 @@ pub async fn credential_usd_cost<C: BatchConnectionTrait>(
         store,
         usage_condition(Some(from_ms), Some(to_ms)).add(Col::CredentialId.eq(credential_id)),
         ScanOrder::Oldest,
-        max_rows,
+        Some(max_rows.clamp(1, MAX_SCAN_ROWS)),
         |row| {
             if models((!row.model.is_empty()).then_some(row.model.as_str()))
                 && let Some(cost) = row.cost

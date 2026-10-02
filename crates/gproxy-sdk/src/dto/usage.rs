@@ -238,7 +238,7 @@ pub struct UsageRecordPage {
     pub truncated: bool,
 }
 
-/// Filters for bounded aggregates over physical upstream usage. All filters
+/// Filters for aggregates over physical upstream usage. All filters
 /// run against usage columns; requests and the scan budget count upstream calls,
 /// never downstream associations. A shared call contributes once.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -257,9 +257,8 @@ pub struct UsageQuery {
     /// Only what this credential's attempts account for. See the type note.
     pub credential_id: Option<String>,
     /// How many matching records the aggregation may read before it stops and
-    /// says so. Absent means `query::MAX_SCAN_ROWS`; the value is clamped to
-    /// it, so a caller cannot ask the process to read a year of traffic into
-    /// memory.
+    /// says so. Absent means the full matching range, read in batches.
+    /// An explicit value is clamped to `1..=query::MAX_SCAN_ROWS`.
     pub max_scan_rows: Option<u64>,
 }
 

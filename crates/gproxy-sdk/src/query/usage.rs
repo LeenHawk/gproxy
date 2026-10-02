@@ -1,4 +1,4 @@
-//! Usage lists and bounded aggregates over structured usage records.
+//! Usage lists and aggregates over structured usage records.
 
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -74,7 +74,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Usage<'_, C> {
         })
     }
 
-    /// Totals over every record the filters match, up to the scan cap.
+    /// Totals over every record the filters match, unless a scan cap is requested.
     pub async fn summary(&self, query: UsageQuery) -> SdkResult<UsageSummaryDto> {
         Ok(self.aggregate(query, None, None).await?.0)
     }
@@ -93,7 +93,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Usage<'_, C> {
             .2)
     }
 
-    /// Summary, optional groups and trend from one bounded scan. All three
+    /// Summary, optional groups and trend from one paged scan. All three
     /// describe the same rows even while new requests are being settled.
     pub async fn aggregate(
         &self,
@@ -169,11 +169,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Usage<'_, C> {
     }
 
     /// Read the rows the column filters match, oldest first, handing each to
-    /// `visit`, and stop at `cap` matching downstream rows.
+    /// `visit`, and optionally stop at `cap` matching upstream rows.
     async fn scan(
         &self,
         filters: &Filters<'_>,
-        cap: u64,
+        cap: Option<u64>,
         visit: impl FnMut(&UsageRecord),
     ) -> SdkResult<ScanOutcome> {
         Ok(usage_scan::scan(
@@ -187,10 +187,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Usage<'_, C> {
     }
 }
 
-/// The caller's row budget, clamped: absent means the module's cap, and no
-/// caller may raise it past that.
-fn cap(requested: Option<u64>) -> u64 {
-    requested.unwrap_or(MAX_SCAN_ROWS).clamp(1, MAX_SCAN_ROWS)
+/// Only explicitly requested row budgets limit aggregation.
+fn cap(requested: Option<u64>) -> Option<u64> {
+    requested.map(|cap| cap.clamp(1, MAX_SCAN_ROWS))
 }
 
 /// Exact SQL filters shared by lists and aggregates. Matching upstream calls

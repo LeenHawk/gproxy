@@ -25,16 +25,8 @@ use std::sync::Arc;
 
 use crate::handle::Inner;
 
-/// How far an aggregation may read before it stops and says so.
-///
-/// `usage_records.metrics` is a JSON document, so a sum over token counts or
-/// a cut by provider or credential cannot be pushed into the database: the
-/// rows are read and folded here. That is fine for a month of one user's
-/// traffic and ruinous for a year of a deployment's, so every aggregate
-/// carries a row budget. Reaching it sets `truncated` on the answer rather
-/// than returning a smaller number as if it were the whole truth. The value
-/// and the scan behind it are core's, so the engine's own reads (a credential
-/// cycle's spend) stop at the same place.
+/// Maximum explicitly requested aggregation budget. Aggregates without a
+/// requested budget read the full range in batches.
 pub const MAX_SCAN_ROWS: u64 = gproxy_core::usage_scan::MAX_SCAN_ROWS;
 
 /// The most buckets a trend may produce. A one-minute bucket over a month is
