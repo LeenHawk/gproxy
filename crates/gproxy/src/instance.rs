@@ -286,8 +286,9 @@ pub(crate) async fn open_connection(config: &AppConfig) -> Result<Connection> {
                 std::fs::create_dir_all(parent)
                     .map_err(|error| Error::io(format!("creating {}", parent.display()), error))?;
             }
-            let mut options =
-                ConnectOptions::new(format!("sqlite://{}?mode=rwc", path.to_string_lossy()));
+            // Pass the native path directly: Windows separators and URL
+            // metacharacters in filenames must not be parsed as a URL.
+            let mut options = ConnectOptions::new("sqlite:?mode=rwc");
             // min = max = 1 is not tuning: SQLite has one writer, and a larger
             // pool turns a serialized write into a `database is locked` race
             // without making any read faster. It is also what the sdk's own
@@ -296,7 +297,7 @@ pub(crate) async fn open_connection(config: &AppConfig) -> Result<Connection> {
                 .min_connections(1)
                 .max_connections(1)
                 .sqlx_logging(false)
-                .map_sqlx_sqlite_opts(tuned);
+                .map_sqlx_sqlite_opts(move |options| tuned(options.filename(&path)));
             let connection = Database::connect(options).await?;
             // Every request settles through this one connection; see
             // `gproxy_seaorm::group` for why its writes are committed together.
