@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-exclude = ["vendor/sqlx-sqlite"]
+exclude = ["vendor/sqlx-sqlite", "vendor/glib"]
 members = [
     "crates/gproxy-protocol",
     "crates/gproxy-protocol-macros",
@@ -200,8 +200,13 @@ codegen-units = 1
 panic = "abort"
 strip = "symbols"
 
-# Preserve individual statement caches while sending one SQLite worker command per batch.
 [patch.crates-io]
+# Temporary glib 0.18 backport for GHSA-wrw7-89jp-8q8g (Dependabot #81).
+# Upstream fix: https://github.com/gtk-rs/gtk-rs-core/pull/1343
+# Remove this entry, vendor/glib and its workspace exclusion, then regenerate
+# Cargo.lock once Tauri/GTK resolves to a fixed upstream glib (0.20+ or backport).
+glib = { path = "vendor/glib" }
+# Preserve individual statement caches while sending one SQLite worker command per batch.
 sqlx-sqlite = { path = "vendor/sqlx-sqlite" }
 # Native BoringSSL prefixing fixes macOS/Windows and cross-compiled archive layouts.
 btls-sys = { git = "https://github.com/0x676e67/btls", rev = "609f955e6de4df4a215ee9b273d327af1c0771db" }
