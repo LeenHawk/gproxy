@@ -38,7 +38,7 @@ export function CredentialLoginDialog({ provider, onClose }: { provider: Credent
     if (mode === "device_code") { setDevice(await startDevice(request)); setPolling(true); return }
     await exchangeCookie({ ...request, cookie }); await finish()
   } })
-  const complete = useMutation({ mutationFn: async () => { await completeAuthCode({ loginSessionId: auth!.loginSessionId, callbackUrl: callback, code: null, state: null }); await finish() } })
+  const complete = useMutation({ mutationFn: async () => { await completeAuthCode({ loginSessionId: auth!.loginSessionId, callbackUrl: auth!.redirectUri ? callback.trim() : null, code: auth!.redirectUri ? null : callback.trim(), state: auth!.redirectUri ? null : new URL(auth!.authorizeUrl).searchParams.get("state") }); await finish() } })
   const poll = useMutation({ mutationFn: pollDevice })
   const performPoll = useEffectEvent((id: string) => poll.mutateAsync(id))
   const closeAfterDevice = useEffectEvent(() => onClose())
@@ -88,8 +88,8 @@ export function CredentialLoginDialog({ provider, onClose }: { provider: Credent
         </div>
       </Field> : null}
       {auth ? <>
-        <p className="text-sm text-muted-foreground">{t("management.callbackHelp")}</p>
-        <Field><FieldLabel htmlFor="login-callback">{t("management.callbackUrl")}</FieldLabel><Textarea id="login-callback" autoComplete="off" value={callback} onChange={e => setCallback(e.target.value)} disabled={busy} /></Field>
+        <p className="text-sm text-muted-foreground">{t(auth.redirectUri ? "management.callbackHelp" : "management.authorizationCodeHelp")}</p>
+        <Field><FieldLabel htmlFor="login-callback">{t(auth.redirectUri ? "management.callbackUrl" : "management.authorizationCode")}</FieldLabel><Textarea id="login-callback" autoComplete="off" value={callback} onChange={e => setCallback(e.target.value)} disabled={busy} /></Field>
         <Button disabled={busy || !callback.trim()} onClick={() => complete.mutate()}>{t("management.completeLogin")}</Button>
       </> : null}
       {device ? <>

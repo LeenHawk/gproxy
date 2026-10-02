@@ -116,6 +116,7 @@ devin = [
     "dep:sha2",
     "dep:time",
     "dep:web-time",
+    "dep:url",
 ]
 # Gemini CLI (Google account through Code Assist): PKCE login that discovers
 # the Cloud project and tier, refresh, the Code Assist request envelope, and

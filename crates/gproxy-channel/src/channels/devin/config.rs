@@ -63,6 +63,10 @@ pub struct DevinConfig {
     /// so a provider row written against the field name still loads.
     #[serde(alias = "max_newlines")]
     pub context_window: u64,
+    /// Browser PKCE authorization endpoint.
+    pub authorize_url: String,
+    /// Authorization-code exchange endpoint.
+    pub token_url: String,
     /// Static headers added to every call.
     pub headers: BTreeMap<String, String>,
 }
@@ -77,6 +81,8 @@ impl Default for DevinConfig {
             models: BTreeMap::new(),
             max_tokens: DEFAULT_MAX_TOKENS,
             context_window: DEFAULT_CONTEXT_WINDOW,
+            authorize_url: "https://app.devin.ai/auth/cli/continue".into(),
+            token_url: "https://api.devin.ai/auth/cli/token".into(),
             headers: BTreeMap::new(),
         }
     }

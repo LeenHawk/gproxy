@@ -735,6 +735,8 @@
     "startLogin": "开始登录",
     "authorizationUrl": "授权地址",
     "openAuthorization": "在新标签页打开",
+    "authorizationCodeHelp": "完成授权后，粘贴授权页面显示的授权码。",
+    "authorizationCode": "授权码",
     "callbackHelp": "授权后从地址栏复制完整回调 URL，包含 code 和 state。本机回调页面可能无法打开，但地址中仍包含授权结果。",
     "callbackUrl": "完整回调 URL",
     "completeLogin": "完成登录",

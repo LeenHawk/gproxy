@@ -7,9 +7,9 @@
 //!
 //! # Where the facts come from
 //!
-//! Nothing here was verified against the live service. Two local mirrors of
-//! other people's reverse-engineering are the evidence, and each fact below
-//! names which one:
+//! The original wire implementation follows two local reference clients.
+//! OAuth login and native tool calls were subsequently verified against the
+//! live service with CLI clients; the unverified fields remain noted below.
 //!
 //! * `samples/windsurfapi` (dwgx/WindsurfAPI) — a working adapter for this
 //!   exact endpoint, and the only mirror that carries live captures.
@@ -32,6 +32,12 @@
 //!
 //! Facts marked *inferred* below are this channel's own reasoning, not
 //! something either mirror observed.
+//!
+//! Browser PKCE login additionally follows `samples/CLIProxyAPI` at
+//! `e2bff010` (`internal/auth/devin/devin_auth.go`): authorization at
+//! `app.devin.ai/auth/cli/continue`, JSON code exchange at
+//! `api.devin.ai/auth/cli/token`, and the `devin-session-token$` JWT prefix.
+//! The host owns PKCE state, verifier storage and credential persistence.
 //!
 //! # Transport
 //!
@@ -101,12 +107,12 @@
 //! `ChatMessage`: #1 uuid, #2 source (`1` user, `2` assistant, `4` tool
 //! result), #3 text, #6 a native tool call, #7 the tool-call id a tool result
 //! answers, #10 repeated images as `{1: base64 text, 2: mime type}`. This
-//! channel emits #1, #2, #3 and #10; tool turns are folded into user text.
+//! channel emits these fields, preserving native tool calls and results.
 //!
 //! Two rules shape the turn list before it is encoded, both from the
 //! reference and both narrower than they look:
 //!
-//! * **An assistant turn with no text is dropped**, images or not. The Kimi
+//! * **An assistant turn with no text or tool calls is dropped**, images or not. The Kimi
 //!   workaround records 10/10 empty retries for an empty assistant turn, and
 //!   `devin-connect-openai.js` adds that empty assistant turns poison the
 //!   upstream into repeating empty turns. Image-only assistant turns are
@@ -135,15 +141,16 @@
 //! error occurred" while `0.001` succeeds, so a request for greedy sampling is
 //! clamped to that floor (live finding, same section).
 //!
-//! Request fields this channel deliberately does not write: #10 native tool
-//! definitions, #11 `disable_parallel_tool_calls`, #12 `tool_choice`, #13
+//! Request fields this channel deliberately does not write: #11
+//! `disable_parallel_tool_calls`, #12 `tool_choice`, #13
 //! prompt-cache options — all recorded in the mirrors as declaration order
 //! from third-party `.proto` files rather than as wire captures — and #22
 //! `request_id`, which the verified turn-1 request omits.
 //!
 //! # `GetChatMessageResponse`
 //!
-//! #3 answer text, #5 stop enum, #7 metadata, #9 thinking text. **The
+//! #3 answer text, #5 stop enum, #6 native tool-call deltas, #7 metadata,
+//! #9 thinking text. **The
 //! reference file header says the deltas ride #9; its own later calibration
 //! corrects that** ("Earlier code read #9 as the content — that was the
 //! thinking stream. The answer the caller actually wants is #3"), and this
@@ -158,7 +165,7 @@
 //! ran, and therefore of what is being billed.
 //!
 //! Of the stop enum only `2` (free completion) and `4` (paid completion) are
-//! pinned, and both mean a clean stop, so every value maps to `stop` and
+//! pinned, and both mean a clean stop. Native calls finish as `tool_calls`;
 //! truncation is inferred from the answer landing exactly on the caller's cap
 //! (§8.7, which also records the retired guesses that made complete answers
 //! read as truncated).
@@ -237,23 +244,9 @@
 //!
 //! # Not implemented, and why
 //!
-//! * **Tool calls, in either direction.** This channel advertises
-//!   `Dialect::OpenAiChat` but writes no `ToolDef` (#10) and decodes no
-//!   `delta_tool_calls` (#6), so it can neither accept a tool definition nor
-//!   emit a tool call. The request-side inner tags were pinned by one paid
-//!   probe and every response-side tag comes from static disassembly that the
-//!   reference itself keeps default-off pending a paid frame dump; the
-//!   reference's own production path is prompt emulation with a Hermes-style
-//!   parse-back, which is a faithful piece of work rather than a few lines.
-//!   Implementing either properly needs a paid capture, so **a request that
-//!   carries `tools` or `tool_choice` is refused with that explanation**
-//!   rather than answered with the tools silently dropped. Emulation was
-//!   considered and not done: a half-working emulation that mis-parses one
-//!   call in ten is worse for a caller than a refusal it can route around.
-//!   Note that closing this gap also requires the reference's
-//!   empty-system-plus-tools guard — Claude-family requests that declare tools
-//!   with an empty #2 fail with an opaque internal error, and a single
-//!   character of system prompt fixes it.
+//! * **Forced tool choice.** Native function declarations, history, streamed
+//!   calls and tool results are supported; `tool_choice` supports `auto` and
+//!   `none`. Other choices are refused rather than silently weakened.
 //! * **Router selectors** (`adaptive`, `arena-*`). They need an `AssignModel`
 //!   round trip to resolve to a concrete `model_uid` first, and every field
 //!   number of that method is a guess in both mirrors — the reference labels
@@ -261,17 +254,8 @@
 //!   straight to #21 fails upstream with an opaque internal error, so
 //!   `models.rs` refuses it with a message that says which of the two problems
 //!   it is.
-//! * **Login.** Neither mirror records an authorization endpoint, a token
-//!   exchange or a polling call for this account. The panel mirror's "Devin
-//!   OAuth" validates **CLIProxyAPI's own management-API callback**, not a
-//!   Devin one — its release notes say plainly that "Devin request execution
-//!   and authentication remain CPA-owned" — so it is not evidence about this
-//!   upstream at all. The other mirror logs in with an email and password
-//!   against a different origin, through a chain whose last hop it marks
-//!   unverified. Inventing endpoints is worse than having none, so a
-//!   credential is a pasted session token (`LoginMode::ApiKey`).
-//! * **Credential refresh.** Same reason: nothing evidences a refresh
-//!   endpoint for this session token.
+//! * **Credential refresh.** The PKCE exchange returns a session token but no
+//!   refresh token or documented refresh endpoint. Reauthorize when it expires.
 //! * **The short-lived user JWT** (`/exa.auth_pb.AuthService/GetUserJwt`,
 //!   HS256, roughly 24 minutes, carried as `ClientMetadata` #21). The
 //!   reference ships it default-off because the no-JWT wire is known to work.
@@ -299,11 +283,9 @@
 //!    body is self-describing, field *names* replace reverse-engineered
 //!    *numbers*, and the uncalibrated #11/#12/#13/#22/#26/#27 stop being
 //!    guesses. It costs one session token and one request.
-//! 2. **A paid frame dump with native tool calls on.** The only way to settle
-//!    the response-side `ChatToolCall` tags — the reference contradicts itself
-//!    about whether #2 `name` exists — and the only way to confirm that a
-//!    single logical call streams as several fragments that must be merged by
-//!    id. This is what gate 1 above waits on.
+//! 2. Native tool calls now use #6 with #1 id, #2 name and #3 JSON argument
+//!    fragments, following CLIProxyAPI and verified by CLI execution. Native
+//!    thinking-signature replay remains outside this channel's Chat surface.
 //! 3. **A truncated or refused turn, captured.** The only way to pin stop-enum
 //!    integers for `length`, `content_filter` and `tool_calls`, which in turn
 //!    is the only way to stop inferring truncation from the caller's cap.
@@ -325,6 +307,8 @@ mod config;
 pub mod connect;
 pub mod error;
 mod models;
+mod oauth;
+mod prompt;
 pub mod proto;
 mod quota;
 mod reason;
@@ -349,10 +333,10 @@ use gproxy_protocol::{
 use http::{HeaderMap, HeaderValue, StatusCode, header};
 
 use crate::OutboundClient;
-use crate::channel::{UsageExtras, 
+use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, OperationContext, OperationFuture, ProviderView,
-    QuotaModel, QuotaQuery, forwardable,
+    QuotaModel, QuotaQuery, UsageExtras, forwardable,
 };
 
 /// Client requests may embed base64 images.
@@ -524,14 +508,12 @@ impl BaseChannel for Devin {
         ID
     }
 
-    /// A pasted session token: no login flow in either mirror is complete
-    /// enough to implement, and nothing evidences a refresh endpoint. The
-    /// account's daily and weekly windows come from `GetUserStatus`.
+    /// Manual credentials and browser PKCE login; no token refresh endpoint.
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
             display_name: "Devin (Windsurf, server.codeium.com)",
-            login_modes: vec![LoginMode::ApiKey],
+            login_modes: vec![LoginMode::ApiKey, LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
                 refresh: false,
                 quota_query: true,
@@ -545,6 +527,8 @@ impl BaseChannel for Devin {
                     ConfigKeyKind::String,
                     "Connect-RPC origin; defaults to https://server.codeium.com. Provider column, not config JSON.",
                 ).with_placeholder(connect::DEFAULT_BASE_URL),
+                ConfigKey::optional("authorize_url", ConfigKeyKind::String, "Devin browser PKCE authorization endpoint."),
+                ConfigKey::optional("token_url", ConfigKeyKind::String, "Devin authorization-code exchange endpoint."),
                 ConfigKey::optional(
                     "client_name",
                     ConfigKeyKind::String,
@@ -678,6 +662,10 @@ impl BaseChannel for Devin {
                 body: HttpBody::Stream(turn.into_stream(primed)),
             })
         })
+    }
+
+    fn oauth_authorization_code(&self) -> Option<&dyn crate::channel::OAuthAuthorizationCode> {
+        Some(self)
     }
 
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {

@@ -735,6 +735,8 @@
     "startLogin": "Start sign-in",
     "authorizationUrl": "Authorization URL",
     "openAuthorization": "Open in new tab",
+    "authorizationCodeHelp": "After authorization, paste the authorization code shown by the provider.",
+    "authorizationCode": "Authorization code",
     "callbackHelp": "After authorization, copy the full callback URL from the address bar, including code and state. A local callback page may fail to load; its address still contains the result.",
     "callbackUrl": "Full callback URL",
     "completeLogin": "Complete sign-in",

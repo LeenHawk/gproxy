@@ -735,6 +735,8 @@
     "startLogin": "開始登入",
     "authorizationUrl": "授權網址",
     "openAuthorization": "在新分頁開啟",
+    "authorizationCodeHelp": "完成授權後，貼上授權頁面顯示的授權碼。",
+    "authorizationCode": "授權碼",
     "callbackHelp": "授權後從網址列複製完整回呼 URL，包含 code 和 state。本機回呼頁面可能無法開啟，但網址中仍包含授權結果。",
     "callbackUrl": "完整回呼 URL",
     "completeLogin": "完成登入",

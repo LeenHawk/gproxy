@@ -235,6 +235,8 @@ pub(super) struct Codec {
     /// `#7.9`, the model that actually served this turn.
     actual_model: Option<String>,
     closed: bool,
+    calls: Vec<Value>,
+    call_arguments: Vec<Utf8Stream>,
 }
 
 impl Codec {
@@ -261,6 +263,8 @@ impl Codec {
             usage: None,
             actual_model: None,
             closed: false,
+            calls: Vec::new(),
+            call_arguments: Vec::new(),
         }
     }
 
@@ -291,6 +295,47 @@ impl Codec {
                 }
                 self.stopped |= hit;
             }
+        }
+        for field in fields.iter().filter(|field| field.number == 6) {
+            let proto::Value::Bytes(bytes) = field.value else {
+                continue;
+            };
+            let tool = proto::parse(bytes)?;
+            let id = proto::text_of(&tool, 1).unwrap_or_default();
+            let name = proto::text_of(&tool, 2).unwrap_or_default();
+            let index = if !id.is_empty() {
+                self.calls.iter().position(|call| call["id"] == id)
+            } else {
+                self.calls.len().checked_sub(1)
+            };
+            let (index, fresh) = match index {
+                Some(index) => (index, false),
+                None => {
+                    let index = self.calls.len();
+                    self.calls.push(json!({"id": if id.is_empty() { format!("call_{index}") } else { id.to_owned() }, "type":"function", "function":{"name":name,"arguments":""}}));
+                    self.call_arguments.push(Utf8Stream::default());
+                    (index, true)
+                }
+            };
+            let arguments =
+                self.call_arguments[index].push(proto::bytes_of(&tool, 3).unwrap_or_default());
+            let call = &mut self.calls[index];
+            let new_name =
+                !name.is_empty() && call["function"]["name"].as_str().is_none_or(str::is_empty);
+            if !name.is_empty() {
+                call["function"]["name"] = json!(name);
+            }
+            let previous = call["function"]["arguments"].as_str().unwrap_or_default();
+            call["function"]["arguments"] = json!(format!("{previous}{arguments}"));
+            let mut delta = json!({"index":index,"function":{"arguments":arguments}});
+            if fresh {
+                delta["id"] = call["id"].clone();
+                delta["type"] = json!("function");
+            }
+            if !name.is_empty() && (fresh || new_name) {
+                delta["function"]["name"] = json!(name);
+            }
+            chunks.push(self.chunk(json!({"tool_calls":[delta]}), None));
         }
         if let Some(finish) = proto::varint_of(&fields, RES_FINISH) {
             self.finish = Some(finish);
@@ -369,6 +414,7 @@ impl Codec {
         }
         match (self.max_tokens, self.usage) {
             (Some(cap), Some(usage)) if usage.completion == cap => "length",
+            _ if !self.calls.is_empty() => "tool_calls",
             _ => "stop",
         }
     }
@@ -393,6 +439,9 @@ impl Codec {
         let mut message = json!({"role": "assistant", "content": self.text});
         if !self.thinking.is_empty() {
             message["reasoning_content"] = json!(self.thinking);
+        }
+        if !self.calls.is_empty() {
+            message["tool_calls"] = json!(self.calls);
         }
         let mut body = json!({
             "id": self.id,

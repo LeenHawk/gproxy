@@ -557,36 +557,6 @@ async fn an_image_only_assistant_turn_is_dropped_like_an_empty_one() {
     );
 }
 
-#[tokio::test]
-async fn a_request_that_declares_tools_is_refused_rather_than_stripped() {
-    let config = json!({});
-    let secret = secret();
-    let metadata = json!({});
-    let client = ScriptClient::new(Vec::new());
-    let body = json!({
-        "model": "swe-1-6-slow",
-        "messages": [{"role": "user", "content": "what is the weather"}],
-        "tools": [{"type": "function", "function": {"name": "weather", "parameters": {}}}],
-    });
-    let error = Devin
-        .generate_content(context(
-            provider(&config),
-            credential(&secret, &metadata),
-            client.clone(),
-            body,
-        ))
-        .await
-        .unwrap_err();
-    assert!(
-        error.to_string().contains("tool calling"),
-        "the refusal says what is missing: {error}"
-    );
-    assert!(
-        client.sent().is_empty(),
-        "nothing goes upstream with the tools silently dropped"
-    );
-}
-
 /// The `ClientMetadata` #31 one credential presents.
 async fn sent_fingerprint(secret: &Value, credential_id: &'static str) -> String {
     let config = json!({});
@@ -1602,7 +1572,10 @@ fn both_windows_are_declared_as_reported_percentages() {
 fn the_descriptor_declares_a_pasted_token_and_a_quota_query() {
     let descriptor = Devin.descriptor();
     assert_eq!(descriptor.id, "devin");
-    assert_eq!(descriptor.login_modes, vec![LoginMode::ApiKey]);
+    assert_eq!(
+        descriptor.login_modes,
+        vec![LoginMode::ApiKey, LoginMode::AuthorizationCode]
+    );
     assert!(descriptor.capabilities.quota_query);
     assert!(!descriptor.capabilities.refresh);
     assert!(!descriptor.capabilities.websocket);
