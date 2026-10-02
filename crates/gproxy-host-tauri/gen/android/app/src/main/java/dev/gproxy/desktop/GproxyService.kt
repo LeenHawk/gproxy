@@ -76,6 +76,10 @@ class GproxyService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!GproxyPrivacyActivity.accepted(this)) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (intent?.action == ACTION_STOP) {
             stopEverything()
             return START_NOT_STICKY
@@ -184,16 +188,30 @@ class GproxyService : Service() {
             )
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentIntent(openTheWindow())
-            .addAction(
-                android.R.drawable.stat_sys_download,
-                getString(R.string.gproxy_action_update),
-                PendingIntent.getActivity(
-                    this,
-                    2,
-                    Intent(this, GproxyUpdateActivity::class.java),
-                    PendingIntent.FLAG_IMMUTABLE,
-                ),
-            )
+            .apply {
+                if (BuildConfig.SELF_UPDATE) {
+                    addAction(
+                        android.R.drawable.stat_sys_download,
+                        getString(R.string.gproxy_action_update),
+                        PendingIntent.getActivity(
+                            this@GproxyService, 2,
+                            Intent(this@GproxyService, GproxyUpdateActivity::class.java),
+                            PendingIntent.FLAG_IMMUTABLE,
+                        ),
+                    )
+                } else {
+                    addAction(
+                        android.R.drawable.ic_menu_info_details,
+                        if (resources.configuration.locales[0].language == "zh") "隐私说明" else "Privacy",
+                        PendingIntent.getActivity(
+                            this@GproxyService, 2,
+                            Intent(this@GproxyService, GproxyPrivacyActivity::class.java)
+                                .putExtra("viewOnly", true),
+                            PendingIntent.FLAG_IMMUTABLE,
+                        ),
+                    )
+                }
+            }
             .addAction(
                 android.R.drawable.ic_menu_close_clear_cancel,
                 getString(R.string.gproxy_action_stop),
@@ -212,7 +230,7 @@ class GproxyService : Service() {
         PendingIntent.getActivity(
             this,
             0,
-            Intent(this, MainActivity::class.java)
+            Intent(this, if (BuildConfig.SELF_UPDATE) MainActivity::class.java else GproxyPrivacyActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
@@ -244,6 +262,7 @@ class GproxyService : Service() {
          * rather than a crash for whatever the platform decides next.
          */
         fun start(context: Context) {
+            if (!GproxyPrivacyActivity.accepted(context)) return
             try {
                 context.startForegroundService(
                     Intent(context, GproxyService::class.java)
@@ -283,7 +302,9 @@ class GproxyService : Service() {
             when {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
+                // Store builds declare only the gateway's actual specialUse
+                // type. Before Android 14, they can run an untyped service.
+                BuildConfig.SELF_UPDATE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
                 else -> 0
             }

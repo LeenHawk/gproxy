@@ -4,6 +4,9 @@
 # rather than source — Tauri's own template ignores it for the same reason.
 /gen/schemas/
 
+# Fully generated in isolated builds; may contain private signing configuration.
+/gen/ohos/
+
 # The pinned Tauri CLI, restored by `pnpm install` from the lockfile beside
 # `package.json`. `gen/android/` itself is **not** ignored: it is the Android
 # project, it is edited by hand — the service, the receiver, the manifest — and

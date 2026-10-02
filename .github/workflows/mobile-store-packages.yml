@@ -1,0 +1,87 @@
+name: Prepare mobile store packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platforms to prepare (unsigned; no store submission)
+        type: choice
+        options: [all, android, harmonyos]
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    if: inputs.platform != 'harmonyos'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [fdroid, google-play, appgallery]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v6.1.0
+        with:
+          package_json_file: console/package.json
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24.21.0'
+      - uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          targets: aarch64-linux-android
+      - uses: android-actions/setup-android@v4.0.4
+        with:
+          packages: platform-tools
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake libclang-dev pkg-config ninja-build
+          sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'ndk;30.0.15729638'
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
+      - name: Install locked JavaScript dependencies
+        run: |
+          pnpm --dir console install --frozen-lockfile
+          pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
+      - name: Build and inspect unsigned store packages
+        env:
+          STORE_CHANNEL: ${{ matrix.channel }}
+        run: bash scripts/mobile/build-android.sh "$STORE_CHANNEL" aarch64
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: mobile-${{ matrix.channel }}-arm64-unsigned
+          path: dist/mobile/${{ matrix.channel }}/aarch64/
+          if-no-files-found: error
+          retention-days: 14
+
+  harmonyos:
+    if: inputs.platform != 'android'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Build pinned HarmonyOS toolchain container
+        run: docker build -t gproxy-store-ohos -f .gitlab/Dockerfile.ohos .
+      - name: Build unsigned AppGallery APP and device-test HAP
+        run: |
+          docker run --rm -v "$PWD:/workspace" -w /workspace gproxy-store-ohos bash -lc '
+            git config --global --add safe.directory /workspace
+            pnpm --dir console install --frozen-lockfile
+            bash scripts/mobile/build-ohos.sh
+          '
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: mobile-appgallery-harmonyos-arm64-unsigned
+          path: dist/mobile/appgallery-ohos/
+          if-no-files-found: error
+          retention-days: 14

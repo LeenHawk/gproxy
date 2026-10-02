@@ -13,6 +13,19 @@
 //! into `ui/`, and a Rust build that shelled out to `pnpm` would make
 //! `cargo check` depend on Node.
 fn main() {
+    println!("cargo:rerun-if-env-changed=GPROXY_ANDROID_DISTRIBUTION");
+    println!("cargo:rustc-check-cfg=cfg(store_distribution)");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
+        let distribution =
+            std::env::var("GPROXY_ANDROID_DISTRIBUTION").unwrap_or_else(|_| "direct".to_owned());
+        match distribution.as_str() {
+            "direct" => {}
+            "fdroid" | "google-play" | "appgallery" => {
+                println!("cargo:rustc-cfg=store_distribution");
+            }
+            _ => panic!("unknown GPROXY_ANDROID_DISTRIBUTION: {distribution}"),
+        }
+    }
     tauri_build::build();
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
         println!("cargo:rustc-link-lib=log");

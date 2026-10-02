@@ -67,7 +67,10 @@ object GproxyNative {
     fun status(): Status = parse(nativeStatus())
 
     /** Runs on a worker: the native updater verifies and stages the APK. */
-    fun update(): JSONObject = JSONObject(nativeUpdate() ?: error("the updater answered nothing"))
+    fun update(): JSONObject {
+        check(BuildConfig.SELF_UPDATE) { "Updates are managed by the application store" }
+        return JSONObject(nativeUpdate() ?: error("the updater answered nothing"))
+    }
 
     /**
      * Close the data plane's socket and stop the background sync.

@@ -1,0 +1,24 @@
+{
+  "name": "GPROXY",
+  "packageName": "dev.gproxy.desktop",
+  "publisher": "Leen Hawk",
+  "website": "https://gproxy.leenhawk.com/",
+  "source": "https://github.com/LeenHawk/gproxy",
+  "support": "https://github.com/LeenHawk/gproxy/issues",
+  "locales": {
+    "en-US": {
+      "shortDescription": "An open-source AI API gateway for providers you choose",
+      "description": "Run your own AI API gateway on your device. Connect the providers you choose behind one endpoint and manage credentials, model routing, load balancing, failover, access keys, quotas and usage in the built-in console. Supported routes offer OpenAI-, Claude- and Gemini-compatible API formats.\n\nThe first-run wizard helps you configure storage, the listener and a local administrator account. The listener defaults to the local device. Provider accounts, model subscriptions, network access and service charges are separate; GPROXY does not include AI accounts, model access or a hosted gateway service.\n\nYou choose which providers receive your requests and which database stores your instance. Review those providers' terms and privacy policies before sending data. Store-installed copies are updated by the store.\n\nGPROXY is free and open source under AGPL-3.0-or-later. Source: https://github.com/LeenHawk/gproxy\nDocumentation: https://gproxy.leenhawk.com/",
+      "androidNote": "On Android, a foreground notification keeps a configured gateway visible while it runs and lets you stop it. Startup and battery settings are under your control. Requires Android 9 or later and a compatible system WebView.",
+      "harmonyNote": "This is the native HarmonyOS edition. On phones and tablets, keep GPROXY in the foreground while you use the gateway; the system may pause it when you leave the app. Requires HarmonyOS 6.0 or later.",
+      "privacyUrl": "https://gproxy.leenhawk.com/legal/privacy/"
+    },
+    "zh-CN": {
+      "shortDescription": "面向你所选供应商的开源 AI API 网关",
+      "description": "在自己的设备上运行 AI API 网关。将你选择的供应商接入统一地址，通过内置控制台管理凭据、模型路由、负载均衡、故障切换、访问密钥、额度与用量。支持的路由提供 OpenAI、Claude 和 Gemini 兼容 API 格式。\n\n首次启动向导帮助你配置存储、监听地址和本地管理员账号。监听地址默认仅限本机。供应商账号、模型订阅、网络访问及服务费用独立于本应用；GPROXY 不附带 AI 账号、模型访问权限或托管网关服务。\n\n你可以选择将请求发送给哪些供应商，以及将实例保存在什么数据库中。发送数据前，请阅读相应供应商的服务条款和隐私政策。商店安装版本由商店提供更新。\n\nGPROXY 以 AGPL-3.0-or-later 自由开源。源码：https://github.com/LeenHawk/gproxy\n文档：https://gproxy.leenhawk.com/",
+      "androidNote": "Android 版本通过前台通知显示已配置网关的运行状态，并提供停止入口。启动和电池设置由你控制。需要 Android 9 或更高版本及兼容的系统 WebView。",
+      "harmonyNote": "这是原生 HarmonyOS 版本。在手机和平板上使用网关时，请保持 GPROXY 在前台；离开应用后，系统可能暂停网关。需要 HarmonyOS 6.0 或更高版本。",
+      "privacyUrl": "https://gproxy.leenhawk.com/zh-cn/legal/privacy/"
+    }
+  }
+}

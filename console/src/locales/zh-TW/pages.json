@@ -1084,6 +1084,7 @@
     "documentation": "使用文件"
   },
   "shellPreferences": {
+    "privacyNotice": "隱私說明",
     "title": "應用程式",
     "help": "這些設定僅影響目前裝置，儲存後立即生效。",
     "tray": "顯示系統匣圖示",

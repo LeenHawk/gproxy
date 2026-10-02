@@ -8,6 +8,7 @@ export function loadFonts() {
   link.rel = "stylesheet"
   // convertFileSrc encodes a whole filesystem path; use only its platform
   // origin so relative URLs inside the stylesheet keep their directory.
-  link.href = isTauri() ? new URL(source, convertFileSrc("", "gproxy-fonts")).href : source
+  link.href = isTauri() && import.meta.env.VITE_GPROXY_BUNDLED_FONTS !== "1"
+    ? new URL(source, convertFileSrc("", "gproxy-fonts")).href : source
   document.head.append(link)
 }

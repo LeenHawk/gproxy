@@ -1084,6 +1084,7 @@
     "documentation": "使用文档"
   },
   "shellPreferences": {
+    "privacyNotice": "隐私说明",
     "title": "应用",
     "help": "这些设置仅影响当前设备，保存后立即生效。",
     "tray": "显示系统托盘图标",

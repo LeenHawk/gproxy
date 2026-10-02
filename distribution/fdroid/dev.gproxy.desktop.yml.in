@@ -1,0 +1,40 @@
+Categories:
+  - Development
+  - Internet
+License: AGPL-3.0-or-later
+AuthorName: Leen Hawk
+WebSite: https://gproxy.leenhawk.com
+SourceCode: https://github.com/LeenHawk/gproxy
+IssueTracker: https://github.com/LeenHawk/gproxy/issues
+Changelog: https://github.com/LeenHawk/gproxy/releases
+
+AutoName: GPROXY
+
+RepoType: git
+Repo: https://github.com/LeenHawk/gproxy.git
+
+Builds:
+  - versionName: '@VERSION@'
+    versionCode: @CODE@
+    commit: @COMMIT@
+    sudo:
+      - apt-get update
+      - apt-get install -y clang cmake libclang-dev pkg-config ninja-build openjdk-21-jdk-headless python3 unzip xz-utils
+    output: dist/mobile/fdroid/aarch64/gproxy-fdroid-aarch64.apk
+    srclibs:
+      - rustup@1.28.2
+    prebuild:
+      - bash scripts/mobile/fdroid-tools.sh $$rustup$$
+    build:
+      - export ANDROID_HOME=$$SDK$$ ANDROID_NDK_HOME=$$NDK$$
+      - bash scripts/mobile/fdroid-build.sh
+    ndk: 30.0.15729638
+    antifeatures:
+      NonFreeNet:
+        en-US: Offers integrations with proprietary AI services. Users provide their own accounts and can configure other compatible endpoints.
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
+UpdateCheckData: distribution/mobile/tauri.store.conf.json|"versionCode":\s*(\d+)|crates/gproxy-host-tauri/tauri.conf.json|"version":\s*"([^"]+)"
+CurrentVersion: '@VERSION@'
+CurrentVersionCode: @CODE@

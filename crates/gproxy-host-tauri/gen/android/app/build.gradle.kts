@@ -13,12 +13,23 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// Keep ABI flavors unchanged: Tauri generates and invokes their Gradle tasks.
+// The same build environment also removes the native updater in build.rs.
+val distribution = providers.environmentVariable("GPROXY_ANDROID_DISTRIBUTION").getOrElse("direct")
+require(distribution in listOf("direct", "fdroid", "google-play", "appgallery")) {
+    "Unknown GPROXY_ANDROID_DISTRIBUTION: $distribution"
+}
+val selfUpdate = distribution == "direct"
+val privacyDir = rootProject.file("../../../../distribution/mobile/privacy")
+
 android {
     compileSdk = 36
     namespace = "dev.gproxy.desktop"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = "dev.gproxy.desktop"
+        buildConfigField("boolean", "SELF_UPDATE", selfUpdate.toString())
+        buildConfigField("String", "PRIVACY_VERSION", "\"${privacyDir.resolve("version.txt").readText().trim()}\"")
         // Tauri's template says 24. 28 is what v3's APK shipped, and it is
         // what the foreground service wants: notification channels, typed
         // foreground services and `canRequestPackageInstalls` all arrived by
@@ -51,11 +62,28 @@ android {
             )
         }
     }
+    val uploadKeystore = providers.environmentVariable("GPROXY_ANDROID_KEYSTORE").orNull
+    if (!selfUpdate && distribution != "fdroid" && uploadKeystore != null) {
+        val upload = signingConfigs.create("storeUpload") {
+            storeFile = file(uploadKeystore)
+            storePassword = providers.environmentVariable("GPROXY_ANDROID_STORE_PASSWORD").get()
+            keyAlias = providers.environmentVariable("GPROXY_ANDROID_KEY_ALIAS").get()
+            keyPassword = providers.environmentVariable("GPROXY_ANDROID_KEY_PASSWORD")
+                .getOrElse(storePassword!!)
+        }
+        buildTypes.getByName("release").signingConfig = upload
+    }
     kotlinOptions {
         jvmTarget = "1.8"
     }
     buildFeatures {
         buildConfig = true
+    }
+    if (!selfUpdate) {
+        // Merge removals after the main manifest, for debug and release alike.
+        sourceSets.getByName("debug").manifest.srcFile("src/store/AndroidManifest.xml")
+        sourceSets.getByName("release").manifest.srcFile("src/store/AndroidManifest.xml")
+        sourceSets.getByName("main").assets.srcDir(privacyDir)
     }
 }
 

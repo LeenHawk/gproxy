@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Store updates must not download or install the direct-distribution APK. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" tools:node="remove" />
+    <application>
+        <service android:name=".GproxyService" android:foregroundServiceType="specialUse"
+            tools:replace="android:foregroundServiceType" />
+        <!-- Consent is shown by a native Activity before Tauri or Rust loads. -->
+        <activity android:name=".MainActivity" android:exported="false" tools:replace="android:exported">
+            <intent-filter tools:node="removeAll" />
+        </activity>
+        <activity android:name=".GproxyPrivacyActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".GproxyUpdateActivity" tools:node="remove" />
+        <provider android:name=".GproxyUpdateProvider" tools:node="remove" />
+    </application>
+</manifest>

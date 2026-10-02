@@ -394,6 +394,7 @@ pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeStatus(
 
 /// Fetch and verify an APK on the update activity's worker thread. Installation
 /// stays with Android, which asks the user before replacing the application.
+#[cfg(not(store_distribution))]
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeUpdate(
     mut env: JNIEnv<'_>,
