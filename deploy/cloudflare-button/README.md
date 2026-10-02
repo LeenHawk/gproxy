@@ -2,7 +2,7 @@
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/dev/deploy/cloudflare-button)
 
-This standalone template downloads the official **v4.0.1** Worker and console,
+This standalone template downloads the official **v4.0.2** Worker and console,
 checks the release SHA-256, and deploys with D1. No Rust build is needed.
 
 1. Click the button and connect your GitHub or GitLab account.

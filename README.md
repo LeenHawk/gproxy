@@ -124,7 +124,7 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
 
 ### Hosted deployments
 
-Templates for Cloudflare, Netlify, Vercel, and Deno use prebuilt **v4.0.1** bundles without compiling Rust. Cloudflare supports D1 or libSQL/Turso; the other three use PostgreSQL. Configure the database, administrator password, and master key, then deploy and sign in at `/console/`.
+Templates for Cloudflare, Netlify, Vercel, and Deno use prebuilt **v4.0.2** bundles without compiling Rust. Cloudflare supports D1 or libSQL/Turso; the other three use PostgreSQL. Configure the database, administrator password, and master key, then deploy and sign in at `/console/`.
 
 See the [hosted deployment guide](https://gproxy.leenhawk.com/deployment/edge/) for deploy buttons, platform or external databases, and differences such as WebSocket support.
 
