@@ -18,8 +18,8 @@ export function ShellPreferenceFields({ value, onChange, desktop, canAutoStart, 
     </Field> : null}
     {desktop ? <>
       <Field orientation="horizontal" className="sm:col-span-2" data-disabled={disabled}>
-        <FieldContent><FieldLabel htmlFor={`${id}-tray`}>{t("shellPreferences.tray")}</FieldLabel><FieldDescription id={(`${id}-tray`) + "-description-0"}>{t("shellPreferences.trayHelp")}</FieldDescription></FieldContent>
-        <Switch aria-describedby={[(`${id}-tray`) + "-description-0"].join(" ")} id={`${id}-tray`} checked={value.tray} disabled={disabled} onCheckedChange={tray => onChange({ ...value, tray, closeToTray: tray && value.closeToTray })} />
+        <FieldContent><FieldLabel htmlFor={`${id}-tray`}>{t("shellPreferences.tray")}</FieldLabel><FieldDescription id={`${id}-tray-description-0`}>{t("shellPreferences.trayHelp")}</FieldDescription></FieldContent>
+        <Switch aria-describedby={`${id}-tray-description-0`} id={`${id}-tray`} checked={value.tray} disabled={disabled} onCheckedChange={tray => onChange({ ...value, tray, closeToTray: tray && value.closeToTray })} />
       </Field>
       <Field data-disabled={disabled || !value.tray}>
         <FieldLabel htmlFor={`${id}-close`}>{t("shellPreferences.close")}</FieldLabel>
@@ -29,8 +29,8 @@ export function ShellPreferenceFields({ value, onChange, desktop, canAutoStart, 
         </Select>
       </Field>
       <Field orientation="horizontal" data-disabled={disabled || !value.autoStart || !value.tray}>
-        <FieldContent><FieldLabel htmlFor={`${id}-hidden`}>{t("shellPreferences.hidden")}</FieldLabel><FieldDescription id={(`${id}-hidden`) + "-description-0"}>{t("shellPreferences.hiddenHelp")}</FieldDescription></FieldContent>
-        <Switch aria-describedby={[(`${id}-hidden`) + "-description-0"].join(" ")} id={`${id}-hidden`} checked={value.autoStart && value.tray && value.startHidden} disabled={disabled || !value.autoStart || !value.tray} onCheckedChange={startHidden => onChange({ ...value, startHidden })} />
+        <FieldContent><FieldLabel htmlFor={`${id}-hidden`}>{t("shellPreferences.hidden")}</FieldLabel><FieldDescription id={`${id}-hidden-description-0`}>{t("shellPreferences.hiddenHelp")}</FieldDescription></FieldContent>
+        <Switch aria-describedby={`${id}-hidden-description-0`} id={`${id}-hidden`} checked={value.autoStart && value.tray && value.startHidden} disabled={disabled || !value.autoStart || !value.tray} onCheckedChange={startHidden => onChange({ ...value, startHidden })} />
       </Field>
     </> : null}
   </>

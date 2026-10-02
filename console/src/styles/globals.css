@@ -66,7 +66,7 @@
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.5 0.2 27);
   --border: oklch(0.9 0 0);
-  --input: oklch(0.88 0 0);
+  --input: oklch(0.55 0 0);
   --ring: oklch(0.55 0 0);
   --state-healthy: oklch(0.42 0.13 155);
   --state-warning: oklch(0.44 0.12 76);
@@ -101,13 +101,42 @@
   --accent-foreground: oklch(0.94 0 0);
   --destructive: oklch(0.72 0.17 27);
   --border: oklch(0.34 0 0);
-  --input: oklch(0.38 0 0);
+  --input: oklch(0.62 0 0);
   --ring: oklch(0.68 0 0);
   --state-healthy: oklch(0.72 0.14 155);
   --state-warning: oklch(0.78 0.13 76);
   --state-critical: oklch(0.72 0.17 27);
   --state-disabled: oklch(0.68 0 0);
   --state-info: oklch(0.74 0.12 250);
+}
+
+/* Keep focus visible even on controls that suppress the browser outline.
+   Unlike a translucent ring, this also survives Windows high contrast. */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+[data-slot="table-container"]:focus-visible {
+  outline-offset: -2px;
+}
+
+:where(input, textarea, button, a, select, [tabindex]) {
+  scroll-margin-block: 5rem;
+}
+
+@media (forced-colors: active) {
+  :focus-visible { outline-color: Highlight; }
+  [data-slot="switch"] { border-color: ButtonText; }
+  [data-slot="switch-thumb"] { background: ButtonText; }
+  [data-slot="switch"][data-state="checked"] { border-color: Highlight; }
+  [role="tab"][aria-selected="true"],
+  [data-slot="toggle-group-item"][data-state="on"] {
+    border-color: Highlight;
+  }
+  a[aria-current="page"] { text-decoration: underline; }
+  [data-slot="progress"] { border: 1px solid CanvasText; }
+  [data-slot="progress-indicator"] { background: Highlight; }
 }
 
 @layer base {
@@ -130,7 +159,7 @@
   }
 
   body {
-    @apply m-0 min-w-80 bg-background text-foreground antialiased;
+    @apply m-0 min-w-0 bg-background text-foreground antialiased;
     font-variant-numeric: tabular-nums;
   }
 

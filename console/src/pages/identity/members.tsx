@@ -102,12 +102,12 @@ export function MembersDialog({ scope, scopeId, scopeName, open, onOpenChange }:
           <div className="flex flex-wrap items-center gap-2">
             <Input
               className="max-w-xs"
-              placeholder={t("fields.userId")}
+              aria-label={t("fields.userId")} placeholder={t("fields.userId")}
               value={userId}
               onChange={(event) => setUserId(event.target.value)}
             />
             <Select value={role} onValueChange={setRole}>
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={t("fields.role")} className="w-36"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {ROLES.map((option) => <SelectItem key={option} value={option}>{t(`values.${option}`)}</SelectItem>)}
               </SelectContent>
@@ -127,7 +127,7 @@ export function MembersDialog({ scope, scopeId, scopeName, open, onOpenChange }:
                       value={row.role}
                       onValueChange={(next) => setRoleOf.mutate({ member: row.userId, next })}
                     >
-                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                      <SelectTrigger aria-label={`${t("fields.role")}: ${row.userId}`} className="w-32"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {ROLES.map((option) => (
                           <SelectItem key={option} value={option}>{t(`values.${option}`)}</SelectItem>

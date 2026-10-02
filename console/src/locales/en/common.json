@@ -3,7 +3,8 @@
     "navigation": "Navigation",
     "resizeHint": "Drag to resize; double-click to reset. Use arrow keys to adjust.",
     "skipToContent": "Skip to main content",
-    "mainContent": "Main content"
+    "mainContent": "Main content",
+    "resizePanel": "Resize {{name}}"
   },
   "signIn": {
     "title": "Sign in"
@@ -45,7 +46,15 @@
     "choose": "Choose…",
     "invalidJson": "Invalid JSON. Check the value and try again.",
     "credentialSecretHint": "For API Key authentication, paste a single key or enter JSON. Other authentication methods require JSON.",
-    "unset": "Inherit"
+    "unset": "Inherit",
+    "required": "This field is required.",
+    "supported": "Supported",
+    "defaultValue": "Default value",
+    "mode": "Mode",
+    "limit": "Limit",
+    "description": "Description",
+    "priceRule": "Pricing rule",
+    "priceProfile": "Pricing profile"
   },
   "pagination": {
     "position": "Page {{page}} of {{pages}} · {{total}} rows",
@@ -68,7 +77,8 @@
     "removed": "Removed",
     "retired": "Retired",
     "revoked": "Revoked",
-    "saved": "Saved"
+    "saved": "Saved",
+    "notifications": "Notifications"
   },
   "language": {
     "en": "English",
@@ -267,5 +277,8 @@
     "deviceApproved": "Device approved",
     "deviceDenied": "Device denied",
     "returnToDevice": "You can return to your device now."
+  },
+  "table": {
+    "scroll": "Scrollable table"
   }
 }

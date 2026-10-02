@@ -47,6 +47,12 @@ class MainActivity : TauriActivity() {
 
     /** Before the console loads, so `window.GproxyFiles` exists on its first page. */
     override fun onWebViewCreate(webView: WebView) {
+        // Respect Android's text size and let low-vision users pinch to zoom.
+        // fontScale changes recreate this activity, so the setting is refreshed.
+        webView.settings.textZoom = (resources.configuration.fontScale * 100).toInt()
+        webView.settings.setSupportZoom(true)
+        webView.settings.builtInZoomControls = true
+        webView.settings.displayZoomControls = false
         webView.addJavascriptInterface(files, GproxyFiles.JS_NAME)
     }
 

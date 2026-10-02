@@ -6,7 +6,7 @@
 //! The session gate still runs first, so a signed-out visitor signs in on this
 //! same URL and lands back on the question.
 
-import { useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import type { ConsentDecision } from "@/generated/app"
@@ -17,8 +17,16 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { usePageTitle } from "@/lib/use-page-title"
 
 function ConsentFrame({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
+  usePageTitle(title)
+  const heading = useRef<HTMLHeadingElement>(null)
+  const previousTitle = useRef(title)
+  useEffect(() => {
+    if (previousTitle.current !== title) heading.current?.focus()
+    previousTitle.current = title
+  }, [title])
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-10 text-foreground">
       <Card className="w-full max-w-md">
@@ -27,7 +35,7 @@ function ConsentFrame({ title, description, children }: { title: string; descrip
             <img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} alt="" className="size-10" />
             <span className="text-lg font-semibold">GPROXY</span>
           </div>
-          <CardTitle>{title}</CardTitle>
+          <CardTitle headingLevel={1} ref={heading} tabIndex={-1}>{title}</CardTitle>
           {description ? <CardDescription>{description}</CardDescription> : null}
         </CardHeader>
         <CardContent className="space-y-4">{children}</CardContent>
@@ -128,6 +136,9 @@ export function DevicePage({ userName }: { userName: string }) {
           <FieldLabel htmlFor="device-code">{t("oauthConsent.userCode")}</FieldLabel>
           <Input
             id="device-code"
+            required
+            aria-invalid={!!details.error}
+            aria-describedby={details.error ? "device-code-error" : undefined}
             autoFocus={!code}
             autoComplete="off"
             spellCheck={false}
@@ -139,7 +150,7 @@ export function DevicePage({ userName }: { userName: string }) {
         <Button type="submit" variant="outline" disabled={!typed.trim() || details.isFetching}>{t("oauthConsent.lookUp")}</Button>
       </form>
       {code && details.isPending ? <LoadingRows rows={2} /> : null}
-      {details.error ? <ErrorNotice error={details.error} /> : null}
+      {details.error ? <div id="device-code-error"><ErrorNotice error={details.error} /></div> : null}
       {details.data ? (
         <>
           <p className="text-sm">{t("oauthConsent.authorizeDescription", { client: details.data.client_name, user: userName })}</p>

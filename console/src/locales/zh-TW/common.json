@@ -3,7 +3,8 @@
     "navigation": "導覽",
     "resizeHint": "拖曳調整寬度，按兩下恢復預設；也可使用方向鍵調整。",
     "skipToContent": "跳至主要內容",
-    "mainContent": "主要內容"
+    "mainContent": "主要內容",
+    "resizePanel": "調整{{name}}寬度"
   },
   "signIn": {
     "title": "登入"
@@ -45,7 +46,15 @@
     "choose": "請選擇…",
     "invalidJson": "JSON 格式不正確，請檢查後重試。",
     "credentialSecretHint": "API Key 驗證可直接貼上單個金鑰，也可填寫 JSON；其他驗證方式請填寫 JSON。",
-    "unset": "繼承"
+    "unset": "繼承",
+    "required": "請填寫此必填項。",
+    "supported": "是否支援",
+    "defaultValue": "預設值",
+    "mode": "模式",
+    "limit": "上限",
+    "description": "說明",
+    "priceRule": "計價規則",
+    "priceProfile": "計價方案"
   },
   "pagination": {
     "position": "第 {{page}} / {{pages}} 頁 · 共 {{total}} 列",
@@ -68,7 +77,8 @@
     "removed": "已移除",
     "retired": "已停用",
     "revoked": "已撤銷",
-    "saved": "已儲存"
+    "saved": "已儲存",
+    "notifications": "通知"
   },
   "language": {
     "en": "English",
@@ -267,5 +277,8 @@
     "deviceApproved": "已核准裝置",
     "deviceDenied": "已拒絕裝置",
     "returnToDevice": "現在可以回到裝置上繼續了。"
+  },
+  "table": {
+    "scroll": "可捲動的資料表格"
   }
 }

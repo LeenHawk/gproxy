@@ -35,13 +35,13 @@ export function AuditPage() {
       <div className="flex flex-wrap gap-2">
         <Input
           className="max-w-xs"
-          placeholder={t("fields.action")}
+          aria-label={t("fields.action")} placeholder={t("fields.action")}
           value={action}
           onChange={(event) => { setAction(event.target.value); setPage(1) }}
         />
         <Input
           className="max-w-xs"
-          placeholder={t("fields.actorUserId")}
+          aria-label={t("fields.actorUserId")} placeholder={t("fields.actorUserId")}
           value={actor}
           onChange={(event) => { setActor(event.target.value); setPage(1) }}
         />

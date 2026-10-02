@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useInfiniteQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
@@ -48,7 +49,7 @@ export default function QuotaTrend({ id, windowId, title, cycle }: { id: string;
       <Button type="button" variant="ghost" size="sm" disabled={history.isFetching || (range === "current" && !cycle)} onClick={() => void history.refetch()}>{t("observation.refresh")}</Button>
     </div>
     {range === "current" && !cycle ? <EmptyNotice title={t("limits.noCurrentCycle")} /> : <QueryState isPending={history.isPending} error={history.error}>
-      {hasValues && bounds ? <ChartContainer className="h-56 w-full" role="img" aria-label={`${title} · ${t("limits.quotaTrend")}`} config={{ percent: { label: t("limits.quotaUsedPercent"), color: "var(--state-info)" } }}>
+      {hasValues && bounds ? <><ChartContainer className="h-56 w-full" role="group" aria-label={`${title} · ${t("limits.quotaTrend")}`} config={{ percent: { label: t("limits.quotaUsedPercent"), color: "var(--state-info)" } }}>
         <LineChart accessibilityLayer data={points} margin={{ left: 0, right: 12, top: 8, bottom: 0 }}>
           <CartesianGrid vertical={false} />
           <XAxis dataKey="time" type="number" scale="time" domain={[bounds.sinceMs, bounds.untilMs]} ticks={ticks} tickFormatter={value => date.format(Number(value))} minTickGap={48} tickLine={false} axisLine={false} />
@@ -56,7 +57,13 @@ export default function QuotaTrend({ id, windowId, title, cycle }: { id: string;
           <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, payload) => formatInstant(payload[0]?.payload.time, i18n.language)} formatter={value => <span>{t("limits.quotaUsedPercent")}: {percent(Number(value))}</span>} />} />
           <Line dataKey="percent" type="linear" stroke="var(--color-percent)" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />
         </LineChart>
-      </ChartContainer> : <EmptyNotice title={t("limits.quotaTrendEmpty")} />}
+      </ChartContainer>
+      <details><summary className="w-fit cursor-pointer py-2 text-sm">{t("usage.trendData")}</summary>
+        <Table><TableCaption className="sr-only">{title} · {t("limits.quotaTrend")}</TableCaption>
+          <TableHeader><TableRow><TableHead>{t("fields.observedAtMs")}</TableHead><TableHead>{t("limits.quotaUsedPercent")}</TableHead></TableRow></TableHeader>
+          <TableBody>{points.filter(point => point.percent !== null).map((point, index) => <TableRow key={`${point.time}-${index}`}><TableCell>{formatInstant(point.time, i18n.language)}</TableCell><TableCell>{percent(point.percent!)}</TableCell></TableRow>)}</TableBody>
+        </Table>
+      </details></> : <EmptyNotice title={t("limits.quotaTrendEmpty")} />}
     </QueryState>}
     {history.hasNextPage ? <Button type="button" variant="outline" size="sm" className="self-start" disabled={history.isFetching} onClick={() => void history.fetchNextPage()}>{t("limits.quotaTrendOlder")}</Button> : null}
     <p className="text-xs text-muted-foreground">{t("limits.quotaTrendHint")}</p>

@@ -30,8 +30,8 @@ export function RuleSetSelect({ value, choices, remote, onChange, disabled }: { 
   const options = choices.map(set => ({ value: set.id, label: set.name }))
   if (selected.data && !known) options.push({ value, label: selected.data.name })
   return <Field><FieldLabel htmlFor={id}>{t("fields.ruleSetId")}</FieldLabel>
-    <SearchableSelect id={id} label={t("fields.ruleSetId")} value={value} options={options} source={remote ? optionSource(ruleSets, row => ({ value: row.id, label: row.name })) : undefined} onChange={onChange} disabled={disabled} />
-    {known?.shared || (selected.data?.providerCount ?? 0) > 0 ? <FieldDescription>{t("rules.sharedWarning")}</FieldDescription> : null}
+    <SearchableSelect aria-describedby={`${id}-description-0`} id={id} label={t("fields.ruleSetId")} value={value} options={options} source={remote ? optionSource(ruleSets, row => ({ value: row.id, label: row.name })) : undefined} onChange={onChange} disabled={disabled} />
+    {known?.shared || (selected.data?.providerCount ?? 0) > 0 ? <FieldDescription id={`${id}-description-0`}>{t("rules.sharedWarning")}</FieldDescription> : null}
     {selected.error ? <ErrorNotice error={selected.error} /> : null}
   </Field>
 }
@@ -142,8 +142,8 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
         </ToggleGroup>
         {mode === "json" ? <Field className="sm:col-span-2">
           <FieldLabel htmlFor={jsonId}>{t("rules.ruleJson")}</FieldLabel>
-          <FieldDescription>{t("rules.jsonHelp")}</FieldDescription>
-          <Textarea id={jsonId} value={jsonText} onChange={event => { setJsonText(event.target.value); setValidation(null) }} rows={18} className="font-mono" spellCheck={false} autoComplete="off" aria-invalid={!!validation} />
+          <FieldDescription id={`${jsonId}-description-0`}>{t("rules.jsonHelp")}</FieldDescription>
+          <Textarea aria-describedby={`${jsonId}-description-0`} id={jsonId} value={jsonText} onChange={event => { setJsonText(event.target.value); setValidation(null) }} rows={18} className="font-mono" spellCheck={false} autoComplete="off" aria-invalid={!!validation} />
           <Button type="button" variant="outline" size="sm" className="self-start" onClick={formatJson}>{t("rules.formatJson")}</Button>
         </Field> : <>
           <RuleSelect label={t("rules.ruleType")} value={kind} options={options(kinds, "rules.types")} onChange={value => { const next = value as RuleKind; setKind(next); setConfig({}); setTarget("body"); setPhase("request"); setEventFilter(""); setAction(next === "header" ? "header_set" : "set"); setValidation(null); if (next === "cache_breakpoint" && dialect === "gemini") setDialect("claude") }} />

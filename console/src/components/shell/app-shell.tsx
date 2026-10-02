@@ -1,3 +1,4 @@
+import { usePageTitle } from "@/lib/use-page-title"
 //! The shell: one navigation, one header, and the page under it.
 //!
 //! The sidebar is built from [`sectionsFor`], which is built from the caller's
@@ -75,9 +76,9 @@ function AccountMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="w-full justify-start gap-3">
+        <Button variant="ghost" className="h-auto min-h-8 w-full justify-start gap-3 py-2">
           <CircleUserRound data-icon="inline-start" />
-          <span className="min-w-0 flex-1 truncate text-left">{context.userName}</span>
+          <span className="min-w-0 flex-1 whitespace-normal wrap-anywhere text-left">{context.userName}</span>
           <ChevronsUpDown data-icon="inline-end" />
         </Button>
       </DropdownMenuTrigger>
@@ -104,7 +105,6 @@ function AccountMenu() {
 function Brand({ onNavigate }: { onNavigate?: () => void }) {
   const info = useQuery({ queryKey: INFO_KEY, queryFn: instanceInfo })
   const name = info.data?.instanceName === "default" ? "GPROXY" : info.data?.instanceName ?? "GPROXY"
-  useEffect(() => { document.title = name }, [name])
   return (
     <Link to="/" onClick={onNavigate} className="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight">
       <img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} alt="" className="size-9" />
@@ -124,7 +124,7 @@ function Navigation({ sections, route, onNavigate }: {
       {sections.map((section) => {
         const current = section.items.some((item) => item.route === route)
         const SectionIcon = section.icon
-        if (section.standalone || section.id === "rules") return <Link key={section.id} to={section.items[0].route} onClick={onNavigate} aria-current={current ? "page" : undefined} className={cn("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent/60", current ? "bg-sidebar-accent text-sidebar-foreground" : "text-muted-foreground")}><SectionIcon className="size-4.5 shrink-0" aria-hidden /><span>{t(`nav.${section.items[0].id}`)}</span></Link>
+        if (section.standalone || section.id === "rules") return <Link key={section.id} to={section.items[0].route} onClick={onNavigate} aria-current={current ? "page" : undefined} className={cn("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent/60", current ? "bg-sidebar-accent text-sidebar-foreground" : "text-muted-foreground")}><SectionIcon className="size-4.5 shrink-0" aria-hidden /><span className="min-w-0 wrap-anywhere">{t(`nav.${section.items[0].id}`)}</span></Link>
         return (
           <details key={section.id} open={current} className="group/section">
             <summary className={cn(
@@ -132,7 +132,7 @@ function Navigation({ sections, route, onNavigate }: {
               current ? "text-sidebar-foreground" : "text-muted-foreground",
             )}>
               <SectionIcon className="size-4.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-              <span className="flex-1">{t(`section.${section.id}`)}</span>
+              <span className="min-w-0 flex-1 wrap-anywhere">{t(`section.${section.id}`)}</span>
               <ChevronRight className="size-3.5 shrink-0 transition-transform group-open/section:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
             </summary>
             <ul className="mt-1 ml-5 flex flex-col gap-1 border-l border-sidebar-border pb-1 pl-3">
@@ -153,7 +153,7 @@ function Navigation({ sections, route, onNavigate }: {
                       )}
                     >
                       <Icon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                      <span className="truncate">{item.label ?? t(`nav.${item.id}`)}</span>
+                      <span className="min-w-0 whitespace-normal wrap-anywhere">{item.label ?? t(`nav.${item.id}`)}</span>
                     </Link>
                   </li>
                 )
@@ -196,6 +196,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const sections = sectionsFor(context)
   const section = sections.find((group) => group.items.some((item) => item.route === navRoute))
   const item = section?.items.find((item) => item.route === navRoute)
+  const info = useQuery({ queryKey: INFO_KEY, queryFn: instanceInfo })
+  usePageTitle(item ? t(`nav.${item.id}`) : t("shell.mainContent"), info.data?.instanceName === "default" ? "GPROXY" : info.data?.instanceName ?? "GPROXY")
   const ActiveIcon = item?.icon
   const [open, setOpen] = useState(false)
   const mainRef = useRef<HTMLElement>(null)
@@ -217,7 +219,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Sidebar sections={sections} route={navRoute} />
       </aside>
       <div className="min-w-0">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur lg:px-8">
+        <header className="top-0 z-30 flex min-h-16 flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-2 backdrop-blur lg:sticky lg:px-8">
           <Sheet open={open} onOpenChange={next => { if (next) drawerRoute.current = route; setOpen(next) }}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="lg:hidden" aria-label={t("shell.navigation")}>
@@ -231,7 +233,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Sidebar sections={sections} route={navRoute} onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>
-          <div className="lg:hidden"><Brand /></div>
+          <div className="min-w-0 flex-1 lg:hidden"><Brand /></div>
           {section && item && ActiveIcon ? (
             <div className="hidden min-w-0 items-center gap-2.5 text-sm lg:flex">
               {!section.standalone ? <><span className="text-muted-foreground">{t(`section.${section.id}`)}</span>

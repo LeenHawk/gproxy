@@ -1,10 +1,15 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 
 import { cn } from "@/lib/utils"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
+  const { t } = useTranslation()
   return (
     <div
+      role="group"
+      aria-label={t("table.scroll")}
+      tabIndex={0}
       data-slot="table-container"
       className="relative w-full overflow-x-auto overflow-y-hidden"
     >

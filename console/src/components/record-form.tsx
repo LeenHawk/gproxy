@@ -16,7 +16,7 @@
 //! other with values neither of them typed.
 
 import { SearchableSelect } from "@/components/searchable-select"
-import { Fragment, useState, type ReactNode } from "react"
+import { Fragment, useId, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { ProxyControl, type ProxySettings } from "@/components/proxy-control"
 import { ErrorNotice } from "@/components/state"
@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -32,24 +32,27 @@ import { Textarea } from "@/components/ui/textarea"
 import { buildPatch, buildWrite, readValue, type FormField, type FormValues } from "./record-form-values"
 export type { FieldKind, FormField } from "./record-form-values"
 
-function Control({ field, value, onChange, original }: {
+function Control({ id, required, invalid, field, value, onChange, original }: {
+  id: string
+  required: boolean
+  invalid: boolean
   original?: Record<string, unknown>
   field: FormField
   value: string | boolean
   onChange: (value: string | boolean) => void
 }) {
   const { t } = useTranslation()
-  const id = `field-${field.name}`
+  const describedBy = [field.description ? `${id}-description` : "", invalid ? `${id}-error` : ""].filter(Boolean).join(" ") || undefined
   if (field.kind === "proxy") return <ProxyControl id={id} value={value ? JSON.parse(String(value)) as ProxySettings : null} onChange={v => onChange(v ? JSON.stringify(v) : "")} scope={field.proxyScope?.(original) ?? { scope: "global" }} />
   if (field.kind === "switch") {
-    return <Switch id={id} aria-describedby={field.description ? `${id}-description` : undefined} checked={Boolean(value)} onCheckedChange={(next) => onChange(next)} />
+    return <Switch id={id} aria-describedby={describedBy} checked={Boolean(value)} onCheckedChange={(next) => onChange(next)} />
   }
-  if (field.kind === "searchable") return <SearchableSelect id={id} label={field.label ?? t(`fields.${field.name}`)} value={String(value)} options={field.choices ?? []} source={field.source} allowCustom={field.allowCustom} emptyLabel={field.emptyLabel} emptyValue={field.emptyValue} onChange={onChange} />
+  if (field.kind === "searchable") return <SearchableSelect id={id} aria-required={required} aria-invalid={invalid} aria-describedby={describedBy} label={field.label ?? t(`fields.${field.name}`)} value={String(value)} options={field.choices ?? []} source={field.source} allowCustom={field.allowCustom} emptyLabel={field.emptyLabel} emptyValue={field.emptyValue} onChange={onChange} />
   if (field.kind === "select") {
     const choices = field.choices ?? (field.options ?? []).map((option) => ({ value: option, label: t(`values.${option}`) }))
     return (
       <Select value={String(value) || "__unset"} onValueChange={(next) => onChange(next === "__unset" ? "" : next)}>
-        <SelectTrigger id={id}><SelectValue placeholder={t("form.choose")} /></SelectTrigger>
+        <SelectTrigger id={id} aria-required={required} aria-invalid={invalid} aria-describedby={describedBy}><SelectValue placeholder={t("form.choose")} /></SelectTrigger>
         <SelectContent><SelectGroup>
           {field.nullable ? <SelectItem value="__unset">{t("form.unset")}</SelectItem> : null}
           {choices.map((choice) => (
@@ -63,7 +66,9 @@ function Control({ field, value, onChange, original }: {
     return (
       <Textarea
         id={id}
-        aria-describedby={field.description ? `${id}-description` : undefined}
+        required={required}
+        aria-invalid={invalid}
+        aria-describedby={describedBy}
         rows={3}
         autoComplete="off"
         spellCheck={false}
@@ -74,7 +79,7 @@ function Control({ field, value, onChange, original }: {
     )
   }
   const type = field.kind === "password" ? "password" : field.kind === "number" ? "number" : field.kind === "datetime" ? "datetime-local" : "text"
-  return <Input id={id} type={type} value={String(value)} onChange={(event) => onChange(event.target.value)} />
+  return <Input id={id} type={type} required={required} aria-invalid={invalid} aria-describedby={describedBy} value={String(value)} onChange={(event) => onChange(event.target.value)} />
 }
 
 type DialogProps = {
@@ -106,6 +111,7 @@ type DialogProps = {
  */
 function RecordForm({ fields, original, mode, onSubmit, pending, submitDisabled, error, extra, extraAfter, advancedExtra, advancedFields, onOpenChange, inline = false }: DialogProps & { inline?: boolean }) {
   const { t } = useTranslation()
+  const formId = useId()
   const offered = fields.filter((field) => mode === "create" || !field.createOnly)
   const [values, setValues] = useState<FormValues>(() => {
     const seeded: FormValues = {}
@@ -113,31 +119,47 @@ function RecordForm({ fields, original, mode, onSubmit, pending, submitDisabled,
     return seeded
   })
 
-  const [parseError, setParseError] = useState<Error | null>(null)
+  const [invalid, setInvalid] = useState<{ name: string; message: string } | null>(null)
+  const fail = (field: FormField, message: string) => {
+    setInvalid({ name: field.name, message })
+    requestAnimationFrame(() => {
+      const control = document.getElementById(`${formId}-${field.name}`)
+      const details = control?.closest("details")
+      if (details) details.open = true
+      control?.focus()
+    })
+  }
   const submit = () => {
-    let body: Record<string, unknown>
-    try {
-      body = mode === "create" ? buildWrite(offered, values) : buildPatch(offered, values, original)
-    } catch {
-      setParseError(new Error(t("form.invalidJson")))
-      return
+    if (pending || submitDisabled) return
+    const body: Record<string, unknown> = {}
+    for (const field of offered) {
+      if (field.required && mode === "create" && !String(values[field.name] ?? "").trim()) {
+        fail(field, t("form.required"))
+        return
+      }
+      try {
+        Object.assign(body, mode === "create" ? buildWrite([field], values) : buildPatch([field], values, original))
+      } catch {
+        fail(field, t("form.invalidJson"))
+        return
+      }
     }
-    setParseError(null)
+    setInvalid(null)
     onSubmit(body)
   }
 
-  const missing = offered.some((field) => field.required && mode === "create" && !String(values[field.name] ?? "").trim())
-
   const renderField = (field: FormField) => {
-    const label = <FieldLabel htmlFor={`field-${field.name}`}>{field.label ?? t(`fields.${field.name}`)}{field.required && mode === "create" ? <span aria-hidden className="text-destructive"> *</span> : null}</FieldLabel>
-    return <Fragment key={field.name}><Field orientation={field.kind === "switch" ? "horizontal" : "vertical"}>
-      {field.description ? <FieldContent>{label}<FieldDescription id={`field-${field.name}-description`}>{field.description}</FieldDescription></FieldContent> : label}
-      <Control field={field} original={original} value={values[field.name] ?? ""} onChange={next => setValues(current => ({ ...current, [field.name]: next }))} />
+    const id = `${formId}-${field.name}`
+    const label = <FieldLabel htmlFor={id}>{field.label ?? t(`fields.${field.name}`)}{field.required && mode === "create" ? <span aria-hidden className="text-destructive"> *</span> : null}</FieldLabel>
+    return <Fragment key={field.name}><Field data-invalid={invalid?.name === field.name} orientation={field.kind === "switch" ? "horizontal" : "vertical"}>
+      {field.description ? <FieldContent>{label}<FieldDescription id={`${id}-description`}>{field.description}</FieldDescription></FieldContent> : label}
+      <Control id={id} required={!!field.required && mode === "create"} invalid={invalid?.name === field.name} field={field} original={original} value={values[field.name] ?? ""} onChange={next => { setValues(current => ({ ...current, [field.name]: next })); if (invalid?.name === field.name) setInvalid(null) }} />
+      {invalid?.name === field.name ? <FieldError id={`${id}-error`}>{invalid.message}</FieldError> : null}
     </Field>{extraAfter === field.name ? extra : null}</Fragment>
   }
   const secondary = offered.filter(field => advancedFields?.includes(field.name))
-  const controls = <>
-    {parseError || error ? <ErrorNotice error={parseError ?? error} /> : null}
+  const controls = <form id={formId} noValidate onSubmit={event => { event.preventDefault(); submit() }}>
+    {error ? <ErrorNotice error={error} /> : null}
     <fieldset disabled={pending}><FieldGroup className="sm:grid-cols-1">
       {offered.filter(field => !advancedFields?.includes(field.name)).map(renderField)}
       {!extraAfter ? extra : null}
@@ -146,10 +168,10 @@ function RecordForm({ fields, original, mode, onSubmit, pending, submitDisabled,
         <FieldGroup className="pt-5 sm:grid-cols-1">{advancedExtra}{secondary.map(renderField)}</FieldGroup>
       </details> : null}
     </FieldGroup></fieldset>
-  </>
+  </form>
   const actions = <>
     {!inline ? <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>{t("actions.cancel")}</Button> : null}
-    <Button disabled={pending || missing || submitDisabled} onClick={submit}>{t(mode === "create" ? "actions.create" : "actions.save")}</Button>
+    <Button type="submit" form={formId} disabled={pending || submitDisabled}>{t(mode === "create" ? "actions.create" : "actions.save")}</Button>
   </>
   return inline ? <div className="flex flex-col gap-4">{controls}<div className="flex justify-end gap-2">{actions}</div></div>
     : <><DialogBody className="flex flex-col gap-4">{controls}</DialogBody><DialogFooter>{actions}</DialogFooter></>

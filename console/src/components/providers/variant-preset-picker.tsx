@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useId, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
@@ -24,6 +24,7 @@ export function VariantPresetPicker({ modelId, channel, initialActions, onApply,
   onCancel: () => void
 }) {
   const { t } = useTranslation()
+  const id = useId()
   const [initial] = useState(() => inferVariantSelection(channel, initialActions))
   const [protocol, setProtocol] = useState<VariantProtocol>(initial.protocol)
   const [picks, setPicks] = useState<Record<string, string>>(initial.picks)
@@ -53,19 +54,19 @@ export function VariantPresetPicker({ modelId, channel, initialActions, onApply,
 
   return <div className="grid gap-3 rounded-md border bg-muted p-3">
     <Field>
-      <FieldLabel>{t("providers.models.variantPicker.protocol")}</FieldLabel>
+      <FieldLabel htmlFor={`${id}-protocol`}>{t("providers.models.variantPicker.protocol")}</FieldLabel>
       <Select value={protocol} onValueChange={(value) => { setProtocol(value as VariantProtocol); setPicks({}) }}>
-        <SelectTrigger><SelectValue /></SelectTrigger>
+        <SelectTrigger id={`${id}-protocol`}><SelectValue /></SelectTrigger>
         <SelectContent><SelectGroup>{(Object.keys(VARIANT_PROTOCOL_LABELS) as Array<VariantProtocol>).map((value) => <SelectItem key={value} value={value}>{VARIANT_PROTOCOL_LABELS[value]}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
     </Field>
     {groups.map((group) => <Field key={group.key}>
-      <FieldLabel>{group.label}</FieldLabel>
+      <FieldLabel htmlFor={`${id}-${group.key}`}>{group.label}</FieldLabel>
       <Select value={picks[group.key] ?? NONE} onValueChange={(value) => {
         setPicks((current) => ({ ...current, [group.key]: value }))
         if (group.key === sourceKey && value !== NONE) setUpstream("")
       }}>
-        <SelectTrigger><SelectValue /></SelectTrigger>
+        <SelectTrigger id={`${id}-${group.key}`}><SelectValue /></SelectTrigger>
         <SelectContent><SelectGroup>
           <SelectItem value={NONE}>{t("providers.models.variantPicker.none")}</SelectItem>
           {group.entries.map((entry, index) => <SelectItem key={`${entry.suffix}-${index}`} value={String(index)}>{entry.suffix} — {entry.label}</SelectItem>)}
@@ -73,12 +74,12 @@ export function VariantPresetPicker({ modelId, channel, initialActions, onApply,
       </Select>
     </Field>)}
     {upstreamPath ? <Field>
-      <FieldLabel htmlFor="variant-upstreams">{t("providers.models.variantPicker.upstream")}</FieldLabel>
-      <Input id="variant-upstreams" className="font-mono text-xs" value={upstream} placeholder={channel === "openrouter" ? "anthropic, google-vertex/us-east5" : "anthropic, bedrock"} onChange={(event) => {
+      <FieldLabel htmlFor={`${id}-upstreams`}>{t("providers.models.variantPicker.upstream")}</FieldLabel>
+      <Input aria-describedby={`${id}-upstreams-description`} id={`${id}-upstreams`} className="font-mono text-xs" value={upstream} placeholder={channel === "openrouter" ? "anthropic, google-vertex/us-east5" : "anthropic, bedrock"} onChange={(event) => {
         setUpstream(event.target.value)
         if (event.target.value.trim() && sourceKey) setPicks((current) => ({ ...current, [sourceKey]: NONE }))
       }} />
-      <FieldDescription>{t("providers.models.variantPicker.upstreamHint")}</FieldDescription>
+      <FieldDescription id={`${id}-upstreams-description`}>{t("providers.models.variantPicker.upstreamHint")}</FieldDescription>
     </Field> : null}
     <div className="rounded-md border bg-background p-3 text-xs">
       <p className="text-muted-foreground">{t("providers.models.variantPicker.suggestedName")}</p>

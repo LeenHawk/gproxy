@@ -40,7 +40,7 @@ export function SessionsPage() {
       <PageHeader title={t("nav.sessions")} />
       <Input
         className="max-w-xs"
-        placeholder={t("fields.userId")}
+        aria-label={t("fields.userId")} placeholder={t("fields.userId")}
         value={userId}
         onChange={(event) => { setUserId(event.target.value); setPage(1) }}
       />

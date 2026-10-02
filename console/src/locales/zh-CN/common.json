@@ -3,7 +3,8 @@
     "navigation": "导航",
     "resizeHint": "拖动调整宽度，双击恢复默认；也可使用方向键调整。",
     "skipToContent": "跳到主内容",
-    "mainContent": "主内容"
+    "mainContent": "主内容",
+    "resizePanel": "调整{{name}}宽度"
   },
   "signIn": {
     "title": "登录"
@@ -45,7 +46,15 @@
     "choose": "请选择…",
     "invalidJson": "JSON 格式不正确，请检查后重试。",
     "credentialSecretHint": "API Key 认证可直接粘贴单个密钥，也可填写 JSON；其他认证方式请填写 JSON。",
-    "unset": "继承"
+    "unset": "继承",
+    "required": "请填写此必填项。",
+    "supported": "是否支持",
+    "defaultValue": "默认值",
+    "mode": "模式",
+    "limit": "上限",
+    "description": "说明",
+    "priceRule": "计价规则",
+    "priceProfile": "计价方案"
   },
   "pagination": {
     "position": "第 {{page}} / {{pages}} 页 · 共 {{total}} 行",
@@ -68,7 +77,8 @@
     "removed": "已移除",
     "retired": "已停用",
     "revoked": "已吊销",
-    "saved": "已保存"
+    "saved": "已保存",
+    "notifications": "通知"
   },
   "language": {
     "en": "English",
@@ -267,5 +277,8 @@
     "deviceApproved": "已批准设备",
     "deviceDenied": "已拒绝设备",
     "returnToDevice": "现在可以回到设备上继续了。"
+  },
+  "table": {
+    "scroll": "可滚动的数据表格"
   }
 }
