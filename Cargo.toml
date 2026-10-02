@@ -55,7 +55,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "4.0.3"
+version = "4.0.4"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/LeenHawk/gproxy"
@@ -73,22 +73,22 @@ base64 = "0.23"
 blake3 = "1"
 clap = { version = "4", features = ["derive", "env"] }
 chacha20poly1305 = "0.11"
-gproxy-app = { path = "crates/gproxy-app", version = "=4.0.3", default-features = false }
-gproxy = { path = "crates/gproxy", version = "=4.0.3", default-features = false }
-gproxy-core = { path = "crates/gproxy-core", version = "=4.0.3", default-features = false }
-gproxy-channel = { path = "crates/gproxy-channel", version = "=4.0.3", default-features = false }
-gproxy-client = { path = "crates/gproxy-client", version = "=4.0.3", default-features = false }
-gproxy-cache = { path = "crates/gproxy-cache", version = "=4.0.3", default-features = false }
-gproxy-file = { path = "crates/gproxy-file", version = "=4.0.3", default-features = false }
-gproxy-host-axum = { path = "crates/gproxy-host-axum", version = "=4.0.3" }
-gproxy-host-edge = { path = "crates/gproxy-host-edge", version = "=4.0.3" }
-gproxy-host-tauri = { path = "crates/gproxy-host-tauri", version = "=4.0.3" }
-gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.3", features = ["exhaustive"] }
-gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.3" }
-gproxy-sdk = { path = "crates/gproxy-sdk", version = "=4.0.3", default-features = false }
-gproxy-seaorm = { path = "crates/gproxy-seaorm", version = "=4.0.3" }
-gproxy-store = { path = "crates/gproxy-store", version = "=4.0.3" }
-gproxy-tokenizer = { path = "crates/gproxy-tokenizer", version = "=4.0.3", default-features = false }
+gproxy-app = { path = "crates/gproxy-app", version = "=4.0.4", default-features = false }
+gproxy = { path = "crates/gproxy", version = "=4.0.4", default-features = false }
+gproxy-core = { path = "crates/gproxy-core", version = "=4.0.4", default-features = false }
+gproxy-channel = { path = "crates/gproxy-channel", version = "=4.0.4", default-features = false }
+gproxy-client = { path = "crates/gproxy-client", version = "=4.0.4", default-features = false }
+gproxy-cache = { path = "crates/gproxy-cache", version = "=4.0.4", default-features = false }
+gproxy-file = { path = "crates/gproxy-file", version = "=4.0.4", default-features = false }
+gproxy-host-axum = { path = "crates/gproxy-host-axum", version = "=4.0.4" }
+gproxy-host-edge = { path = "crates/gproxy-host-edge", version = "=4.0.4" }
+gproxy-host-tauri = { path = "crates/gproxy-host-tauri", version = "=4.0.4" }
+gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.4", features = ["exhaustive"] }
+gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.4" }
+gproxy-sdk = { path = "crates/gproxy-sdk", version = "=4.0.4", default-features = false }
+gproxy-seaorm = { path = "crates/gproxy-seaorm", version = "=4.0.4" }
+gproxy-store = { path = "crates/gproxy-store", version = "=4.0.4" }
+gproxy-tokenizer = { path = "crates/gproxy-tokenizer", version = "=4.0.4", default-features = false }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 dashmap = { version = "6" }
 dotenvy = "0.15"
