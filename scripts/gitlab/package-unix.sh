@@ -39,7 +39,7 @@ case "${1:?cli|application|edge}" in
     ;;
   edge)
     export TARGET_TRIPLE=wasm32-unknown-unknown ARTIFACT_NAME=gproxy-edge BUILDER=worker-build
-    cargo install worker-build --locked
+    cargo install worker-build --version 0.8.7
     scripts/package-edge-release.sh
     scripts/build-provenance.sh
     mkdir -p "$RUNNER_TEMP/edge"

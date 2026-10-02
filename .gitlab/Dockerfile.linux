@@ -6,6 +6,8 @@ COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=go /usr/local/go /usr/local/go
 ENV PATH="/opt/cross/bin:/usr/local/go/bin:${PATH}"
 ARG TARGET_ARCH=amd64
+# Zig 0.16 emits libc++ nullability warnings while linking RISC-V musl.
+# Keep the tested 0.15 toolchain until the bundled libc++ is fixed.
 RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && npm install -g pnpm@9.15.9 \
     && printf 'path-exclude=/usr/share/man/*\n' > /etc/dpkg/dpkg.cfg.d/99-no-manpages \
@@ -21,6 +23,6 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
        libayatana-appindicator3-dev:$TARGET_ARCH librsvg2-dev:$TARGET_ARCH \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m venv /opt/cross \
-    && /opt/cross/bin/pip install --no-cache-dir cargo-zigbuild==0.23.4 \
+    && /opt/cross/bin/pip install --no-cache-dir cargo-zigbuild==0.23.4 ziglang==0.15.2 \
     && rustup component add clippy rustfmt \
     && rustup target add riscv64gc-unknown-linux-gnu riscv64gc-unknown-linux-musl aarch64-unknown-linux-gnu x86_64-unknown-linux-musl aarch64-unknown-linux-musl wasm32-unknown-unknown

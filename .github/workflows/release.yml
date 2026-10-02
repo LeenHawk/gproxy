@@ -419,7 +419,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: image
         env:
-          TOOLCHAIN_HASH: ${{ hashFiles('.gitlab/Dockerfile.ohos', 'scripts/install-android-upx.sh') }}
+          TOOLCHAIN_HASH: ${{ hashFiles('.gitlab/Dockerfile.ohos', 'scripts/install-android-upx.sh', 'scripts/ohos/compiler-warnings.patch') }}
         run: |
           image="ghcr.io/leenhawk/gproxy-build-ohos:$TOOLCHAIN_HASH"
           echo "image=$image" >> "$GITHUB_OUTPUT"
@@ -840,7 +840,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: console/pnpm-lock.yaml
       - name: Install worker-build
-        run: cargo install worker-build --locked
+        # 0.8.7's bundled lockfile contains yanked yoke-derive 0.8.3.
+        run: cargo install worker-build --version 0.8.7
       - run: scripts/package-edge-release.sh
       - name: Record build provenance
         env:

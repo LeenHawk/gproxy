@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Apply the preinstalled OHOS dependency overlay to a disposable build checkout."""
-import tomllib
 import json
 import os
 from pathlib import Path
@@ -14,11 +13,14 @@ marker = source / "tauri-harmony-pins.json"
 if json.loads(marker.read_text()) != pins:
     raise ValueError("The OHOS toolchain image does not match tauri-pins.json")
 patches = {}
-for manifest in (source / "tauri/crates").glob("*/Cargo.toml"):
-    name = tomllib.loads(manifest.read_text()).get("package", {}).get("name", "")
-    if name.startswith("tauri"):
-        patches[name] = manifest.parent
-for name in ("wry", "tao", "cargo-mobile2"):
+# Only runtime/build dependencies belong in the application overlay. CLI,
+# bundler and schema tools are preinstalled and are not in this crate graph.
+for name in (
+    "tauri", "tauri-build", "tauri-codegen", "tauri-macros",
+    "tauri-runtime", "tauri-runtime-wry", "tauri-utils",
+):
+    patches[name] = source / "tauri/crates" / name
+for name in ("wry", "tao"):
     patches[name] = source / name
 manifest = root / "Cargo.toml"
 text = manifest.read_text()
