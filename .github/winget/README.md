@@ -28,3 +28,9 @@ winget install --id LeenHawk.GPROXY.CLI --exact --source winget
 
 The Microsoft Store source is separate: its product IDs are `9P2FJRB9RS4Z`
 (Desktop) and `9NBMH3S5K0L9` (CLI), and availability depends on Store publication.
+
+Stable releases automatically call `winget-publish.yml` after release assets are
+published. It verifies ZIP checksums, nested executable paths and manifest schemas,
+then submits one PR per edition using the `WINGET_TOKEN` repository secret.
+Existing versions/open PRs are skipped. Manual dispatch defaults to validation
+only (`dry_run`); see [configuration and maintenance](../../dev_docs/winget.md).

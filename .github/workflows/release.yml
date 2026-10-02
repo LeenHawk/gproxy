@@ -935,6 +935,18 @@ jobs:
           UPDATE_SIGNING_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
         run: bash scripts/github/publish.sh
 
+  winget-publish:
+    name: Submit WinGet updates
+    needs: [prepare, publish]
+    if: ${{ needs.prepare.outputs.channel == 'release' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/winget-publish.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+    secrets:
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+
   store-publish:
     name: Submit Microsoft Store update
     needs: [prepare, publish]
