@@ -124,7 +124,7 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
 
 ### 托管平台一键部署
 
-Cloudflare、Netlify、Vercel 和 Deno 的模板使用 **v4.0.2** 预编译包，无需编译 Rust。Cloudflare 可选 D1 或 libSQL/Turso；其他三个平台使用 PostgreSQL。填写数据库连接、管理员密码和主密钥后部署，再打开 `/console/` 登录。
+Cloudflare、Netlify、Vercel 和 Deno 的模板使用 **v4.0.3** 预编译包，无需编译 Rust。Cloudflare 可选 D1 或 libSQL/Turso；其他三个平台使用 PostgreSQL。填写数据库连接、管理员密码和主密钥后部署，再打开 `/console/` 登录。
 
 部署入口、平台数据库与外部数据库的选择，以及 WebSocket 等能力差异，统一见[托管平台部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)。
 
