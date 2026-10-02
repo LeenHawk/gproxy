@@ -145,7 +145,7 @@ fn project_blocks(
     });
 }
 
-/// Newer models reject manual thinking and forced tool choice. Sonnet 5.5
+/// Newer models reject disabled thinking and forced tool choice. Sonnet 5.5
 /// replaces disabled thinking with between-tools thinking.
 /// Apply only to cross-protocol output; native Claude requests stay untouched.
 pub(crate) fn target(
@@ -173,17 +173,6 @@ pub(crate) fn target(
         }
         Some(cc::ThinkingConfig::Disabled(_)) => {
             report.omitted("thinking", "target model always uses adaptive thinking");
-        }
-        Some(cc::ThinkingConfig::Enabled(v)) => {
-            *thinking = Some(cc::ThinkingConfig::Adaptive(cc::ThinkingAdaptive {
-                display: v.display,
-                block_binding: v.block_binding,
-                rest: Default::default(),
-            }));
-            report.omitted(
-                "thinking.budget_tokens",
-                "target model uses adaptive thinking without a manual budget",
-            );
         }
         other => *thinking = other,
     }
