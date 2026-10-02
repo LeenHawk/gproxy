@@ -880,24 +880,7 @@ fn wire(parts: &http::request::Parts) -> WireRequest<()> {
     WireRequest {
         method: http::Method::GET,
         path: parts.uri.path().into(),
-        query: parts
-            .uri
-            .query()
-            .map(|query| {
-                query
-                    .split('&')
-                    .filter(|pair| {
-                        let key = pair.split('=').next().unwrap_or("");
-                        let key = form_urlencoded::parse(key.as_bytes())
-                            .next()
-                            .map(|(key, _)| key.into_owned())
-                            .unwrap_or_default();
-                        !matches!(key.as_str(), "key" | "api_key" | "access_token")
-                    })
-                    .collect::<Vec<_>>()
-                    .join("&")
-            })
-            .filter(|query| !query.is_empty()),
+        query: crate::auth::upstream_query(parts.uri.query()),
         headers: parts.headers.clone(),
         body: (),
     }

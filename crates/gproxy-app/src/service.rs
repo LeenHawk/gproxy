@@ -214,7 +214,7 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
         let wire = WireRequest {
             method: request.parts.method.clone(),
             path: request.parts.uri.path().to_owned(),
-            query: request.parts.uri.query().map(str::to_owned),
+            query: crate::auth::upstream_query(request.parts.uri.query()),
             headers: request.parts.headers,
             body: HttpBody::Bytes(request.body),
         };
@@ -237,7 +237,7 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
         let wire = WireRequest {
             method: request.parts.method.clone(),
             path: request.parts.uri.path().to_owned(),
-            query: request.parts.uri.query().map(str::to_owned),
+            query: crate::auth::upstream_query(request.parts.uri.query()),
             headers: request.parts.headers,
             body: (),
         };

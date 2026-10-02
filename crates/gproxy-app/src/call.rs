@@ -61,8 +61,8 @@ use crate::{
 ///
 /// `parts` and `body` are the request as received: the path, the query and
 /// every header a client sent are forwarded to the upstream, because a channel
-/// may need any of them. The gateway's own session header is the single
-/// exception and is removed before forwarding.
+/// may need them. The gateway's session header and query credentials are
+/// removed from the upstream copy before forwarding.
 pub struct DataPlaneRequest {
     /// The id this request is observed, logged and settled under. A host that
     /// already minted one for its own logs should pass that one, so the two
@@ -263,7 +263,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
         let wire = WireRequest {
             method: parts.method.clone(),
             path: parts.uri.path().to_owned(),
-            query: parts.uri.query().map(str::to_owned),
+            query: crate::auth::upstream_query(parts.uri.query()),
             headers,
             body: HttpBody::Bytes(body.clone()),
         };
@@ -328,7 +328,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
         let wire = WireRequest {
             method: parts.method.clone(),
             path: parts.uri.path().to_owned(),
-            query: parts.uri.query().map(str::to_owned),
+            query: crate::auth::upstream_query(parts.uri.query()),
             headers,
             body: (),
         };

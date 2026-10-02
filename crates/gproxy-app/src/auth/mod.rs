@@ -259,6 +259,29 @@ pub fn bearer_token(headers: &HeaderMap) -> Option<&str> {
         .filter(|value| !value.is_empty())
 }
 
+/// Remove caller credentials at the gateway boundary, before any channel
+/// sees the query. Decode names just as authentication does, while retaining
+/// every unrelated parameter byte for byte, including duplicates and order.
+/// The original request stays intact for capture and WebSocket reauthentication.
+pub(crate) fn upstream_query(query: Option<&str>) -> Option<String> {
+    let query = query?
+        .split('&')
+        .filter(|pair| {
+            !pair.is_empty()
+                && !form_urlencoded::parse(pair.as_bytes())
+                    .next()
+                    .is_some_and(|(name, _)| {
+                        matches!(
+                            name.as_ref(),
+                            "key" | "api_key" | "access_token" | "x-api-key"
+                        )
+                    })
+        })
+        .collect::<Vec<_>>()
+        .join("&");
+    (!query.is_empty()).then_some(query)
+}
+
 /// `Bearer` is case-insensitive per RFC 6750; clients spell it every way.
 fn strip_bearer(value: &str) -> Option<&str> {
     let (scheme, rest) = value.split_once(' ')?;
@@ -268,6 +291,28 @@ fn strip_bearer(value: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn upstream_queries_drop_encoded_credentials_and_preserve_other_bytes() {
+        assert_eq!(
+            upstream_query(Some(
+                "keep=a%2Fb&key=a&%6bey=b&k%65y=c&%61ccess_token=d&api%5fkey=e&x%2dapi%2dkey=f&keep=two+words"
+            )),
+            Some("keep=a%2Fb&keep=two+words".into())
+        );
+        for query in [
+            None,
+            Some(""),
+            Some("key=secret"),
+            Some("%6bey=secret&access_token=x"),
+        ] {
+            assert_eq!(upstream_query(query), None);
+        }
+        assert_eq!(
+            upstream_query(Some("monkey=ok&key_hint=ok")),
+            Some("monkey=ok&key_hint=ok".into())
+        );
+    }
 
     fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
         let mut map = HeaderMap::new();
