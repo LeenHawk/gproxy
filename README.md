@@ -137,7 +137,13 @@ See the [hosted deployment guide](https://gproxy.leenhawk.com/deployment/edge/) 
 | Cloudflare / Netlify / Vercel / Deno | Hosted service without your own server | [Deployment guide](https://gproxy.leenhawk.com/deployment/edge/) |
 | Rust SDK | Embed in your own program | [gproxy-sdk](crates/gproxy-sdk/README.md) |
 
-Windows MSIX files are unsigned Store submission packages; use ZIP for a regular installation. macOS apps are not notarized. The HarmonyOS HAP is experimental and requires your own signature. See the installation guide for platform requirements.
+On Windows, both editions are available from Microsoft Store:
+
+| GPROXY Desktop | GPROXY CLI |
+| :---: | :---: |
+| <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY CLI" height="48"></a> |
+
+MSIX release attachments are Store submission packages; use ZIP for a direct installation. macOS apps are not notarized. The HarmonyOS HAP is experimental and requires your own signature. See the installation guide for platform requirements.
 
 ## Performance
 

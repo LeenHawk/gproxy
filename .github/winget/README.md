@@ -27,8 +27,13 @@ winget install --id LeenHawk.GPROXY.Desktop --exact --source winget
 winget install --id LeenHawk.GPROXY.CLI --exact --source winget
 ```
 
-The Microsoft Store source is separate: its product IDs are `9P2FJRB9RS4Z`
-(Desktop) and `9NBMH3S5K0L9` (CLI), and availability depends on Store publication.
+The Microsoft Store source is separate. Both products are published there with
+product IDs `9P2FJRB9RS4Z` (Desktop) and `9NBMH3S5K0L9` (CLI):
+
+```powershell
+winget install --id 9P2FJRB9RS4Z --source msstore
+winget install --id 9NBMH3S5K0L9 --source msstore
+```
 
 Stable releases automatically call `winget-publish.yml` after release assets are
 published. It verifies MSIX checksums, Microsoft signature trust, identity and manifest schemas,

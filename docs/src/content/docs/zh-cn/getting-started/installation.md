@@ -26,7 +26,15 @@ Android CLI 在 Termux 内运行，用 `apt install ./gproxy-android-<architectu
 并按 `TERMUX.txt` 操作。程序自更新已禁用，通过 APT 安装新版 DEB；启用的软件仓库收录后
 才可使用 `pkg upgrade gproxy`。升级时保留原数据目录和主密钥。
 
-Windows Release 附件中的 MSIX 是未签名的商店提交包，不能当作已签名安装包直接安装；可选择 ZIP，商店版本以实际商店上架状态为准。macOS 应用使用 ad-hoc 签名，尚未公证。鸿蒙 HAP 需要自行签名，尚未完成真机验证，也不提供后台服务。
+Windows（x64、ARM64）可直接从 Microsoft Store 安装两个版本：
+
+| GPROXY Desktop | GPROXY CLI |
+| :---: | :---: |
+| <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/zh-cn%20dark.svg" alt="从 Microsoft 获取：GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/zh-cn%20dark.svg" alt="从 Microsoft 获取：GPROXY CLI" height="48"></a> |
+
+GPROXY Desktop 即 Application 版本。商店版本由微软签名，并通过商店自动更新。也可以用 `winget install --id 9P2FJRB9RS4Z --source msstore`（Desktop）或 `winget install --id 9NBMH3S5K0L9 --source msstore`（CLI）安装。
+
+Windows Release 附件中的 MSIX 是商店提交包，可能尚未带有微软签名；请从商店安装，或选择 ZIP。macOS 应用使用 ad-hoc 签名，尚未公证。鸿蒙 HAP 需要自行签名，尚未完成真机验证，也不提供后台服务。
 
 ## Application：在界面中设置
 

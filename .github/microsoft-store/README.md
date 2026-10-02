@@ -1,6 +1,8 @@
 # Microsoft Store publication
 
-GPROXY has two independent Microsoft Store products. Renaming the original
+GPROXY has two independent Microsoft Store products, both published:
+[GPROXY Desktop](https://apps.microsoft.com/detail/9P2FJRB9RS4Z) and
+[GPROXY CLI](https://apps.microsoft.com/detail/9NBMH3S5K0L9). Renaming the original
 product keeps its package identity and update history.
 
 | Edition | Display name | Product ID | Package identity |

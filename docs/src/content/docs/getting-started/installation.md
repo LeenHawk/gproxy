@@ -27,7 +27,15 @@ it under Termux's home directory and follow `TERMUX.txt`. Program self-update is
 disabled; install newer DEBs through APT. Use `pkg upgrade gproxy` only after an
 enabled repository provides the package. Keep the same data directory and master key.
 
-The MSIX release attachments are unsigned Store submission packages, not signed installers. Use a ZIP or check the actual Microsoft Store listing for availability. macOS apps use ad-hoc signing and are not notarized. The experimental HarmonyOS HAP requires your own signature, has not been verified on a physical device, and does not provide a background service.
+On Windows (x64, ARM64), both editions are available from Microsoft Store:
+
+| GPROXY Desktop | GPROXY CLI |
+| :---: | :---: |
+| <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY CLI" height="48"></a> |
+
+GPROXY Desktop is the Application edition. Store installations are signed by Microsoft and update through the Store. You can also install them with `winget install --id 9P2FJRB9RS4Z --source msstore` (Desktop) or `winget install --id 9NBMH3S5K0L9 --source msstore` (CLI).
+
+MSIX release attachments are Store submission packages and may not yet carry Microsoft's signature; install from the Store or use a ZIP. macOS apps use ad-hoc signing and are not notarized. The experimental HarmonyOS HAP requires your own signature, has not been verified on a physical device, and does not provide a background service.
 
 ## Application: graphical setup
 

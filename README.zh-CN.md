@@ -137,7 +137,13 @@ Cloudflare、Netlify、Vercel 和 Deno 的模板使用 **v4.0.3** 预编译包�
 | Cloudflare / Netlify / Vercel / Deno | 托管平台，无需自备服务器 | [部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/edge/) |
 | Rust SDK | 嵌入自己的程序 | [gproxy-sdk](crates/gproxy-sdk/README.zh-CN.md) |
 
-Windows MSIX 是未签名商店提交包，普通安装可选 ZIP；macOS 应用尚未公证；鸿蒙 HAP 是需要自行签名的实验性产物。各平台要求见安装说明。
+Windows 可从 Microsoft Store 安装两个版本：
+
+| GPROXY Desktop | GPROXY CLI |
+| :---: | :---: |
+| <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/zh-cn%20dark.svg" alt="从 Microsoft 获取：GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/zh-cn%20dark.svg" alt="从 Microsoft 获取：GPROXY CLI" height="48"></a> |
+
+Release 中的 MSIX 是商店提交包，直接安装请选 ZIP；macOS 应用尚未公证；鸿蒙 HAP 是需要自行签名的实验性产物。各平台要求见安装说明。
 
 ## 性能
 
