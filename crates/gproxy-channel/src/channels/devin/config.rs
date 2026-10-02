@@ -18,6 +18,10 @@ pub const CLIENT_NAME: &str = "chisel";
 pub const CLIENT_VERSION: &str = "2026.8.18";
 /// `ClientMetadata` #4 and #5 on the captured request.
 pub const CLIENT_LOCALE: &str = "en";
+/// The CLI's browser PKCE authorization page.
+pub const DEFAULT_AUTHORIZE_URL: &str = "https://app.devin.ai/auth/cli/continue";
+/// The CLI's authorization-code exchange endpoint.
+pub const DEFAULT_TOKEN_URL: &str = "https://api.devin.ai/auth/cli/token";
 pub const CLIENT_OS: &str = "windows";
 /// `CompletionConfig` #2, the enforced output cap when the caller names none.
 /// The reference defaults to 8192 rather than a smaller value because #2 only
@@ -81,8 +85,8 @@ impl Default for DevinConfig {
             models: BTreeMap::new(),
             max_tokens: DEFAULT_MAX_TOKENS,
             context_window: DEFAULT_CONTEXT_WINDOW,
-            authorize_url: "https://app.devin.ai/auth/cli/continue".into(),
-            token_url: "https://api.devin.ai/auth/cli/token".into(),
+            authorize_url: DEFAULT_AUTHORIZE_URL.into(),
+            token_url: DEFAULT_TOKEN_URL.into(),
             headers: BTreeMap::new(),
         }
     }

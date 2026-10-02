@@ -527,8 +527,10 @@ impl BaseChannel for Devin {
                     ConfigKeyKind::String,
                     "Connect-RPC origin; defaults to https://server.codeium.com. Provider column, not config JSON.",
                 ).with_placeholder(connect::DEFAULT_BASE_URL),
-                ConfigKey::optional("authorize_url", ConfigKeyKind::String, "Devin browser PKCE authorization endpoint."),
-                ConfigKey::optional("token_url", ConfigKeyKind::String, "Devin authorization-code exchange endpoint."),
+                ConfigKey::optional("authorize_url", ConfigKeyKind::String, "Devin browser PKCE authorization endpoint.")
+                    .with_placeholder(config::DEFAULT_AUTHORIZE_URL),
+                ConfigKey::optional("token_url", ConfigKeyKind::String, "Devin authorization-code exchange endpoint.")
+                    .with_placeholder(config::DEFAULT_TOKEN_URL),
                 ConfigKey::optional(
                     "client_name",
                     ConfigKeyKind::String,
