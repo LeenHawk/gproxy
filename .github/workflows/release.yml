@@ -98,11 +98,16 @@ jobs:
           test -n "$GPROXY_UPDATE_PUBKEY" || { echo "missing update signing public key" >&2; exit 1; }
           test "$(printf '%s' "$GPROXY_UPDATE_PUBKEY" | base64 -d | wc -c)" -eq 32 || {
             echo "update signing public key must decode to 32 bytes" >&2; exit 1; }
+      - name: Free disk for Termux builder
+        if: matrix.kind == 'cli' && matrix.os == 'android'
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet
       - uses: actions/download-artifact@v8.0.1
+        if: matrix.kind != 'cli' || matrix.os != 'android'
         with:
           name: console-dist
           path: console/dist
       - name: Prepare server assets
+        if: matrix.kind != 'cli' || matrix.os != 'android'
         run: cp -R console/dist/. crates/gproxy-host-axum/assets/web/
       - uses: pnpm/action-setup@v6.1.0
         if: matrix.kind == 'application'
@@ -125,7 +130,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libdbus-1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
       - name: Set up Java
-        if: matrix.os == 'android'
+        if: matrix.kind == 'application' && matrix.os == 'android'
         uses: actions/setup-java@v6.0.1
         with:
           distribution: temurin
@@ -134,30 +139,31 @@ jobs:
           cache-dependency-path: |
             crates/gproxy-host-tauri/gen/android/**/*.gradle*
             crates/gproxy-host-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties
-      - if: matrix.os == 'android'
+      - if: matrix.kind == 'application' && matrix.os == 'android'
         uses: android-actions/setup-android@v4.0.4
       - name: Install Android toolchain
-        if: matrix.os == 'android'
+        if: matrix.kind == 'application' && matrix.os == 'android'
         run: |
           sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'ndk;30.0.15729638'
           echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
       - uses: actions/setup-go@v7.0.0
-        if: matrix.builder != 'cargo-alpine'
+        if: matrix.builder != 'cargo-alpine' && (matrix.kind != 'cli' || matrix.os != 'android')
         with:
           go-version: "1.27.1"
           cache: false
       - uses: dtolnay/rust-toolchain@stable
-        if: matrix.builder != 'cargo-alpine'
+        if: matrix.builder != 'cargo-alpine' && (matrix.kind != 'cli' || matrix.os != 'android')
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
       - uses: ./.github/actions/ghcr-rust-cache
+        if: matrix.kind != 'cli' || matrix.os != 'android'
         with:
           key: packages-${{ matrix.target }}-${{ matrix.kind }}
           restore-key: packages-${{ matrix.target }}
           token: ${{ secrets.GITHUB_TOKEN }}
-      - if: ${{ matrix.builder == 'cargo-ndk' }}
+      - if: matrix.kind == 'application' && matrix.os == 'android'
         run: cargo install cargo-ndk --locked
       - name: Configure native Windows ARM64 dependencies
         if: matrix.target == 'aarch64-pc-windows-msvc'
@@ -182,15 +188,7 @@ jobs:
               fi
               ;;
             cargo-alpine) scripts/build-musl.sh "${{ matrix.target }}" ;;
-            cargo-ndk)
-              target="${{ matrix.target }}"
-              sysroot="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-              # cargo-ndk 4.1.2 overwrites the underscored variable without
-              # the API level. Bindgen reads this exact-target form first.
-              env "BINDGEN_EXTRA_CLANG_ARGS_${target}=--target=${target}28 --sysroot=$sysroot -I$sysroot/usr/include/$target" \
-                cargo ndk --platform 28 -t "${{ matrix.ndk_target }}" \
-                build --locked --release --bin gproxy
-              ;;
+            termux) bash scripts/build-termux.sh "${{ matrix.target }}" ;;
           esac
       - name: Stage container binary
         if: ${{ matrix.kind == 'cli' && matrix.os == 'linux' }}

@@ -30,8 +30,12 @@ each has its own portable archives and installers. Applications embed the Consol
 | OpenHarmony / HarmonyOS NEXT | ARM64 / x86_64 ZIP | ARM64 experimental unsigned HAP |
 
 The Linux CLI DEB installs `gproxy` under `/usr/bin`; the Termux DEB installs
-under `/data/data/com.termux/files/usr` and carries its C++ runtime privately.
-Android CLI ZIPs include the launcher, executable and C++ runtime. Windows CLI
+under `/data/data/com.termux/files/usr`. Android CLI builds use the source
+recipe in `distribution/termux/` and a pinned official Termux builder.
+Both DEB and ZIP use Termux's `libc++`, OpenSSL and CA certificates; ZIPs include
+the launcher, executable and `TERMUX.txt` with installation/update instructions.
+Self-update is disabled in these builds: install a newer DEB with APT, or use
+`pkg upgrade gproxy` once an enabled repository provides it. Windows CLI
 MSIX uses a distinct `.CLI` identity and a console execution alias. macOS CLI
 DMGs include the executable and Terminal installation instructions.
 Application ZIPs retain desktop resources and, on macOS, the complete `.app`.

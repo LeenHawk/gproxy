@@ -260,8 +260,13 @@ desktop:
 
 android:
   extends: .cross-package
+  services:
+    - name: docker:28-dind
+      alias: docker
   variables:
     TOOLCHAIN: android
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   needs:
     - console
     - job: toolchains

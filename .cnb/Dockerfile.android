@@ -1,6 +1,7 @@
 FROM node:24-trixie AS node
 FROM golang:1.27.1-trixie AS go
 FROM rust:1.98-trixie
+COPY --from=docker:28-cli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=go /usr/local/go /usr/local/go

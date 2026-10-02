@@ -21,6 +21,12 @@ Select the [latest stable release](https://github.com/LeenHawk/gproxy/releases/l
 
 Choose x86_64 for most Intel / AMD computers and aarch64 for Apple Silicon. Linux Application requires WebKitGTK 4.1.
 
+Android CLI runs inside Termux. Install its DEB with `apt install ./gproxy-android-<architecture>.deb`.
+For the ZIP, first run `pkg install libc++ openssl ca-certificates`, then extract
+it under Termux's home directory and follow `TERMUX.txt`. Program self-update is
+disabled; install newer DEBs through APT. Use `pkg upgrade gproxy` only after an
+enabled repository provides the package. Keep the same data directory and master key.
+
 The MSIX release attachments are unsigned Store submission packages, not signed installers. Use a ZIP or check the actual Microsoft Store listing for availability. macOS apps use ad-hoc signing and are not notarized. The experimental HarmonyOS HAP requires your own signature, has not been verified on a physical device, and does not provide a background service.
 
 ## Application: graphical setup

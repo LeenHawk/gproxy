@@ -27,13 +27,23 @@ if command -v docker >/dev/null 2>&1; then
     if [ "${BUILDER:-cargo}" = cargo-alpine ]; then
       awk '/^FROM / { print $2 }' deploy/container/Dockerfile.musl
     fi
+    if [ "${BUILDER:-cargo}" = termux ]; then
+      jq -r .image distribution/termux/toolchain.json
+    fi
   )
 fi
 
-if [ "${BUILDER:-cargo}" = cargo-alpine ]; then
+if [ "${BUILDER:-cargo}" = cargo-alpine ] || [ "${BUILDER:-cargo}" = termux ]; then
   rustc_version="$(cat "target/${TARGET_TRIPLE:?}/release/rustc-version.txt")"
 else
   rustc_version="$(version_of rustc --version)"
+fi
+if [ "${BUILDER:-cargo}" = termux ]; then
+  node_version="$(jq -r .tools.node "target/${TARGET_TRIPLE:?}/release/termux-toolchain.json")"
+  pnpm_version="$(jq -r .tools.pnpm "target/${TARGET_TRIPLE:?}/release/termux-toolchain.json")"
+else
+  node_version="$(version_of node --version)"
+  pnpm_version="$(version_of pnpm --version)"
 fi
 
 jq -n \
@@ -43,8 +53,8 @@ jq -n \
   --arg target "${TARGET_TRIPLE:-}" \
   --arg builder "${BUILDER:-cargo}" \
   --arg rustc "$rustc_version" \
-  --arg node "$(version_of node --version)" \
-  --arg pnpm "$(version_of pnpm --version)" \
+  --arg node "$node_version" \
+  --arg pnpm "$pnpm_version" \
   --arg upx_version "$(if [ "${UPX_ENABLED:-false}" = true ]; then version_of upx --version; else echo unused; fi)" \
   --argjson upx "${UPX_ENABLED:-false}" \
   --argjson images "$images" \
@@ -56,6 +66,13 @@ jq -n \
   > "dist/release/${ARTIFACT_NAME}.provenance.json"
 
 echo "wrote dist/release/${ARTIFACT_NAME}.provenance.json"
+
+if [ "${BUILDER:-cargo}" = termux ]; then
+  record="dist/release/$ARTIFACT_NAME.provenance.json"
+  jq --slurpfile termux "target/${TARGET_TRIPLE:?}/release/termux-toolchain.json" \
+    '.termux = $termux[0]' "$record" > "$record.tmp"
+  mv "$record.tmp" "$record"
+fi
 
 if [[ "${TARGET_TRIPLE:-}" == *-linux-ohos ]]; then
   record="dist/release/$ARTIFACT_NAME.provenance.json"

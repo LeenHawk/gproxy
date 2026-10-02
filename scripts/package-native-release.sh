@@ -6,7 +6,6 @@ target_os="${TARGET_OS:?missing TARGET_OS}"
 artifact="${ARTIFACT_NAME:?missing ARTIFACT_NAME}"
 output_dir="${OUTPUT_DIR:-$PWD/dist/release}"
 binary="target/$target/release/gproxy"
-source scripts/android/sdk.sh
 
 checksum() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -36,7 +35,9 @@ install -m 0644 README.md LICENSE "$package/"
 
 if [ "$target_os" = "android" ]; then
   install -m 0755 "$binary" "$package/gproxy.bin"
-  install -m 0644 "$(android_libcxx "$target")" "$package/libc++_shared.so"
+  install -m 0644 distribution/termux/ZIP-README.txt "$package/TERMUX.txt"
+  install -m 0644 crates/gproxy-tokenizer/THIRD_PARTY_NOTICES.md "$package/tokenizer-notices.md"
+  install -m 0644 crates/gproxy-tokenizer/assets/tokenizers/LICENSE "$package/tokenizer-LICENSE"
   write_android_launcher "$package/gproxy"
 else
   install -m 0755 "$binary" "$package/gproxy"

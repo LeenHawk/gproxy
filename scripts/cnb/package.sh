@@ -84,9 +84,7 @@ case "${1:?prepare|cli|application|upload|edge}" in
         export BUILDER=cargo-zigbuild
         ;;
       android)
-        sysroot="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-        env "BINDGEN_EXTRA_CLANG_ARGS_${TARGET_TRIPLE}=--target=${TARGET_TRIPLE}28 --sysroot=$sysroot -I$sysroot/usr/include/$TARGET_TRIPLE" \
-          cargo ndk --platform 28 -t "$NDK_TARGET" build --locked --release --bin gproxy
+        bash scripts/build-termux.sh "$TARGET_TRIPLE"
         ;;
     esac
     binary="target/$TARGET_TRIPLE/release/gproxy"

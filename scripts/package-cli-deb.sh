@@ -8,6 +8,18 @@ output="$(cd "$output" && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 root="$work/package"
+# Keep the official recipe's control data, licenses and dependency declarations.
+# The caller may have applied UPX to the executable after the Termux build.
+if [ "$TARGET_OS" = android ]; then
+    dpkg-deb -R "target/$TARGET_TRIPLE/release/termux-package.deb" "$root"
+    install -m700 "target/$TARGET_TRIPLE/release/gproxy" \
+        "$root/data/data/com.termux/files/usr/bin/gproxy"
+    installed_size="$(du -sk --exclude=DEBIAN "$root" | cut -f1)"
+    sed -i "s/^Installed-Size:.*/Installed-Size: $installed_size/" "$root/DEBIAN/control"
+    dpkg-deb --root-owner-group --build "$root" "$output/$ARTIFACT_NAME.deb"
+    (cd "$output" && sha256sum "$ARTIFACT_NAME.deb" > "$ARTIFACT_NAME.deb.sha256")
+    exit 0
+fi
 mkdir -p "$root/DEBIAN"
 dependencies=
 case "$TARGET_OS" in
@@ -21,27 +33,6 @@ case "$TARGET_OS" in
     prefix=/usr
     install -Dm755 "target/$TARGET_TRIPLE/release/gproxy" "$root$prefix/bin/gproxy"
     if [[ "$TARGET_TRIPLE" == *-gnu ]]; then dependencies='Depends: libc6, libgcc-s1, libstdc++6'; fi
-    ;;
-  android)
-    case "$TARGET_TRIPLE" in
-      x86_64-*) architecture=x86_64 ;;
-      aarch64-*) architecture=aarch64 ;;
-      *) exit 2 ;;
-    esac
-    prefix=/data/data/com.termux/files/usr
-    source scripts/android/sdk.sh
-    private="$prefix/lib/gproxy-cli"
-    install -Dm755 "target/$TARGET_TRIPLE/release/gproxy" "$root$private/gproxy.bin"
-    install -Dm644 "$(android_libcxx "$TARGET_TRIPLE")" "$root$private/libc++_shared.so"
-    mkdir -p "$root$prefix/bin"
-    cat > "$root$prefix/bin/gproxy" <<'LAUNCHER'
-#!/data/data/com.termux/files/usr/bin/sh
-set -eu
-directory=/data/data/com.termux/files/usr/lib/gproxy-cli
-export LD_LIBRARY_PATH="$directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-exec "$directory/gproxy.bin" "$@"
-LAUNCHER
-    chmod 755 "$root$prefix/bin/gproxy"
     ;;
   *) echo "unsupported DEB platform: $TARGET_OS" >&2; exit 2 ;;
 esac

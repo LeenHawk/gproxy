@@ -23,8 +23,11 @@ CLI（`gproxy-*`）和 Application（`gproxy-tauri-*`）是两类独立程序，
 | OpenHarmony / HarmonyOS NEXT | ARM64 / x86_64 ZIP | ARM64 实验性未签名 HAP |
 
 Linux CLI DEB 将 `gproxy` 安装到 `/usr/bin`；Termux DEB 安装到
-`/data/data/com.termux/files/usr`，并在私有目录携带 C++ 运行库。
-Android CLI ZIP 同时包含启动脚本、二进制和运行库。Windows CLI MSIX 使用独立的
+`/data/data/com.termux/files/usr`。Android CLI 使用 `distribution/termux/` 中的源码配方
+和固定版本的 Termux 官方构建器。DEB 和 ZIP 都依赖 Termux 的 `libc++`、OpenSSL 和
+CA 证书；ZIP 包含启动脚本、二进制及安装更新说明 `TERMUX.txt`。
+这些构建禁用程序自更新，通过 APT 安装新版 DEB；启用的软件仓库收录后可使用
+`pkg upgrade gproxy`。Windows CLI MSIX 使用独立的
 `.CLI` 包身份和控制台命令别名；macOS CLI DMG 包含二进制及终端安装说明。
 Application ZIP 保留桌面资源，macOS ZIP 包含完整 `.app`。
 

@@ -62,7 +62,9 @@ GitLab Rust release compilation runs on 16-core AMD64 Linux runners. Six
 registry-cached images provide GNU/musl cross tools and separate GTK development libraries for each Linux architecture,
 Windows/macOS SDKs, and Android's NDK. CLI and Application use separate jobs and
 caches. Linux ARM64 and RISC-V GNU use GCC and QEMU checks; musl (including RISC-V) and macOS use cargo-zigbuild;
-Windows uses cargo-xwin; Android uses cargo-ndk/Tauri's Android build.
+Windows uses cargo-xwin. Android CLI uses the pinned official Termux builder
+and the shared `distribution/termux/` recipe; Android Application uses Tauri's
+Android build. CLI ZIPs and DEBs depend on Termux libraries and use package-manager updates.
 
 Both CLI and desktop Application have ZIP and platform installer packages.
 Windows SDK and macOS hdiutil jobs only seal already-cross-built

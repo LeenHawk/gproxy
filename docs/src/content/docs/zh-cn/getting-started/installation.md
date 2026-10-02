@@ -21,6 +21,11 @@ description: "选择 GPROXY 4.0 的应用、命令行程序、容器或托管平
 
 普通 Intel / AMD 电脑选 x86_64，Apple Silicon 选 aarch64。Linux Application 需要系统提供 WebKitGTK 4.1。
 
+Android CLI 在 Termux 内运行，用 `apt install ./gproxy-android-<architecture>.deb` 安装 DEB。
+使用 ZIP 前先执行 `pkg install libc++ openssl ca-certificates`，解压到 Termux 主目录，
+并按 `TERMUX.txt` 操作。程序自更新已禁用，通过 APT 安装新版 DEB；启用的软件仓库收录后
+才可使用 `pkg upgrade gproxy`。升级时保留原数据目录和主密钥。
+
 Windows Release 附件中的 MSIX 是未签名的商店提交包，不能当作已签名安装包直接安装；可选择 ZIP，商店版本以实际商店上架状态为准。macOS 应用使用 ad-hoc 签名，尚未公证。鸿蒙 HAP 需要自行签名，尚未完成真机验证，也不提供后台服务。
 
 ## Application：在界面中设置
