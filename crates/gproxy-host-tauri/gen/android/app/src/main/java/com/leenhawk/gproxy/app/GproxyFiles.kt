@@ -1,4 +1,4 @@
-package dev.gproxy.desktop
+package com.leenhawk.gproxy.app
 
 import android.app.Activity
 import android.content.Intent

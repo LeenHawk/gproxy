@@ -8,7 +8,15 @@ does not create store products, submit a review, or publish an application.
 
 ## Identity and versions
 
-- Application/bundle name: `dev.gproxy.desktop`; listing name: **GPROXY**.
+- Application/bundle name: `com.leenhawk.gproxy.app`; listing name: **GPROXY**.
+- The graphical application uses this identifier on Android, HarmonyOS and all
+  desktop platforms. `com.leenhawk.gproxy.cli` is reserved for a future separate
+  CLI application; the legacy CLI wrapper is not renamed by this change.
+- Early v4 builds used `dev.gproxy.desktop`. The new mobile identity installs
+  separately. Desktop default data directories, keychain service names and
+  startup registration names also change. Disable old automatic startup and
+  export configuration in the old application before switching, then import in
+  the new one. Existing data and credentials are not deleted or auto-migrated.
 - Preserve this identity when creating the Android and HarmonyOS applications
   in their respective consoles. Confirm availability before reserving it.
 - `Cargo.toml` and `crates/gproxy-host-tauri/tauri.conf.json` must agree on the
@@ -76,7 +84,7 @@ never put passwords or private keys in store listing files or issue comments.
 
 ## F-Droid submission
 
-The recipe is `distribution/fdroid/dev.gproxy.desktop.yml.in`. It uses pinned,
+The recipe is `distribution/fdroid/com.leenhawk.gproxy.app.yml.in`. It uses pinned,
 checksum-verified Node/Go/Gradle tools and the F-Droid `rustup` source library.
 The scanner removes the repository's Gradle wrapper; the build step recreates a
 launcher for the verified Gradle installation. There are no blanket scanner
@@ -88,12 +96,12 @@ that exact commit (a prior `v4.0.2` tag does not contain this build support):
 
 ```sh
 python3 scripts/mobile/fdroid-metadata.py <public-commit-or-tag>
-# Copy the generated dist/mobile/fdroid/metadata/dev.gproxy.desktop.yml
+# Copy the generated dist/mobile/fdroid/metadata/com.leenhawk.gproxy.app.yml
 # into your fdroiddata fork's metadata/ directory, then in that fork:
 fdroid readmeta
-fdroid lint dev.gproxy.desktop
-fdroid checkupdates --allow-dirty dev.gproxy.desktop
-fdroid build --server dev.gproxy.desktop
+fdroid lint com.leenhawk.gproxy.app
+fdroid checkupdates --allow-dirty com.leenhawk.gproxy.app
+fdroid build --server com.leenhawk.gproxy.app
 ```
 
 Do not submit the `.yml.in` template or claim a local APK build is an F-Droid

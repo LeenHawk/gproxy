@@ -7,7 +7,7 @@ been created. Unchecked items below are not completed by a repository merge.
 
 ## Product and operator information
 
-- [ ] Create the Google Play application, confirming `dev.gproxy.desktop` before
+- [ ] Create the Google Play application, confirming `com.leenhawk.gproxy.app` before
   the first upload. Select app signing and upload-key arrangements deliberately.
 - [ ] Create the Huawei Android and native HarmonyOS applications in AGC with the
   intended bundle identity; obtain the product IDs and signing materials.

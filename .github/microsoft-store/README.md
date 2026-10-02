@@ -12,6 +12,11 @@ The shared publisher is `CN=7D76D0DD-9AFE-4262-832E-3A611C4CB5C3`; its display
 name is `Leen Hawk`. The CLI identity is assigned by Partner Center, not derived
 by appending `.CLI` to the desktop identity.
 
+The graphical application's Tauri/bundle identifier is `com.leenhawk.gproxy.app`;
+`com.leenhawk.gproxy.cli` is reserved for a future separate CLI application.
+These project identifiers do not replace the Microsoft-assigned MSIX package
+identities above. Store packages must keep the exact identities from Partner Center.
+
 ## Configuration
 
 Configure these repository Actions variables from Partner Center:

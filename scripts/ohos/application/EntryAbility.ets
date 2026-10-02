@@ -19,7 +19,7 @@ export default class EntryAbility extends RustAbility {
     this.privacyReady = privacyAccepted(this.context);
     if (!this.privacyReady) {
       if (!this.autoStartup) {
-        await this.context.startAbility({ bundleName: 'dev.gproxy.desktop', abilityName: 'PrivacyAbility' });
+        await this.context.startAbility({ bundleName: 'com.leenhawk.gproxy.app', abilityName: 'PrivacyAbility' });
       }
       await this.context.terminateSelf();
       return;

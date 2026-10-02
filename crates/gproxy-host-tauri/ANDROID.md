@@ -123,7 +123,7 @@ unavailable instead of offering the old wrapper APK.
 
 This arrangement is only legal because of something in Tauri's generated code,
 so it is worth stating with the citation:
-`gen/android/app/src/main/java/dev/gproxy/desktop/generated/WryActivity.kt`
+`gen/android/app/src/main/java/com/leenhawk/gproxy/app/generated/WryActivity.kt`
 calls `Rust.create()` — the call that runs `gproxy_host_tauri::start` — from
 **`ProcessLifecycleOwner`**, not from the activity:
 
@@ -217,7 +217,10 @@ A debug `.so` for this engine carries about a gigabyte of symbols; the release
 profile (`opt-level = "z"`, `lto = "fat"`, `strip = "symbols"`) brings it to
 about 43 MB. Build release unless you need a debugger.
 
-## The APK, read back
+## The APK, read back (historical v4.0.0 build)
+
+The following output predates the identifier rename. Its old package/JNI names
+are retained as historical evidence; current builds use `com.leenhawk.gproxy.app`.
 
 `aapt dump badging` on the release build, with the ninety-odd translated
 `application-label-*` lines cut:
@@ -363,11 +366,14 @@ not the legacy wrapper APK. These are two different things:
   Android ABI, run from a shell — which is a separate story from an app with a
   window, and unaffected by any of this.
 
-v3's APK was package `io.github.leenhawk.gproxy`; this one is
-`dev.gproxy.desktop`. They do not collide and can be installed side by side.
+The current application identifier is `com.leenhawk.gproxy.app` across Android,
+HarmonyOS and desktop platforms. `com.leenhawk.gproxy.cli` is reserved for a
+possible separate CLI application. The legacy v3 wrapper remains
+`io.github.leenhawk.gproxy`; early v4 packages used `dev.gproxy.desktop`.
 
-`dev.gproxy.desktop` is the desktop bundle's identifier too, and "desktop" in
-an Android package name reads oddly. It is deliberate: one application, one
-identity across both platforms, and it is the string `secrets::KEYCHAIN_SERVICE`
-already files the desktop's keychain entries under. Two identifiers would be
-two products.
+The renamed application is a new installation identity. Old mobile packages do
+not upgrade in place, and desktop default data directories and keychain service
+names change. Export configuration from the old application before switching,
+then import it in the new one; existing data and credentials are not deleted or
+automatically migrated. Microsoft Store package identities remain the values
+assigned by Partner Center, independently of Tauri's application identifier.

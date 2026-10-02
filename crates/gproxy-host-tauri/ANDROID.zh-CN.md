@@ -106,7 +106,7 @@ state 交给了 261 条命令；不存在一种诚实的「停止」能让这些
 ## 为什么网关是进程，而不是窗口
 
 这套安排之所以合法，依赖 Tauri 生成代码里的一个事实，所以这里带出处地写明：
-`gen/android/app/src/main/java/dev/gproxy/desktop/generated/WryActivity.kt`
+`gen/android/app/src/main/java/com/leenhawk/gproxy/app/generated/WryActivity.kt`
 是从 **`ProcessLifecycleOwner`** 而不是 activity 里调用 `Rust.create()` 的——
 也就是真正运行 `gproxy_host_tauri::start` 的那一次调用：
 
@@ -193,7 +193,10 @@ pnpm exec tauri android build --apk --debug       # debug
 （`opt-level = "z"`、`lto = "fat"`、`strip = "symbols"`）把它压到约 43 MB。除非
 要挂调试器，否则一律构建 release。
 
-## 把 APK 读回来
+## 把 APK 读回来（v4.0.0 历史构建）
+
+下面是标识更名前的真实输出，保留旧包名和 JNI 名称作为历史记录；当前构建使用
+`com.leenhawk.gproxy.app`。
 
 对 release 构建跑 `aapt dump badging`，略去九十多行翻译过的
 `application-label-*`：
@@ -327,10 +330,11 @@ Android 相关的东西一样都没删。`scripts/android/`、
   制，从 shell 里启动——那是与「带窗口的 App」完全不同的另一个故事，不受这里任
   何改动影响。
 
-v3 的 APK 包名是 `io.github.leenhawk.gproxy`，这个是 `dev.gproxy.desktop`。两
-者不冲突，可以并存安装。
+当前图形版在安卓、鸿蒙和桌面平台统一使用 `com.leenhawk.gproxy.app`，
+为未来独立的命令行应用预留 `com.leenhawk.gproxy.cli`。v3 旧封装包仍为
+`io.github.leenhawk.gproxy`，早期 v4 包使用 `dev.gproxy.desktop`。
 
-`dev.gproxy.desktop` 同时也是桌面 bundle 的 identifier，Android 包名里出现
-「desktop」读起来确实别扭。这是故意的：一个应用、跨两个平台一个身份，而且这个
-字符串正是 `secrets::KEYCHAIN_SERVICE` 用来归档桌面 keychain 条目的那一个。两
-个 identifier 就是两个产品。
+更名后的应用属于新的安装身份，不能直接覆盖旧移动端包；桌面默认数据目录和
+钥匙串服务名也会改变。切换前请在旧应用中导出配置，再到新应用中导入。旧数据
+和凭据不会被删除，也不会自动迁移。微软商店包身份是 Partner Center 分配的
+独立标识，仍须使用微软分配的值，不等同于 Tauri 的应用标识。

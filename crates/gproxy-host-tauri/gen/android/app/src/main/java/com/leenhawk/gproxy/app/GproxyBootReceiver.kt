@@ -1,4 +1,4 @@
-package dev.gproxy.desktop
+package com.leenhawk.gproxy.app
 
 import android.content.BroadcastReceiver
 import android.content.Context

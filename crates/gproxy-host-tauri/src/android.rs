@@ -4,7 +4,7 @@
 //! give it any of the three behaviours a gateway on a phone actually needs,
 //! and all three existed in v3's hand-written Java before this crate did:
 //!
-//! | v3, hand-written Java | here, Kotlin under `gen/android/app/src/main/java/dev/gproxy/desktop/` |
+//! | v3, hand-written Java | here, Kotlin under `gen/android/app/src/main/java/com/leenhawk/gproxy/app/` |
 //! |---|---|
 //! | `scripts/android/GproxyService.java.in` | `GproxyService.kt`, over [`start`] |
 //! | `scripts/android/GproxyBootReceiver.java.in` | `GproxyBootReceiver.kt`, same service |
@@ -320,7 +320,7 @@ pub fn status() -> Status {
 // ---------------------------------------------------------------------------
 // The JNI surface.
 //
-// Four functions, all on `dev.gproxy.desktop.GproxyNative`, all of them thin:
+// Four functions, all on `com.leenhawk.gproxy.app.GproxyNative`, all of them thin:
 // decode, call one function above, encode. A panic unwinding out of an
 // `extern "system"` frame aborts the process, so each one catches — a failed
 // start has to be a message in a notification, not a dead app.
@@ -354,7 +354,7 @@ fn java_string(env: &mut JNIEnv<'_>, text: &str) -> jstring {
 /// it starts anything, so that the engine is never assembled by a caller that
 /// had to guess.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeConfigure(
+pub extern "system" fn Java_com_leenhawk_gproxy_app_GproxyNative_nativeConfigure(
     mut env: JNIEnv<'_>,
     _this: JObject<'_>,
     data_dir: JString<'_>,
@@ -370,7 +370,7 @@ pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeConfigure(
 
 /// `GproxyNative.start()`: the status JSON, after assembling if needed.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeStart(
+pub extern "system" fn Java_com_leenhawk_gproxy_app_GproxyNative_nativeStart(
     mut env: JNIEnv<'_>,
     _this: JObject<'_>,
 ) -> jstring {
@@ -382,7 +382,7 @@ pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeStart(
 
 /// `GproxyNative.status()`: the status JSON, assembling nothing.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeStatus(
+pub extern "system" fn Java_com_leenhawk_gproxy_app_GproxyNative_nativeStatus(
     mut env: JNIEnv<'_>,
     _this: JObject<'_>,
 ) -> jstring {
@@ -396,7 +396,7 @@ pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeStatus(
 /// stays with Android, which asks the user before replacing the application.
 #[cfg(not(store_distribution))]
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeUpdate(
+pub extern "system" fn Java_com_leenhawk_gproxy_app_GproxyNative_nativeUpdate(
     mut env: JNIEnv<'_>,
     _this: JObject<'_>,
 ) -> jstring {
@@ -443,7 +443,7 @@ pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeUpdate(
 /// last chance to let the listener go and the background sync finish, and it
 /// is why Stop is not just `Process.killProcess`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeShutdown(
+pub extern "system" fn Java_com_leenhawk_gproxy_app_GproxyNative_nativeShutdown(
     _env: JNIEnv<'_>,
     _this: JObject<'_>,
 ) {

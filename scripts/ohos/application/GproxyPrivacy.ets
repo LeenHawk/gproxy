@@ -17,7 +17,7 @@ export async function acceptPrivacy(context: common.UIAbilityContext): Promise<v
 }
 
 export async function openGateway(context: common.UIAbilityContext, autoStartup: boolean = false): Promise<void> {
-  await context.startAbility({ bundleName: 'dev.gproxy.desktop', abilityName: 'EntryAbility',
+  await context.startAbility({ bundleName: 'com.leenhawk.gproxy.app', abilityName: 'EntryAbility',
     parameters: { gproxyAutoStartup: autoStartup } });
   await context.terminateSelf();
 }

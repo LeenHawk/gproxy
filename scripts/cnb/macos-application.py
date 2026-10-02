@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory() as temporary:
     with (contents / "Info.plist").open("wb") as stream:
         plistlib.dump({
             "CFBundleDevelopmentRegion": "en", "CFBundleExecutable": "gproxy-desktop",
-            "CFBundleIdentifier": "dev.gproxy.desktop", "CFBundleInfoDictionaryVersion": "6.0",
+            "CFBundleIdentifier": "com.leenhawk.gproxy.app", "CFBundleInfoDictionaryVersion": "6.0",
             "CFBundleName": "GPROXY", "CFBundleDisplayName": "GPROXY", "CFBundlePackageType": "APPL",
             "CFBundleShortVersionString": version.split("-")[0], "CFBundleVersion": version.split("-")[0],
             "CFBundleIconFile": "icon.icns", "NSHighResolutionCapable": True,

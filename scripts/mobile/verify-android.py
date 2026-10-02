@@ -16,7 +16,7 @@ sdk = Path(os.environ.get("ANDROID_HOME") or os.environ["ANDROID_SDK_ROOT"])
 aapt = sorted(sdk.glob("build-tools/*/aapt2"), key=lambda p: tuple(int(n) for n in p.parent.name.split(".")))[-1]
 config = json.loads(subprocess.check_output([sys.executable, root / "scripts/mobile/version.py"], text=True))
 badging = subprocess.check_output([aapt, "dump", "badging", apk], text=True)
-expected = ("dev.gproxy.desktop", str(config["bundle"]["android"]["versionCode"]), config["version"])
+expected = ("com.leenhawk.gproxy.app", str(config["bundle"]["android"]["versionCode"]), config["version"])
 identity = re.search(r"package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging)
 if not identity or identity.groups() != expected:
     raise ValueError(f"APK identity/version does not match {expected}")
@@ -54,6 +54,6 @@ with zipfile.ZipFile(apk) as archive, tempfile.TemporaryDirectory(prefix="gproxy
             library = Path(work) / "libgproxy_host_tauri.so"
             library.write_bytes(data)
             symbols = subprocess.check_output([nm, "--dynamic", "--defined-only", library], text=True)
-            if "Java_dev_gproxy_desktop_GproxyNative_nativeUpdate" in symbols:
+            if "Java_com_leenhawk_gproxy_app_GproxyNative_nativeUpdate" in symbols:
                 raise ValueError("Store library still exports the APK download entry point")
 print(f"Verified {expected}: no APK updater, release manifest, {len(libraries)} aligned native libraries")

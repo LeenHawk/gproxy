@@ -24,10 +24,10 @@ val privacyDir = rootProject.file("../../../../distribution/mobile/privacy")
 
 android {
     compileSdk = 36
-    namespace = "dev.gproxy.desktop"
+    namespace = "com.leenhawk.gproxy.app"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        applicationId = "dev.gproxy.desktop"
+        applicationId = "com.leenhawk.gproxy.app"
         buildConfigField("boolean", "SELF_UPDATE", selfUpdate.toString())
         buildConfigField("String", "PRIVACY_VERSION", "\"${privacyDir.resolve("version.txt").readText().trim()}\"")
         // Tauri's template says 24. 28 is what v3's APK shipped, and it is

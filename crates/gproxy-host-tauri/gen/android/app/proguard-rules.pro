@@ -5,7 +5,7 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# The JNI seam. `Java_dev_gproxy_desktop_GproxyNative_nativeStart` and its
+# The JNI seam. `Java_com_leenhawk_gproxy_app_GproxyNative_nativeStart` and its
 # three siblings are symbols in `libgproxy_host_tauri.so`, and the runtime
 # finds them by deriving that name from the *Kotlin* class and method names.
 # R8 renaming either one leaves the symbol unfindable and the app dead at the
@@ -17,17 +17,17 @@
 # belt and braces. It is spelled out anyway because the general rule is a
 # default in somebody else's file, and this crate's correctness should not
 # depend on that file keeping it.
--keep class dev.gproxy.desktop.GproxyNative { *; }
+-keep class com.leenhawk.gproxy.app.GproxyNative { *; }
 -keepclasseswithmembernames class * {
     native <methods>;
 }
 
 # The four components the manifest names by class. R8 keeps manifest-declared
 # components on its own; these are stated for the same reason as above.
--keep class dev.gproxy.desktop.GproxyService { *; }
--keep class dev.gproxy.desktop.GproxyBootReceiver { *; }
--keep class dev.gproxy.desktop.GproxyUpdateActivity { *; }
--keep class dev.gproxy.desktop.GproxyUpdateProvider { *; }
+-keep class com.leenhawk.gproxy.app.GproxyService { *; }
+-keep class com.leenhawk.gproxy.app.GproxyBootReceiver { *; }
+-keep class com.leenhawk.gproxy.app.GproxyUpdateActivity { *; }
+-keep class com.leenhawk.gproxy.app.GproxyUpdateProvider { *; }
 
 # If your project uses WebView with JS, uncomment the following
 # and specify the fully qualified class name to the JavaScript interface

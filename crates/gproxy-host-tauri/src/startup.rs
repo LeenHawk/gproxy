@@ -71,7 +71,7 @@ fn platform(executable: &Path, enabled: bool) -> Result<(), String> {
         Some(path) => std::path::PathBuf::from(path),
         None => home()?.join(".config"),
     };
-    let path = base.join("autostart/dev.gproxy.desktop.desktop");
+    let path = base.join("autostart/com.leenhawk.gproxy.app.desktop");
     save(&path, &desktop_entry(executable)?, enabled)
 }
 
@@ -98,7 +98,7 @@ fn desktop_entry(executable: &Path) -> Result<String, String> {
 
 #[cfg(target_os = "macos")]
 fn platform(executable: &Path, enabled: bool) -> Result<(), String> {
-    let path = home()?.join("Library/LaunchAgents/dev.gproxy.desktop.plist");
+    let path = home()?.join("Library/LaunchAgents/com.leenhawk.gproxy.app.plist");
     let executable = executable
         .to_string_lossy()
         .replace('&', "&amp;")
@@ -107,7 +107,7 @@ fn platform(executable: &Path, enabled: bool) -> Result<(), String> {
         .replace('"', "&quot;")
         .replace('\'', "&apos;");
     let content = format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>dev.gproxy.desktop</string><key>ProgramArguments</key><array><string>{executable}</string><string>--autostart</string></array><key>RunAtLoad</key><true/></dict></plist>\n"
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>com.leenhawk.gproxy.app</string><key>ProgramArguments</key><array><string>{executable}</string><string>--autostart</string></array><key>RunAtLoad</key><true/></dict></plist>\n"
     );
     save(&path, &content, enabled)
 }
@@ -197,7 +197,7 @@ pub fn get() -> Result<bool, String> {
             .map(std::path::PathBuf::from)
             .map(Ok)
             .unwrap_or_else(|| home().map(|path| path.join(".config")))?;
-        match std::fs::read_to_string(base.join("autostart/dev.gproxy.desktop.desktop")) {
+        match std::fs::read_to_string(base.join("autostart/com.leenhawk.gproxy.app.desktop")) {
             Ok(text) => Ok(!text.lines().any(|line| {
                 matches!(
                     line.trim(),
@@ -211,7 +211,7 @@ pub fn get() -> Result<bool, String> {
     #[cfg(target_os = "macos")]
     {
         use std::process::Command;
-        let path = home()?.join("Library/LaunchAgents/dev.gproxy.desktop.plist");
+        let path = home()?.join("Library/LaunchAgents/com.leenhawk.gproxy.app.plist");
         if !path.try_exists().map_err(|error| error.to_string())? {
             return Ok(false);
         }
@@ -231,7 +231,7 @@ pub fn get() -> Result<bool, String> {
             return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
         }
         let disabled = String::from_utf8_lossy(&output.stdout).lines().any(|line| {
-            line.contains("\"dev.gproxy.desktop\"") && line.trim_end().ends_with("=> true")
+            line.contains("\"com.leenhawk.gproxy.app\"") && line.trim_end().ends_with("=> true")
         });
         Ok(!disabled)
     }
