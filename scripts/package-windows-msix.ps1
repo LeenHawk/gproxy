@@ -61,7 +61,7 @@ try {
  <Identity Name="$identityXml" Publisher="$publisherXml" Version="$packageVersion" ProcessorArchitecture="$arch" />
  <Properties><DisplayName>$displayXml</DisplayName><PublisherDisplayName>$publisherDisplayXml</PublisherDisplayName><Logo>Assets\StoreLogo.png</Logo></Properties>
  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
- <Resources><Resource Language="en-us" /></Resources>
+ <Resources><Resource Language="en-us" /><Resource Language="zh-cn" /><Resource Language="zh-tw" /></Resources>
  <Applications><Application Id="GPROXY" Executable="$executable" EntryPoint="Windows.FullTrustApplication" $applicationAttributes>
   <uap:VisualElements DisplayName="$displayXml" Description="$displayXml" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
   <Extensions>$extensions</Extensions>
