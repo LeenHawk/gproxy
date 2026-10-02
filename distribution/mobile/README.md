@@ -200,9 +200,11 @@ review text was not retrievable during this preparation.
 - Google Play ARM64 release APK/AAB builds and APK policy/alignment checks passed.
   An x86_64 AppGallery variant also built and installed with a temporary test key;
   that key is not a distribution identity.
-- F-Droid metadata lint with the official category/anti-feature configuration,
-  source scanning and APK scanning passed. This is not an isolated fdroiddata
-  server build, a successful public-tag update check, or F-Droid acceptance.
+- F-Droid [MR !50921](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/50921)
+  submitted v4.0.3. [Pipeline 2906649715](https://gitlab.com/LeenHawk/fdroiddata/-/pipelines/2906649715)
+  passed all nine jobs, including the full F-Droid build, public-tag update check,
+  metadata checks, and source/APK scans. Acceptance and publication remain pending;
+  CI success does not establish device/runtime correctness.
 - Console TypeScript, ESLint and translation checks passed. Python/shell syntax,
   Rust formatting and generated OHOS launcher/permission configuration were checked.
 - The API 35 software emulator displayed the offline Android notice. Continuing
