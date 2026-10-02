@@ -31,15 +31,20 @@ been created. Unchecked items below are not completed by a repository merge.
 - [ ] Review both bundled privacy notices against the final build and operator
   information, update the notice version if materially changed, then run
   `python3 scripts/mobile/sync-listings.py`.
-- [ ] Publish and open both privacy URLs from an unauthenticated browser. Check
-  that their contents match the bundled notices. Source files alone are not live
-  privacy-policy pages.
+- [x] Publish both privacy URLs and verify anonymous access and the expected
+  notice text (2026-10-02, main documentation commit `f04225b04`). Recheck after
+  any notice changes.
 - [ ] Complete Google Play Data safety and Huawei privacy questionnaires using
   `data-safety.md` and the actual release behavior, including third-party traffic.
 - [ ] Complete content rating, target audience, ads and app-access questionnaires.
   Do not copy a rating from another product or claim a certification not obtained.
 - [ ] Supply real screenshots from the final Android application and separately
   from HarmonyOS. Do not present Android screenshots as native HarmonyOS evidence.
+- [x] Prepare current v4 shared-Console screenshot candidates in three languages,
+  plus English/Chinese subtitled feature walkthroughs. These are browser captures
+  with demonstration data; compare them with the final application before use.
+- [x] Prepare draft first-release notes for candidate version 4.0.2 / 4000002 in
+  English, Simplified Chinese and Traditional Chinese.
 - [ ] Add release-specific changelogs after selecting the first published source
   revision and version code. Keep each F-Droid changelog under 500 characters.
 

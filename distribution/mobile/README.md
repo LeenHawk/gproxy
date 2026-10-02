@@ -145,11 +145,18 @@ evidence. PC/2-in-1 behavior has separate platform support and needs its own tes
   `fastlane/metadata/android/` text and the website's English/Chinese privacy pages.
 - `fastlane/metadata/android/<locale>/images/`: application icon and feature
   graphic derived from the existing logo. Phone screenshots must come from the
-  actual application, without private credentials or invented usage statistics.
-- Add `changelogs/<versionCode>.txt` for the first submitted release (500-character
-  F-Droid limit). Do not label these unreleased changes as a published update.
-- Publish the privacy pages before entering their URLs in store consoles; the
-  generated links are not proof that the pages are already available online.
+  actual application. Never include private credentials or present illustrative metrics as measured results.
+- Draft `changelogs/4000002.txt` files now cover English, Simplified Chinese and
+  Traditional Chinese. Confirm the actual first-submission version before using
+  them. They describe the candidate build, not an already published store release.
+- Both privacy pages were deployed from the separate main-branch documentation
+  commit `f04225b04` and verified publicly accessible on 2026-10-02:
+  [English](https://gproxy.leenhawk.com/legal/privacy/) and
+  [Simplified Chinese](https://gproxy.leenhawk.com/zh-cn/legal/privacy/).
+- [media-guide.md](media-guide.md) describes the v4 browser-captured screenshot
+  candidates and subtitled feature walkthroughs. They use demonstration API
+  fixtures and are not Android/HarmonyOS device captures or foreground-service
+  certification videos. Generated files live in `dist/mobile/listing-materials/`.
 - `review-checklist.md` and `data-safety.md` capture the remaining account,
   jurisdiction, permission and disclosure work. They are worksheets, not filed
   declarations or a guarantee of approval.
