@@ -81,6 +81,10 @@ and checksum, patch application and the official package linter before pushing.
 It retains existing maintainer build commands and patches, removes the package
 revision when updating the version, skips accepted/newer releases, and reuses an
 open PR. A closed unmerged PR requires manual review before another submission.
+Titles follow Termux's recommended [commit guidelines](https://github.com/termux/termux-packages/blob/master/CONTRIBUTING.md#commit-guidelines):
+`addpkg(main/gproxy): AI API gateway with a web console` for a new package,
+and `bump(main/gproxy): <version>` for updates. PR bodies describe the package
+and packaging changes, with concise validation results.
 
 For a local preview:
 

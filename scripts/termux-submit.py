@@ -70,6 +70,25 @@ def update_recipe(text, version, checksum):
     return text
 
 
+def submission_text(version, accepted):
+    release = f"https://github.com/LeenHawk/gproxy/releases/tag/v{version}"
+    if accepted:
+        title = f"bump(main/gproxy): {version}"
+        body = f"Update GPROXY to [{version}]({release}).\n\n"
+    else:
+        title = "addpkg(main/gproxy): AI API gateway with a web console"
+        body = (
+            f"Add [GPROXY {version}]({release}), an AGPL-3.0-or-later gateway "
+            "for multiple AI providers with a web configuration interface. "
+            "It can run locally in Termux without root.\n\n"
+            "- Builds the CLI and embedded web assets from source for aarch64 and x86_64.\n"
+            "- Uses Termux OpenSSL and libc++; disables executable self-update.\n"
+            "- Replaces the upstream `gproxy-cli` package, which owns the same command.\n\n"
+        )
+    body += "Checks: source version/checksum, patch application and package lint.\n"
+    return title, body
+
+
 def submit(version, dry_run, notes):
     requested = version_tuple(version)
     release = json.loads(read("gh", "release", "view", f"v{version}", "--repo", "LeenHawk/gproxy",
@@ -130,15 +149,7 @@ def submit(version, dry_run, notes):
         if preview.exists():
             shutil.rmtree(preview)
         shutil.copytree(package, preview)
-        title = f"{'Update' if accepted else 'New package'}: gproxy {version}"
-        body = (f"Package GPROXY {version}, an AGPL-3.0-or-later AI API gateway with an embedded web Console.\n\n"
-                f"Source: https://github.com/LeenHawk/gproxy/releases/tag/v{version}\n\n"
-                "Builds the Console and CLI from locked source dependencies for aarch64 and x86_64. "
-                "Uses Termux OpenSSL/libc++ and disables self-update so APT owns the executable. "
-                "The complete Console requires a separate web build, which a bare Cargo install does not perform.\n\n"
-                "Submission checks: stable release on main, source version/checksum, patch application, "
-                "shell syntax and official package linter. Full builds and device tests are not performed "
-                "by this submission workflow; upstream CI and maintainer review remain pending.\n")
+        title, body = submission_text(version, accepted)
         if notes:
             body += "\n" + notes.read_text()
         (OUTPUT / "PR.md").write_text(body)
