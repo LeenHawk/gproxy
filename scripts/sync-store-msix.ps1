@@ -1,4 +1,4 @@
-param([switch]$DryRun)
+param([switch]$DryRun, [string]$WingetReadyPath)
 
 $ErrorActionPreference = 'Stop'
 
@@ -152,6 +152,7 @@ function Sync-Release($Release, $Editions, [hashtable]$StoreCache, [string]$Work
     if ($LASTEXITCODE -ne 0) { throw "Could not download $tag checksums" }
     $checksumPath = Join-Path $directory SHA256SUMS
     $lines = @(Get-Content -LiteralPath $checksumPath)
+    $ready = @()
     foreach ($asset in $assets) {
         $name = $asset.name
         $edition = $Editions | Where-Object { $name.StartsWith($_.Prefix + '-', [StringComparison]::Ordinal) }
@@ -185,7 +186,7 @@ function Sync-Release($Release, $Editions, [hashtable]$StoreCache, [string]$Work
             $hash = (Get-FileHash -LiteralPath $candidate.Path -Algorithm SHA256).Hash.ToLowerInvariant()
             if (-not $Preview) {
                 Copy-Item -LiteralPath $candidate.Path -Destination $original -Force
-                gh release upload $tag $original --repo $env:GITHUB_REPOSITORY --clobber
+                gh release upload $tag $original --repo $env:GITHUB_REPOSITORY --clobber | Out-Host
                 if ($LASTEXITCODE -ne 0) { throw "Could not replace $tag/$name" }
             }
             Write-Summary "${tag}/${name}: $(if ($Preview) { 'would replace with' } else { 'replaced with' }) verified Microsoft-signed package."
@@ -194,9 +195,19 @@ function Sync-Release($Release, $Editions, [hashtable]$StoreCache, [string]$Work
             $lines[$positions[0]] = "$hash  $name"
             if (-not $Preview) {
                 $lines | Set-Content -LiteralPath $checksumPath -Encoding ascii
-                gh release upload $tag $checksumPath --repo $env:GITHUB_REPOSITORY --clobber
+                gh release upload $tag $checksumPath --repo $env:GITHUB_REPOSITORY --clobber | Out-Host
                 if ($LASTEXITCODE -ne 0) { throw "Could not update $tag checksums" }
             }
+        }
+        if (-not $Preview) {
+            $ready += @{ Edition = $(if ($edition.Prefix -eq 'gproxy-tauri-windows') { 'Desktop' } else { 'CLI' });
+                Architecture = $arch }
+        }
+    }
+    foreach ($editionName in @('Desktop', 'CLI')) {
+        $packages = @($ready | Where-Object { $_.Edition -eq $editionName })
+        if (@($packages.Architecture | Sort-Object -Unique).Count -eq 2) {
+            @{ Version = $tag.Substring(1); Edition = $editionName }
         }
     }
 }
@@ -212,14 +223,18 @@ function Main {
     $work = Join-Path ([IO.Path]::GetTempPath()) "gproxy-store-sync-$([guid]::NewGuid())"
     $cache = @{}
     $failures = @()
+    $wingetReady = @()
     try {
         $releases = @(Get-RecentReleases $env:GITHUB_REPOSITORY)
         foreach ($edition in $editions) { $edition.Versions = @($releases | ForEach-Object { $_.tag_name.Substring(1) + '.0' }) }
         foreach ($release in $releases) {
-            try { Sync-Release $release $editions $cache $work -Preview:$DryRun } catch {
+            try { $wingetReady += @(Sync-Release $release $editions $cache $work -Preview:$DryRun) } catch {
                 $failures += "$($release.tag_name): $($_.Exception.Message)"
                 Write-Summary "::error::$($failures[-1])"
             }
+        }
+        if ($WingetReadyPath) {
+            ConvertTo-Json -InputObject @($wingetReady) -Depth 5 | Set-Content -LiteralPath $WingetReadyPath -Encoding utf8
         }
         if ($failures.Count) { throw "$($failures.Count) release(s) failed Store synchronization" }
     } finally { if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force } }

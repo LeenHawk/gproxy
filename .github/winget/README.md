@@ -1,6 +1,7 @@
 # WinGet packages
 
-These are versioned WinGet community manifests for the official portable ZIPs.
+The checked-in 4.0.0 manifests record the original portable ZIP submissions.
+New CI submissions use Microsoft-signed MSIX installers exclusively.
 A manifest pins a specific released version, URL and SHA-256; older manifests
 must not be rewritten to point at a newer binary.
 
@@ -30,7 +31,8 @@ The Microsoft Store source is separate: its product IDs are `9P2FJRB9RS4Z`
 (Desktop) and `9NBMH3S5K0L9` (CLI), and availability depends on Store publication.
 
 Stable releases automatically call `winget-publish.yml` after release assets are
-published. It verifies ZIP checksums, nested executable paths and manifest schemas,
+published. It verifies MSIX checksums, Microsoft signature trust, identity and manifest schemas,
 then submits one PR per edition using the `WINGET_TOKEN` repository secret.
-Existing versions/open PRs are skipped. Manual dispatch defaults to validation
+Existing MSIX versions/open PRs are skipped. Unsigned releases wait for the daily
+Store sync job, which retries after signed packages are available. Manual dispatch defaults to validation
 only (`dry_run`); see [configuration and maintenance](../../dev_docs/winget.md).

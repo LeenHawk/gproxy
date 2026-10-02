@@ -10,11 +10,11 @@ function Assert-Throws([scriptblock]$Action, [string]$Message) {
     try { & $Action } catch { $failed = $true }
     Assert $failed $Message
 }
-function New-Package([string]$Path, [string]$Payload = 'release binary', [switch]$Signed) {
+function New-Package([string]$Path, [string]$Payload = 'release binary', [switch]$Signed, [string]$Architecture = 'x64') {
     $archive = [IO.Compression.ZipFile]::Open($Path, 'Create')
     try {
         $files = @{
-            'AppxManifest.xml' = '<Package><Identity Name="Test.CLI" Publisher="CN=Test" Version="4.0.0.0" ProcessorArchitecture="x64" /></Package>'
+            'AppxManifest.xml' = '<Package><Identity Name="Test.CLI" Publisher="CN=Test" Version="4.0.0.0" ProcessorArchitecture="ARCH" /></Package>'.Replace('ARCH', $Architecture)
             'gproxy.exe' = $Payload
         }
         if ($Signed) { $files['AppxSignature.p7x'] = 'fixture signature' }
@@ -114,6 +114,19 @@ try {
     @("$oldHash  $name", $otherLine) | Set-Content (Join-Path $remote SHA256SUMS)
     Sync-Release $release @($edition) $cache (Join-Path $work repair)
     Assert (($script:uploads -join ',') -eq 'SHA256SUMS') 'Repair interrupted checksum upload without replacing signed package'
+    # Both architectures must be signed and published before scheduling WinGet.
+    $one = @(Sync-Release $release @($edition) $cache (Join-Path $work oneArch))
+    Assert ($one.Count -eq 0) 'One architecture must not schedule WinGet'
+    $armName = 'gproxy-windows-aarch64.msix'
+    $armPath = Join-Path $remote $armName
+    New-Package $armPath -Signed -Architecture arm64
+    $armHash = (Get-FileHash $armPath).Hash.ToLowerInvariant()
+    Add-Content (Join-Path $remote SHA256SUMS) "$armHash  $armName"
+    $release.assets += @{ name = $armName }
+    $ready = @(Sync-Release $release @($edition) $cache (Join-Path $work ready))
+    Assert ($ready.Count -eq 1 -and $ready[0].Edition -eq 'CLI' -and $ready[0].Version -eq '4.0.0') 'Signed pair schedules exact WinGet edition/version'
+    $previewReady = @(Sync-Release $release @($edition) $cache (Join-Path $work readyPreview) -Preview)
+    Assert ($previewReady.Count -eq 0) 'Dry run must never schedule WinGet'
     Write-Host 'Store MSIX synchronization checks passed.'
 } finally {
     $env:GITHUB_REPOSITORY = $savedRepository; $env:MS_STORE_IDENTITY_PUBLISHER = $savedPublisher

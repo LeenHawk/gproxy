@@ -36,4 +36,41 @@ jobs:
           MS_STORE_CLI_IDENTITY_NAME: ${{ vars.MS_STORE_CLI_IDENTITY_NAME }}
           MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
           DRY_RUN: ${{ inputs.dry_run || false }}
-        run: scripts/sync-store-msix.ps1 -DryRun:($env:DRY_RUN -eq 'true')
+        run: scripts/sync-store-msix.ps1 -DryRun:($env:DRY_RUN -eq 'true') -WingetReadyPath store-winget-ready.json
+      - uses: actions/setup-python@v6
+        if: ${{ !inputs.dry_run }}
+        with:
+          python-version: '3.12'
+      - name: Prepare WinGet signed MSIX updates
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python -m pip install PyYAML==6.0.3 jsonschema==4.26.0
+          if ($LASTEXITCODE -ne 0) { throw 'Could not install manifest dependencies.' }
+          $ready = @(Get-Content store-winget-ready.json -Raw | ConvertFrom-Json)
+          foreach ($item in $ready) {
+            python scripts/prepare-winget.py --version $item.Version --edition $item.Edition --skip-existing --output "dist/store-winget/$($item.Version)"
+            if ($LASTEXITCODE -ne 0) { throw 'Could not prepare signed WinGet manifests.' }
+          }
+      - name: Save signed WinGet manifests
+        if: ${{ !inputs.dry_run }}
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: winget-store-signed
+          path: dist/store-winget/*/manifests
+          if-no-files-found: ignore
+      - name: Submit signed MSIX WinGet pull requests
+        if: ${{ !inputs.dry_run && hashFiles('dist/store-winget/*/manifests/**/*.yaml') != '' }}
+        env:
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          if (!$env:WINGET_CREATE_GITHUB_TOKEN) { throw 'Configure the WINGET_TOKEN repository secret.' }
+          Invoke-WebRequest https://github.com/microsoft/winget-create/releases/download/v1.12.13.0/wingetcreate.exe -OutFile "$env:RUNNER_TEMP/wingetcreate.exe"
+          foreach ($version in Get-ChildItem dist/store-winget -Directory) {
+            foreach ($edition in Get-ChildItem (Join-Path $version.FullName 'manifests') -Directory -ErrorAction SilentlyContinue) {
+              $title = "Microsoft-signed MSIX: LeenHawk.GPROXY.$($edition.Name) version $($version.Name)"
+              & "$env:RUNNER_TEMP/wingetcreate.exe" submit --no-open --prtitle $title $edition.FullName
+              if ($LASTEXITCODE -ne 0) { throw "WinGet submission failed: $title" }
+            }
+          }
