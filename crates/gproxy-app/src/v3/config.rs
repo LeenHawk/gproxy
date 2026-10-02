@@ -99,7 +99,26 @@ pub fn translate(
     let mut credentials = credentials(data, &opened, &providers, bridge, &mut report)?;
     let connection_profiles =
         fingerprints(data, &mut providers.rows, &mut credentials, &mut report);
-    let (price_rules, price_tiers) = price_rules(data, &providers, &mut report);
+    let (price_rules, mut price_tiers) = price_rules(data, &providers, &mut report);
+    for tier in &mut price_tiers {
+        for (field, value) in [
+            ("multiplier", &mut tier.multiplier),
+            ("input", &mut tier.input_per_million),
+            ("output", &mut tier.output_per_million),
+            ("cache_read", &mut tier.cache_read_per_million),
+            ("cache_creation_5m", &mut tier.cache_creation_5m_per_million),
+            (
+                "cache_creation_30m",
+                &mut tier.cache_creation_30m_per_million,
+            ),
+            ("cache_creation_1h", &mut tier.cache_creation_1h_per_million),
+            ("image_output", &mut tier.image_output_per_million),
+        ] {
+            if let Some(value) = value {
+                *value = money(value, &format!("{}.{}", tier.id, field), &mut report)?;
+            }
+        }
+    }
     let (rewrite_rules, rule_sets) = rules::translate(data, &mut report);
 
     report.count("connection_profiles", connection_profiles.len() as u64);
@@ -213,7 +232,7 @@ pub fn translate(
     let mut quotas = quotas(data, &providers, &mut report);
     quotas.extend(credential_limits(data, &providers, &mut report));
     for quota in &mut quotas {
-        quota.limit_value = money(&quota.limit_value, &quota.id, &mut report)?;
+        quota.limit_value = quota_limit(&quota.limit_value, &quota.id, &mut report)?;
     }
     report.count("quotas", quotas.len() as u64);
 
@@ -901,6 +920,21 @@ fn money(value: &str, row: &str, report: &mut Report) -> Result<String> {
         ));
     }
     Ok(rounded.to_string())
+}
+
+/// Legacy quotas could exceed v4's storage range. Keep a finite ceiling and
+/// report the reduction instead of aborting startup or removing the limit.
+fn quota_limit(value: &str, row: &str, report: &mut Report) -> Result<String> {
+    let decimal = rust_decimal::Decimal::from_str_exact(value)
+        .map_err(|error| Error::other(format!("{row}: invalid amount `{value}`: {error}")))?;
+    let maximum = gproxy_seaorm::FixedDecimal::from_atoms(i64::MAX);
+    if decimal > maximum.decimal() {
+        report.warn(format!(
+            "{row}: quota {value} was capped to v4's maximum {maximum}"
+        ));
+        return Ok(maximum.to_string());
+    }
+    money(value, row, report)
 }
 
 fn price_rate(row: &document::PriceRate) -> PriceRateDto {
