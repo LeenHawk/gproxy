@@ -23,10 +23,12 @@ docker run --rm --platform "$platform" \
   --env GPROXY_INSTALLATION_KIND \
   --env GPROXY_BUILD_UPDATE_SOURCE \
   "$image" sh -eu -c '
-    # Alpine ships standard libraries under its own native target triple.
+    # The fixed toolchain uses the upstream triple; keep custom hosts supported.
     native_target="$(rustc -vV | sed -n "s/^host: //p")"
     cargo build --locked --release --bin gproxy --target "$native_target"
     mkdir -p "target/$1/release"
-    cp "target/$native_target/release/gproxy" "target/$1/release/gproxy"
+    if [ "$native_target" != "$1" ]; then
+      cp "target/$native_target/release/gproxy" "target/$1/release/gproxy"
+    fi
     rustc --version > "target/$1/release/rustc-version.txt"
   ' sh "$target"

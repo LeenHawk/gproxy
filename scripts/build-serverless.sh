@@ -21,6 +21,8 @@ docker run --rm --platform "$platform" \
     cargo build --locked --release -p gproxy --bin gproxy-serverless \
       --target "$native_target" --no-default-features --features channels,postgres
     mkdir -p "target/$1/release"
-    cp "target/$native_target/release/gproxy-serverless" "target/$1/release/gproxy-serverless"
+    if [ "$native_target" != "$1" ]; then
+      cp "target/$native_target/release/gproxy-serverless" "target/$1/release/gproxy-serverless"
+    fi
     rustc --version > "target/$1/release/rustc-version.txt"
   ' sh "$target"
