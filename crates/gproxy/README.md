@@ -134,9 +134,13 @@ runs with a working directory the init system chose.
 | Platform | What is written | Started by |
 |---|---|---|
 | Linux + systemd | `~/.config/systemd/user/gproxy.service` | `systemctl --user enable --now`, plus `loginctl enable-linger` with `--autostart` |
-| macOS | `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist` | `launchctl bootstrap gui/<uid>` |
+| macOS | `~/Library/LaunchAgents/com.leenhawk.gproxy.cli.plist` | `launchctl bootstrap gui/<uid>` |
 | Windows | a logon-triggered task named `gproxy` | `schtasks /create /xml` |
 | Termux | `~/.termux/boot/gproxy.sh` | the **Termux:Boot** add-on, which must be installed separately |
+
+The CLI identity is `com.leenhawk.gproxy.cli`. Existing macOS agents using
+`io.github.leenhawk.gproxy` keep their registered identity for install, status
+and uninstall; new installations use the new label.
 
 A machine with none of those — a container, a chroot, a distribution on runit
 or s6, an Android app that is not Termux — is told so, with the reason, instead

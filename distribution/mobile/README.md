@@ -11,8 +11,9 @@ does not create store products, submit a review, or publish an application.
 - Application/bundle name: `com.leenhawk.gproxy.app`; listing name: **GPROXY**.
 - The graphical application uses this identifier on Android, HarmonyOS and all
   desktop platforms. The command-line edition already exists as **GPROXY CLI**.
-  `com.leenhawk.gproxy.cli` is its corresponding project namespace. This graphical
-  application rename does not rename existing CLI services or the legacy wrapper.
+  `com.leenhawk.gproxy.cli` is its corresponding project namespace. New macOS CLI service
+  installations use this namespace; existing legacy services remain manageable
+  under their registered label. The legacy Android wrapper is unchanged.
 - Early v4 builds used `dev.gproxy.desktop`. The new mobile identity installs
   separately. Desktop default data directories, keychain service names and
   startup registration names also change. Disable old automatic startup and

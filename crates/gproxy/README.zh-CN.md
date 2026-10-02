@@ -118,9 +118,12 @@ gproxy service status
 | 平台 | 写出什么 | 由谁启动 |
 |---|---|---|
 | Linux + systemd | `~/.config/systemd/user/gproxy.service` | `systemctl --user enable --now`；带 `--autostart` 时再加 `loginctl enable-linger` |
-| macOS | `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist` | `launchctl bootstrap gui/<uid>` |
+| macOS | `~/Library/LaunchAgents/com.leenhawk.gproxy.cli.plist` | `launchctl bootstrap gui/<uid>` |
 | Windows | 一个名为 `gproxy` 的登录触发计划任务 | `schtasks /create /xml` |
 | Termux | `~/.termux/boot/gproxy.sh` | **Termux:Boot** 附加组件，必须另行安装 |
+
+命令行版内部标识为 `com.leenhawk.gproxy.cli`。macOS 上已使用旧标识
+`io.github.leenhawk.gproxy` 的服务仍可正常安装更新、查询和卸载；新安装使用新标识。
 
 这四样都没有的机器——容器、chroot、基于 runit 或 s6 的发行版、不是 Termux 的
 Android 应用——会被明确告知原因，而不是拿到一份没人会读的单元。
