@@ -99,7 +99,7 @@ export class GproxyBackground {
           }
           await this.tray.install(); this.trayError = null;
         }
-        catch (error) { this.trayError = (error as Error).message; if (command === 'tray-on') throw error; }
+        catch (error) { this.trayError = (error as Error).message; if (command === 'tray-on') throw error as Error; }
       }
     }
     if (command === 'tray-on' || command === 'tray-off') {
