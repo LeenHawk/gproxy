@@ -57,7 +57,7 @@ export class GproxyTray {
       this.ready = true;
     } catch (error) {
       await this.remove();
-      throw error;
+      throw error as Error;
     } finally {
       await source.release();
     }
