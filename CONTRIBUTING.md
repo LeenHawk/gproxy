@@ -14,6 +14,8 @@ you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 - **Security vulnerabilities** must not be reported publicly; see
   [SECURITY.md](SECURITY.md).
+- **Questions** about configuration, deployment or usage go to
+  [Discussions](https://github.com/LeenHawk/gproxy/discussions/categories/q-a).
 - **Bugs and feature requests** go to
   [Issues](https://github.com/LeenHawk/gproxy/issues). Search existing issues
   first. For anything you prefer not to post publicly, email
@@ -131,6 +133,8 @@ or crate you change.
 ### 开始之前
 
 - **安全漏洞**请勿公开报告，详见 [SECURITY.md](SECURITY.md)。
+- **使用问题**（配置、部署、使用方法）请发到
+  [Discussions](https://github.com/LeenHawk/gproxy/discussions/categories/q-a)。
 - **Bug 与功能建议**请提交到 [Issues](https://github.com/LeenHawk/gproxy/issues)，
   提交前请先搜索是否已有相同问题。不便公开的内容可以发邮件到
   <leenhawk@leenhawk.com>。

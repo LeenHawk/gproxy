@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: 使用问题与讨论 / Questions and discussion
+    url: https://github.com/LeenHawk/gproxy/discussions/categories/q-a
+    about: 配置、部署和使用方面的提问请发到 Discussions。/ Ask configuration, deployment and usage questions in Discussions.
   - name: 安全漏洞 / Security vulnerability
     url: https://github.com/LeenHawk/gproxy/security/advisories/new
     about: 请私下报告，勿公开提交 Issue。/ Report privately; do not open a public issue.
