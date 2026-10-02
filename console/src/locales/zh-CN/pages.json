@@ -686,6 +686,9 @@
     "applyPrice": "应用默认价格",
     "reset": "移除本地条目",
     "applied": "新增 {{created}}，保留 {{skipped}}，未匹配 {{unmatched}}",
+    "applyPriceCount": "应用默认价格（{{count}}）",
+    "resetCount": "移除本地条目（{{count}}）",
+    "resetSelected": "移除选中的 {{count}} 个本地条目？",
     "tierFields": {
       "inputPrice": "输入",
       "outputPrice": "输出",

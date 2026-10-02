@@ -686,6 +686,9 @@
     "applyPrice": "Apply default price",
     "reset": "Remove local entry",
     "applied": "Created {{created}}, kept {{skipped}}, unmatched {{unmatched}}",
+    "applyPriceCount": "Apply default price ({{count}})",
+    "resetCount": "Remove local entries ({{count}})",
+    "resetSelected": "Remove {{count}} selected local entries?",
     "tierFields": {
       "inputPrice": "Input",
       "outputPrice": "Output",

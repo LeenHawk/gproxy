@@ -1,7 +1,7 @@
 import { ModelMetadataImport } from "./model-metadata-import"
 import { usePagination } from "@/lib/use-pagination"
 import { useState } from "react"
-import { BadgeDollarSign, Info, Pencil, Plus, Search } from "lucide-react"
+import { BadgeDollarSign, Info, ListChecks, Pencil, Plus, Search, Trash2 } from "lucide-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -16,6 +16,8 @@ import { ConfirmButton } from "@/components/confirm"
 import { RecordDialog, type FormField } from "@/components/record-form"
 import { EmptyNotice, ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { ModelCapabilities, ModelIdentity, ModelLimits, ModelSummaryCard } from "@/components/providers/model-summary"
@@ -58,6 +60,20 @@ export function ModelCatalogPage() {
     setDetail(null)
     setPricing(row.defaults?.pricing?.modelPattern ?? row.name)
   } })
+  const [batchMode, setBatchMode] = useState(false)
+  const selectionContext = JSON.stringify(request)
+  const [selection, setSelection] = useState<{ context: string; names: string[] }>({ context: selectionContext, names: [] })
+  const selected = selection.context === selectionContext ? selection.names : []
+  const select = (names: string[]) => setSelection({ context: selectionContext, names })
+  const chosen = rows.filter(row => selected.includes(row.name))
+  const priceable = chosen.filter(row => row.defaults?.pricing).map(row => row.name)
+  const locals = chosen.flatMap(row => row.local ? [row.local.id] : [])
+  const bulk = useMutation({ mutationFn: async (kind: "price" | "reset") => kind === "price" ? applyDefaultPrices(null, priceable) : void await models.batch(locals.map(id => ({ delete: id }))), onSuccess: async report => {
+    select([])
+    if (report) { await client.invalidateQueries({ queryKey: ["admin", "/price-rules"] }); toast.success(t("catalog.applied", report)) }
+    await refresh()
+  } })
+  const checkbox = (row: Row) => batchMode ? <Checkbox aria-label={`${t("management.select")}: ${row.name}`} checked={selected.includes(row.name)} disabled={bulk.isPending} onCheckedChange={checked => select(checked ? [...selected, row.name] : selected.filter(name => name !== row.name))} /> : null
   const fields: FormField[] = [{ name: "name", kind: "text", required: true }, ...metadataFields.map(name => ({ name, label: t(`catalog.${name}`), kind: name.endsWith("modalities") || name === "supported_parameters" ? "lines" as const : name === "context_window" || name === "max_output_tokens" ? "number" as const : "text" as const, nullable: true }))]
   const visiblePage = Math.min(page, Math.max(1, Math.ceil((list.data?.total ?? 0) / pageSize)))
   if (list.data && visiblePage !== page) setPage(visiblePage)
@@ -69,22 +85,30 @@ export function ModelCatalogPage() {
   </>
   return <Page>
     {importing ? <ModelMetadataImport onClose={() => setImporting(false)} /> : null}
-    <PageHeader title={t("nav.model-catalog")} actions={<><Button variant="outline" onClick={() => setImporting(true)}>{t("catalog.importRemote")}</Button><Button onClick={() => { save.reset(); setEditing({ name: "", metadata: {} }) }}><Plus data-icon="inline-start" />{t("actions.new")}</Button></>} />
+    <PageHeader title={t("nav.model-catalog")} actions={<><Button variant={batchMode ? "secondary" : "outline"} aria-pressed={batchMode} disabled={bulk.isPending} onClick={() => { setBatchMode(!batchMode); select([]) }}><ListChecks data-icon="inline-start" />{t("management.selectPage")}</Button><Button variant="outline" onClick={() => setImporting(true)}>{t("catalog.importRemote")}</Button><Button onClick={() => { save.reset(); setEditing({ name: "", metadata: {} }) }}><Plus data-icon="inline-start" />{t("actions.new")}</Button></>} />
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <InputGroup className="w-full sm:max-w-sm"><InputGroupAddon><Search /></InputGroupAddon><InputGroupInput aria-label={t("catalog.searchPlaceholder")} placeholder={t("catalog.searchPlaceholder")} value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></InputGroup>
         <span className="text-sm">{t("catalog.count", { count: list.data?.total ?? 0 })}</span>
       </div>
+      {batchMode ? <div role="group" aria-label={t("management.selectPage")} className="inline-flex w-fit max-w-full items-center gap-1 rounded-xl border bg-muted/30 p-1">
+        <Checkbox aria-label={t("management.selectPage")} title={t("management.selectPage")} className="mx-1" checked={rows.length > 0 && rows.every(row => selected.includes(row.name)) ? true : selected.length ? "indeterminate" : false} disabled={bulk.isPending || !rows.length} onCheckedChange={checked => select(checked ? rows.map(row => row.name) : [])} />
+        <span className="px-1 text-sm text-muted-foreground">{t("management.selected", { count: selected.length })}</span>
+        <Separator orientation="vertical" className="mx-1 self-stretch data-[orientation=vertical]:h-auto" />
+        <Button size="sm" variant="ghost" disabled={!priceable.length || bulk.isPending} onClick={() => bulk.mutate("price")}><BadgeDollarSign data-icon="inline-start" />{t("catalog.applyPriceCount", { count: priceable.length })}</Button>
+        <ConfirmButton variant="destructive" disabled={!locals.length || bulk.isPending} title={t("catalog.resetSelected", { count: locals.length })} onConfirm={() => bulk.mutate("reset")}><Trash2 data-icon="inline-start" />{t("catalog.resetCount", { count: locals.length })}</ConfirmButton>
+      </div> : null}
     </div>
-    {save.error || remove.error || apply.error ? <ErrorNotice error={save.error || remove.error || apply.error} /> : null}
+    {save.error || remove.error || apply.error || bulk.error ? <ErrorNotice error={save.error || remove.error || apply.error || bulk.error} /> : null}
     <QueryState isPending={list.isPending} error={list.error}>
       <DataTable paginate={false} rows={rows} rowKey={r => r.name} empty={<EmptyNotice title={t("state.emptyTitle")} />} columns={[
+        ...(batchMode ? [{ key: "selection", header: t("management.select"), cell: (r: Row) => checkbox(r) }] : []),
         { key: "name", cell: r => <ModelIdentity name={r.name} /> },
         { key: "providers", header: t("catalog.providerInstances"), cell: r => <ModelProviders providers={r.providers ?? []} /> },
         { key: "limits", header: t("catalog.limits"), cell: r => <ModelLimits metadata={r.metadata} /> },
         { key: "capabilities", header: t("catalog.capabilities"), cell: r => <ModelCapabilities metadata={r.metadata} /> },
         { key: "price", header: t("catalog.referencePrice"), cell: r => <ReferencePrice model={r.defaults} /> },
-      ]} actions={actions} renderCard={r => <ModelSummaryCard name={r.name} metadata={r.metadata} actions={actions(r)}><div className="flex flex-col gap-1"><span className="text-sm text-muted-foreground">{t("catalog.providerInstances")}</span><ModelProviders providers={r.providers ?? []} /></div><div className="flex items-start justify-between gap-3 border-t pt-3"><span className="text-sm text-muted-foreground">{t("catalog.referencePrice")}</span><ReferencePrice model={r.defaults} /></div></ModelSummaryCard>} />
+      ]} actions={actions} renderCard={r => <ModelSummaryCard name={r.name} metadata={r.metadata} control={checkbox(r)} actions={actions(r)}><div className="flex flex-col gap-1"><span className="text-sm text-muted-foreground">{t("catalog.providerInstances")}</span><ModelProviders providers={r.providers ?? []} /></div><div className="flex items-start justify-between gap-3 border-t pt-3"><span className="text-sm text-muted-foreground">{t("catalog.referencePrice")}</span><ReferencePrice model={r.defaults} /></div></ModelSummaryCard>} />
       <Pagination page={visiblePage} pageSize={pageSize} total={list.data?.total ?? 0} onPage={setPage} onPageSize={setPageSize} />
     </QueryState>
     {editing ? <RecordDialog open mode={editing.name ? "edit" : "create"} onOpenChange={open => { if (!open && !save.isPending) setEditing(null) }} title={t("actions.edit")} fields={fields} original={{ name: editing.local?.name ?? editing.name, ...editing.metadata }} pending={save.isPending} error={save.error} onSubmit={body => save.mutate(body)} /> : null}

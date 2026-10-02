@@ -686,6 +686,9 @@
     "applyPrice": "套用預設價格",
     "reset": "移除本機項目",
     "applied": "新增 {{created}}，保留 {{skipped}}，未匹配 {{unmatched}}",
+    "applyPriceCount": "套用預設價格（{{count}}）",
+    "resetCount": "移除本機項目（{{count}}）",
+    "resetSelected": "移除選取的 {{count}} 個本機項目？",
     "tierFields": {
       "inputPrice": "輸入",
       "outputPrice": "輸出",
