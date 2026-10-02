@@ -36,6 +36,9 @@ provider form should render.
 | `custom` | Any API-key endpoint speaking OpenAI, Claude or Gemini natively | `{"api_key"}` |
 | `dashscope` | Alibaba DashScope: the OpenAI and Anthropic modes, rerank, native image generation | `{"api_key"}` |
 | `deepseek` | DeepSeek: Chat under `/v1`, Responses at the root, Claude Messages under `/anthropic` | `{"api_key"}` |
+| `glm` | GLM pay-as-you-go API; live official ZCode model catalogue | `{"api_key"}` |
+| `glmcode` | GLM Coding Plan; separate catalogue, Chat / Messages / Responses and subscription quota | `{"api_key"}` |
+| `minimax` | MiniMax text API / Token Plan and H3 video creation, query, list, cancellation/deletion and download | `{"api_key"}` |
 | `devin` | Devin (Windsurf) at `server.codeium.com`: Connect-RPC over protobuf | session token |
 | `geminicli` | A Google account through the Code Assist endpoints the Gemini CLI talks to | OAuth |
 | `grokbuild` | An xAI account through the Grok Build CLI | OAuth |
@@ -359,3 +362,31 @@ default. Source credentials and hop-by-hop headers remain excluded even when
 listed. Channel-injected authentication and configured static `headers` are
 independent of this client-header policy. Changes take effect on configuration
 reload without rewriting the provider's saved list.
+
+### GLM and MiniMax
+
+`glm` uses the pay-as-you-go API; `glmcode` uses GLM Coding Plan. Both accept an `api_key` credential and default to `https://open.bigmodel.cn`. Global accounts use `baseUrl: "https://api.z.ai"`. `glmcode` supports the dedicated Chat, Claude Messages and Responses endpoints without falling back to paid API usage.
+
+Both model lists come from ZCode's live official catalogue: request `/api/v1/client/configs`, download the returned `builtin_provider_config_json`, then select the regional platform API or Coding Plan template. There is no bundled model list or stale-list fallback. This is a product catalogue, not proof of a key's model entitlement.
+
+`minimax` defaults to `https://api.minimax.io`; Chinese accounts can set their platform's API origin. OpenAI Chat and Claude Messages accept a Subscription Key (Coding Plan / Token Plan) or a pay-as-you-go API Key in `api_key`. Model discovery and detail use the official `/v1/models` and `/v1/models/{id}` endpoints. Separate providers can route subscription text and paid video independently.
+
+`glmcode` queries `/api/monitor/usage/quota/limit` for reported percentages, independent windows and reset times. Platform `glm` does not yet implement account balance queries. MiniMax follows the official CLI's key-type selection of `/v1/token_plan/remains` or `/account/query_balance`. These readings are currently for display; upstream responses determine exhaustion.
+
+MiniMax video covers **H3 V2** (`MiniMax-H3`, `MiniMax-H3-Max`) and requires a pay-as-you-go API Key. Submit the GPROXY OpenAI video extension JSON to `/v1/videos`:
+
+```json
+{
+  "model": "MiniMax-H3",
+  "prompt": "A cat running through a garden",
+  "duration": 5,
+  "resolution": "2K",
+  "aspect_ratio": "16:9"
+}
+```
+
+Query `/v1/videos/{id}` using the returned ID and download completed output from `/v1/videos/{id}/content`. `frame_images` supports first/last frames; `input_references` supports image, video and audio references. Native MiniMax `content` is also accepted. Sora multipart, `seconds`, `size`, and legacy Hailuo 2.x V1 endpoints are not supported.
+
+Lists use `page_num` / `page_size` (`limit` maps to `page_size`); `after` / `order` cursors are unsupported. Deletion preserves the upstream `action`: `cancelled` cancels a queued task, while `deleted` removes a task record. The channel does not poll automatically or store video files.
+
+Sources: [ZCode catalogue implementation](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/packages/provider-node/src/zcode-builtin-download.ts), [MiniMax official CLI](https://github.com/MiniMax-AI/cli), [GLM Coding Plan](https://docs.z.ai/devpack/tool/others), [MiniMax text](https://platform.minimax.io/docs/api-reference/text-anthropic-api), [MiniMax H3 V2](https://platform.minimax.io/docs/api-reference/video-generation-v2-create).

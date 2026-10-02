@@ -30,6 +30,9 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `custom` | `custom` | Any API-key endpoint speaking OpenAI, Claude or Gemini natively | `{"api_key"}` |
 | `dashscope` | `dashscope` | Alibaba DashScope: the OpenAI-compatible mode, the Anthropic-compatible mode, a rerank prefix of its own and the native multimodal-generation image API, all on one origin | `{"api_key"}` |
 | `deepseek` | `deepseek` | DeepSeek: Chat Completions under `/v1`, Responses at the origin root, Claude Messages under `/anthropic`, `prompt_cache_hit_tokens`, `/user/balance` | `{"api_key"}` |
+| `glm` | `glm` | GLM pay-as-you-go API; live official ZCode model catalogue | `{"api_key"}` |
+| `glm` | `glmcode` | GLM Coding Plan; separate catalogue, Chat / Messages / Responses and subscription quota | `{"api_key"}` |
+| `minimax` | `minimax` | MiniMax text API / Token Plan and H3 video creation, query, list, cancellation/deletion and download | `{"api_key"}` |
 | `devin` | `devin` | Devin (Windsurf) at `server.codeium.com`: Connect-RPC over protobuf rather than JSON, `GetChatMessage` frames translated into Chat Completions SSE, `GetUserStatus` daily and weekly windows | session token |
 | `geminicli` | `geminicli` | A Google account through the Code Assist endpoints the Gemini CLI talks to: PKCE login that discovers the Cloud project and tier, refresh, the Code Assist request envelope, `retrieveUserQuota` catalogue and per-model quota | `OAuthCredential` |
 | `grokbuild` | `grokbuild` | An xAI account through the Grok Build CLI: device login at `auth.x.ai`, refresh, a narrowed Responses body on `cli-chat-proxy.grok.com`, xAI's own media paths on `api.x.ai`, `/billing?format=credits` | `OAuthCredential` |

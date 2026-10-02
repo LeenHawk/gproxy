@@ -27,6 +27,8 @@ copilotcli = ["gproxy-channel/copilotcli", "gproxy-client/wreq"]
 custom = ["gproxy-channel/custom"]
 dashscope = ["gproxy-channel/dashscope"]
 deepseek = ["gproxy-channel/deepseek"]
+glm = ["gproxy-channel/glm"]
+minimax = ["gproxy-channel/minimax"]
 devin = ["gproxy-channel/devin"]
 geminicli = ["gproxy-channel/geminicli", "gproxy-client/wreq"]
 grokbuild = ["gproxy-channel/grokbuild"]
@@ -57,6 +59,8 @@ channels = [
     "custom",
     "dashscope",
     "deepseek",
+    "glm",
+    "minimax",
     "devin",
     "geminicli",
     "grokbuild",

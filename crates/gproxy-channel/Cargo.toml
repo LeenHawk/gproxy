@@ -103,6 +103,10 @@ dashscope = ["dep:futures-util"]
 # DeepSeek: OpenAI Chat, Responses off /responses and Claude Messages off
 # /anthropic, with prompt_cache_hit_tokens and the /user/balance probe.
 deepseek = ["dep:futures-util"]
+# GLM platform API and Coding Plan (glm / glmcode), dynamic ZCode catalogue.
+glm = ["dep:futures-util"]
+# MiniMax text API / Token Plan and H3 video tasks.
+minimax = ["dep:futures-util"]
 # Devin (Windsurf) cloud upstream at server.codeium.com: Connect-RPC over
 # protobuf rather than HTTP+JSON, so the channel hand-writes the envelope and
 # the few messages it needs; GetChatMessage frames become OpenAI Chat

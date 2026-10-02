@@ -30,6 +30,9 @@ description: "选择渠道、添加供应商与凭证，配置登录、额度查
 | `custom` | 任何原生讲 OpenAI、Claude 或 Gemini 的 API-key 端点 | `{"api_key"}` |
 | `dashscope` | 阿里 DashScope：OpenAI 模式、Anthropic 模式、rerank 与原生多模态图像 API | `{"api_key"}` |
 | `deepseek` | DeepSeek：`/v1` 下的 Chat、根路径的 Responses、`/anthropic` 下的 Claude Messages | `{"api_key"}` |
+| `glm` | GLM 按量 API；ZCode 官方动态模型目录 | `{"api_key"}` |
+| `glmcode` | GLM Coding Plan；独立模型目录、Chat／Messages／Responses、订阅额度查询 | `{"api_key"}` |
+| `minimax` | MiniMax 文本 API／Token Plan，以及 H3 视频创建、查询、列表、取消／删除、下载 | `{"api_key"}` |
 | `devin` | Devin（Windsurf），`server.codeium.com`：protobuf 上的 Connect-RPC | 会话令牌 |
 | `geminicli` | 经 Gemini CLI 所用的 Code Assist 端点访问 Google 账号 | OAuth |
 | `grokbuild` | 经 Grok Build CLI 使用 xAI 账号 | OAuth |
@@ -297,3 +300,31 @@ gproxy import --in  config.json --mode merge --source-master-key '…'
 `content-type`。未配置或空列表不增加允许项，其他客户端头默认丢弃。原始鉴权头和
 逐跳头即使列入名单也会移除；渠道注入的鉴权和静态 `headers` 配置独立于此规则。
 配置热更新后生效，不会把合并结果写回供应商保存的列表。
+
+### GLM 与 MiniMax
+
+`glm` 使用按量 API，`glmcode` 使用 GLM Coding Plan，两者都填 `api_key`。默认地址是国内 `https://open.bigmodel.cn`；国际账号将 `baseUrl` 设为 `https://api.z.ai`。`glmcode` 支持官方 Chat、Claude Messages 和 Responses 订阅入口，不会在额度耗尽后切换到普通 API。
+
+两个渠道的模型列表均沿用 ZCode 官方动态目录：查询 `/api/v1/client/configs`，下载返回的 `builtin_provider_config_json`，再选择对应地区的普通 API 或 Coding Plan 模板。没有内置固定模型名单，也不在下载失败时回退到旧名单。目录是官方产品列表，不代表该 Key 对每个模型都有权限。
+
+`minimax` 默认地址为 `https://api.minimax.io`；国内账号按其平台文档填写国内 API origin。文本支持 OpenAI Chat 和 Claude Messages，Subscription Key（Coding Plan／Token Plan）与按量 API Key 都填入 `api_key`。模型列表和详情使用官方 `/v1/models` 与 `/v1/models/{id}`。两类 Key 可以放在不同供应商中，分别配置文本与视频模型路由。
+
+额度查询：`glmcode` 读取官方 `/api/monitor/usage/quota/limit`，显示服务端提供的用量百分比、独立窗口和重置时间；普通 `glm` 尚未接入账户余额查询。MiniMax 按官方 CLI 的 Key 类型判断读取 `/v1/token_plan/remains` 或 `/account/query_balance`。当前这些查询结果用于展示，是否耗尽仍由上游请求结果判定。
+
+MiniMax 视频接入 **H3 V2**（`MiniMax-H3`、`MiniMax-H3-Max`），需要按量 API Key。使用 GPROXY 的 OpenAI 视频扩展 JSON：
+
+```json
+{
+  "model": "MiniMax-H3",
+  "prompt": "一只猫在花园里奔跑",
+  "duration": 5,
+  "resolution": "2K",
+  "aspect_ratio": "16:9"
+}
+```
+
+向 `/v1/videos` 提交后，使用返回的 `id` 查询 `/v1/videos/{id}`，完成后从 `/v1/videos/{id}/content` 下载。支持 `frame_images` 首尾帧及 `input_references` 图像、视频、音频参考，也可传 MiniMax 原生 `content`。不支持 Sora multipart、`seconds` 或 `size` 参数；旧版 Hailuo 2.x V1 接口不在本渠道覆盖范围内。
+
+列表使用 `page_num`／`page_size`（`limit` 会映射成 `page_size`），不支持游标 `after`／`order`。删除接口保留上游的 `action`：`cancelled` 表示取消待执行任务，`deleted` 才表示删除任务记录。渠道不会自动轮询，也不会保存视频文件。
+
+接口依据：[ZCode 动态目录实现](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/packages/provider-node/src/zcode-builtin-download.ts)、[MiniMax 官方 CLI](https://github.com/MiniMax-AI/cli)、[GLM Coding Plan](https://docs.bigmodel.cn/cn/coding-plan/tool/others)、[MiniMax 文本](https://platform.minimax.io/docs/api-reference/text-anthropic-api)、[MiniMax H3 V2](https://platform.minimax.io/docs/api-reference/video-generation-v2-create)。

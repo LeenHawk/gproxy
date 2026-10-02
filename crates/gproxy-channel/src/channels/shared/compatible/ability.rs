@@ -45,6 +45,8 @@ pub(crate) async fn send(
 /// ability calls carry nothing else build their headers this way.
 #[cfg(any(
     feature = "deepseek",
+    feature = "glm",
+    feature = "minimax",
     feature = "kimi",
     feature = "opencode",
     feature = "openrouter",

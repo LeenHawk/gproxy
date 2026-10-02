@@ -61,7 +61,7 @@ v4 提供带设置向导的桌面与移动应用，也可以作为命令行服�
 </tr>
 </table>
 
-内置渠道包括 OpenAI、Claude API / Code / Web、Codex、Gemini CLI、Google AI Studio、Copilot、DeepSeek、Kimi、OpenRouter、AWS Bedrock、Azure、Vertex 和 xAI 等。兼容 OpenAI、Claude 或 Gemini 的服务也可以通过 `custom` 渠道接入。
+内置渠道包括 OpenAI、Claude API / Code / Web、Codex、Gemini CLI、Google AI Studio、Copilot、DeepSeek、GLM、MiniMax、Kimi、OpenRouter、AWS Bedrock、Azure、Vertex 和 xAI 等。兼容 OpenAI、Claude 或 Gemini 的服务也可以通过 `custom` 渠道接入。
 
 图片、音频、文件、WebSocket / Realtime 等操作的支持范围取决于渠道与上游，详见[供应商与凭证](https://gproxy.leenhawk.com/zh-cn/guides/providers/)和[客户端指南](https://gproxy.leenhawk.com/zh-cn/guides/cli-clients/)。
 

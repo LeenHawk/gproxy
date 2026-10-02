@@ -41,6 +41,8 @@ pub(crate) mod code_assist;
     feature = "copilotcli",
     feature = "dashscope",
     feature = "deepseek",
+    feature = "glm",
+    feature = "minimax",
     feature = "grokbuild",
     feature = "kimi",
     feature = "opencode",

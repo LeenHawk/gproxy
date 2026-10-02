@@ -61,7 +61,7 @@ v4 runs as a desktop or mobile application with a setup wizard, a CLI service, a
 </tr>
 </table>
 
-Built-in channels include OpenAI, Claude API / Code / Web, Codex, Gemini CLI, Google AI Studio, Copilot, DeepSeek, Kimi, OpenRouter, AWS Bedrock, Azure, Vertex, and xAI. Other services that speak OpenAI, Claude, or Gemini protocols can use the `custom` channel.
+Built-in channels include OpenAI, Claude API / Code / Web, Codex, Gemini CLI, Google AI Studio, Copilot, DeepSeek, GLM, MiniMax, Kimi, OpenRouter, AWS Bedrock, Azure, Vertex, and xAI. Other services that speak OpenAI, Claude, or Gemini protocols can use the `custom` channel.
 
 Support for images, audio, files, WebSocket / Realtime, and other operations depends on the channel and upstream. See [Providers and credentials](https://gproxy.leenhawk.com/guides/providers/) and the [client guides](https://gproxy.leenhawk.com/guides/cli-clients/).
 
