@@ -88,6 +88,12 @@ never put passwords or private keys in store listing files or issue comments.
 
 The recipe is `distribution/fdroid/com.leenhawk.gproxy.app.yml.in`. It uses pinned,
 checksum-verified Node/Go/Gradle tools and the F-Droid `rustup` source library.
+The Android UPX packer is built from the same pinned FLOSS source revision as
+the direct-release packer, outside the scanned application checkout. Store
+builds emit only the Android `cdylib` so Cargo actually applies fat LTO, with
+one codegen unit; concurrency is controlled separately
+with `CARGO_BUILD_JOBS`. F-Droid APKs use UPX `--best --lzma --android-shlib`,
+strip native debug data, and are realigned and verified before F-Droid signing.
 The scanner removes the repository's Gradle wrapper; the build step recreates a
 launcher for the verified Gradle installation. There are no blanket scanner
 exclusions. JavaScript dependencies are installed from frozen lockfiles during

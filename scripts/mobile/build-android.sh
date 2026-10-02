@@ -19,7 +19,7 @@ config="$(python3 scripts/mobile/version.py)"
 export GPROXY_BUILD_VERSION="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["version"])' "$config")"
 export GPROXY_BUILD_CHANNEL=release
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
-export CARGO_PROFILE_RELEASE_LTO=thin CARGO_PROFILE_RELEASE_CODEGEN_UNITS=8
+export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
 # A store build has no direct-distribution updater or signing trust root.
 unset GPROXY_UPDATE_PUBKEY
 source scripts/android/sdk.sh
@@ -37,7 +37,7 @@ formats=(--apk)
 if [ "$distribution" = google-play ]; then formats+=(--aab); fi
 (
   cd crates/gproxy-host-tauri
-  pnpm exec tauri android build --ci "${formats[@]}" --target "$arch" --config "$config" -- --locked
+  bash "$root/scripts/with-tauri-android-lib.sh" pnpm exec tauri android build --ci "${formats[@]}" --target "$arch" --config "$config" -- --locked
 )
 
 output="$root/dist/mobile/$distribution/$arch"
@@ -52,7 +52,14 @@ print(elements[0]["outputFile"])
 PY
 )"
 apk="$output/gproxy-$distribution-$arch.apk"
-cp "$apk_dir/$apk_name" "$apk"
+if [ "$distribution" = fdroid ]; then
+  strip=("$ANDROID_NDK_HOME"/toolchains/llvm/prebuilt/*/bin/llvm-strip)
+  python3 scripts/pack-android-application.py "$apk_dir/$apk_name" "$output/packed.apk" "${strip[0]}"
+  "$(android_build_tool "$(android_sdk_root)" zipalign)" -f -P 16 4 "$output/packed.apk" "$apk"
+  rm "$output/packed.apk"
+else
+  cp "$apk_dir/$apk_name" "$apk"
+fi
 python3 scripts/mobile/verify-android.py "$apk"
 "$(android_build_tool "$(android_sdk_root)" zipalign)" -c -P 16 4 "$apk"
 if [ "$distribution" = google-play ]; then

@@ -3,9 +3,11 @@
 # Use the upstream Android shared-library stub fix until it is released.
 set -euo pipefail
 revision=d5faee0886bb35ea24d7ff07b5bab518b9153796
-source_dir="${RUNNER_TEMP:?}/gproxy-android-upx"
+source_dir="${1:-${RUNNER_TEMP:?}/gproxy-android-upx}"
 git init "$source_dir"
-git -C "$source_dir" remote add origin https://github.com/upx/upx.git
+if ! git -C "$source_dir" remote get-url origin >/dev/null 2>&1; then
+  git -C "$source_dir" remote add origin https://github.com/upx/upx.git
+fi
 git -C "$source_dir" fetch --depth 1 origin "$revision"
 git -C "$source_dir" checkout --detach FETCH_HEAD
 git -C "$source_dir" submodule update --init --recursive --depth 1
@@ -14,5 +16,7 @@ cmake -S "$source_dir" -B "$source_dir/build" \
 cmake --build "$source_dir/build" --parallel 4
 mkdir -p "$source_dir/bin"
 install -m 755 "$source_dir/build/upx" "$source_dir/bin/upx"
-printf '%s\n' "$source_dir/bin" >> "${GITHUB_PATH:?}"
+if [ -n "${GITHUB_PATH:-}" ]; then
+  printf '%s\n' "$source_dir/bin" >> "$GITHUB_PATH"
+fi
 "$source_dir/bin/upx" --version

@@ -23,3 +23,4 @@ bash "$rustup_source/rustup-init.sh" -y --no-modify-path --default-toolchain 1.9
   --profile minimal --target aarch64-linux-android
 export PATH="$tools_dir/node-v24.21.0-linux-x64/bin:$PATH"
 npm install --prefix "$tools_dir/pnpm" --global pnpm@9.15.9
+bash scripts/install-android-upx.sh "$tools_dir/gproxy-android-upx"

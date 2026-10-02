@@ -1,3 +1,7 @@
+AntiFeatures:
+  NonFreeNet:
+    en-US: Offers integrations with proprietary AI services. Users provide their own
+      accounts and can configure other compatible endpoints.
 Categories:
   - Development
   - Internet
@@ -19,8 +23,8 @@ Builds:
     commit: @COMMIT@
     sudo:
       - apt-get update
-      - apt-get install -y clang cmake libclang-dev make pkg-config ninja-build openjdk-21-jdk-headless
-        python3 unzip xz-utils
+      - apt-get install -y clang cmake g++ libclang-dev make pkg-config ninja-build
+        openjdk-21-jdk-headless python3 unzip xz-utils
     output: dist/mobile/fdroid/aarch64/gproxy-fdroid-aarch64.apk
     srclibs:
       - rustup@1.28.2
@@ -29,10 +33,6 @@ Builds:
       - export ANDROID_HOME=$$SDK$$ ANDROID_NDK_HOME=$$NDK$$
       - bash scripts/mobile/fdroid-build.sh
     ndk: 30.0.15729638
-    antifeatures:
-      NonFreeNet:
-        en-US: Offers integrations with proprietary AI services. Users provide their
-          own accounts and can configure other compatible endpoints.
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$

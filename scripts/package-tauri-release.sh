@@ -73,7 +73,7 @@ case "$TARGET_OS" in
     arch="${TARGET_TRIPLE%%-*}"
     bindgen="BINDGEN_EXTRA_CLANG_ARGS_${TARGET_TRIPLE//-/_}"
     export "$bindgen=--target=${TARGET_TRIPLE}28"
-    pnpm exec tauri android build --ci --apk --target "$arch" --config "$config" -- --locked
+    bash "$root/scripts/with-tauri-android-lib.sh" pnpm exec tauri android build --ci --apk --target "$arch" --config "$config" -- --locked
     cd "$root"
     sdk="$(android_sdk_root)"
     apk_dir=crates/gproxy-host-tauri/gen/android/app/build/outputs/apk
@@ -84,7 +84,8 @@ case "$TARGET_OS" in
     : "${ANDROID_SIGNING_KEY_ALIAS:?}"
     work="$(mktemp -d)"
     trap 'rm -rf "$work"' EXIT
-    python3 scripts/pack-android-application.py "${files[0]}" "$work/packed.apk"
+    strip=("$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-strip)
+    python3 scripts/pack-android-application.py "${files[0]}" "$work/packed.apk" "${strip[0]}"
     printf '%s' "$ANDROID_SIGNING_KEYSTORE_B64" | base64 -d > "$work/key.jks"
     chmod 600 "$work/key.jks"
     "$(android_build_tool "$sdk" zipalign)" -f -P 16 4 "$work/packed.apk" "$work/aligned.apk"
