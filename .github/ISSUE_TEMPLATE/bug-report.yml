@@ -1,0 +1,98 @@
+name: Bug 反馈 / Bug report
+description: 报告 GPROXY 的错误行为或崩溃。/ Report incorrect behavior or a crash in GPROXY.
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先搜索[已有 Issue](https://github.com/LeenHawk/gproxy/issues)，并尽量用[最新稳定版](https://github.com/LeenHawk/gproxy/releases/latest)验证。每个 Issue 只描述一个问题，标题请具体、便于搜索。安全漏洞请勿在此提交，见 [SECURITY.md](https://github.com/LeenHawk/gproxy/blob/main/SECURITY.md)。
+        Search the [existing issues](https://github.com/LeenHawk/gproxy/issues) first and, when possible, verify on the [latest stable release](https://github.com/LeenHawk/gproxy/releases/latest). Keep each issue to one problem with a specific, searchable title. Do not report security vulnerabilities here; see [SECURITY.md](https://github.com/LeenHawk/gproxy/blob/main/SECURITY.md).
+
+        **请勿粘贴 API Key、OAuth Token、Cookie、密码、主密钥或私有请求内容，用 `<redacted>` 替换后再提交。**
+        **Never paste API keys, OAuth tokens, cookies, passwords, master keys or private request content; replace them with `<redacted>`.**
+  - type: input
+    id: version
+    attributes:
+      label: GPROXY 版本 / Version
+      description: 完整版本号或提交哈希，控制台侧边栏底部或“关于”页可以看到。/ Full version or commit SHA, shown at the bottom of the console sidebar or on the About page.
+      placeholder: "v4.0.3 · fa1b8d032"
+    validations:
+      required: true
+  - type: dropdown
+    id: distribution
+    attributes:
+      label: 部署方式 / Deployment
+      options:
+        - 桌面端 / Desktop (Windows / macOS / Linux)
+        - CLI（原生二进制 / native binary）
+        - 容器 / Container
+        - Android
+        - HarmonyOS
+        - Cloudflare
+        - Netlify
+        - Vercel
+        - Deno
+        - 从源码构建 / Built from source
+        - 其他 / Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 运行环境 / Environment
+      description: 操作系统与架构、数据库（SQLite / PostgreSQL / MySQL / D1）、前置反向代理等。/ OS and architecture, database, reverse proxy, etc.
+      placeholder: "Ubuntu 24.04 x86_64, PostgreSQL 17, nginx"
+  - type: textarea
+    id: request-path
+    attributes:
+      label: 请求路径 / Request path
+      description: 如果问题与模型请求有关，请填写。只在特定上游账号下出现时请说明，但不要提供账号或凭据本身。/ For problems with model requests. If it only happens with a particular upstream account, say so without sharing the account or its credentials.
+      value: |
+        - 客户端与协议 / Client and protocol:
+        - 供应商与模型 / Provider and model:
+        - 路由方式（聚合 / scoped）/ Routing (aggregated / scoped):
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      description: 最小、完整、可重复执行的步骤或请求示例。/ A minimal, complete, repeatable sequence or request.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果 / Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果 / Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志与诊断信息 / Logs and diagnostics
+      description: |
+        相关日志、错误堆栈、HTTP 状态码和发生时间。请粘贴文本，不要只附日志截图。
+        请求相关的问题请打开上下游日志：在控制台“系统 → 全局设置 → 日志”中开启“记录下游请求”“记录上游请求”，需要正文时再开启“记录下游请求体”“记录上游请求体”，复现后在“用量与日志 → 下游日志 / 上游日志”中查看并附上相关记录。默认脱敏只遮蔽识别到的密钥、Cookie 和令牌字段，发布前请再检查一遍。
+
+        Relevant logs, stack traces, HTTP status and timestamp. Paste text rather than only screenshots of logs.
+        For request problems, turn on request logging: in the console, open System → Global settings → Logs and enable "Capture downstream requests" and "Capture upstream requests", plus "Capture downstream bodies" / "Capture upstream bodies" if bodies are needed. Reproduce, then attach the relevant entries from Usage and logs → Downstream logs / Upstream logs. Default redaction only masks recognized secret, cookie and token fields; review everything before posting.
+      render: text
+  - type: textarea
+    id: config
+    attributes:
+      label: 相关配置 / Relevant configuration
+      description: 只提供复现问题所需的最小配置，所有敏感值均需脱敏。/ Only the minimum configuration needed to reproduce, with every sensitive value redacted.
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充说明 / Additional context
+      description: 开始出现问题的版本、截图等。/ The version where it started, screenshots, etc.

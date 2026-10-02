@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞 / Security vulnerability
+    url: https://github.com/LeenHawk/gproxy/security/advisories/new
+    about: 请私下报告，勿公开提交 Issue。/ Report privately; do not open a public issue.
+  - name: 文档 / Documentation
+    url: https://gproxy.leenhawk.com/
+    about: 安装、部署、渠道和客户端配置指南。/ Installation, deployment, channel and client guides.
+  - name: 私下联系 / Private contact
+    url: mailto:leenhawk@leenhawk.com
+    about: 不便公开的问题可以发邮件。/ Email for anything you prefer not to post publicly.

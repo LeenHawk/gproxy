@@ -1,0 +1,40 @@
+name: 功能建议 / Feature request
+description: 建议新功能、新渠道或改进。/ Suggest a new feature, channel or improvement.
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先搜索已有 Issue，每个 Issue 只提一项建议。较大的改动建议先在这里讨论方案，再提交 Pull Request。
+        Search existing issues first and keep each issue to one request. For larger changes, agree on the design here before opening a pull request.
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题 / Problem
+      description: 你遇到了什么问题或场景？/ What problem or use case does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案 / Proposed solution
+      description: 你希望 GPROXY 怎么做？最好附上简短示例。如果是新渠道，请附上官方 API 文档或客户端链接。/ What should GPROXY do, ideally with a short example? For a new channel, link the official API docs or client.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 其他方案 / Alternatives considered
+      description: 你考虑过的其他做法或现有的变通方式。/ Other approaches or current workarounds.
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: 兼容性影响 / Compatibility impact
+      description: 对现有用户、API 或配置可能产生的影响。/ Possible impact on existing users, APIs or configuration.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: 参与 / Contribution
+      options:
+        - label: 我愿意为此提交 Pull Request。/ I am willing to submit a pull request for this.
