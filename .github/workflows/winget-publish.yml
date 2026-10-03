@@ -68,5 +68,10 @@ jobs:
         run: |
           if (!$env:WINGET_CREATE_GITHUB_TOKEN) { throw 'Configure the WINGET_TOKEN repository secret.' }
           Invoke-WebRequest https://github.com/microsoft/winget-create/releases/download/v1.12.13.0/wingetcreate.exe -OutFile "$env:RUNNER_TEMP/wingetcreate.exe"
+          # Pinned digest of the v1.12.13.0 asset: this step holds the publisher token.
+          $tool = Get-Item "$env:RUNNER_TEMP/wingetcreate.exe"
+          if ((Get-FileHash $tool -Algorithm SHA256).Hash -ne '24042BD37915805615E6CF969AC57C6439124C3FE85823327F5F3FB24BD9FFEA') { throw 'wingetcreate.exe digest mismatch.' }
+          $signature = Get-AuthenticodeSignature $tool
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw 'wingetcreate.exe is not Microsoft-signed.' }
           & "$env:RUNNER_TEMP/wingetcreate.exe" submit --no-open --prtitle "New version: LeenHawk.GPROXY.$env:EDITION version $env:VERSION" "dist/winget/manifests/$env:EDITION"
           if ($LASTEXITCODE -ne 0) { throw "WinGet Create failed: $LASTEXITCODE" }
