@@ -307,7 +307,10 @@ fn file_content_path(
 ///   plain client of the core pool's default profile, never the scope's
 ///   credential client, so no provider auth leaks to an arbitrary origin;
 ///   redirects are followed up to `MAX_REDIRECT_HOPS` with the policy asked
-///   again for every hop, and the body is bounded by the read limit.
+///   again for every hop, and the body is bounded by the read limit. Only a
+///   direct native fetch is pinned to the addresses the policy vetted;
+///   through the global proxy, and on wasm32 (no resolver), the egress must
+///   enforce the destination policy itself (see `crate::fetch_policy`).
 pub struct Resources<'a, C> {
     core: &'a Core<C>,
     limits: CapabilityLimits,
@@ -655,7 +658,9 @@ fn transport(message: impl Into<String>) -> CapabilityError {
 
 /// The addresses the runtime resolver returns for the URL's host name; empty
 /// for a literal IP host (the policy reads that from the URL itself) and on
-/// wasm32, which has no resolver. Natively a name that resolves to nothing
+/// wasm32, which has no resolver (so there the policy judges a name without
+/// its addresses and the platform egress must keep fetches off internal
+/// networks). Natively a name that resolves to nothing
 /// is a transport failure before any policy decision: there is nothing to
 /// connect to.
 #[cfg(not(target_arch = "wasm32"))]
@@ -683,7 +688,11 @@ async fn resolve_host(_: &url::Url) -> Result<Vec<std::net::IpAddr>, CapabilityE
 /// The host name a fetch's connection must be pinned to, when there is one to
 /// pin: a name (a literal IP is its own address), vetted addresses to pin it
 /// to, and a direct connection. Through a proxy the proxy resolves the name,
-/// so there is no connection of this process's to pin.
+/// so there is no connection of this process's to pin: the name was still
+/// resolved and vetted here (and refused if that failed), but the proxy may
+/// connect somewhere else, so the destination policy for proxied fetches is
+/// the proxy's to enforce. Proxy users keep working; they do not get the
+/// rebinding guarantee a direct fetch has. See `crate::fetch_policy`.
 fn pin_target<'u>(
     url: &'u url::Url,
     config: &gproxy_client::ConnectionConfig,
