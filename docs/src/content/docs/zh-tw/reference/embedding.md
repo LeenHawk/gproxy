@@ -96,6 +96,8 @@ let (response, usage) = execution.into_parts();
 
 應用層決定的一切——允許的 Provider 與憑證、預算鏈、會話——都是**傳進來的**。這裡不認證任何人。
 
+資源 URL 預設使用 `DefaultFetchPolicy`：原生直連會固定已驗證的公網 IP。設定代理後，如果網域需要由代理獨立解析，該 URL 會被拒絕。嵌入方可透過 `.fetch_policy(...)` 明確設定 `AllowlistFetchPolicy`，僅允許自己控制的網域，並由代理負責目的位址限制。wasm 下網域目的位址仍依賴平台的出站存取控制。
+
 ## 這裡沒有什麼
 
 - **身份。** 使用者、API key、組織、團隊、權限、訂閱、限流和 OAuth issuer 屬於 `gproxy-app`，

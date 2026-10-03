@@ -12,17 +12,15 @@
 //! * Native, direct: the fetch connects only to the addresses the policy saw
 //!   (a pinned client), so a name that rebinds between lookup and connect
 //!   cannot reach an address the policy never judged.
-//! * Native, through the configured proxy: the name is still resolved here
-//!   and vetted, and a name that fails to resolve is refused, but the proxy
-//!   resolves it again and makes the connection. This process has no
-//!   connection to pin, so a rebinding name, or a name the proxy resolves
-//!   differently (split-horizon DNS), reaches whatever the proxy reaches.
+//! * Native, through the configured proxy: address-based policies refuse
+//!   domain URLs because proxy DNS cannot be pinned to the vetted answers.
+//!   An explicit host allow-list or allow-all policy can permit proxy DNS.
 //! * wasm32: no resolver, no pinning. Only literal IP hosts and loopback
 //!   names are judged; any other name is fetched wherever the runtime's
 //!   `fetch` sends it.
 //!
-//! In the last two cases the destination policy is the proxy's or the
-//! platform egress's to enforce: a deployment that fetches untrusted links
+//! For explicitly permitted proxy DNS and wasm32, destination policy is the
+//! proxy's or platform egress's to enforce: a deployment that fetches untrusted links
 //! through a proxy or on an edge runtime must have that egress refuse
 //! internal destinations itself, or use an allow-list of names it controls.
 
@@ -40,6 +38,12 @@ pub enum FetchDecision {
 /// `CoreBuilder::fetch_policy`; `DefaultFetchPolicy` when unset.
 pub trait FetchPolicy: Send + Sync {
     fn decide(&self, url: &url::Url, resolved: &[IpAddr]) -> FetchDecision;
+
+    /// Whether a proxy may resolve a hostname independently of the addresses
+    /// passed to `decide`. Address-based policies must keep the default.
+    fn allows_proxy_resolution(&self) -> bool {
+        false
+    }
 }
 
 /// http/https to globally routable addresses only. Denies every range the
@@ -250,6 +254,10 @@ impl FetchPolicy for DefaultFetchPolicy {
 }
 
 impl FetchPolicy for AllowAllFetchPolicy {
+    fn allows_proxy_resolution(&self) -> bool {
+        true
+    }
+
     fn decide(&self, url: &url::Url, _: &[IpAddr]) -> FetchDecision {
         match web_scheme(url) {
             Ok(()) => FetchDecision::Allow,
@@ -259,6 +267,10 @@ impl FetchPolicy for AllowAllFetchPolicy {
 }
 
 impl FetchPolicy for AllowlistFetchPolicy {
+    fn allows_proxy_resolution(&self) -> bool {
+        true
+    }
+
     fn decide(&self, url: &url::Url, _: &[IpAddr]) -> FetchDecision {
         if let Err(reason) = web_scheme(url) {
             return FetchDecision::Deny(reason);

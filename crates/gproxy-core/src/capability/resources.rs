@@ -866,6 +866,15 @@ impl<C: BatchConnectionTrait + Send + Sync> Resources<'_, C> {
                 proxy,
                 ..Default::default()
             };
+            if matches!(url.host(), Some(url::Host::Domain(_)))
+                && config.proxy != gproxy_client::ProxyConfig::Direct
+                && !self.core.fetch_policy().allows_proxy_resolution()
+            {
+                return Err(resource_error(
+                    CapabilityErrorKind::Unsupported,
+                    "URL resource host cannot be bound to vetted addresses through a proxy; use direct transport or an operator-approved host allow-list",
+                ));
+            }
             let client = match pin_target(&url, &config, &vetted) {
                 // Connect only where the policy looked. Resolving the name
                 // again at connect time would let a name that answers

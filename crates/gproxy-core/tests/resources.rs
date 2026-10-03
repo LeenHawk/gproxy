@@ -976,6 +976,51 @@ async fn allow_all_policy_reads_a_url_with_its_metadata() {
 }
 
 #[tokio::test]
+async fn proxy_dns_requires_an_explicit_hostname_policy() {
+    // Use localhost only for deterministic local DNS. This address-based
+    // policy permits the vetted answer, but never delegates resolution.
+    struct VettedLocal;
+    impl FetchPolicy for VettedLocal {
+        fn decide(&self, _: &url::Url, resolved: &[IpAddr]) -> FetchDecision {
+            assert!(!resolved.is_empty());
+            FetchDecision::Allow
+        }
+    }
+    let proxy = LocalServer::start(vec![ok("text/plain", b"proxied")]).await;
+    let h = with_policy(harness(full(), "round_robin").await, Arc::new(VettedLocal));
+    h.core
+        .store()
+        .settings()
+        .update(gproxy_store::entity::config::setting::ActiveModel {
+            proxy: sea_orm::Set(Some(
+                serde_json::to_value(gproxy_client::ProxyConfig::Explicit { url: proxy.url("") })
+                    .unwrap(),
+            )),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let reference = ResourceReference::Url("http://localhost/resource".into());
+    let error = resources(&h)
+        .read(&scope(&h, "tenant", "p"), &reference)
+        .await
+        .unwrap_err();
+    assert_eq!(error.kind(), CapabilityErrorKind::Unsupported);
+    assert!(
+        proxy.hits().is_empty(),
+        "proxy must not receive an unbound hostname"
+    );
+
+    let h = with_policy(h, Arc::new(AllowlistFetchPolicy::new(["localhost"])));
+    let read = resources(&h)
+        .read(&scope(&h, "tenant", "p"), &reference)
+        .await
+        .unwrap();
+    assert_eq!(read.metadata.mime.as_deref(), Some("text/plain"));
+    assert_eq!(proxy.hits().len(), 1);
+}
+
+#[tokio::test]
 async fn default_policy_denies_a_loopback_url_before_any_connection() {
     let server = LocalServer::start(vec![ok("text/plain", b"never")]).await;
     let h = harness(full(), "round_robin").await;
