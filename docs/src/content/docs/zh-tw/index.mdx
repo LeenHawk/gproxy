@@ -1,0 +1,49 @@
+---
+title: GPROXY
+description: "管理上游帳戶、轉換 API 協議、配置模型路由，並檢視用量與費用。"
+template: splash
+hero:
+  tagline: "一個入口，連線你的大模型服務。管理上游帳戶、轉換 API 協議、配置模型路由，並檢視用量與費用。"
+  actions:
+    - text: 安裝 GPROXY
+      link: /zh-tw/getting-started/installation/
+      icon: rocket
+    - text: 快速開始
+      link: /zh-tw/getting-started/quick-start/
+      icon: right-arrow
+      variant: secondary
+    - text: GitHub
+      link: https://github.com/LeenHawk/gproxy
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## 從這裡開始
+
+<CardGrid>
+  <LinkCard title="安裝與首次設定" description="選擇應用、CLI、容器或 Workers，完成帳戶設定。" href="/zh-tw/getting-started/installation/" />
+  <LinkCard title="傳送第一個請求" description="新增供應商和憑證，配置模型路由，連線你的用戶端。" href="/zh-tw/getting-started/quick-start/" />
+  <LinkCard title="從 v3 升級" description="瞭解自動遷移、資料保留範圍和升級後的檢查步驟。" href="/zh-tw/deployment/v3-to-v4/" />
+  <LinkCard title="連線 CLI 用戶端" description="配置 Codex CLI、Claude Code 等工具。" href="/zh-tw/guides/cli-clients/" />
+</CardGrid>
+
+## 常用功能
+
+<CardGrid>
+  <Card title="管理上游帳戶" icon="setting">
+    在一個控制台管理 API Key、OAuth 和 Cookie 憑證，檢視健康狀態和上游額度。
+  </Card>
+  <Card title="配置模型路由" icon="random">
+    為用戶端設定固定的模型名，按權重分配請求，並配置備用供應商。
+  </Card>
+  <Card title="連線不同協議" icon="puzzle">
+    支援 OpenAI、Claude 和 Gemini API 格式及串流回應，具體操作取決於渠道和上游能力。
+  </Card>
+  <Card title="檢視用量與費用" icon="document">
+    管理使用者和金鑰的訪問權限與費用預算，檢視請求記錄和計費明細。
+  </Card>
+</CardGrid>
+
+需要了解內部實現時，參閱[架構](/zh-tw/introduction/architecture/)和[嵌入核心庫](/zh-tw/reference/embedding/)。
