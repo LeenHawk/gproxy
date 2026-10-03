@@ -988,7 +988,10 @@
     "events": "串流事件",
     "requestQuery": "請求查詢參數",
     "clientIp": "用戶端 IP",
-    "metrics": "上游用量資料"
+    "metrics": "上游用量資料",
+    "deleteAll": "刪除全部",
+    "deleteAllConfirm": "刪除這裡的全部記錄？此操作無法復原，進行中的請求會保留。",
+    "deleted": "已刪除 {{count}} 筆記錄"
   },
   "modelRoutes": {
     "modelsFallback": "上游模型重新整理失敗，已退回儲存的模型；仍可手動輸入任意模型 ID。",

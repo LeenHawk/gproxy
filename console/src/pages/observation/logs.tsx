@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import * as history from "@/api/observation"
 import { DataTable, IdCell } from "@/components/data-table"
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import type { CaptureRecordDto, CaptureEventDto, LogBodyDto } from "@/generated/sdk"
 import { HistoryFilters, type HistoryFilter } from "./filters"
+import { useHistoryBatch } from "./history-batch"
 
 type Cursor = { cursor?: number; cursorId?: string }
 function Body({ body }: { body: LogBodyDto }) {
@@ -49,9 +50,16 @@ function LogsPage({ side }: { side: history.LogSide }) {
   const [cursors, setCursors] = useState<Cursor[]>([{}])
   const [selected, setSelected] = useState<string | null>(null)
   const list = useQuery({ queryKey: ["admin", "logs", side, filter, cursors.at(-1)], queryFn: () => history.logs(side, { ...filter, ...cursors.at(-1), limit: 50 }) })
-  return <Page><PageHeader title={t(side === "downstream" ? "nav.downstreamLogs" : "nav.upstreamLogs")} actions={<Button variant="outline" size="sm" onClick={() => void list.refetch()}>{t("observation.refresh")}</Button>} />
+  const client = useQueryClient()
+  const batch = useHistoryBatch({ context: JSON.stringify([side, filter, cursors.at(-1)]), rows: list.data?.items ?? [], remove: ids => history.deleteLogs(side, ids), clear: () => history.clearLogs(side), onDeleted: async () => {
+    setCursors([{}])
+    await client.invalidateQueries({ queryKey: ["admin", "logs", side] })
+  } })
+  return <Page><PageHeader title={t(side === "downstream" ? "nav.downstreamLogs" : "nav.upstreamLogs")} actions={<>{batch.actions}<Button variant="outline" size="sm" onClick={() => void list.refetch()}>{t("observation.refresh")}</Button></>} />
     <HistoryFilters logs reasons={side === "upstream"} onApply={value => { setFilter(value); setCursors([{}]) }} />
+    {batch.toolbar}
     <QueryState isPending={list.isPending} error={list.error}><DataTable rows={list.data?.items ?? []} rowKey={row => row.requestId} empty={<EmptyNotice title={t("requests.emptyTitle")} />} columns={[
+      ...batch.column,
       { key: "startedAtMs", cell: row => <InstantCell value={row.startedAtMs} /> },
       { key: "requestId", cell: row => <IdCell value={row.requestId} /> },
       ...(["userId", "model", "operation", "providerId", "credentialId", "state", "responseStatus"] as const).map(key => ({ key, header: t(`observation.${key}`), cell: (row: NonNullable<typeof list.data>["items"][number]) => <MaybeCell value={row[key]?.toString() ?? null} /> })),

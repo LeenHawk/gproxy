@@ -23,6 +23,7 @@ mod connectivity;
 mod credentials;
 mod crud;
 mod endpoints;
+mod history;
 mod models;
 mod pricing;
 mod profiles;
@@ -39,6 +40,7 @@ pub use catalog::Catalog;
 pub use connectivity::Connectivity;
 pub use credentials::Credentials;
 pub use endpoints::Endpoints;
+pub use history::{History, LogSide, MAX_HISTORY_DELETE};
 pub use models::{Models, ProviderModels};
 pub use pricing::{PriceRates, PriceRules, PriceTiers, Pricing};
 pub use profiles::ConnectionProfiles;
@@ -171,6 +173,10 @@ impl<'a, C> Manage<'a, C> {
     /// Tokenizer vocabularies and the token they are fetched with.
     pub fn tokenizer(&self) -> Tokenizer<'a, C> {
         Tokenizer::new(self.writer())
+    }
+    /// Captured logs and usage records, which only ever leave by deletion.
+    pub fn history(&self) -> History<'a, C> {
+        History::new(self.inner)
     }
 }
 

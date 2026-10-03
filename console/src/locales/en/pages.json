@@ -988,7 +988,10 @@
     "events": "Stream events",
     "requestQuery": "Request query",
     "clientIp": "Client IP",
-    "metrics": "Upstream usage data"
+    "metrics": "Upstream usage data",
+    "deleteAll": "Delete all",
+    "deleteAllConfirm": "Delete every record here? This cannot be undone. Requests still in progress are kept.",
+    "deleted": "Deleted {{count}} records"
   },
   "modelRoutes": {
     "modelsFallback": "Could not refresh upstream models. Showing saved models; you can still enter any model ID.",

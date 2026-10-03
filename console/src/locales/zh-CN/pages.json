@@ -988,7 +988,10 @@
     "events": "流式事件",
     "requestQuery": "请求查询参数",
     "clientIp": "客户端 IP",
-    "metrics": "上游用量数据"
+    "metrics": "上游用量数据",
+    "deleteAll": "删除全部",
+    "deleteAllConfirm": "删除这里的全部记录？此操作无法撤销，进行中的请求会保留。",
+    "deleted": "已删除 {{count}} 条记录"
   },
   "modelRoutes": {
     "modelsFallback": "上游模型刷新失败，已回退到保存的模型；仍可手动输入任意模型 ID。",

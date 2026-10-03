@@ -2,21 +2,31 @@
 use super::reply_sdk;
 use crate::{HostState, error::ErrorResponse};
 use axum::{
-    Extension, Router,
+    Extension, Json, Router,
     extract::{Path, Query, State},
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
 };
 use gproxy_app::{AdminScope, dto::PortalUsageQuery};
-use gproxy_sdk::dto::{LogQuery, UsageQuery, UsageRecordQuery};
+use gproxy_sdk::dto::{HistoryDelete, HistoryDeleted, LogQuery, UsageQuery, UsageRecordQuery};
+use gproxy_sdk::manage::LogSide;
 use gproxy_seaorm::BatchConnectionTrait;
 
 pub fn routes<C: BatchConnectionTrait + Send + Sync + 'static>() -> Router<HostState<C>> {
     Router::new()
         .route("/usage", get(usage::<C>))
-        .route("/usage/records", get(records::<C>))
-        .route("/logs/downstream", get(downstream::<C>))
-        .route("/logs/upstream", get(upstream::<C>))
+        .route("/usage/records", get(records::<C>).delete(clear_usage::<C>))
+        .route("/usage/records/delete", post(delete_usage::<C>))
+        .route(
+            "/logs/downstream",
+            get(downstream::<C>).delete(clear_downstream::<C>),
+        )
+        .route("/logs/downstream/delete", post(delete_downstream::<C>))
+        .route(
+            "/logs/upstream",
+            get(upstream::<C>).delete(clear_upstream::<C>),
+        )
+        .route("/logs/upstream/delete", post(delete_upstream::<C>))
         .route("/logs/downstream/{id}", get(detail::<C>))
         .route("/logs/captures/{id}", get(capture::<C>))
         .route_layer(axum::middleware::map_response(no_store))
@@ -96,6 +106,72 @@ macro_rules! log_detail {
 }
 log_detail!(detail, detail);
 log_detail!(capture, capture);
+
+// `POST …/delete` removes the named rows, `DELETE` on the listing removes all
+// of them. Deleting history is gated by the same section that reads it.
+async fn delete_usage<C: BatchConnectionTrait + Send + Sync + 'static>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Json(body): Json<HistoryDelete>,
+) -> Response {
+    crate::send(async move {
+        gate!("usage", scope);
+        let history = state.app().gproxy().manage().history();
+        reply_sdk(history.delete_usage(Some(&body.ids)).await.map(deleted))
+    })
+    .await
+}
+
+async fn clear_usage<C: BatchConnectionTrait + Send + Sync + 'static>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+) -> Response {
+    crate::send(async move {
+        gate!("usage", scope);
+        let history = state.app().gproxy().manage().history();
+        reply_sdk(history.delete_usage(None).await.map(deleted))
+    })
+    .await
+}
+
+macro_rules! delete_logs {
+    ($delete:ident, $clear:ident, $side:expr) => {
+        async fn $delete<C: BatchConnectionTrait + Send + Sync + 'static>(
+            State(state): State<HostState<C>>,
+            Extension(scope): Extension<AdminScope>,
+            Json(body): Json<HistoryDelete>,
+        ) -> Response {
+            crate::send(async move {
+                gate!("logs", scope);
+                let history = state.app().gproxy().manage().history();
+                reply_sdk(
+                    history
+                        .delete_logs($side, Some(&body.ids))
+                        .await
+                        .map(deleted),
+                )
+            })
+            .await
+        }
+        async fn $clear<C: BatchConnectionTrait + Send + Sync + 'static>(
+            State(state): State<HostState<C>>,
+            Extension(scope): Extension<AdminScope>,
+        ) -> Response {
+            crate::send(async move {
+                gate!("logs", scope);
+                let history = state.app().gproxy().manage().history();
+                reply_sdk(history.delete_logs($side, None).await.map(deleted))
+            })
+            .await
+        }
+    };
+}
+delete_logs!(delete_downstream, clear_downstream, LogSide::Downstream);
+delete_logs!(delete_upstream, clear_upstream, LogSide::Upstream);
+
+fn deleted(deleted: u64) -> HistoryDeleted {
+    HistoryDeleted { deleted }
+}
 
 async fn no_store(mut response: Response) -> Response {
     response.headers_mut().insert(

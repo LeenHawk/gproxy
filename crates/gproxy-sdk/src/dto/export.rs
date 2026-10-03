@@ -109,6 +109,8 @@ exported!(
     // logs
     CaptureDetailDto, CaptureEventDto,
     CaptureRecordDto,
+    HistoryDelete,
+    HistoryDeleted,
     LogBodyDto,
     LogBodyEncoding,
     LogDetailDto,

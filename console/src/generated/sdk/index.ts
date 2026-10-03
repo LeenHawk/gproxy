@@ -50,6 +50,8 @@ export * from "./DeviceStarted";
 export * from "./DiscoveredModelDto";
 export * from "./ExportCredentialDto";
 export * from "./ExportRequest";
+export * from "./HistoryDelete";
+export * from "./HistoryDeleted";
 export * from "./ImportMode";
 export * from "./ImportReportDto";
 export * from "./ImportRequest";
