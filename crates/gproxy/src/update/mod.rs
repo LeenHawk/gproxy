@@ -49,6 +49,7 @@
 //! else is exercised: a generated key pair, a manifest signed with it, a fake
 //! artifact served over loopback, and every refusal — see `tests/update.rs`.
 
+mod announce;
 pub mod config;
 mod download;
 /// The whole path, driven against a manifest the test signs itself.
@@ -68,7 +69,8 @@ use std::{
 };
 
 use gproxy_host_axum::{
-    AppliedUpdate, UpdateFailure, UpdateProgress, UpdateReport, UpdateSchedule, UpdateService,
+    Announcement, AppliedUpdate, UpdateFailure, UpdateProgress, UpdateReport, UpdateSchedule,
+    UpdateService,
 };
 
 pub use config::{
@@ -123,6 +125,9 @@ pub struct Updater {
     runtime: Mutex<Option<(Channel, Source, bool, bool)>>,
     recorded: Mutex<Recorded>,
     progress: Mutex<Option<UpdateProgress>>,
+    /// The publisher's notices, last fetched from the documentation site. See
+    /// [`announce`] for why they are verified under the same key as a manifest.
+    announcements: announce::Cache,
     /// The scheduled check, aborted when this value is dropped. The task holds
     /// a `Weak` back, so the two do not keep each other alive.
     task: Mutex<Option<tokio::task::JoinHandle<()>>>,
@@ -228,6 +233,7 @@ impl Updater {
             runtime: Mutex::new(None),
             recorded: Mutex::new(Recorded::default()),
             progress: Mutex::new(None),
+            announcements: announce::Cache::default(),
             task: Mutex::new(None),
         }))
     }
@@ -267,6 +273,7 @@ impl Updater {
             runtime: Mutex::new(None),
             recorded: Mutex::new(Recorded::default()),
             progress: Mutex::new(None),
+            announcements: announce::Cache::default(),
             task: Mutex::new(None),
         })
     }
@@ -740,6 +747,25 @@ impl UpdateService for Updater {
 
     fn rollback(&self) -> gproxy_host_axum::update::UpdateFuture<'_, AppliedUpdate> {
         Box::pin(async move { self.rollback_now(true).await.map_err(UpdateFailure::from) })
+    }
+
+    fn announcements(&self) -> gproxy_host_axum::update::UpdateFuture<'_, Vec<Announcement>> {
+        Box::pin(async move {
+            // The channel the instance follows, not the one it was built from:
+            // an operator who switched a release build to `dev` wants to hear
+            // what the dev channel has to say.
+            let channel = self
+                .channel(None)
+                .map_or(BUILD_CHANNEL, |channel| channel.as_str());
+            Ok(announce::applicable(
+                &self.announcements,
+                &self.client,
+                self.signing_key.as_deref(),
+                BUILD_VERSION,
+                channel,
+            )
+            .await)
+        })
     }
 }
 

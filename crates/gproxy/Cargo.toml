@@ -112,6 +112,8 @@ reqwest = { workspace = true, features = ["rustls", "http2", "socks", "system-pr
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
 # Ordering a release against the running build, on every channel but `staging`.
 semver = { workspace = true }
+# RFC 3339 parsing for the announcement feed's `published_at` / `expires_at`.
+time = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 # The source marker: SHA-256 of the v3 file's path, which is v3's own scheme
@@ -139,6 +141,8 @@ zip = { workspace = true }
 self-replace = { workspace = true }
 
 [dev-dependencies]
+# `datetime!` literals in the announcement filter tests.
+time = { workspace = true, features = ["macros"] }
 aes-gcm = { workspace = true }
 # Signing a manifest in the tests. The release pipeline signs with `openssl`;
 # this is the same detached ed25519 signature over the same payload, so a test

@@ -37,6 +37,7 @@
 //! | `POST /admin/api/update/check` | check now; still only a report |
 //! | `POST /admin/api/update/apply` | download, verify, swap — the explicit act |
 //! | `POST /admin/api/update/rollback` | put the previous executable back |
+//! | `GET /admin/api/update/announcements` | the publisher's signed notices that apply to this build |
 //!
 //! [`UpdateSchedule::automatic`] is on the read so a console can say out loud
 //! when an operator has turned the rule off.
@@ -109,6 +110,52 @@ pub trait UpdateService: Send + Sync {
 
     /// Put the executable this one replaced back where it was.
     fn rollback(&self) -> UpdateFuture<'_, AppliedUpdate>;
+
+    /// The publisher's notices that apply to this build: a deprecation, a
+    /// security advisory, a migration warning. Read from the documentation
+    /// site's signed feed and filtered by version and channel on the host, so
+    /// a console shows only what concerns the instance it is looking at.
+    ///
+    /// Never a failure a console has to handle: a feed that cannot be fetched
+    /// or does not verify is an empty list, exactly as unreadable release notes
+    /// are `None` on an [`UpdateReport`]. The hosts that cannot update
+    /// themselves do not mount this surface at all.
+    fn announcements(&self) -> UpdateFuture<'_, Vec<Announcement>>;
+}
+
+/// One notice from the publisher's feed, already known to apply to this build.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Announcement {
+    /// Stable across edits of the same notice, so a console can remember which
+    /// ones a reader has dismissed.
+    pub id: String,
+    pub severity: AnnouncementSeverity,
+    /// RFC 3339, as published.
+    pub published_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+    /// The semver range the notice applies to, when it is not for everyone.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub affects: Option<String>,
+    /// Keyed by BCP 47 tag. `en` is always present; a console falls back to it.
+    pub content: std::collections::BTreeMap<String, AnnouncementContent>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AnnouncementSeverity {
+    Info,
+    Warning,
+    Critical,
+}
+
+/// A notice in one language. The body is a small Markdown subset — headings,
+/// blockquotes, bullets, bold and code — which is all the publisher's checker
+/// admits and all a console has to render.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AnnouncementContent {
+    pub title: String,
+    pub body: String,
 }
 
 /// What the scheduled check has found so far, and whether there is a schedule.
@@ -282,7 +329,7 @@ pub struct ChannelQuery {
     pub source: Option<String>,
 }
 
-/// The five routes, to be merged into `/admin/api`.
+/// The six routes, to be merged into `/admin/api`.
 ///
 /// Called **only** when [`HostState::updates`] is `Some`, so the surface does
 /// not exist on a host that cannot update itself rather than existing and
@@ -297,6 +344,7 @@ where
         .route("/update/check", post(check::<C>))
         .route("/update/apply", post(apply::<C>))
         .route("/update/rollback", post(rollback::<C>))
+        .route("/update/announcements", get(announcements::<C>))
 }
 
 async fn recorded<C>(
@@ -389,6 +437,26 @@ where
         };
         match service.rollback().await {
             Ok(applied) => crate::error::ok_json(&applied),
+            Err(failure) => failure.into_response(),
+        }
+    })
+    .await
+}
+
+async fn announcements<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        let service = match instance_service(&state, &scope) {
+            Ok(service) => service,
+            Err(response) => return *response,
+        };
+        match service.announcements().await {
+            Ok(notices) => crate::error::ok_json(&notices),
             Err(failure) => failure.into_response(),
         }
     })
