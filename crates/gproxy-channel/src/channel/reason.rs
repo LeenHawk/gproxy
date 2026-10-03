@@ -8,6 +8,16 @@ use serde_json::Value;
 pub enum ResponseReason {
     Refusal,
     ContentFilter,
+    Safety,
+    Blocklist,
+    ProhibitedContent,
+    SensitivePersonalInformation,
+    Recitation,
+    Cyber,
+    Bio,
+    FrontierLlm,
+    ReasoningExtraction,
+    GeneralHarms,
     AuthenticationFailed,
     PermissionDenied,
     RateLimited,
@@ -24,6 +34,16 @@ impl ResponseReason {
         match self {
             Self::Refusal => "refusal",
             Self::ContentFilter => "content_filter",
+            Self::Safety => "safety",
+            Self::Blocklist => "blocklist",
+            Self::ProhibitedContent => "prohibited_content",
+            Self::SensitivePersonalInformation => "sensitive_personal_information",
+            Self::Recitation => "recitation",
+            Self::Cyber => "cyber",
+            Self::Bio => "bio",
+            Self::FrontierLlm => "frontier_llm",
+            Self::ReasoningExtraction => "reasoning_extraction",
+            Self::GeneralHarms => "general_harms",
             Self::AuthenticationFailed => "authentication_failed",
             Self::PermissionDenied => "permission_denied",
             Self::RateLimited => "rate_limited",
@@ -168,15 +188,12 @@ pub(crate) fn code_reason(code: &str) -> Option<ResponseReason> {
         | "content_policy_violation"
         | "ResponsibleAIPolicyViolation"
         | "content_filtered"
-        | "guardrail_intervened"
-        | "SAFETY"
-        | "BLOCKLIST"
-        | "PROHIBITED_CONTENT"
-        | "IMAGE_SAFETY"
-        | "IMAGE_PROHIBITED_CONTENT"
-        | "IMAGE_RECITATION"
-        | "RECITATION"
-        | "SPII" => ContentFilter,
+        | "guardrail_intervened" => ContentFilter,
+        "SAFETY" | "IMAGE_SAFETY" => Safety,
+        "BLOCKLIST" => Blocklist,
+        "PROHIBITED_CONTENT" | "IMAGE_PROHIBITED_CONTENT" => ProhibitedContent,
+        "SPII" => SensitivePersonalInformation,
+        "RECITATION" | "IMAGE_RECITATION" => Recitation,
         "authentication_error" | "invalid_api_key" | "UNAUTHENTICATED" => AuthenticationFailed,
         "permission_error"
         | "permission_denied"
@@ -210,6 +227,21 @@ pub(crate) fn code_reason(code: &str) -> Option<ResponseReason> {
         _ => return None,
     })
 }
+fn claude_refusal_reason(details: &Value) -> Option<ResponseReason> {
+    if details.get("type").and_then(Value::as_str) != Some("refusal") {
+        return None;
+    }
+    use ResponseReason::*;
+    Some(match details.get("category").and_then(Value::as_str) {
+        Some("cyber") => Cyber,
+        Some("bio") => Bio,
+        Some("frontier_llm") => FrontierLlm,
+        Some("reasoning_extraction") => ReasoningExtraction,
+        Some("general_harms") => GeneralHarms,
+        _ => Refusal,
+    })
+}
+
 pub(crate) fn classify(value: &Value) -> Option<ResponseReason> {
     if let Some(values) = value.as_array() {
         return values.iter().find_map(classify);
@@ -229,6 +261,15 @@ pub(crate) fn classify(value: &Value) -> Option<ResponseReason> {
             .and_then(code_reason)
     {
         return Some(reason);
+    }
+    // Claude documents policy categories on refusal details, including message_delta.
+    // Read these before the generic stop_reason=refusal so the category is retained.
+    for path in ["/stop_details", "/delta/stop_details"] {
+        if let Some(details) = value.pointer(path)
+            && let Some(reason) = claude_refusal_reason(details)
+        {
+            return Some(reason);
+        }
     }
     for path in [
         "/stop_reason",
@@ -300,4 +341,108 @@ pub(crate) fn classify(value: &Value) -> Option<ResponseReason> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn claude_refusal_categories_precede_generic_stop_reason() {
+        for (category, expected) in [
+            ("cyber", "cyber"),
+            ("bio", "bio"),
+            ("frontier_llm", "frontier_llm"),
+            ("reasoning_extraction", "reasoning_extraction"),
+            ("general_harms", "general_harms"),
+            ("future_category", "refusal"),
+        ] {
+            let message = json!({
+                "stop_reason": "refusal",
+                "stop_details": {"type": "refusal", "category": category}
+            });
+            assert_eq!(
+                classify(&message).map(ResponseReason::as_str),
+                Some(expected)
+            );
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                http::header::CONTENT_TYPE,
+                "text/event-stream".parse().unwrap(),
+            );
+            let mut observer = standard_reason_observer(&headers, 4096).unwrap();
+            let event = format!(
+                "data: {}\n\n",
+                json!({"type": "message_delta", "delta": message})
+            );
+            for chunk in event.as_bytes().chunks(5) {
+                observer.observe(chunk);
+            }
+            assert_eq!(
+                observer.finish().map(ResponseReason::as_str),
+                Some(expected)
+            );
+        }
+        for category in [Value::Null, json!("future_category")] {
+            assert_eq!(
+                classify(&json!({"stop_details": {"type": "refusal", "category": category}})),
+                Some(ResponseReason::Refusal)
+            );
+        }
+        // Categories in request echoes, tool inputs or fallback history are not
+        // evidence that the final response was refused.
+        for value in [
+            json!({"category": "frontier_llm"}),
+            json!({"input": {"stop_details": {"type": "refusal", "category": "cyber"}}}),
+            json!({"stop_reason": "end_turn", "content": [{"type": "fallback", "trigger": {"type": "refusal", "category": "cyber"}}]}),
+            json!({"stop_details": {"type": "other", "category": "cyber"}}),
+        ] {
+            assert_eq!(classify(&value), None);
+        }
+    }
+
+    #[test]
+    fn policy_codes_keep_specific_reasons_across_protocol_shapes() {
+        for (code, expected) in [
+            ("SAFETY", "safety"),
+            ("IMAGE_SAFETY", "safety"),
+            ("BLOCKLIST", "blocklist"),
+            ("PROHIBITED_CONTENT", "prohibited_content"),
+            ("IMAGE_PROHIBITED_CONTENT", "prohibited_content"),
+            ("SPII", "sensitive_personal_information"),
+            ("RECITATION", "recitation"),
+            ("IMAGE_RECITATION", "recitation"),
+            ("guardrail_intervened", "content_filter"),
+            ("content_filter", "content_filter"),
+            ("refusal", "refusal"),
+        ] {
+            for value in [
+                json!({"promptFeedback": {"blockReason": code}}),
+                json!({"response": {"candidates": [{"finishReason": code}]}}),
+                json!({"stopReason": code}),
+                json!({"error": {"code": code, "type": "api_error"}}),
+            ] {
+                assert_eq!(classify(&value).map(ResponseReason::as_str), Some(expected));
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    http::header::CONTENT_TYPE,
+                    "text/event-stream".parse().unwrap(),
+                );
+                let mut observer = standard_reason_observer(&headers, 4096).unwrap();
+                let event = format!("data: {value}\n\n");
+                for chunk in event.as_bytes().chunks(7) {
+                    observer.observe(chunk);
+                }
+                assert_eq!(
+                    observer.finish().map(ResponseReason::as_str),
+                    Some(expected)
+                );
+            }
+        }
+        assert_eq!(
+            classify(&json!({"content": [{"type": "text", "text": "SPII SAFETY refusal"}]})),
+            None
+        );
+    }
 }
