@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { unzipSync } from "fflate";
 
 // Upgrade by changing this tag in the cloned template and redeploying.
-const version = "v4.0.4";
+const version = process.env.GPROXY_RELEASE_VERSION || "v4.0.4";
 const base = `https://github.com/LeenHawk/gproxy/releases/download/${version}`;
 const root = new URL(".", import.meta.url);
 

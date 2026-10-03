@@ -19,6 +19,9 @@
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D)
 [![Deploy to Deno](https://img.shields.io/badge/Deploy_to-Deno-000000?style=for-the-badge&logo=deno)](https://console.deno.com/new?clone=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&path=deploy%2Fserverless)
+[![Northflank template](https://img.shields.io/badge/Template-Northflank-0099ff?style=for-the-badge)](https://gproxy.leenhawk.com/deployment/containers/#northflank)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
+[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
 
 </div>
 
@@ -128,6 +131,8 @@ Templates for Cloudflare, Netlify, Vercel, and Deno use prebuilt **v4.0.4** bund
 
 See the [hosted deployment guide](https://gproxy.leenhawk.com/deployment/edge/) for deploy buttons, platform or external databases, and differences such as WebSocket support.
 
+Northflank, Render, and Heroku package the **v4.0.3** PostgreSQL executable in a lightweight container. Render and Heroku have direct deploy buttons above; Northflank has an importable template. See the [container hosting guide](https://gproxy.leenhawk.com/deployment/containers/) for plans, setup, and Northflank share links.
+
 ### Other deployment options
 
 | Option | Use case | Guide |
@@ -135,6 +140,7 @@ See the [hosted deployment guide](https://gproxy.leenhawk.com/deployment/edge/) 
 | Application | Desktop or mobile, managed in the app | [Platform installation](https://gproxy.leenhawk.com/getting-started/installation/) |
 | CLI / container | Persistent server with a browser console | [Installation and containers](https://gproxy.leenhawk.com/getting-started/installation/) |
 | Cloudflare / Netlify / Vercel / Deno | Hosted service without your own server | [Deployment guide](https://gproxy.leenhawk.com/deployment/edge/) |
+| Northflank / Render / Heroku | Native container with managed PostgreSQL | [Deployment guide](https://gproxy.leenhawk.com/deployment/containers/) |
 | Rust SDK | Embed in your own program | [gproxy-sdk](crates/gproxy-sdk/README.md) |
 
 On Windows, both editions are available from Microsoft Store:

@@ -3,6 +3,8 @@ title: "托管平台部署"
 description: "在 Cloudflare Workers、Netlify、Vercel 或 Deno 上部署 GPROXY，选择数据库并完成首次登录。"
 ---
 
+Northflank、Render 和 Heroku 的原生容器模板见[容器托管部署](/zh-cn/deployment/containers/)。
+
 GPROXY 提供 Cloudflare Workers、Netlify、Vercel 和 Deno 的部署模板。模板下载预编译的发布包，不需要安装 Rust。部署后，控制台和 API 使用同一个域名，控制台入口为 `/console/`。
 
 ## 选择平台

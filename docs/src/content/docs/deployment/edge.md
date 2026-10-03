@@ -3,6 +3,8 @@ title: "Hosted deployments"
 description: "Deploy GPROXY on Cloudflare Workers, Netlify, Vercel, or Deno, connect a database, and sign in."
 ---
 
+For native containers on Northflank, Render, and Heroku, see [container hosting](/deployment/containers/).
+
 GPROXY provides deployment templates for Cloudflare Workers, Netlify, Vercel, and Deno. They download prebuilt release bundles, so no Rust installation is needed. The console and API share your deployment domain; the console is at `/console/`.
 
 ## Choose a platform

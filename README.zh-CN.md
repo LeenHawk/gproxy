@@ -19,6 +19,9 @@
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D)
 [![Deploy to Deno](https://img.shields.io/badge/Deploy_to-Deno-000000?style=for-the-badge&logo=deno)](https://console.deno.com/new?clone=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&path=deploy%2Fserverless)
+[![Northflank template](https://img.shields.io/badge/Template-Northflank-0099ff?style=for-the-badge)](https://gproxy.leenhawk.com/zh-cn/deployment/containers/#northflank)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
+[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
 
 </div>
 
@@ -128,6 +131,8 @@ Cloudflare、Netlify、Vercel 和 Deno 的模板使用 **v4.0.4** 预编译包�
 
 部署入口、平台数据库与外部数据库的选择，以及 WebSocket 等能力差异，统一见[托管平台部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)。
 
+Northflank、Render 和 Heroku 使用 **v4.0.3** PostgreSQL 预编译程序与轻量容器。Render、Heroku 可直接点击上方按钮；Northflank 提供可导入后运行的模板。套餐费用、初始化和 Northflank 分享链接说明见[容器托管部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/containers/)。
+
 ### 其他部署方式
 
 | 方式 | 适用场景 | 入口 |
@@ -135,6 +140,7 @@ Cloudflare、Netlify、Vercel 和 Deno 的模板使用 **v4.0.4** 预编译包�
 | Application | 桌面或移动设备，应用内管理 | [平台安装说明](https://gproxy.leenhawk.com/zh-cn/getting-started/installation/) |
 | CLI / 容器 | 常驻服务器，浏览器管理 | [安装与容器配置](https://gproxy.leenhawk.com/zh-cn/getting-started/installation/) |
 | Cloudflare / Netlify / Vercel / Deno | 托管平台，无需自备服务器 | [部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/edge/) |
+| Northflank / Render / Heroku | 原生容器与托管 PostgreSQL | [部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/containers/) |
 | Rust SDK | 嵌入自己的程序 | [gproxy-sdk](crates/gproxy-sdk/README.zh-CN.md) |
 
 Windows 可从 Microsoft Store 安装两个版本：

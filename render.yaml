@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: gproxy
+    runtime: docker
+    plan: starter
+    numInstances: 1
+    dockerfilePath: ./deploy/serverless/Dockerfile
+    dockerContext: ./deploy/serverless
+    autoDeployTrigger: "off"
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "8787"
+      - key: GPROXY_DATABASE_URL
+        fromDatabase:
+          name: gproxy-db
+          property: connectionString
+      - key: GPROXY_ADMIN_PASSWORD
+        generateValue: true
+      - key: GPROXY_MASTER_KEY
+        generateValue: true
+
+databases:
+  - name: gproxy-db
+    plan: basic-256mb
+    databaseName: gproxy
+    user: gproxy
+    ipAllowList: []

@@ -6,3 +6,4 @@ public/
 .env
 .env.*
 !.env.example
+!.dockerignore
