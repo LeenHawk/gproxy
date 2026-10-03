@@ -27,7 +27,7 @@ def repair_gitlab_manifests(github_release, gitlab, directory):
     manifest_file = directory / "manifest.json"
     tag = github_release["tag_name"]
     root = os.environ["CI_PROJECT_URL"]
-    for release_tag, channel in ((tag, "release"), ("release", "release"), ("staging", "beta"), ("beta", "beta")):
+    for release_tag, channel in ((tag, "release"), ("release", "release"), ("staging", "beta")):
         release = gitlab.api("GET", f"/releases/{release_tag}")
         link = next(link for link in release["assets"]["links"] if link["name"] == "manifest.json")
         with urllib.request.urlopen(link["url"], timeout=60) as response:
