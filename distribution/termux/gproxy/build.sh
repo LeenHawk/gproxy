@@ -42,6 +42,12 @@ termux_step_configure() {
 }
 
 termux_step_make() {
+	# Let Cargo build scripts choose C optimization levels. Termux's trailing
+	# -Oz otherwise overrides the -O0 required by AWS-LC's jitterentropy.
+	local flag_var
+	for flag_var in CFLAGS "CFLAGS_${CARGO_TARGET_NAME//-/_}"; do
+		export "$flag_var=$(printf '%s' "${!flag_var:-}" | sed -E 's/(^|[[:space:]])-O[[:alnum:]]+//g')"
+	done
 	local feature_args=()
 	if [ "${GPROXY_HEADLESS:-false}" = true ]; then
 		feature_args=(--no-default-features --features channels,memory,fs,bundled-vocabulary)
