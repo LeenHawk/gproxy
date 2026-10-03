@@ -20,6 +20,7 @@ export function CredentialBulkImport({ provider, onClose }: { provider: Credenti
   const id = useId()
   const client = useQueryClient()
   const ownership = useOwnerChoices()
+  const kinds = provider.channel === "devin" ? authKinds.filter(kind => kind.value === "oauth") : authKinds
   const [owner, setOwner] = useState(ownership.defaultOwner)
   const [authKind, setAuthKind] = useState(provider.loginModes.includes("api_key") ? "api_key" : provider.loginModes.includes("cookie") ? "cookie" : "oauth")
   const [format, setFormat] = useState<BulkFormat>("json")
@@ -41,7 +42,7 @@ export function CredentialBulkImport({ provider, onClose }: { provider: Credenti
     <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); if (!blocked) save.mutate() }}>
       <fieldset disabled={save.isPending} className="min-w-0">
         <FieldGroup>
-          <Field><FieldLabel htmlFor={`${id}-auth`}>{t("fields.authKind")}</FieldLabel><Select value={authKind} onValueChange={value => { setAuthKind(value); setFormat("json"); save.reset() }}><SelectTrigger id={`${id}-auth`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{authKinds.map(kind => <SelectItem key={kind.value} value={kind.value}>{kind.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
+          <Field><FieldLabel htmlFor={`${id}-auth`}>{t("fields.authKind")}</FieldLabel><Select value={authKind} onValueChange={value => { setAuthKind(value); setFormat("json"); save.reset() }}><SelectTrigger id={`${id}-auth`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{kinds.map(kind => <SelectItem key={kind.value} value={kind.value}>{kind.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
           <Field><FieldLabel htmlFor={`${id}-owner`}>{t("management.owner")}</FieldLabel><Select value={owner} onValueChange={setOwner}><SelectTrigger id={`${id}-owner`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{ownership.choices.map(choice => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
           <Field><FieldLabel htmlFor={`${id}-format`}>{t("credentialImport.format")}</FieldLabel><Select value={format} onValueChange={value => { setFormat(value as BulkFormat); save.reset() }}><SelectTrigger id={`${id}-format`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="json">JSON / JSONL</SelectItem>{authKind === "api_key" ? <SelectItem value="tokens">{t("credentialImport.tokens")}</SelectItem> : null}</SelectGroup></SelectContent></Select></Field>
           <Field data-field-span="full" data-invalid={parsed.errors.length > 0}>

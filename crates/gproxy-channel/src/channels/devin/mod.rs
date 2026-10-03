@@ -508,12 +508,12 @@ impl BaseChannel for Devin {
         ID
     }
 
-    /// Manual credentials and browser PKCE login; no token refresh endpoint.
+    /// Browser PKCE login; no token refresh endpoint.
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
             display_name: "Devin (Windsurf, server.codeium.com)",
-            login_modes: vec![LoginMode::ApiKey, LoginMode::AuthorizationCode],
+            login_modes: vec![LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
                 refresh: false,
                 quota_query: true,

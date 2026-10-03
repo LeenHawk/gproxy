@@ -1569,12 +1569,12 @@ fn both_windows_are_declared_as_reported_percentages() {
 // ── Descriptor ─────────────────────────────────────────────────────────────
 
 #[test]
-fn the_descriptor_declares_a_pasted_token_and_a_quota_query() {
+fn the_descriptor_declares_oauth_and_a_quota_query() {
     let descriptor = Devin.descriptor();
     assert_eq!(descriptor.id, "devin");
     assert_eq!(
         descriptor.login_modes,
-        vec![LoginMode::ApiKey, LoginMode::AuthorizationCode]
+        vec![LoginMode::AuthorizationCode]
     );
     assert!(descriptor.capabilities.quota_query);
     assert!(!descriptor.capabilities.refresh);

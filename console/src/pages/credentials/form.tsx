@@ -24,7 +24,11 @@ export function CredentialForm({ providerId, channel, inline = false, secretActi
   if (supportsPaidUsage) delete formMetadata.allow_paid_usage
   const selectedOwner = original ? ownerValue(original) : ownership.defaultOwner
   const choices = ownership.choices.some(row => row.value === selectedOwner) ? ownership.choices : [...ownership.choices, { value: selectedOwner, label: selectedOwner }]
-  const fields: FormField[] = credentialFields.filter(field => context.scope?.kind === "instance" || !["connectionProfileId", "proxy"].includes(field.name)).map(field => field.name === "secret" ? { ...field, description: t("form.credentialSecretHint") } : field.name === "connectionProfileId" ? { ...field, kind: "searchable" as const, emptyLabel: t("form.unset"), source: context.has("configuration.connection-profiles") ? optionSource(connectionProfiles, row => ({ value: row.id, label: row.name })) : undefined } : field.name === "proxy" ? { ...field, proxyScope: () => original ? { scope: "credential" as const, credential_id: original.id } : { scope: "provider" as const, provider_id: providerId, parent: true } } : field)
+  const fields: FormField[] = credentialFields.filter(field => context.scope?.kind === "instance" || !["connectionProfileId", "proxy"].includes(field.name)).map(field => field.name === "secret" ? { ...field, description: t("form.credentialSecretHint") } : field.name === "connectionProfileId" ? { ...field, kind: "searchable" as const, emptyLabel: t("form.unset"), source: context.has("configuration.connection-profiles") ? optionSource(connectionProfiles, row => ({ value: row.id, label: row.name })) : undefined } : field.name === "proxy" ? { ...field, proxyScope: () => original ? { scope: "credential" as const, credential_id: original.id } : { scope: "provider" as const, provider_id: providerId, parent: true } } : { ...field })
+  if (channel === "devin") {
+    const authField = fields.find(field => field.name === "authKind")
+    if (authField) authField.choices = authField.choices?.filter(choice => choice.value === "oauth")
+  }
   if (supportsPaidUsage) fields.splice(1, 0, {
     name: "allowPaidUsage", kind: "switch", defaultChecked: false,
     label: t("management.allowPaidUsage"), description: t(channel === "claudecode" ? "management.claudePaidUsageHint" : channel === "codex" ? "management.codexPaidUsageHint" : "management.paidUsageHint"),
