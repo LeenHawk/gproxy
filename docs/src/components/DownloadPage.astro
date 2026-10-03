@@ -1,0 +1,463 @@
+---
+/**
+ * The download page body, shared by the three locales.
+ *
+ * Package lists are static — they mirror `scripts/release-targets.json` and
+ * the attachment names the Release workflow publishes — and every link starts
+ * out pointing at the GitHub release page. A small script then asks the
+ * GitHub API for the latest release and rewrites each link to the matching
+ * attachment, fills in the version, date and sizes, and picks a recommended
+ * package for the visitor's platform. Without JavaScript, or when the API is
+ * rate-limited, the page still works: the release page lists every file.
+ */
+interface Props {
+  locale: 'en' | 'zh-CN' | 'zh-TW';
+}
+const { locale } = Astro.props;
+
+const REPO = 'https://github.com/LeenHawk/gproxy';
+const LATEST = `${REPO}/releases/latest`;
+const NIGHTLY = `${REPO}/releases/tag/nightly`;
+const prefix = locale === 'en' ? '' : `/${locale.toLowerCase()}`;
+
+const copy = {
+  en: {
+    eyebrow: 'Download',
+    title: 'Get GPROXY',
+    lede: 'One gateway in front of every LLM provider. Pick the desktop Application, the headless-capable CLI, a container image, or a hosted deployment — every build ships from the same signed release.',
+    latest: 'Latest release',
+    loading: 'Reading the latest release…',
+    released: 'released',
+    offline: 'Could not reach the GitHub API; the links below open the release page, which lists every package.',
+    notes: 'Release notes',
+    allReleases: 'All releases',
+    nightly: 'Nightly builds',
+    forYou: 'Recommended for this device',
+    forYouHint: 'Detected from your browser. Choose another platform below if this is wrong.',
+    app: 'Application',
+    cli: 'CLI',
+    appHint: 'Graphical setup, tray icon, launch at login.',
+    cliHint: 'A single binary for servers and terminals.',
+    headless: 'Headless CLI',
+    headlessHint: 'No web console; proxy and management APIs only. For CI runners and tiny hosts.',
+    platforms: 'All platforms',
+    verify: 'Verify what you downloaded',
+    verifyBody: 'Every release attaches a SHA256SUMS file and a signed manifest.json. The CLI and Application verify the same Ed25519 signature before self-updating; signing keys live only in the release pipeline.',
+    sums: 'SHA256SUMS',
+    manifest: 'manifest.json',
+    container: 'Containers',
+    containerBody: 'Images are published to GitHub Container Registry and Docker Hub for amd64, arm64 and riscv64, in GNU and musl variants. Stable versions use vX.Y.Z tags; beta is staging and development snapshots are nightly.',
+    containerGuide: 'Container guide',
+    hosted: 'Hosted platforms',
+    hostedBody: 'Deploy to Cloudflare Workers, Netlify, Vercel or Deno without a local toolchain, with D1, libSQL or PostgreSQL behind it.',
+    hostedGuide: 'Hosted deployments',
+    source: 'Build from source',
+    sourceBody: 'A plain cargo build produces the CLI; the Application and the headless edition each have a short recipe.',
+    sourceGuide: 'Building from source',
+    next: 'Installed? Continue with the',
+    nextLink: 'installation guide',
+    store: 'Also on the Microsoft Store',
+    storeDesktop: 'GPROXY Desktop',
+    storeCli: 'GPROXY CLI',
+    experimental: 'experimental',
+    unsigned: 'unsigned',
+    arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
+    os: {
+      linux: { name: 'Linux', hint: 'GNU builds for most distributions; musl builds are static and run anywhere, including Alpine. The Application needs WebKitGTK 4.1.' },
+      windows: { name: 'Windows', hint: 'ZIP needs no installer. MSIX attachments are Store submission packages and may not yet carry a Microsoft signature.' },
+      macos: { name: 'macOS', hint: 'Choose ARM64 for Apple Silicon. Apps are ad-hoc signed and not notarized; allow them in System Settings on first launch.' },
+      android: { name: 'Android', hint: 'The Application is an APK. The CLI runs inside Termux: install the DEB with apt, or unpack the ZIP and follow TERMUX.txt.' },
+      ohos: { name: 'OpenHarmony / HarmonyOS NEXT', hint: 'CLI ZIPs for ARM64 and x86_64. The HAP is experimental, needs your own signature and has no background service.' },
+    },
+  },
+  'zh-CN': {
+    eyebrow: '下载',
+    title: '获取 GPROXY',
+    lede: '一个网关，接入所有大模型服务商。选择桌面应用、可无头运行的 CLI、容器镜像或托管部署——所有构建都来自同一份签名发布。',
+    latest: '最新版本',
+    loading: '正在读取最新版本…',
+    released: '发布于',
+    offline: '无法访问 GitHub API；下方链接将打开发布页面，其中列有全部安装包。',
+    notes: '版本说明',
+    allReleases: '全部版本',
+    nightly: '每日构建',
+    forYou: '为这台设备推荐',
+    forYouHint: '根据浏览器检测得到。若不正确，请在下方选择其他平台。',
+    app: '应用版',
+    cli: 'CLI',
+    appHint: '图形化设置、托盘图标、开机自启。',
+    cliHint: '单一可执行文件，适合服务器与终端。',
+    headless: '无头 CLI',
+    headlessHint: '不含 Web 控制台，只保留代理与管理 API。适合 CI 运行器和小型主机。',
+    platforms: '全部平台',
+    verify: '校验下载内容',
+    verifyBody: '每个版本都附带 SHA256SUMS 和已签名的 manifest.json。CLI 与应用版在自更新前会校验同一份 Ed25519 签名；签名私钥只存在于发布流水线中。',
+    sums: 'SHA256SUMS',
+    manifest: 'manifest.json',
+    container: '容器',
+    containerBody: '镜像同时发布到 GitHub Container Registry 与 Docker Hub，覆盖 amd64、arm64、riscv64，并提供 GNU 与 musl 两种变体。稳定版使用 vX.Y.Z 标签，beta 为 staging，开发快照为 nightly。',
+    containerGuide: '容器部署指南',
+    hosted: '托管平台',
+    hostedBody: '无需本地工具链即可部署到 Cloudflare Workers、Netlify、Vercel 或 Deno，后端可选 D1、libSQL 或 PostgreSQL。',
+    hostedGuide: '托管平台部署',
+    source: '从源码构建',
+    sourceBody: '一条 cargo build 即可得到 CLI；应用版与无头版各有简短的构建步骤。',
+    sourceGuide: '从源码构建',
+    next: '安装完成？接着阅读',
+    nextLink: '安装指南',
+    store: '也可从 Microsoft Store 获取',
+    storeDesktop: 'GPROXY Desktop',
+    storeCli: 'GPROXY CLI',
+    experimental: '实验性',
+    unsigned: '未签名',
+    arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
+    os: {
+      linux: { name: 'Linux', hint: 'GNU 构建适用于大多数发行版；musl 构建为静态链接，在 Alpine 等任意环境可用。应用版需要 WebKitGTK 4.1。' },
+      windows: { name: 'Windows', hint: 'ZIP 无需安装器。MSIX 附件为商店提交包，可能尚未带有 Microsoft 签名。' },
+      macos: { name: 'macOS', hint: 'Apple Silicon 请选 ARM64。应用为 ad-hoc 签名、未公证，首次启动需在系统设置中允许。' },
+      android: { name: 'Android', hint: '应用版为 APK。CLI 在 Termux 中运行：用 apt 安装 DEB，或解压 ZIP 并按 TERMUX.txt 操作。' },
+      ohos: { name: 'OpenHarmony / HarmonyOS NEXT', hint: '提供 ARM64 与 x86_64 的 CLI ZIP。HAP 为实验性，需自行签名，且没有后台服务。' },
+    },
+  },
+  'zh-TW': {
+    eyebrow: '下載',
+    title: '取得 GPROXY',
+    lede: '一個閘道，接入所有大型語言模型服務商。選擇桌面應用、可無頭執行的 CLI、容器映像或託管部署——所有建置都來自同一份簽章發布。',
+    latest: '最新版本',
+    loading: '正在讀取最新版本…',
+    released: '發布於',
+    offline: '無法連線 GitHub API；下方連結將開啟發布頁面，其中列有全部安裝套件。',
+    notes: '版本說明',
+    allReleases: '全部版本',
+    nightly: '每日建置',
+    forYou: '為這台裝置推薦',
+    forYouHint: '依瀏覽器偵測而得。若不正確，請在下方選擇其他平台。',
+    app: '應用版',
+    cli: 'CLI',
+    appHint: '圖形化設定、系統匣圖示、開機自動啟動。',
+    cliHint: '單一可執行檔，適合伺服器與終端機。',
+    headless: '無頭 CLI',
+    headlessHint: '不含 Web 控制台，只保留代理與管理 API。適合 CI 執行器和小型主機。',
+    platforms: '全部平台',
+    verify: '驗證下載內容',
+    verifyBody: '每個版本都附帶 SHA256SUMS 與已簽章的 manifest.json。CLI 與應用版在自我更新前會驗證同一份 Ed25519 簽章；簽章私鑰只存在於發布流水線中。',
+    sums: 'SHA256SUMS',
+    manifest: 'manifest.json',
+    container: '容器',
+    containerBody: '映像同時發布到 GitHub Container Registry 與 Docker Hub，涵蓋 amd64、arm64、riscv64，並提供 GNU 與 musl 兩種變體。穩定版使用 vX.Y.Z 標籤，beta 為 staging，開發快照為 nightly。',
+    containerGuide: '容器部署指南',
+    hosted: '託管平台',
+    hostedBody: '無需本機工具鏈即可部署到 Cloudflare Workers、Netlify、Vercel 或 Deno，後端可選 D1、libSQL 或 PostgreSQL。',
+    hostedGuide: '託管平台部署',
+    source: '從原始碼建置',
+    sourceBody: '一條 cargo build 即可得到 CLI；應用版與無頭版各有簡短的建置步驟。',
+    sourceGuide: '從原始碼建置',
+    next: '安裝完成？接著閱讀',
+    nextLink: '安裝指南',
+    store: '也可從 Microsoft Store 取得',
+    storeDesktop: 'GPROXY Desktop',
+    storeCli: 'GPROXY CLI',
+    experimental: '實驗性',
+    unsigned: '未簽章',
+    arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
+    os: {
+      linux: { name: 'Linux', hint: 'GNU 建置適用於大多數發行版；musl 建置為靜態連結，在 Alpine 等任意環境可用。應用版需要 WebKitGTK 4.1。' },
+      windows: { name: 'Windows', hint: 'ZIP 無需安裝程式。MSIX 附件為商店提交套件，可能尚未帶有 Microsoft 簽章。' },
+      macos: { name: 'macOS', hint: 'Apple Silicon 請選 ARM64。應用為 ad-hoc 簽章、未公證，首次啟動需在系統設定中允許。' },
+      android: { name: 'Android', hint: '應用版為 APK。CLI 在 Termux 中執行：用 apt 安裝 DEB，或解壓 ZIP 並依 TERMUX.txt 操作。' },
+      ohos: { name: 'OpenHarmony / HarmonyOS NEXT', hint: '提供 ARM64 與 x86_64 的 CLI ZIP。HAP 為實驗性，需自行簽章，且沒有背景服務。' },
+    },
+  },
+}[locale];
+
+type Pkg = { asset: string; label: string; tag?: string };
+type Row = { arch: 'x86_64' | 'aarch64' | 'riscv64'; variant?: string; app: Pkg[]; cli: Pkg[] };
+type Platform = { id: 'linux' | 'windows' | 'macos' | 'android' | 'ohos'; rows: Row[]; store?: boolean };
+
+const linuxRows = (['x86_64', 'aarch64', 'riscv64'] as const).flatMap((arch): Row[] => [
+  { arch, variant: 'GNU', app: [{ asset: `gproxy-tauri-linux-${arch}.zip`, label: 'ZIP' }, { asset: `gproxy-tauri-linux-${arch}.deb`, label: 'DEB' }], cli: [{ asset: `gproxy-linux-${arch}.zip`, label: 'ZIP' }, { asset: `gproxy-linux-${arch}.deb`, label: 'DEB' }] },
+  { arch, variant: 'musl', app: [], cli: [{ asset: `gproxy-linux-${arch}-musl.zip`, label: 'ZIP' }, { asset: `gproxy-linux-${arch}-musl.deb`, label: 'DEB' }] },
+]);
+const platforms: Platform[] = [
+  { id: 'linux', rows: linuxRows },
+  { id: 'windows', store: true, rows: (['x86_64', 'aarch64'] as const).map((arch) => ({ arch, app: [{ asset: `gproxy-tauri-windows-${arch}.zip`, label: 'ZIP' }, { asset: `gproxy-tauri-windows-${arch}.msix`, label: 'MSIX' }], cli: [{ asset: `gproxy-windows-${arch}.zip`, label: 'ZIP' }, { asset: `gproxy-windows-${arch}.msix`, label: 'MSIX' }] })) },
+  { id: 'macos', rows: (['aarch64', 'x86_64'] as const).map((arch) => ({ arch, app: [{ asset: `gproxy-tauri-macos-${arch}.dmg`, label: 'DMG' }, { asset: `gproxy-tauri-macos-${arch}.zip`, label: 'ZIP' }], cli: [{ asset: `gproxy-macos-${arch}.zip`, label: 'ZIP' }, { asset: `gproxy-macos-${arch}.dmg`, label: 'DMG' }] })) },
+  { id: 'android', rows: (['aarch64', 'x86_64'] as const).map((arch) => ({ arch, app: [{ asset: `gproxy-tauri-android-${arch}.apk`, label: 'APK' }], cli: [{ asset: `gproxy-android-${arch}.deb`, label: 'Termux DEB' }, { asset: `gproxy-android-${arch}.zip`, label: 'ZIP' }] })) },
+  { id: 'ohos', rows: (['aarch64', 'x86_64'] as const).map((arch) => ({ arch, app: [{ asset: `gproxy-tauri-ohos-${arch}-unsigned.hap`, label: 'HAP', tag: `${copy.experimental} · ${copy.unsigned}` }], cli: [{ asset: `gproxy-ohos-${arch}.zip`, label: 'ZIP' }] })) },
+];
+const headless = [
+  ...(['x86_64', 'aarch64', 'riscv64'] as const).flatMap((arch) => [`gproxy-headless-linux-${arch}.zip`, `gproxy-headless-linux-${arch}-musl.zip`]),
+  'gproxy-headless-windows-x86_64.zip', 'gproxy-headless-windows-aarch64.zip',
+  'gproxy-headless-macos-aarch64.zip', 'gproxy-headless-macos-x86_64.zip',
+  'gproxy-headless-android-aarch64.zip', 'gproxy-headless-android-x86_64.zip',
+];
+const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').replace(/\.zip$/, '');
+---
+
+<div class="dl" data-locale={locale} data-latest={LATEST}>
+  <header class="dl-hero">
+    <p class="dl-eyebrow">{copy.eyebrow}</p>
+    <h1 class="dl-title">{copy.title}</h1>
+    <p class="dl-lede">{copy.lede}</p>
+    <div class="dl-release" aria-live="polite">
+      <span class="dl-pill"><span class="dl-dot" aria-hidden="true"></span><span class="dl-label">{copy.latest}</span> <strong data-release-version>…</strong></span>
+      <span class="dl-date" data-release-date>{copy.loading}</span>
+      <a class="dl-link" data-release-notes href={LATEST}>{copy.notes} ↗</a>
+      <a class="dl-link" href={`${REPO}/releases`}>{copy.allReleases}</a>
+      <a class="dl-link" href={NIGHTLY}>{copy.nightly}</a>
+    </div>
+    <p class="dl-offline" data-offline hidden>{copy.offline}</p>
+  </header>
+
+  <section class="dl-foryou" data-foryou hidden>
+    <div class="dl-foryou-head">
+      <h2>{copy.forYou}</h2>
+      <p>{copy.forYouHint} <span data-foryou-platform class="dl-mono"></span></p>
+    </div>
+    <div class="dl-foryou-cards">
+      <a class="dl-primary" data-foryou-app href={LATEST} hidden>
+        <span class="dl-primary-kind">{copy.app}</span>
+        <span class="dl-primary-name" data-foryou-app-name></span>
+        <span class="dl-primary-hint">{copy.appHint}</span>
+      </a>
+      <a class="dl-primary dl-primary--cli" data-foryou-cli href={LATEST} hidden>
+        <span class="dl-primary-kind">{copy.cli}</span>
+        <span class="dl-primary-name" data-foryou-cli-name></span>
+        <span class="dl-primary-hint">{copy.cliHint}</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="dl-platforms">
+    <h2>{copy.platforms}</h2>
+    <div class="dl-grid">
+      {platforms.map((platform) => (
+        <article class="dl-card" data-platform={platform.id}>
+          <header class="dl-card-head">
+            <h3>{copy.os[platform.id].name}</h3>
+            <p>{copy.os[platform.id].hint}</p>
+          </header>
+          <table class="dl-table">
+            <thead><tr><th scope="col"></th><th scope="col">{copy.app}</th><th scope="col">{copy.cli}</th></tr></thead>
+            <tbody>
+              {platform.rows.map((row) => (
+                <tr>
+                  <th scope="row"><span>{copy.arch[row.arch]}</span>{row.variant ? <span class="dl-variant">{row.variant}</span> : null}</th>
+                  <td>{row.app.length ? row.app.map((pkg) => (
+                    <a class="dl-asset" href={LATEST} data-asset={pkg.asset} title={pkg.asset}>{pkg.label}{pkg.tag ? <small>{pkg.tag}</small> : null}<span class="dl-size" data-size></span></a>
+                  )) : <span class="dl-none">—</span>}</td>
+                  <td>{row.cli.map((pkg) => (
+                    <a class="dl-asset" href={LATEST} data-asset={pkg.asset} title={pkg.asset}>{pkg.label}<span class="dl-size" data-size></span></a>
+                  ))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {platform.store ? (
+            <footer class="dl-store">
+              <span>{copy.store}</span>
+              <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct">{copy.storeDesktop} ↗</a>
+              <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct">{copy.storeCli} ↗</a>
+            </footer>
+          ) : null}
+        </article>
+      ))}
+
+      <article class="dl-card dl-card--wide">
+        <header class="dl-card-head">
+          <h3>{copy.headless}</h3>
+          <p>{copy.headlessHint}</p>
+        </header>
+        <div class="dl-chips">
+          {headless.map((asset) => <a class="dl-asset" href={LATEST} data-asset={asset} title={asset}>{headlessLabel(asset)}<span class="dl-size" data-size></span></a>)}
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="dl-more">
+    <article class="dl-card">
+      <h3>{copy.container}</h3>
+      <p>{copy.containerBody}</p>
+      <pre class="dl-code"><code>docker pull leenhawk/gproxy:<span data-release-tag>latest</span></code></pre>
+      <a class="dl-link" href={`${prefix}/deployment/containers/`}>{copy.containerGuide} →</a>
+    </article>
+    <article class="dl-card">
+      <h3>{copy.hosted}</h3>
+      <p>{copy.hostedBody}</p>
+      <a class="dl-link" href={`${prefix}/deployment/edge/`}>{copy.hostedGuide} →</a>
+    </article>
+    <article class="dl-card">
+      <h3>{copy.source}</h3>
+      <p>{copy.sourceBody}</p>
+      <pre class="dl-code"><code>cargo build --release -p gproxy</code></pre>
+      <a class="dl-link" href={`${prefix}/deployment/release-build/`}>{copy.sourceGuide} →</a>
+    </article>
+    <article class="dl-card">
+      <h3>{copy.verify}</h3>
+      <p>{copy.verifyBody}</p>
+      <div class="dl-chips">
+        <a class="dl-asset" href={LATEST} data-asset="SHA256SUMS">{copy.sums}</a>
+        <a class="dl-asset" href={LATEST} data-asset="manifest.json">{copy.manifest}</a>
+      </div>
+    </article>
+  </section>
+
+  <p class="dl-next">{copy.next} <a href={`${prefix}/getting-started/installation/`}>{copy.nextLink}</a>.</p>
+</div>
+
+<script>
+  type Asset = { name: string; browser_download_url: string; size: number };
+  type Release = { tag_name: string; html_url: string; published_at: string; assets: Asset[] };
+
+  const root = document.querySelector<HTMLElement>('.dl');
+  if (root) {
+    const locale = root.dataset.locale ?? 'en';
+    const ua = navigator.userAgent;
+    const detect = () => {
+      const data = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData;
+      const platform = (data?.platform ?? navigator.platform ?? '').toLowerCase();
+      const arm = /aarch64|arm64|armv8/i.test(ua);
+      if (/openharmony|harmonyos/i.test(ua)) return { os: 'ohos', arch: arm ? 'aarch64' : 'x86_64' };
+      if (/android/i.test(ua)) return { os: 'android', arch: /x86_64|x64/i.test(ua) ? 'x86_64' : 'aarch64' };
+      if (/iphone|ipad/i.test(ua)) return null;
+      if (platform.startsWith('win') || /windows/i.test(ua)) return { os: 'windows', arch: arm ? 'aarch64' : 'x86_64' };
+      // Safari on Apple Silicon reports an Intel platform string; prefer ARM64
+      // and let the table offer the other.
+      if (platform.startsWith('mac') || /macintosh/i.test(ua)) return { os: 'macos', arch: 'aarch64' };
+      if (platform.includes('linux') || /linux/i.test(ua)) return { os: 'linux', arch: arm ? 'aarch64' : /riscv/i.test(ua) ? 'riscv64' : 'x86_64' };
+      return null;
+    };
+
+    const human = (bytes: number) => bytes >= 1 << 30 ? `${(bytes / (1 << 30)).toFixed(1)} GB` : bytes >= 1 << 20 ? `${(bytes / (1 << 20)).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+
+    const apply = (release: Release) => {
+      const byName = new Map(release.assets.map((asset) => [asset.name, asset]));
+      root.querySelectorAll<HTMLAnchorElement>('a[data-asset]').forEach((link) => {
+        const asset = byName.get(link.dataset.asset ?? '');
+        if (!asset) { link.classList.add('dl-asset--missing'); return; }
+        link.href = asset.browser_download_url;
+        const size = link.querySelector<HTMLElement>('[data-size]');
+        if (size) size.textContent = human(asset.size);
+      });
+      root.querySelectorAll<HTMLElement>('[data-release-version]').forEach((el) => { el.textContent = release.tag_name; });
+      root.querySelectorAll<HTMLElement>('[data-release-tag]').forEach((el) => { el.textContent = release.tag_name; });
+      const notes = root.querySelector<HTMLAnchorElement>('[data-release-notes]');
+      if (notes) notes.href = release.html_url;
+      const date = root.querySelector<HTMLElement>('[data-release-date]');
+      if (date) {
+        const when = new Date(release.published_at);
+        const released = { en: 'released ', 'zh-CN': '发布于 ', 'zh-TW': '發布於 ' }[locale] ?? '';
+        date.textContent = Number.isNaN(when.getTime()) ? '' : `${released}${new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(when)}`;
+      }
+
+      const guess = detect();
+      const section = root.querySelector<HTMLElement>('[data-foryou]');
+      if (!guess || !section) return;
+      // First match in document order: the rows put the preferred package
+      // first (GNU before musl, DMG before ZIP, APK, ZIP before MSIX).
+      const links = [...root.querySelectorAll<HTMLAnchorElement>(`[data-platform="${guess.os}"] a[data-asset]`)].filter((a) => byName.has(a.dataset.asset ?? ''));
+      const app = links.find((a) => a.dataset.asset?.startsWith(`gproxy-tauri-${guess.os}-${guess.arch}`));
+      const cli = links.find((a) => a.dataset.asset?.startsWith(`gproxy-${guess.os}-${guess.arch}`));
+      const fill = (slot: string, link: HTMLAnchorElement | undefined) => {
+        const target = root.querySelector<HTMLAnchorElement>(`[data-foryou-${slot}]`);
+        const name = root.querySelector<HTMLElement>(`[data-foryou-${slot}-name]`);
+        if (!target || !name || !link) return false;
+        target.href = link.href;
+        name.textContent = link.dataset.asset ?? '';
+        target.hidden = false;
+        return true;
+      };
+      const shown = [fill('app', app), fill('cli', cli)].some(Boolean);
+      const label = root.querySelector<HTMLElement>('[data-foryou-platform]');
+      if (label) label.textContent = `${guess.os} · ${guess.arch}`;
+      section.hidden = !shown;
+    };
+
+    fetch('https://api.github.com/repos/LeenHawk/gproxy/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
+      .then((release: Release) => apply(release))
+      .catch(() => {
+        root.querySelector<HTMLElement>('[data-offline]')?.removeAttribute('hidden');
+        root.querySelectorAll<HTMLElement>('[data-release-version]').forEach((el) => { el.textContent = 'latest'; });
+        const label = root.querySelector<HTMLElement>('[data-release-date]');
+        if (label) label.textContent = '';
+      });
+  }
+</script>
+
+<style is:global>
+  /* The component carries its own heading; Starlight's page title would be a second h1. */
+  main:has(.dl) > .content-panel:has(h1#_top):not(:has(.dl)) { display: none; }
+</style>
+
+<style>
+  .dl { --dl-radius: 14px; --dl-accent: var(--sl-color-accent); --dl-accent-soft: var(--sl-color-accent-low); max-width: 72rem; margin: 0 auto; padding: 0 0 3rem; }
+  .dl h1, .dl h2, .dl h3 { margin: 0; line-height: 1.2; }
+  .dl p { margin: 0; }
+  .dl-mono { font-family: var(--sl-font-mono); }
+
+  .dl-hero { position: relative; padding: 3.5rem 0 2.5rem; border-bottom: 1px solid var(--sl-color-hairline); }
+  .dl-hero::before { content: ''; position: absolute; inset: -4rem -2rem 0; z-index: -1; pointer-events: none; background: radial-gradient(60rem 22rem at 20% -10%, color-mix(in srgb, var(--dl-accent) 22%, transparent), transparent 70%); }
+  .dl-eyebrow { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dl-accent); }
+  .dl-title { font-size: clamp(2.4rem, 6vw, 4rem); font-weight: 700; letter-spacing: -0.02em; margin-top: 0.4rem; color: var(--sl-color-white); }
+  .dl-lede { margin-top: 1rem; max-width: 46rem; font-size: 1.1rem; line-height: 1.6; color: var(--sl-color-gray-2); }
+  .dl-release { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; margin-top: 1.75rem; font-size: 0.95rem; }
+  .dl-pill { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.9rem; border-radius: 999px; background: var(--dl-accent-soft); color: var(--sl-color-white); border: 1px solid color-mix(in srgb, var(--dl-accent) 35%, transparent); }
+  .dl-pill strong { font-family: var(--sl-font-mono); font-weight: 600; }
+  .dl-label { color: var(--sl-color-gray-2); }
+  .dl-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--dl-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--dl-accent) 25%, transparent); }
+  .dl-date { color: var(--sl-color-gray-3); }
+  .dl-link { color: var(--sl-color-white); text-decoration: none; border-bottom: 1px solid var(--sl-color-gray-5); transition: border-color 120ms; }
+  .dl-link:hover { border-color: var(--dl-accent); }
+  .dl-offline { margin-top: 1rem; padding: 0.6rem 0.9rem; border-radius: 8px; background: var(--sl-color-gray-6); color: var(--sl-color-gray-2); font-size: 0.9rem; }
+
+  .dl-foryou { margin-top: 2.5rem; padding: 1.5rem; border-radius: var(--dl-radius); background: linear-gradient(135deg, color-mix(in srgb, var(--dl-accent) 14%, var(--sl-color-bg)), var(--sl-color-bg-nav)); border: 1px solid color-mix(in srgb, var(--dl-accent) 30%, var(--sl-color-hairline)); }
+  .dl-foryou-head h2 { font-size: 1.15rem; }
+  .dl-foryou-head p { margin-top: 0.25rem; font-size: 0.9rem; color: var(--sl-color-gray-3); }
+  .dl-foryou-cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); margin-top: 1.25rem; }
+  .dl-primary { display: flex; flex-direction: column; gap: 0.3rem; padding: 1.1rem 1.25rem; border-radius: 12px; text-decoration: none; color: var(--sl-color-black); background: var(--dl-accent); box-shadow: 0 10px 30px -12px color-mix(in srgb, var(--dl-accent) 70%, transparent); transition: transform 120ms, box-shadow 120ms; }
+  .dl-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 36px -12px color-mix(in srgb, var(--dl-accent) 80%, transparent); }
+  .dl-primary--cli { background: var(--sl-color-gray-6); color: var(--sl-color-white); box-shadow: none; border: 1px solid var(--sl-color-hairline); }
+  .dl-primary-kind { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85; }
+  .dl-primary-name { font-family: var(--sl-font-mono); font-size: 1.05rem; font-weight: 600; word-break: break-all; }
+  .dl-primary-hint { font-size: 0.85rem; opacity: 0.85; }
+
+  .dl-platforms { margin-top: 3rem; }
+  .dl-platforms > h2, .dl-more h2 { font-size: 1.4rem; margin-bottom: 1.25rem; color: var(--sl-color-white); }
+  .dl-grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+  .dl-card { display: flex; flex-direction: column; gap: 1rem; padding: 1.4rem; border-radius: var(--dl-radius); background: var(--sl-color-bg-nav); border: 1px solid var(--sl-color-hairline); transition: border-color 120ms; }
+  .dl-card:hover { border-color: color-mix(in srgb, var(--dl-accent) 45%, var(--sl-color-hairline)); }
+  .dl-card--wide { grid-column: 1 / -1; }
+  .dl-card-head h3, .dl-more h3 { font-size: 1.1rem; color: var(--sl-color-white); }
+  .dl-card-head p, .dl-more p { margin-top: 0.35rem; font-size: 0.875rem; line-height: 1.55; color: var(--sl-color-gray-3); }
+  .dl-table { width: 100%; border-collapse: collapse; margin: 0; font-size: 0.875rem; }
+  .dl-table th, .dl-table td { padding: 0.5rem 0.4rem; border: 0; border-top: 1px solid var(--sl-color-hairline); text-align: left; vertical-align: top; background: none; }
+  .dl-table thead th { border-top: 0; padding-top: 0; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sl-color-gray-3); }
+  .dl-table tbody th { font-weight: 600; white-space: nowrap; color: var(--sl-color-white); }
+  .dl-variant { display: block; font-size: 0.72rem; font-weight: 500; color: var(--sl-color-gray-3); }
+  .dl-table td { display: table-cell; }
+  .dl-table td > .dl-asset { margin: 0 0.35rem 0.35rem 0; }
+  .dl-asset { display: inline-flex; align-items: baseline; gap: 0.4rem; padding: 0.3rem 0.65rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600; text-decoration: none; color: var(--sl-color-white); background: var(--sl-color-gray-6); border: 1px solid var(--sl-color-hairline); transition: background 120ms, border-color 120ms; }
+  .dl-asset:hover { background: var(--dl-accent-soft); border-color: color-mix(in srgb, var(--dl-accent) 45%, transparent); }
+  .dl-asset small { font-weight: 500; color: var(--sl-color-gray-3); }
+  .dl-asset--missing { opacity: 0.45; }
+  .dl-size { font-family: var(--sl-font-mono); font-size: 0.72rem; font-weight: 400; color: var(--sl-color-gray-3); }
+  .dl-size:empty { display: none; }
+  .dl-none { color: var(--sl-color-gray-4); }
+  .dl-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .dl-store { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; padding-top: 0.75rem; border-top: 1px solid var(--sl-color-hairline); font-size: 0.85rem; color: var(--sl-color-gray-3); }
+  .dl-store a { color: var(--sl-color-white); text-decoration: none; border-bottom: 1px solid var(--sl-color-gray-5); }
+  .dl-store a:hover { border-color: var(--dl-accent); }
+
+  .dl-more { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); margin-top: 3rem; }
+  .dl-code { margin: 0; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.8rem; background: var(--sl-color-gray-6); border: 1px solid var(--sl-color-hairline); overflow-x: auto; }
+  .dl-code code { background: none; padding: 0; }
+  .dl-more .dl-link { margin-top: auto; align-self: flex-start; font-size: 0.9rem; }
+  .dl-next { margin-top: 2.5rem; font-size: 0.95rem; color: var(--sl-color-gray-2); }
+
+  @media (max-width: 40rem) {
+    .dl-hero { padding-top: 2rem; }
+    .dl-card { padding: 1.1rem; }
+  }
+</style>

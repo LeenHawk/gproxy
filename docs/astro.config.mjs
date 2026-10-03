@@ -106,6 +106,11 @@ export default defineConfig({
           translations: { 'zh-CN': '快速上手', 'zh-TW': '快速上手' },
           items: [
             {
+              label: 'Download',
+              slug: 'download',
+              translations: { 'zh-CN': '下载', 'zh-TW': '下載' },
+            },
+            {
               label: 'Installation',
               slug: 'getting-started/installation',
               translations: { 'zh-CN': '安装', 'zh-TW': '安裝' },

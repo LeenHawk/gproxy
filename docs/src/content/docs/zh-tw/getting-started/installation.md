@@ -6,7 +6,7 @@ description: "選擇 GPROXY 4.0 的應用、命令列程式、容器或託管平
 
 日常在電腦上使用，選 **Application**；部署到伺服器，選 **CLI** 或容器。兩者使用相同的閘道器功能，主要區別是如何啟動和管理。
 
-選擇 [最新穩定版](https://github.com/LeenHawk/gproxy/releases/latest)，再下載對應系統和架構的檔案。滾動更新的 `nightly` 提供開發快照。
+開啟[下載頁](/zh-tw/download/)或 [最新穩定版](https://github.com/LeenHawk/gproxy/releases/latest)，再下載對應系統和架構的檔案。滾動更新的 `nightly` 提供開發快照。
 
 ## 選擇下載檔案
 

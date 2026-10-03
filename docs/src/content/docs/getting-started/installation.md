@@ -6,7 +6,7 @@ description: "Choose a GPROXY 4.0 application, CLI, container, or hosted deploym
 
 Choose **Application** for a local graphical app, or **CLI** for a server. Both provide the same gateway features, with different startup and management interfaces.
 
-Select the [latest stable release](https://github.com/LeenHawk/gproxy/releases/latest), then download the file for your OS and architecture. The rolling `nightly` release provides development snapshots.
+Open the [download page](/download/) or the [latest stable release](https://github.com/LeenHawk/gproxy/releases/latest), then download the file for your OS and architecture. The rolling `nightly` release provides development snapshots.
 
 ## Choose a package
 
