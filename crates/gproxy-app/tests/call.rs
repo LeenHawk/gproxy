@@ -288,7 +288,8 @@ async fn the_gateway_session_header_never_reaches_an_upstream() {
 // ------------------------------------------------------------- services ----
 
 /// `boss` administers `acme`, `member` belongs to it, and the only credential
-/// of `p1` is the organization's.
+/// of `p1` is the organization's. Both may reach `p1`; `root` is an instance
+/// administrator and needs no rule.
 async fn service_world() -> gproxy_app::App<sea_orm::DatabaseConnection> {
     let (app, _) = support::app().await;
     let handle = app.gproxy().clone();
@@ -303,6 +304,8 @@ async fn service_world() -> gproxy_app::App<sea_orm::DatabaseConnection> {
     support::api_key(&handle, "k-member", "member", Some("acme"), None).await;
     support::provider(&handle, "p1", &["m1"]).await;
     support::credential(&handle, "c-acme", "p1", None, None, Some("acme")).await;
+    support::allow(&handle, "p-boss", "boss", Some("p1")).await;
+    support::allow(&handle, "p-member", "member", Some("p1")).await;
     support::usage_row(&handle, "past-1", "member", 41).await;
     support::publish(&app).await;
     app

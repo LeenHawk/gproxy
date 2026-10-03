@@ -5,9 +5,16 @@
 //! the caller's role, picks the credential, refreshes material about to
 //! expire, and gives the channel the facts a synthesized answer is rendered
 //! from. What it deliberately does *not* know is who is an admin of what — it
-//! says so itself — so this module answers exactly two questions and hands the
-//! rest over:
+//! says so itself — so this module answers exactly three questions and hands
+//! the rest over:
 //!
+//! 0. **whether the caller may reach this provider at all**: the permission
+//!    engine a model request goes through, including the OAuth operation
+//!    baseline, applied by
+//!    [`admission::permission::allow_service`](crate::admission::permission::allow_service).
+//!    Credential visibility is not a substitute: a key whose rules refuse a
+//!    provider can still *see* a shared credential of it, and without this
+//!    gate it could read that provider's account endpoints through it;
 //! 1. **which credentials are in the target**: the caller's visible
 //!    credentials of that provider, the same set a model call would be allowed
 //!    to spend. `Pool` therefore aggregates what this caller may already
@@ -52,7 +59,7 @@ use gproxy_seaorm::BatchConnectionTrait;
 
 use crate::{
     App, AppData, AppError, Caller,
-    admission::{attribution, budgets, credential, scope},
+    admission::{attribution, budgets, credential, permission, scope},
     snapshot::Owner,
 };
 
@@ -201,9 +208,10 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
     /// Call a vendor HTTP service. The channel's answer comes back as it is,
     /// streaming bodies and non-2xx included.
     ///
-    /// `Forbidden` when a member asked for an administrator's view,
-    /// `NotFound` when the provider or the named credential is not one this
-    /// caller can reach.
+    /// `Forbidden` when the caller's permissions (or the OAuth baseline) do
+    /// not reach this provider, or a member asked for an administrator's
+    /// view; `NotFound` when the provider or the named credential is not one
+    /// this caller can reach.
     pub async fn call_service(
         &self,
         caller: &Caller,
@@ -253,6 +261,10 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
     }
 
     /// The decision and the target, from one pinned engine snapshot.
+    ///
+    /// The permission gate runs before a credential is planned, against the
+    /// same `AppData` snapshot the plan is then decided from, so a request is
+    /// never judged by rules from one revision and visibility from another.
     fn prepare_service(
         &self,
         core: &CoreData,
@@ -264,8 +276,15 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
             .get(&request.provider_id)
             .ok_or_else(|| AppError::not_found("provider", &request.provider_id))?
             .clone();
+        let data = self.data();
+        permission::allow_service(
+            &data,
+            caller,
+            &request.provider_id,
+            &self.config().oauth.cli_client_ids,
+        )?;
         let live: BTreeSet<String> = provider.credential_ids.iter().cloned().collect();
-        let plan = decide(&self.data(), caller, &request.view, &live)?;
+        let plan = decide(&data, caller, &request.view, &live)?;
         let credentials = provider
             .credential_ids
             .iter()

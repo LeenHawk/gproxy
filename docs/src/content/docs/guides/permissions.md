@@ -26,6 +26,8 @@ The model catalog's `permitted` field reports caller access. An inaccessible mod
 
 Permission alone is not enough: the caller also needs an available credential. Credential ownership and the API key's user, organization, and team bindings determine visibility. Management scope, model permission, and credential ownership are separate settings.
 
+Vendor service routes (account, usage, and other non-model endpoints a channel declares) have no model or operation, so only a rule covering the whole provider — any model, no operation — allows or denies them. They are outside the OAuth operation baseline.
+
 ## Rate limits
 
 User or API-key rate limits specify a metric, limit, period in seconds, optional model pattern, and enabled state. Common metrics are `requests` and `concurrency`. Live counters use the cache backend; multiple instances need shared cache state.

@@ -221,9 +221,14 @@ fn service_route<'a>(
 ///
 /// Only on a mount that names a provider or a namespace, because matching a
 /// route needs a channel and the aggregated mount names none. A namespace
-/// narrows to the providers its exposed names reach; the first that declares a
-/// matching route serves it, which is deterministic because `CoreData` orders
-/// providers by id.
+/// narrows to the providers its exposed names reach
+/// ([`MountIndex::namespace_providers`]) — never to the instance's whole
+/// provider list, or `/acme/…` would serve a service from a provider `acme`
+/// does not contain. Exactly one of those members may declare the route: two
+/// is refused with `409` rather than settled by provider id order, because
+/// id order is an accident of how rows were minted and a vendor service is an
+/// account surface, not a balanced model call. The client can name the
+/// provider mount it meant.
 ///
 /// A route the channel declares `WebSocket` — the Codex remote-control server
 /// is the one in the tree — is upgraded instead of called. See
@@ -244,24 +249,31 @@ async fn service_call<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
+    // Model operations use admission, routing and settlement, even when a
+    // vendor's catch-all service declaration also matches their native URL.
+    if surface::is_surface(&parts.method, remainder) {
+        return None;
+    }
     let provider_id = match mount {
         Mount::Aggregated => return None,
         Mount::Provider(name) => index.provider_id(name)?.to_owned(),
-        // A namespace can reach several providers; the one that declares this
-        // route serves it.
-        Mount::Namespace(_) => core
-            .providers
-            .iter()
-            .find(|(_, provider)| service_route(provider, &parts.method, remainder).is_some())
-            .map(|(id, _)| id.clone())?,
+        Mount::Namespace(name) => {
+            match namespace_service_provider(core, index, name, parts, remainder) {
+                Ok(id) => id?.to_owned(),
+                // Who is asking is settled first, so an anonymous probe learns
+                // no more about the namespace's membership than a 401.
+                Err(refusal) => {
+                    let error = match authenticate(state.app(), parts).await {
+                        Ok(_) => refusal,
+                        Err(error) => error,
+                    };
+                    return Some(ErrorResponse(error).into_response());
+                }
+            }
+        }
     };
     let provider = core.providers.get(&provider_id)?;
-    // Model operations use admission, routing and settlement, even when a
-    // vendor's catch-all service declaration also matches their native URL.
-    if surface::is_surface(&parts.method, remainder)
-        || (provider.channel.id() == "codex"
-            && surface::match_codex_path(&parts.method, remainder, &parts.headers, None).is_some())
-    {
+    if is_codex_model_path(provider, parts, remainder) {
         return None;
     }
     let route = service_route(provider, &parts.method, remainder)?;
@@ -342,6 +354,46 @@ where
             }
         },
     })
+}
+
+/// A Codex model path that Codex's catch-all service declaration would also
+/// match. It belongs to the data plane.
+fn is_codex_model_path(
+    provider: &gproxy_core::ProviderData,
+    parts: &http::request::Parts,
+    remainder: &str,
+) -> bool {
+    provider.channel.id() == "codex"
+        && surface::match_codex_path(&parts.method, remainder, &parts.headers, None).is_some()
+}
+
+/// The one member of namespace `name` whose channel serves this service path.
+///
+/// `Ok(None)` when no member declares it — the path then falls through like
+/// a provider mount whose channel lacks the route. `Err` (`409`) when more
+/// than one does: see [`service_call`] for why that is refused rather than
+/// broken by id order.
+fn namespace_service_provider<'a>(
+    core: &gproxy_core::CoreData,
+    index: &'a MountIndex,
+    name: &str,
+    parts: &http::request::Parts,
+    remainder: &str,
+) -> Result<Option<&'a str>, AppError> {
+    let mut serving = index.namespace_providers(name).filter(|id| {
+        core.providers.get(*id).is_some_and(|provider| {
+            service_route(provider, &parts.method, remainder).is_some()
+                && !is_codex_model_path(provider, parts, remainder)
+        })
+    });
+    let first = serving.next();
+    if first.is_some() && serving.next().is_some() {
+        return Err(AppError::Conflict(format!(
+            "more than one provider in namespace `{name}` serves this route; \
+             call it on the provider's own mount instead"
+        )));
+    }
+    Ok(first)
 }
 
 /// Step 5: the model API.

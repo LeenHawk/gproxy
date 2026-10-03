@@ -170,6 +170,31 @@ impl PermissionSet {
             .is_some_and(|rule| rule.allow)
     }
 
+    /// Whether this subject may reach `provider_id`'s vendor services — the
+    /// profile, usage, plugin and remote-control endpoints a coding agent
+    /// calls that are not model traffic.
+    ///
+    /// A service names **no model and no operation**, and it is decided the
+    /// way the table already decides a request without a model: a column
+    /// narrower than "any" cannot describe it, so only rules whose model
+    /// pattern is blank or `*` *and* whose operation is unset apply. The same
+    /// first-applicable-rule order then decides, with the same default deny.
+    ///
+    /// The consequence is deliberate in both directions. An `allow` scoped to
+    /// `list_models` (or any one operation) does not open a provider's
+    /// account endpoints — that grant was written about one kind of model
+    /// request, and reading it as "everything on this provider" would widen
+    /// it behind the operator's back. A provider-wide `deny`, on the other
+    /// hand, does close them: a service is still a request to that provider.
+    /// Mapping services onto some existing [`Operation`] instead would make an
+    /// operation-scoped rule silently govern endpoints it was never about.
+    pub fn allows_service(&self, subject: &Subject<'_>, provider_id: &str) -> bool {
+        self.rules
+            .iter()
+            .find(|rule| rule.applies(subject, provider_id, None, None))
+            .is_some_and(|rule| rule.allow)
+    }
+
     /// The first applicable rule in evaluation order, if any.
     fn deciding(
         &self,
@@ -181,7 +206,7 @@ impl PermissionSet {
         let operation: &'static str = operation.into();
         self.rules
             .iter()
-            .find(|rule| rule.applies(subject, provider_id, model, operation))
+            .find(|rule| rule.applies(subject, provider_id, model, Some(operation)))
     }
 
     /// The providers of `all_providers` this subject may use for the request,
@@ -220,7 +245,9 @@ impl Rule {
         subject: &Subject<'_>,
         provider_id: &str,
         model: Option<&str>,
-        operation: &str,
+        // `None` for a request that names no operation (a vendor service):
+        // only a rule that leaves the operation unset can describe it.
+        operation: Option<&str>,
     ) -> bool {
         // Every subject column that is set must match. A well-formed row sets
         // exactly one; a row that names both a user and a key is the
@@ -241,7 +268,7 @@ impl Rule {
             return false;
         }
         if let Some(wanted) = &self.operation
-            && wanted != operation
+            && operation != Some(wanted.as_str())
         {
             return false;
         }
@@ -573,5 +600,34 @@ mod tests {
                 .allowed_providers(&alice(), None, GENERATE, providers)
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn a_service_is_reached_only_through_a_provider_wide_rule() {
+        // A provider-wide grant opens the provider's services.
+        let set = PermissionSet::build(&[rule("r", "allow", 0).on_provider("openai")]);
+        assert!(set.allows_service(&alice(), "openai"));
+        assert!(!set.allows_service(&alice(), "anthropic"));
+
+        // A grant narrowed to a model or to an operation was written about
+        // model traffic and does not describe a request that names neither.
+        for narrowed in [
+            rule("r", "allow", 0).on_model("gpt-*"),
+            rule("r", "allow", 0).on_operation("list_models"),
+        ] {
+            let set = PermissionSet::build(&[narrowed]);
+            assert!(!set.allows_service(&alice(), "openai"));
+        }
+
+        // A provider-wide deny closes the services too, in priority order.
+        let set = PermissionSet::build(&[
+            rule("a", "allow", 0),
+            rule("d", "deny", 10).on_provider("openai"),
+            // An operation-scoped deny is not about services at all.
+            rule("g", "deny", 20).on_operation("generate_content"),
+        ]);
+        assert!(!set.allows_service(&alice(), "openai"));
+        assert!(set.allows_service(&alice(), "anthropic"));
+        assert!(!PermissionSet::default().allows_service(&alice(), "openai"));
     }
 }

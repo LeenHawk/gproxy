@@ -94,6 +94,11 @@ impl Mount {
 #[derive(Debug, Default)]
 pub struct MountIndex {
     namespaces: BTreeSet<String>,
+    /// Namespace to the provider ids its exposed names reach: the enabled
+    /// members of every enabled route named `{namespace}/…`. This is the
+    /// set a model request on that mount can resolve into, so it is also the
+    /// only set a vendor service on that mount may be served from.
+    namespace_providers: BTreeMap<String, BTreeSet<String>>,
     /// `providers.name` to the provider's row id. The name is what a client
     /// puts in its base URL; the id is what everything below this crate takes.
     providers: BTreeMap<String, String>,
@@ -101,13 +106,21 @@ pub struct MountIndex {
 
 impl MountIndex {
     pub fn build(routing: &RoutingTable, core: &CoreData) -> Self {
-        let namespaces = routing
-            .names
-            .keys()
-            .filter_map(|name| name.split_once('/'))
-            .map(|(namespace, _)| namespace.to_owned())
-            .filter(|namespace| !namespace.is_empty())
-            .collect();
+        let mut namespaces = BTreeSet::new();
+        let mut namespace_providers: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for (name, route_id) in &routing.names {
+            let Some((namespace, _)) = name.split_once('/') else {
+                continue;
+            };
+            if namespace.is_empty() {
+                continue;
+            }
+            namespaces.insert(namespace.to_owned());
+            let members = namespace_providers.entry(namespace.to_owned()).or_default();
+            if let Some(route) = routing.routes.get(route_id) {
+                members.extend(route.members.iter().map(|m| m.provider_id.clone()));
+            }
+        }
         let providers = core
             .providers
             .iter()
@@ -115,6 +128,7 @@ impl MountIndex {
             .collect();
         Self {
             namespaces,
+            namespace_providers,
             providers,
         }
     }
@@ -137,6 +151,17 @@ impl MountIndex {
     /// The row id behind a provider mount.
     pub fn provider_id(&self, name: &str) -> Option<&str> {
         self.providers.get(name).map(String::as_str)
+    }
+
+    /// The provider ids a namespace mount reaches, in id order. Empty for a
+    /// name that is not a namespace, and for one whose routes have no
+    /// enabled member.
+    pub fn namespace_providers(&self, name: &str) -> impl Iterator<Item = &str> {
+        self.namespace_providers
+            .get(name)
+            .into_iter()
+            .flatten()
+            .map(String::as_str)
     }
 }
 
@@ -226,6 +251,7 @@ mod tests {
     fn a_namespace_wins_over_a_provider_of_the_same_name() {
         let index = MountIndex {
             namespaces: ["acme".to_owned()].into_iter().collect(),
+            namespace_providers: BTreeMap::new(),
             providers: [("acme".to_owned(), "p-7".to_owned())]
                 .into_iter()
                 .collect(),
@@ -235,6 +261,7 @@ mod tests {
 
         let providers = MountIndex {
             namespaces: BTreeSet::new(),
+            namespace_providers: BTreeMap::new(),
             providers: [("acme".to_owned(), "p-7".to_owned())]
                 .into_iter()
                 .collect(),
@@ -244,6 +271,60 @@ mod tests {
             Some(Mount::Provider("acme".into()))
         );
         assert_eq!(providers.provider_id("acme"), Some("p-7"));
+    }
+
+    #[test]
+    fn a_namespace_reaches_only_the_members_of_its_own_routes() {
+        use gproxy_sdk::resolve::{MemberSeed, RouteEntry};
+        use gproxy_store::entity::routing::route::RouteStrategy;
+
+        let route = |providers: &[&str]| RouteEntry {
+            strategy: RouteStrategy::Failover,
+            session_affinity: false,
+            max_attempts: 1,
+            members: providers
+                .iter()
+                .map(|provider| MemberSeed {
+                    member_id: format!("m-{provider}"),
+                    provider_id: (*provider).to_owned(),
+                    upstream_model: "m".into(),
+                    tier: 0,
+                    weight: 1,
+                })
+                .collect(),
+        };
+        let routing = RoutingTable {
+            names: [
+                ("acme/fast".to_owned(), "r1".to_owned()),
+                ("acme/slow".to_owned(), "r2".to_owned()),
+                ("globex/fast".to_owned(), "r3".to_owned()),
+                ("bare".to_owned(), "r4".to_owned()),
+            ]
+            .into_iter()
+            .collect(),
+            routes: [
+                ("r1".to_owned(), route(&["p2", "p1"])),
+                ("r2".to_owned(), route(&["p1"])),
+                ("r3".to_owned(), route(&["p3"])),
+                ("r4".to_owned(), route(&["p4"])),
+            ]
+            .into_iter()
+            .collect(),
+            ..RoutingTable::default()
+        };
+        let index = MountIndex::build(&routing, &CoreData::default());
+        assert_eq!(
+            index.namespace_providers("acme").collect::<Vec<_>>(),
+            ["p1", "p2"]
+        );
+        assert_eq!(
+            index.namespace_providers("globex").collect::<Vec<_>>(),
+            ["p3"]
+        );
+        // A name with no namespace contributes to none, and an unknown
+        // namespace reaches nothing rather than everything.
+        assert_eq!(index.namespace_providers("bare").count(), 0);
+        assert_eq!(index.namespace_providers("nobody").count(), 0);
     }
 
     #[test]
