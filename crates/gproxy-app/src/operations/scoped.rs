@@ -343,7 +343,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
     }
 
     fn manage(&self) -> gproxy_sdk::manage::Credentials<'_, C> {
-        self.gproxy.manage().credentials()
+        let query = match self.scope.narrow(ListQuery::default(), self.data) {
+            ScopedQuery::Run(query) => *query,
+            ScopedQuery::Nothing => ListQuery {
+                owner_kind: Some("none".into()),
+                ..Default::default()
+            },
+        };
+        self.gproxy.manage().credentials().with_owner_filter(&query)
     }
 
     /// The single row-admission call every id-taking method above starts with.

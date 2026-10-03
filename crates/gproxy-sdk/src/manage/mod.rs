@@ -300,6 +300,9 @@ fn state_only(scopes: &[Scope]) -> Option<Vec<String>> {
 fn classify(error: StoreError) -> SdkError {
     let text = error.to_string();
     let lowered = text.to_ascii_lowercase();
+    if lowered.contains("config_revision") && lowered.contains("null") {
+        return SdkError::conflict("credential changed or left the authorized scope");
+    }
     const UNIQUE: [&str; 4] = [
         "unique constraint",
         "duplicate key",

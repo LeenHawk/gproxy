@@ -18,7 +18,7 @@ use gproxy_store::{
     },
     operations::credentials::CredentialStatusUpdate,
 };
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Select, Set, sea_query::Expr};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryTrait, Select, Set, sea_query::Expr};
 use serde_json::Value;
 
 use super::{
@@ -41,11 +41,22 @@ const CAS_ATTEMPTS: usize = 8;
 
 pub struct Credentials<'a, C> {
     writer: Writer<'a, C>,
+    owner: Option<sea_orm::Condition>,
 }
 
 impl<'a, C> Credentials<'a, C> {
     pub(crate) fn new(writer: Writer<'a, C>) -> Self {
-        Self { writer }
+        Self {
+            writer,
+            owner: None,
+        }
+    }
+
+    /// Bind this handle's reads and writes to the same owner filter as a list.
+    /// Hosts derive this filter from the authenticated management scope.
+    pub fn with_owner_filter(mut self, query: &ListQuery) -> Self {
+        self.owner = owner_filter(query);
+        self
     }
 }
 
@@ -99,12 +110,15 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
             .writer
             .store()
             .credentials()
-            .set_status_many(vec![CredentialStatusUpdate {
-                id: row.id.clone(),
-                expected_version: row.version,
-                status,
-                reason: crud::optional_text(reason),
-            }])
+            .set_status_many_where(
+                vec![CredentialStatusUpdate {
+                    id: row.id.clone(),
+                    expected_version: row.version,
+                    status,
+                    reason: crud::optional_text(reason),
+                }],
+                self.condition(),
+            )
             .await?
             .into_iter()
             .next()
@@ -127,7 +141,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
         Ok(self
             .writer
             .core()
-            .refresh_credential(&row.provider_id, &row.id, mode)
+            .refresh_credential_with_filter(&row.provider_id, &row.id, mode, self.owner.as_ref())
             .await?
             .into())
     }
@@ -140,7 +154,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
         Ok(self
             .writer
             .core()
-            .query_credential_quota(&row.provider_id, &row.id)
+            .query_credential_quota_with_filter(&row.provider_id, &row.id, self.owner.as_ref())
             .await?
             .into())
     }
@@ -150,7 +164,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
         let (result, responses) = self
             .writer
             .core()
-            .diagnose_credential_quota(&row.provider_id, &row.id)
+            .diagnose_credential_quota_with_filter(&row.provider_id, &row.id, self.owner.as_ref())
             .await;
         Ok(match result {
             Ok(snapshot) => QuotaProbeDto {
@@ -171,12 +185,16 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
     /// the blocks still in force.
     pub async fn quota_read(&self, id: &str) -> SdkResult<CredentialQuotaDto> {
         let row = crud::row::<C, Self>(self, id).await?;
-        crate::query::quota::credential_quota(
+        let result = crate::query::quota::credential_quota(
             self.writer.store(),
             &row.id,
             &self.writer.core().snapshot(),
         )
-        .await
+        .await?;
+        if self.owner.is_some() {
+            crud::row::<C, Self>(self, id).await?;
+        }
+        Ok(result)
     }
 
     /// One page of the raw upstream readings behind the cycles, newest first.
@@ -187,7 +205,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
         query: QuotaObservationQuery,
     ) -> SdkResult<Page<QuotaObservationDto>> {
         let row = crud::row::<C, Self>(self, id).await?;
-        crate::query::quota::quota_observations(self.writer.store(), &row.id, query).await
+        let result =
+            crate::query::quota::quota_observations(self.writer.store(), &row.id, query).await?;
+        if self.owner.is_some() {
+            crud::row::<C, Self>(self, id).await?;
+        }
+        Ok(result)
     }
 
     /// Query reset-card availability independently from account usage.
@@ -196,7 +219,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
         Ok(self
             .writer
             .core()
-            .query_credential_reset_credits(&row.provider_id, &row.id)
+            .query_credential_reset_credits_with_filter(
+                &row.provider_id,
+                &row.id,
+                self.owner.as_ref(),
+            )
             .await?
             .into())
     }
@@ -225,7 +252,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
         Ok(self
             .writer
             .core()
-            .reset_credential_quota(
+            .reset_credential_quota_with_filter(
                 &row.provider_id,
                 &row.id,
                 gproxy_channel::channel::QuotaResetRequest {
@@ -233,6 +260,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
                     program: request.program.as_deref(),
                     grant_id: request.grant_id.as_deref(),
                 },
+                self.owner.as_ref(),
             )
             .await
             .map_err(|error| match error {
@@ -251,15 +279,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
     /// no longer exists durably.
     pub async fn health_reset(&self, id: &str) -> SdkResult<CredentialDto> {
         let row = crud::row::<C, Self>(self, id).await?;
-        let mut statements = vec![BatchStatement::Execute(
+        let mut statements = self.write_guards(&row)?;
+        statements.push(BatchStatement::Execute(
             self.writer
                 .store()
                 .credential_blocks()
                 .delete_where_statement(
                     credential_block::Entity::delete_many()
-                        .filter(credential_block::Column::CredentialId.eq(&row.id)),
+                        .filter(credential_block::Column::CredentialId.eq(&row.id))
+                        .filter(Expr::exists(self.row_query(id).into_query())),
                 ),
-        )];
+        ));
         if row.status != CredentialStatus::Active {
             statements.push(BatchStatement::Execute(
                 self.writer.store().credentials().update_where_statement(
@@ -274,27 +304,34 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
                             Expr::val(row.version.saturating_add(1)),
                         )
                         .filter(credential::Column::Id.eq(&row.id))
-                        .filter(credential::Column::Version.eq(row.version)),
+                        .filter(credential::Column::Version.eq(row.version))
+                        .filter(self.condition()),
                 ),
             ));
         }
         self.writer
             .commit(statements, &[Scope::CredentialState(vec![row.id.clone()])])
             .await?;
+        let result = crud::get(self, id).await?;
         self.clear_cached_blocks(&row.provider_id, &row.id).await?;
-        crud::get(self, id).await
+        Ok(result)
     }
 
     /// Every operator limit covering this credential, with its usage.
     pub async fn limit_status(&self, id: &str) -> SdkResult<Vec<CredentialLimitStatusDto>> {
-        Ok(self
+        crud::row::<C, Self>(self, id).await?;
+        let result = self
             .writer
             .core()
             .credential_limit_status(id, crate::rt::now_ms())
             .await?
             .into_iter()
             .map(CredentialLimitStatusDto::from)
-            .collect())
+            .collect();
+        if self.owner.is_some() {
+            crud::row::<C, Self>(self, id).await?;
+        }
+        Ok(result)
     }
 
     async fn clear_cached_blocks(&self, provider_id: &str, credential_id: &str) -> SdkResult<()> {
@@ -327,6 +364,23 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
         )
         .await?;
         Ok(id)
+    }
+
+    fn assert_row(&self, query: Select<credential::Entity>) -> BatchStatement {
+        use gproxy_store::entity::config::setting;
+        let check = setting::Entity::update_many()
+            .col_expr(
+                setting::Column::ConfigRevision,
+                Expr::case(
+                    Expr::exists(query.into_query()),
+                    Expr::col(setting::Column::ConfigRevision),
+                )
+                .finally(Expr::val(None::<i64>))
+                .into(),
+            )
+            .filter(setting::Column::Id.eq(setting::GLOBAL_SETTINGS_ID))
+            .build(self.writer.backend());
+        BatchStatement::Execute(check)
     }
 
     async fn profile(&self, id: Option<String>) -> SdkResult<Option<String>> {
@@ -401,10 +455,19 @@ fn owner_condition(kind: &str, owner: Option<String>) -> sea_orm::Condition {
         // `NOT NULL`, so this is the portable spelling of "no rows".
         _ => return Condition::all().add(credential::Column::Id.is_null()),
     };
-    match owner {
+    let mut condition = match owner {
         Some(owner) => Condition::all().add(column.eq(owner)),
         None => Condition::all().add(column.is_not_null()),
+    };
+    // Personal ownership takes precedence over team, then organization, just
+    // as the host's scope admission does for rows carrying multiple columns.
+    if kind == "team" || kind == "org" {
+        condition = condition.add(credential::Column::UserId.is_null());
     }
+    if kind == "org" {
+        condition = condition.add(credential::Column::TeamId.is_null());
+    }
+    condition
 }
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'_, C> {
@@ -421,6 +484,44 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
     fn repository(&self) -> Repository<'_, C, Self::Entity> {
         self.writer.store().credentials()
     }
+    fn condition(&self) -> sea_orm::Condition {
+        self.owner.clone().unwrap_or_else(sea_orm::Condition::all)
+    }
+    fn update_condition(&self, current: &credential::Model) -> sea_orm::Condition {
+        self.condition()
+            .add(credential::Column::Version.eq(current.version))
+    }
+    fn write_guards(&self, current: &credential::Model) -> SdkResult<Vec<BatchStatement>> {
+        let backend = self.writer.backend();
+        // Lock the row before testing its current owner/version. A CASE that
+        // fails a NOT NULL column is the same portable transaction assertion
+        // used by quota settlement: it also rolls back a D1 batch, where an
+        // interactive transaction is unavailable. Checking affected rows after
+        // commit would leave earlier batch items applied on authorization loss.
+        let lock = credential::Entity::update_many()
+            .col_expr(
+                credential::Column::Version,
+                Expr::col(credential::Column::Version),
+            )
+            .filter(credential::Column::Id.eq(&current.id))
+            .build(backend);
+        let admitted = self
+            .row_query(&current.id)
+            .filter(credential::Column::Version.eq(current.version));
+        Ok(vec![
+            BatchStatement::Execute(lock),
+            self.assert_row(admitted),
+        ])
+    }
+    fn readback_guards(&self, id: &str) -> Vec<BatchStatement> {
+        // A partial owner patch was validated before the transaction. Check
+        // its actual merged result as well, including after a concurrent move.
+        if self.owner.is_some() {
+            vec![self.assert_row(self.row_query(id))]
+        } else {
+            Vec::new()
+        }
+    }
     fn scopes(&self) -> Vec<Scope> {
         // A create or a delete changes which credentials exist, which only a
         // full reload can publish.
@@ -434,7 +535,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
         }
     }
     fn select(&self, query: &ListQuery) -> Select<Self::Entity> {
-        let mut select = credential::Entity::find();
+        let mut select = credential::Entity::find().filter(self.condition());
         if let Some(provider_id) = crud::optional_text(query.provider_id.clone()) {
             select = select.filter(credential::Column::ProviderId.eq(provider_id));
         }
@@ -486,6 +587,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
             row.label = Set(crud::optional_text(label));
         }
 
+        if patch.secret.is_some()
+            || patch.user_id.is_some()
+            || patch.team_id.is_some()
+            || patch.organization_id.is_some()
+        {
+            // Ownership changes invalidate in-flight refresh/status CAS too.
+            row.version = Set(current.version.saturating_add(1));
+        }
         if let Some(secret) = patch.secret {
             // New material is a new version, exactly as a refresh would write
             // it: that is what makes peers re-read the row.

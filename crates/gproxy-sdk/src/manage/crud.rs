@@ -11,7 +11,7 @@ use std::collections::HashSet;
 
 use gproxy_seaorm::{BatchConnectionTrait, BatchResult, BatchStatement, SelectProjection};
 use gproxy_store::{Repository, entity::upstream::provider};
-use sea_orm::{ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, Select};
+use sea_orm::{ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, QueryTrait, Select};
 use serde_json::Value;
 
 use super::{Scope, Writer};
@@ -39,6 +39,22 @@ where
 
     fn writer(&self) -> Writer<'_, C>;
     fn repository(&self) -> Repository<'_, C, Self::Entity>;
+    /// A durable row boundary, reused by reads and mutations.
+    fn condition(&self) -> sea_orm::Condition {
+        sea_orm::Condition::all()
+    }
+    fn update_condition(&self, _current: &ModelOf<Self, C>) -> sea_orm::Condition {
+        self.condition()
+    }
+    fn row_query(&self, id: &str) -> Select<Self::Entity> {
+        Self::Entity::find_by_id(id.to_owned()).filter(self.condition())
+    }
+    fn write_guards(&self, _current: &ModelOf<Self, C>) -> SdkResult<Vec<BatchStatement>> {
+        Ok(Vec::new())
+    }
+    fn readback_guards(&self, _id: &str) -> Vec<BatchStatement> {
+        Vec::new()
+    }
     /// What a write of this family invalidates.
     fn scopes(&self) -> Vec<Scope>;
     /// What one specific update invalidates. Only credentials narrow this.
@@ -57,7 +73,9 @@ where
     }
     async fn delete_statements(&self, id: &str) -> SdkResult<Vec<BatchStatement>> {
         Ok(vec![BatchStatement::Execute(
-            self.repository().delete_statement(id.to_owned()),
+            Self::Entity::delete_by_id(id.to_owned())
+                .filter(self.condition())
+                .build(self.writer().backend()),
         )])
     }
     /// A validated patch of `current`, with the primary key set.
@@ -90,11 +108,10 @@ where
 {
     shape
         .repository()
-        .get_many(&[id.to_owned()])
+        .query(shape.row_query(id))
         .await?
         .into_iter()
         .next()
-        .flatten()
         .ok_or_else(|| SdkError::not_found(S::ENTITY, id))
 }
 
@@ -128,12 +145,13 @@ where
     // None means the patch set no column. The row still gets a revision, so a
     // caller that retries an already-applied patch sees the same answer as a
     // caller whose patch changed something.
-    let statements = shape
-        .repository()
-        .update_statement(model)?
-        .map(BatchStatement::Execute)
-        .into_iter()
-        .collect();
+    let mut statements = shape.write_guards(&current)?;
+    statements.extend(
+        shape
+            .repository()
+            .update_statement_where(model, shape.update_condition(&current))?
+            .map(BatchStatement::Execute),
+    );
     commit_one::<C, S>(shape, statements, id, &scopes).await
 }
 
@@ -142,8 +160,9 @@ where
     C: BatchConnectionTrait + Send + Sync + 'static,
     S: Shape<C>,
 {
-    row::<C, S>(shape, id).await?;
-    let statements = shape.delete_statements(id).await?;
+    let current = row::<C, S>(shape, id).await?;
+    let mut statements = shape.write_guards(&current)?;
+    statements.extend(shape.delete_statements(id).await?);
     shape.writer().commit(statements, &shape.scopes()).await?;
     Ok(())
 }
@@ -171,6 +190,7 @@ where
             BatchItem::Create(write) => {
                 let (model, id) = shape.build(write).await?;
                 statements.extend(shape.create_statements(model)?);
+                statements.extend(shape.readback_guards(&id));
                 reads.push(Some(id));
             }
             BatchItem::Update(step) => {
@@ -178,13 +198,18 @@ where
                 // A batch is one reload, so the narrowest scope of any item
                 // cannot be honoured: keep the family's own.
                 let model = shape.change(&current, step.patch).await?;
-                if let Some(statement) = repository.update_statement(model)? {
+                statements.extend(shape.write_guards(&current)?);
+                if let Some(statement) =
+                    repository.update_statement_where(model, shape.update_condition(&current))?
+                {
                     statements.push(BatchStatement::Execute(statement));
                 }
+                statements.extend(shape.readback_guards(&step.id));
                 reads.push(Some(step.id));
             }
             BatchItem::Delete(id) => {
-                row::<C, S>(shape, &id).await?;
+                let current = row::<C, S>(shape, &id).await?;
+                statements.extend(shape.write_guards(&current)?);
                 statements.extend(shape.delete_statements(&id).await?);
                 reads.push(None);
             }
@@ -194,7 +219,7 @@ where
     let backend = shape.writer().backend();
     for id in reads.iter().flatten() {
         statements.push(BatchStatement::Query(
-            S::Entity::find_by_id(id.clone()).batch_query(backend)?,
+            shape.row_query(id).batch_query(backend)?,
         ));
     }
     let (_, results) = shape.writer().commit_results(statements, &scopes).await?;
@@ -229,8 +254,9 @@ where
     S: Shape<C>,
 {
     let backend = shape.writer().backend();
+    statements.extend(shape.readback_guards(id));
     statements.push(BatchStatement::Query(
-        S::Entity::find_by_id(id.to_owned()).batch_query(backend)?,
+        shape.row_query(id).batch_query(backend)?,
     ));
     let (_, mut results) = shape.writer().commit_results(statements, scopes).await?;
     let result = results

@@ -557,7 +557,21 @@ impl<C: BatchConnectionTrait> Core<C> {
     where
         C: Send,
     {
-        self.query_quota(provider_id, credential_id, None).await
+        self.query_credential_quota_with_filter(provider_id, credential_id, None)
+            .await
+    }
+
+    pub async fn query_credential_quota_with_filter(
+        &self,
+        provider_id: &str,
+        credential_id: &str,
+        filter: Option<&sea_orm::Condition>,
+    ) -> CoreResult<QuotaSnapshot>
+    where
+        C: Send,
+    {
+        self.query_quota(provider_id, credential_id, None, filter)
+            .await
     }
 
     /// The normal quota operation, plus redacted response bodies for feedback.
@@ -570,9 +584,22 @@ impl<C: BatchConnectionTrait> Core<C> {
     where
         C: Send,
     {
+        self.diagnose_credential_quota_with_filter(provider_id, credential_id, None)
+            .await
+    }
+
+    pub async fn diagnose_credential_quota_with_filter(
+        &self,
+        provider_id: &str,
+        credential_id: &str,
+        filter: Option<&sea_orm::Condition>,
+    ) -> (CoreResult<QuotaSnapshot>, Vec<serde_json::Value>)
+    where
+        C: Send,
+    {
         let responses = diagnostics::Responses::default();
         let result = self
-            .query_quota(provider_id, credential_id, Some(&responses))
+            .query_quota(provider_id, credential_id, Some(&responses), filter)
             .await;
         let responses = std::mem::take(&mut *responses.lock().expect("quota diagnostics lock"));
         (result, responses)
@@ -583,13 +610,14 @@ impl<C: BatchConnectionTrait> Core<C> {
         provider_id: &str,
         credential_id: &str,
         responses: Option<&diagnostics::Responses>,
+        filter: Option<&sea_orm::Condition>,
     ) -> CoreResult<QuotaSnapshot>
     where
         C: Send,
     {
         let queried_at_ms = now_ms();
         let (credential, mut observed) = self
-            .quota_operation(provider_id, credential_id, |provider, context| {
+            .quota_operation(provider_id, credential_id, filter, |provider, context| {
                 let responses = responses.cloned();
                 Box::pin(async move {
                     let capture = responses.map(|responses| diagnostics::CaptureClient {
@@ -725,8 +753,21 @@ impl<C: BatchConnectionTrait> Core<C> {
     where
         C: Send,
     {
+        self.query_credential_reset_credits_with_filter(provider_id, credential_id, None)
+            .await
+    }
+
+    pub async fn query_credential_reset_credits_with_filter(
+        &self,
+        provider_id: &str,
+        credential_id: &str,
+        filter: Option<&sea_orm::Condition>,
+    ) -> CoreResult<gproxy_channel::channel::QuotaResetCredits>
+    where
+        C: Send,
+    {
         let (_, credits) = self
-            .quota_operation(provider_id, credential_id, |provider, context| {
+            .quota_operation(provider_id, credential_id, filter, |provider, context| {
                 Box::pin(async move {
                     provider
                         .channel
@@ -751,8 +792,22 @@ impl<C: BatchConnectionTrait> Core<C> {
     where
         C: Send,
     {
+        self.reset_credential_quota_with_filter(provider_id, credential_id, request, None)
+            .await
+    }
+
+    pub async fn reset_credential_quota_with_filter(
+        &self,
+        provider_id: &str,
+        credential_id: &str,
+        request: gproxy_channel::channel::QuotaResetRequest<'_>,
+        filter: Option<&sea_orm::Condition>,
+    ) -> CoreResult<gproxy_channel::channel::QuotaResetResult>
+    where
+        C: Send,
+    {
         let (credential, result) = self
-            .quota_operation(provider_id, credential_id, |provider, context| {
+            .quota_operation(provider_id, credential_id, filter, |provider, context| {
                 let redeem_request_id = request.redeem_request_id.to_owned();
                 let program = request.program.map(str::to_owned);
                 let grant_id = request.grant_id.map(str::to_owned);
@@ -792,7 +847,7 @@ impl<C: BatchConnectionTrait> Core<C> {
                 tracing::warn!(credential_id, %error, "quota cycles were not cut after a reset");
             }
             if let Err(error) = self
-                .query_credential_quota(provider_id, credential_id)
+                .query_credential_quota_with_filter(provider_id, credential_id, filter)
                 .await
             {
                 tracing::debug!(credential_id, %error, "no quota reading after a reset");
@@ -805,6 +860,7 @@ impl<C: BatchConnectionTrait> Core<C> {
         &self,
         provider_id: &str,
         credential_id: &str,
+        filter: Option<&sea_orm::Condition>,
         invoke: impl for<'a> Fn(
             &'a crate::ProviderData,
             CredentialContext<'a>,
@@ -831,16 +887,33 @@ impl<C: BatchConnectionTrait> Core<C> {
             .ok_or_else(|| {
                 CoreError::InvalidTarget(format!("provider `{provider_id}` is not loaded"))
             })?;
-        let version = credential.state.load();
+        let version = match filter {
+            Some(filter) => {
+                self.authorized_credential_version(&credential, filter)
+                    .await?
+            }
+            None => credential.state.load(),
+        };
         if crate::refresh::can_refresh(&provider, &credential, &version)
             && crate::refresh::needs_refresh(&version, now_ms())
         {
-            self.refresh_credential(provider_id, credential_id, crate::RefreshMode::IfNeeded)
-                .await?;
+            self.refresh_credential_with_filter(
+                provider_id,
+                credential_id,
+                crate::RefreshMode::IfNeeded,
+                filter,
+            )
+            .await?;
         }
         let mut retried = false;
         loop {
-            let version = credential.state.load();
+            let version = match filter {
+                Some(filter) => {
+                    self.authorized_credential_version(&credential, filter)
+                        .await?
+                }
+                None => credential.state.load(),
+            };
             let result = invoke(
                 &provider,
                 CredentialContext {
@@ -855,8 +928,13 @@ impl<C: BatchConnectionTrait> Core<C> {
                 && !retried
                 && matches!(&result, Err(ChannelError::UpstreamResponse { status, .. }) if *status == http::StatusCode::UNAUTHORIZED)
             {
-                self.refresh_credential(provider_id, credential_id, crate::RefreshMode::Force)
-                    .await?;
+                self.refresh_credential_with_filter(
+                    provider_id,
+                    credential_id,
+                    crate::RefreshMode::Force,
+                    filter,
+                )
+                .await?;
                 retried = true;
                 continue;
             }
