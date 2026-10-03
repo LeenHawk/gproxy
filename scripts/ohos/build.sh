@@ -12,11 +12,12 @@ case "$mode" in
   *) exit 2 ;;
 esac
 source scripts/ohos/env.sh
-export UPX_ENABLED=true
 if [ "$mode" = cli ]; then
+  export UPX_ENABLED=true
   cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE"
   bash scripts/ohos/package-cli.sh
 else
+  export UPX_ENABLED=false
   export PATH="$HARMONY_TOOLS_DIR/command-line-tools/tool/node/bin:$HARMONY_TOOLS_DIR/command-line-tools/bin:$PATH"
   (cd crates/gproxy-host-tauri && cargo tauri ohos init --ci --skip-targets-install)
   python3 scripts/ohos/configure-hap.py

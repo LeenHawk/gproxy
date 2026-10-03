@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strip and pack staged mobile libraries before packaging and signing."""
+"""Strip and optionally pack staged mobile libraries before packaging and signing."""
 import argparse
 from pathlib import Path
 import shutil
@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("directory", type=Path)
 parser.add_argument("strip_tool", type=Path)
 parser.add_argument("--android", action="store_true")
+parser.add_argument("--strip-only", action="store_true", help="Preserve the ELF layout for OHOS shared-library loading")
 args = parser.parse_args()
 libraries = list(args.directory.rglob("*.so"))
 if not any(library.name == "libgproxy_host_tauri.so" for library in libraries):
@@ -20,7 +21,7 @@ with tempfile.TemporaryDirectory(prefix="gproxy-native-upx-") as work:
         shutil.copyfile(library, packed)
         packed.chmod(0o755)
         subprocess.run([args.strip_tool, "--strip-unneeded", packed], check=True)
-        if library.name == "libgproxy_host_tauri.so":
+        if library.name == "libgproxy_host_tauri.so" and not args.strip_only:
             options = ["--android-shlib"] if args.android else []
             subprocess.run(["upx", "--best", "--lzma", *options, packed], check=True)
             subprocess.run(["upx", "--test", packed], check=True)

@@ -37,8 +37,12 @@ with zipfile.ZipFile(packages[0]) as app:
             if identity.get("debug", False):
                 raise ValueError("HAP is debuggable")
             library = hap.read("libs/arm64-v8a/libgproxy_host_tauri.so")
-            if library[:6] != b"\x7fELF\x02\x01" or struct.unpack_from("<H", library, 18)[0] != 183:
+            if len(library) < 64 or library[:6] != b"\x7fELF\x02\x01" or struct.unpack_from("<H", library, 18)[0] != 183:
                 raise ValueError("HAP does not contain the ARM64 application")
+            section_offset = struct.unpack_from("<Q", library, 40)[0]
+            section_size, section_count = struct.unpack_from("<HH", library, 58)
+            if not section_offset or not section_count or section_size != 64 or section_offset + section_size * section_count > len(library):
+                raise ValueError("OHOS application library must retain its ELF section table; do not UPX-pack it")
             if manifest["module"]["mainElement"] != "PrivacyAbility":
                 raise ValueError("Store HAP does not use the privacy launcher")
         (output / Path(name).name).write_bytes(data)

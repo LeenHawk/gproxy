@@ -40,13 +40,13 @@ available to this build. It must be signed for the intended device or
 application distribution before installation. Compilation and HAP inspection
 are not device execution tests. No HAP self-update path is implemented.
 
-HAP builds emit only the `cdylib`, use fat LTO with one codegen unit, and put
-executable sections before large read-only tables so UPX can compress those
-tables. After the Rust callback, the Hvigor hook strips staged native debug
-data and packs the application library with UPX `--best --lzma` before HAP
-assembly/signing. The Cargo cache stays unpacked, and AppGallery APP assembly
-reuses the already packed libraries. The toolchain image supplies the pinned
-source-built UPX packer shared with Android releases.
+HAP builds emit only the `cdylib` and use fat LTO with one codegen unit.
+After the Rust callback, the Hvigor hook strips staged native debug data while
+preserving the ordinary ELF layout. OHOS's dynamic loader maps the ELF section
+table; generic UPX shared-library packing removes it and can fail with `Invalid
+argument` before native exports initialize. HAP and AppGallery collectors reject
+libraries without valid section tables. AppGallery APP assembly reuses these
+stripped, unpacked libraries. CLI executables still use UPX compression.
 
 The native Ability supplies the app's private data directory. The existing
 explicit private-file secret fallback is used because keyring has no OHOS

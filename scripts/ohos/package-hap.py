@@ -13,9 +13,15 @@ abi = {"aarch64-unknown-linux-ohos": "arm64-v8a", "x86_64-unknown-linux-ohos": "
 machine = 183 if abi == "arm64-v8a" else 62
 with zipfile.ZipFile(paths[0]) as archive:
     binary = f"libs/{abi}/libgproxy_host_tauri.so"
-    header = archive.read(binary)[:20]
-    if header[:6] != b"\x7fELF\x02\x01" or struct.unpack_from("<H", header, 18)[0] != machine:
+    with archive.open(binary) as stream:
+        header = stream.read(64)
+    if len(header) != 64 or header[:6] != b"\x7fELF\x02\x01" or struct.unpack_from("<H", header, 18)[0] != machine:
         raise ValueError(f"Wrong native architecture in HAP: {binary}")
+    section_offset = struct.unpack_from("<Q", header, 40)[0]
+    section_size, section_count = struct.unpack_from("<HH", header, 58)
+    # OHOS maps the section table while loading a DSO; UPX removes it, causing EINVAL.
+    if not section_offset or not section_count or section_size != 64 or section_offset + section_size * section_count > archive.getinfo(binary).file_size:
+        raise ValueError(f"Missing or invalid ELF section table in HAP: {binary}; do not UPX-pack OHOS shared libraries")
     if "module.json" not in archive.namelist():
         raise ValueError("HAP has no compiled module manifest")
 output = Path("dist/release")

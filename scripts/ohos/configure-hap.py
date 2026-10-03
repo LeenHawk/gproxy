@@ -41,8 +41,8 @@ if store_distribution:
     if callback not in text:
         raise ValueError("Upstream Hvigor native build callback changed")
     text = text.replace(callback, callback + '\n        if (process.env.GPROXY_OHOS_REUSE_NATIVE === "1") return;')
-# Pack the staged native libraries after Rust finishes, before Hvigor assembles
-# or signs the HAP. assembleApp reuses that output without packing it twice.
+# Strip staged native libraries before assembly/signing. OHOS's loader needs
+# the ELF section table, which generic UPX shared-library packing removes.
 hook = "node.getTaskByName('default@ConfigureCmake')!.afterRun(buildRustCode);"
 if hook not in text:
     raise ValueError("Upstream Hvigor native packaging hook changed")
@@ -50,6 +50,7 @@ packer_args = json.dumps([
     str(Path("scripts/pack-mobile-native.py").resolve()),
     str((project / "entry/libs" / os.environ["OHOS_ARCH"]).resolve()),
     str(Path(os.environ["OHOS_NATIVE_HOME"]) / "llvm/bin/llvm-strip"),
+    "--strip-only",
 ])
 checkout = json.dumps(str(Path.cwd()))
 text = text.replace(hook, f'''node.getTaskByName('default@ConfigureCmake')!.afterRun(() => {{
