@@ -1097,6 +1097,12 @@
       "title": "Support GPROXY",
       "description": "Help keep GPROXY moving forward through GitHub Sponsors.",
       "thanks": "Your support helps sustain maintenance, provider compatibility and new features. Thank you for using and supporting GPROXY.",
+      "goal": {
+        "title": "Next goal: app store listings",
+        "google": "Google Play developer account — $25, one-time",
+        "apple": "Apple Developer Program — $99 per year",
+        "why": "Once listed, GPROXY installs from your phone's store and updates itself."
+      },
       "action": "Sponsor LeenHawk"
     },
     "documentation": "Documentation"

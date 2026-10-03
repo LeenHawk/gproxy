@@ -59,6 +59,14 @@ export function AboutPage() {
             <CardDescription>{t("about.sponsor.description")}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2 rounded-lg border p-3 text-sm">
+              <p className="font-medium">{t("about.sponsor.goal.title")}</p>
+              <ul className="flex list-disc flex-col gap-1 pl-5 leading-6">
+                <li>{t("about.sponsor.goal.google")}</li>
+                <li>{t("about.sponsor.goal.apple")}</li>
+              </ul>
+              <p className="leading-6 text-muted-foreground">{t("about.sponsor.goal.why")}</p>
+            </div>
             <p className="text-sm leading-6 text-muted-foreground">{t("about.sponsor.thanks")}</p>
             <Button asChild className="w-full">
               <a href={SPONSORS_URL} target="_blank" rel="noopener noreferrer">

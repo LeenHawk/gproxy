@@ -1,1 +1,25 @@
-{"version": 1, "notifications": []}
+{
+  "version": 1,
+  "notifications": [
+    {
+      "id": "app-store-fees-2026-10",
+      "severity": "info",
+      "published_at": "2026-10-03T12:00:00Z",
+      "expires_at": "2027-04-01T00:00:00Z",
+      "content": {
+        "en": {
+          "title": "Help GPROXY reach the app stores",
+          "body": "Listing the mobile apps needs two developer accounts:\n\n- **Google Play**: $25, one-time\n- **Apple Developer Program**: $99 per year\n\nOnce listed, GPROXY installs from your phone's store and updates itself. Sponsor at `github.com/sponsors/LeenHawk`."
+        },
+        "zh-CN": {
+          "title": "帮 GPROXY 上架应用商店",
+          "body": "上架移动端应用需要两个开发者账号：\n\n- **Google Play**：$25（一次性）\n- **Apple 开发者计划**：$99/年\n\n上架后可以直接从手机应用商店安装，并自动更新。赞助地址：`github.com/sponsors/LeenHawk`。"
+        },
+        "zh-TW": {
+          "title": "幫 GPROXY 上架應用程式商店",
+          "body": "上架行動版應用程式需要兩個開發者帳號：\n\n- **Google Play**：$25（一次性）\n- **Apple 開發者計畫**：$99/年\n\n上架後可以直接從手機應用程式商店安裝，並自動更新。贊助位址：`github.com/sponsors/LeenHawk`。"
+        }
+      }
+    }
+  ]
+}

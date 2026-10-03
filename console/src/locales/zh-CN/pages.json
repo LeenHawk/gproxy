@@ -1097,6 +1097,12 @@
       "title": "支持 GPROXY",
       "description": "通过 GitHub Sponsors 赞助项目，支持 GPROXY 持续发展。",
       "thanks": "你的支持将帮助项目持续维护、适配上游服务并开发新功能。感谢你使用和支持 GPROXY。",
+      "goal": {
+        "title": "当前目标：上架应用商店",
+        "google": "Google Play 开发者账号：$25（一次性）",
+        "apple": "Apple 开发者计划：$99/年",
+        "why": "上架后可以直接从手机应用商店安装，并自动更新。"
+      },
       "action": "赞助 LeenHawk"
     },
     "documentation": "使用文档"
