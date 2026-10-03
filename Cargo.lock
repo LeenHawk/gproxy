@@ -2863,6 +2863,7 @@ dependencies = [
  "ts-rs",
  "url",
  "web-time",
+ "xxhash-rust",
 ]
 
 [[package]]

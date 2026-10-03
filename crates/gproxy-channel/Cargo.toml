@@ -62,6 +62,7 @@ claudeapi = ["dep:futures-util", "dep:time", "dep:web-time"]
 # refresh, Messages over HTTP with the CLI's request hygiene, unified
 # rate-limit headers and /api/oauth/usage.
 claudecode = [
+    "dep:xxhash-rust",
     "dep:base64",
     "dep:futures-util",
     "dep:getrandom",
@@ -223,6 +224,7 @@ rust_decimal.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2 = { workspace = true, optional = true }
+xxhash-rust = { workspace = true, optional = true }
 thiserror.workspace = true
 time = { workspace = true, optional = true }
 ts-rs = { workspace = true, optional = true }
