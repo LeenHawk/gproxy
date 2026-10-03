@@ -75,6 +75,7 @@ for product in config["app"]["products"]:
         product["signingConfig"] = signing["name"]
     product["compatibleSdkVersion"] = "6.0.0(20)"
     product["compileSdkVersion"] = "6.0.0(20)"
+    product["targetSdkVersion"] = "6.0.0(20)"
 profile.write_text(json.dumps(config, indent=2) + "\n")
 module = project / "entry/build-profile.json5"
 config = json5.loads(module.read_text())
