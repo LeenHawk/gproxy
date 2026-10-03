@@ -30,6 +30,18 @@ export function databaseUrl(env) {
   return url;
 }
 
+// The canonical origin the platform itself vouches for. Never the first
+// request's Host: a memoized request origin would let whoever reaches a cold
+// instance first choose the base of every OAuth and publication link.
+export function publicBaseUrl(env) {
+  if (env.GPROXY_PUBLIC_BASE_URL) return env.GPROXY_PUBLIC_BASE_URL;
+  if ((env.NETLIFY || env.SITE_ID) && env.URL) return env.URL;
+  if (env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  // Unset: the issuer answers from each request's own Host, and publication
+  // links stay disabled until an operator states the origin.
+  return undefined;
+}
+
 export function createGateway({
   env = process.env,
   binary = join(process.cwd(), ".gproxy", process.arch, "gproxy-serverless"),
@@ -37,20 +49,19 @@ export function createGateway({
 } = {}) {
   let child;
   let ready;
-  async function start(origin) {
+  async function start() {
     if (ready) return ready;
     const dsn = databaseUrl(env);
     if (!env.GPROXY_ADMIN_PASSWORD || !env.GPROXY_MASTER_KEY) {
       throw new Error("Set GPROXY_ADMIN_PASSWORD and GPROXY_MASTER_KEY before deploying.");
     }
+    const childEnv = { ...env, GPROXY_DSN: dsn, GPROXY_PERSISTENCE: "postgres" };
+    const base = publicBaseUrl(env);
+    if (base) childEnv.GPROXY_PUBLIC_BASE_URL = base;
+    else delete childEnv.GPROXY_PUBLIC_BASE_URL;
     ready = new Promise((resolve, reject) => {
       child = spawn(binary, [], {
-        env: {
-          ...env,
-          GPROXY_DSN: dsn,
-          GPROXY_PERSISTENCE: "postgres",
-          GPROXY_PUBLIC_BASE_URL: env.GPROXY_PUBLIC_BASE_URL || origin,
-        },
+        env: childEnv,
         stdio: ["ignore", "pipe", "inherit"],
       });
       const processHandle = child;
@@ -89,7 +100,7 @@ export function createGateway({
     }
     const url = new URL(request.url);
     if (url.pathname === "/") return Response.redirect(new URL("/console/", url), 302);
-    const origin = await start(url.origin);
+    const origin = await start();
     // node:http preserves compressed bytes and repeated Set-Cookie headers.
     // fetch would transparently decompress without fixing Content-Encoding.
     return new Promise((resolve, reject) => {
@@ -125,7 +136,7 @@ export function createGateway({
   }
   async function websocketTarget(request, clientIp) {
     const url = new URL(request.url);
-    const origin = await start(url.origin);
+    const origin = await start();
     return { url: `${origin}${url.pathname}${url.search}`, headers: forwardHeaders(request, clientIp) };
   }
   return { fetch, websocketTarget, close: () => { child?.kill(); child = undefined; ready = undefined; } };

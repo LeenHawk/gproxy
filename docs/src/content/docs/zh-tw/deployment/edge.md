@@ -111,7 +111,7 @@ Deno 的入口不會自動建立資料庫。繫結完成前應用可能返回 50
 
 所有模板均支援 HTTP 與 SSE；Netlify Functions 不接受 WebSocket 升級。Vercel 使用平台的 [WebSocket Beta](https://vercel.com/docs/functions/websockets)，Deno 使用原生 WebSocket 入口橋接到內部服務。WebSocket 連線仍可能因函式時長限制或實例回收而斷開，用戶端需要處理重連。長時間推理、大檔案和高併發請求仍受平台限制，部署前可檢視 [Netlify Functions](https://docs.netlify.com/build/functions/overview/)、[Vercel Functions](https://vercel.com/docs/functions/limitations) 和 [Deno Deploy](https://docs.deno.com/deploy/reference/limits/) 的當前額度。
 
-這三個模板不配置檔案儲存。需要 S3/R2 或可公開下載的檔案時，可以使用下方的 Workers 自定義構建，或選擇 CLI 部署。Netlify、Vercel 和 Deno 可用 `GPROXY_PUBLIC_BASE_URL` 固定公開訪問地址；不設定時從請求地址推導。
+這三個模板不配置檔案儲存。需要 S3/R2 或可公開下載的檔案時，可以使用下方的 Workers 自定義構建，或選擇 CLI 部署。Netlify、Vercel 和 Deno 可用 `GPROXY_PUBLIC_BASE_URL` 固定公開訪問地址。不設定時，Netlify 和 Vercel 使用平臺提供的生產地址；其他平臺的 OAuth 端點按每個請求的 Host 應答，釋出連結保持停用。
 
 ## 手動部署 Cloudflare
 

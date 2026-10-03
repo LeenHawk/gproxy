@@ -111,7 +111,7 @@ Configuration, accounts, and usage live in the database. Keep the database and m
 
 All templates support HTTP and SSE; Netlify Functions rejects WebSocket upgrades. Vercel uses the platform’s [WebSocket Beta](https://vercel.com/docs/functions/websockets), while Deno bridges its native WebSocket entry to the internal service. Function duration limits or instance eviction can still disconnect WebSockets, so clients must handle reconnection. Long-running inference, large files, and high concurrency remain subject to platform limits. Check the current [Netlify Functions](https://docs.netlify.com/build/functions/overview/), [Vercel Functions](https://vercel.com/docs/functions/limitations), and [Deno Deploy](https://docs.deno.com/deploy/reference/limits/) allowances for your workload.
 
-These three templates do not configure file storage. For S3/R2 or publicly downloadable files, use a custom Workers build as described below, or the CLI. On Netlify, Vercel, and Deno, `GPROXY_PUBLIC_BASE_URL` can fix the public URL; otherwise it is derived from the request.
+These three templates do not configure file storage. For S3/R2 or publicly downloadable files, use a custom Workers build as described below, or the CLI. On Netlify, Vercel, and Deno, `GPROXY_PUBLIC_BASE_URL` fixes the public URL. Without it, Netlify and Vercel use the production URL the platform provides; elsewhere OAuth endpoints answer from each request's Host and publication links stay disabled.
 
 ## Manual Cloudflare deployment
 
