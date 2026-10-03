@@ -32,8 +32,13 @@ impl ChannelHeaders {
                 names: &["anthropic-beta", "anthropic-user-profile-id"],
                 prefixes: &[],
             },
+            // Not `openai-organization` / `openai-project`: under the
+            // gateway's shared credential they would let a caller pick the
+            // organization and project usage bills to. An operator pins
+            // them with static provider headers or opts callers in through
+            // `allowed_headers` (see `channels::openai::CLIENT_HEADERS`).
             WireFamily::OpenAi => Self {
-                names: &["openai-beta", "openai-organization", "openai-project"],
+                names: &["openai-beta"],
                 prefixes: &[],
             },
             WireFamily::Gemini => Self {

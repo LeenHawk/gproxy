@@ -17,12 +17,22 @@ pub const RESPONSES_MULTI_AGENT_BETA: &str = "responses_multi_agent=v1";
 /// Query parameters that carry a client's own credential; never forwarded.
 const QUERY_AUTH: &[&str] = &["access_token", "api_key", "key", "x-api-key"];
 
-/// Headers an OpenAI SDK sends that select something upstream rather than
-/// describing the gateway's client: the feature betas and the organization
-/// and project a key may be scoped to (v3 `policy::OPENAI_API`). A provider
-/// allow-list narrows what *other* headers a client may add, not these.
+/// Headers an OpenAI SDK sends that select an upstream feature rather than
+/// describing the gateway's client: the feature betas. A provider allow-list
+/// narrows what *other* headers a client may add, not these.
+///
+/// `OpenAI-Organization` and `OpenAI-Project` are deliberately absent (v3
+/// forwarded them). They choose which organization and project a request
+/// bills to and is authorised under, and the bearer sent with them is the
+/// gateway's shared credential, not the caller's: forwarding them would let
+/// any gateway user move usage onto another project the key can reach, or
+/// probe which ones it can. An operator who wants a fixed organization or
+/// project sets them in the provider's static `headers`, which are installed
+/// after the client's headers and so overwrite anything a client sent; one
+/// who really wants callers to choose adds the names to the provider's
+/// `allowed_headers`.
 pub const CLIENT_HEADERS: ChannelHeaders = ChannelHeaders {
-    names: &["openai-beta", "openai-organization", "openai-project"],
+    names: &["openai-beta"],
     prefixes: &[],
 };
 
