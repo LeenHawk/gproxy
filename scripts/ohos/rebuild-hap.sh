@@ -31,6 +31,9 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
         raise ValueError("Source application library does not match the device reproduction")
     for name in archive.namelist():
         if name.startswith(f"libs/{abi}/") and name.endswith(".so"):
+            # Hvigor rebuilds this template shim; copying it would duplicate it.
+            if Path(name).name == "libentry.so":
+                continue
             path = entry / "libs" / abi / Path(name).name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(archive.read(name))
