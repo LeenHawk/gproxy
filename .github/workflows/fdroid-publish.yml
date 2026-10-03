@@ -2,9 +2,6 @@ name: Submit F-Droid release
 
 on:
   workflow_call:
-    secrets:
-      GITLAB_RELEASE_TOKEN:
-        required: true
     inputs:
       version:
         required: true
@@ -49,7 +46,7 @@ jobs:
       - name: Submit or update the F-Droid merge request
         env:
           GH_TOKEN: ${{ github.token }}
-          FDROID_GITLAB_TOKEN: ${{ secrets.GITLAB_RELEASE_TOKEN }}
+          FDROID_GITLAB_TOKEN: ${{ secrets.FDROID_GITLAB_TOKEN }}
           VERSION: ${{ inputs.version }}
           DRY_RUN: ${{ inputs.dry_run || false }}
         run: |

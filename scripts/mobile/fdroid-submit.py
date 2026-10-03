@@ -89,8 +89,9 @@ def release_recipe(version):
 def open_submission(upstream, fork):
     page = 1
     while True:
+        # Project access tokens submit as a bot, not the fork owner's user.
         rows = api(f"projects/{upstream}/merge_requests?state=opened&"
-                   f"author_username={encode(FORK.split('/')[0])}&per_page=100&page={page}")
+                   f"search=GPROXY&in=title&per_page=100&page={page}")
         matches = [row for row in rows if row["source_project_id"] == fork and (
             row["source_branch"] == "new-app-gproxy"
             or row["source_branch"].startswith("gproxy-v")
@@ -147,7 +148,7 @@ def submit(generated, dry_run=False):
         print(f"Dry run: would submit {version} on {FORK}:{branch}; recipe: {OUTPUT}")
         return
     if not os.environ.get("FDROID_GITLAB_TOKEN"):
-        raise ValueError("FDROID_GITLAB_TOKEN is required; CI supplies it from GITLAB_RELEASE_TOKEN")
+        raise ValueError("Configure the release environment secret FDROID_GITLAB_TOKEN")
     if not same_version:
         action = {"action": "update" if current else "create", "file_path": FILE,
                   "content": OUTPUT.read_text()}
