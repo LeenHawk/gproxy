@@ -3,13 +3,28 @@ title: Northflank、Render 和 Heroku
 description: 使用原生 GPROXY 容器与托管 PostgreSQL 部署网关。
 ---
 
-这些模板将 **v4.0.3** PostgreSQL 预编译程序打包进轻量 Node.js 容器，运行一个应用实例并创建托管数据库。它们复用现有 HTTP/SSE/WebSocket 转发入口，并校验发布包的 SHA-256，无需编译 Rust。普通 CLI 容器只包含 SQLite 驱动，不能直接替代此镜像。应用和数据库可能产生费用，部署前请核对所选套餐。
+import { Card, CardGrid, LinkButton } from "@astrojs/starlight/components";
+
+这些模板将 **latest 稳定版** PostgreSQL 预编译程序打包进轻量 Node.js 容器，运行一个应用实例并创建托管数据库。它们复用现有 HTTP/SSE/WebSocket 转发入口，并校验发布包的 SHA-256，无需编译 Rust。普通 CLI 容器只包含 SQLite 驱动，不能直接替代此镜像。应用和数据库可能产生费用，部署前请核对所选套餐。
+
+<CardGrid>
+  <Card title="Render" icon="rocket">
+    <p>Starter 服务 + Basic PostgreSQL，自动绑定数据库并生成密码与主密钥。</p>
+    <LinkButton href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev" variant="secondary" icon="external">部署到 Render</LinkButton>
+  </Card>
+  <Card title="Heroku" icon="rocket">
+    <p>Basic dyno + Essential PostgreSQL，填写主密钥后自动创建应用和数据库。</p>
+    <LinkButton href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev" variant="secondary" icon="external">部署到 Heroku</LinkButton>
+  </Card>
+  <Card title="Northflank" icon="rocket">
+    <p>导入模板即可创建项目、PostgreSQL 和服务；目前需手动导入，尚无公开分享链接。</p>
+    <LinkButton href="https://app.northflank.com/s/account/templates/new" variant="secondary" icon="external">打开模板编辑器</LinkButton>
+  </Card>
+</CardGrid>
 
 ## Render
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
-
-1. 点击按钮，检查仓库根目录 `render.yaml` Blueprint：Starter Web 服务和 Basic PostgreSQL 数据库。
+1. 点击上方 Render 卡片中的部署按钮，检查仓库根目录 `render.yaml` Blueprint：Starter Web 服务和 Basic PostgreSQL 数据库。
 2. 部署这两个资源。数据库连接自动绑定，管理员密码和加密主密钥由 Render 生成。
 3. 在服务的 **Environment** 设置中查看并保存 `GPROXY_ADMIN_PASSWORD` 和 `GPROXY_MASTER_KEY`。打开服务地址的 `/console/`，使用 `admin` 登录。
 
@@ -17,10 +32,8 @@ description: 使用原生 GPROXY 容器与托管 PostgreSQL 部署网关。
 
 ## Heroku
 
-[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
-
 1. 用 `openssl rand -hex 32` 生成并保存主密钥。
-2. 点击按钮，选择应用名和区域，将主密钥填入 `GPROXY_MASTER_KEY`。
+2. 点击上方 Heroku 卡片中的部署按钮，选择应用名和区域，将主密钥填入 `GPROXY_MASTER_KEY`。
 3. 核对 Basic Web dyno 和 `heroku-postgresql:essential-0` 数据库插件，然后部署。
 4. 在 **Settings → Reveal Config Vars** 中查看 `GPROXY_ADMIN_PASSWORD`，打开 `/console/` 并使用 `admin` 登录。
 
@@ -28,9 +41,7 @@ description: 使用原生 GPROXY 容器与托管 PostgreSQL 部署网关。
 
 ## Northflank
 
-[打开 Northflank 模板编辑器](https://app.northflank.com/s/account/templates/new) · [模板 JSON](https://github.com/LeenHawk/gproxy/blob/dev/deploy/northflank/template.json)
-
-1. 在 Northflank 账户或团队中创建模板，切换到 JSON 编辑器，粘贴 `deploy/northflank/template.json`。
+1. 在 Northflank 账户或团队中创建模板，切换到 JSON 编辑器，粘贴[模板 JSON](https://github.com/LeenHawk/gproxy/blob/dev/deploy/northflank/template.json)。
 2. 将模板命名为 GPROXY；按需调整模板参数 `PROJECT_NAME` 和 Project 节点的 `region`（默认 `europe-west`），保存并运行。
 3. 工作流会创建项目、私有 PostgreSQL 数据库、密钥组和公开的 GPROXY 服务。应用与数据库均使用 `nf-compute-20`，数据库申请 4 GiB 存储；运行前请核对套餐。
 4. 在项目的 `gproxy-secrets` 密钥组中查看并保存自动生成的 `GPROXY_ADMIN_PASSWORD` 和 `GPROXY_MASTER_KEY`。打开服务的公开 HTTPS 地址，在 `/console/` 使用 `admin` 登录。
@@ -42,7 +53,7 @@ Northflank 的[模板分享链接](https://northflank.com/docs/v1/application/in
 ## 运行与更新
 
 - 更新时保留数据库和 `GPROXY_MASTER_KEY`，并备份两者。这些模板读取 `GPROXY_DATABASE_URL` 或平台提供的 `DATABASE_URL`。
-- 升级时修改 `deploy/serverless/Dockerfile` 中的 `GPROXY_RELEASE_VERSION`，再重新构建部署。所选发布需包含两种架构的 serverless Linux 压缩包和 `SHA256SUMS`。当前固定正式版本，不跟随 `nightly`。
+- 构建时默认下载最新稳定版（`GPROXY_RELEASE_VERSION=latest`），并校验 SHA-256。升级时清除平台构建缓存后重新部署，无需修改版本号。需要固定版本时，将这个 Docker 构建参数设为发布标签；所选版本需包含两种架构的 serverless Linux 压缩包和 `SHA256SUMS`。
 - 模板默认运行一个应用实例，复用现有 serverless host，将共享缓存保存在 PostgreSQL 中。
 - 使用 OAuth 或公开文件链接时，将 `GPROXY_PUBLIC_BASE_URL` 设为服务的公开 HTTPS 地址。这些模板不启用文件存储，需要文件系统或对象存储时请选择自定义原生 CLI 构建。客户端 IP 取自连接对端，可能是平台路由器地址；不信任转发头中的客户端 IP。
 - 原生服务支持 HTTP、SSE 和 WebSocket，但仍受平台路由超时、空闲连接限制和实例重启影响。

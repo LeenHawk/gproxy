@@ -107,7 +107,7 @@ If Netlify, Vercel, or Deno returns 503, check the function logs and confirm tha
 
 ## Updates and runtime limits
 
-Configuration, accounts, and usage live in the database. Keep the database and master key when updating. Each template pins its release in `prepare-release.mjs`, currently `v4.0.4`. To upgrade, change the version and redeploy; that release must include the matching platform bundles. Hosted deployments do not use the console's in-place binary updater.
+Configuration, accounts, and usage live in the database. Keep the database and master key when updating. Templates download the latest stable release by default and verify SHA-256. Clear the platform build cache and redeploy to upgrade. Set the build environment variable `GPROXY_RELEASE_VERSION` to a release tag only when you want to pin a version. The release must include the matching platform bundles. Hosted deployments do not use the console's in-place binary updater.
 
 All templates support HTTP and SSE; Netlify Functions rejects WebSocket upgrades. Vercel uses the platform’s [WebSocket Beta](https://vercel.com/docs/functions/websockets), while Deno bridges its native WebSocket entry to the internal service. Function duration limits or instance eviction can still disconnect WebSockets, so clients must handle reconnection. Long-running inference, large files, and high concurrency remain subject to platform limits. Check the current [Netlify Functions](https://docs.netlify.com/build/functions/overview/), [Vercel Functions](https://vercel.com/docs/functions/limitations), and [Deno Deploy](https://docs.deno.com/deploy/reference/limits/) allowances for your workload.
 

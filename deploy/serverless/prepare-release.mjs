@@ -3,9 +3,10 @@ import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { unzipSync } from "fflate";
 
-// Upgrade by changing this tag in the cloned template and redeploying.
-const version = process.env.GPROXY_RELEASE_VERSION || "v4.0.4";
-const base = `https://github.com/LeenHawk/gproxy/releases/download/${version}`;
+const version = process.env.GPROXY_RELEASE_VERSION || "latest";
+const base = version === "latest"
+  ? "https://github.com/LeenHawk/gproxy/releases/latest/download"
+  : `https://github.com/LeenHawk/gproxy/releases/download/${version}`;
 const root = new URL(".", import.meta.url);
 
 async function download(name) {

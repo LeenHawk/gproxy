@@ -2,7 +2,7 @@
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/dev/deploy/cloudflare-button)
 
-This standalone template downloads the official **v4.0.4** Worker and console,
+This standalone template downloads the official **latest stable** Worker and console,
 checks the release SHA-256, and deploys with D1. No Rust build is needed.
 
 1. Click the button and connect your GitHub or GitLab account.
@@ -12,7 +12,8 @@ checks the release SHA-256, and deploys with D1. No Rust build is needed.
 4. After deployment, open `/console/` and sign in as `admin`. Add providers and
    create a gateway API key in the console.
 
-The template pins its release in `prepare-release.mjs`. Keep the D1 database and
+The template downloads the latest stable release by default. To pin a version, set
+`GPROXY_RELEASE_VERSION` to a release tag in the build environment. Keep the D1 database and
 master key when updating. On startup, when the password secret is set, a user matching `GPROXY_ADMIN_USER` takes priority: only their password is updated. If no name matches, user `0` is enabled as an administrator and given the configured name and password; user `0` is created if missing.
 Unchanged credentials preserve sessions; a password change or recovery ends
 the target user’s sessions. Removing the secret keeps existing accounts unchanged.

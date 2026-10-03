@@ -19,9 +19,6 @@
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D)
 [![Deploy to Deno](https://img.shields.io/badge/Deploy_to-Deno-000000?style=for-the-badge&logo=deno)](https://console.deno.com/new?clone=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&path=deploy%2Fserverless)
-[![Northflank template](https://img.shields.io/badge/Template-Northflank-0099ff?style=for-the-badge)](https://gproxy.leenhawk.com/deployment/containers/#northflank)
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
-[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
 
 </div>
 
@@ -127,11 +124,33 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
 
 ### Hosted deployments
 
-Templates for Cloudflare, Netlify, Vercel, and Deno use prebuilt **v4.0.4** bundles without compiling Rust. Cloudflare supports D1 or libSQL/Turso; the other three use PostgreSQL. Configure the database, administrator password, and master key, then deploy and sign in at `/console/`.
+Templates for Cloudflare, Netlify, Vercel, and Deno use prebuilt **latest stable release** bundles without compiling Rust. Cloudflare supports D1 or libSQL/Turso; the other three use PostgreSQL. Configure the database, administrator password, and master key, then deploy and sign in at `/console/`.
 
 See the [hosted deployment guide](https://gproxy.leenhawk.com/deployment/edge/) for deploy buttons, platform or external databases, and differences such as WebSocket support.
 
-Northflank, Render, and Heroku package the **v4.0.3** PostgreSQL executable in a lightweight container. Render and Heroku have direct deploy buttons above; Northflank has an importable template. See the [container hosting guide](https://gproxy.leenhawk.com/deployment/containers/) for plans, setup, and Northflank share links.
+These three templates package the **latest stable release** PostgreSQL executable in a lightweight container. Review the paid service and database plans before deploying.
+
+<table>
+<tr>
+<td width="33%" valign="top">
+<h3>Render</h3>
+<p>Starter service + Basic PostgreSQL. Database connection and secrets are set up automatically.</p>
+<p><a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>Deploy to Render →</strong></a></p>
+</td>
+<td width="33%" valign="top">
+<h3>Heroku</h3>
+<p>Basic dyno + Essential PostgreSQL. Bring your encryption key; the database is created for you.</p>
+<p><a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>Deploy to Heroku →</strong></a></p>
+</td>
+<td width="33%" valign="top">
+<h3>Northflank</h3>
+<p>Import the template to create a project, PostgreSQL database, and service. A public share link is not yet available.</p>
+<p><a href="https://gproxy.leenhawk.com/deployment/containers/#northflank"><strong>Import template →</strong></a></p>
+</td>
+</tr>
+</table>
+
+[Setup and operating instructions](https://gproxy.leenhawk.com/deployment/containers/)
 
 ### Other deployment options
 

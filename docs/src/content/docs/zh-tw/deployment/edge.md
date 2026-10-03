@@ -3,6 +3,8 @@ title: "託管平台部署"
 description: "在 Cloudflare Workers、Netlify、Vercel 或 Deno 上部署 GPROXY，選擇資料庫並完成首次登入。"
 ---
 
+Northflank、Render 與 Heroku 的部署卡片及容器範本，請參閱[容器託管部署](/zh-tw/deployment/containers/)。
+
 GPROXY 提供 Cloudflare Workers、Netlify、Vercel 和 Deno 的部署模板。模板下載預編譯的釋出包，不需要安裝 Rust。部署後，控制台和 API 使用同一個域名，控制台入口為 `/console/`。
 
 ## 選擇平台
@@ -105,7 +107,7 @@ Deno 的入口不會自動建立資料庫。繫結完成前應用可能返回 50
 
 ## 更新與執行限制
 
-配置、帳戶和用量儲存在資料庫中，更新時保留資料庫和主金鑰。模板的 `prepare-release.mjs` 固定釋出版本，當前為 `v4.0.4`；升級時修改版本並重新部署，使用的版本需包含對應平台的釋出附件。託管部署不使用控制台的原地二進位制更新。
+設定、帳戶與用量儲存在資料庫中，更新時保留資料庫與主金鑰。範本預設下載最新穩定版並驗證 SHA-256；升級時清除平台建置快取後重新部署即可。只有需要固定版本時，才將建置環境變數 `GPROXY_RELEASE_VERSION` 設為發行標籤。所選版本需包含對應平台的發行附件。託管部署不使用控制台的原地二進位更新。
 
 所有模板均支援 HTTP 與 SSE；Netlify Functions 不接受 WebSocket 升級。Vercel 使用平台的 [WebSocket Beta](https://vercel.com/docs/functions/websockets)，Deno 使用原生 WebSocket 入口橋接到內部服務。WebSocket 連線仍可能因函式時長限制或實例回收而斷開，用戶端需要處理重連。長時間推理、大檔案和高併發請求仍受平台限制，部署前可檢視 [Netlify Functions](https://docs.netlify.com/build/functions/overview/)、[Vercel Functions](https://vercel.com/docs/functions/limitations) 和 [Deno Deploy](https://docs.deno.com/deploy/reference/limits/) 的當前額度。
 

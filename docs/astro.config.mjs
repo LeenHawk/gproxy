@@ -219,6 +219,11 @@ export default defineConfig({
               translations: { 'zh-CN': '托管平台部署', 'zh-TW': '託管平台部署' },
             },
             {
+              label: 'Northflank / Render / Heroku',
+              slug: 'deployment/containers',
+              translations: { 'zh-CN': '容器托管平台', 'zh-TW': '容器託管平台' },
+            },
+            {
               label: 'Building from Source',
               slug: 'deployment/release-build',
               translations: { 'zh-CN': '从源码构建', 'zh-TW': '從原始碼構建' },

@@ -107,7 +107,7 @@ Deno 的入口不会自动创建数据库。绑定完成前应用可能返回 50
 
 ## 更新与运行限制
 
-配置、账户和用量保存在数据库中，更新时保留数据库和主密钥。模板的 `prepare-release.mjs` 固定发布版本，当前为 `v4.0.4`；升级时修改版本并重新部署，使用的版本需包含对应平台的发布附件。托管部署不使用控制台的原地二进制更新。
+配置、账户和用量保存在数据库中，更新时保留数据库和主密钥。模板默认下载最新稳定版并校验 SHA-256；升级时清除平台构建缓存后重新部署即可。只有需要固定版本时，才将构建环境变量 `GPROXY_RELEASE_VERSION` 设为发布标签。所选版本需包含对应平台的发布附件。托管部署不使用控制台的原地二进制更新。
 
 所有模板均支持 HTTP 与 SSE；Netlify Functions 不接受 WebSocket 升级。Vercel 使用平台的 [WebSocket Beta](https://vercel.com/docs/functions/websockets)，Deno 使用原生 WebSocket 入口桥接到内部服务。WebSocket 连接仍可能因函数时长限制或实例回收而断开，客户端需要处理重连。长时间推理、大文件和高并发请求仍受平台限制，部署前可查看 [Netlify Functions](https://docs.netlify.com/build/functions/overview/)、[Vercel Functions](https://vercel.com/docs/functions/limitations) 和 [Deno Deploy](https://docs.deno.com/deploy/reference/limits/) 的当前额度。
 
