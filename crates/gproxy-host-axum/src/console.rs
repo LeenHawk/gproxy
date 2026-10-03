@@ -25,6 +25,7 @@
 use axum::response::{IntoResponse, Response};
 use gproxy_app::config::ConsoleConfig;
 use http::{HeaderValue, Method, StatusCode, header};
+#[cfg(feature = "embedded-console")]
 use rust_embed::RustEmbed;
 
 mod fonts;
@@ -32,6 +33,7 @@ mod fonts;
 /// Where the console is served from, `/console` and below.
 pub const CONSOLE_PATH: &str = "/console";
 
+#[cfg(feature = "embedded-console")]
 #[derive(RustEmbed)]
 #[folder = "assets/web"]
 #[exclude = ".gitkeep"]
@@ -49,6 +51,7 @@ enum Source {
     /// The switch is off, or nothing was embedded and no directory was named.
     Disabled,
     /// The bundle compiled into this binary.
+    #[cfg(feature = "embedded-console")]
     Embedded,
     /// A directory on disk, for development.
     Directory(std::path::PathBuf),
@@ -62,6 +65,7 @@ impl Console {
             // `index.html` is the one file whose presence proves a bundle was
             // built into this binary; `Embedded::iter()` would be true for a
             // stray asset.
+            #[cfg(feature = "embedded-console")]
             _ if Embedded::get("index.html").is_some() => Source::Embedded,
             _ => Source::Disabled,
         };
@@ -116,6 +120,7 @@ impl Console {
     async fn read(&self, asset: &str) -> Option<Vec<u8>> {
         match &self.source {
             Source::Disabled => None,
+            #[cfg(feature = "embedded-console")]
             Source::Embedded => Embedded::get(asset).map(|file| file.data.into_owned()),
             Source::Directory(root) => {
                 // `asset_name` has already rejected `..` and absolute paths, so
@@ -289,9 +294,13 @@ mod tests {
             enabled: true,
             path: None,
         });
+        #[cfg(feature = "embedded-console")]
+        let has_bundle = Embedded::get("index.html").is_some();
+        #[cfg(not(feature = "embedded-console"))]
+        let has_bundle = false;
         assert_eq!(
             console.is_enabled(),
-            Embedded::get("index.html").is_some(),
+            has_bundle,
             "the console is enabled if and only if a bundle is embedded"
         );
 

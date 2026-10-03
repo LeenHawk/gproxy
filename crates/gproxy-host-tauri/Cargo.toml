@@ -42,10 +42,10 @@ mysql = ["gproxy/mysql"]
 [dependencies]
 # The reduction layer in front of the host's router, and nothing else.
 axum = { workspace = true, features = ["form", "http1", "http2", "json", "matched-path", "original-uri", "query", "tokio", "tower-log", "tracing", "ws"] }
-gproxy = { workspace = true }
+gproxy = { workspace = true, features = ["embedded-console"] }
 gproxy-app = { workspace = true }
 gproxy-core = { workspace = true }
-gproxy-host-axum = { workspace = true }
+gproxy-host-axum = { workspace = true, features = ["embedded-console"] }
 gproxy-sdk = { workspace = true }
 gproxy-seaorm = { workspace = true }
 # One argument type the command table names: a credential's lifecycle status.

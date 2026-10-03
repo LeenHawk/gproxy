@@ -84,10 +84,32 @@ CLI 預設啟用全部渠道、記憶體快取、本地檔案儲存和內建詞�
 
 ```sh
 cargo build -p gproxy --release --no-default-features \
-  --features memory,fs,codex,claudecode,openai,custom
+  --features embedded-console,memory,fs,codex,claudecode,openai,custom
 ```
 
 PostgreSQL、MySQL、Redis 和 S3 分別需要 `postgres`、`mysql`、`redis`、`s3` feature。SQLite 始終可用。
+
+### CI 無前端版
+
+Release 工作流程獨立構建 `gproxy-headless-linux-x86_64.zip` 和
+`gproxy-headless-linux-aarch64.zip`，無需等待前端構建。在
+[Releases](https://github.com/LeenHawk/gproxy/releases) 下載對應包：
+開發版選 `nightly`，beta 選 `staging`，穩定版選正式版本。包作為 Release 附件發布，
+自更新也會選擇對應的無前端包。
+
+此版本不打包 Web 控制台，保留代理、管理 API、全部渠道、SQLite、記憶體快取、
+本地檔案儲存和內建詞表，透過 CLI 或管理 API 配置。原始碼構建不需要 Node.js、
+pnpm 或桌面函式庫：
+
+```sh
+cargo build --locked --release -p gproxy --bin gproxy \
+  --no-default-features --features channels,memory,fs,bundled-vocabulary
+./target/release/gproxy serve --console=false
+```
+
+不啟用 `embedded-console` 時，即使工作目錄已有前端產物，也不會嵌入二進位檔。
+`--console=false` 同時關閉外部控制台目錄的服務。自訂 feature 構建若需要
+內嵌控制台，新增 `embedded-console`。
 
 ## 構建 Application
 

@@ -79,6 +79,21 @@ while IFS=$'\t' read -r target artifact os; do
   fi
 done < <(jq -r '.include[] | [.target,.artifact,.os] | @tsv' scripts/release-targets.json)
 
+# Headless packages have separate update keys so they never acquire the console.
+for arch in x86_64 aarch64; do
+  artifact="gproxy-headless-linux-$arch"
+  package="$assets_dir/$artifact.zip"
+  # Other build pipelines may publish only the full CLI.
+  if [ ! -f "$package" ]; then continue; fi
+  target="$arch-unknown-linux-gnu-headless"
+  sha="$(awk '{print $1}' "$package.sha256")"
+  size="$(stat -c%s "$package")"
+  url="$asset_base_url/$artifact.zip"
+  printf '%s|%s|%s|%s\n' "$target" "$url" "$sha" "$size" >> "$payload"
+  artifacts="$(jq -c --arg t "$target" --arg u "$url" --arg s "$sha" --argjson z "$size" \
+    '. + [{target_triple:$t,url:$u,sha256:$s,size:$z}]' <<<"$artifacts")"
+done
+
 printf '%s' "$UPDATE_SIGNING_PRIVATE_KEY_B64" | base64 -d > "$work/private.pem"
 chmod 600 "$work/private.pem"
 derived="$(openssl pkey -in "$work/private.pem" -pubout -outform DER | tail -c 32 | base64 -w0)"

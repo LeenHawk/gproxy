@@ -100,10 +100,34 @@ CLI defaults include all channels, memory cache, local file storage, and bundled
 
 ```sh
 cargo build -p gproxy --release --no-default-features \
-  --features memory,fs,codex,claudecode,openai,custom
+  --features embedded-console,memory,fs,codex,claudecode,openai,custom
 ```
 
 PostgreSQL, MySQL, Redis, and S3 require `postgres`, `mysql`, `redis`, and `s3` respectively. SQLite is always available.
+
+### Headless CLI for CI
+
+The Release workflow builds `gproxy-headless-linux-x86_64.zip` and
+`gproxy-headless-linux-aarch64.zip` independently of the frontend. Download the
+matching package from [Releases](https://github.com/LeenHawk/gproxy/releases):
+`nightly` for dev, `staging` for beta, or a stable version. These are release
+attachments. Self-update selects the matching headless package.
+
+This variant excludes the bundled Web console and retains proxy routes,
+management APIs, all channels, SQLite, memory cache, local file storage and
+bundled vocabulary. Configure it through the CLI or management API. It needs no
+Node.js, pnpm or desktop libraries to build:
+
+```sh
+cargo build --locked --release -p gproxy --bin gproxy \
+  --no-default-features --features channels,memory,fs,bundled-vocabulary
+./target/release/gproxy serve --console=false
+```
+
+Omitting `embedded-console` excludes frontend assets even when the checkout
+already contains a built console. `--console=false` also disables serving an
+external console directory. To build a console-enabled variant with a custom
+feature set, add `embedded-console`.
 
 ## Build Application
 

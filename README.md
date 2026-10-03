@@ -195,6 +195,30 @@ Stop v3, back up the database, master key, and startup configuration, then start
 
 See [Migrating v3 to v4](https://gproxy.leenhawk.com/deployment/v3-to-v4/) for migration scope, backups, and failure handling.
 
+## Headless CLI for CI
+
+The Release workflow builds `gproxy-headless-linux-x86_64.zip` and
+`gproxy-headless-linux-aarch64.zip` independently of the frontend. Download the
+matching package from [Releases](https://github.com/LeenHawk/gproxy/releases):
+`nightly` for dev, `staging` for beta, or a stable version. These are release
+attachments. Self-update selects the matching headless package.
+
+This variant excludes the bundled Web console and retains proxy routes,
+management APIs, all channels, SQLite, memory cache, local file storage and
+bundled vocabulary. Configure it through the CLI or management API. It needs no
+Node.js, pnpm or desktop libraries to build:
+
+```sh
+cargo build --locked --release -p gproxy --bin gproxy \
+  --no-default-features --features channels,memory,fs,bundled-vocabulary
+./target/release/gproxy serve --console=false
+```
+
+Omitting `embedded-console` excludes frontend assets even when the checkout
+already contains a built console. `--console=false` also disables serving an
+external console directory. To build a console-enabled variant with a custom
+feature set, add `embedded-console`.
+
 ## Development
 
 Native builds require stable Rust, Go, and Clang. The console and docs require Node.js 22.12+ (24 LTS recommended) and pnpm. Linux desktop builds also require the WebKitGTK 4.1, GTK 3, and libsoup 3 development packages.

@@ -195,6 +195,28 @@ Release 中的 MSIX 是商店提交包，直接安装请选 ZIP；macOS 应用�
 
 迁移范围、备份与失败处理见[从 v3 迁移到 v4](https://gproxy.leenhawk.com/zh-cn/deployment/v3-to-v4/)。
 
+## CI 无前端版
+
+Release 工作流独立构建 `gproxy-headless-linux-x86_64.zip` 和
+`gproxy-headless-linux-aarch64.zip`，无需等待前端构建。在
+[Releases](https://github.com/LeenHawk/gproxy/releases) 下载对应包：
+开发版选 `nightly`，beta 选 `staging`，稳定版选正式版本。包作为 Release 附件发布，
+自更新也会选择对应的无前端包。
+
+此版本不打包 Web 控制台，保留代理、管理 API、全部渠道、SQLite、内存缓存、
+本地文件存储和内置词表，通过 CLI 或管理 API 配置。源码构建不需要 Node.js、
+pnpm 或桌面库：
+
+```sh
+cargo build --locked --release -p gproxy --bin gproxy \
+  --no-default-features --features channels,memory,fs,bundled-vocabulary
+./target/release/gproxy serve --console=false
+```
+
+不启用 `embedded-console` 时，即使工作目录已有前端产物，也不会嵌入二进制。
+`--console=false` 同时关闭外部控制台目录的服务。自定义 feature 构建若需要
+内嵌控制台，添加 `embedded-console`。
+
 ## 开发
 
 原生构建需要 stable Rust、Go 和 Clang；控制台与文档需要 Node.js 22.12+（推荐 24 LTS）和 pnpm。Linux 桌面构建还需要 WebKitGTK 4.1、GTK 3 与 libsoup 3 开发包。

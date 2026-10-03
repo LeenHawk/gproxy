@@ -27,7 +27,10 @@ required-features = ["postgres"]
 
 [features]
 # A single-node SQLite instance with every channel this repository implements.
-default = ["channels", "memory", "fs", "bundled-vocabulary"]
+default = ["channels", "memory", "fs", "bundled-vocabulary", "embedded-console"]
+
+# Omit for CI builds that do not carry the Web console.
+embedded-console = ["gproxy-host-axum/embedded-console"]
 
 # Channels, forwarded to the sdk. The sdk registers each one it was compiled
 # with; a build with none serves only providers whose channel a host supplies.

@@ -19,7 +19,7 @@ docker run --rm --platform "$platform" \
   gproxy-musl-builder sh -eu -c '
     native_target="$(rustc -vV | sed -n "s/^host: //p")"
     cargo build --locked --release -p gproxy --bin gproxy-serverless \
-      --target "$native_target" --no-default-features --features channels,postgres
+      --target "$native_target" --no-default-features --features channels,postgres,embedded-console
     mkdir -p "target/$1/release"
     if [ "$native_target" != "$1" ]; then
       cp "target/$native_target/release/gproxy-serverless" "target/$1/release/gproxy-serverless"

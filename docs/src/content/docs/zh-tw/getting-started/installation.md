@@ -36,6 +36,8 @@ GPROXY Desktop 即 Application 版本。商店版本由微軟簽名，並透過�
 
 Windows Release 附件中的 MSIX 是商店提交包，可能尚未帶有微軟簽名；請從商店安裝，或選擇 ZIP。macOS 應用使用 ad-hoc 簽名，尚未公證。鴻蒙 HAP 需要自行簽名，尚未完成真機驗證，也不提供背景服務。
 
+CI 環境可選無前端 CLI：不打包 Web 控制台，保留代理和管理 API。Release 工作流程發布 Linux x86_64 和 aarch64 ZIP 包；下載位置和構建命令見[無前端構建](/zh-tw/deployment/release-build/#ci-無前端版)。
+
 ## Application：在介面中設定
 
 安裝或解壓 Application 後，啟動 GPROXY。全新實例會開啟設定精靈：

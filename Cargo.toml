@@ -80,7 +80,7 @@ gproxy-channel = { path = "crates/gproxy-channel", version = "=4.0.4", default-f
 gproxy-client = { path = "crates/gproxy-client", version = "=4.0.4", default-features = false }
 gproxy-cache = { path = "crates/gproxy-cache", version = "=4.0.4", default-features = false }
 gproxy-file = { path = "crates/gproxy-file", version = "=4.0.4", default-features = false }
-gproxy-host-axum = { path = "crates/gproxy-host-axum", version = "=4.0.4" }
+gproxy-host-axum = { path = "crates/gproxy-host-axum", version = "=4.0.4", default-features = false }
 gproxy-host-edge = { path = "crates/gproxy-host-edge", version = "=4.0.4" }
 gproxy-host-tauri = { path = "crates/gproxy-host-tauri", version = "=4.0.4" }
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.4", features = ["exhaustive"] }

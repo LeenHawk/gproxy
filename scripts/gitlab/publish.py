@@ -202,6 +202,12 @@ def verify_packages():
             with zipfile.ZipFile(directory / (name + ".zip")) as archive:
                 if "gproxy-serverless" not in archive.namelist():
                     raise ValueError(f"Missing serverless executable: {name}")
+        for arch in ("x86_64", "aarch64"):
+            name = f"gproxy-headless-linux-{arch}"
+            expected += [name + ".zip", name + ".provenance.json"]
+            with zipfile.ZipFile(directory / (name + ".zip")) as archive:
+                if "gproxy" not in archive.namelist():
+                    raise ValueError(f"Missing headless executable: {name}")
     extensions = {"linux": ".deb", "macos": ".dmg", "windows": ".msix", "android": ".apk", "ohos": ".hap"}
     for row in matrix:
         cli = row["artifact"]

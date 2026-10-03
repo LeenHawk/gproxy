@@ -77,7 +77,7 @@ pub(super) fn target() -> String {
     } else {
         ""
     };
-    match (arch, os, environment) {
+    let target = match (arch, os, environment) {
         ("aarch64", "linux", "ohos") => "aarch64-unknown-linux-ohos",
         ("x86_64", "linux", "ohos") => "x86_64-unknown-linux-ohos",
         ("x86_64", "linux", "gnu") => "x86_64-unknown-linux-gnu",
@@ -93,8 +93,12 @@ pub(super) fn target() -> String {
         ("x86_64", "windows", "msvc") => "x86_64-pc-windows-msvc",
         ("aarch64", "windows", "msvc") => "aarch64-pc-windows-msvc",
         _ => return format!("{arch}-{os}"),
+    };
+    if cfg!(feature = "embedded-console") {
+        target.to_owned()
+    } else {
+        format!("{target}-headless")
     }
-    .to_owned()
 }
 
 #[cfg(test)]

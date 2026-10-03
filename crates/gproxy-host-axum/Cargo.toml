@@ -13,6 +13,10 @@ repository.workspace = true
 # instead of writing the route table a second time. What the wasm build leaves
 # out is listed in that crate's README — the socket-shaped pieces (hyper
 # upgrades, `ConnectInfo`, the embedded console), never a route.
+[features]
+default = ["embedded-console"]
+embedded-console = ["dep:rust-embed"]
+
 [dependencies]
 bytes = { workspace = true }
 futures-core = { workspace = true }
@@ -47,7 +51,7 @@ sha2 = { workspace = true }
 # The console bundle, when one was built into the binary. The folder is empty
 # in a source checkout, which is what makes `/console` answer 404 rather than
 # pretend to serve an application that is not there.
-rust-embed = { workspace = true }
+rust-embed = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 
 # The extractors the routers use and nothing else: no `http1`/`http2` (hyper is

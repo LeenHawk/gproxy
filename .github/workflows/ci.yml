@@ -86,7 +86,7 @@ jobs:
         if: matrix.check == 'backend'
       - name: Serverless PostgreSQL host
         if: matrix.check == 'backend'
-        run: cargo clippy -p gproxy --bin gproxy-serverless --no-default-features --features channels,postgres -- -D warnings
+        run: cargo clippy -p gproxy --bin gproxy-serverless --no-default-features --features channels,postgres,embedded-console -- -D warnings
       - run: cargo test
         if: matrix.check == 'backend'
       - run: bash scripts/with-tauri-desktop-lib.sh cargo clippy -p gproxy-host-tauri --all-targets -- -D warnings

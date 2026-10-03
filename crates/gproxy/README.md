@@ -442,8 +442,23 @@ already in place for the console to land in.
 
 ## Cargo features
 
+For a CI binary without bundled frontend assets, skip the console build and run:
+
+```sh
+cargo build --locked --release -p gproxy --bin gproxy \
+  --no-default-features --features channels,memory,fs,bundled-vocabulary
+./target/release/gproxy serve --console=false
+```
+
+This excludes embedded assets even if `assets/web` already contains a console
+build. Proxy routes, management APIs, bootstrap and configuration import remain
+available. A console directory can still be served with `--console-path`.
+Use CLI commands or the management API to configure providers and credentials.
+For a smaller set of upstreams, replace `channels` with names such as `openai,codex`.
+
 | Feature | Default | What it adds |
 |---|---|---|
+| `embedded-console` | ✓ | the bundled Web console |
 | `channels` | ✓ | every channel this repository implements. Name channels one by one (`codex`, `kiro`, `openai`, …) for a binary that carries only the upstreams a deployment uses |
 | `memory` | ✓ | the in-process cache |
 | `fs` | ✓ | local file storage |
