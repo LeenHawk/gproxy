@@ -36,7 +36,6 @@ function ApplicationForm({ original }: { original: ShellPreferencesStatus }) {
     onSuccess: value => { client.setQueryData(SHELL_PREFERENCES_KEY, value); toast.success(t("toast.saved")) },
   })
   return <form className="flex flex-col gap-6" onSubmit={event => { event.preventDefault(); saved.mutate({ ...draft, language: i18n.language }) }}>
-    <p className="text-sm text-muted-foreground">{t("shellPreferences.help")}</p>
     {original.startupError ? <ErrorNotice error={new Error(original.startupError)} /> : null}
     {original.trayError ? <Alert><AlertDescription>{t("shellPreferences.trayFailed", { error: original.trayError })}</AlertDescription></Alert> : null}
     <FieldGroup className="grid gap-6 sm:grid-cols-2">

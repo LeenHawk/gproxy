@@ -72,7 +72,6 @@ export function UpdatePage() {
     <QueryState isPending={info.isPending} error={info.error}><p>{t("update.current")} <Badge variant="outline">{info.data?.version}</Badge> <code title={info.data?.hash}>{info.data?.hash.slice(0, 12)}</code></p></QueryState>
     {unsupported ? <EmptyNotice title={t("update.unsupported")} /> : <QueryState isPending={schedule.isPending} error={schedule.error}>
       <PageSection title={t("update.announcements.title")}>
-        <p className="text-sm text-muted-foreground">{t("update.announcements.help")}</p>
         {notices.isPending ? <LoadingRows rows={1} /> : notices.error ? <ErrorNotice error={notices.error} /> : <AnnouncementList notices={notices.data ?? []} />}
       </PageSection>
       <PageSection title={t("update.selfUpdate")}>

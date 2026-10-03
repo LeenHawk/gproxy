@@ -142,8 +142,7 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
         </ToggleGroup>
         {mode === "json" ? <Field className="sm:col-span-2">
           <FieldLabel htmlFor={jsonId}>{t("rules.ruleJson")}</FieldLabel>
-          <FieldDescription id={`${jsonId}-description-0`}>{t("rules.jsonHelp")}</FieldDescription>
-          <Textarea aria-describedby={`${jsonId}-description-0`} id={jsonId} value={jsonText} onChange={event => { setJsonText(event.target.value); setValidation(null) }} rows={18} className="font-mono" spellCheck={false} autoComplete="off" aria-invalid={!!validation} />
+          <Textarea id={jsonId} value={jsonText} onChange={event => { setJsonText(event.target.value); setValidation(null) }} rows={18} className="font-mono" spellCheck={false} autoComplete="off" aria-invalid={!!validation} />
           <Button type="button" variant="outline" size="sm" className="self-start" onClick={formatJson}>{t("rules.formatJson")}</Button>
         </Field> : <>
           <RuleSelect label={t("rules.ruleType")} value={kind} options={options(kinds, "rules.types")} onChange={value => { const next = value as RuleKind; setKind(next); setConfig({}); setTarget("body"); setPhase("request"); setEventFilter(""); setAction(next === "header" ? "header_set" : "set"); setValidation(null); if (next === "cache_breakpoint" && dialect === "gemini") setDialect("claude") }} />

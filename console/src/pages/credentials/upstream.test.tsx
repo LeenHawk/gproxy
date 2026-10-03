@@ -122,7 +122,7 @@ it("shows each window's cycle spend, estimate and recent cycles from saved cycle
   expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "40")
   expect(screen.getByRole("heading", { name: "Calendar month" })).toBeInTheDocument()
   expect(screen.getByText("$1.25")).toBeInTheDocument()
-  expect(screen.getAllByText(/only traffic through gproxy/).length).toBeGreaterThan(0)
+  expect(screen.getAllByText(/Only usage through gproxy/).length).toBeGreaterThan(0)
   expect(screen.queryByText("$3.75")).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: /Recent cycles \(1\)/ }))
   expect(await screen.findByText("$3.20")).toBeInTheDocument()

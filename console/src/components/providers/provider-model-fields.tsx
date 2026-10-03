@@ -1,6 +1,6 @@
 import { useId } from "react"
 import { useTranslation } from "react-i18next"
-import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { Field, FieldContent, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import type { ModelMetadataState } from "@/components/providers/provider-model-state"
@@ -26,7 +26,6 @@ export function ProviderModelFields({ modelId, channel, value, onChange }: { mod
     </Field>
     <FieldSet data-field-span="full">
       <FieldLegend variant="label">{t("providers.models.thinking")}</FieldLegend>
-      <FieldDescription>{t("providers.models.thinkingHint")}</FieldDescription>
       <div className="grid gap-2 sm:grid-cols-3">
         <ThinkingField label={t("providers.models.thinkingSupported")} value={value.thinkingSupported} onChange={(next) => set("thinkingSupported", next)} />
         <ThinkingField label={t("providers.models.thinkingAdaptiveSupported")} value={value.thinkingAdaptiveSupported} onChange={(next) => set("thinkingAdaptiveSupported", next)} />

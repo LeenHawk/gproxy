@@ -66,6 +66,5 @@ export default function QuotaTrend({ id, windowId, title, cycle }: { id: string;
       </details></> : <EmptyNotice title={t("limits.quotaTrendEmpty")} />}
     </QueryState>}
     {history.hasNextPage ? <Button type="button" variant="outline" size="sm" className="self-start" disabled={history.isFetching} onClick={() => void history.fetchNextPage()}>{t("limits.quotaTrendOlder")}</Button> : null}
-    <p className="text-xs text-muted-foreground">{t("limits.quotaTrendHint")}</p>
   </div>
 }
