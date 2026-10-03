@@ -48,6 +48,8 @@ rm -f "$archive" "$archive.sha256"
 (cd "$package" && zip -9 -q -r "$archive" .)
 (cd "$output_dir" && checksum "$artifact.zip" > "$artifact.zip.sha256")
 
+if [ "${PACKAGE_INSTALLERS:-true}" = false ]; then exit 0; fi
+
 case "$target_os" in
   linux | android) OUTPUT_DIR="$output_dir" bash scripts/package-cli-deb.sh ;;
   macos)

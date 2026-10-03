@@ -197,11 +197,21 @@ See [Migrating v3 to v4](https://gproxy.leenhawk.com/deployment/v3-to-v4/) for m
 
 ## Headless CLI for CI
 
-The Release workflow builds `gproxy-headless-linux-x86_64.zip` and
-`gproxy-headless-linux-aarch64.zip` independently of the frontend. Download the
-matching package from [Releases](https://github.com/LeenHawk/gproxy/releases):
-`nightly` for dev, `staging` for beta, or a stable version. These are release
-attachments. Self-update selects the matching headless package.
+The Release workflow builds headless ZIP packages independently of the frontend:
+
+| Platform | Architectures | Package |
+| --- | --- | --- |
+| Linux GNU | x86_64, aarch64, riscv64 | `gproxy-headless-linux-<arch>.zip` |
+| Linux musl | x86_64, aarch64, riscv64 | `gproxy-headless-linux-<arch>-musl.zip` |
+| Windows | x86_64, aarch64 | `gproxy-headless-windows-<arch>.zip` |
+| macOS | x86_64, aarch64 | `gproxy-headless-macos-<arch>.zip` |
+| Android (Termux) | x86_64, aarch64 | `gproxy-headless-android-<arch>.zip` |
+
+Download from [Releases](https://github.com/LeenHawk/gproxy/releases): `nightly`
+for dev, `staging` for beta, or a stable version. Self-update selects the matching
+headless package. On Android, run `pkg install libc++ openssl ca-certificates`,
+extract the ZIP under Termux's home directory, then run `./gproxy serve --console=false`.
+On Windows, use `gproxy.exe` in place of `gproxy`.
 
 This variant excludes the bundled Web console and retains proxy routes,
 management APIs, all channels, SQLite, memory cache, local file storage and

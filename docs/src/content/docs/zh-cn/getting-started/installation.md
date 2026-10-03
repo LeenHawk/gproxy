@@ -36,7 +36,7 @@ GPROXY Desktop 即 Application 版本。商店版本由微软签名，并通过�
 
 Windows Release 附件中的 MSIX 是商店提交包，可能尚未带有微软签名；请从商店安装，或选择 ZIP。macOS 应用使用 ad-hoc 签名，尚未公证。鸿蒙 HAP 需要自行签名，尚未完成真机验证，也不提供后台服务。
 
-CI 环境可选无前端 CLI：不打包 Web 控制台，保留代理和管理 API。Release 工作流发布 Linux x86_64 和 aarch64 ZIP 包；下载位置和构建命令见[无前端构建](/zh-cn/deployment/release-build/#ci-无前端版)。
+CI 环境可选无前端 CLI：不打包 Web 控制台，保留代理和管理 API。Release 工作流发布 Linux、Windows、macOS 和 Android（Termux）的 x86_64 / aarch64 ZIP 包，Linux 还提供 riscv64，三种架构均有 GNU 和 musl 版本；下载位置和构建命令见[无前端构建](/zh-cn/deployment/release-build/#ci-无前端版)。
 
 ## Application：在界面中设置
 

@@ -21,6 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.metadata.outputs.matrix }}
+      headless_matrix: ${{ steps.metadata.outputs.headless_matrix }}
+      headless_riscv_matrix: ${{ steps.metadata.outputs.headless_riscv_matrix }}
       riscv_matrix: ${{ steps.metadata.outputs.riscv_matrix }}
       ohos_matrix: ${{ steps.metadata.outputs.ohos_matrix }}
       ohos_app_matrix: ${{ steps.metadata.outputs.ohos_app_matrix }}
@@ -37,6 +39,8 @@ jobs:
           # CLI and Application get separate runners and caches, including
           # their independent LTO links and best-compression packaging.
           echo "matrix=$(jq -c '{include: [.include[] | select(.os != "ohos") | select(.target | startswith("riscv64gc-") | not) | if .application_artifact then . + {kind:"cli"}, . + {kind:"application"} else . + {kind:"cli"} end]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
+          echo "headless_matrix=$(jq -c '{include: [.include[] | select(.headless_artifact) | select(.target | startswith("riscv64gc-") | not)]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
+          echo "headless_riscv_matrix=$(jq -c '{include: [.include[] | select(.headless_artifact) | select(.target | startswith("riscv64gc-"))]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "riscv_matrix=$(jq -c '{include: [.include[] | select(.target | startswith("riscv64gc-")) | if .application_artifact then . + {kind:"cli"}, . + {kind:"application"} else . + {kind:"cli"} end]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "ohos_matrix=$(jq -c '{include: [.include[] | select(.os == "ohos")]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "ohos_app_matrix=$(jq -c '{include: [.include[] | select(.os == "ohos" and .application_artifact)]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
@@ -757,66 +761,105 @@ jobs:
         run: scripts/publish-crates.sh
 
   headless:
-    name: Headless CLI (${{ matrix.arch }})
+    name: Headless CLI (${{ matrix.target }})
     needs: prepare
     runs-on: ${{ matrix.runner }}
     environment: release
     permissions:
       contents: read
       packages: write
+      actions: read
       id-token: write
       attestations: write
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            target: x86_64-unknown-linux-gnu
-            runner: ubuntu-latest
-            upx_version: '4.2.4'
-          - arch: aarch64
-            target: aarch64-unknown-linux-gnu
-            runner: ubuntu-24.04-arm
-            upx_version: '5.2.1'
+      matrix: ${{ fromJSON(needs.prepare.outputs.headless_matrix) }}
     env:
-      ARTIFACT_NAME: gproxy-headless-linux-${{ matrix.arch }}
+      ARTIFACT_NAME: ${{ matrix.headless_artifact }}
       TARGET_TRIPLE: ${{ matrix.target }}
+      TARGET_OS: ${{ matrix.os }}
+      GPROXY_HEADLESS: 'true'
       GPROXY_BUILD_HASH: ${{ github.sha }}
       GPROXY_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
       GPROXY_BUILD_CHANNEL: ${{ needs.prepare.outputs.channel }}
       GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
       GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
-      UPX_ENABLED: 'true'
+      UPX_ENABLED: ${{ matrix.upx }}
       UPX_VERSION: ${{ matrix.upx_version }}
+      BUILDER: ${{ matrix.builder }}
+      RUSTFLAGS: ${{ matrix.os == 'windows' && '-C target-feature=+crt-static' || '' }}
     steps:
       - uses: actions/checkout@v7.0.1
+      - name: Free disk for Termux builder
+        if: matrix.os == 'android'
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet
       - uses: actions/setup-go@v7.0.0
+        if: matrix.os != 'android' && matrix.builder != 'cargo-alpine'
         with:
           go-version: "1.27.1"
           cache: false
       - uses: dtolnay/rust-toolchain@stable
+        if: matrix.os != 'android' && matrix.builder != 'cargo-alpine'
         with:
           targets: ${{ matrix.target }}
       - uses: ./.github/actions/ghcr-rust-cache
+        if: matrix.os != 'android'
         with:
           key: headless-${{ matrix.target }}
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure native Windows ARM64 dependencies
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        run: echo "CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_msvc=$(cygpath -m "$GITHUB_WORKSPACE/scripts/cmake/windows-arm64.cmake")" >> "$GITHUB_ENV"
       - name: Build without frontend assets
         run: |
           test "$(printf '%s' "$GPROXY_UPDATE_PUBKEY" | base64 -d | wc -c)" -eq 32
-          cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" \
-            --no-default-features --features channels,memory,fs,bundled-vocabulary
+          if [ "$BUILDER" = cargo-alpine ]; then
+            bash scripts/build-musl.sh "$TARGET_TRIPLE"
+            exit 0
+          fi
+          case "$TARGET_OS" in
+            android) bash scripts/build-termux.sh "$TARGET_TRIPLE" ;;
+            windows) pwsh -NoProfile -File scripts/build-windows-release.ps1 -Target "$TARGET_TRIPLE" -Headless ;;
+            *) cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" \
+                 --no-default-features --features channels,memory,fs,bundled-vocabulary ;;
+          esac
+      - name: Codesign macOS binary
+        if: matrix.os == 'macos'
+        run: codesign --force --sign - "target/$TARGET_TRIPLE/release/gproxy"
       - name: Install UPX
+        if: matrix.upx && matrix.target != 'aarch64-pc-windows-msvc'
         run: bash scripts/install-upx.sh
-      - name: Package headless CLI
-        run: |
-          binary="target/$TARGET_TRIPLE/release/gproxy"
-          upx --best --lzma "$binary"
-          mkdir -p dist/headless dist/release
-          install -m 755 "$binary" dist/headless/gproxy
-          install -m 644 README.md LICENSE dist/headless/
-          (cd dist/headless && zip -9 -q "../release/$ARTIFACT_NAME.zip" gproxy README.md LICENSE)
-          (cd dist/release && sha256sum "$ARTIFACT_NAME.zip" > "$ARTIFACT_NAME.zip.sha256")
+      - name: Install UPX with ARM64 TLS and loader fixes
+        if: matrix.upx && matrix.target == 'aarch64-pc-windows-msvc'
+        shell: pwsh
+        run: scripts/install-windows-arm64-upx.ps1
+      - name: Compress Windows executable
+        if: matrix.upx && matrix.os == 'windows'
+        shell: pwsh
+        run: scripts/pack-windows-cli.ps1 -Target $env:TARGET_TRIPLE
+      - name: Compress Unix executable
+        if: matrix.upx && matrix.os != 'windows'
+        run: upx --best --lzma "target/$TARGET_TRIPLE/release/gproxy"
+      - name: Package Unix archive
+        if: matrix.os != 'windows'
+        env:
+          PACKAGE_INSTALLERS: 'false'
+        run: bash scripts/package-native-release.sh
+      - name: Package and sign Windows release
+        if: matrix.os == 'windows'
+        uses: ./.github/actions/windows-release
+        with:
+          target: ${{ matrix.target }}
+          artifact: ${{ matrix.headless_artifact }}
+          version: ${{ needs.prepare.outputs.version }}
+          sign: ${{ vars.SIGNPATH_ENABLED == 'true' && github.ref_type == 'tag' }}
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
       - run: bash scripts/build-provenance.sh
       - uses: ./.github/actions/attest-release
         with:
@@ -825,6 +868,55 @@ jobs:
         with:
           name: headless-${{ matrix.target }}
           path: dist/release/${{ env.ARTIFACT_NAME }}.*
+          if-no-files-found: error
+          retention-days: 1
+
+  headless-riscv:
+    name: Headless CLI (${{ matrix.target }})
+    needs: [prepare, riscv-toolchain]
+    runs-on: ubuntu-latest
+    environment: release
+    container:
+      image: ghcr.io/leenhawk/gproxy-build-riscv64:${{ github.sha }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.headless_riscv_matrix) }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      CI_COMMIT_SHA: ${{ github.sha }}
+      CI_COMMIT_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+      TARGET_TRIPLE: ${{ matrix.target }}
+      CARGO_PROFILE_RELEASE_LTO: fat
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Validate update identity
+        env:
+          GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+        run: test "$(cat .gitlab/update-public-key)" = "$GPROXY_UPDATE_PUBKEY"
+      - uses: ./.github/actions/ghcr-rust-cache
+        with:
+          key: headless-${{ matrix.target }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and package without frontend assets
+        run: CI_PROJECT_DIR="$PWD" bash scripts/gitlab/package-cross.sh headless
+      - uses: ./.github/actions/attest-release
+        with:
+          artifact: ${{ matrix.headless_artifact }}
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: headless-${{ matrix.target }}
+          path: dist/release/${{ matrix.headless_artifact }}.*
           if-no-files-found: error
           retention-days: 1
 
@@ -969,7 +1061,7 @@ jobs:
   publish:
     if: ${{ always() && !failure() && !cancelled() }}
     name: Publish GitHub, GitLab and CNB releases
-    needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, serverless, edge, edge-check, container-manifest, publish-crates]
+    needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, serverless, edge, edge-check, container-manifest, publish-crates]
     runs-on: ubuntu-latest
     concurrency:
       group: gproxy-release-publication
@@ -1056,7 +1148,7 @@ jobs:
 
   cache-cleanup:
     name: Clean old GHCR build caches
-    needs: [native, riscv, ohos-cli, ohos-application, headless, serverless, edge]
+    needs: [native, riscv, ohos-cli, ohos-application, headless, headless-riscv, serverless, edge]
     if: ${{ always() && !cancelled() && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
     permissions:

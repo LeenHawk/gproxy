@@ -37,7 +37,7 @@ GPROXY Desktop is the Application edition. Store installations are signed by Mic
 
 MSIX release attachments are Store submission packages and may not yet carry Microsoft's signature; install from the Store or use a ZIP. macOS apps use ad-hoc signing and are not notarized. The experimental HarmonyOS HAP requires your own signature, has not been verified on a physical device, and does not provide a background service.
 
-For CI runners, use the headless CLI: it excludes the Web console and retains proxy and management APIs. The Release workflow publishes Linux x86_64 and aarch64 ZIP packages. See [headless builds](/deployment/release-build/#headless-cli-for-ci) for downloads and build commands.
+For CI runners, use the headless CLI: it excludes the Web console and retains proxy and management APIs. The Release workflow publishes Linux, Windows, macOS and Android (Termux) ZIP packages for x86_64 and aarch64; Linux also includes riscv64, with GNU and musl variants. See [headless builds](/deployment/release-build/#headless-cli-for-ci) for downloads and build commands.
 
 ## Application: graphical setup
 

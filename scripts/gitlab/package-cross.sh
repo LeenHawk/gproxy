@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source scripts/gitlab/env.sh
-mode="${1:?cli|application}"
+mode="${1:?cli|headless|application}"
 export GOCACHE="$CI_PROJECT_DIR/.cache/go-build" GOMODCACHE="$CI_PROJECT_DIR/.cache/go-mod"
 mkdir -p "$GOCACHE" "$GOMODCACHE" dist/release
 case "$TARGET_OS" in
@@ -56,13 +56,19 @@ run_linux_cli() {
 }
 
 case "$mode" in
-  cli)
+  cli | headless)
+    feature_args=()
+    if [ "$mode" = headless ]; then
+      export ARTIFACT_NAME="$(jq -r --arg target "$TARGET_TRIPLE" '.include[] | select(.target==$target) | .headless_artifact' scripts/release-targets.json)"
+      export PACKAGE_INSTALLERS=false
+      feature_args=(--no-default-features --features channels,memory,fs,bundled-vocabulary)
+    fi
     if [ "$TARGET_OS" = macos ] || [[ "$TARGET_TRIPLE" == *-musl ]]; then
       if [[ "$TARGET_TRIPLE" == *-musl ]]; then export RUSTFLAGS='-C target-feature=+crt-static'; fi
-      cargo zigbuild --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE"
+      cargo zigbuild --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" "${feature_args[@]}"
       export BUILDER=cargo-zigbuild
     else
-      cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE"
+      cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" "${feature_args[@]}"
       export BUILDER=cargo-cross-gcc
     fi
     binary="target/$TARGET_TRIPLE/release/gproxy"

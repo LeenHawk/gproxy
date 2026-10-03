@@ -46,7 +46,7 @@ tar -C distribution/termux -cf - gproxy | "$engine" exec -i "$container" \
 "$engine" exec -i "$container" bash -c 'cat > /home/builder/gproxy.tar.gz' < "$work/source.tar.gz"
 "$engine" exec \
   --env GPROXY_BUILD_VERSION --env GPROXY_BUILD_CHANNEL --env GPROXY_BUILD_HASH \
-  --env GPROXY_BUILD_UPDATE_SOURCE --env GOPROXY --env CARGO_BUILD_JOBS \
+  --env GPROXY_HEADLESS --env GPROXY_UPDATE_PUBKEY --env GPROXY_BUILD_UPDATE_SOURCE --env GOPROXY --env CARGO_BUILD_JOBS \
   "$container" bash -eu -c '
     cd /home/builder/termux-packages
     # The official recipe pins a published tag. Releases build this checkout,
@@ -64,11 +64,17 @@ mkdir -p "$output"
   > "$output/termux-package.deb"
 dpkg-deb -x "$output/termux-package.deb" "$work/package"
 install -m755 "$work/package/data/data/com.termux/files/usr/bin/gproxy" "$output/gproxy"
-"$engine" exec "$container" bash -elc '
-  node=(/home/builder/.termux-build/_cache/nodejs-*/bin/node)
-  pnpm=/home/builder/.termux-build/gproxy/tmp/pnpm/node_modules/pnpm/bin/pnpm.cjs
-  jq -n --arg rustc "$(rustc --version)" --arg node "$("${node[0]}" --version)" \
-    --arg pnpm "$("${node[0]}" "$pnpm" --version)" \
+"$engine" exec --env GPROXY_HEADLESS "$container" bash -elc '
+  node_version=unused
+  pnpm_version=unused
+  if [ "${GPROXY_HEADLESS:-false}" != true ]; then
+    node=(/home/builder/.termux-build/_cache/nodejs-*/bin/node)
+    pnpm=/home/builder/.termux-build/gproxy/tmp/pnpm/node_modules/pnpm/bin/pnpm.cjs
+    node_version="$("${node[0]}" --version)"
+    pnpm_version="$("${node[0]}" "$pnpm" --version)"
+  fi
+  jq -n --arg rustc "$(rustc --version)" --arg node "$node_version" \
+    --arg pnpm "$pnpm_version" \
     "{rustc:\$rustc,node:\$node,pnpm:\$pnpm}"
 ' > "$output/termux-tools.json"
 jq -r .rustc "$output/termux-tools.json" > "$output/rustc-version.txt"

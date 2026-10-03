@@ -30,6 +30,10 @@ use super::config::UpdateError;
 /// The names an artifact's executable can have. Windows first only in the
 /// `.exe` sense — the search is by exact file name, so the order only decides
 /// which wins in an archive that somehow carries both.
+// Android ZIPs carry a shell launcher named `gproxy`; replace the ELF it runs.
+#[cfg(target_os = "android")]
+const EXECUTABLE_NAMES: &[&str] = &["gproxy.bin", "gproxy"];
+#[cfg(not(target_os = "android"))]
 const EXECUTABLE_NAMES: &[&str] = &["gproxy", "gproxy.exe"];
 
 /// Unpack the executable into `directory`, returning the staged path.

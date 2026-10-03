@@ -91,11 +91,21 @@ PostgreSQL、MySQL、Redis 和 S3 分別需要 `postgres`、`mysql`、`redis`、
 
 ### CI 無前端版
 
-Release 工作流程獨立構建 `gproxy-headless-linux-x86_64.zip` 和
-`gproxy-headless-linux-aarch64.zip`，無需等待前端構建。在
-[Releases](https://github.com/LeenHawk/gproxy/releases) 下載對應包：
-開發版選 `nightly`，beta 選 `staging`，穩定版選正式版本。包作為 Release 附件發布，
-自更新也會選擇對應的無前端包。
+Release 工作流程獨立構建以下無前端 ZIP 包，無需等待前端構建：
+
+| 平台 | 架構 | 下載包 |
+| --- | --- | --- |
+| Linux GNU | x86_64、aarch64、riscv64 | `gproxy-headless-linux-<arch>.zip` |
+| Linux musl | x86_64、aarch64、riscv64 | `gproxy-headless-linux-<arch>-musl.zip` |
+| Windows | x86_64、aarch64 | `gproxy-headless-windows-<arch>.zip` |
+| macOS | x86_64、aarch64 | `gproxy-headless-macos-<arch>.zip` |
+| Android（Termux） | x86_64、aarch64 | `gproxy-headless-android-<arch>.zip` |
+
+在 [Releases](https://github.com/LeenHawk/gproxy/releases) 下載：開發版選 `nightly`，
+beta 選 `staging`，穩定版選正式版本。自更新也會選擇對應的無前端包。
+Android 先在 Termux 執行 `pkg install libc++ openssl ca-certificates`，
+將 ZIP 解壓到 Termux 主目錄，再執行 `./gproxy serve --console=false`。
+Windows 使用 `gproxy.exe`。
 
 此版本不打包 Web 控制台，保留代理、管理 API、全部渠道、SQLite、記憶體快取、
 本地檔案儲存和內建詞表，透過 CLI 或管理 API 配置。原始碼構建不需要 Node.js、

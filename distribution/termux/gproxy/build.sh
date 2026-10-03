@@ -18,7 +18,6 @@ termux_step_configure() {
 	termux_setup_rust
 	termux_setup_cmake
 	termux_setup_ninja
-	termux_setup_nodejs
 	termux_setup_golang
 	# Go runs BoringSSL's symbol generator on the build host, not Android.
 	export GOOS=linux GOARCH=amd64 CGO_ENABLED=0
@@ -33,14 +32,21 @@ termux_step_configure() {
 	export GPROXY_BUILD_HASH="${GPROXY_BUILD_HASH:-termux-v${TERMUX_PKG_VERSION}}"
 	export GPROXY_INSTALLATION_KIND=termux
 
-	# Keep the source lockfile's pnpm version; do not install build tools in PREFIX.
-	npm install --prefix "$TERMUX_PKG_TMPDIR/pnpm" --no-audit --no-fund pnpm@9.15.9
-	export PATH="$TERMUX_PKG_TMPDIR/pnpm/node_modules/.bin:$PATH"
-	(cd console && pnpm install --frozen-lockfile && pnpm build)
+	if [ "${GPROXY_HEADLESS:-false}" != true ]; then
+		termux_setup_nodejs
+		# Keep the source lockfile's pnpm version; do not install build tools in PREFIX.
+		npm install --prefix "$TERMUX_PKG_TMPDIR/pnpm" --no-audit --no-fund pnpm@9.15.9
+		export PATH="$TERMUX_PKG_TMPDIR/pnpm/node_modules/.bin:$PATH"
+		(cd console && pnpm install --frozen-lockfile && pnpm build)
+	fi
 }
 
 termux_step_make() {
-	cargo build --locked --release --target "$CARGO_TARGET_NAME" -p gproxy --bin gproxy -j "$TERMUX_PKG_MAKE_PROCESSES"
+	local feature_args=()
+	if [ "${GPROXY_HEADLESS:-false}" = true ]; then
+		feature_args=(--no-default-features --features channels,memory,fs,bundled-vocabulary)
+	fi
+	cargo build "${feature_args[@]}" --locked --release --target "$CARGO_TARGET_NAME" -p gproxy --bin gproxy -j "$TERMUX_PKG_MAKE_PROCESSES"
 }
 
 termux_step_make_install() {

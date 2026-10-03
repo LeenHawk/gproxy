@@ -20,15 +20,20 @@ docker run --rm --platform "$platform" \
   --env 'RUSTFLAGS=-C target-feature=+crt-static' \
   --env GPROXY_BUILD_VERSION --env GPROXY_BUILD_CHANNEL \
   --env GPROXY_BUILD_HASH --env GPROXY_UPDATE_PUBKEY \
-  --env GPROXY_INSTALLATION_KIND \
+  --env GPROXY_INSTALLATION_KIND --env GPROXY_HEADLESS \
   --env GPROXY_BUILD_UPDATE_SOURCE \
   "$image" sh -eu -c '
     # The fixed toolchain uses the upstream triple; keep custom hosts supported.
     native_target="$(rustc -vV | sed -n "s/^host: //p")"
-    cargo build --locked --release --bin gproxy --target "$native_target"
-    mkdir -p "target/$1/release"
-    if [ "$native_target" != "$1" ]; then
-      cp "target/$native_target/release/gproxy" "target/$1/release/gproxy"
+    requested_target="$1"
+    shift
+    if [ "${GPROXY_HEADLESS:-false}" = true ]; then
+      set -- --no-default-features --features channels,memory,fs,bundled-vocabulary
     fi
-    rustc --version > "target/$1/release/rustc-version.txt"
+    cargo build --locked --release -p gproxy --bin gproxy --target "$native_target" "$@"
+    mkdir -p "target/$requested_target/release"
+    if [ "$native_target" != "$requested_target" ]; then
+      cp "target/$native_target/release/gproxy" "target/$requested_target/release/gproxy"
+    fi
+    rustc --version > "target/$requested_target/release/rustc-version.txt"
   ' sh "$target"
