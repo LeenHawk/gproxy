@@ -62,7 +62,10 @@ preserving the ordinary ELF layout. OHOS's dynamic loader maps the ELF section
 table; generic UPX shared-library packing removes it and can fail with `Invalid
 argument` before native exports initialize. HAP and AppGallery collectors reject
 libraries without valid section tables. AppGallery APP assembly reuses these
-stripped, unpacked libraries. CLI executables still use UPX compression.
+stripped, unpacked libraries. `configure-hap.py` enables `compressNativeLibs`
+for HAP and AppGallery builds: native libraries are ZIP-compressed during
+packaging and extracted intact at installation. This preserves the ELF payload
+and section table. CLI executables still use UPX compression.
 
 The native Ability supplies the app's private data directory. The existing
 explicit private-file secret fallback is used because keyring has no OHOS

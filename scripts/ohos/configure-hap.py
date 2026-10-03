@@ -85,6 +85,9 @@ module.write_text(json.dumps(config, indent=2) + "\n")
 # Server credentials and databases must not enter cloud backups.
 module = project / "entry/src/main/module.json5"
 config = json5.loads(module.read_text())
+# Compress the ZIP entries, not the ELF payload: installation extracts intact
+# libraries, preserving the section table required by OHOS's loader.
+config["module"]["compressNativeLibs"] = True
 config["module"].pop("extensionAbilities", None)
 config["module"]["deviceTypes"] = ["phone", "tablet", "2in1"]
 permissions = config["module"].setdefault("requestPermissions", [])
