@@ -81,9 +81,14 @@ impl BaseChannel for TestChannel {
         let url = match ctx.endpoint_override {
             Some(url) => url.to_owned(),
             None => format!(
-                "{}{}",
+                "{}{}{}",
                 ctx.provider.base_url.unwrap_or_default(),
-                ctx.request.path
+                ctx.request.path,
+                ctx.request
+                    .query
+                    .as_deref()
+                    .map(|query| format!("?{query}"))
+                    .unwrap_or_default()
             ),
         };
         let key = ctx
@@ -248,6 +253,8 @@ pub enum Reply {
     Failed,
     Sse(StatusCode, tokio::sync::mpsc::UnboundedReceiver<Bytes>),
     Http(StatusCode, Value),
+    /// The same, with extra response headers.
+    Headed(StatusCode, Vec<(&'static str, String)>, Value),
     /// A streaming body whose end the test decides: every value sent on the
     /// channel becomes a chunk, and dropping the sender ends the response.
     /// This is what makes the lease-lifetime assertions possible — there is no
@@ -397,6 +404,8 @@ pub struct ScriptClient {
     sockets: Mutex<VecDeque<WsReply>>,
     seen: Mutex<Vec<String>>,
     bodies: Mutex<Vec<Value>>,
+    /// The `authorization` of each handshake, which names the credential.
+    handshake_auth: Mutex<Vec<String>>,
 }
 
 impl ScriptClient {
@@ -428,6 +437,11 @@ impl ScriptClient {
 
     pub fn bodies(&self) -> Vec<Value> {
         self.bodies.lock().unwrap().clone()
+    }
+
+    /// The `authorization` header of every handshake, in order.
+    pub fn handshake_auth(&self) -> Vec<String> {
+        self.handshake_auth.lock().unwrap().clone()
     }
 }
 
@@ -474,6 +488,17 @@ impl OutboundClient for ScriptClient {
                             },
                         ))),
                     )
+                }
+                Reply::Headed(status, extra, body) => {
+                    for (name, value) in extra {
+                        headers.insert(name, HeaderValue::from_str(&value).unwrap());
+                    }
+                    let body = Bytes::from(serde_json::to_vec(&body).unwrap());
+                    headers.insert(
+                        "content-length",
+                        HeaderValue::from_str(&body.len().to_string()).unwrap(),
+                    );
+                    (status, HttpBody::Bytes(body))
                 }
                 Reply::Http(status, body) => {
                     let body = Bytes::from(serde_json::to_vec(&body).unwrap());
@@ -530,6 +555,14 @@ impl OutboundClient for ScriptClient {
     ) -> CapabilityFuture<'a, Result<UpstreamConnection, CapabilityError>> {
         Box::pin(async move {
             self.seen.lock().unwrap().push(request.uri().to_string());
+            self.handshake_auth.lock().unwrap().push(
+                request
+                    .headers()
+                    .get("authorization")
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or_default()
+                    .to_owned(),
+            );
             let reply = self.sockets.lock().unwrap().pop_front();
             match reply {
                 Some(WsReply::Connected(peer)) => {

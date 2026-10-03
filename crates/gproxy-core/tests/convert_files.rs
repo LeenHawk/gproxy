@@ -4,6 +4,7 @@
 //! speaks another dialect, driven through `Core::send`.
 
 mod support;
+use gproxy_core::owned::FILE_KIND;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -96,6 +97,7 @@ fn claude_file(id: &str) -> Value {
 #[tokio::test]
 async fn openai_client_retrieves_and_deletes_files_on_a_claude_upstream() {
     let h = harness(full(), "round_robin").await;
+    h.own("claude", "cl1", FILE_KIND, "file_abc").await;
     h.script(vec![json_reply(StatusCode::OK, claude_file("file_abc"))]);
     let (status, headers, body) = run(
         &h,
@@ -150,6 +152,8 @@ async fn openai_client_retrieves_and_deletes_files_on_a_claude_upstream() {
 #[tokio::test]
 async fn list_follows_pages_and_applies_the_client_limit() {
     let h = harness(full(), "round_robin").await;
+    h.own("claude", "cl1", FILE_KIND, "f1").await;
+    h.own("claude", "cl1", FILE_KIND, "f2").await;
     h.script(vec![
         json_reply(
             StatusCode::OK,
@@ -206,6 +210,9 @@ async fn list_follows_pages_and_applies_the_client_limit() {
 #[tokio::test]
 async fn gemini_client_sees_claude_files_under_the_files_prefix() {
     let h = harness(full(), "round_robin").await;
+    for id in ["file_abc", "f1", "f2"] {
+        h.own("claude", "cl1", FILE_KIND, id).await;
+    }
     h.script(vec![json_reply(StatusCode::OK, claude_file("file_abc"))]);
     let (status, _, body) = run(
         &h,
@@ -245,6 +252,9 @@ async fn gemini_client_sees_claude_files_under_the_files_prefix() {
 #[tokio::test]
 async fn content_download_passes_the_upstream_body_through_and_rejections_keep_their_body() {
     let h = harness(full(), "round_robin").await;
+    h.own("claude", "cl1", FILE_KIND, "file_abc").await;
+    // Owned through the gateway but already gone upstream.
+    h.own("claude", "cl1", FILE_KIND, "file_missing").await;
     h.script(vec![(
         StatusCode::OK,
         vec![("content-type", "text/plain")],

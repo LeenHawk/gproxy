@@ -12,6 +12,62 @@ use serde::{Deserialize, Serialize};
 
 use crate::{AdmissionRequest, Admitted, call::drive};
 
+/// Narrow an admission to the providers and credentials holding every file
+/// `body` references. Nothing changes when it references none; when no
+/// admitted provider holds them all, the refusal (not found, or files split
+/// across credentials) is returned before any upstream is dialled.
+async fn narrow_to_referenced_files<
+    C: gproxy_seaorm::BatchConnectionTrait + Send + Sync + 'static,
+>(
+    app: &crate::App<C>,
+    admitted: &mut Admitted,
+    request: &crate::DataPlaneRequest,
+    body: &Value,
+) -> Result<(), AppError> {
+    let ids = gproxy_core::owned::referenced_files_in(request.operation, body);
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let core = app.gproxy().core();
+    let mut placed = std::collections::BTreeMap::new();
+    let mut refusal = None;
+    for provider in &admitted.providers {
+        match core.placement(&admitted.scope, provider, &ids).await {
+            Ok(gproxy_core::owned::Placement::Anywhere) => {
+                placed.insert(provider.clone(), None);
+            }
+            Ok(gproxy_core::owned::Placement::Credential(credential)) => {
+                placed.insert(provider.clone(), Some(credential));
+            }
+            Err(
+                error @ (gproxy_core::CoreError::ResourceNotFound { .. }
+                | gproxy_core::CoreError::InvalidTarget(_)),
+            ) => {
+                refusal.get_or_insert(error);
+            }
+            Err(other) => return Err(other.into()),
+        }
+    }
+    if placed.is_empty() {
+        return match refusal {
+            Some(error) => Err(error.into()),
+            None => Ok(()),
+        };
+    }
+    let snapshot = core.snapshot();
+    admitted
+        .providers
+        .retain(|provider| placed.contains_key(provider));
+    admitted.credentials.retain(|credential| {
+        snapshot
+            .credentials
+            .get(credential)
+            .and_then(|data| placed.get(&data.provider_id))
+            .is_some_and(|pinned| pinned.as_ref().is_none_or(|id| id == credential))
+    });
+    Ok(())
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 struct Binding {
     chain: String,
@@ -470,6 +526,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
                 if b.http_bridge { session.with_http_bridge() } else { session }
             })
                 .unwrap_or_default();
+            // A new chain opens its upstream connection here, with this first
+            // turn in hand: the files it references choose the credential, so
+            // the connection lands where they live (`gproxy_core::owned`). A
+            // continuation cannot move — its state is on the bound account —
+            // and the turn check refuses files elsewhere for it.
+            if remembered.is_none() {
+                narrow_to_referenced_files(&self.context.app, &mut admitted, request, body).await?;
+            }
             let mut handshake = request.parts.clone();
             // The chain's cancellation belongs to the client connection, not
             // to its first generation. Idle reuse must survive a finished turn.

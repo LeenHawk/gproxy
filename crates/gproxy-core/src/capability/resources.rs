@@ -7,7 +7,7 @@ use gproxy_store::entity::resource::{file_object, resource_binding};
 use sea_orm::ActiveValue::Set;
 
 /// `resource_bindings.kind` for bodies core published itself.
-const PUBLICATION_KIND: &str = "publication";
+pub(crate) const PUBLICATION_KIND: &str = "publication";
 /// `file_objects.storage_name` for the configured file backend.
 const STORAGE_NAME: &str = "core";
 
@@ -299,8 +299,9 @@ fn file_content_path(
 ///   host serves the bytes back through `Core::read_publication`. Without a
 ///   file backend every publish is `Unsupported` before side effects.
 /// * `ResourceReference::Id` first resolves to a publication in the same scope;
-///   any other id is read from the scope's provider through its channel with
-///   the first usable credential of the scope target.
+///   any other id must be an upstream file the caller scope uploaded through
+///   the gateway (`crate::owned`) and is read from the scope's provider on
+///   the credential holding it; an id the scope does not own is `NotFound`.
 /// * `ResourceReference::Url` is fetched under the host's `FetchPolicy`
 ///   (`CoreBuilder::fetch_policy`, `DefaultFetchPolicy` unless set): `resolve`
 ///   is the policy check alone, `read` is the GET. The fetch goes through a
@@ -452,6 +453,52 @@ impl<C: BatchConnectionTrait + Send + Sync> Resources<'_, C> {
                 "publication has no stored body",
             )),
         }
+    }
+
+    /// The scope to read upstream file `id` under. A provider-native file id
+    /// is only read when the request's caller scope uploaded it through the
+    /// gateway (`crate::owned`), and then only on the credential holding it:
+    /// the shared upstream account would otherwise serve any caller's file to
+    /// anyone who names its id. Anything else — someone else's file, a file
+    /// created before the registry, a credential the caller may no longer
+    /// spend — is `NotFound`, before the upstream is asked.
+    async fn owned_scope(
+        &self,
+        scope: &ResourceScope,
+        id: &str,
+    ) -> Result<ResourceScope, CapabilityError> {
+        let not_found = || {
+            let not_owned = crate::owned::NotOwned {
+                kind: "file",
+                id: id.to_owned(),
+            };
+            CapabilityError::with_source(
+                CapabilityErrorKind::NotFound,
+                CapabilityErrorStage::Start,
+                not_owned.to_string(),
+                not_owned,
+            )
+        };
+        let credential_id = self
+            .core
+            .owned_file_credential(&scope.scope, &scope.target.provider.entity.id, id)
+            .await
+            .map_err(|e| resource_error(CapabilityErrorKind::Storage, e.to_string()))?
+            .ok_or_else(not_found)?;
+        let credential = scope
+            .target
+            .credentials
+            .iter()
+            .find(|credential| credential.id == credential_id)
+            .cloned()
+            .ok_or_else(not_found)?;
+        Ok(ResourceScope {
+            scope: scope.scope.clone(),
+            target: ExecutionTarget {
+                credentials: vec![credential],
+                ..scope.target.clone()
+            },
+        })
     }
 
     fn upstream<'s>(&'s self, scope: &'s ResourceScope) -> ScopeUpstream<'s, C> {
@@ -934,7 +981,8 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
             if let Some((_, metadata)) = self.local_metadata(scope, id).await? {
                 return Ok(metadata);
             }
-            self.upstream_metadata(scope, id).await
+            let owned = self.owned_scope(scope, id).await?;
+            self.upstream_metadata(&owned, id).await
         })
     }
 
@@ -969,7 +1017,8 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
                     body: HttpBody::Bytes(bytes),
                 });
             }
-            self.upstream_read(scope, id).await
+            let owned = self.owned_scope(scope, id).await?;
+            self.upstream_read(&owned, id).await
         })
     }
 

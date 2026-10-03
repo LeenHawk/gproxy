@@ -116,6 +116,33 @@ Gemini 把它写在路径里，这也是那个方言有两行的原因。
 只有 Sora 有的操作——remix、edit、extend、characters——**刻意缺席**。没有第二家厂商提供
 它们，等有第二家的时候它们会回来。
 
+### 谁能访问文件与视频
+
+文件和视频的 id 是上游自己的，而一个上游凭据通常由许多调用方共用，所以网关自己记录谁创建了
+什么。上传或创建视频成功后，网关把它记在调用方名下（同一用户的所有密钥和控制台会话算作同一
+调用方；每个 OAuth 授权各算一个调用方），并记下处理该请求的凭据。
+
+- 获取、下载、轮询或删除某个 id 时，除非是该调用方经网关创建的，否则一律返回 **404**——
+  属于别人的 id 和不存在的 id 得到同样的答复。请求会发往持有该资源的凭据。
+- 列表只显示调用方自己的条目。分页游标（`has_more`、`last_id`、`nextPageToken`）原样透传，
+  因此一页的条目可能少于 `limit`，甚至在还有后续页时为空；请一直翻页，直到上游表示没有更多。
+- 在此检查出现之前创建的、或直接在上游创建的文件和视频，无法通过网关访问。
+- Gemini 的*可续传*上传（google-genai SDK 的默认方式）照常可用：start 返回的
+  `x-goog-upload-url` 是绑定到调用方的网关 URL，字节会在同一凭据上转发到上游会话，上传完成的
+  文件归调用方所有。其他调用方使用该 URL 会得到 **404**。部署在代理之后时，请设置
+  `public_base_url`（或转发 `Host` 和受信任的 `X-Forwarded-Proto`），让该 URL 指向客户端能访问的地址。
+- 同样的规则也适用于其他请求内部引用的文件：Chat、Responses 或 Claude 消息里的 `file_id`
+  （包括 code interpreter 容器的 `file_ids`）、指向 Files API 文件的 Gemini
+  `fileData.fileUri`、视频的 `input_reference`。不是调用方上传的文件会在发出任何请求之前
+  返回 **404**，请求会在持有这些文件的凭据上执行；分别上传到两个不同凭据的文件不能在同一
+  请求中使用（**400**）。multipart 表单同样检查（`file_id`、`file_ids[]`、
+  `input_reference[file_id]` 等字段）。
+- 在 Responses WebSocket 上，新的 response 会在持有其引用文件的凭据上建立上游连接；续接
+  （`previous_response_id`）留在原账号，因此引用其他凭据上的文件会收到 `error` 事件——请开始新的
+  response 来使用它们。
+- 在 Realtime 或 Gemini Live 套接字上，引用了调用方在该套接字凭据上并不拥有的文件的客户端消息
+  不会被转发：Realtime 返回 `error` 事件（`file_not_found`），Gemini Live 以代码 `1008` 关闭。
+
 ### Realtime 与套接字
 
 | 方法 | 路径 | 操作 / 方言 |

@@ -166,6 +166,9 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                 )
                 .contains(&operation.dialect));
     let inbound_headers = wire.headers.clone();
+    // The file or video id a delete names, for forgetting its owner row once
+    // the upstream confirms (`crate::owned`).
+    let resource_path = wire.path.clone();
     let rewrite_context = RewriteContext {
         operation,
         upstream_model: upstream_model.as_deref(),
@@ -460,9 +463,15 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                     () = cancellation.cancelled() => Err(Fault::Cancelled),
                     result = crate::rt::timeout(capability.operation_total, convert::dispatch(&call)) => match result {
                         Some(Ok(converted)) => Ok(converted),
-                        Some(Err(error)) => Err(match error.kind() {
-                            TransformErrorKind::Host => Fault::Failed(error.into()),
-                            _ => Fault::Client(error.into()),
+                        Some(Err(error)) => Err(match crate::owned::not_owned_in(&error) {
+                            // A file the conversion had to read is not the
+                            // caller's: the same 404 the pre-dispatch check
+                            // gives, and no fault of the credential.
+                            Some(not_owned) => Fault::Client(not_owned.clone().into()),
+                            None => match error.kind() {
+                                TransformErrorKind::Host => Fault::Failed(error.into()),
+                                _ => Fault::Client(error.into()),
+                            },
                         }),
                         None => Err(Fault::DeadlineExceeded),
                     },
@@ -486,7 +495,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
             Route::Unsupported => unreachable!("unsupported route rejected before attempting"),
         };
         let finished_at = now_ms();
-        let answer = match dispatched {
+        let mut answer = match dispatched {
             Ok(answer) => answer,
             Err(Fault::Cancelled) | Err(Fault::DeadlineExceeded) => {
                 let cancelled = request.cancellation.is_cancelled();
@@ -621,6 +630,15 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                 if status.is_success() {
                     core.remember_realtime_call(&request, &credential.id, answer.headers())
                         .await?;
+                    core.settle_owned_resource(
+                        &request,
+                        &credential.id,
+                        &resource_path,
+                        converting,
+                        &mut answer.response,
+                        limits.codec(),
+                    )
+                    .await?;
                     core.record_success(
                         &credential.provider_id,
                         &credential.id,

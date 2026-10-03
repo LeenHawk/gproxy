@@ -725,3 +725,111 @@ async fn ordinary_responses_connect_uses_managed_warmup_and_controls() {
     while socket.incoming.next().await.is_some() {}
     completion.await.unwrap();
 }
+
+/// Record `id` as a file `scope` uploaded on `credential` of `provider`, as
+/// core does after a successful create (`gproxy_core::owned`).
+async fn own_file(gproxy: &Handle, scope: &str, provider: &str, credential: &str, id: &str) {
+    use gproxy_store::entity::resource::resource_binding;
+    use sea_orm::ActiveValue::Set;
+    gproxy
+        .store()
+        .resource_bindings()
+        .create_many(vec![resource_binding::ActiveModel {
+            id: Set(format!("own-{id}")),
+            scope: Set(format!("{scope}\u{1f}{provider}")),
+            kind: Set(gproxy_core::owned::FILE_KIND.into()),
+            public_id: Set(id.into()),
+            generation: Set(0),
+            assignment_id: Set(None),
+            provider_id: Set(provider.into()),
+            upstream_id: Set(Some(id.into())),
+            user_id: Set(None),
+            credential_id: Set(credential.into()),
+            parent_binding_id: Set(None),
+            secret: Set(None),
+            summary: Set(json!({})),
+            file_id: Set(None),
+            created_at_ms: Set(0),
+            updated_at_ms: Set(0),
+            expires_at_ms: Set(None),
+        }])
+        .await
+        .unwrap();
+}
+
+fn retrieve_file(id: &str) -> (OperationKey, WireRequest<HttpBody>) {
+    (
+        OperationKey {
+            operation: Operation::RetrieveFile,
+            dialect: Dialect::OpenAi,
+        },
+        WireRequest {
+            method: Method::GET,
+            path: format!("/v1/files/{id}"),
+            query: None,
+            headers: HeaderMap::new(),
+            body: HttpBody::Bytes(Bytes::new()),
+        },
+    )
+}
+
+#[tokio::test]
+async fn a_file_read_goes_straight_to_the_provider_holding_the_callers_file() {
+    let (gproxy, client, _) = pair().await;
+    own_file(&gproxy, "user:u1", "p2", "c-p2", "file-1").await;
+    client.script(vec![Reply::Http(StatusCode::OK, json!({"id": "file-1"}))]);
+
+    // One attempt in total: without narrowing, p1 would spend it on a
+    // not-found and p2 would never be asked.
+    let (key, request) = retrieve_file("file-1");
+    let execution = gproxy
+        .call(key, request)
+        .scope("user:u1")
+        .max_attempts(std::num::NonZeroU32::new(1).unwrap())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(execution.response().status, StatusCode::OK);
+    finish(execution).await;
+    assert_eq!(client.urls(), ["https://p2.example/v1/files/file-1"]);
+
+    // Another scope owns nothing anywhere: not found, nothing sent.
+    let (key, request) = retrieve_file("file-1");
+    let Err(error) = gproxy.call(key, request).scope("user:u2").send().await else {
+        panic!("another scope must not reach the file")
+    };
+    assert_eq!(error.status_code(), 404, "{error}");
+    assert_eq!(client.urls().len(), 1);
+}
+
+#[tokio::test]
+async fn a_generation_referencing_a_file_goes_to_the_provider_holding_it() {
+    let (gproxy, client, _) = pair().await;
+    own_file(&gproxy, "user:u1", "p2", "c-p2", "file-9").await;
+    client.script(vec![Reply::Http(StatusCode::OK, json!({"from": "p2"}))]);
+    let body = json!({"model": "pair", "input": [{"role": "user", "content": [
+        {"type": "input_file", "file_id": "file-9"}
+    ]}]});
+
+    // One attempt in total, and p1 is the failover route's first member.
+    let execution = gproxy
+        .call(generate(), request(body.clone()))
+        .scope("user:u1")
+        .max_attempts(std::num::NonZeroU32::new(1).unwrap())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(finish(execution).await, r#"{"from":"p2"}"#);
+    assert_eq!(client.urls(), ["https://p2.example/v1/responses"]);
+
+    let Err(error) = gproxy
+        .call(generate(), request(body))
+        .scope("user:u2")
+        .send()
+        .await
+    else {
+        panic!("another scope must not use the file")
+    };
+    assert_eq!(error.status_code(), 404, "{error}");
+    assert_eq!(client.urls().len(), 1);
+}

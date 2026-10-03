@@ -54,6 +54,12 @@ fn digest(parts: &[&[u8]]) -> String {
         .collect()
 }
 
+/// A Gemini resumable upload session, by the gateway token handed to the
+/// client (`owned::upload`). The token is core's own random hex.
+pub fn upload_session(token: &str) -> String {
+    format!("{PREFIX}:upload:{token}")
+}
+
 pub fn refresh_lease(credential_id: &str) -> String {
     format!("{PREFIX}:refresh:{credential_id}")
 }

@@ -127,7 +127,7 @@ where
     }
 
     if let Some(response) = data_plane(
-        state, &mount, &core, &index, &remainder, &mut parts, body, &client_ip,
+        state, &mount, &core, &index, &remainder, &mut parts, body, &client_ip, scheme,
     )
     .await
     {
@@ -410,6 +410,7 @@ async fn data_plane<C>(
     parts: &mut http::request::Parts,
     body: Bytes,
     client_ip: &str,
+    scheme: &str,
 ) -> Option<Response>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
@@ -514,6 +515,12 @@ where
         .and_then(|name| index.provider_id(name))
         .map(str::to_owned);
 
+    // Where a Gemini resumable follow-up must come back to: this origin and
+    // this mount (`gproxy_core::owned::upload`).
+    let upload_base = (matched.operation.operation == gproxy_protocol::Operation::CreateFile
+        && matched.operation.dialect == gproxy_protocol::Dialect::Gemini)
+        .then(|| upload_base(state, mount, scheme, &request.parts.headers))
+        .flatten();
     let app = Arc::clone(state.app());
     if let Some(upgrade) = upgrade {
         if matched.operation.dialect == gproxy_protocol::Dialect::OpenAiResponsesWebSocket {
@@ -551,7 +558,11 @@ where
         {
             models::response(app, outcome, cancel, core.limits.codec())
         }
-        Ok(outcome) => streamed(app, outcome, cancel),
+        Ok(outcome) => {
+            let mut response = streamed(app, outcome, cancel);
+            absolutize_upload_url(&mut response, upload_base.as_deref());
+            response
+        }
         Err(error) => {
             // Nothing is left running: `App::call` gave every charge back and
             // closed the capture before it returned this. Cancelling now would
@@ -560,6 +571,52 @@ where
             ErrorResponse(error).into_response()
         }
     })
+}
+
+/// The external origin plus mount prefix this request reached, as the OAuth
+/// issuer derives it: `public_base_url` when configured, otherwise the `Host`
+/// header under the scheme [`policy::client_scheme`] trusted. `None` when
+/// neither names an authority.
+fn upload_base<C>(
+    state: &HostState<C>,
+    mount: &Mount,
+    scheme: &str,
+    headers: &HeaderMap,
+) -> Option<String> {
+    let origin = match state.app().config().public_base_url.as_deref() {
+        Some(base) if !base.trim().is_empty() => base.trim().trim_end_matches('/').to_owned(),
+        _ => {
+            let authority = headers
+                .get(http::header::HOST)
+                .and_then(|value| value.to_str().ok())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())?;
+            format!("{scheme}://{authority}")
+        }
+    };
+    Some(format!("{origin}{}", mount.prefix()))
+}
+
+/// Core hands a Gemini resumable start back with a mount-relative gateway
+/// session URL; a client needs it absolute. Without a known origin the
+/// relative form is left, which a client resolves against the request URL.
+fn absolutize_upload_url(response: &mut Response, base: Option<&str>) {
+    let name = gproxy_core::owned::upload::UPLOAD_URL;
+    let Some(base) = base else { return };
+    let Some(relative) = response
+        .headers()
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| value.starts_with('/'))
+        .map(str::to_owned)
+    else {
+        return;
+    };
+    if let Ok(value) = http::HeaderValue::from_str(&format!("{base}{relative}")) {
+        response
+            .headers_mut()
+            .insert(http::HeaderName::from_static(name), value);
+    }
 }
 
 /// Return names that can be used unchanged at this base URL.

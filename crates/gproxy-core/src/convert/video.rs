@@ -9,7 +9,9 @@
 //! * Create is JSON only. The multipart form with an `input_reference` part
 //!   is refused; `input_reference` by `file_id` is read through `Resources`.
 //! * Retrieve and content download find the job by the client id in the path;
-//!   the id is the one core minted at create.
+//!   the id is the one core minted at create. `crate::owned` has already
+//!   refused an id the caller's scope did not create and pinned the request
+//!   to the credential that created it.
 //! * Content download reads inline Veo bytes. A Veo result delivered as a
 //!   private URI needs a URL read through the provider, which `Resources`
 //!   refuses today, so such a job's content fails with `Unsupported`.

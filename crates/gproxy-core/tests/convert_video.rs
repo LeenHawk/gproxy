@@ -204,6 +204,8 @@ async fn create_poll_and_download_a_veo_job_through_the_native_video_api() {
 async fn unknown_jobs_multipart_creates_and_list_delete_are_refused() {
     let h = harness(full(), "round_robin").await;
     seed_provider(&h, "gemini", "https://gemini.example", "gemini").await;
+    // An id no create of this scope recorded is not found before conversion
+    // looks for its job.
     let Err(error) = send(
         &h,
         Operation::RetrieveVideo,
@@ -212,6 +214,27 @@ async fn unknown_jobs_multipart_creates_and_list_delete_are_refused() {
     .await
     else {
         panic!("unknown job must fail")
+    };
+    assert!(
+        matches!(error, gproxy_core::CoreError::ResourceNotFound { .. }),
+        "{error}"
+    );
+    // Owned, but its job state is gone (expired): conversion's own refusal.
+    h.own(
+        "gemini",
+        "gemini-key",
+        gproxy_core::owned::VIDEO_KIND,
+        "video_lost",
+    )
+    .await;
+    let Err(error) = send(
+        &h,
+        Operation::RetrieveVideo,
+        json_request(Method::GET, "/v1/videos/video_lost", None),
+    )
+    .await
+    else {
+        panic!("a job without state must fail")
     };
     assert!(error.to_string().contains("job_state"), "{error}");
 
@@ -237,9 +260,11 @@ async fn unknown_jobs_multipart_creates_and_list_delete_are_refused() {
     };
     assert!(error.to_string().contains("multipart"), "{error}");
 
-    for operation in [Operation::ListVideos, Operation::DeleteVideo] {
-        let Err(error) = send(&h, operation, json_request(Method::GET, "/v1/videos", None)).await
-        else {
+    for (operation, path) in [
+        (Operation::ListVideos, "/v1/videos"),
+        (Operation::DeleteVideo, "/v1/videos/video_lost"),
+    ] {
+        let Err(error) = send(&h, operation, json_request(Method::GET, path, None)).await else {
             panic!("{operation:?} must be refused")
         };
         assert!(error.to_string().contains("not supported"), "{error}");

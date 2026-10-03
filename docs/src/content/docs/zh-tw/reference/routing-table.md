@@ -116,6 +116,33 @@ Gemini 把它寫在路徑裡，這也是那個方言有兩行的原因。
 只有 Sora 有的操作——remix、edit、extend、characters——**刻意缺席**。沒有第二家廠商提供
 它們，等有第二家的時候它們會回來。
 
+### 誰能存取檔案與影片
+
+檔案和影片的 id 是上游自己的，而一個上游憑證通常由許多呼叫方共用，所以閘道自己記錄誰建立了
+什麼。上傳或建立影片成功後，閘道把它記在呼叫方名下（同一使用者的所有金鑰和主控台工作階段算作
+同一呼叫方；每個 OAuth 授權各算一個呼叫方），並記下處理該請求的憑證。
+
+- 取得、下載、輪詢或刪除某個 id 時，除非是該呼叫方經閘道建立的，否則一律回傳 **404**——
+  屬於別人的 id 和不存在的 id 得到同樣的答覆。請求會送往持有該資源的憑證。
+- 列表只顯示呼叫方自己的項目。分頁游標（`has_more`、`last_id`、`nextPageToken`）原樣透傳，
+  因此一頁的項目可能少於 `limit`，甚至在還有後續頁時為空；請一直翻頁，直到上游表示沒有更多。
+- 在此檢查出現之前建立的、或直接在上游建立的檔案和影片，無法透過閘道存取。
+- Gemini 的*可續傳*上傳（google-genai SDK 的預設方式）照常可用：start 回傳的
+  `x-goog-upload-url` 是綁定到呼叫方的閘道 URL，位元組會在同一憑證上轉送到上游工作階段，上傳完成的
+  檔案歸呼叫方所有。其他呼叫方使用該 URL 會得到 **404**。部署在代理之後時，請設定
+  `public_base_url`（或轉送 `Host` 和受信任的 `X-Forwarded-Proto`），讓該 URL 指向用戶端能存取的位址。
+- 同樣的規則也適用於其他請求內部引用的檔案：Chat、Responses 或 Claude 訊息裡的 `file_id`
+  （包括 code interpreter 容器的 `file_ids`）、指向 Files API 檔案的 Gemini
+  `fileData.fileUri`、影片的 `input_reference`。不是呼叫方上傳的檔案會在送出任何請求之前
+  回傳 **404**，請求會在持有這些檔案的憑證上執行；分別上傳到兩個不同憑證的檔案不能在同一
+  請求中使用（**400**）。multipart 表單同樣檢查（`file_id`、`file_ids[]`、
+  `input_reference[file_id]` 等欄位）。
+- 在 Responses WebSocket 上，新的 response 會在持有其引用檔案的憑證上建立上游連線；續接
+  （`previous_response_id`）留在原帳號，因此引用其他憑證上的檔案會收到 `error` 事件——請開始新的
+  response 來使用它們。
+- 在 Realtime 或 Gemini Live 套接字上，引用了呼叫方在該套接字憑證上並不擁有的檔案的用戶端訊息
+  不會被轉送：Realtime 回傳 `error` 事件（`file_not_found`），Gemini Live 以代碼 `1008` 關閉。
+
 ### Realtime 與套接字
 
 | 方法 | 路徑 | 操作 / 方言 |

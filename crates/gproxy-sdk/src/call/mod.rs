@@ -247,6 +247,28 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
         let mut prepared = options
             .prepare(gproxy, snapshot, operation, &headers, json.as_ref())
             .await?;
+        // A read or delete of a file or video, or a request referencing
+        // uploaded files, goes only where the caller's own copies live
+        // (`gproxy_core::owned`).
+        if let Some(owned) = gproxy
+            .core()
+            .owned_resource_bindings(
+                &prepared.scope,
+                operation,
+                &path,
+                query.as_deref(),
+                &headers,
+                payload.bytes(),
+                prepared
+                    .plan
+                    .targets
+                    .iter()
+                    .map(|target| target.provider.entity.id.as_str()),
+            )
+            .await?
+        {
+            narrow_to_owned(&mut prepared.plan.targets, &owned);
+        }
         if !payload.replayable() && prepared.plan.targets.len() > 1 {
             prepared.plan.targets.truncate(1);
         }
@@ -362,6 +384,30 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ConnectBuilder<'_, C> {
             .ok_or_else(|| {
                 SdkError::invalid("Responses continuation is outside the admitted plan")
             })?;
+        // Files a turn references must be the caller's, and must live on the
+        // credential this socket is already bound to: a native turn cannot be
+        // moved to another account. (A host that opens one upstream per chain
+        // with the first turn in hand narrows that open to the files'
+        // credential first, as the app's Responses lane does.) The HTTP bridge sends each turn through
+        // `Core::send`, which applies the same check and pins it there.
+        if !session.is_http_bridge() {
+            let ids = gproxy_core::owned::referenced_files_in(self.operation, body);
+            if !ids.is_empty()
+                && let gproxy_core::owned::Placement::Credential(credential) = self
+                    .gproxy
+                    .core()
+                    .placement(&context.scope, &binding.provider_id, &ids)
+                    .await?
+                && credential != binding.credential_id
+            {
+                return Err(SdkError::Core(CoreError::InvalidTarget(
+                    "the referenced files live on another upstream credential than this \
+                     Responses chain; a continuation stays on its account, so start a new \
+                     response (without previous_response_id) to use them"
+                        .into(),
+                )));
+            }
+        }
         let http = session.is_http_bridge().then(|| {
             Arc::new(responses::HttpExecutor {
                 gproxy: self.gproxy.clone(),
@@ -633,6 +679,42 @@ impl Prepared {
     }
 }
 
+/// Keep the targets holding the caller's resources, each narrowed to the one
+/// credential they live on (`owned` maps provider id to credential id; `None`
+/// keeps every credential).
+///
+/// Without this a walk would spend attempts on providers that can only say
+/// not-found, and a plan whose budget ran out before the right provider
+/// would never reach it. When no target holds it, the first target alone is
+/// kept: core refuses it there with the not-found the caller is owed, before
+/// anything is sent.
+fn narrow_to_owned(
+    targets: &mut Vec<Target>,
+    owned: &std::collections::BTreeMap<String, Option<String>>,
+) {
+    let mut kept: Vec<Target> = targets
+        .iter()
+        .filter_map(|target| {
+            let credential = owned.get(&target.provider.entity.id)?;
+            let credentials: Vec<_> = target
+                .credentials
+                .iter()
+                .filter(|c| credential.as_ref().is_none_or(|id| &c.id == id))
+                .cloned()
+                .collect();
+            (!credentials.is_empty()).then(|| Target {
+                credentials,
+                ..target.clone()
+            })
+        })
+        .collect();
+    if kept.is_empty() {
+        targets.truncate(1);
+    } else {
+        std::mem::swap(targets, &mut kept);
+    }
+}
+
 /// Answers that another provider could plausibly do better on: an exhausted
 /// or rejected credential, and anything the upstream itself failed at. Core
 /// has already tried this provider's other credentials by the time one of
@@ -669,6 +751,10 @@ fn stops_the_call(error: &CoreError) -> bool {
         // The caller's own limits. Trying another provider spends more of
         // exactly what has run out.
         E::BudgetExhausted { .. } | E::Forbidden(_) | E::Cancelled | E::DeadlineExceeded => true,
+        // The caller does not own the file or video it named. The plan was
+        // already narrowed to the provider holding the caller's own one, so
+        // no other provider can answer differently.
+        E::ResourceNotFound { .. } => true,
         // The request or the configuration is wrong wherever it is sent.
         E::Transform(_)
         | E::Route(_)
@@ -739,6 +825,14 @@ impl Payload {
 
     /// The buffered body as JSON, for the model name and the session fields.
     /// A body that is not JSON is not an error here; it simply carries neither.
+    /// The buffered bytes, when the body could be buffered.
+    fn bytes(&self) -> Option<&[u8]> {
+        match self {
+            Self::Bytes(bytes) => Some(bytes),
+            Self::Stream(_) => None,
+        }
+    }
+
     fn json(&self) -> Option<Value> {
         match self {
             Self::Bytes(bytes) if !bytes.is_empty() => serde_json::from_slice(bytes).ok(),

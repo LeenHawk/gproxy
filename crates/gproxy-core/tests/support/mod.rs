@@ -993,6 +993,40 @@ impl Harness {
     }
 }
 
+impl Harness {
+    /// Record `id` as created by the harness scope (`tenant`) on `credential`,
+    /// exactly as a successful create through the gateway does
+    /// (`gproxy_core::owned`), so a test can read or delete a resource it did
+    /// not upload first.
+    pub async fn own(&self, provider: &str, credential: &str, kind: &str, id: &str) {
+        use gproxy_store::entity::resource::resource_binding;
+        self.core
+            .store()
+            .resource_bindings()
+            .create_many(vec![resource_binding::ActiveModel {
+                id: Set(format!("own-{provider}-{kind}-{id}")),
+                scope: Set(format!("tenant\u{1f}{provider}")),
+                kind: Set(kind.into()),
+                public_id: Set(id.into()),
+                generation: Set(0),
+                assignment_id: Set(None),
+                provider_id: Set(provider.into()),
+                upstream_id: Set(Some(id.into())),
+                user_id: Set(None),
+                credential_id: Set(credential.into()),
+                parent_binding_id: Set(None),
+                secret: Set(None),
+                summary: Set(json!({})),
+                file_id: Set(None),
+                created_at_ms: Set(0),
+                updated_at_ms: Set(0),
+                expires_at_ms: Set(None),
+            }])
+            .await
+            .unwrap();
+    }
+}
+
 pub fn request(body: &str) -> WireRequest<HttpBody> {
     let mut headers = HeaderMap::new();
     headers.insert("x-client-tag", HeaderValue::from_static("old"));

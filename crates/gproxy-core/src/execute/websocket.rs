@@ -406,6 +406,16 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     limits.max_ws_frame_bytes,
                     session,
                 );
+                // Client messages naming uploaded files must name the
+                // caller's own, on this socket's credential.
+                let socket = crate::owned::socket::guard(
+                    core.store().clone(),
+                    request.scope.clone(),
+                    provider.entity.id.clone(),
+                    credential.id.clone(),
+                    operation.dialect,
+                    socket,
+                );
                 let settled = funnel.arm();
                 return Ok(Execution::new(
                     UpstreamConnection::Connected { handshake, socket },

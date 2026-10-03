@@ -25,6 +25,7 @@ mod ids;
 pub mod keys;
 pub mod limits;
 pub mod observe;
+pub mod owned;
 mod store_observer;
 pub use store_observer::StoreObserver;
 pub mod pricing;

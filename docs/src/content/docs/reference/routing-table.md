@@ -127,6 +127,48 @@ Sora-only operations — remix, edit, extend, characters — are **deliberately
 absent**. No other vendor offers them, and they come back when a second one
 does.
 
+### Who can reach a file or video
+
+File and video ids are the upstream's own, and one upstream credential is
+usually shared by many callers, so the gateway keeps its own record of who
+created what. A successful upload or video creation is recorded against the
+caller (every key and console session of one user counts as one caller; each
+OAuth grant is a caller of its own) and the credential that served it.
+
+- Retrieving, downloading, polling or deleting an id answers **404** unless
+  that caller created it through the gateway — the same answer whether the id
+  belongs to someone else or does not exist. The request is sent on the
+  credential that holds the resource.
+- A list shows only the caller's own items. Paging cursors (`has_more`,
+  `last_id`, `nextPageToken`) are passed through unchanged, so a page can hold
+  fewer items than `limit`, or none while more pages remain; keep paging until
+  the upstream says there are no more.
+- Files and videos created before this check existed, or directly at the
+  upstream, are not reachable through the gateway.
+- A Gemini *resumable* upload (what the google-genai SDKs use by default)
+  works as usual: the `x-goog-upload-url` the start answers with is a gateway
+  URL bound to the caller, the bytes are relayed to the upstream session on
+  the same credential, and the finished file is the caller's. Another caller
+  presenting that URL gets **404**. Behind a proxy, set `public_base_url` (or
+  forward `Host` and a trusted `X-Forwarded-Proto`) so the URL names the
+  address clients reach.
+- The same rule covers files referenced inside other requests: a `file_id` in
+  a chat, Responses or Claude message (including a code-interpreter
+  container's `file_ids`), a Gemini `fileData.fileUri` naming a Files API
+  file, a video `input_reference`. A file the caller did not upload answers
+  **404** before anything is sent, and the request runs on the credential
+  holding the files; files uploaded on two different credentials cannot be
+  used in one request (**400**). Multipart forms are checked the same way
+  (`file_id`, `file_ids[]`, `input_reference[file_id]` fields).
+- On a Responses WebSocket, a new response opens its upstream connection on
+  the credential holding the files it references; a continuation
+  (`previous_response_id`) stays on its account, so files uploaded elsewhere
+  are refused with an `error` event — start a new response to use them.
+- On a Realtime or Gemini Live socket, a client message naming a file the
+  caller does not own on the socket's credential is not forwarded: Realtime
+  answers with an `error` event (`file_not_found`), Gemini Live closes with
+  code `1008`.
+
 ### Realtime and sockets
 
 | Method | Path | Operation / dialect |

@@ -446,4 +446,5 @@ pub struct PublishedHandle {
 }
 
 mod resources;
+pub(crate) use resources::PUBLICATION_KIND;
 pub use resources::Resources;

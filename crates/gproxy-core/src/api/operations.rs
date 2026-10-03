@@ -110,6 +110,52 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
         context: Arc<RequestContext>,
         request: WireRequest<HttpBody>,
     ) -> CoreResult<HttpExecution> {
+        let mut request = request;
+        let context = self.bind_upload_session(context, &mut request).await?;
+        let context = self.bind_owned_resource(context, &request.path).await?;
+        let context = if crate::owned::scans_references(context.operation.operation) {
+            // Files referenced inside the body are checked against the
+            // registry before dispatch, so a streamed body is buffered here
+            // (within the operation's request cap) to be read.
+            if let HttpBody::Stream(_) = request.body {
+                let limits = context
+                    .snapshot
+                    .limits
+                    .for_operation(context.operation.operation);
+                let mut codec = limits.codec();
+                codec.max_body_bytes = limits.max_request_body_bytes;
+                let body =
+                    std::mem::replace(&mut request.body, HttpBody::Bytes(Default::default()));
+                let bytes = gproxy_protocol::codec::read_http_body(body, codec)
+                    .await
+                    .map_err(|e| {
+                        use gproxy_protocol::{
+                            codec::CodecErrorKind, transform::TransformErrorKind,
+                        };
+                        gproxy_protocol::transform::TransformError::new(
+                            match e.kind() {
+                                CodecErrorKind::Limit => TransformErrorKind::Limit,
+                                CodecErrorKind::Transport => TransformErrorKind::Host,
+                                _ => TransformErrorKind::InvalidInput,
+                            },
+                            "client.body",
+                            format!(
+                                "request body must be readable to check its file references: {e}"
+                            ),
+                        )
+                    })?;
+                request.body = HttpBody::Bytes(bytes);
+            }
+            match &request.body {
+                HttpBody::Bytes(bytes) => {
+                    self.bind_referenced_files(context, &request.headers, bytes)
+                        .await?
+                }
+                HttpBody::Stream(_) => context,
+            }
+        } else {
+            context
+        };
         crate::execute::run_http(self, context, request).await
     }
     /// Handshake through the attempt loop; an established socket is observed

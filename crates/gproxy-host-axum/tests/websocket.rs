@@ -602,6 +602,76 @@ async fn responses_selects_from_first_frame_reuses_native_socket_and_settles_eac
     }
 }
 
+/// A chain's upstream connection is chosen with its first turn in hand, so a
+/// turn referencing an uploaded file opens on the credential holding it
+/// (`gproxy_core::owned`), whichever the pool would have picked otherwise.
+#[tokio::test(flavor = "multi_thread")]
+async fn responses_a_new_chain_opens_on_the_credential_holding_its_files() {
+    use gproxy_store::entity::resource::resource_binding;
+    let host = responses_instance("openai_responses_websocket", None).await;
+    let handle = host.handle();
+    support::credential(&handle, "c2", "p1", None, None, None).await;
+    handle
+        .store()
+        .resource_bindings()
+        .create_many(vec![resource_binding::ActiveModel {
+            id: Set("own-file-x".into()),
+            scope: Set("user:alice\u{1f}p1".into()),
+            kind: Set(gproxy_core::owned::FILE_KIND.into()),
+            public_id: Set("file-x".into()),
+            generation: Set(0),
+            provider_id: Set("p1".into()),
+            upstream_id: Set(Some("file-x".into())),
+            credential_id: Set("c2".into()),
+            summary: Set(json!({})),
+            created_at_ms: Set(0),
+            updated_at_ms: Set(0),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    host.publish().await;
+
+    let upstream = host.client.accept_socket();
+    let bound = host.bind().await;
+    let mut client = dial(&bound, "/v1/responses", Some("k-alice"))
+        .await
+        .unwrap();
+    ws_send(
+        &mut client,
+        json!({"type":"response.create","model":"p1/m1","input":[{"role":"user","content":[
+            {"type":"input_file","file_id":"file-x"}
+        ]}]}),
+    )
+    .await;
+    let frame = tokio::time::timeout(Duration::from_secs(5), upstream.next())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(frame, WsFrame::Text(_)));
+    assert_eq!(host.client.handshake_auth(), ["Bearer k-c2"]);
+
+    // Another caller's file is refused on a new chain, before any upstream.
+    ws_send(
+        &mut client,
+        json!({"type":"response.create","model":"p1/m1","stream_id":"other","input":[{"role":"user","content":[
+            {"type":"input_file","file_id":"file-theirs"}
+        ]}]}),
+    )
+    .await;
+    let mut refused = false;
+    for _ in 0..5 {
+        let event = ws_json(&mut client).await;
+        if event["type"] == "error" {
+            assert!(event.to_string().contains("file-theirs"), "{event}");
+            refused = true;
+            break;
+        }
+    }
+    assert!(refused, "the foreign file must be refused");
+    assert_eq!(host.client.handshake_auth().len(), 1);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn responses_bridge_warmup_has_no_generation_and_store_false_continues_then_interrupts() {
     let host = instance(Some(1)).await;

@@ -6,15 +6,28 @@
 //!
 //! Deliberate boundaries:
 //! * File ids are the upstream's ids. Gemini clients see them as `files/{id}`,
-//!   the other dialects see them bare.
+//!   the other dialects see them bare. Nothing here checks who may use one:
+//!   `crate::owned` refuses a retrieve, download or delete of an id the
+//!   caller's scope did not create (before this family runs, and pinned to
+//!   the credential holding it), records each upload, and filters lists — the
+//!   same rules as passthrough, applied by the attempt loop around both.
+//!   Files uploaded before that registry existed have no owner and are not
+//!   reachable.
 //! * A client filter the target cannot express (OpenAI `purpose`/`order`,
 //!   Claude `before_id`/`scope_id`) is rejected rather than silently dropped.
 //! * Listing follows upstream pages to a bounded depth and applies the client's
-//!   `limit` itself; the continuation cursor is the last upstream id.
+//!   `limit` itself; the continuation cursor is the last upstream id. The
+//!   ownership filter runs on the finished page, so it may hold fewer than
+//!   `limit` items while `has_more` is still true.
 //! * Files reaching OpenAI from a Claude or Gemini upstream report purpose
 //!   `user_data`: the only purpose those file APIs model.
 //! * Gemini clients may upload as a multipart form (`metadata` + `file`); the
-//!   resumable protocol is a multi-request exchange this family does not drive.
+//!   resumable protocol is a multi-request exchange this family does not drive
+//!   toward a non-Gemini upstream. Toward a Gemini upstream it is passthrough,
+//!   where `crate::owned::upload` proxies the upload session so the finished
+//!   file is registered; toward a Gemini upstream from another dialect, this
+//!   family drives the resumable exchange itself and never shows its upload
+//!   URL to the client.
 
 use super::{Call, Converted, endpoints};
 use gproxy_protocol::{

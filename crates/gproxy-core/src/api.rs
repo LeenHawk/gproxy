@@ -42,6 +42,12 @@ pub enum CoreError {
     /// service view). The host authenticates; core only checks the pairing.
     #[error("forbidden: {0}")]
     Forbidden(&'static str),
+    /// The request names a file or video this caller's scope does not own:
+    /// never created through the gateway, created by another caller, or held
+    /// by a credential the caller may no longer use. One answer for all three
+    /// so an id's existence leaks nothing. Nothing was sent.
+    #[error("{kind} `{id}` not found")]
+    ResourceNotFound { kind: &'static str, id: String },
     /// Another instance held the refresh lease for the whole wait and no
     /// newer durable version appeared.
     #[error("credential `{credential_id}` is being refreshed elsewhere")]
