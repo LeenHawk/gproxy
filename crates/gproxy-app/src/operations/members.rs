@@ -9,12 +9,28 @@
 //! A membership grants the *use* of that scope's shared credentials. The
 //! `admin` role additionally grants managing them, which is why changing a
 //! role is a separate operation from adding a member and not a field of it.
+//!
+//! # Removal disables the keys the membership authorized
+//!
+//! A key's binding is checked against its holder's memberships once, when the
+//! key is minted, and admission afterwards trusts the binding on the row. A
+//! portal user mints bound keys themselves, so if removing the membership left
+//! those keys alone, a removed member would keep the scope's credentials for as
+//! long as they kept the key. Removal therefore disables — in the same revision
+//! as the membership delete — every key of that user whose binding the
+//! membership was the authority for. Disabling rather than detaching: an
+//! unbound key would silently change who pays and what it reaches, while a
+//! disabled key keeps its row, its history and its binding for an operator to
+//! look at and re-enable once the membership is restored.
 
 use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
 use gproxy_store::entity::identity::{
-    membership_role::MembershipRole, organization_member, team_member,
+    api_key, membership_role::MembershipRole, organization_member, team, team_member,
 };
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Select, Set};
+use sea_orm::{
+    ColumnTrait, Condition, EntityTrait, QueryFilter, Select, Set,
+    sea_query::{Expr, Query},
+};
 
 use super::{Scope, Writer, crud};
 use crate::{
@@ -130,23 +146,60 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> OrganizationMembers<'_, C>
         self.get(organization_id, user_id).await
     }
 
-    /// Remove a member.
+    /// Remove a member, and disable every key of theirs the membership
+    /// authorized (see the module note).
     ///
-    /// Keys bound to the organization are deliberately **not** touched: a key
-    /// binding is set by an operator, and a membership change is not the place
-    /// to destroy one silently. Admission re-reads the binding on every
-    /// request, and credential visibility answers from the key's binding
-    /// rather than from the holder's memberships, so a removed member's key
-    /// keeps exactly the reach its row states until an operator changes it.
+    /// Admission trusts a key's binding rather than re-deriving it from the
+    /// holder's memberships, so the invariant this keeps is: **no enabled key
+    /// is bound to an organization its holder is not a member of.** That is
+    /// every key of the user, of either kind — ordinary keys and the internal
+    /// keys backing their OAuth grants — whose `organization_id` is this
+    /// organization.
+    ///
+    /// Team memberships are not cascaded: a team is its own scope, and team
+    /// membership without organization membership is a supported shape (see
+    /// [`TeamMembers::add`]). A key bound only to a team the user is still in
+    /// therefore stays enabled — the team membership is what authorizes it.
+    /// A key bound to a team of this organization that the user is *not* in
+    /// has no membership left behind it at all, and is disabled with the rest.
+    ///
+    /// The membership delete and the key update are one revision, so there is
+    /// no snapshot in which the member is gone but their keys still work.
     pub async fn remove(&self, organization_id: &str, user_id: &str) -> Result<()> {
         self.row(organization_id, user_id).await?;
-        let statement = self
-            .writer
-            .store()
+        let store = self.writer.store();
+        let membership = store
             .organization_members()
             .delete_statement((organization_id.to_owned(), user_id.to_owned()));
+        let teams_of_org = Query::select()
+            .column(team::Column::Id)
+            .from(team::Entity)
+            .and_where(team::Column::OrganizationId.eq(organization_id))
+            .to_owned();
+        let teams_of_user = Query::select()
+            .column(team_member::Column::TeamId)
+            .from(team_member::Entity)
+            .and_where(team_member::Column::UserId.eq(user_id))
+            .to_owned();
+        let keys = store.api_keys().update_where_statement(
+            disable_keys_of(user_id).filter(
+                Condition::any()
+                    .add(api_key::Column::OrganizationId.eq(organization_id))
+                    .add(
+                        Condition::all()
+                            .add(api_key::Column::TeamId.in_subquery(teams_of_org))
+                            .add(api_key::Column::TeamId.not_in_subquery(teams_of_user)),
+                    ),
+            ),
+        );
         self.writer
-            .commit(vec![BatchStatement::Execute(statement)], &[Scope::Identity])
+            .commit(
+                vec![
+                    BatchStatement::Execute(membership),
+                    BatchStatement::Execute(keys),
+                ],
+                &[Scope::Identity, Scope::Keys],
+            )
             .await?;
         Ok(())
     }
@@ -286,15 +339,33 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> TeamMembers<'_, C> {
         self.get(team_id, user_id).await
     }
 
+    /// Remove a member from a team, and disable every key of theirs bound to
+    /// it, in the same revision (see the module note).
+    ///
+    /// The invariant is the organization's, one level down: **no enabled key
+    /// is bound to a team its holder is not a member of.** Every key of the
+    /// user whose `team_id` is this team goes, of either kind, including one
+    /// that also names the parent organization — the user may well still be
+    /// in the organization, but the key reaches this team's credentials, and
+    /// nothing authorizes that any more. Keys bound only to the organization
+    /// are untouched; that membership is unchanged.
     pub async fn remove(&self, team_id: &str, user_id: &str) -> Result<()> {
         self.row(team_id, user_id).await?;
-        let statement = self
-            .writer
-            .store()
+        let store = self.writer.store();
+        let membership = store
             .team_members()
             .delete_statement((team_id.to_owned(), user_id.to_owned()));
+        let keys = store.api_keys().update_where_statement(
+            disable_keys_of(user_id).filter(api_key::Column::TeamId.eq(team_id)),
+        );
         self.writer
-            .commit(vec![BatchStatement::Execute(statement)], &[Scope::Identity])
+            .commit(
+                vec![
+                    BatchStatement::Execute(membership),
+                    BatchStatement::Execute(keys),
+                ],
+                &[Scope::Identity, Scope::Keys],
+            )
             .await?;
         Ok(())
     }
@@ -316,4 +387,16 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> TeamMembers<'_, C> {
             .await?
             .ok_or_else(|| AppError::not_found("team member", user_id))
     }
+}
+
+/// The enabled keys of `user_id`, of every kind, set to disabled. The caller
+/// narrows it to the binding a removed membership authorized.
+///
+/// Already-disabled rows are left out so the statement touches only what it
+/// changes; the result is the same either way.
+fn disable_keys_of(user_id: &str) -> sea_orm::UpdateMany<api_key::Entity> {
+    api_key::Entity::update_many()
+        .col_expr(api_key::Column::Enabled, Expr::val(false))
+        .filter(api_key::Column::UserId.eq(user_id))
+        .filter(api_key::Column::Enabled.eq(true))
 }

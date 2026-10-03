@@ -56,6 +56,10 @@ CLI / 容器的登入入口是 `/console/`。個人頁和管理頁共用登入�
 - `GET /admin/api/api-keys/{id}/secret`：檢視已保留的金鑰。
 - 個人 API 使用 `/portal/api/keys/{id}/rotate` 和 `/portal/api/keys/{id}/secret`。
 
+撤銷在寫入它的實例上立即生效。多實例部署中，其他實例從記憶體快照應答認證，在重新載入後才拒絕該金鑰：通常經共享快取失效通知在毫秒級完成，訊息遺失時最遲在 30 秒的修訂號輪詢後完成。參見[架構](/zh-tw/introduction/architecture/)。
+
+從組織或團隊移除成員時，會在同一交易中停用該使用者繫結到該組織或團隊的金鑰，包括 OAuth 內部金鑰。
+
 ## 傳送金鑰
 
 ```text

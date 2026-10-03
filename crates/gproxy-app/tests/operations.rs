@@ -14,7 +14,7 @@
 //! 3. a read of the written row answers with what the write returned.
 
 use gproxy_app::{
-    AppConfig, AppData, Authenticator, Operations,
+    AdminScope, AppConfig, AppData, Authenticator, Operations,
     audit::{AuditEntry, REDACTED},
     dto::{
         ApiKeyPatch, ApiKeyWrite, AuditQuery, ListQuery, MemberPatch, MemberWrite,
@@ -29,7 +29,7 @@ use gproxy_store::{
     entity::{
         identity::{api_key, organization, team, user, user_session},
         oauth,
-        upstream::provider,
+        upstream::{credential, provider},
     },
 };
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
@@ -1262,6 +1262,339 @@ async fn deleting_a_team_removes_only_the_keys_bound_to_it() {
             .await
             .unwrap()
             .is_some()
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Membership removal and the keys it authorized.
+// ---------------------------------------------------------------------------
+
+/// Alice, organization `acme`, and its teams `platform` and `infra`, with
+/// Alice a member of the organization and of `platform` only. Returns
+/// `(alice, acme, platform, infra)` ids.
+async fn alice_in_acme(gproxy: &Gproxy<DatabaseConnection>) -> (String, String, String, String) {
+    let config = AppConfig::default();
+    let data = snapshot(gproxy.store()).await;
+    let alice = Operations::new(gproxy, &data, &config)
+        .users()
+        .create(UserWrite {
+            name: "alice".into(),
+            ..UserWrite::default()
+        })
+        .await
+        .unwrap()
+        .id;
+    let data = snapshot(gproxy.store()).await;
+    let acme = Operations::new(gproxy, &data, &config)
+        .organizations()
+        .create(OrganizationWrite {
+            name: "acme".into(),
+            ..OrganizationWrite::default()
+        })
+        .await
+        .unwrap()
+        .id;
+    let mut teams = Vec::new();
+    for name in ["platform", "infra"] {
+        let data = snapshot(gproxy.store()).await;
+        teams.push(
+            Operations::new(gproxy, &data, &config)
+                .teams()
+                .create(TeamWrite {
+                    organization_id: acme.clone(),
+                    name: name.into(),
+                    ..TeamWrite::default()
+                })
+                .await
+                .unwrap()
+                .id,
+        );
+    }
+    let data = snapshot(gproxy.store()).await;
+    Operations::new(gproxy, &data, &config)
+        .members()
+        .add(
+            &acme,
+            MemberWrite {
+                user_id: alice.clone(),
+                ..MemberWrite::default()
+            },
+        )
+        .await
+        .unwrap();
+    let data = snapshot(gproxy.store()).await;
+    Operations::new(gproxy, &data, &config)
+        .team_members()
+        .add(
+            &teams[0],
+            MemberWrite {
+                user_id: alice.clone(),
+                ..MemberWrite::default()
+            },
+        )
+        .await
+        .unwrap();
+    let infra = teams.pop().unwrap();
+    let platform = teams.pop().unwrap();
+    (alice, acme, platform, infra)
+}
+
+/// A key row written straight to the table, bypassing the binding checks, so a
+/// test can hold the shapes those checks would refuse to mint (an `oauth` key,
+/// or a binding with no membership behind it).
+async fn raw_key(
+    gproxy: &Gproxy<DatabaseConnection>,
+    id: &str,
+    user_id: &str,
+    kind: api_key::ApiKeyKind,
+    organization_id: Option<&str>,
+    team_id: Option<&str>,
+) {
+    gproxy
+        .store()
+        .api_keys()
+        .create_many(vec![api_key::ActiveModel {
+            id: Set(id.into()),
+            user_id: Set(user_id.into()),
+            organization_id: Set(organization_id.map(Into::into)),
+            team_id: Set(team_id.map(Into::into)),
+            name: Set(id.into()),
+            kind: Set(kind),
+            key_hash: Set(format!("hash-{id}")),
+            prefix: Set("sk-".into()),
+            secret: Set(None),
+            expires_at_ms: Set(None),
+            enabled: Set(true),
+            management: Set(false),
+        }])
+        .await
+        .unwrap();
+}
+
+async fn enabled(gproxy: &Gproxy<DatabaseConnection>, id: &str) -> bool {
+    api_key::Entity::find_by_id(id.to_owned())
+        .one(gproxy.store().connection())
+        .await
+        .unwrap()
+        .expect("removal disables a key, it never deletes one")
+        .enabled
+}
+
+#[tokio::test]
+async fn removing_an_organization_member_disables_the_keys_that_membership_authorized() {
+    let gproxy = handle().await;
+    seed_admin(&gproxy).await;
+    let (alice, acme, platform, infra) = alice_in_acme(&gproxy).await;
+    let bob = {
+        let data = snapshot(gproxy.store()).await;
+        Operations::new(&gproxy, &data, &AppConfig::default())
+            .users()
+            .create(UserWrite {
+                name: "bob".into(),
+                ..UserWrite::default()
+            })
+            .await
+            .unwrap()
+            .id
+    };
+    use api_key::ApiKeyKind::{OAuth, User};
+    raw_key(&gproxy, "org", &alice, User, Some(&acme), None).await;
+    raw_key(&gproxy, "org-oauth", &alice, OAuth, Some(&acme), None).await;
+    raw_key(
+        &gproxy,
+        "org-and-team",
+        &alice,
+        User,
+        Some(&acme),
+        Some(&platform),
+    )
+    .await;
+    // Bound to a team of acme she is not in: nothing authorizes it once the
+    // organization membership is gone.
+    raw_key(&gproxy, "orphan-team", &alice, User, None, Some(&infra)).await;
+    // Bound to a team she is still in: the team membership authorizes it.
+    raw_key(&gproxy, "team", &alice, User, None, Some(&platform)).await;
+    raw_key(&gproxy, "unbound", &alice, User, None, None).await;
+    // Someone else's key in the same organization is not hers to lose.
+    raw_key(&gproxy, "bob", &bob, User, Some(&acme), None).await;
+
+    moves_revision!(gproxy, 1, async |operations: Operations<'_, _>| {
+        operations.members().remove(&acme, &alice).await.unwrap();
+    });
+
+    for id in ["org", "org-oauth", "org-and-team", "orphan-team"] {
+        assert!(!enabled(&gproxy, id).await, "`{id}` should be disabled");
+    }
+    for id in ["team", "unbound", "bob"] {
+        assert!(enabled(&gproxy, id).await, "`{id}` should stay enabled");
+    }
+}
+
+#[tokio::test]
+async fn removing_a_team_member_disables_only_the_keys_bound_to_that_team() {
+    let gproxy = handle().await;
+    seed_admin(&gproxy).await;
+    let (alice, acme, platform, _) = alice_in_acme(&gproxy).await;
+    use api_key::ApiKeyKind::{OAuth, User};
+    raw_key(&gproxy, "team", &alice, User, None, Some(&platform)).await;
+    raw_key(&gproxy, "team-oauth", &alice, OAuth, None, Some(&platform)).await;
+    raw_key(
+        &gproxy,
+        "org-and-team",
+        &alice,
+        User,
+        Some(&acme),
+        Some(&platform),
+    )
+    .await;
+    raw_key(&gproxy, "org", &alice, User, Some(&acme), None).await;
+
+    moves_revision!(gproxy, 1, async |operations: Operations<'_, _>| {
+        operations
+            .team_members()
+            .remove(&platform, &alice)
+            .await
+            .unwrap();
+    });
+
+    for id in ["team", "team-oauth", "org-and-team"] {
+        assert!(!enabled(&gproxy, id).await, "`{id}` should be disabled");
+    }
+    assert!(enabled(&gproxy, "org").await);
+}
+
+#[tokio::test]
+async fn a_stale_snapshot_cannot_mint_a_key_for_a_removed_member() {
+    let gproxy = handle().await;
+    seed_admin(&gproxy).await;
+    let config = AppConfig::default();
+    let (alice, acme, platform, _) = alice_in_acme(&gproxy).await;
+
+    // The snapshot still holds both memberships when the key is asked for.
+    let stale = snapshot(gproxy.store()).await;
+    Operations::new(&gproxy, &stale, &config)
+        .members()
+        .remove(&acme, &alice)
+        .await
+        .unwrap();
+    Operations::new(&gproxy, &stale, &config)
+        .team_members()
+        .remove(&platform, &alice)
+        .await
+        .unwrap();
+
+    for (organization_id, team_id) in [(Some(acme.clone()), None), (None, Some(platform.clone()))] {
+        let before = revision(gproxy.store()).await;
+        let error = Operations::new(&gproxy, &stale, &config)
+            .api_keys()
+            .create(ApiKeyWrite {
+                user_id: alice.clone(),
+                name: "late".into(),
+                organization_id,
+                team_id,
+                ..ApiKeyWrite::default()
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(error.status_code(), 400);
+        assert_eq!(revision(gproxy.store()).await, before);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Scoped credential management.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn a_transferred_credential_is_managed_by_its_new_owner_even_from_a_stale_snapshot() {
+    let gproxy = handle().await;
+    gproxy
+        .store()
+        .providers()
+        .create_many(vec![provider::ActiveModel {
+            id: Set("p1".into()),
+            name: Set("p1".into()),
+            channel: Set("custom".into()),
+            config: Set(json!({})),
+            created_at_ms: Set(0),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    let config = AppConfig::default();
+    let mut organizations = Vec::new();
+    for name in ["acme", "globex"] {
+        let data = snapshot(gproxy.store()).await;
+        organizations.push(
+            Operations::new(&gproxy, &data, &config)
+                .organizations()
+                .create(OrganizationWrite {
+                    name: name.into(),
+                    ..OrganizationWrite::default()
+                })
+                .await
+                .unwrap()
+                .id,
+        );
+    }
+    let (acme, globex) = (organizations[0].clone(), organizations[1].clone());
+    gproxy
+        .store()
+        .credentials()
+        .create_many(vec![credential::ActiveModel {
+            id: Set("c1".into()),
+            provider_id: Set("p1".into()),
+            organization_id: Set(Some(acme.clone())),
+            auth_kind: Set("api_key".into()),
+            secret: Set(Vec::new()),
+            metadata: Set(json!({})),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+
+    // The snapshot records acme as the owner; the row then moves to globex.
+    let stale = snapshot(gproxy.store()).await;
+    gproxy
+        .store()
+        .credentials()
+        .update_many(vec![credential::ActiveModel {
+            id: Set("c1".into()),
+            organization_id: Set(Some(globex.clone())),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+
+    let old_owner = AdminScope::Organization(acme);
+    assert!(
+        !old_owner
+            .admits_credential(&gproxy, &stale, "c1")
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        old_owner
+            .admit_credential(&gproxy, &stale, "c1")
+            .await
+            .unwrap_err()
+            .status_code(),
+        404
+    );
+    let new_owner = AdminScope::Organization(globex);
+    assert!(
+        new_owner
+            .admits_credential(&gproxy, &stale, "c1")
+            .await
+            .unwrap()
+    );
+    // A credential that does not exist is the same answer as one outside the
+    // scope.
+    assert!(
+        !new_owner
+            .admits_credential(&gproxy, &stale, "nope")
+            .await
+            .unwrap()
     );
 }
 

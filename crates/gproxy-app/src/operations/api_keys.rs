@@ -341,24 +341,16 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
         Ok(())
     }
 
-    /// Snapshot first, database second.
+    /// Always the database, never the snapshot.
     ///
-    /// The snapshot can legitimately be a revision behind — a membership
-    /// created by the operation before this one is not in it yet — so a miss
-    /// falls through to a read rather than refusing a binding that is valid.
-    /// A hit is authoritative in the safe direction: a membership that was
-    /// just revoked would at worst let one key be created a moment early, and
-    /// admission re-checks visibility on every request.
+    /// The snapshot can be a revision behind in both directions. A miss would
+    /// refuse a membership created by the operation just before; a hit is no
+    /// safer, because it may be a membership that was just removed. Removal
+    /// disables the member's bound keys in its own revision, so a key minted
+    /// from a stale positive answer would be the one bound key that removal
+    /// never saw — and admission trusts the binding from then on. Minting is
+    /// rare, and one primary-key read is the price of never issuing it.
     async fn require_org_member(&self, user_id: &str, organization_id: &str) -> Result<()> {
-        if self
-            .writer
-            .data()
-            .memberships
-            .role_in_org(user_id, organization_id)
-            .is_some()
-        {
-            return Ok(());
-        }
         let found = self
             .writer
             .store()
@@ -374,15 +366,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
     }
 
     async fn require_team_member(&self, user_id: &str, team_id: &str) -> Result<()> {
-        if self
-            .writer
-            .data()
-            .memberships
-            .role_in_team(user_id, team_id)
-            .is_some()
-        {
-            return Ok(());
-        }
         let found = self
             .writer
             .store()
