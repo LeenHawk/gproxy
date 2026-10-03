@@ -984,6 +984,39 @@ async fn a_trend_keeps_its_empty_buckets() {
 }
 
 #[tokio::test]
+async fn an_open_start_trend_begins_at_the_first_record() {
+    let gproxy = support::sdk().await;
+    let open = |bucket_ms| UsageTrendQuery {
+        filter: UsageQuery {
+            to_ms: Some(4_000),
+            ..Default::default()
+        },
+        bucket_ms,
+    };
+    let empty = gproxy.query().usage().trend(open(1_000)).await.unwrap();
+    assert!(empty.is_empty(), "nothing recorded, nothing to draw");
+
+    usage(
+        &gproxy,
+        Seed {
+            request_id: "r-1",
+            started_at_ms: 1_500,
+            ..Default::default()
+        },
+    )
+    .await;
+    let points = gproxy.query().usage().trend(open(1_000)).await.unwrap();
+    assert_eq!(
+        points
+            .iter()
+            .map(|point| (point.start_ms, point.summary.requests))
+            .collect::<Vec<_>>(),
+        [(1_000, 1), (2_000, 0), (3_000, 0)],
+        "floored to the bucket width"
+    );
+}
+
+#[tokio::test]
 async fn a_trend_refuses_a_range_it_cannot_draw() {
     let gproxy = support::sdk().await;
     let query = gproxy.query();
@@ -1015,7 +1048,7 @@ async fn a_trend_refuses_a_range_it_cannot_draw() {
                 ..Default::default()
             },
         ),
-        // No range at all.
+        // No end.
         (1_000, UsageQuery::default()),
     ] {
         let error = usage

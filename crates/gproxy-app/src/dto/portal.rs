@@ -271,7 +271,8 @@ pub struct PortalUsageQuery {
     #[serde(default)]
     pub group_by: Option<UsageGroupBy>,
     /// Bucket width for the trend. Absent means no trend is computed; present
-    /// requires both `fromMs` and `toMs`.
+    /// requires `toMs`, and without `fromMs` the buckets start at the first
+    /// matching record.
     #[serde(default)]
     pub bucket_ms: Option<i64>,
 }

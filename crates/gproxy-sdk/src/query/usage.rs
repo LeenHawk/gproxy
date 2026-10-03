@@ -102,20 +102,27 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Usage<'_, C> {
         bucket_ms: Option<i64>,
     ) -> SdkResult<(UsageSummaryDto, Vec<UsageGroupDto>, Vec<UsageTrendPointDto>)> {
         let (from_ms, width, count) = if let Some(width) = bucket_ms {
-            let from = query
-                .from_ms
-                .ok_or_else(|| SdkError::invalid("a trend needs fromMs"))?;
             let to = query
                 .to_ms
                 .ok_or_else(|| SdkError::invalid("a trend needs toMs"))?;
             if width <= 0 {
                 return Err(SdkError::invalid("bucketMs must be positive"));
             }
+            // An open start ("all time") begins at the first matching record,
+            // floored to the bucket width so day buckets fall on UTC midnight.
+            let from = match query.from_ms {
+                Some(from) => from,
+                None => match self.earliest(&Filters::from(&query)).await? {
+                    Some(first) => first.div_euclid(width) * width,
+                    None => to,
+                },
+            };
             let span = to
                 .checked_sub(from)
-                .filter(|span| *span > 0)
+                .filter(|span| *span > 0 || query.from_ms.is_none())
                 .ok_or_else(|| SdkError::invalid("toMs must be after fromMs"))?;
-            let count = (span - 1) / width + 1;
+            // Zero only for an open start with nothing recorded: no buckets.
+            let count = if span == 0 { 0 } else { (span - 1) / width + 1 };
             if count > MAX_TREND_BUCKETS {
                 return Err(SdkError::invalid(format!(
                     "a {width}ms bucket over this range is {count} buckets, more than the {MAX_TREND_BUCKETS} allowed"
@@ -166,6 +173,23 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Usage<'_, C> {
             })
             .collect();
         Ok((totals.summary(&scan), groups, trend))
+    }
+
+    /// When the oldest record the filters match started.
+    async fn earliest(&self, filters: &Filters<'_>) -> SdkResult<Option<i64>> {
+        Ok(self
+            .inner
+            .store
+            .usage_records()
+            .query(
+                usage_record::Entity::find()
+                    .filter(filters.condition())
+                    .order_by_asc(usage_record::Column::StartedAtMs)
+                    .limit(1),
+            )
+            .await?
+            .first()
+            .map(|row| row.started_at_ms))
     }
 
     /// Read the rows the column filters match, oldest first, handing each to

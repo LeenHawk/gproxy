@@ -60,7 +60,7 @@ export function UsagePage({ global = false, renderRecords }: { global?: boolean;
           <div className="flex flex-col gap-6">
             <UsageSummary summary={usage.data.summary} />
 
-            {usage.data.fromMs != null ? <PageSection title={t("usage.trend")}>
+            {usage.data.trend.length > 0 ? <PageSection title={t("usage.trend")}>
               <Suspense fallback={<LoadingRows />}><UsageTrend points={usage.data.trend} /></Suspense>
             </PageSection> : null}
 

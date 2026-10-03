@@ -44,6 +44,7 @@ credentialId: string | null,
 groupBy: UsageGroupBy | null,
 /**
  * Bucket width for the trend. Absent means no trend is computed; present
- * requires both `fromMs` and `toMs`.
+ * requires `toMs`, and without `fromMs` the buckets start at the first
+ * matching record.
  */
 bucketMs: number | null, };

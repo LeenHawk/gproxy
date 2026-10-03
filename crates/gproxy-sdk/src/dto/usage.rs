@@ -294,8 +294,9 @@ pub struct UsageGroupQuery {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageTrendQuery {
-    /// `from_ms` and `to_ms` are required here: buckets are aligned to
-    /// `from_ms` and counted up to `to_ms`, and neither has a sane default.
+    /// `to_ms` is required: buckets are counted up to it. Buckets are aligned
+    /// to `from_ms`; without it they start at the first matching record,
+    /// floored to `bucket_ms`, and there are none if nothing matches.
     pub filter: UsageQuery,
     /// Bucket width in milliseconds. Zero is refused, and so is a range that
     /// would produce more than `query::MAX_TREND_BUCKETS` buckets.

@@ -40,6 +40,7 @@ export function usageWindow(range: UsageRange, filter: { fromMs?: number; toMs?:
   return {
     fromMs,
     toMs,
-    bucketMs: fromMs === undefined ? undefined : Math.max(1, Math.ceil((toMs - fromMs) / 24)),
+    // All time has no known span; daily buckets from the first record.
+    bucketMs: fromMs === undefined ? 86_400_000 : Math.max(1, Math.ceil((toMs - fromMs) / 24)),
   }
 }

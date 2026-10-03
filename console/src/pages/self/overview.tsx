@@ -14,7 +14,6 @@ import { Page, PageHeader, PageSection } from "@/components/page"
 import { QuotaWindows } from "@/components/quota-windows"
 import { LoadingRows, QueryState } from "@/components/state"
 import { UsageSummary } from "@/components/usage-summary"
-import { Link } from "@/components/link"
 import { UsageRangeSelector } from "@/components/usage-range"
 import { usageWindow, type UsageRange } from "@/lib/usage"
 
@@ -39,20 +38,17 @@ export function OverviewPage() {
 
       <UsageRangeSelector value={range} onChange={setRange} />
 
-      <PageSection
-        title={t("overview.usage")}
-        actions={<Link to="/usage" className="text-sm underline underline-offset-4">{t("actions.details")}</Link>}
-      >
+      <PageSection title={t("overview.usage")}>
         <QueryState isPending={usage.isPending} error={usage.error} rows={2}>
           {usage.data ? <UsageSummary summary={usage.data.summary} /> : null}
         </QueryState>
       </PageSection>
 
-      {range !== "sum" ? <PageSection title={t("usage.trend")}>
+      <PageSection title={t("usage.trend")}>
         <QueryState isPending={usage.isPending} error={usage.error}>
           {usage.data ? <Suspense fallback={<LoadingRows />}><UsageTrend points={usage.data.trend} /></Suspense> : null}
         </QueryState>
-      </PageSection> : null}
+      </PageSection>
 
       <PageSection
         title={t("overview.quota")}
