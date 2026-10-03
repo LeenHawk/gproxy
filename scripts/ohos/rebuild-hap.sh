@@ -40,6 +40,7 @@ print("Reused unpacked native SHA256:", hashlib.sha256(path.read_bytes()).hexdig
 PY
 (
   cd crates/gproxy-host-tauri/gen/ohos
+  ohpm install --all
   GPROXY_OHOS_REUSE_NATIVE=1 hvigorw --mode module assembleHap -p buildMode=release --no-daemon
 )
 python3 scripts/ohos/package-hap.py

@@ -5,6 +5,9 @@ on:
     branches: [fix/ohos-startup]
 permissions:
   contents: read
+concurrency:
+  group: ohos-startup-probe-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   hap:
     runs-on: ubuntu-latest
