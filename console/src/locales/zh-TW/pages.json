@@ -498,7 +498,18 @@
     "available": "可用更新：{{version}}",
     "latest": "暫無更新版本",
     "notes": "版本說明",
-    "notChecked": "尚未檢查此通道。"
+    "notChecked": "尚未檢查此通道。",
+    "announcements": {
+      "title": "公告",
+      "help": "來自 GPROXY 專案、適用於目前版本的通知，從文件站讀取並經發布簽章金鑰驗證。",
+      "empty": "目前版本暫無公告。",
+      "severity": {
+        "info": "提示",
+        "warning": "警告",
+        "critical": "緊急"
+      }
+    },
+    "selfUpdate": "線上更新"
   },
   "operation": {
     "list_models": "列出模型",
@@ -1070,10 +1081,7 @@
     "imported": "已匯入 {{count}} 筆憑證"
   },
   "about": {
-    "title": "關於 GPROXY",
-    "subtitle": "用一個入口連接你的大型語言模型服務、上游帳戶與應用程式。",
     "description": "GPROXY 是使用 Rust 建構的開源、自架大型語言模型 API 閘道，讓你的應用程式透過統一的 API 入口連接多個服務商。",
-    "version": "版本 {{version}}",
     "features": {
       "protocols": "相容 OpenAI Chat Completions、Responses、Claude Messages 和 Gemini API，支援串流回應與格式間直接轉換。",
       "accounts": "統一管理上游憑證，支援權杖更新、負載平衡與故障切換。",

@@ -34,8 +34,7 @@
     "transfer": "Configuration transfer",
     "globalUsage": "Global usage",
     "downstreamLogs": "Downstream logs",
-    "upstreamLogs": "Upstream logs",
-    "about": "About"
+    "upstreamLogs": "Upstream logs"
   },
   "create": {
     "keys": "New key",

@@ -99,14 +99,12 @@ const OBSERVATION: NavSection = { id: "observation", icon: ChartLine, items: [
   { id: "upstreamLogs", route: "/observation/upstream", needs: LOGS_READ, icon: ScrollText },
 ] }
 
-const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "tokenizer", route: "/tokenizer", needs: SETTINGS_ACCESS, icon: BookOpenText }, { id: "update", route: "/update", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "connection-profiles", route: "/clients", needs: "configuration.connection-profiles", icon: Settings2 }] }
+const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "tokenizer", route: "/tokenizer", needs: SETTINGS_ACCESS, icon: BookOpenText }, { id: "update", route: "/update", needs: SETTINGS_ACCESS, icon: Info }, { id: "connection-profiles", route: "/clients", needs: "configuration.connection-profiles", icon: Settings2 }] }
 
 const MANAGEMENT: NavSection = { id: "management", icon: Waypoints, standalone: true, items: [
   { id: "routes", route: "/model-routes", needs: "configuration.routes", icon: Waypoints },
 ] }
-/** Last in the sidebar as a top-level entry, as in v3, rather than buried in the self section. */
-const ABOUT: NavSection = { id: "about", icon: Info, standalone: true, items: [{ id: "about", route: "/about", needs: SELF_READ, icon: Info }] }
-const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, MODEL_CATALOG, RULES, MANAGEMENT, PEOPLE, ACCESS, OBSERVATION, SYSTEM, ABOUT]
+const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, MODEL_CATALOG, RULES, MANAGEMENT, PEOPLE, ACCESS, OBSERVATION, SYSTEM]
 
 /** Tenant pages reuse existing object routes and their scoped APIs, never identity CRUD. */
 function sectionsForScope(context: ConsoleContext): ReadonlyArray<NavSection> {

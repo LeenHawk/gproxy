@@ -10,3 +10,10 @@ export const rollbackUpdate = () => api<AppliedUpdate>("/admin/api/update/rollba
 
 export type UpdateProgress = { phase: "downloading" | "verifying" | "installing"; downloaded_bytes: number; total_bytes: number }
 export const updateProgress = () => api<UpdateProgress | null>("/admin/api/update/progress")
+
+export type AnnouncementSeverity = "info" | "warning" | "critical"
+export type AnnouncementContent = { title: string; body: string }
+/** One publisher notice the host has already verified and matched to this build. */
+export type Announcement = { id: string; severity: AnnouncementSeverity; published_at: string; expires_at?: string; affects?: string; content: Record<string, AnnouncementContent> }
+export const ANNOUNCEMENTS_KEY = ["update", "announcements"] as const
+export const announcements = () => api<Array<Announcement>>("/admin/api/update/announcements")
