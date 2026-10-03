@@ -7,14 +7,14 @@ GPROXY 提供 Cloudflare Workers、Netlify、Vercel 和 Deno 的部署模板。�
 
 ## 选择平台
 
-| 平台 | 使用平台数据库 | 使用已有数据库 | WebSocket / Realtime |
+| 平台 | 使用平台数据库 | 使用已有数据库 | 当前模板 WebSocket / Realtime |
 | --- | --- | --- | --- |
 | [Cloudflare Workers](#cloudflare-workers) | 部署时创建 D1 | libSQL / Turso | 支持 |
 | [Netlify Functions](#netlify) | Netlify Database | PostgreSQL | 不支持 |
-| [Vercel Functions](#vercel) | 部署时选择 PostgreSQL 产品 | PostgreSQL | 不支持 |
-| [Deno Deploy](#deno) | 创建应用后绑定 PostgreSQL | PostgreSQL | 不支持 |
+| [Vercel Functions](#vercel) | 部署时选择 PostgreSQL 产品 | PostgreSQL | 支持（平台 Beta） |
+| [Deno Deploy](#deno) | 创建应用后绑定 PostgreSQL | PostgreSQL | 支持 |
 
-只需要 HTTP 和 SSE 流式调用时，可选用任一模板；需要 WebSocket 或 Realtime 时，选择 Cloudflare Workers，或使用 [CLI / 容器部署](/zh-cn/getting-started/installation/)。
+只需要 HTTP 和 SSE 流式调用时，可选用任一模板；需要 WebSocket 或 Realtime 时，可选择 Cloudflare Workers、Vercel Functions（WebSocket Beta）、Deno Deploy，或使用 [CLI / 容器部署](/zh-cn/getting-started/installation/)。
 
 Cloudflare 使用 WASM，另外三个平台使用原生 serverless 程序。它们共用 GPROXY 的管理 API 和控制台，但数据库类型、函数时长和请求大小限制取决于平台。
 
@@ -107,7 +107,7 @@ Deno 的入口不会自动创建数据库。绑定完成前应用可能返回 50
 
 配置、账户和用量保存在数据库中，更新时保留数据库和主密钥。模板的 `prepare-release.mjs` 固定发布版本，当前为 `v4.0.4`；升级时修改版本并重新部署，使用的版本需包含对应平台的发布附件。托管部署不使用控制台的原地二进制更新。
 
-Netlify、Vercel 和 Deno 的模板支持 HTTP 与 SSE，不接受 WebSocket 升级。长时间推理、大文件和高并发请求仍受平台限制，部署前可查看 [Netlify Functions](https://docs.netlify.com/build/functions/overview/)、[Vercel Functions](https://vercel.com/docs/functions/limitations) 和 [Deno Deploy](https://docs.deno.com/deploy/reference/limits/) 的当前额度。
+所有模板均支持 HTTP 与 SSE；Netlify Functions 不接受 WebSocket 升级。Vercel 使用平台的 [WebSocket Beta](https://vercel.com/docs/functions/websockets)，Deno 使用原生 WebSocket 入口桥接到内部服务。WebSocket 连接仍可能因函数时长限制或实例回收而断开，客户端需要处理重连。长时间推理、大文件和高并发请求仍受平台限制，部署前可查看 [Netlify Functions](https://docs.netlify.com/build/functions/overview/)、[Vercel Functions](https://vercel.com/docs/functions/limitations) 和 [Deno Deploy](https://docs.deno.com/deploy/reference/limits/) 的当前额度。
 
 这三个模板不配置文件存储。需要 S3/R2 或可公开下载的文件时，可以使用下方的 Workers 自定义构建，或选择 CLI 部署。Netlify、Vercel 和 Deno 可用 `GPROXY_PUBLIC_BASE_URL` 固定公开访问地址；不设置时从请求地址推导。
 

@@ -7,14 +7,14 @@ GPROXY provides deployment templates for Cloudflare Workers, Netlify, Vercel, an
 
 ## Choose a platform
 
-| Platform | Platform database | Existing database | WebSocket / Realtime |
+| Platform | Platform database | Existing database | WebSocket / Realtime in this template |
 | --- | --- | --- | --- |
 | [Cloudflare Workers](#cloudflare-workers) | D1, created during deployment | libSQL / Turso | Supported |
 | [Netlify Functions](#netlify) | Netlify Database | PostgreSQL | Not supported |
-| [Vercel Functions](#vercel) | PostgreSQL product selected during deployment | PostgreSQL | Not supported |
-| [Deno Deploy](#deno) | PostgreSQL attached after app creation | PostgreSQL | Not supported |
+| [Vercel Functions](#vercel) | PostgreSQL product selected during deployment | PostgreSQL | Supported (platform Beta) |
+| [Deno Deploy](#deno) | PostgreSQL attached after app creation | PostgreSQL | Supported |
 
-For HTTP and SSE streaming, you can use any template. For WebSocket or Realtime, choose Cloudflare Workers or a [CLI / container deployment](/getting-started/installation/).
+For HTTP and SSE streaming, you can use any template. For WebSocket or Realtime, choose Cloudflare Workers, Vercel Functions (WebSocket Beta), Deno Deploy, or a [CLI / container deployment](/getting-started/installation/).
 
 Cloudflare runs WASM; the other three platforms run the native serverless executable. They share GPROXY's management API and console, while database types, function duration, and request size limits depend on the platform.
 
@@ -107,7 +107,7 @@ If Netlify, Vercel, or Deno returns 503, check the function logs and confirm tha
 
 Configuration, accounts, and usage live in the database. Keep the database and master key when updating. Each template pins its release in `prepare-release.mjs`, currently `v4.0.4`. To upgrade, change the version and redeploy; that release must include the matching platform bundles. Hosted deployments do not use the console's in-place binary updater.
 
-The Netlify, Vercel, and Deno templates support HTTP and SSE, but reject WebSocket upgrades. Long-running inference, large files, and high concurrency remain subject to platform limits. Check the current [Netlify Functions](https://docs.netlify.com/build/functions/overview/), [Vercel Functions](https://vercel.com/docs/functions/limitations), and [Deno Deploy](https://docs.deno.com/deploy/reference/limits/) allowances for your workload.
+All templates support HTTP and SSE; Netlify Functions rejects WebSocket upgrades. Vercel uses the platform’s [WebSocket Beta](https://vercel.com/docs/functions/websockets), while Deno bridges its native WebSocket entry to the internal service. Function duration limits or instance eviction can still disconnect WebSockets, so clients must handle reconnection. Long-running inference, large files, and high concurrency remain subject to platform limits. Check the current [Netlify Functions](https://docs.netlify.com/build/functions/overview/), [Vercel Functions](https://vercel.com/docs/functions/limitations), and [Deno Deploy](https://docs.deno.com/deploy/reference/limits/) allowances for your workload.
 
 These three templates do not configure file storage. For S3/R2 or publicly downloadable files, use a custom Workers build as described below, or the CLI. On Netlify, Vercel, and Deno, `GPROXY_PUBLIC_BASE_URL` can fix the public URL; otherwise it is derived from the request.
 

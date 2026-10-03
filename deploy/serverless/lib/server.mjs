@@ -123,7 +123,12 @@ export function createGateway({
       }
     });
   }
-  return { fetch, close: () => { child?.kill(); child = undefined; ready = undefined; } };
+  async function websocketTarget(request, clientIp) {
+    const url = new URL(request.url);
+    const origin = await start(url.origin);
+    return { url: `${origin}${url.pathname}${url.search}`, headers: forwardHeaders(request, clientIp) };
+  }
+  return { fetch, websocketTarget, close: () => { child?.kill(); child = undefined; ready = undefined; } };
 }
 
 export function unavailable() {
