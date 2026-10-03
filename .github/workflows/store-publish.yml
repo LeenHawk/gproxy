@@ -72,9 +72,9 @@ jobs:
       MS_STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
       VERSION: ${{ inputs.version }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate source release
-        uses: actions/github-script@v9.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           SOURCE_RUN_ID: ${{ inputs.run_id || github.run_id }}
         with:
@@ -95,7 +95,7 @@ jobs:
           foreach ($name in @('MS_STORE_PRODUCT_ID', 'MS_STORE_IDENTITY_NAME', 'MS_STORE_DISPLAY_NAME', 'MS_STORE_IDENTITY_PUBLISHER', 'MS_STORE_PUBLISHER_DISPLAY_NAME')) {
             if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "Missing $name" }
           }
-      - uses: actions/download-artifact@v8.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         if: ${{ !inputs.repackage }}
         with:
           pattern: microsoft-store-unsigned-${{ matrix.artifact_prefix }}-*
@@ -118,7 +118,7 @@ jobs:
           ARTIFACT_PREFIX: ${{ matrix.artifact_prefix }}
         run: scripts/bundle-windows-msix.ps1 -Version $env:VERSION -ArtifactPrefix $env:ARTIFACT_PREFIX
       - name: Preserve ready-to-upload Store packages
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: microsoft-store-${{ matrix.edition }}-${{ inputs.version }}
           path: dist/store-upload/*.msixbundle
@@ -126,7 +126,7 @@ jobs:
           retention-days: 30
       - name: Set up Microsoft Store CLI
         if: ${{ !inputs.prepare_only }}
-        uses: microsoft/microsoft-store-apppublisher@v1.4
+        uses: microsoft/microsoft-store-apppublisher@cc9910a8d59f2eb55cbb83df0a3800cf3b5300e0 # v1.4
         with:
           version: v0.4.2
       - name: Authenticate with Partner Center

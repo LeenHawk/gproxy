@@ -22,7 +22,7 @@ jobs:
       group: gproxy-release-publication
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check synchronization behavior
         shell: pwsh
         run: scripts/test-sync-store-msix.ps1
@@ -37,7 +37,7 @@ jobs:
           MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
           DRY_RUN: ${{ inputs.dry_run || false }}
         run: scripts/sync-store-msix.ps1 -DryRun:($env:DRY_RUN -eq 'true') -WingetReadyPath store-winget-ready.json
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         if: ${{ !inputs.dry_run }}
         with:
           python-version: '3.12'
@@ -55,7 +55,7 @@ jobs:
           }
       - name: Save signed WinGet manifests
         if: ${{ !inputs.dry_run }}
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: winget-store-signed
           path: dist/store-winget/*/manifests

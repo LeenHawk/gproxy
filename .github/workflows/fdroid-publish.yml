@@ -30,10 +30,10 @@ jobs:
     timeout-minutes: 15
     environment: release
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - name: Install F-Droid metadata tools
@@ -53,7 +53,7 @@ jobs:
           options=()
           if [ "$DRY_RUN" = true ]; then options+=(--dry-run); fi
           python scripts/mobile/fdroid-submit.py --version "$VERSION" "${options[@]}"
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: fdroid-${{ inputs.version }}
           path: dist/mobile/fdroid/metadata/
