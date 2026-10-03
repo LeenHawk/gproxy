@@ -240,7 +240,7 @@ ohos:
       - TARGET_TRIPLE: [aarch64-unknown-linux-ohos]
         PACKAGE_MODE: [cli, application]
       - TARGET_TRIPLE: [x86_64-unknown-linux-ohos]
-        PACKAGE_MODE: [cli]
+        PACKAGE_MODE: [cli, application]
 
 desktop:
   extends: .cross-package

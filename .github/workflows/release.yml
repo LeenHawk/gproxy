@@ -550,7 +550,7 @@ jobs:
       - run: python3 scripts/ohos/prepare-tauri.py
       - uses: ./.github/actions/ghcr-rust-cache
         with:
-          key: ohos-container-tauri
+          key: ohos-container-tauri-${{ matrix.target }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - run: bash scripts/ohos/build.sh application
       - uses: ./.github/actions/attest-release

@@ -5,6 +5,7 @@ These are native OHOS binaries, separate from Android packages. Rust names
 this platform `target_os = "linux", target_env = "ohos"`; Linux desktop
 services and dependencies must not be selected merely from `target_os`.
 
+The application HAP also targets ARM64 and x86_64 (including x86_64 simulators).
 The application reuses `gproxy-host-tauri`, its existing IPC operations,
 Console, instance setup and in-process data plane. It uses Tauri's experimental
 `feat/open-harmony` port. `tauri-pins.json` records exact Tauri, Wry, Tao,
