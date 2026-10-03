@@ -113,6 +113,11 @@ pub(crate) fn translate(row: &QueryResult) -> Result<(usage_record::ActiveModel,
             .map(|id| ids::id(table, id)))
     };
     let operation: Option<String> = row.try_get("", "operation")?;
+    let input_tokens: i64 = row.try_get("", "input_tokens")?;
+    let cached_input_tokens: i64 = row.try_get("", "cached_input_tokens")?;
+    // v3 input includes cache reads; v4 stores ordinary input separately.
+    // Cache writes are already separate in v3 and must not be subtracted again.
+    let input_tokens = input_tokens.saturating_sub(cached_input_tokens).max(0);
     let mut out = usage_record::ActiveModel {
         request_id: Set(ids::id("usage_rows", id)),
         user_id: Set(attribution("user_id", "users")?),
@@ -123,9 +128,9 @@ pub(crate) fn translate(row: &QueryResult) -> Result<(usage_record::ActiveModel,
         operation: Set(operation.clone().unwrap_or_else(|| "unknown".into())),
         started_at_ms: Set(started_at),
         ended_at_ms: Set(Some(ended_at)),
-        input_tokens: Set(Some(row.try_get("", "input_tokens")?)),
+        input_tokens: Set(Some(input_tokens)),
         output_tokens: Set(Some(row.try_get("", "output_tokens")?)),
-        cached_input_tokens: Set(Some(row.try_get("", "cached_input_tokens")?)),
+        cached_input_tokens: Set(Some(cached_input_tokens)),
         state: Set(Some(
             match ended.as_str() {
                 "complete" => "completed",
