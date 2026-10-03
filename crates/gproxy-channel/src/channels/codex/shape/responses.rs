@@ -63,7 +63,29 @@ pub(super) fn request(
         tools::normalize_history(&mut retained, &mut aliases)?;
         *items = retained;
     }
-    let bytes = serde_json::to_vec(&request).map_err(invalid)?;
+    // Match the CLI's routing prefix so the backend can route before reading
+    // a potentially large input. Keep this ordering specific to Codex.
+    #[derive(serde::Serialize)]
+    struct RoutedRequest<'a> {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        model: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        stream: Option<Option<bool>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        service_tier: Option<Option<ServiceTier>>,
+        #[serde(flatten)]
+        request: &'a GenerateContentRequestBody,
+    }
+    let model = request.model.take();
+    let stream = request.stream.take();
+    let service_tier = request.service_tier.take();
+    let bytes = serde_json::to_vec(&RoutedRequest {
+        model,
+        stream,
+        service_tier,
+        request: &request,
+    })
+    .map_err(invalid)?;
     Ok((Bytes::from(bytes), aliases))
 }
 
