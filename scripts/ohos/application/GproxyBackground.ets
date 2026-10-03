@@ -1,4 +1,4 @@
-import { abilityAccessCtrl, common, wantAgent } from '@kit.AbilityKit';
+import { common, wantAgent } from '@kit.AbilityKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { preferences } from '@kit.ArkData';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
@@ -68,14 +68,10 @@ export class GproxyBackground {
     catch (error) { this.error = (error as Error).message; }
   }
 
-  private async supported(): Promise<boolean> {
-    if (deviceInfo.deviceType === '2in1' || deviceInfo.deviceType === 'pc') return true;
-    // API 21 extends taskKeeping to phones/tablets only with an approved ACL.
-    // An ordinary API 20 HAP cannot acquire that permission by asking the user.
-    if (deviceInfo.sdkApiVersion < 21) return false;
-    const granted = await abilityAccessCtrl.createAtManager().checkAccessToken(
-      this.context.applicationInfo.accessTokenId, 'ohos.permission.KEEP_BACKGROUND_RUNNING_SYSTEM');
-    return granted === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
+  private supported(): boolean {
+    // Capability detection only. Let startBackgroundRunning check the installed
+    // profile and device policy, including developer/debug signing configurations.
+    return canIUse('SystemCapability.ResourceSchedule.BackgroundTaskManager.ContinuousTask');
   }
 
   private async execute(command: string): Promise<string> {
@@ -88,7 +84,7 @@ export class GproxyBackground {
       this.trayEnabled = await this.storage.get('tray', true) as boolean;
       this.closeToTray = await this.storage.get('closeToTray', true) as boolean;
     }
-    const supported = await this.supported();
+    const supported = this.supported();
     const canTray = desktop && canIUse('SystemCapability.PCService.StatusBarManager');
     if (canTray && (command === 'restore' || command === 'refresh-tray' || command === 'tray-on')) {
       if ((this.trayEnabled || command === 'tray-on') && (native.gproxyEngineRunning() || this.tray?.ready)) {

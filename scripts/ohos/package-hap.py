@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Validate and collect the unsigned OHOS Application HAP."""
+"""Validate and collect the configured OHOS Application HAP."""
 import hashlib
 import os
 from pathlib import Path
 import struct
 import zipfile
 
-paths = list(Path("crates/gproxy-host-tauri/gen").glob("**/outputs/**/entry-default-unsigned.hap"))
+signing = "signed" if os.environ.get("GPROXY_OHOS_SIGNING_CONFIG") else "unsigned"
+paths = list(Path("crates/gproxy-host-tauri/gen").glob(f"**/outputs/**/entry-default-{signing}.hap"))
 if len(paths) != 1:
-    raise ValueError(f"Expected one unsigned HAP, found {len(paths)}")
+    raise ValueError(f"Expected one {signing} HAP, found {len(paths)}")
 abi = {"aarch64-unknown-linux-ohos": "arm64-v8a", "x86_64-unknown-linux-ohos": "x86_64"}[os.environ["TARGET_TRIPLE"]]
 machine = 183 if abi == "arm64-v8a" else 62
 with zipfile.ZipFile(paths[0]) as archive:
@@ -31,4 +32,4 @@ package.write_bytes(paths[0].read_bytes())
 with package.open("rb") as stream:
     digest = hashlib.file_digest(stream, "sha256").hexdigest()
 Path(str(package) + ".sha256").write_text(f"{digest}  {package.name}\n")
-print(f"Verified unsigned HAP native library: {binary}; wrote {package}")
+print(f"Verified {signing} HAP native library: {binary}; wrote {package}")

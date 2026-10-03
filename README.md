@@ -175,7 +175,7 @@ On Windows, both editions are available from Microsoft Store:
 | :---: | :---: |
 | <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY CLI" height="48"></a> |
 
-MSIX release attachments are Store submission packages; use ZIP for a direct installation. macOS apps are not notarized. The HarmonyOS HAP is experimental and requires your own signature. See the installation guide for platform requirements.
+MSIX release attachments are Store submission packages; use ZIP for a direct installation. macOS apps are not notarized. The HarmonyOS HAP has been verified on an emulator and requires your own signature. See the installation guide for platform requirements.
 
 ## Performance
 

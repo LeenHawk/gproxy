@@ -17,7 +17,7 @@ Open the [download page](/download/) or the [latest stable release](https://gith
 | Windows: x86_64, aarch64 | ZIP, MSIX | ZIP, MSIX |
 | macOS: x86_64, aarch64 | ZIP, DMG | ZIP, DMG |
 | Android: x86_64, aarch64 | ZIP, Termux DEB | APK |
-| OpenHarmony / HarmonyOS NEXT | ARM64, x86_64 ZIP | Experimental ARM64 HAP |
+| OpenHarmony / HarmonyOS NEXT | ARM64, x86_64 ZIP | ARM64 unsigned HAP |
 
 Choose x86_64 for most Intel / AMD computers and aarch64 for Apple Silicon. Linux Application requires WebKitGTK 4.1.
 
@@ -35,7 +35,7 @@ On Windows (x64, ARM64), both editions are available from Microsoft Store:
 
 GPROXY Desktop is the Application edition. Store installations are signed by Microsoft and update through the Store. You can also install them with `winget install --id 9P2FJRB9RS4Z --source msstore` (Desktop) or `winget install --id 9NBMH3S5K0L9 --source msstore` (CLI).
 
-MSIX release attachments are Store submission packages and may not yet carry Microsoft's signature; install from the Store or use a ZIP. macOS apps use ad-hoc signing and are not notarized. The experimental HarmonyOS HAP requires your own signature, has not been verified on a physical device, and does not provide a background service.
+MSIX release attachments are Store submission packages and may not yet carry Microsoft's signature; install from the Store or use a ZIP. macOS apps use ad-hoc signing and are not notarized. The HarmonyOS HAP is unsigned and requires your own signature before installation. It has been verified on an emulator; background execution depends on the device, OS version and granted permissions.
 
 For CI runners, use the headless CLI: it excludes the Web console and retains proxy and management APIs. The Release workflow publishes Linux, Windows, macOS and Android (Termux) ZIP packages for x86_64 and aarch64; Linux also includes riscv64, with GNU and musl variants. See [headless builds](/deployment/release-build/#headless-cli-for-ci) for downloads and build commands.
 

@@ -17,7 +17,7 @@ description: "选择 GPROXY 4.0 的应用、命令行程序、容器或托管平
 | Windows：x86_64、aarch64 | ZIP、MSIX | ZIP、MSIX |
 | macOS：x86_64、aarch64 | ZIP、DMG | ZIP、DMG |
 | Android：x86_64、aarch64 | ZIP、Termux DEB | APK |
-| OpenHarmony / HarmonyOS NEXT | ARM64、x86_64 ZIP | ARM64 实验性 HAP |
+| OpenHarmony / HarmonyOS NEXT | ARM64、x86_64 ZIP | ARM64 未签名 HAP |
 
 普通 Intel / AMD 电脑选 x86_64，Apple Silicon 选 aarch64。Linux Application 需要系统提供 WebKitGTK 4.1。
 
@@ -34,7 +34,7 @@ Windows（x64、ARM64）可直接从 Microsoft Store 安装两个版本：
 
 GPROXY Desktop 即 Application 版本。商店版本由微软签名，并通过商店自动更新。也可以用 `winget install --id 9P2FJRB9RS4Z --source msstore`（Desktop）或 `winget install --id 9NBMH3S5K0L9 --source msstore`（CLI）安装。
 
-Windows Release 附件中的 MSIX 是商店提交包，可能尚未带有微软签名；请从商店安装，或选择 ZIP。macOS 应用使用 ad-hoc 签名，尚未公证。鸿蒙 HAP 需要自行签名，尚未完成真机验证，也不提供后台服务。
+Windows Release 附件中的 MSIX 是商店提交包，可能尚未带有微软签名；请从商店安装，或选择 ZIP。macOS 应用使用 ad-hoc 签名，尚未公证。鸿蒙 HAP 已完成模拟器验证，发布包未签名，安装前需要自行签名；后台运行能力取决于设备、系统版本及授权。
 
 CI 环境可选无前端 CLI：不打包 Web 控制台，保留代理和管理 API。Release 工作流发布 Linux、Windows、macOS 和 Android（Termux）的 x86_64 / aarch64 ZIP 包，Linux 还提供 riscv64，三种架构均有 GNU 和 musl 版本；下载位置和构建命令见[无前端构建](/zh-cn/deployment/release-build/#ci-无前端版)。
 

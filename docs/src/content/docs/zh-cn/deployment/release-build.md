@@ -20,7 +20,7 @@ CLI（`gproxy-*`）和 Application（`gproxy-tauri-*`）是两类独立程序，
 | Windows（x86_64、aarch64） | ZIP、MSIX | ZIP、MSIX |
 | macOS（x86_64、aarch64） | ZIP、DMG | ZIP、DMG |
 | Android（x86_64、aarch64） | ZIP、Termux DEB | 仅 APK |
-| OpenHarmony / HarmonyOS NEXT | ARM64 / x86_64 ZIP | ARM64 实验性未签名 HAP |
+| OpenHarmony / HarmonyOS NEXT | ARM64 / x86_64 ZIP | ARM64 未签名 HAP |
 
 Linux CLI DEB 将 `gproxy` 安装到 `/usr/bin`；Termux DEB 安装到
 `/data/data/com.termux/files/usr`。Android CLI 使用 `distribution/termux/` 中的源码配方
@@ -32,7 +32,7 @@ CA 证书；ZIP 包含启动脚本、二进制及安装更新说明 `TERMUX.txt`
 Application ZIP 保留桌面资源，macOS ZIP 包含完整 `.app`。
 
 鸿蒙构建使用缓存工具链镜像和固定版本的实验性 Tauri 分支，其他平台继续使用稳定版。
-HAP 安装前需要签名，尚未做真机验证；暂不提供后台服务。
+HAP 已完成模拟器验证，发布包未签名，安装前需要自行签名。已实现持续后台运行支持，但可用性取决于设备、系统版本及授权；应用进程退出后代理会停止。
 
 nightly 附件使用固定名称，提交 SHA 记录在更新清单中。Linux x86_64 在 Ubuntu 22.04 构建，
 ARM64 在 Ubuntu 24.04 构建，安装时需要发行版提供 WebKitGTK 4.1。

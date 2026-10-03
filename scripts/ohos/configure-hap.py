@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Configure the generated Tauri HAP project without supplying signing credentials."""
+"""Configure the generated Tauri HAP project with optional external signing credentials."""
 import json
 import os
 import shutil
@@ -63,7 +63,7 @@ hvigor.write_text(text)
 profile = project / "build-profile.json5"
 config = json5.loads(profile.read_text())
 config["app"]["signingConfigs"] = []
-signing_path = os.environ.get("GPROXY_OHOS_SIGNING_CONFIG") if store_distribution else None
+signing_path = os.environ.get("GPROXY_OHOS_SIGNING_CONFIG")
 signing = json5.loads(Path(signing_path).read_text()) if signing_path else None
 if signing:
     for field in ("certpath", "profile", "storeFile"):

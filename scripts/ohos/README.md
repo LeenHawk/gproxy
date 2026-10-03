@@ -46,10 +46,15 @@ binary remains named `gproxy` for the existing signed ZIP updater. Use
 `sh ./run-gproxy.sh --help` from an OHOS device shell. SDK system-library
 import stubs are never bundled. No Debian/Termux package is produced for OHOS.
 
-HAP output is explicitly unsigned: no signing key or device profile is
-available to this build. It must be signed for the intended device or
-application distribution before installation. Compilation and HAP inspection
-are not device execution tests. No HAP self-update path is implemented.
+Public HAP builds are unsigned by default. Both `direct` and `appgallery` builds
+accept `GPROXY_OHOS_SIGNING_CONFIG`, the path to one DevEco/Hvigor signing-config
+entry with its certificate, signing profile and keystore stored outside the
+checkout. `package-hap.py` collects the signed HAP when this configuration is
+provided; it does not silently fall back to the unsigned artifact.
+Without a configuration, HAP files must be signed before installation. Signing
+alone does not grant restricted background permissions: the profile and device
+policy determine the actual runtime grant.
+Compilation and HAP inspection are not device execution tests. No HAP self-update path is implemented.
 
 HAP builds emit only the `cdylib` and use fat LTO with one codegen unit.
 After the Rust callback, the Hvigor hook strips staged native debug data while
@@ -64,6 +69,55 @@ explicit private-file secret fallback is used because keyring has no OHOS
 backend. CLI service registration is not available. The generated backup
 extension is removed so instance data and credentials are not enrolled in
 automatic backup.
+
+## Signing a downloaded HAP
+
+Install Python's `json5` dependency and use the SDK's `hap-sign-tool.jar` with
+one external DevEco/Hvigor signing configuration. This also works without a
+Rust/ArkTS rebuild:
+
+```sh
+python3 scripts/ohos/sign-hap.py gproxy.hap gproxy-signed.hap \
+  --config /path/to/signing.json5 \
+  --tool /path/to/sdk/toolchains/lib/hap-sign-tool.jar \
+  --background
+```
+
+The signer prompts for passwords rather than putting them in process arguments.
+The helper updates only background declarations in `module.json`, preserves
+native library bytes, signs the package and verifies its cryptographic signature.
+It does not generate a new system trust root or alter an already signed profile.
+
+For offline OpenHarmony debug signing, the helper can also create and sign a
+30-day debug profile from the SDK template, using a separate profile-signing
+configuration. Both configurations use `material.keyAlias`, `material.certpath`,
+`material.storeFile` and optional `material.signAlg`; the application config needs
+`material.profile` only when an existing signed profile is used. The profile
+config must identify a profile-signing key/certificate, not the application key.
+
+```sh
+python3 scripts/ohos/sign-hap.py gproxy.hap gproxy-debug-signed.hap \
+  --config /path/to/application-signing.json5 \
+  --tool /path/to/sdk/toolchains/lib/hap-sign-tool.jar \
+  --background \
+  --debug-template /path/to/sdk/toolchains/lib/UnsgnedDebugProfileTemplate.json \
+  --profile-config /path/to/profile-signing.json5 \
+  --udid YOUR_DEVICE_UDID
+```
+
+Get the target UDID with `hdc shell bm get -u`; repeat `--udid` for more devices.
+The helper sets the profile's bundle identity and development certificate to
+match the HAP and signing configuration, and adds the background ACL before
+signing the profile. It never rewrites an already signed profile. Keep keys and
+configuration files outside Git; use your device's accepted debug signing chain.
+The SDK's public example keys are for local debugging, not publisher identity.
+
+This local profile path follows the official
+[OpenHarmony ACL debugging guide](https://github.com/openharmony/docs/blob/master/en/application-dev/security/AccessToken/declare-permissions-in-acl.md).
+Commercial HarmonyOS devices may require a different trusted profile; an
+OpenHarmony debug signature is not proof of acceptance there. Developer mode
+alone is not treated as a permission grant. The settings switch reports the
+actual `startBackgroundRunning` result on the target device.
 
 ## Application startup and background behavior
 
@@ -91,14 +145,16 @@ project. Phone, tablet and 2-in-1 devices share the HAP.
   status bar or minimize without a tray; manual activation shows the app. A
   `REQUIRED_HIDE` startup-page profile suppresses the system splash. Absence of
   all visible flashing has not been measured on hardware.
-- **Continuous tasks:** `taskKeeping` is available on API 20 PC/2-in-1 devices;
-  it defaults on there after the engine starts. On API 21+ phones/tablets it also
-  requires the restricted `KEEP_BACKGROUND_RUNNING_SYSTEM` permission. Ordinary
-  packages do not request that permission. A specially approved signing profile
-  can opt into its declaration with `GPROXY_OHOS_BACKGROUND_ACL=1`; runtime checks
-  still require an actual grant. Unsupported devices show the limitation and can
-  continue to use the foreground app. The system notification opens the app, and
-  cancelling the task is reflected in settings rather than silently restarted.
+- **Continuous tasks:** the settings switch detects the continuous-task system
+  capability and calls `startBackgroundRunning(TASK_KEEPING)` directly. It does
+  not disable developer/debug configurations using a hard-coded phone version or
+  a separate token precheck. Success marks the task active; failure displays the
+  system error. PC/2-in-1 defaults to restoring the task after the engine starts;
+  phone/tablet activation is explicit. The HAP declares `KEEP_BACKGROUND_RUNNING`.
+  The signing helper's `--background` adds `KEEP_BACKGROUND_RUNNING_SYSTEM` for
+  a matching debug profile without rebuilding ArkTS; source builds can opt in
+  with `GPROXY_OHOS_BACKGROUND_ACL=1`. These are declarations, not grants.
+  Cancelling a task does not silently restart it.
 - **Exit:** UIAbility destruction stops the engine and ends the process, matching
   Android's cold-restart semantics for the process-global instance.
 
@@ -109,9 +165,10 @@ have separate device restrictions. A startup approval does not by itself grant
 continuous background execution. Desktop Extension Kit's status bar is for
 PC/2-in-1 devices; it is not the phone notification bar.
 
-Local validation covers the Rust bridge's N-API types, generated configuration,
-and Console interactions with a mocked native boundary. No signed HAP/device,
-real startup, native tray or background-survival test has been performed locally.
+Validation covers the Rust bridge's N-API types, generated configuration,
+Console interactions with a mocked native boundary and HAP execution on an
+emulator. Emulator validation does not establish startup, native tray or
+background survival on physical devices.
 
 GitHub Release and the GitLab fallback use `.gitlab/Dockerfile.ohos`.
 That image adds GPROXY's Go build dependency and pinned UPX packer to the public toolchain.
