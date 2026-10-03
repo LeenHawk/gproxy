@@ -163,6 +163,7 @@
     "ide_version": "Ide version",
     "issuer": "Issuer",
     "locale": "Locale",
+    "low_priority": "Low priority mode",
     "location": "Location",
     "login_provider": "Login provider",
     "management_base_url": "Management base url",

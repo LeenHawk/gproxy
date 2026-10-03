@@ -163,6 +163,7 @@
     "ide_version": "IDE 版本",
     "issuer": "身分驗證位址",
     "locale": "語言區域",
+    "low_priority": "低優先級模式",
     "location": "部署位置",
     "login_provider": "登入服務",
     "management_base_url": "管理 API 位址",
