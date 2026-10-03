@@ -1,28 +1,17 @@
-# Stable userspace and a fixed upstream Rust toolchain for native musl builds.
-# Do not take rustc/std from Alpine edge: their packaging can change independently.
-FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
-
-RUN apk add --no-cache build-base ca-certificates curl clang22 clang22-dev cmake git go \
-        linux-headers perl pkgconf \
-    && ln -s /usr/bin/clang-22 /usr/local/bin/clang
-
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
+# Alpine's Rust keeps host build scripts dynamically linked for bindgen/libclang.
+# Pin the image and toolchain; 1.99.0-r1 fixes missing stdlib .rmeta files in r0.
+FROM public.ecr.aws/docker/library/alpine:edge@sha256:020dfcbaaf4cc1078bf2d9c7ba31a8466e334061dcd2f248001d68f79e52c000
 
 RUN set -eu; \
     case "$(apk --print-arch)" in \
-      x86_64) host=x86_64-unknown-linux-musl; checksum=331228566cc931f32cd684f9bebc5956a5e5d7394c8d5de595f196a658ab98e6 ;; \
-      aarch64) host=aarch64-unknown-linux-musl; checksum=1ddf36182ac5d1782dbeefcb9bea7f5f9412d88f4a0d5047b1564a223624e8c6 ;; \
-      riscv64) host=riscv64gc-unknown-linux-musl; checksum=e29a1d528186309c19710c40a70ca4aa3bec975cbbeaa6b65493728e4366c89d ;; \
+      x86_64|aarch64) rust_version=1.99.0-r1 ;; \
+      # Alpine has not published Rust 1.99.0 for RISC-V yet.
+      riscv64) rust_version=1.98.1-r0 ;; \
       *) echo "unsupported musl build architecture" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL --retry 3 "https://static.rust-lang.org/rustup/archive/1.29.1/$host/rustup-init" -o /tmp/rustup-init; \
-    printf '%s  /tmp/rustup-init\n' "$checksum" | sha256sum -c -; \
-    chmod +x /tmp/rustup-init; \
-    /tmp/rustup-init -y --no-modify-path --profile minimal --default-host "$host" --default-toolchain 1.99.0; \
-    rm /tmp/rustup-init; \
-    chmod -R a+rX "$RUSTUP_HOME" "$CARGO_HOME"; \
+    apk add --no-cache build-base "rust=$rust_version" "cargo=$rust_version" \
+        ca-certificates clang22 clang22-dev cmake git go linux-headers perl pkgconf; \
+    ln -s /usr/bin/clang-22 /usr/local/bin/clang; \
     rustc --version; \
     printf 'fn main() { println!("musl std OK"); }\n' | rustc -o /tmp/musl-toolchain-check -; \
     /tmp/musl-toolchain-check; \
