@@ -1,0 +1,44 @@
+name: OHOS startup probe
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/ohos-startup]
+permissions:
+  contents: read
+jobs:
+  hap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/leenhawk/tauri-harmony@sha256:01cfb6a9fa7fa35f1cf756fb89d4333d272820b66fe8dcf032375911eebddfdd
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET_TRIPLE: x86_64-unknown-linux-ohos
+      ARTIFACT_NAME: gproxy-ohos-x86_64-startup-probe
+      GPROXY_BUILD_VERSION: 4.0.4
+      SOURCE_LIBRARY_SHA256: e3e1ba04be72ee5e9b639458b2e371b6dde956b2bd5b54638eaa78e3063d29fa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: git config --global --add safe.directory "$PWD"
+      - name: Download exact reproduction HAP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p target/ohos-startup-probe
+          curl --fail --location --retry 3 -H "Accept: application/octet-stream" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/LeenHawk/gproxy/releases/assets/607378267 \
+            -o target/ohos-startup-probe/original.hap
+          echo '695e4ee0cd424d0812d813ed44034113ec2160c6e17344e7859ce114bd62b826  target/ohos-startup-probe/original.hap' | sha256sum --check
+      - name: Build matching UPX decoder
+        run: bash scripts/install-android-upx.sh "$RUNNER_TEMP/gproxy-upx"
+      - name: Compile corrected ArkTS host and reassemble unsigned HAP
+        run: bash scripts/ohos/rebuild-hap.sh target/ohos-startup-probe/original.hap
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gproxy-ohos-x86_64-startup-probe
+          path: dist/release/gproxy-ohos-x86_64-startup-probe.hap
+          if-no-files-found: error
+          retention-days: 7

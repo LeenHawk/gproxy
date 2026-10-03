@@ -1,11 +1,11 @@
-import { RustAbility } from '@ohos-rs/ability';
+import { NativeAbility } from '@ohos-rs/ability';
 import { AbilityConstant, Want } from '@kit.AbilityKit';
 import window from '@ohos.window';
 import native from 'libgproxy_host_tauri.so';
 import { GproxyBackground } from './GproxyBackground';
 import { privacyAccepted, STORE_DISTRIBUTION } from './GproxyPrivacy';
 
-export default class EntryAbility extends RustAbility {
+export default class EntryAbility extends NativeAbility {
   public moduleName: string = 'gproxy_host_tauri';
   public defaultPage: boolean = true;
   public mode: 'xcomponent' | 'webview' = 'webview';

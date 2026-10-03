@@ -10,7 +10,12 @@ The application reuses `gproxy-host-tauri`, its existing IPC operations,
 Console, instance setup and in-process data plane. It uses Tauri's experimental
 `feat/open-harmony` port. `tauri-pins.json` records exact Tauri, Wry, Tao,
 cargo-mobile2 and Ability commits, including the matching revisions from
-upstream's lockfile. This is not stable Tauri platform support.
+upstream's lockfile. `ability-har.json` pins a beta.7 HAR source whose Rust crate
+tree must match that Ability revision. `prepare-har.py` packages the HAR from
+source, including DOM Storage support, rather than using the CLI template's
+beta.0 package. The old HAR called `init()` without the context containing the
+module name and private files directory, which prevents GPROXY startup.
+This is not stable Tauri platform support.
 
 ## Build isolation
 
