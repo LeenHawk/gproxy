@@ -128,8 +128,9 @@ After the Release workflow successfully publishes a stable release, it calls
 do not submit to F-Droid. The workflow can also be dispatched manually with a
 published version and defaults to a read-only dry run.
 
-The `release` GitHub environment must contain `FDROID_GITLAB_TOKEN`, a GitLab
-token with `api` access to the public `LeenHawk/fdroiddata` fork and permission
+The workflow uses the repository's `GITLAB_RELEASE_TOKEN` secret, passed explicitly
+by the Release workflow and exposed to the script as `FDROID_GITLAB_TOKEN`. It
+must have `api` access to the public `LeenHawk/fdroiddata` fork and permission
 to open/update merge requests at `fdroid/fdroiddata`. The fork must already exist.
 The submission script checks that the stable GitHub release is published and
 its tag belongs to `origin/main`, then pins the recipe to the full source commit.

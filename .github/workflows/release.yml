@@ -1135,6 +1135,8 @@ jobs:
     uses: ./.github/workflows/fdroid-publish.yml
     with:
       version: ${{ needs.prepare.outputs.version }}
+    secrets:
+      GITLAB_RELEASE_TOKEN: ${{ secrets.GITLAB_RELEASE_TOKEN }}
 
   store-publish:
     name: Submit Microsoft Store update

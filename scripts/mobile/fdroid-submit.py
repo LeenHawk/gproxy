@@ -147,7 +147,7 @@ def submit(generated, dry_run=False):
         print(f"Dry run: would submit {version} on {FORK}:{branch}; recipe: {OUTPUT}")
         return
     if not os.environ.get("FDROID_GITLAB_TOKEN"):
-        raise ValueError("Configure the release environment secret FDROID_GITLAB_TOKEN")
+        raise ValueError("FDROID_GITLAB_TOKEN is required; CI supplies it from GITLAB_RELEASE_TOKEN")
     if not same_version:
         action = {"action": "update" if current else "create", "file_path": FILE,
                   "content": OUTPUT.read_text()}
