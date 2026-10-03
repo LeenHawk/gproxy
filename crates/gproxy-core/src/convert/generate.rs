@@ -146,7 +146,7 @@ fn finish<Cl: Serialize>(
 
 pub(super) fn namespace() -> IdNamespace {
     let mut bytes = [0u8; 16];
-    let _ = getrandom::fill(&mut bytes);
+    crate::ids::fill_random(&mut bytes);
     IdNamespace(bytes)
 }
 
