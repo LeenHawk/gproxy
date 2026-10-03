@@ -26,13 +26,6 @@ GPROXY 是用 Rust 编写、可自行部署的 LLM API 网关。把上游账户�
 
 v4 提供带设置向导的桌面与移动应用，也可以作为命令行服务、容器运行，或部署到 Cloudflare、Netlify、Vercel 和 Deno。正式使用下载[最新稳定版](https://github.com/LeenHawk/gproxy/releases/latest)；开发快照见 [nightly](https://github.com/LeenHawk/gproxy/releases/tag/nightly)。
 
-## 帮 GPROXY 上架应用商店
-
-- [ ] Google Play 开发者账号：$25（一次性）
-- [ ] Apple 开发者计划：$99/年
-
-上架后可以直接从手机应用商店安装，并自动更新。[通过 GitHub Sponsors 赞助 →](https://github.com/sponsors/LeenHawk)
-
 ## 能做什么
 
 <table>

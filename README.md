@@ -26,13 +26,6 @@ GPROXY is a self-hosted LLM API gateway written in Rust. Add your upstream accou
 
 v4 runs as a desktop or mobile application with a setup wizard, a CLI service, a container, or on Cloudflare, Netlify, Vercel, and Deno. Use the [latest stable release](https://github.com/LeenHawk/gproxy/releases/latest) for regular deployments; development snapshots are available under [nightly](https://github.com/LeenHawk/gproxy/releases/tag/nightly).
 
-## Help GPROXY reach the app stores
-
-- [ ] Google Play developer account — $25, one-time
-- [ ] Apple Developer Program — $99 per year
-
-Once listed, GPROXY installs from your phone's store and updates itself. [Sponsor on GitHub →](https://github.com/sponsors/LeenHawk)
-
 ## Features
 
 <table>
