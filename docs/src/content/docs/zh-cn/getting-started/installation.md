@@ -73,10 +73,10 @@ CLI 需要通过 `GPROXY_MASTER_KEY` 配置凭证加密主密钥；未配置时�
 
 ## 容器
 
-镜像为 `ghcr.io/leenhawk/gproxy`。从所选版本的发布信息取得镜像标签或提交 SHA，替换下面的占位值；不要用旧的 v3 标签启动 v4。
+发布流水线将镜像同步到 `ghcr.io/leenhawk/gproxy` 和 Docker Hub 的 `leenhawk/gproxy`。稳定版本使用 `vX.Y.Z` 标签，beta 使用 `staging`，开发快照使用 `nightly`；musl 镜像在标签后加 `-musl`。请选择已发布的 v4 标签，不要用旧的 v3 标签启动 v4。
 
 ```sh
-export GPROXY_IMAGE='ghcr.io/leenhawk/gproxy:<tag-or-commit-sha>'
+export GPROXY_IMAGE='leenhawk/gproxy:<tag>'
 # GPROXY_MASTER_KEY 应是已保存的 32 字节主密钥（64 位十六进制或 base64）。
 docker run -d --name gproxy --restart unless-stopped \
   -p 127.0.0.1:8787:8787 \

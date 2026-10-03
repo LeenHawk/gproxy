@@ -74,10 +74,10 @@ Set `GPROXY_MASTER_KEY` before adding upstream credentials and keep the same sav
 
 ## Containers
 
-The image is `ghcr.io/leenhawk/gproxy`. Obtain the image tag or commit SHA from the selected release and replace the placeholder below. Old v3 image tags do not run v4.
+The release pipeline publishes images to both `ghcr.io/leenhawk/gproxy` and Docker Hub at `leenhawk/gproxy`. Stable versions use `vX.Y.Z` tags, beta uses `staging`, and development snapshots use `nightly`. Append `-musl` for musl images. Choose a published v4 tag; old v3 image tags do not run v4.
 
 ```sh
-export GPROXY_IMAGE='ghcr.io/leenhawk/gproxy:<tag-or-commit-sha>'
+export GPROXY_IMAGE='leenhawk/gproxy:<tag>'
 # Set GPROXY_MASTER_KEY to your saved 32-byte key (64 hex digits or base64).
 docker run -d --name gproxy --restart unless-stopped \
   -p 127.0.0.1:8787:8787 \
