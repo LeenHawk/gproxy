@@ -78,12 +78,10 @@ it("saves the signature switch immediately and restores it when reopened", async
   await waitFor(() => expect(restored).toBeChecked())
 })
 
-it("shows the build, the project links and an empty announcement list", async () => {
+it("shows the build and an empty announcement list", async () => {
   mount()
   await screen.findByText("Update available: new-commit")
   expect(screen.getByText("4.0.0-dev")).toBeInTheDocument()
-  expect(screen.getByRole("link", { name: "Source code" })).toHaveAttribute("href", "https://github.com/LeenHawk/gproxy")
-  expect(screen.getByRole("link", { name: /Sponsor LeenHawk/ })).toBeInTheDocument()
   await screen.findByText("No announcements for this build.")
 })
 

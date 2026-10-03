@@ -1,15 +1,7 @@
-//! Updates, and what used to be the About page.
-//!
-//! One page because they answer one question — "what is this instance
-//! running, and should it be running something else?" — in three parts: the
-//! build and the project's links, the publisher's notices for this build, and
-//! the self-update controls that act on them.
-
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { BookOpenIcon, CodeIcon, ExternalLinkIcon, HeartIcon } from "lucide-react"
 import { ApiError } from "@/api/client"
 import { ANNOUNCEMENTS_KEY, type UpdateSelection, announcements, applyUpdate, checkUpdate, rollbackUpdate, updateProgress, updateSchedule } from "@/api/update"
 import { INFO_KEY, instanceInfo, SETTINGS_KEY, readSettings, saveSettings } from "@/api/settings"
@@ -21,12 +13,10 @@ import { EmptyNotice, ErrorNotice, LoadingRows, QueryState } from "@/components/
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Link } from "@/components/link"
 import { formatInstant } from "@/lib/format"
-import { DOCS_URL, REPO_URL, SPONSORS_URL } from "@/lib/project-links"
 
 export function UpdatePage() {
   const { t, i18n } = useTranslation()
@@ -79,63 +69,7 @@ export function UpdatePage() {
   const notesUrl = report?.notes_url && /^https?:\/\//.test(report.notes_url) ? report.notes_url : null
   return <Page>
     <PageHeader title={t("nav.update")} actions={<Link to="/settings" className="text-sm underline">{t("nav.settings")}</Link>} />
-    <div className="grid max-w-5xl items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <Card>
-        <CardHeader>
-          <div className="mb-3 flex items-center gap-3">
-            <img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} width={48} height={48} className="size-12 rounded-lg" alt="" />
-            <div className="flex flex-col gap-1">
-              <CardTitle>GPROXY</CardTitle>
-              <QueryState isPending={info.isPending} error={info.error} rows={1}>
-                <p className="text-xs text-muted-foreground">{t("update.current")} <Badge variant="outline">{info.data?.version}</Badge> <code title={info.data?.hash}>{info.data?.hash.slice(0, 12)}</code></p>
-              </QueryState>
-            </div>
-          </div>
-          <CardDescription>{t("about.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-5">
-          <ul className="flex list-disc flex-col gap-3 pl-5 text-sm leading-6">
-            <li>{t("about.features.protocols")}</li>
-            <li>{t("about.features.accounts")}</li>
-            <li>{t("about.features.control")}</li>
-          </ul>
-          <p className="text-sm leading-6 text-muted-foreground">{t("about.openSource")}</p>
-        </CardContent>
-        <CardFooter className="flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
-              <CodeIcon data-icon="inline-start" aria-hidden />{t("about.source")}
-            </a>
-          </Button>
-          <Button asChild variant="outline">
-            <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
-              <BookOpenIcon data-icon="inline-start" aria-hidden />{t("about.documentation")}
-            </a>
-          </Button>
-          <Button asChild variant="ghost">
-            <a href={`${REPO_URL}/issues`} target="_blank" rel="noopener noreferrer">
-              {t("about.feedback")}<ExternalLinkIcon data-icon="inline-end" aria-hidden />
-            </a>
-          </Button>
-        </CardFooter>
-      </Card>
-      <Card>
-        <CardHeader>
-          <HeartIcon className="mb-3 size-6 text-primary" aria-hidden />
-          <CardTitle>{t("about.sponsor.title")}</CardTitle>
-          <CardDescription>{t("about.sponsor.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <p className="text-sm leading-6 text-muted-foreground">{t("about.sponsor.thanks")}</p>
-          <Button asChild className="w-full">
-            <a href={SPONSORS_URL} target="_blank" rel="noopener noreferrer">
-              <HeartIcon data-icon="inline-start" aria-hidden />{t("about.sponsor.action")}
-              <ExternalLinkIcon data-icon="inline-end" aria-hidden />
-            </a>
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+    <QueryState isPending={info.isPending} error={info.error}><p>{t("update.current")} <Badge variant="outline">{info.data?.version}</Badge> <code title={info.data?.hash}>{info.data?.hash.slice(0, 12)}</code></p></QueryState>
     {unsupported ? <EmptyNotice title={t("update.unsupported")} /> : <QueryState isPending={schedule.isPending} error={schedule.error}>
       <PageSection title={t("update.announcements.title")}>
         <p className="text-sm text-muted-foreground">{t("update.announcements.help")}</p>

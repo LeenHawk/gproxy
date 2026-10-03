@@ -1081,7 +1081,10 @@
     "imported": "Imported {{count}} credentials"
   },
   "about": {
+    "title": "About GPROXY",
+    "subtitle": "One endpoint for your LLM providers, accounts and applications.",
     "description": "GPROXY is an open-source, self-hosted LLM API gateway built with Rust. Connect your applications to multiple providers through one API endpoint.",
+    "version": "Version {{version}}",
     "features": {
       "protocols": "Use OpenAI Chat Completions, Responses, Claude Messages and Gemini APIs, with streaming and direct format conversion.",
       "accounts": "Pool upstream credentials with token refresh, load balancing and failover.",
