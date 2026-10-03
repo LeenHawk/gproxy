@@ -9,7 +9,7 @@ Permissions control access, rate limits control request frequency, and cost budg
 
 A permission rule belongs to a user or API key and may filter by provider, model pattern, and operation. Model patterns support `*` and `?`, so model restrictions do not require separate providers.
 
-Rules are ordered by descending priority, then ID. The first matching rule supplies the `allow` or `deny` decision. Ordinary users need an applicable allow rule. Instance administrators bypass ordinary permission rules, while OAuth operation scopes are still checked separately.
+Rules are ordered by descending priority, then ID. The first matching rule supplies the `allow` or `deny` decision. Ordinary users need an applicable allow rule. Instance administrators bypass ordinary permission rules, while OAuth access tokens are still limited to a fixed operation baseline (model catalogue, token counting, generation, streaming, compaction) unless the client is listed in `oauth.cli_client_ids`. The `scope` a client requests is recorded on the grant but does not widen or narrow this baseline.
 
 | API field | Meaning |
 | --- | --- |
@@ -51,7 +51,7 @@ Local limits differ from upstream account allowance. Resetting a local rule does
 ## Diagnose a rejection
 
 - `401`: check key and user validity.
-- `403`: check permissions, credential visibility, and OAuth operation scopes.
+- `403`: check permissions, credential visibility, and the OAuth operation baseline.
 - `429`: check caller rate limits, budgets, local credential limits, and upstream allowance.
 
 Inspect the relevant user, key, and credential in the console, then use the specific logged error to identify the limiting rule.

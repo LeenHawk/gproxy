@@ -107,7 +107,8 @@ struct Binding {
 /// `oauth_grants.scopes` is JSON. The issuer writes an array of strings; a
 /// space-delimited string is accepted too because that is the wire form in
 /// every OAuth request, and a row written from one is not worth refusing a
-/// live grant over. Anything else yields no scopes, which grants nothing.
+/// live grant over. Anything else yields no scopes. Scopes are recorded, not
+/// enforced — see [`GrantContext`].
 fn scopes(value: &serde_json::Value) -> Vec<String> {
     match value {
         serde_json::Value::Array(items) => items

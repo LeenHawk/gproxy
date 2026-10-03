@@ -88,6 +88,15 @@ pub enum CallerKind {
 /// `access_digest` is the digest the token was resolved by, kept so a later
 /// stage can re-resolve the same token — admission re-reads the grant before
 /// an expensive call — without the plaintext travelling any further.
+///
+/// `scopes` is what the client asked for and the user consented to, kept for
+/// display and audit. **It is not an authorization input.** The issuer has no
+/// scope vocabulary of its own — the CLIs it serves send whatever their
+/// vendor's issuer expects (`openid profile`, `user:inference`, …) — so what
+/// a token may do is the fixed operation baseline in
+/// [`admission::permission`](crate::admission::permission), lifted only for a
+/// client named in `oauth.cli_client_ids`, and then the user's own
+/// permissions and the backing key's binding.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantContext {
     pub grant_id: String,
