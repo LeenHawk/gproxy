@@ -106,9 +106,10 @@
     "observation": "Usage and logs"
   },
   "range": {
-    "day": "24 hours",
-    "week": "7 days",
-    "month": "30 days"
+    "day": "1d",
+    "week": "7d",
+    "month": "30d",
+    "sum": "sum"
   },
   "values": {
     "yes": "Yes",

@@ -14,26 +14,21 @@ import { EmptyNotice, LoadingRows, QueryState } from "@/components/state"
 import { UsageSummary } from "@/components/usage-summary"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { CACHE_TOKEN_FIELDS, formatCacheHitRate, formatUsageTokens } from "@/lib/usage"
+import { UsageRangeSelector } from "@/components/usage-range"
+import { usageWindow, type UsageRange, CACHE_TOKEN_FIELDS, formatCacheHitRate, formatUsageTokens } from "@/lib/usage"
 import type { UsageGroupDto } from "@/generated/sdk"
 import type { UsageGroupBy } from "@/generated/app"
 import { formatCost, formatCount } from "@/lib/format"
 
 const UsageTrend = lazy(() => import("@/components/usage-trend"))
 
-const RANGES = { day: 86_400_000, week: 604_800_000, month: 2_592_000_000 } as const
-type RangeKey = keyof typeof RANGES
-
 const GROUPS: ReadonlyArray<UsageGroupBy> = ["model", "operation", "provider", "apiKey"]
-
-/** Twenty-four buckets over whatever the range is: a readable trend at any width. */
-const BUCKETS = 24
 
 export function UsagePage({ global = false, renderRecords }: { global?: boolean; renderRecords?: (filter: HistoryFilter) => ReactNode } = {}) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState<HistoryFilter>({})
-  const [range, setRange] = useState<RangeKey>("week")
+  const [range, setRange] = useState<UsageRange>("week")
   const [groupBy, setGroupBy] = useState<UsageGroupBy>("model")
 
   // The window is computed inside the query function, not in the render.
@@ -43,14 +38,10 @@ export function UsagePage({ global = false, renderRecords }: { global?: boolean;
   const usage = useQuery({
     queryKey: [global ? "admin" : "portal", "usage", range, groupBy, filter],
     queryFn: () => {
-      const toMs = filter.toMs ?? Date.now()
-      const fromMs = filter.fromMs ?? toMs - RANGES[range]
       return (global ? observation.usage : portal.usage)({
         ...filter,
-        fromMs,
-        toMs,
+        ...usageWindow(range, filter),
         groupBy,
-        bucketMs: Math.max(1, Math.ceil((toMs - fromMs) / BUCKETS)),
       })
     },
   })
@@ -60,21 +51,18 @@ export function UsagePage({ global = false, renderRecords }: { global?: boolean;
     <Page>
       <PageHeader title={t(global ? "nav.globalUsage" : "nav.usage")} actions={<Button size="sm" variant="outline" onClick={() => { void usage.refetch(); if (global) void queryClient.invalidateQueries({ queryKey: ["admin", "usage-records"] }) }}>{t("observation.refresh")}</Button>} />
       {global ? <HistoryFilters summary onApply={setFilter} /> : null}
-      <ToggleGroup type="single" value={range} onValueChange={value => {
-        if (value) { setRange(value as RangeKey); setFilter({ ...filter, fromMs: undefined, toMs: undefined }) }
-      }} size="sm" className="flex-wrap" aria-label={t("usage.timeRange")}>
-        {(Object.keys(RANGES) as Array<RangeKey>).map(key => (
-          <ToggleGroupItem key={key} value={key}>{t(`range.${key}`)}</ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+      <UsageRangeSelector value={range} onChange={value => {
+        setRange(value)
+        setFilter({ ...filter, fromMs: undefined, toMs: undefined })
+      }} />
       <QueryState isPending={usage.isPending} error={usage.error}>
         {usage.data ? (
           <div className="flex flex-col gap-6">
             <UsageSummary summary={usage.data.summary} />
 
-            <PageSection title={t("usage.trend")}>
+            {usage.data.fromMs != null ? <PageSection title={t("usage.trend")}>
               <Suspense fallback={<LoadingRows />}><UsageTrend points={usage.data.trend} /></Suspense>
-            </PageSection>
+            </PageSection> : null}
 
             <PageSection
               title={t("usage.groups")}

@@ -1,7 +1,7 @@
 {
   "overview": {
     "title": "你好，{{name}}",
-    "usage": "最近七天",
+    "usage": "用量",
     "quota": "費用預算"
   },
   "keys": {

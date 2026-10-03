@@ -1,7 +1,7 @@
 {
   "overview": {
     "title": "Hello, {{name}}",
-    "usage": "The last seven days",
+    "usage": "Usage",
     "quota": "Cost budgets"
   },
   "keys": {

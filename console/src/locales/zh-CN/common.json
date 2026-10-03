@@ -106,9 +106,10 @@
     "observation": "用量与日志"
   },
   "range": {
-    "day": "24 小时",
-    "week": "7 天",
-    "month": "30 天"
+    "day": "1d",
+    "week": "7d",
+    "month": "30d",
+    "sum": "sum"
   },
   "values": {
     "yes": "是",

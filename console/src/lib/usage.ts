@@ -28,3 +28,18 @@ export function formatCacheHitRate(tokens: CacheUsage, locale: string) {
 export function formatUsageTokens(value: number | null | undefined, locale: string) {
   return value == null ? "—" : formatCount(value, locale)
 }
+
+export const USAGE_RANGES = { day: 86_400_000, week: 604_800_000, month: 2_592_000_000, sum: null } as const
+export type UsageRange = keyof typeof USAGE_RANGES
+
+/** All-time totals have no lower bound or trend; bounded ranges use 24 buckets. */
+export function usageWindow(range: UsageRange, filter: { fromMs?: number; toMs?: number } = {}) {
+  const toMs = filter.toMs ?? Date.now()
+  const duration = USAGE_RANGES[range]
+  const fromMs = filter.fromMs ?? (duration === null ? undefined : toMs - duration)
+  return {
+    fromMs,
+    toMs,
+    bucketMs: fromMs === undefined ? undefined : Math.max(1, Math.ceil((toMs - fromMs) / 24)),
+  }
+}
