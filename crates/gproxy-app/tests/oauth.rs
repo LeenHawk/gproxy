@@ -252,6 +252,15 @@ async fn the_code_flow_issues_a_token_that_authenticates_as_its_grant() {
         .unwrap();
     assert_eq!(caller.kind, CallerKind::OAuthGrant);
     assert_eq!(caller.user_id, user_id);
+    assert!(
+        gproxy_app::admission::permission::check_oauth_operation(
+            &caller,
+            gproxy_protocol::Operation::GenerateContent,
+            &[]
+        )
+        .is_err(),
+        "identity scopes must not grant inference access"
+    );
     let grant = caller.grant.expect("an OAuth caller carries its grant");
     assert_eq!(grant.client_id, client_id);
     assert_eq!(grant.scopes, ["openid", "profile"]);
@@ -554,7 +563,7 @@ async fn device_start(
         .device_code_at(
             &DeviceCodeRequest {
                 client_id: client_id.into(),
-                scope: "openid".into(),
+                scope: "gproxy:list_models".into(),
             },
             &origin,
             now_ms,
@@ -607,7 +616,7 @@ async fn the_device_flow_polls_until_it_is_approved() {
     ] {
         let details = issuer.device_details_at(&spelling, 1_000).await.unwrap();
         assert_eq!(details.client_name, "CLI");
-        assert_eq!(details.scopes, ["openid"]);
+        assert_eq!(details.scopes, ["gproxy:list_models"]);
         assert_eq!(details.user_code, user_code.replace('-', ""));
     }
 
@@ -621,8 +630,30 @@ async fn the_device_flow_polls_until_it_is_approved() {
         .await
         .unwrap();
     let tokens = issuer.token_at(&poll, 2_000).await.unwrap();
-    assert_eq!(tokens.scope, "openid");
+    assert_eq!(tokens.scope, "gproxy:list_models");
     assert!(authenticates_at(&gproxy, &tokens.access_token, 3_000).await);
+    let current = snapshot(gproxy.store()).await;
+    let caller = Authenticator::new(gproxy.store(), &current, &config)
+        .authenticate_token_at(&tokens.access_token, 3_000)
+        .await
+        .unwrap();
+    let cli = [client_id.clone()];
+    assert!(
+        gproxy_app::admission::permission::check_oauth_operation(
+            &caller,
+            gproxy_protocol::Operation::ListModels,
+            &cli
+        )
+        .is_ok()
+    );
+    assert!(
+        gproxy_app::admission::permission::check_oauth_operation(
+            &caller,
+            gproxy_protocol::Operation::GenerateContent,
+            &cli
+        )
+        .is_err()
+    );
 
     // A second poll is refused — the device code is spent — but it does
     // **not** revoke the family, because a polling client legitimately

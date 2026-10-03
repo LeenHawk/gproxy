@@ -9,7 +9,9 @@ description: "配置訪問規則、請求限制和費用預算，區分本地限
 
 權限規則屬於使用者或單把 API Key，並可限定供應商、模型模式和操作。模型模式支援 `*` 與 `?`，因此可以直接限制模型，不需要為每個模型另建供應商。
 
-匹配規則按優先順序從高到低、同優先順序按 ID 排序，使用第一條匹配規則的 `allow` 或 `deny`。普通使用者沒有匹配的允許規則時不能訪問。實例管理員繞過普通權限規則；OAuth 存取權杖仍受固定操作基線限制（模型目錄、token 計數、生成、串流、壓縮），除非用戶端列在 `oauth.cli_client_ids` 中。用戶端請求的 `scope` 只記錄在授權上，不會擴大或縮小這條基線。
+匹配規則按優先順序從高到低、同優先順序按 ID 排序，使用第一條匹配規則的 `allow` 或 `deny`。普通使用者沒有匹配的允許規則時不能訪問。實例管理員繞過普通權限規則；OAuth 存取權杖仍受固定操作基線限制（模型目錄、token 計數、生成、串流、壓縮），除非用戶端列在 `oauth.cli_client_ids` 中。
+
+每個操作還必須具有對應的 `gproxy:<operation>` scope，operation 使用 snake_case 操作 ID，例如 `gproxy:list_models`、`gproxy:generate_content` 和 `gproxy:stream_generate_content`。供應商服務需要 `gproxy:services`，且用戶端必須位於 CLI 白名單中。管理員和 CLI 白名單都不能繞過 scope 檢查。空 scope、`openid` 和 `profile` 不授予資源存取權限；舊用戶端需要請求所需 scope 並重新授權。scope 不能繞過操作基線或普通權限規則。
 
 | API 欄位 | 含義 |
 | --- | --- |

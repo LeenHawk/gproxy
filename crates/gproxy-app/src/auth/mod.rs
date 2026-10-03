@@ -89,14 +89,9 @@ pub enum CallerKind {
 /// stage can re-resolve the same token — admission re-reads the grant before
 /// an expensive call — without the plaintext travelling any further.
 ///
-/// `scopes` is what the client asked for and the user consented to, kept for
-/// display and audit. **It is not an authorization input.** The issuer has no
-/// scope vocabulary of its own — the CLIs it serves send whatever their
-/// vendor's issuer expects (`openid profile`, `user:inference`, …) — so what
-/// a token may do is the fixed operation baseline in
-/// [`admission::permission`](crate::admission::permission), lifted only for a
-/// client named in `oauth.cli_client_ids`, and then the user's own
-/// permissions and the backing key's binding.
+/// `scopes` bounds the operations the client may perform: resource admission
+/// requires `gproxy:<operation_id>` (or `gproxy:services` for vendor services)
+/// before applying the client baseline and the user's own permissions.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantContext {
     pub grant_id: String,

@@ -2,13 +2,14 @@
 //!
 //! Two filters, in this order.
 //!
-//! **The OAuth operation baseline** comes first, because it is about the
+//! **OAuth scopes and the operation baseline** come first, because they concern the
 //! *program* holding the token rather than the person who issued it. An
 //! access token is a credential a user handed to somebody else's binary; until
 //! an operator says otherwise, that binary may read the model catalogue, count
 //! tokens, generate, stream and compact, and nothing else. Naming a client in
 //! [`AppConfig.oauth.cli_client_ids`](crate::config::OAuthIssuerConfig) lifts
-//! the baseline for that client.
+//! the baseline for that client. Every operation still requires its exact
+//! `gproxy:<operation_id>` scope, including for those configured clients.
 //!
 //! **The permission rules** come second and produce the provider set, one
 //! [`PermissionSet::decide`](crate::snapshot::PermissionSet::decide) per
@@ -30,8 +31,8 @@ use std::collections::BTreeSet;
 /// Everything absent from it — embeddings, images, audio, files, video,
 /// realtime, moderation — is either a different product a third-party client
 /// has no reason to reach through somebody else's account, or an expensive
-/// one. Adding a variant here widens what every already-issued token can do,
-/// so it is a deliberate decision and not a default.
+/// one. Adding a variant here widens access for tokens carrying that operation's
+/// scope, so it is a deliberate decision and not a default.
 const OAUTH_BASELINE: [Operation; 6] = [
     Operation::ListModels,
     Operation::GetModel,
@@ -41,7 +42,7 @@ const OAUTH_BASELINE: [Operation; 6] = [
     Operation::CompactContent,
 ];
 
-/// The OAuth baseline on its own, for a host that needs to answer "may this
+/// OAuth scope and baseline checks, for a host that needs to answer "may this
 /// token do that?" without computing a provider set.
 ///
 /// Applies to [`CallerKind::OAuthGrant`] only; every other caller passes
@@ -58,12 +59,29 @@ pub fn check_oauth_operation(
     if caller.kind != CallerKind::OAuthGrant {
         return Ok(());
     }
+    require_oauth_scope(caller, &format!("gproxy:{}", operation.id()))?;
     if known_cli_client(caller, cli_client_ids) || OAUTH_BASELINE.contains(&operation) {
         return Ok(());
     }
     Err(AppError::forbidden(
         "this operation is not available to OAuth clients",
     ))
+}
+
+/// Consent is an upper bound, including for operator-approved CLI clients.
+/// Unknown/identity scopes never implicitly authorize a resource operation.
+fn require_oauth_scope(caller: &Caller, required: &str) -> Result<(), AppError> {
+    if caller.kind != CallerKind::OAuthGrant
+        || caller
+            .grant
+            .as_ref()
+            .is_some_and(|grant| grant.scopes.iter().any(|scope| scope == required))
+    {
+        return Ok(());
+    }
+    Err(AppError::forbidden(format!(
+        "insufficient OAuth scope: {required} is required"
+    )))
 }
 
 /// Whether an OAuth-grant caller's client is one the operator named in
@@ -106,6 +124,7 @@ pub fn allow_service(
     provider_id: &str,
     cli_client_ids: &[String],
 ) -> Result<(), AppError> {
+    require_oauth_scope(caller, "gproxy:services")?;
     if caller.kind == CallerKind::OAuthGrant && !known_cli_client(caller, cli_client_ids) {
         return Err(AppError::forbidden(
             "vendor services are not available to OAuth clients",
@@ -198,10 +217,36 @@ mod tests {
         caller.grant = Some(GrantContext {
             grant_id: "g1".into(),
             client_id: client_id.into(),
-            scopes: Vec::new(),
+            scopes: OAUTH_BASELINE
+                .into_iter()
+                .chain([
+                    Operation::CreateEmbedding,
+                    Operation::CreateImage,
+                    Operation::CreateSpeech,
+                    Operation::ConnectRealtime,
+                ])
+                .map(|operation| format!("gproxy:{}", operation.id()))
+                .chain(["gproxy:services".into()])
+                .collect(),
             access_digest: [0; 32],
         });
         caller
+    }
+
+    #[test]
+    fn oauth_consent_is_required_even_for_admins_and_known_cli_clients() {
+        let mut caller = grant_caller("codex");
+        caller.user_role = "admin".into();
+        let cli = ["codex".into()];
+        caller.grant.as_mut().unwrap().scopes.clear();
+        for operation in OAUTH_BASELINE.into_iter().chain([Operation::DeleteFile]) {
+            assert!(check_oauth_operation(&caller, operation, &cli).is_err());
+        }
+        assert!(allow_service(&snapshot(vec![]), &caller, "openai", &cli).is_err());
+        caller.grant.as_mut().unwrap().scopes = vec!["gproxy:list_models".into()];
+        assert!(check_oauth_operation(&caller, Operation::ListModels, &cli).is_ok());
+        assert!(check_oauth_operation(&caller, Operation::GenerateContent, &cli).is_err());
+        assert!(check_oauth_operation(&caller, Operation::DeleteFile, &cli).is_err());
     }
 
     #[test]

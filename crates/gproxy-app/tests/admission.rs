@@ -278,7 +278,10 @@ async fn seeded() -> Store<DatabaseConnection> {
             user_id: Set("alice".into()),
             api_key_id: Set("k-grant".into()),
             client_id: Set("third-party".into()),
-            scopes: Set(json!(["openid"])),
+            scopes: Set(json!([
+                "gproxy:generate_content",
+                "gproxy:create_embedding"
+            ])),
             subject: Set("alice".into()),
             created_at_ms: Set(0),
             ..Default::default()

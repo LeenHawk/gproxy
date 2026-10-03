@@ -257,13 +257,13 @@ pub struct OAuthIssuerConfig {
     pub code_ttl_secs: u64,
     pub device_ttl_secs: u64,
     /// Clients whose access tokens may perform *any* operation their
-    /// permissions allow, rather than only the coding-agent baseline
-    /// admission holds every other OAuth client to.
+    /// permissions and granted scopes allow, rather than only the coding-agent
+    /// baseline admission holds every other OAuth client to.
     ///
     /// Empty by default, which is the safe end: an access token is a
     /// credential a user handed to somebody else's program, so it starts able
-    /// to list models, count tokens, generate, stream and compact, and nothing
-    /// more. An operator names a first-party CLI here once they accept that it
+    /// to list models, count tokens, generate, stream and compact only when
+    /// their scopes were granted. An operator names a first-party CLI here once they accept that it
     /// speaks for the user across the whole API. See
     /// [`admission::permission`](crate::admission::permission).
     pub cli_client_ids: Vec<String>,
