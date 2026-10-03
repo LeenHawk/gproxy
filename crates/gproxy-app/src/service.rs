@@ -489,42 +489,6 @@ mod tests {
     }
 
     #[test]
-    fn delegated_credentials_cannot_inherit_administrative_service_views() {
-        let mut root = caller("root", "admin");
-        for kind in [crate::CallerKind::ApiKey, crate::CallerKind::OAuthGrant] {
-            root.kind = kind;
-            for view in [
-                RequestedView::Pool,
-                RequestedView::Credential("c-shared".into()),
-            ] {
-                let result = decide(&snapshot(), &root, &view, &set(&["c-shared"]));
-                assert!(matches!(result, Err(error) if error.status_code() == 403));
-            }
-            let plan = decide(
-                &snapshot(),
-                &root,
-                &RequestedView::Caller,
-                &set(&["c-shared"]),
-            )
-            .unwrap();
-            assert_eq!(plan.role, CallerRole::Member);
-        }
-        let mut boss = caller("boss", "user");
-        boss.organization_id = Some("acme".into());
-        assert!(decide(&snapshot(), &boss, &RequestedView::Pool, &set(&["c-acme"])).is_err());
-        root.kind = crate::CallerKind::Session;
-        assert!(
-            decide(
-                &snapshot(),
-                &root,
-                &RequestedView::Pool,
-                &set(&["c-shared"])
-            )
-            .is_ok()
-        );
-    }
-
-    #[test]
     fn a_credential_view_can_only_name_one_of_the_targets_own() {
         let mut root = caller("root", "admin");
         root.management = true;

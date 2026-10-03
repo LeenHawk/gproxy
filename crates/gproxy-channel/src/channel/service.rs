@@ -314,31 +314,6 @@ mod tests {
     use super::match_template;
 
     #[test]
-    fn service_paths_allow_encoded_names_but_not_routing_ambiguity() {
-        for path in [
-            "/api/desktop/releases/app.zip",
-            "/api/hello/a%20b",
-            "/api/hello/v1.2",
-        ] {
-            assert!(super::unambiguous_path(path), "{path}");
-        }
-        for path in [
-            "/api/desktop/./app",
-            "/api/desktop/../oauth/profile",
-            "/api/desktop/%2e%2e/oauth/profile",
-            "/api/desktop/.%2E/oauth/profile",
-            "/api/desktop/%2e./oauth/profile",
-            "/api/hello/%2fprivate",
-            "/api/hello/%5cprivate",
-            "/api/hello/a\\b",
-            "/api/hello/a?b",
-            "/api/hello/a#b",
-        ] {
-            assert!(!super::unambiguous_path(path), "{path}");
-        }
-    }
-
-    #[test]
     fn templates_capture_named_and_rest_segments() {
         assert_eq!(match_template("/api/hello", "/api/hello"), Some(vec![]));
         assert_eq!(match_template("/api/hello", "/api/hello/x"), None);

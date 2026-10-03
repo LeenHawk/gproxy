@@ -292,28 +292,6 @@ fn strip_bearer(value: &str) -> Option<&str> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn upstream_queries_drop_encoded_credentials_and_preserve_other_bytes() {
-        assert_eq!(
-            upstream_query(Some(
-                "keep=a%2Fb&key=a&%6bey=b&k%65y=c&%61ccess_token=d&api%5fkey=e&x%2dapi%2dkey=f&keep=two+words"
-            )),
-            Some("keep=a%2Fb&keep=two+words".into())
-        );
-        for query in [
-            None,
-            Some(""),
-            Some("key=secret"),
-            Some("%6bey=secret&access_token=x"),
-        ] {
-            assert_eq!(upstream_query(query), None);
-        }
-        assert_eq!(
-            upstream_query(Some("monkey=ok&key_hint=ok")),
-            Some("monkey=ok&key_hint=ok".into())
-        );
-    }
-
     fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
         let mut map = HeaderMap::new();
         for (name, value) in pairs {

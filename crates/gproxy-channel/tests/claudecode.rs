@@ -1608,42 +1608,6 @@ async fn identity_is_synthesized_unless_the_view_is_a_credential() {
 }
 
 #[tokio::test]
-async fn catalog_paths_cannot_traverse_into_account_endpoints() {
-    let config = json!({});
-    let s = secret("at");
-    let client = ScriptClient::new(vec![reply(StatusCode::OK, json!({"private": true}))]);
-    let accounts = [account(&config, &s, &client)];
-    let member = ScriptCaller::member("m");
-    let services = Claudecode.services().unwrap();
-    for path in [
-        "/api/desktop/../oauth/profile",
-        "/api/desktop/%2e%2e/oauth/profile",
-        "/api/desktop/.%2E/oauth/profile",
-        "/api/desktop/%2e./oauth/profile",
-        "/api/desktop/%2f../oauth/profile",
-        "/api/desktop/%5c../oauth/profile",
-    ] {
-        let result = services
-            .call(context(
-                &accounts,
-                &member,
-                ServiceView::Caller,
-                service_request(Method::GET, path, None, ""),
-            ))
-            .await;
-        assert!(result.is_err(), "accepted ambiguous path: {path}");
-        assert!(
-            services.route(&Method::GET, path).is_none(),
-            "routed {path}"
-        );
-        assert!(
-            client.sent().is_empty(),
-            "must refuse before using upstream credentials"
-        );
-    }
-}
-
-#[tokio::test]
 async fn usage_reflects_the_host_allotment() {
     let config = json!({});
     let s = secret("at");

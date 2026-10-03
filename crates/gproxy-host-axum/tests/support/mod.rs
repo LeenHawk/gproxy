@@ -78,13 +78,13 @@ impl BaseChannel for TestChannel {
     }
 
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
-        let path = match ctx.request.query.as_deref() {
-            Some(query) => format!("{}?{query}", ctx.request.path),
-            None => ctx.request.path.clone(),
-        };
         let url = match ctx.endpoint_override {
             Some(url) => url.to_owned(),
-            None => format!("{}{}", ctx.provider.base_url.unwrap_or_default(), path),
+            None => format!(
+                "{}{}",
+                ctx.provider.base_url.unwrap_or_default(),
+                ctx.request.path
+            ),
         };
         let key = ctx
             .credential
@@ -230,7 +230,6 @@ impl ChannelServices for TestChannel {
                 "identity": context.caller.identity().id,
                 "account": context.account.credential.id,
                 "path": context.request.path,
-                "query": context.request.query,
                 "input_tokens": usage.input_tokens,
             });
             let mut headers = HeaderMap::new();

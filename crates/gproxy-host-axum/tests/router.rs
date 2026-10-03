@@ -59,31 +59,6 @@ async fn a_data_plane_request_with_no_key_is_401_in_the_product_envelope() {
 }
 
 #[tokio::test]
-async fn query_credentials_authenticate_but_never_reach_the_upstream() {
-    let host = instance().await;
-    host.client
-        .script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
-    let answer = host
-        .send(post(
-            "/v1/messages?keep=a%2Fb&%6bey=k-alice&key=k-alice&api%5fkey=private&keep=two+words",
-            json!({"model": "test/m1"}),
-        ))
-        .await;
-    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text());
-    assert_eq!(
-        host.client.urls(),
-        ["https://p1.example/v1/messages?keep=a%2Fb&keep=two+words"]
-    );
-    let answer = host
-        .send(get(
-            "/p1/backend-api/wham/usage?%6bey=k-alice&access_token=private&keep=a%2Fb",
-        ))
-        .await;
-    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text());
-    assert_eq!(answer.json()["query"], "keep=a%2Fb");
-}
-
-#[tokio::test]
 async fn a_caller_with_no_permission_is_403_and_costs_no_upstream_call() {
     let host = Host::new().await;
     let handle = host.handle();

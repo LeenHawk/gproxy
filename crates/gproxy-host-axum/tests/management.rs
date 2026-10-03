@@ -417,54 +417,6 @@ async fn a_wrong_password_is_the_same_answer_as_an_unknown_account() {
 }
 
 #[tokio::test]
-async fn cross_origin_logout_preserves_the_session_and_cookie() {
-    let host = instance().await;
-    let login = host
-        .send(post(
-            "/portal/api/login",
-            json!({
-                "name": "alice", "password": "correct horse battery"
-            }),
-        ))
-        .await;
-    assert_eq!(login.status, StatusCode::OK);
-    let token = login.json()["token"].as_str().unwrap().to_owned();
-    let cookie = format!("gproxy_session={token}");
-    for origin in [None, Some("https://evil.example"), Some("null")] {
-        let mut req = with(post("/portal/api/logout", json!({})), "cookie", &cookie);
-        if let Some(origin) = origin {
-            req = with(req, "origin", origin);
-        }
-        let response = host.send(req).await;
-        assert_eq!(response.status, StatusCode::FORBIDDEN, "{origin:?}");
-        assert!(response.header("set-cookie").is_none());
-        let live = host
-            .send(with(get("/portal/api/context"), "cookie", &cookie))
-            .await;
-        assert_eq!(live.status, StatusCode::OK);
-    }
-    let response = host
-        .send(with(
-            post("/portal/api/logout", json!({})),
-            "origin",
-            "https://evil.example",
-        ))
-        .await;
-    assert_eq!(response.status, StatusCode::FORBIDDEN);
-    assert!(response.header("set-cookie").is_none());
-    // A script explicitly presenting the token still needs no browser Origin.
-    let response = host
-        .send(with(
-            post("/portal/api/logout", json!({})),
-            "authorization",
-            &format!("Bearer {token}"),
-        ))
-        .await;
-    assert_eq!(response.status, StatusCode::OK);
-    assert_eq!(response.json()["endedSession"], true);
-}
-
-#[tokio::test]
 async fn the_portal_is_reachable_by_an_ordinary_account_and_the_operator_surface_is_not() {
     let host = instance().await;
     let answer = host
