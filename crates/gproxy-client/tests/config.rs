@@ -91,6 +91,7 @@ fn custom_fingerprint() -> EmulationConfig {
     };
     EmulationConfig::Custom(Fingerprint {
         alpn: vec![Alpn::Http2, Alpn::Http1],
+        disable_alpn: None,
         min_tls: Some(TlsVersion::Tls12),
         max_tls: Some(TlsVersion::Tls13),
         cipher_list: Some("TLS_AES_128_GCM_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256".into()),
@@ -101,6 +102,8 @@ fn custom_fingerprint() -> EmulationConfig {
         extension_permutation: None,
         ocsp_stapling: Some(true),
         signed_cert_timestamps: Some(true),
+        session_ticket: None,
+        psk_dhe_ke: None,
         http2: Some(Http2Settings {
             enable_push: Some(false),
             initial_window_size: Some(2_097_152),

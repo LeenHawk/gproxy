@@ -85,9 +85,11 @@ pub const OAUTH_SCOPE: &str = concat!(
 /// the Gemini CLI's `legacy-tier`, Antigravity spells it in upper case
 /// (v3 `login.rs`).
 const FALLBACK_TIER: &str = "LEGACY";
-/// The editor's Go client banner (v3 `prepare.rs::USER_AGENT_VALUE`, and
-/// `misc.AntigravityRequestUserAgent` in the CLIProxyAPI sample).
-pub const CLI_USER_AGENT: &str = "antigravity/cli/1.0.6 linux/amd64";
+/// Captured from the Linux amd64 CLI 1.2.16 Code Assist requests (2026-10-03).
+pub const CLI_USER_AGENT: &str = concat!(
+    "antigravity/cli/1.2.16 ",
+    "(aidev_client; os_type=linux; arch=amd64; cl=992658124; auth_method=consumer)"
+);
 /// The model Antigravity exposes as its own high reasoning tier; its
 /// catalogue supplies this thinking budget as the default (v3
 /// `prepare.rs::apply_model_defaults`).
@@ -145,10 +147,12 @@ const CHANNEL_HEADERS: &[&str] = &[
     "x-goog-user-project",
 ];
 
-/// The editor's outbound stack, the default for a provider that names no
-/// connection profile: a Go client, TLS 1.2 floor, Go's cipher order with the
-/// TLS 1.3 suites kept last and preserved, X25519MLKEM768 first, Go's
-/// signature algorithm order, no GREASE (v3 `antigravity/profile.rs`).
+/// The CLI 1.2.16 Code Assist transport: no ALPN or GREASE, TLS 1.2 floor,
+/// Go's cipher preferences and its extension order. BoringSSL puts TLS 1.3
+/// suites first even though the CLI advertises them last.
+/// BoringSSL lacks the captured SecP256r1MLKEM768/SecP384r1MLKEM1024 groups
+/// and signature_algorithms_cert extension; keep the
+/// supported subset rather than configuring algorithms it cannot negotiate.
 pub fn default_connection() -> ConnectionConfig {
     ConnectionConfig {
         backend: Backend::Wreq,
@@ -157,6 +161,7 @@ pub fn default_connection() -> ConnectionConfig {
         gzip: true,
         emulation: Some(EmulationConfig::Custom(Fingerprint {
             alpn: Vec::<Alpn>::new(),
+            disable_alpn: Some(true),
             min_tls: Some(TlsVersion::Tls12),
             max_tls: Some(TlsVersion::Tls13),
             cipher_list: Some(
@@ -173,6 +178,7 @@ pub fn default_connection() -> ConnectionConfig {
             curves_list: Some("X25519MLKEM768:X25519:P-256:P-384:P-521".into()),
             sigalgs_list: Some(
                 concat!(
+                    "mldsa44:mldsa65:mldsa87:",
                     "rsa_pss_rsae_sha256:ecdsa_secp256r1_sha256:ed25519:",
                     "rsa_pss_rsae_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha256:",
                     "rsa_pkcs1_sha384:rsa_pkcs1_sha512:ecdsa_secp384r1_sha384:",
@@ -182,9 +188,11 @@ pub fn default_connection() -> ConnectionConfig {
             ),
             preserve_tls13_cipher_list: Some(true),
             grease: Some(false),
-            extension_permutation: None,
-            ocsp_stapling: None,
-            signed_cert_timestamps: None,
+            extension_permutation: Some(vec![0, 11, 65281, 23, 18, 5, 10, 13, 43, 51]),
+            ocsp_stapling: Some(true),
+            signed_cert_timestamps: Some(true),
+            session_ticket: Some(false),
+            psk_dhe_ke: Some(false),
             http2: None,
             headers: None,
         })),
@@ -357,11 +365,7 @@ fn agent_envelope(envelope: &mut Value, model: &str) -> Result<(), ChannelError>
         .map(str::to_owned)
         .unwrap_or_else(|| if image { "image_gen" } else { "agent" }.to_owned());
     let request_id = if kind == "image_gen" {
-        format!(
-            "image_gen/{}/{}/12",
-            code_assist::unix_now_ms(),
-            uuid()?
-        )
+        format!("image_gen/{}/{}/12", code_assist::unix_now_ms(), uuid()?)
     } else {
         format!("agent-{}", uuid()?)
     };
