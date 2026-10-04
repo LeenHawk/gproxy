@@ -483,7 +483,7 @@ async fn buffered_stream_keepalive_preserves_provider_failover_and_settlement() 
     );
     let (response, completion) = result.into_parts();
     let body = support::read(response.body).await;
-    assert!(body.starts_with(": keep-alive\n\n"), "{body}");
+    assert!(body.starts_with(":\n\n"), "{body}");
     assert!(
         body.contains("response.completed") && body.contains("hello"),
         "{body}"

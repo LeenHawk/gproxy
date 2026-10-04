@@ -278,10 +278,15 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
         // heartbeat before core returns headers. Keep the entire failover walk
         // inside the pending future so heartbeats do not bypass retries.
         let keepalive = operation.operation == gproxy_protocol::Operation::StreamGenerateContent
-            && (operation.dialect != gproxy_protocol::Dialect::Gemini
-                || query
+            && (matches!(
+                operation.dialect,
+                gproxy_protocol::Dialect::OpenAi
+                    | gproxy_protocol::Dialect::OpenAiChat
+                    | gproxy_protocol::Dialect::Claude
+            ) || (operation.dialect == gproxy_protocol::Dialect::Gemini
+                && query
                     .as_deref()
-                    .is_some_and(|q| q.split('&').any(|p| p == "alt=sse")))
+                    .is_some_and(|q| q.split('&').any(|p| p == "alt=sse"))))
             && prepared.plan.targets.iter().any(|target| {
                 matches!(gproxy_core::convert::route_for_model(&target.provider, operation, target.upstream_model.as_deref()),
                     Ok(gproxy_core::convert::Route::TransformTo { target })
