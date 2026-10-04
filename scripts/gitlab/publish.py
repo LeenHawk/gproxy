@@ -232,11 +232,12 @@ def verify_packages():
             cli_extension = ".deb" if row["os"] == "android" else extensions[row["os"]]
             expected.append(cli + cli_extension)
         if app := row.get("application_artifact"):
-            # Alpine Applications use GitHub's native runners; the optional
+            # Alpine Applications use the GitHub Alpine build jobs; the optional
             # GitLab cross-build pipeline does not build these targets.
-            if row["builder"] == "cargo-alpine" and os.environ.get("GITHUB_ACTIONS") != "true":
+            if row.get("application_builder", row["builder"]) == "cargo-alpine" and os.environ.get("GITHUB_ACTIONS") != "true":
                 continue
             expected += [app + row.get("application_extension", extensions[row["os"]]), app + ".provenance.json"]
+            expected += [app + extension for extension in row.get("application_extra_extensions", [])]
             if row["os"] not in ("android", "ohos"):
                 expected.append(app + ".zip")
                 with zipfile.ZipFile(directory / (app + ".zip")) as archive:

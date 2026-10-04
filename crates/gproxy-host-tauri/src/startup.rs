@@ -21,7 +21,8 @@ pub fn set(enabled: bool) -> Result<(), String> {
     #[cfg(not(any(target_os = "android", target_env = "ohos")))]
     {
         #[cfg(target_os = "linux")]
-        let executable = std::env::var_os("APPIMAGE")
+        let executable = std::env::var_os("GPROXY_DESKTOP_LAUNCHER")
+            .or_else(|| std::env::var_os("APPIMAGE"))
             .map(std::path::PathBuf::from)
             .filter(|path| path.is_absolute())
             .map(Ok)

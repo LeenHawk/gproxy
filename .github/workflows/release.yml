@@ -40,10 +40,10 @@ jobs:
           python3 scripts/release-context.py --validate | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> "$GITHUB_OUTPUT"
           # CLI and Application get separate runners and caches, including
           # their independent LTO links and best-compression packaging.
-          echo "matrix=$(jq -c '{include: [.include[] | select(.os != "ohos") | select(.target | startswith("riscv64gc-") | not) | if .application_artifact then . + {kind:"cli"}, . + {kind:"application"} else . + {kind:"cli"} end]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
+          echo "matrix=$(jq -c '{include: [.include[] | select(.os != "ohos") | if (.target | startswith("riscv64gc-")) then select(.application_builder == "cargo-alpine") | . + {kind:"application",builder:.application_builder} elif .application_artifact then . + {kind:"cli"}, . + {kind:"application"} else . + {kind:"cli"} end]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "headless_matrix=$(jq -c '{include: [.include[] | select(.headless_artifact) | select(.target | startswith("riscv64gc-") | not)]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "headless_riscv_matrix=$(jq -c '{include: [.include[] | select(.headless_artifact) | select(.target | startswith("riscv64gc-"))]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
-          echo "riscv_matrix=$(jq -c '{include: [.include[] | select(.target | startswith("riscv64gc-")) | if .application_artifact then . + {kind:"cli"}, . + {kind:"application"} else . + {kind:"cli"} end]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
+          echo "riscv_matrix=$(jq -c '{include: [.include[] | select(.target | startswith("riscv64gc-")) | if .application_artifact and .application_builder != "cargo-alpine" then . + {kind:"cli"}, . + {kind:"application"} else . + {kind:"cli"} end]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "ohos_matrix=$(jq -c '{include: [.include[] | select(.os == "ohos")]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "ohos_app_matrix=$(jq -c '{include: [.include[] | select(.os == "ohos" and .application_artifact)]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
 

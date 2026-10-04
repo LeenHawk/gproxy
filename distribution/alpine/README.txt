@@ -22,3 +22,15 @@ from a graphical desktop session or the application menu.
 
 For the ZIP, install gtk+3.0, webkit2gtk-4.1, libayatana-appindicator and
 librsvg, then run ./usr/bin/gproxy-desktop. This is not a fully static binary.
+
+DEB packages for Debian/Ubuntu desktops
+
+The musl Application DEB includes its Alpine runtime under
+/opt/gproxy-desktop-musl/rootfs. It uses bubblewrap to run with those musl
+libraries while sharing the host display, home directory and network.
+The GNU Application DEB remains the smaller option for glibc distributions.
+
+Install with apt so bubblewrap is installed automatically:
+  sudo apt install ./gproxy-tauri-linux-<arch>-musl.deb
+Run gproxy-desktop-musl or choose GPROXY (musl) in the application menu.
+The host must permit bubblewrap user namespaces.

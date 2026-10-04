@@ -58,7 +58,7 @@ const copy = {
     unsigned: 'unsigned',
     arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
     os: {
-      linux: { name: 'Linux', hint: 'GNU builds suit most distributions. musl builds offer Alpine APKs (apk-tools 3; import the signing key first). The CLI is static; the Application requires Alpine edge GTK/WebKitGTK libraries.' },
+      linux: { name: 'Linux', hint: 'GNU builds suit most distributions. musl builds offer Alpine APKs (apk-tools 3; import the signing key first). The CLI is static; the Application needs Alpine edge GTK/WebKitGTK. Its DEB bundles those libraries and uses Bubblewrap.' },
       windows: { name: 'Windows', hint: 'ZIP needs no installer. MSIX attachments are Store submission packages and may not yet carry a Microsoft signature.' },
       macos: { name: 'macOS', hint: 'Choose ARM64 for Apple Silicon. Apps are ad-hoc signed and not notarized; allow them in System Settings on first launch.' },
       android: { name: 'Android', hint: 'The Application is an APK. The CLI runs inside Termux: install the DEB with apt, or unpack the ZIP and follow TERMUX.txt.' },
@@ -110,7 +110,7 @@ const copy = {
     unsigned: '未签名',
     arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
     os: {
-      linux: { name: 'Linux', hint: 'GNU 构建适用于大多数发行版。musl 版提供 Alpine APK 包（需要 apk-tools 3，先导入签名公钥）。CLI 为静态链接；应用版依赖 Alpine edge 的 GTK/WebKitGTK 库。' },
+      linux: { name: 'Linux', hint: 'GNU 构建适用于大多数发行版。musl 版提供 Alpine APK 包（需要 apk-tools 3，先导入签名公钥）。CLI 为静态链接；应用版依赖 Alpine edge 的 GTK/WebKitGTK；DEB 已内置这些库，通过 Bubblewrap 启动。' },
       windows: { name: 'Windows', hint: 'ZIP 无需安装器。MSIX 附件为商店提交包，可能尚未带有 Microsoft 签名。' },
       macos: { name: 'macOS', hint: 'Apple Silicon 请选 ARM64。应用为 ad-hoc 签名、未公证，首次启动需在系统设置中允许。' },
       android: { name: 'Android', hint: '应用版为 APK。CLI 在 Termux 中运行：用 apt 安装 DEB，或解压 ZIP 并按 TERMUX.txt 操作。' },
@@ -162,7 +162,7 @@ const copy = {
     unsigned: '未簽章',
     arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
     os: {
-      linux: { name: 'Linux', hint: 'GNU 建置適用於大多數發行版。musl 版提供 Alpine APK 套件（需要 apk-tools 3，先匯入簽章公鑰）。CLI 為靜態連結；應用版依賴 Alpine edge 的 GTK/WebKitGTK 函式庫。' },
+      linux: { name: 'Linux', hint: 'GNU 建置適用於大多數發行版。musl 版提供 Alpine APK 套件（需要 apk-tools 3，先匯入簽章公鑰）。CLI 為靜態連結；應用版依賴 Alpine edge 的 GTK/WebKitGTK；DEB 已內建這些函式庫，透過 Bubblewrap 啟動。' },
       windows: { name: 'Windows', hint: 'ZIP 無需安裝程式。MSIX 附件為商店提交套件，可能尚未帶有 Microsoft 簽章。' },
       macos: { name: 'macOS', hint: 'Apple Silicon 請選 ARM64。應用為 ad-hoc 簽章、未公證，首次啟動需在系統設定中允許。' },
       android: { name: 'Android', hint: '應用版為 APK。CLI 在 Termux 中執行：用 apt 安裝 DEB，或解壓 ZIP 並依 TERMUX.txt 操作。' },
@@ -177,7 +177,7 @@ type Platform = { id: 'linux' | 'windows' | 'macos' | 'android' | 'ohos'; rows: 
 
 const linuxRows = (['x86_64', 'aarch64', 'riscv64'] as const).flatMap((arch): Row[] => [
   { arch, variant: 'GNU', app: [{ asset: `gproxy-tauri-linux-${arch}.zip`, label: 'ZIP' }, { asset: `gproxy-tauri-linux-${arch}.deb`, label: 'DEB' }], cli: [{ asset: `gproxy-linux-${arch}.zip`, label: 'ZIP' }, { asset: `gproxy-linux-${arch}.deb`, label: 'DEB' }] },
-  { arch, variant: 'musl', app: arch === 'riscv64' ? [] : [{ asset: `gproxy-tauri-linux-${arch}-musl.zip`, label: 'ZIP' }, { asset: `gproxy-tauri-linux-${arch}-musl.apk`, label: 'Alpine APK' }], cli: [{ asset: `gproxy-linux-${arch}-musl.zip`, label: 'ZIP' }, { asset: `gproxy-linux-${arch}-musl.deb`, label: 'DEB' }, { asset: `gproxy-linux-${arch}-musl.apk`, label: 'Alpine APK' }] },
+  { arch, variant: 'musl', app: [{ asset: `gproxy-tauri-linux-${arch}-musl.zip`, label: 'ZIP' }, { asset: `gproxy-tauri-linux-${arch}-musl.apk`, label: 'Alpine APK' }, { asset: `gproxy-tauri-linux-${arch}-musl.deb`, label: 'DEB' }], cli: [{ asset: `gproxy-linux-${arch}-musl.zip`, label: 'ZIP' }, { asset: `gproxy-linux-${arch}-musl.deb`, label: 'DEB' }, { asset: `gproxy-linux-${arch}-musl.apk`, label: 'Alpine APK' }] },
 ]);
 const platforms: Platform[] = [
   { id: 'linux', rows: linuxRows },

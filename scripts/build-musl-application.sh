@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build against Alpine's graphical libraries with a native musl toolchain.
+# Build against Alpine's graphical libraries, using a sysroot for RISC-V.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
@@ -7,12 +7,19 @@ cd "$root"
 case "$TARGET_TRIPLE:$(uname -m)" in
   x86_64-unknown-linux-musl:x86_64) platform=linux/amd64 ;;
   aarch64-unknown-linux-musl:aarch64) platform=linux/arm64 ;;
-  *) echo "musl applications require a matching x86_64/aarch64 host" >&2; exit 1 ;;
+  riscv64gc-unknown-linux-musl:x86_64) platform=linux/amd64 ;;
+  riscv64gc-unknown-linux-musl:aarch64) platform=linux/arm64 ;;
+  *) echo "unsupported musl application target/host: $TARGET_TRIPLE:$(uname -m)" >&2; exit 1 ;;
 esac
 engine="${CONTAINER_ENGINE:-docker}"
 image=gproxy-musl-application-builder
 "$engine" build --platform "$platform" --build-arg APPLICATION=true \
   -f deploy/container/Dockerfile.musl -t "$image" .
+if [ "$TARGET_TRIPLE" = riscv64gc-unknown-linux-musl ]; then
+  image=gproxy-musl-riscv64-application-builder
+  "$engine" build --platform "$platform" \
+    -f deploy/container/Dockerfile.musl-riscv64 -t "$image" .
+fi
 "$engine" run --rm --platform "$platform" \
   --user "$(id -u):$(id -g)" \
   --volume "$root:/workspace" --workdir /workspace \
@@ -27,7 +34,7 @@ image=gproxy-musl-application-builder
   --env ALPINE_SIGNING_PRIVATE_KEY_B64 \
   "$image" bash -euo pipefail -c '
     export TAURI_CONFIG="$(node -e '\''console.log(JSON.stringify({version:process.env.GPROXY_BUILD_VERSION}))'\'')"
-    native_target="$(rustc -vV | sed -n "s/^host: //p")"
+    native_target="${GPROXY_CARGO_TARGET:-$(rustc -vV | sed -n "s/^host: //p")}"
     bash scripts/with-tauri-desktop-lib.sh cargo build --locked --release \
       -p gproxy-host-tauri --bin gproxy-desktop --target "$native_target" \
       --features tauri/custom-protocol
@@ -37,7 +44,11 @@ image=gproxy-musl-application-builder
       cp "target/$native_target/release/gproxy-desktop" "$binary"
     fi
     # Check dependencies before UPX hides the original ELF dynamic section.
-    ldd "$binary"
+    if [ "$TARGET_TRIPLE" = riscv64gc-unknown-linux-musl ]; then
+      qemu-riscv64 -L "$ALPINE_SYSROOT" "$ALPINE_SYSROOT/lib/ld-musl-riscv64.so.1" --list "$binary"
+    else
+      ldd "$binary"
+    fi
     rustc --version > "target/$TARGET_TRIPLE/release/rustc-version.txt"
     upx --version | head -1 > "target/$TARGET_TRIPLE/release/upx-version.txt"
     bash scripts/package-alpine.sh application
