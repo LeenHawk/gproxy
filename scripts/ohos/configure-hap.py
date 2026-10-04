@@ -25,27 +25,9 @@ for resource in ("AppScope/resources/base/media/foreground.png",
                  "entry/src/main/resources/base/media/foreground.png",
                  "entry/src/main/resources/base/media/startIcon.png"):
     shutil.copyfile(icon, project / resource)
-# The experimental template drops release mode and defaults every callback to
-# ARM64. This release-only project must reuse the library already compiled.
+# CLI owns native compilation. This hook only strips the staged library before
+# signing, including when the toolchain template changes its build callback.
 hvigor = project / "entry/hvigorfile.ts"
-text = hvigor.read_text()
-target = os.environ["TARGET_TRIPLE"].split("-")[0]
-text = text.replace('properties.target || "aarch64"', f'properties.target || "{target}"')
-old = '"--target", target.toString()]'
-if old not in text:
-    raise ValueError("Upstream Hvigor Rust callback changed")
-text = text.replace(old, '"--target", target.toString(), "--release"]')
-# APP assembly and packaging-only device probes reuse already verified native
-# libraries; their Tauri options server is no longer running.
-callback = "const buildRustCode = () => {"
-if callback not in text:
-    raise ValueError("Upstream Hvigor native build callback changed")
-text = text.replace(callback, callback + '\n        if (process.env.GPROXY_OHOS_REUSE_NATIVE === "1") return;')
-# Strip staged native libraries before assembly/signing. OHOS's loader needs
-# the ELF section table, which generic UPX shared-library packing removes.
-hook = "node.getTaskByName('default@ConfigureCmake')!.afterRun(buildRustCode);"
-if hook not in text:
-    raise ValueError("Upstream Hvigor native packaging hook changed")
 packer_args = json.dumps([
     str(Path("scripts/pack-mobile-native.py").resolve()),
     str((project / "entry/libs" / os.environ["OHOS_ARCH"]).resolve()),
@@ -53,13 +35,21 @@ packer_args = json.dumps([
     "--strip-only",
 ])
 checkout = json.dumps(str(Path.cwd()))
-text = text.replace(hook, f'''node.getTaskByName('default@ConfigureCmake')!.afterRun(() => {{
-        buildRustCode();
-        if (process.env.GPROXY_OHOS_REUSE_NATIVE !== "1") {{
-          execFileSync("python3", {packer_args}, {{ cwd: {checkout}, stdio: "inherit" }});
-        }}
-      }});''')
-hvigor.write_text(text)
+hvigor.write_text("""import { hapTasks } from '@ohos/hvigor-ohos-plugin';
+import { HvigorNode, HvigorPlugin } from '@ohos/hvigor';
+import { execFileSync } from 'child_process';
+
+const packNative: HvigorPlugin = {
+  pluginId: 'gproxy-pack-native',
+  apply(node: HvigorNode) {
+    node.getTaskByName('default@ConfigureCmake')!.afterRun(() => {
+      if (process.env.GPROXY_OHOS_REUSE_NATIVE !== "1") {
+""" + f'        execFileSync("python3", {packer_args}, {{ cwd: {checkout}, stdio: "inherit" }});\n' + """      }
+    });
+  }
+};
+export default { system: hapTasks, plugins: [packNative] };
+""")
 profile = project / "build-profile.json5"
 config = json5.loads(profile.read_text())
 config["app"]["signingConfigs"] = []

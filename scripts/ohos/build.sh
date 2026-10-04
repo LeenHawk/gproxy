@@ -21,7 +21,7 @@ else
   export PATH="$HARMONY_TOOLS_DIR/command-line-tools/tool/node/bin:$HARMONY_TOOLS_DIR/command-line-tools/bin:$PATH"
   (cd crates/gproxy-host-tauri && cargo tauri ohos init --ci --skip-targets-install)
   python3 scripts/ohos/configure-hap.py
-  (cd crates/gproxy-host-tauri && cargo tauri ohos build --ci --target "${TARGET_TRIPLE%%-*}" --ignore-version-mismatches -- --lib)
+  (cd crates/gproxy-host-tauri && cargo tauri ohos build --ci --target "${TARGET_TRIPLE%%-*}" -- --lib)
   python3 scripts/ohos/package-hap.py
 fi
 scripts/build-provenance.sh

@@ -25,7 +25,7 @@ export PATH="$HARMONY_TOOLS_DIR/command-line-tools/tool/node/bin:$HARMONY_TOOLS_
 python3 scripts/ohos/configure-hap.py
 (
   cd crates/gproxy-host-tauri
-  cargo tauri ohos build --ci --target aarch64 --ignore-version-mismatches -- --lib
+  cargo tauri ohos build --ci --target aarch64 -- --lib
   cd gen/ohos
   GPROXY_OHOS_REUSE_NATIVE=1 hvigorw --mode project assembleApp -p product=default -p buildMode=release --no-daemon
 )

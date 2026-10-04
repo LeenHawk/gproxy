@@ -9,8 +9,7 @@ The application HAP also targets ARM64 and x86_64 (including x86_64 simulators).
 The application reuses `gproxy-host-tauri`, its existing IPC operations,
 Console, instance setup and in-process data plane. It uses Tauri's experimental
 `feat/open-harmony` port. `tauri-pins.json` records exact Tauri, Wry, Tao,
-cargo-mobile2 and Ability commits, including the matching revisions from
-upstream's lockfile. `ability-har.json` pins a beta.7 HAR source whose Rust crate
+cargo-mobile2 and Ability commits from the shared runtime baseline. `ability-har.json` pins a beta.7 HAR source whose Rust crate
 tree must match that Ability revision. `prepare-har.py` packages the HAR from
 source, including DOM Storage support, rather than using the CLI template's
 beta.0 package. The old HAR called `init()` without the context containing the
@@ -184,3 +183,20 @@ The temporary probe has been removed after successful ARM64/x86_64 CLI ZIP
 and ARM64 unsigned HAP builds on GitHub Actions. Release jobs retain the native
 ELF identity/architecture and HAP library checks, and publish per-artifact
 provenance. No compilation or SDK validation was performed locally.
+
+## Shared runtime update
+
+The pins in this branch select the same Tauri 2.11.6, Wry and Ability runtime as
+TauriTavern. Rust is compiled once by the CLI; the gproxy Hvigor hook only strips
+staged libraries before signing. Application version constraints remain intact.
+
+The toolchain image is pinned by digest in `.gitlab/Dockerfile.ohos` and records
+its exact CLI repository/revision and dependency pins in
+`/opt/ohos-tauri/cargo-tauri-source.json`. CLI 2.11.4 and Rust `tauri` 2.11.6
+are separate package versions. The preparation step checks image/source pin
+agreement, and both build entry points keep CLI version mismatch checks enabled.
+
+The manual [OHOS runtime compatibility workflow](../../.github/workflows/ohos-runtime-check.yml)
+builds unsigned ARM64 and x86_64 HAPs using the application release build path.
+It accepts a toolchain image digest and uploads check artifacts without publishing
+a release or updating release channels.

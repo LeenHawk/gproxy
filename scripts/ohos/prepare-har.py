@@ -19,8 +19,8 @@ subprocess.run(["git", "-C", str(source), "fetch", "--depth", "1",
                 f'https://github.com/{pin["repository"]}.git', pin["revision"]], check=True)
 subprocess.run(["git", "-C", str(source), "checkout", "--detach", "FETCH_HEAD"], check=True)
 
-# The fork only changes ArkTS browser storage. Require identical Rust crate trees
-# so the HAR cannot silently drift away from the image's compiled Rust interface.
+# Require identical Rust crate trees so the HAR cannot drift away from the
+# image's compiled Rust interface, including optional WebView settings.
 runtime = Path(os.environ["OHOS_TAURI_SOURCES"]) / "ability"
 def crate_tree(path):
     return subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD:crates"], text=True).strip()

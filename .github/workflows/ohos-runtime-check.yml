@@ -1,0 +1,68 @@
+name: OHOS runtime compatibility
+on:
+  workflow_dispatch:
+    inputs:
+      toolchain_image:
+        description: Verified tauri-harmony image pinned by digest
+        required: true
+        type: string
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: ohos-runtime-check-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  hap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch64, x86_64]
+    container:
+      image: ${{ inputs.toolchain_image }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET_TRIPLE: ${{ matrix.arch }}-unknown-linux-ohos
+      APPLICATION_ARTIFACT: gproxy-ohos-${{ matrix.arch }}-runtime-check
+      GPROXY_BUILD_CHANNEL: dev
+      GPROXY_BUILD_HASH: ${{ github.sha }}
+      OHOS_TOOLCHAIN_IMAGE: ${{ inputs.toolchain_image }}
+      CARGO_BUILD_JOBS: '2'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - name: Prepare toolchain and build identity
+        run: |
+          git config --global --add safe.directory "$PWD"
+          python3 scripts/check-workflow-actions.py
+          version=$(bash scripts/release-metadata.sh version)
+          echo "GPROXY_BUILD_VERSION=$version" >> "$GITHUB_ENV"
+          echo "GPROXY_VERSION=$version" >> "$GITHUB_ENV"
+          echo "GPROXY_UPDATE_PUBKEY=$(cat .gitlab/update-public-key)" >> "$GITHUB_ENV"
+          cat "$OHOS_TAURI_SOURCES/cargo-tauri-source.json"
+          (cd "$OHOS_TAURI_SOURCES" && git apply --check "$GITHUB_WORKSPACE/scripts/ohos/compiler-warnings.patch" && git apply "$GITHUB_WORKSPACE/scripts/ohos/compiler-warnings.patch")
+      - name: Build Console and prepare runtime sources
+        run: |
+          pnpm --dir console install --frozen-lockfile
+          pnpm --dir console build
+          python3 scripts/ohos/prepare-tauri.py
+      - uses: ./.github/actions/ghcr-rust-cache
+        with:
+          key: ohos-container-tauri-${{ matrix.arch }}-unknown-linux-ohos
+          token: ${{ secrets.GITHUB_TOKEN }}
+          save: 'false'
+      - name: Build and validate unsigned application HAP
+        run: bash scripts/ohos/build.sh application
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gproxy-ohos-${{ matrix.arch }}-runtime-check
+          path: dist/release/*.hap
+          if-no-files-found: error
+          retention-days: 7

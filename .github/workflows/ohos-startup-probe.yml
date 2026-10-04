@@ -24,6 +24,9 @@ jobs:
       SOURCE_LIBRARY_SHA256: e3e1ba04be72ee5e9b639458b2e371b6dde956b2bd5b54638eaa78e3063d29fa
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Keep this byte-identical native reproduction on its matching runtime sources.
+          ref: a4c8b1de078a3f41009391abbfd7705d26ef6f40
       - run: git config --global --add safe.directory "$PWD"
       - name: Download exact reproduction HAP
         env:
