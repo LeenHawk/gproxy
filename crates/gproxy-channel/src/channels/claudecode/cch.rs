@@ -24,11 +24,11 @@ pub(super) fn serialize(value: &Value) -> Vec<u8> {
 fn patch(bytes: &mut [u8]) {
     // Native transport searches only the first 300 bytes after the first
     // compact array-form system key; it does not parse the billing block.
-    if let Some(system) = find(&bytes, b"\"system\":[") {
+    if let Some(system) = find(bytes, b"\"system\":[") {
         let end = bytes.len().min(system + 300);
         if let Some(offset) = find(&bytes[system..end], PLACEHOLDER) {
             let pos = system + offset;
-            let hex = format!("{:05x}", checksum(&bytes));
+            let hex = format!("{:05x}", checksum(bytes));
             bytes[pos + 4..pos + 9].copy_from_slice(hex.as_bytes());
         }
     }

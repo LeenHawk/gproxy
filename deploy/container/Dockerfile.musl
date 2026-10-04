@@ -1,15 +1,13 @@
 # Alpine's Rust keeps host build scripts dynamically linked for bindgen/libclang.
-# Pin the image and toolchain; 1.99.0-r1 fixes missing stdlib .rmeta files in r0.
+# Pin the image and Rust patch version; edge replaces Alpine package revisions.
 FROM public.ecr.aws/docker/library/alpine:edge@sha256:020dfcbaaf4cc1078bf2d9c7ba31a8466e334061dcd2f248001d68f79e52c000
 
 RUN set -eu; \
     case "$(apk --print-arch)" in \
-      x86_64|aarch64) rust_version=1.99.0-r1 ;; \
-      # Alpine has not published Rust 1.99.0 for RISC-V yet.
-      riscv64) rust_version=1.98.1-r0 ;; \
+      x86_64|aarch64|riscv64) rust_version=1.99.0 ;; \
       *) echo "unsupported musl build architecture" >&2; exit 1 ;; \
     esac; \
-    apk add --no-cache build-base "rust=$rust_version" "cargo=$rust_version" \
+    apk add --no-cache build-base "rust~$rust_version" "cargo~$rust_version" \
         ca-certificates clang22 clang22-dev cmake git go linux-headers perl pkgconf; \
     ln -s /usr/bin/clang-22 /usr/local/bin/clang; \
     rustc --version; \
