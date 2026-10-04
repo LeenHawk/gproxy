@@ -12,8 +12,8 @@ importers:
         specifier: ^5.104.0
         version: 5.104.0(react@19.3.0)
       '@tauri-apps/api':
-        specifier: ^2.12.0
-        version: 2.12.0
+        specifier: ^2.12.1
+        version: 2.12.1
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1379,8 +1379,8 @@ packages:
     peerDependencies:
       react: ^18 || ^19
 
-  '@tauri-apps/api@2.12.0':
-    resolution: {integrity: sha512-fUSxFX8VABYe9W9K5ROdEaKVkNUFRcMSRofjruvaxztXA+I0XnQHcYHF8m/a6iExRUxsUf0HsFWhPBuH9IgzJw==}
+  '@tauri-apps/api@2.12.1':
+    resolution: {integrity: sha512-DeyFHa3wynpyoqTDikDEDGTJIq4LQ5USfolQGRmGIWT6JMADyxZBTDa5cAdT3tDg73rUXufPaCwN7aXBos4OnQ==}
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -4847,7 +4847,7 @@ snapshots:
       '@tanstack/query-core': 5.104.0
       react: 19.3.0
 
-  '@tauri-apps/api@2.12.0': {}
+  '@tauri-apps/api@2.12.1': {}
 
   '@testing-library/dom@10.4.1':
     dependencies:
