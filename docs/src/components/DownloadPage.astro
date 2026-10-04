@@ -1,15 +1,7 @@
 ---
-/**
- * The download page body, shared by the three locales.
- *
- * Package lists are static — they mirror `scripts/release-targets.json` and
- * the attachment names the Release workflow publishes — and every link starts
- * out pointing at the GitHub release page. A small script then asks the
- * GitHub API for the latest release and rewrites each link to the matching
- * attachment, fills in the version, date and sizes, and picks a recommended
- * package for the visitor's platform. Without JavaScript, or when the API is
- * rate-limited, the page still works: the release page lists every file.
- */
+import { downloadSources } from '../lib/download-sources';
+
+/** Shared package catalog; source-specific release metadata is loaded in the browser. */
 interface Props {
   locale: 'en' | 'zh-CN' | 'zh-TW';
 }
@@ -28,7 +20,8 @@ const copy = {
     latest: 'Latest release',
     loading: 'Reading the latest release…',
     released: 'released',
-    offline: 'Could not reach the GitHub API; the links below open the release page, which lists every package.',
+    downloadSource: 'Download source',
+    offline: 'Could not load this source’s release details. The links below open its releases page; you can also choose another source.',
     notes: 'Release notes',
     allReleases: 'All releases',
     nightly: 'Nightly builds',
@@ -77,7 +70,8 @@ const copy = {
     latest: '最新版本',
     loading: '正在读取最新版本…',
     released: '发布于',
-    offline: '无法访问 GitHub API；下方链接将打开发布页面，其中列有全部安装包。',
+    downloadSource: '下载源',
+    offline: '无法读取此下载源的版本信息。下方链接将打开该源的发布页面，也可切换其他下载源。',
     notes: '版本说明',
     allReleases: '全部版本',
     nightly: '每日构建',
@@ -126,7 +120,8 @@ const copy = {
     latest: '最新版本',
     loading: '正在讀取最新版本…',
     released: '發布於',
-    offline: '無法連線 GitHub API；下方連結將開啟發布頁面，其中列有全部安裝套件。',
+    downloadSource: '下載來源',
+    offline: '無法讀取此來源的版本資訊。下方連結將開啟該來源的發布頁面，也可切換其他下載來源。',
     notes: '版本說明',
     allReleases: '全部版本',
     nightly: '每日建置',
@@ -194,17 +189,25 @@ const headless = [
 const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').replace(/\.zip$/, '');
 ---
 
-<div class="dl not-content" data-locale={locale} data-latest={LATEST}>
+<div class="dl not-content" data-locale={locale} data-loading={copy.loading}>
   <header class="dl-hero">
     <p class="dl-eyebrow">{copy.eyebrow}</p>
     <h1 class="dl-title">{copy.title}</h1>
     <p class="dl-lede">{copy.lede}</p>
+    <nav class="dl-sources" aria-label={copy.downloadSource}>
+      <span>{copy.downloadSource}</span>
+      <div class="dl-source-options">
+        {Object.entries(downloadSources).map(([id, source]) => (
+          <a href={source.latest} data-source={id} aria-current={id === 'github' ? 'true' : undefined}>{source.label}</a>
+        ))}
+      </div>
+    </nav>
     <div class="dl-release" aria-live="polite">
       <span class="dl-pill"><span class="dl-dot" aria-hidden="true"></span><span class="dl-label">{copy.latest}</span> <strong data-release-version>…</strong></span>
       <span class="dl-date" data-release-date>{copy.loading}</span>
       <a class="dl-link" data-release-notes href={LATEST}>{copy.notes} ↗</a>
-      <a class="dl-link" href={`${REPO}/releases`}>{copy.allReleases}</a>
-      <a class="dl-link" href={NIGHTLY}>{copy.nightly}</a>
+      <a class="dl-link" data-all-releases href={`${REPO}/releases`}>{copy.allReleases}</a>
+      <a class="dl-link" data-nightly href={NIGHTLY}>{copy.nightly}</a>
     </div>
     <p class="dl-offline" data-offline hidden>{copy.offline}</p>
   </header>
@@ -307,8 +310,7 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
 </div>
 
 <script>
-  type Asset = { name: string; browser_download_url: string; size: number };
-  type Release = { tag_name: string; html_url: string; published_at: string; assets: Asset[] };
+  import { downloadSources, loadRelease, type DownloadSource, type Release } from '../lib/download-sources';
 
   const root = document.querySelector<HTMLElement>('.dl');
   if (root) {
@@ -338,7 +340,7 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
         if (!asset) { link.classList.add('dl-asset--missing'); return; }
         link.href = asset.browser_download_url;
         const size = link.querySelector<HTMLElement>('[data-size]');
-        if (size) size.textContent = human(asset.size);
+        if (size) size.textContent = asset.size === undefined ? '' : human(asset.size);
       });
       root.querySelectorAll<HTMLElement>('[data-release-version]').forEach((el) => { el.textContent = release.tag_name; });
       root.querySelectorAll<HTMLElement>('[data-release-tag]').forEach((el) => { el.textContent = release.tag_name; });
@@ -374,15 +376,58 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
       section.hidden = !shown;
     };
 
-    fetch('https://api.github.com/repos/LeenHawk/gproxy/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
-      .then((release: Release) => apply(release))
-      .catch(() => {
-        root.querySelector<HTMLElement>('[data-offline]')?.removeAttribute('hidden');
-        root.querySelectorAll<HTMLElement>('[data-release-version]').forEach((el) => { el.textContent = 'latest'; });
-        const label = root.querySelector<HTMLElement>('[data-release-date]');
-        if (label) label.textContent = '';
+    let pending: AbortController | undefined;
+    const selectSource = async (source: DownloadSource) => {
+      pending?.abort();
+      const controller = new AbortController();
+      pending = controller;
+      const config = downloadSources[source];
+      root.querySelectorAll<HTMLAnchorElement>('[data-source]').forEach((link) => {
+        if (link.dataset.source === source) link.setAttribute('aria-current', 'true');
+        else link.removeAttribute('aria-current');
       });
+      // Reset immediately so links and metadata from the previous source never linger.
+      root.querySelectorAll<HTMLAnchorElement>('[data-asset], [data-foryou-app], [data-foryou-cli], [data-release-notes]').forEach((link) => {
+        link.href = config.latest;
+        link.classList.remove('dl-asset--missing');
+      });
+      for (const [selector, href] of [['[data-all-releases]', config.releases], ['[data-nightly]', config.nightly]]) {
+        const link = root.querySelector<HTMLAnchorElement>(selector);
+        if (link) link.href = href;
+      }
+      root.querySelectorAll<HTMLElement>('[data-size]').forEach((el) => { el.textContent = ''; });
+      root.querySelectorAll<HTMLElement>('[data-foryou], [data-foryou-app], [data-foryou-cli], [data-offline]').forEach((el) => { el.hidden = true; });
+      root.querySelectorAll<HTMLElement>('[data-release-version]').forEach((el) => { el.textContent = '…'; });
+      root.querySelectorAll<HTMLElement>('[data-release-tag]').forEach((el) => { el.textContent = 'latest'; });
+      const date = root.querySelector<HTMLElement>('[data-release-date]');
+      if (date) date.textContent = root.dataset.loading ?? '';
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      try {
+        const release = await loadRelease(source, controller.signal);
+        if (pending === controller) apply(release);
+      } catch {
+        if (pending !== controller) return;
+        root.querySelector<HTMLElement>('[data-offline]')?.removeAttribute('hidden');
+        root.querySelectorAll<HTMLElement>('[data-release-version]').forEach((el) => { el.textContent = '—'; });
+        if (date) date.textContent = '';
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+    root.querySelectorAll<HTMLAnchorElement>('[data-source]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        // Preserve open-in-new-tab and no-JavaScript links to each host's releases.
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        const source = link.dataset.source as DownloadSource;
+        const url = new URL(location.href);
+        url.searchParams.set('source', source);
+        history.replaceState(null, '', url);
+        void selectSource(source);
+      });
+    });
+    const source = new URLSearchParams(location.search).get('source');
+    void selectSource(source === 'cnb' || source === 'gitlab' ? source : 'github');
   }
 </script>
 
@@ -403,6 +448,11 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
   .dl-eyebrow { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dl-accent); }
   .dl-title { font-size: clamp(2.25rem, 5vw, 3.5rem); font-weight: 700; letter-spacing: -0.02em; margin-top: 0.4rem; color: var(--sl-color-white); }
   .dl-lede { margin-top: 1rem; max-width: 46rem; font-size: 1.1rem; line-height: 1.6; color: var(--sl-color-gray-2); }
+  .dl-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; margin-top: 1.5rem; font-size: 0.875rem; }
+  .dl-source-options { display: flex; gap: 0.25rem; padding: 0.25rem; border: 1px solid var(--dl-border); border-radius: 10px; background: var(--dl-surface); }
+  .dl-source-options a { padding: 0.35rem 0.9rem; border-radius: 6px; color: var(--sl-color-text); text-decoration: none; }
+  .dl-source-options a:hover { background: var(--dl-accent-soft); }
+  .dl-source-options a[aria-current] { background: var(--sl-color-bg-accent); color: var(--sl-color-text-invert); }
   .dl-release { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; margin-top: 1.75rem; font-size: 0.95rem; }
   .dl-pill { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.9rem; border-radius: 999px; background: var(--dl-accent-soft); color: var(--sl-color-white); border: 1px solid color-mix(in srgb, var(--dl-accent) 35%, transparent); }
   .dl-pill strong { font-family: var(--__sl-font-mono); font-weight: 600; }
