@@ -282,7 +282,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             .models()
             .query(model::Entity::find())
             .await?;
-        Ok(model_names(dialect, &document)
+        model_names(dialect, &document)
             .into_iter()
             .map(|upstream_name| {
                 Ok(DiscoveredModelDto {
@@ -296,7 +296,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
                     upstream_name,
                 })
             })
-            .collect::<SdkResult<Vec<_>>>()?)
+            .collect::<SdkResult<Vec<_>>>()
     }
 
     /// Add discovered names to a provider's catalog. Names it already offers
@@ -390,8 +390,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
                 .as_array()
                 .ok_or_else(|| SdkError::invalid("OpenRouter response has no model list"))?;
             let mut seen = BTreeSet::new();
-            Ok(rows
-                .iter()
+            rows.iter()
                 .filter_map(|row| {
                     let id = model_name(Dialect::OpenAi, row)?;
                     let name = id.rsplit('/').next()?.trim();
@@ -402,13 +401,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
                 })
                 .map(|(name, row)| {
                     Ok(DiscoveredModelDto {
-                        upstream_name: name.into(),
+                        upstream_name: name,
                         metadata: model_metadata(Some(row))?,
                         known: false,
                         has_default_price: false,
                     })
                 })
-                .collect::<SdkResult<Vec<_>>>()?)
+                .collect::<SdkResult<Vec<_>>>()
         })
         .await
         .ok_or_else(|| SdkError::invalid("OpenRouter model query timed out"))?
