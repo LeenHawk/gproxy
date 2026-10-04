@@ -432,6 +432,9 @@ ipc_table! {
         manage credentials set_status => manage_credentials_set_status;
         // A slice argument.
         manage quotas budget_status => manage_quotas_budget_status;
+        // Optional slices select records; `None` clears settled history.
+        manage history delete_logs => manage_history_delete_logs;
+        manage history delete_usage => manage_history_delete_usage;
         // `Option<&str>`.
         manage connectivity discover_models => manage_connectivity_discover_models;
         // Synchronous, and the only `Portal` method that is.
@@ -608,6 +611,31 @@ pub async fn manage_quotas_budget_status(
     }
     .await;
     super::audit(&desktop, "manage.quotas.budget_status", &answer).await;
+    answer
+}
+
+/// Delete settled captures on one side, optionally limited to selected ids.
+#[tauri::command]
+pub async fn manage_history_delete_logs(
+    desktop: tauri::State<'_, Desktop>,
+    side: gproxy_sdk::manage::LogSide,
+    ids: Option<Vec<String>>,
+) -> IpcResult<serde_json::Value> {
+    let desktop = &*desktop;
+    let answer = ipc_call!(manage, desktop, [.history()], delete_logs, (side, ids.as_deref(),));
+    super::audit(desktop, "manage.history.delete_logs", &answer).await;
+    answer
+}
+
+/// Delete usage records, optionally limited to selected request ids.
+#[tauri::command]
+pub async fn manage_history_delete_usage(
+    desktop: tauri::State<'_, Desktop>,
+    ids: Option<Vec<String>>,
+) -> IpcResult<serde_json::Value> {
+    let desktop = &*desktop;
+    let answer = ipc_call!(manage, desktop, [.history()], delete_usage, (ids.as_deref(),));
+    super::audit(desktop, "manage.history.delete_usage", &answer).await;
     answer
 }
 

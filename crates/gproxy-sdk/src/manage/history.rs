@@ -19,7 +19,7 @@ use crate::{SdkError, SdkResult, handle::Inner};
 pub const MAX_HISTORY_DELETE: usize = 500;
 
 /// Which of the two capture tables a deletion addresses.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
 pub enum LogSide {
     Downstream,
     Upstream,
