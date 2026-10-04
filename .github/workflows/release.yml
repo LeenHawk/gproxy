@@ -131,7 +131,7 @@ jobs:
           node console/scripts/sync-to-embed.mjs
           pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
       - name: Install Linux desktop dependencies
-        if: matrix.kind == 'application' && matrix.os == 'linux'
+        if: matrix.kind == 'application' && matrix.os == 'linux' && matrix.builder != 'cargo-alpine'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libdbus-1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
@@ -334,6 +334,7 @@ jobs:
           TARGET_TRIPLE: ${{ matrix.target }}
           TARGET_OS: ${{ matrix.os }}
           ARTIFACT_NAME: ${{ matrix.application_artifact }}
+          ALPINE_SIGNING_PRIVATE_KEY_B64: ${{ matrix.builder == 'cargo-alpine' && secrets.ALPINE_SIGNING_PRIVATE_KEY_B64 || '' }}
           GPROXY_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
           GPROXY_BUILD_CHANNEL: ${{ needs.prepare.outputs.channel }}
           GPROXY_BUILD_HASH: ${{ github.sha }}
@@ -364,7 +365,7 @@ jobs:
           ARTIFACT_NAME: ${{ matrix.application_artifact }}
           GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
           TARGET_TRIPLE: ${{ matrix.target }}
-          BUILDER: tauri
+          BUILDER: ${{ matrix.builder == 'cargo-alpine' && 'tauri-alpine' || 'tauri' }}
           UPX_ENABLED: ${{ matrix.os != 'macos' }}
         run: scripts/build-provenance.sh
       - uses: ./.github/actions/attest-release
@@ -1064,7 +1065,7 @@ jobs:
   publish:
     if: ${{ always() && !failure() && !cancelled() }}
     name: Publish GitHub, GitLab and CNB releases
-    needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, serverless, edge, edge-check, container-manifest, publish-crates]
+    needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, alpine-packages, serverless, edge, edge-check, container-manifest, publish-crates]
     runs-on: ubuntu-latest
     concurrency:
       group: gproxy-release-publication
@@ -1098,6 +1099,10 @@ jobs:
           pattern: application-*
           path: dist/release
           merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: alpine-cli-packages
+          path: dist/release
       - name: Install container mirror tool
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends skopeo
       - name: Publish the same artifacts to all three platforms
@@ -1113,6 +1118,44 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: bash scripts/github/publish-dockerhub.sh
+
+  alpine-packages:
+    name: Signed Alpine CLI packages
+    needs: [prepare, native, riscv, headless, headless-riscv]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: native-*-musl
+          path: dist/alpine-input
+          merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: headless-*-musl
+          path: dist/alpine-input
+          merge-multiple: true
+      - name: Package and verify signed Alpine APKs
+        env:
+          GPROXY_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
+          ALPINE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.ALPINE_SIGNING_PRIVATE_KEY_B64 }}
+        run: bash scripts/package-alpine-cli-release.sh
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/release/*.apk
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: alpine-cli-packages
+          path: |
+            dist/release/*.apk
+            dist/release/*.apk.sha256
+          if-no-files-found: error
+          retention-days: 1
 
   winget-publish:
     name: Submit WinGet updates

@@ -32,6 +32,10 @@ package="$work/$artifact"
 mkdir -p "$package" "$output_dir"
 output_dir="$(cd "$output_dir" && pwd)"
 install -m 0644 README.md LICENSE "$package/"
+if [[ "$target" == *-linux-musl ]]; then
+  install -m 0644 distribution/alpine/gproxy-alpine.rsa.pub "$package/"
+  install -m 0644 distribution/alpine/README.txt "$package/ALPINE.txt"
+fi
 
 if [ "$target_os" = "android" ]; then
   install -m 0755 "$binary" "$package/gproxy.bin"

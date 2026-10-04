@@ -24,7 +24,7 @@ if command -v docker >/dev/null 2>&1; then
       '. + [{ref: $ref, resolved: $resolved}]' <<<"$images")"
   done < <(
     awk '/^FROM /  && $2 != "scratch" { print $2 }' deploy/container/Dockerfile
-    if [ "${BUILDER:-cargo}" = cargo-alpine ]; then
+    if [[ "${BUILDER:-cargo}" = cargo-alpine || "${BUILDER:-cargo}" = tauri-alpine ]]; then
       awk '/^FROM / { print $2 }' deploy/container/Dockerfile.musl
     fi
     if [ "${BUILDER:-cargo}" = termux ]; then
@@ -33,7 +33,7 @@ if command -v docker >/dev/null 2>&1; then
   )
 fi
 
-if [ "${BUILDER:-cargo}" = cargo-alpine ] || [ "${BUILDER:-cargo}" = termux ]; then
+if [[ "${BUILDER:-cargo}" = cargo-alpine || "${BUILDER:-cargo}" = tauri-alpine ]] || [ "${BUILDER:-cargo}" = termux ]; then
   rustc_version="$(cat "target/${TARGET_TRIPLE:?}/release/rustc-version.txt")"
 else
   rustc_version="$(version_of rustc --version)"
@@ -57,7 +57,7 @@ jq -n \
   --arg rustc "$rustc_version" \
   --arg node "$node_version" \
   --arg pnpm "$pnpm_version" \
-  --arg upx_version "$(if [ "${UPX_ENABLED:-false}" = true ]; then version_of upx --version; else echo unused; fi)" \
+  --arg upx_version "$(if [ "${BUILDER:-cargo}" = tauri-alpine ]; then cat "target/${TARGET_TRIPLE:?}/release/upx-version.txt"; elif [ "${UPX_ENABLED:-false}" = true ]; then version_of upx --version; else echo unused; fi)" \
   --argjson upx "${UPX_ENABLED:-false}" \
   --argjson images "$images" \
   '{version: $version, commit: $commit, tag: $tag, target: $target,

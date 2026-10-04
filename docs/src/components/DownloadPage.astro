@@ -33,6 +33,8 @@ const copy = {
     cliHint: 'A single binary for servers and terminals.',
     headless: 'Headless CLI',
     headlessHint: 'No web console; proxy and management APIs only. For CI runners and tiny hosts.',
+    alpineKey: 'Alpine signing key',
+    alpineGuide: 'Alpine installation',
     platforms: 'All platforms',
     verify: 'Verify what you downloaded',
     verifyBody: 'Every release attaches a SHA256SUMS file and a signed manifest.json. The CLI and Application verify the same Ed25519 signature before self-updating; signing keys live only in the release pipeline.',
@@ -56,7 +58,7 @@ const copy = {
     unsigned: 'unsigned',
     arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
     os: {
-      linux: { name: 'Linux', hint: 'GNU builds for most distributions; musl builds are static and run anywhere, including Alpine. The Application needs WebKitGTK 4.1.' },
+      linux: { name: 'Linux', hint: 'GNU builds suit most distributions. musl builds offer Alpine APKs (apk-tools 3; import the signing key first). The CLI is static; the Application requires Alpine edge GTK/WebKitGTK libraries.' },
       windows: { name: 'Windows', hint: 'ZIP needs no installer. MSIX attachments are Store submission packages and may not yet carry a Microsoft signature.' },
       macos: { name: 'macOS', hint: 'Choose ARM64 for Apple Silicon. Apps are ad-hoc signed and not notarized; allow them in System Settings on first launch.' },
       android: { name: 'Android', hint: 'The Application is an APK. The CLI runs inside Termux: install the DEB with apt, or unpack the ZIP and follow TERMUX.txt.' },
@@ -83,6 +85,8 @@ const copy = {
     cliHint: '单一可执行文件，适合服务器与终端。',
     headless: '无头 CLI',
     headlessHint: '不含 Web 控制台，只保留代理与管理 API。适合 CI 运行器和小型主机。',
+    alpineKey: 'Alpine 签名公钥',
+    alpineGuide: 'Alpine 安装说明',
     platforms: '全部平台',
     verify: '校验下载内容',
     verifyBody: '每个版本都附带 SHA256SUMS 和已签名的 manifest.json。CLI 与应用版在自更新前会校验同一份 Ed25519 签名；签名私钥只存在于发布流水线中。',
@@ -106,7 +110,7 @@ const copy = {
     unsigned: '未签名',
     arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
     os: {
-      linux: { name: 'Linux', hint: 'GNU 构建适用于大多数发行版；musl 构建为静态链接，在 Alpine 等任意环境可用。应用版需要 WebKitGTK 4.1。' },
+      linux: { name: 'Linux', hint: 'GNU 构建适用于大多数发行版。musl 版提供 Alpine APK 包（需要 apk-tools 3，先导入签名公钥）。CLI 为静态链接；应用版依赖 Alpine edge 的 GTK/WebKitGTK 库。' },
       windows: { name: 'Windows', hint: 'ZIP 无需安装器。MSIX 附件为商店提交包，可能尚未带有 Microsoft 签名。' },
       macos: { name: 'macOS', hint: 'Apple Silicon 请选 ARM64。应用为 ad-hoc 签名、未公证，首次启动需在系统设置中允许。' },
       android: { name: 'Android', hint: '应用版为 APK。CLI 在 Termux 中运行：用 apt 安装 DEB，或解压 ZIP 并按 TERMUX.txt 操作。' },
@@ -133,6 +137,8 @@ const copy = {
     cliHint: '單一可執行檔，適合伺服器與終端機。',
     headless: '無頭 CLI',
     headlessHint: '不含 Web 控制台，只保留代理與管理 API。適合 CI 執行器和小型主機。',
+    alpineKey: 'Alpine 簽章公鑰',
+    alpineGuide: 'Alpine 安裝說明',
     platforms: '全部平台',
     verify: '驗證下載內容',
     verifyBody: '每個版本都附帶 SHA256SUMS 與已簽章的 manifest.json。CLI 與應用版在自我更新前會驗證同一份 Ed25519 簽章；簽章私鑰只存在於發布流水線中。',
@@ -156,7 +162,7 @@ const copy = {
     unsigned: '未簽章',
     arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
     os: {
-      linux: { name: 'Linux', hint: 'GNU 建置適用於大多數發行版；musl 建置為靜態連結，在 Alpine 等任意環境可用。應用版需要 WebKitGTK 4.1。' },
+      linux: { name: 'Linux', hint: 'GNU 建置適用於大多數發行版。musl 版提供 Alpine APK 套件（需要 apk-tools 3，先匯入簽章公鑰）。CLI 為靜態連結；應用版依賴 Alpine edge 的 GTK/WebKitGTK 函式庫。' },
       windows: { name: 'Windows', hint: 'ZIP 無需安裝程式。MSIX 附件為商店提交套件，可能尚未帶有 Microsoft 簽章。' },
       macos: { name: 'macOS', hint: 'Apple Silicon 請選 ARM64。應用為 ad-hoc 簽章、未公證，首次啟動需在系統設定中允許。' },
       android: { name: 'Android', hint: '應用版為 APK。CLI 在 Termux 中執行：用 apt 安裝 DEB，或解壓 ZIP 並依 TERMUX.txt 操作。' },
@@ -171,7 +177,7 @@ type Platform = { id: 'linux' | 'windows' | 'macos' | 'android' | 'ohos'; rows: 
 
 const linuxRows = (['x86_64', 'aarch64', 'riscv64'] as const).flatMap((arch): Row[] => [
   { arch, variant: 'GNU', app: [{ asset: `gproxy-tauri-linux-${arch}.zip`, label: 'ZIP' }, { asset: `gproxy-tauri-linux-${arch}.deb`, label: 'DEB' }], cli: [{ asset: `gproxy-linux-${arch}.zip`, label: 'ZIP' }, { asset: `gproxy-linux-${arch}.deb`, label: 'DEB' }] },
-  { arch, variant: 'musl', app: [], cli: [{ asset: `gproxy-linux-${arch}-musl.zip`, label: 'ZIP' }, { asset: `gproxy-linux-${arch}-musl.deb`, label: 'DEB' }] },
+  { arch, variant: 'musl', app: arch === 'riscv64' ? [] : [{ asset: `gproxy-tauri-linux-${arch}-musl.zip`, label: 'ZIP' }, { asset: `gproxy-tauri-linux-${arch}-musl.apk`, label: 'Alpine APK' }], cli: [{ asset: `gproxy-linux-${arch}-musl.zip`, label: 'ZIP' }, { asset: `gproxy-linux-${arch}-musl.deb`, label: 'DEB' }, { asset: `gproxy-linux-${arch}-musl.apk`, label: 'Alpine APK' }] },
 ]);
 const platforms: Platform[] = [
   { id: 'linux', rows: linuxRows },
@@ -181,12 +187,12 @@ const platforms: Platform[] = [
   { id: 'ohos', rows: (['aarch64', 'x86_64'] as const).map((arch) => ({ arch, app: [{ asset: `gproxy-tauri-ohos-${arch}-unsigned.hap`, label: 'HAP', tag: `${copy.experimental} · ${copy.unsigned}` }], cli: [{ asset: `gproxy-ohos-${arch}.zip`, label: 'ZIP' }] })) },
 ];
 const headless = [
-  ...(['x86_64', 'aarch64', 'riscv64'] as const).flatMap((arch) => [`gproxy-headless-linux-${arch}.zip`, `gproxy-headless-linux-${arch}-musl.zip`]),
+  ...(['x86_64', 'aarch64', 'riscv64'] as const).flatMap((arch) => [`gproxy-headless-linux-${arch}.zip`, `gproxy-headless-linux-${arch}-musl.zip`, `gproxy-headless-linux-${arch}-musl.apk`]),
   'gproxy-headless-windows-x86_64.zip', 'gproxy-headless-windows-aarch64.zip',
   'gproxy-headless-macos-aarch64.zip', 'gproxy-headless-macos-x86_64.zip',
   'gproxy-headless-android-aarch64.zip', 'gproxy-headless-android-x86_64.zip',
 ];
-const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').replace(/\.zip$/, '');
+const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').replace(/\.zip$/, '').replace(/\.apk$/, ' · Alpine APK');
 ---
 
 <div class="dl not-content" data-locale={locale} data-loading={copy.loading}>
@@ -256,6 +262,12 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
               ))}
             </tbody>
           </table>
+          {platform.id === 'linux' ? (
+            <footer class="dl-store">
+              <a href="https://raw.githubusercontent.com/LeenHawk/gproxy/dev/distribution/alpine/gproxy-alpine.rsa.pub">{copy.alpineKey} ↗</a>
+              <a href="https://github.com/LeenHawk/gproxy/blob/dev/distribution/alpine/README.txt">{copy.alpineGuide} ↗</a>
+            </footer>
+          ) : null}
           {platform.store ? (
             <footer class="dl-store">
               <span>{copy.store}</span>

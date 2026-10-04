@@ -16,3 +16,6 @@ deploy/deno/public
 deploy/netlify/node_modules
 deploy/netlify/pkg
 deploy/netlify/public
+
+# Signing keys and local deployment notes never enter build contexts.
+dev_docs

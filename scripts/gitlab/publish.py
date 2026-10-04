@@ -210,6 +210,8 @@ def verify_packages():
             if not (name := row.get("headless_artifact")):
                 continue
             expected += [name + ".zip", name + ".provenance.json"]
+            if row["target"].endswith("-linux-musl"):
+                expected.append(name + ".apk")
             with zipfile.ZipFile(directory / (name + ".zip")) as archive:
                 executable = "gproxy.exe" if row["os"] == "windows" else "gproxy"
                 if executable not in archive.namelist():
@@ -219,6 +221,8 @@ def verify_packages():
     extensions = {"linux": ".deb", "macos": ".dmg", "windows": ".msix", "android": ".apk", "ohos": ".hap"}
     for row in matrix:
         cli = row["artifact"]
+        if os.environ.get("GITHUB_ACTIONS") == "true" and row["target"].endswith("-linux-musl"):
+            expected.append(cli + ".apk")
         expected += [cli + ".zip", cli + ".provenance.json"]
         with zipfile.ZipFile(directory / (cli + ".zip")) as archive:
             executable = "gproxy.exe" if row["os"] == "windows" else "gproxy"
@@ -228,7 +232,11 @@ def verify_packages():
             cli_extension = ".deb" if row["os"] == "android" else extensions[row["os"]]
             expected.append(cli + cli_extension)
         if app := row.get("application_artifact"):
-            expected += [app + extensions[row["os"]], app + ".provenance.json"]
+            # Alpine Applications use GitHub's native runners; the optional
+            # GitLab cross-build pipeline does not build these targets.
+            if row["builder"] == "cargo-alpine" and os.environ.get("GITHUB_ACTIONS") != "true":
+                continue
+            expected += [app + row.get("application_extension", extensions[row["os"]]), app + ".provenance.json"]
             if row["os"] not in ("android", "ohos"):
                 expected.append(app + ".zip")
                 with zipfile.ZipFile(directory / (app + ".zip")) as archive:

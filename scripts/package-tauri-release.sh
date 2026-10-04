@@ -11,8 +11,11 @@ output="$root/dist/release"
 mkdir -p "$output"
 config="$(jq -cn --arg version "$GPROXY_BUILD_VERSION" '{version:$version,bundle:{active:true}}')"
 cd crates/gproxy-host-tauri
-case "$TARGET_OS" in
-  linux | macos)
+case "$TARGET_OS:$TARGET_TRIPLE" in
+  linux:*-musl)
+    bash "$root/scripts/build-musl-application.sh"
+    ;;
+  linux:* | macos:*)
     bundle=deb
     [ "$TARGET_OS" != macos ] || bundle=dmg
     if [ "$TARGET_OS" = linux ]; then
@@ -44,7 +47,7 @@ case "$TARGET_OS" in
       rm -rf "$work"
     fi
     ;;
-  windows)
+  windows:*)
     bash "$root/scripts/with-tauri-desktop-lib.sh" pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
     binary="$root/target/$TARGET_TRIPLE/release/gproxy-desktop.exe"
     if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
@@ -60,7 +63,7 @@ case "$TARGET_OS" in
     pwsh -NoProfile -File scripts/package-application-zip.ps1 \
       -Target "$TARGET_TRIPLE" -Artifact "$ARTIFACT_NAME" -OutputDir dist/release
     ;;
-  android)
+  android:*)
     export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
     source "$root/scripts/android/sdk.sh"
     ndk="$(android_ndk_root)"

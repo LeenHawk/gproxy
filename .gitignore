@@ -39,3 +39,5 @@ probe-out/
 /archive/
 
 /tmp
+# Local Alpine release signing material
+/dev_docs/alpine-signing/

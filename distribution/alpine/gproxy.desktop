@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GPROXY
+Comment=AI gateway and management console
+Exec=gproxy-desktop
+Icon=gproxy
+Terminal=false
+Categories=Network;Development;

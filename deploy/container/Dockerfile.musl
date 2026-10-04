@@ -15,4 +15,10 @@ RUN set -eu; \
     /tmp/musl-toolchain-check; \
     rm /tmp/musl-toolchain-check
 
+ARG APPLICATION=false
+RUN if [ "$APPLICATION" = true ]; then \
+      apk add --no-cache bash nodejs gtk+3.0-dev webkit2gtk-4.1-dev \
+        libayatana-appindicator-dev librsvg-dev pax-utils upx zip fakeroot openssl; \
+    fi
+
 WORKDIR /workspace
