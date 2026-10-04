@@ -11,7 +11,7 @@ import { ResizableColumns } from "@/components/resizable-columns"
 import { toast } from "sonner"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { ChevronRight, ChevronsUpDown, CircleUserRound, Languages, LogOut, Menu, Moon, Sun } from "lucide-react"
+import { ChevronRight, ChevronsUpDown, CircleUserRound, Languages, LogOut, Menu, Monitor, Moon, Sun } from "lucide-react"
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { INFO_KEY, instanceInfo } from "@/api/settings"
 import { signOut } from "@/api/session"
@@ -30,16 +30,27 @@ import { SUPPORTED_LANGS, setLanguage, type LangCode } from "@/i18n"
 import { Link } from "@/components/link"
 import { useRoute } from "@/lib/router"
 import { useTheme } from "@/lib/theme-context"
+import type { Theme } from "@/lib/theme-state"
 import { cn } from "@/lib/utils"
 
 function ThemeToggle() {
   const { t } = useTranslation()
-  const { resolvedTheme, setTheme } = useTheme()
-  const next = resolvedTheme === "dark" ? "light" : "dark"
+  const { theme, setTheme } = useTheme()
   return (
-    <Button variant="ghost" size="icon-sm" aria-label={t(`theme.${next}`)} onClick={() => setTheme(next)}>
-      {resolvedTheme === "dark" ? <Sun /> : <Moon />}
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label={t("theme.label")} title={t(`theme.${theme}`)}>
+          {theme === "system" ? <Monitor /> : theme === "dark" ? <Moon /> : <Sun />}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+          <DropdownMenuRadioItem value="light"><Sun />{t("theme.light")}</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark"><Moon />{t("theme.dark")}</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="system"><Monitor />{t("theme.system")}</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

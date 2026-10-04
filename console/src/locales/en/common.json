@@ -86,6 +86,8 @@
     "zh-TW": "繁體中文"
   },
   "theme": {
+    "label": "Theme",
+    "system": "Follow system",
     "light": "Light theme",
     "dark": "Dark theme"
   },
