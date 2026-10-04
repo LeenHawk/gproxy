@@ -29,6 +29,7 @@ use gproxy_core::{
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest,
     connection::{Bytes, HeaderMap},
+    wire::{DeclaredFields, openai::models::Model},
 };
 use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
 use gproxy_store::entity::upstream::{model, provider_model};
@@ -283,17 +284,19 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             .await?;
         Ok(model_names(dialect, &document)
             .into_iter()
-            .map(|upstream_name| DiscoveredModelDto {
-                known: known.contains(upstream_name.as_str()),
-                has_default_price: catalog::has_default_price(&upstream_name),
-                metadata: import_metadata(
-                    &upstream_name,
-                    &defaults,
-                    discovered_metadata(dialect, &document, &upstream_name),
-                ),
-                upstream_name,
+            .map(|upstream_name| {
+                Ok(DiscoveredModelDto {
+                    known: known.contains(upstream_name.as_str()),
+                    has_default_price: catalog::has_default_price(&upstream_name),
+                    metadata: import_metadata(
+                        &upstream_name,
+                        &defaults,
+                        discovered_metadata(dialect, &document, &upstream_name)?,
+                    ),
+                    upstream_name,
+                })
             })
-            .collect())
+            .collect::<SdkResult<Vec<_>>>()?)
     }
 
     /// Add discovered names to a provider's catalog. Names it already offers
@@ -395,14 +398,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
                     if name.is_empty() || !seen.insert(name.to_ascii_lowercase()) {
                         return None;
                     }
-                    Some(DiscoveredModelDto {
+                    Some((name.to_owned(), row))
+                })
+                .map(|(name, row)| {
+                    Ok(DiscoveredModelDto {
                         upstream_name: name.into(),
-                        metadata: model_metadata(Some(row)),
+                        metadata: model_metadata(Some(row))?,
                         known: false,
                         has_default_price: false,
                     })
                 })
-                .collect())
+                .collect::<SdkResult<Vec<_>>>()?)
         })
         .await
         .ok_or_else(|| SdkError::invalid("OpenRouter model query timed out"))?
@@ -813,7 +819,7 @@ fn elapsed(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
-fn discovered_metadata(dialect: Dialect, document: &Value, name: &str) -> Value {
+fn discovered_metadata(dialect: Dialect, document: &Value, name: &str) -> SdkResult<Value> {
     let list = if dialect == Dialect::Gemini {
         "models"
     } else {
@@ -829,8 +835,21 @@ fn discovered_metadata(dialect: Dialect, document: &Value, name: &str) -> Value 
     model_metadata(item)
 }
 
-fn model_metadata(item: Option<&Value>) -> Value {
-    let mut result = serde_json::Map::new();
+fn model_metadata(item: Option<&Value>) -> SdkResult<Value> {
+    let mut fields = item.and_then(Value::as_object).cloned().unwrap_or_default();
+    // Directory identity belongs to the provider row, not its metadata.
+    fields.insert("id".into(), json!(""));
+    fields.insert("object".into(), json!("model"));
+    let model: Model = serde_json::from_value(Value::Object(fields))
+        .map_err(|error| SdkError::invalid(format!("model metadata: {error}")))?;
+    let Value::Object(mut result) = serde_json::to_value(model.into_declared())
+        .map_err(|error| SdkError::invalid(format!("model metadata: {error}")))?
+    else {
+        unreachable!("Model serializes as an object")
+    };
+    for key in ["id", "slug", "object", "created", "owned_by"] {
+        result.remove(key);
+    }
     if let Some(item) = item {
         for (key, aliases) in [
             ("display_name", &["display_name", "displayName"][..]),
@@ -887,7 +906,7 @@ fn model_metadata(item: Option<&Value>) -> Value {
             result.entry("display_name").or_insert_with(|| name.clone());
         }
     }
-    Value::Object(result)
+    Ok(Value::Object(result))
 }
 
 /// Fill upstream omissions, then apply the operator's explicit global overrides.

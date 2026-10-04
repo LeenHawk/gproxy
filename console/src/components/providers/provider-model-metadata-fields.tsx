@@ -19,6 +19,7 @@ export function ProviderModelMetadataFields({ value, onChange }: {
   const id = useId()
   const set = <K extends keyof ModelMetadataDto>(key: K, next: ModelMetadataDto[K]) => onChange({ ...value, [key]: next })
   const optionalNumber = (input: string) => input ? Number(input) : null
+  const truncationInvalid = value.truncation_policy != null && ((value.truncation_policy.mode !== "bytes" && value.truncation_policy.mode !== "tokens") || value.truncation_policy.limit == null)
   return <Collapsible data-field-span="full">
     <CollapsibleTrigger asChild>
       <Button type="button" variant="outline" className="group w-full justify-between">
@@ -44,7 +45,7 @@ export function ProviderModelMetadataFields({ value, onChange }: {
       <StringListField label={t("providers.models.supportedParameters")} value={value.supported_parameters} onChange={(next) => set("supported_parameters", next)} />
       <StringListField label={t("providers.models.generationMethods")} value={value.generation_methods} onChange={(next) => set("generation_methods", next)} />
       <StringListField label={t("providers.models.supportedActions")} value={value.supported_actions} onChange={(next) => set("supported_actions", next)} />
-      <ReasoningLevels value={value.reasoning_levels} onChange={(next) => set("reasoning_levels", next)} />
+      <ReasoningLevels value={value.supported_reasoning_levels} onChange={(next) => set("supported_reasoning_levels", next)} />
       <ServiceTiers value={value.service_tiers} onChange={(next) => set("service_tiers", next)} />
       <Field>
         <FieldLabel htmlFor={`${id}-shellType`}>{t("providers.models.shellType")}</FieldLabel>
@@ -73,11 +74,17 @@ export function ProviderModelMetadataFields({ value, onChange }: {
         <FieldLabel htmlFor={`${id}-webSearchTool`}>{t("providers.models.webSearchTool")}</FieldLabel>
         <SuggestedInput id={`${id}-webSearchTool`} value={value.web_search_tool_type} values={["text", "text_and_image"]} onChange={(next) => set("web_search_tool_type", next)} />
       </Field>
-      <Field>
+      <Field data-invalid={truncationInvalid}>
         <FieldLabel>{t("providers.models.truncation")}</FieldLabel>
         <div className="grid grid-cols-2 gap-2">
-          <SuggestedInput label={`${t("providers.models.truncation")}: ${t("form.mode")}`} value={value.truncation_mode} values={["bytes", "tokens"]} onChange={(next) => set("truncation_mode", next)} />
-          <Input aria-label={`${t("providers.models.truncation")}: ${t("form.limit")}`} type="number" min="1" value={value.truncation_limit ?? ""} onChange={(event) => set("truncation_limit", optionalNumber(event.target.value))} />
+          <Select value={value.truncation_policy?.mode ?? "unknown"} onValueChange={(next) => set("truncation_policy", next === "unknown" ? null : { ...value.truncation_policy, mode: next as "bytes" | "tokens", limit: value.truncation_policy?.limit ?? null })}>
+            <SelectTrigger aria-invalid={truncationInvalid} aria-label={`${t("providers.models.truncation")}: ${t("form.mode")}`}><SelectValue /></SelectTrigger>
+            <SelectContent><SelectGroup><SelectItem value="unknown">{t("form.unset")}</SelectItem><SelectItem value="bytes">bytes</SelectItem><SelectItem value="tokens">tokens</SelectItem></SelectGroup></SelectContent>
+          </Select>
+          <Input aria-invalid={truncationInvalid} aria-label={`${t("providers.models.truncation")}: ${t("form.limit")}`} type="number" min="1" value={value.truncation_policy?.limit ?? ""} onChange={(event) => {
+            const limit = optionalNumber(event.target.value)
+            set("truncation_policy", limit == null && value.truncation_policy?.mode == null ? null : { ...value.truncation_policy, mode: value.truncation_policy?.mode ?? null, limit })
+          }} />
         </div>
       </Field>
       <Field>
@@ -138,7 +145,7 @@ function ReasoningLevels({ value, onChange }: { value: Array<ModelReasoningLevel
   return <Field data-field-span="full"><FieldLabel>{t("providers.models.reasoningLevels")}</FieldLabel>
     <Button type="button" size="sm" variant="ghost" onClick={() => onChange(value == null ? [] : [...value, { effort: "medium", description: "" }])}>{value == null ? t("providers.models.markKnown") : t("actions.add")}</Button>
     {value?.map((level, index) => <div key={index} className="grid grid-cols-1 sm:grid-cols-[10rem_1fr_auto] gap-2">
-      <SuggestedInput label={`${t("providers.models.reasoningLevels")}: ${t("providerForm.item", { index: index + 1 })}`} value={level.effort} values={["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]} onChange={(effort) => onChange(value.map((item, current) => current === index ? { ...item, effort: effort ?? "" } : item))} />
+      <SuggestedInput label={`${t("providers.models.reasoningLevels")}: ${t("providerForm.item", { index: index + 1 })}`} value={level.effort} values={["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", "persistent"]} onChange={(effort) => onChange(value.map((item, current) => current === index ? { ...item, effort: effort ?? "" } : item))} />
       <Input aria-label={`${t("form.description")}: ${level.effort}`} value={level.description} onChange={(event) => onChange(value.map((item, current) => current === index ? { ...item, description: event.target.value } : item))} />
       <Button type="button" size="icon-sm" variant="ghost" aria-label={t("actions.delete")} onClick={() => onChange(value.filter((_, current) => current !== index))}><XIcon data-icon="inline-start" /></Button>
     </div>)}

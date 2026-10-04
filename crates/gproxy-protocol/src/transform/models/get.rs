@@ -47,6 +47,29 @@ pub fn claude_to_openai(
             .map_err(|_| TransformError::shape("model.max_tokens", "negative limit"))?,
     );
     value.thinking_supported = Some(input.capabilities.thinking.supported);
+    let mut modalities = vec!["text".to_owned()];
+    if input.capabilities.image_input.supported {
+        modalities.push("image".to_owned());
+    }
+    value.input_modalities = Some(modalities);
+    let effort = &input.capabilities.effort;
+    use openai_models::ModelReasoningEffort as Effort;
+    value.supported_reasoning_levels = Some(
+        [
+            (Effort::Low, effort.low.supported),
+            (Effort::Medium, effort.medium.supported),
+            (Effort::High, effort.high.supported),
+            (Effort::Xhigh, effort.xhigh.supported),
+            (Effort::Max, effort.max.supported),
+        ]
+        .into_iter()
+        .filter(|(_, supported)| effort.supported && *supported)
+        .map(|(effort, _)| openai_models::ModelReasoningLevel {
+            effort,
+            description: String::new(),
+        })
+        .collect(),
+    );
     Ok(common::converted(value, report))
 }
 
@@ -123,6 +146,7 @@ pub fn openai_to_claude(
     input: openai_models::Model,
     supplement: &ClaudeModelSupplement,
 ) -> Result<Converted<claude_models::ModelInfo>, TransformError> {
+    let identity = common::openai_identity(&input)?.to_owned();
     let created_at = match input.created {
         Some(created) => {
             if let Some(supplied) = &supplement.created_at
@@ -150,6 +174,7 @@ pub fn openai_to_claude(
     )?;
     let source_input = input
         .context_window
+        .or(input.max_context_window)
         .map(i64::try_from)
         .transpose()
         .map_err(|e| TransformError::shape("model.context_window", e.to_string()))?;
@@ -165,6 +190,50 @@ pub fn openai_to_claude(
     )?;
     let max_tokens = common::choose(source_output, supplement.max_tokens, "model.max_tokens")?;
     let mut report = Report::default();
+    common::report_openai_extensions(&input, &mut report);
+    if input.description.is_some() {
+        report.omitted(
+            "model.description",
+            "Claude model objects have no description",
+        );
+    }
+    if input.generation_methods.is_some() {
+        report.omitted(
+            "model.generation_methods",
+            "Claude model objects have no generation-method list",
+        );
+    }
+    if let Some(modalities) = &input.input_modalities
+        && modalities
+            .iter()
+            .any(|modality| !matches!(modality.as_str(), "text" | "image"))
+    {
+        report.omitted(
+            "model.input_modalities",
+            "Claude capabilities only represent image input from this modality list",
+        );
+    }
+    if let Some(levels) = &input.supported_reasoning_levels
+        && levels.iter().any(|level| {
+            !level.description.is_empty()
+                || !matches!(
+                    level.effort,
+                    openai_models::ModelReasoningEffort::None
+                        | openai_models::ModelReasoningEffort::Low
+                        | openai_models::ModelReasoningEffort::Medium
+                        | openai_models::ModelReasoningEffort::High
+                        | openai_models::ModelReasoningEffort::Xhigh
+                        | openai_models::ModelReasoningEffort::Max
+                )
+        })
+    {
+        report.omitted(
+            "model.supported_reasoning_levels",
+            "effort descriptions and some choices have no Claude capability field",
+        );
+    }
+    let supplement = common::reconcile_openai_capabilities(&input, supplement.clone())?;
+
     common::report_openai_loss(&mut report);
     report.omitted(
         "model.object",
@@ -172,12 +241,12 @@ pub fn openai_to_claude(
     );
     Ok(common::converted(
         common::claude_model(
-            common::openai_model_id(&input.id)?,
+            identity,
             created_at,
             display_name,
             max_input_tokens,
             max_tokens,
-            supplement.clone(),
+            supplement,
         ),
         report,
     ))
@@ -187,20 +256,37 @@ pub fn openai_to_gemini(
     input: openai_models::Model,
     supplement: &GeminiModelSupplement,
 ) -> Result<Converted<gemini_models::Model>, TransformError> {
+    let identity = common::openai_identity(&input)?.to_owned();
     let mut report = Report::default();
+    common::report_openai_extensions(&input, &mut report);
+    if input.input_modalities.is_some() {
+        report.omitted(
+            "model.input_modalities",
+            "Gemini model objects have no input-modality list",
+        );
+    }
+    if input.supported_reasoning_levels.is_some() {
+        report.omitted(
+            "model.supported_reasoning_levels",
+            "Gemini model objects only advertise a thinking boolean",
+        );
+    }
+    let thinking = common::openai_thinking(&input);
+
     report.omitted("model.owned_by", "Gemini has no owner field");
     report.omitted("model.object", "Gemini has no OpenAI object discriminator");
     report.omitted("model.created", "Gemini has no model creation timestamp");
     let base_model_id = common::non_empty(&supplement.base_model_id, "model.base_model_id")?;
     let version = common::non_empty(&supplement.version, "model.version")?;
     let value = gemini_models::Model {
-        name: common::gemini_name(&input.id)?,
+        name: common::gemini_name(&identity)?,
         base_model_id,
         version,
         display_name: input.display_name,
         description: input.description,
         input_token_limit: input
             .context_window
+            .or(input.max_context_window)
             .map(i64::try_from)
             .transpose()
             .map_err(|e| TransformError::shape("model.context_window", e.to_string()))?,
@@ -210,7 +296,7 @@ pub fn openai_to_gemini(
             .transpose()
             .map_err(|e| TransformError::shape("model.max_output_tokens", e.to_string()))?,
         supported_generation_methods: input.generation_methods,
-        thinking: input.thinking_supported,
+        thinking,
         temperature: None,
         max_temperature: None,
         top_p: None,

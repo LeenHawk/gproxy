@@ -15,7 +15,7 @@ pub use get::{
 };
 pub use list::{
     claude_to_gemini_list, claude_to_openai_list, gemini_to_claude_list, gemini_to_openai_list,
-    openai_to_claude_list, openai_to_gemini_list,
+    normalize_openai_list, openai_to_claude_list, openai_to_gemini_list,
 };
 pub use supplement::{
     ClaudeCapabilities, ClaudeContextManagement, ClaudeEffort, ClaudeModelSupplement,

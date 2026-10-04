@@ -139,7 +139,7 @@ fn model_queries_and_headers_are_separate_from_response_json() {
         body: openai::models::Model::builder(
             "gpt-5".into(),
             Some(0),
-            openai::models::ModelObject::Model,
+            Some(openai::models::ModelObject::Model),
             Some("openai".into()),
         )
         .build(),

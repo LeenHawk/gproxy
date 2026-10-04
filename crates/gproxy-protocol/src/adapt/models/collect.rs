@@ -251,6 +251,8 @@ pub async fn collect_openai<U: Upstream>(
 ) -> Result<ModelDirectory<o::ListModelsResponseBody>, ModelListError> {
     let mut progress = Progress::new(&request, limits)?;
     let page: o::ListModelsResponseBody = progress.page(upstream, target, request).await?;
+    let page = crate::transform::models::normalize_openai_list(page)
+        .map_err(|error| progress.error(error))?;
     for model in &page.data {
         progress.item(&model.id)?;
     }

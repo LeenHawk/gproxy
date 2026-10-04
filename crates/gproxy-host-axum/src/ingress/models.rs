@@ -8,6 +8,7 @@ use gproxy_protocol::{
     HttpBody,
     codec::{CodecLimits, encode_json, read_http_body},
     connection::TransportError,
+    wire::openai::models::Model,
 };
 use gproxy_sdk::resolve::RoutingTable;
 use gproxy_seaorm::BatchConnectionTrait;
@@ -53,7 +54,7 @@ where
                     .get("id")
                     .and_then(Value::as_str)
                     .ok_or_else(|| std::io::Error::other("model entry is missing id"))?;
-                Ok(project(id, model))
+                Ok(project(id, model)?)
             })
             .collect::<Result<Vec<_>, std::io::Error>>()?;
         value["models"] = json!(models);
@@ -69,7 +70,7 @@ where
 }
 
 /// Required Codex fields get neutral defaults; actual model capabilities and extensions win.
-pub(super) fn project(id: &str, source: &Value) -> Value {
+pub(super) fn project(id: &str, source: &Value) -> Result<Model, serde_json::Error> {
     let mut model = json!({
         "display_name": id,
         "description": null,
@@ -121,14 +122,14 @@ pub(super) fn project(id: &str, source: &Value) -> Value {
             }
         }
     }
-    // Codex only understands text and image input modalities.
+    // Keep the modality tags declared by the Codex catalog protocol.
     if let Some(modalities) = target
         .get_mut("input_modalities")
         .and_then(Value::as_array_mut)
     {
-        modalities.retain(|value| matches!(value.as_str(), Some("text" | "image")));
+        modalities.retain(|value| matches!(value.as_str(), Some("text" | "image" | "audio")));
     }
-    model
+    serde_json::from_value(model)
 }
 
 /// Resolve configured metadata using the same names the public catalog lists.

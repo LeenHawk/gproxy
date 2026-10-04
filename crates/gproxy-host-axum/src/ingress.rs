@@ -665,6 +665,15 @@ where
             _ => json!({"id": name, "object": "model", "created": 0, "owned_by": "gproxy"}),
         })
         .collect();
+    let codex_models = match codex_models.into_iter().collect::<Result<Vec<_>, _>>() {
+        Ok(models) => models,
+        Err(error) => {
+            return ErrorResponse(
+                gproxy_sdk::SdkError::invalid(format!("model metadata: {error}")).into(),
+            )
+            .into_response();
+        }
+    };
     let body = match dialect {
         Dialect::Claude => json!({
             "first_id": models.first().and_then(|m| m.get("id")),

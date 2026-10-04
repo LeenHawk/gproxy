@@ -200,7 +200,7 @@ fn openai_model() -> openai_models::Model {
         let mut fixture = openai_models::Model::builder(
             "openai-1".into(),
             Some(1_704_067_200),
-            openai_models::ModelObject::Model,
+            Some(openai_models::ModelObject::Model),
             Some("owner".into()),
         )
         .build();

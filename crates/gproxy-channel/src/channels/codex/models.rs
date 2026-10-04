@@ -8,11 +8,10 @@ use futures_util::StreamExt;
 use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireResponse,
     connection::Bytes,
-    wire::openai::models::{ListModelsResponseBody, ListObject, Model},
+    wire::openai::models::{ListModelsResponseBody, ListObject, Model, ModelObject},
 };
 use http::{HeaderValue, Method, StatusCode, header};
-use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::json;
 use url::Url;
 
 const MAX_CATALOG_BYTES: usize = 16 * 1024 * 1024;
@@ -91,16 +90,11 @@ pub(super) async fn invoke(
         return Ok(response);
     }
     let bytes = read(response.body).await?;
-    #[derive(Deserialize)]
-    struct Catalog {
-        models: Vec<Value>,
-        #[serde(default, flatten)]
-        rest: gproxy_protocol::Rest,
-    }
-    let catalog: Catalog = serde_json::from_slice(&bytes)
+    let catalog: ListModelsResponseBody = serde_json::from_slice(&bytes)
         .map_err(|e| invalid_response(format!("Codex model catalog: {e}")))?;
     let data = catalog
         .models
+        .ok_or_else(|| invalid_response("Codex model catalog is missing models"))?
         .into_iter()
         .map(normalize)
         .collect::<Result<Vec<_>, _>>()?;
@@ -114,7 +108,7 @@ pub(super) async fn invoke(
         }
     } else {
         let mut rest=catalog.rest;rest.remove("data");rest.remove("object");
-        serde_json::to_vec(&ListModelsResponseBody {data,object:ListObject::List,rest})
+        serde_json::to_vec(&ListModelsResponseBody {data,object:ListObject::List,models:None,rest})
     }.map_err(|e|invalid_response(e.to_string()))?;
     for name in [
         header::CONTENT_LENGTH,
@@ -132,53 +126,27 @@ pub(super) async fn invoke(
     Ok(response)
 }
 
-fn normalize(mut value: Value) -> Result<Model, ChannelError> {
-    let object = value
-        .as_object_mut()
-        .ok_or_else(|| invalid_response("Codex model must be an object"))?;
-    let id = object
-        .get("slug")
-        .or_else(|| object.get("id"))
-        .and_then(Value::as_str)
-        .ok_or_else(|| invalid_response("Codex model slug missing"))?
-        .to_owned();
-    object.insert("id".into(), json!(id));
-    object.insert("object".into(), json!("model"));
-    // Keep original Codex fields too; the host can later project them without
-    // reverse-engineering synthesized metadata or losing the original limits.
-    if !object.contains_key("instructions")
-        && let Some(instructions) = object.get("base_instructions").cloned()
-    {
-        object.insert("instructions".into(), instructions);
+fn normalize(mut model: Model) -> Result<Model, ChannelError> {
+    if let Some(slug) = model.slug.take() {
+        model.id = slug;
     }
-    if !object.contains_key("thinking_supported")
-        && let Some(levels) = object
-            .get("supported_reasoning_levels")
-            .and_then(Value::as_array)
-    {
-        let supported = !levels.is_empty();
-        object.insert("thinking_supported".into(), json!(supported));
+    if model.id.is_empty() {
+        return Err(invalid_response("Codex model slug missing"));
     }
-    if let Some(ceiling) = object
-        .get("max_context_window")
-        .and_then(Value::as_u64)
-        .filter(|v| *v > 0)
-    {
-        object.insert("context_window".into(), json!(ceiling));
+    model.object = Some(ModelObject::Model);
+    let base_instructions = model.base_instructions.take();
+    if model.instructions.is_none() {
+        model.instructions = base_instructions;
     }
-    if let Some(levels) = object
-        .get_mut("supported_reasoning_levels")
-        .and_then(Value::as_array_mut)
+    if model.thinking_supported.is_none()
+        && let Some(levels) = &model.supported_reasoning_levels
     {
-        for level in levels {
-            if let Some(name) = level.as_str() {
-                *level = json!({"effort":name,"description":""});
-            }
-        }
+        model.thinking_supported = Some(!levels.is_empty());
     }
-    object.remove("slug");
-    object.remove("base_instructions");
-    serde_json::from_value(value).map_err(|e| invalid_response(format!("Codex model: {e}")))
+    if let Some(ceiling) = model.max_context_window.filter(|value| *value > 0) {
+        model.context_window = Some(ceiling);
+    }
+    Ok(model)
 }
 
 async fn read(body: HttpBody) -> Result<Bytes, ChannelError> {
