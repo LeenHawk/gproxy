@@ -194,7 +194,7 @@ const headless = [
 const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').replace(/\.zip$/, '');
 ---
 
-<div class="dl" data-locale={locale} data-latest={LATEST}>
+<div class="dl not-content" data-locale={locale} data-latest={LATEST}>
   <header class="dl-hero">
     <p class="dl-eyebrow">{copy.eyebrow}</p>
     <h1 class="dl-title">{copy.title}</h1>
@@ -392,72 +392,77 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
 </style>
 
 <style>
-  .dl { --dl-radius: 14px; --dl-accent: var(--sl-color-accent); --dl-accent-soft: var(--sl-color-accent-low); max-width: 72rem; margin: 0 auto; padding: 0 0 3rem; }
-  .dl h1, .dl h2, .dl h3 { margin: 0; line-height: 1.2; }
-  .dl p { margin: 0; }
-  .dl-mono { font-family: var(--sl-font-mono); }
+  .dl { --dl-radius: 16px; --dl-accent: var(--sl-color-text-accent); --dl-accent-soft: color-mix(in srgb, var(--sl-color-accent) 6%, var(--sl-color-bg)); --dl-surface: color-mix(in srgb, var(--sl-color-white) 2%, var(--sl-color-bg)); --dl-border: var(--sl-color-hairline-light); max-width: 72rem; margin: 0 auto; padding: 0 0 3rem; }
+  .dl :where(h1, h2, h3) { margin: 0; line-height: 1.2; }
+  .dl :where(p) { margin: 0; }
+  .dl [hidden] { display: none; }
+  .dl a:focus-visible { outline: 2px solid var(--dl-accent); outline-offset: 4px; }
+  .dl-mono { font-family: var(--__sl-font-mono); }
 
-  .dl-hero { position: relative; padding: 3.5rem 0 2.5rem; border-bottom: 1px solid var(--sl-color-hairline); }
-  .dl-hero::before { content: ''; position: absolute; inset: -4rem -2rem 0; z-index: -1; pointer-events: none; background: radial-gradient(60rem 22rem at 20% -10%, color-mix(in srgb, var(--dl-accent) 22%, transparent), transparent 70%); }
+  .dl-hero { position: relative; padding: 2.5rem 0 2rem; border-bottom: 1px solid var(--dl-border); }
   .dl-eyebrow { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dl-accent); }
-  .dl-title { font-size: clamp(2.4rem, 6vw, 4rem); font-weight: 700; letter-spacing: -0.02em; margin-top: 0.4rem; color: var(--sl-color-white); }
+  .dl-title { font-size: clamp(2.25rem, 5vw, 3.5rem); font-weight: 700; letter-spacing: -0.02em; margin-top: 0.4rem; color: var(--sl-color-white); }
   .dl-lede { margin-top: 1rem; max-width: 46rem; font-size: 1.1rem; line-height: 1.6; color: var(--sl-color-gray-2); }
   .dl-release { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; margin-top: 1.75rem; font-size: 0.95rem; }
   .dl-pill { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.9rem; border-radius: 999px; background: var(--dl-accent-soft); color: var(--sl-color-white); border: 1px solid color-mix(in srgb, var(--dl-accent) 35%, transparent); }
-  .dl-pill strong { font-family: var(--sl-font-mono); font-weight: 600; }
+  .dl-pill strong { font-family: var(--__sl-font-mono); font-weight: 600; }
   .dl-label { color: var(--sl-color-gray-2); }
   .dl-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--dl-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--dl-accent) 25%, transparent); }
-  .dl-date { color: var(--sl-color-gray-3); }
+  .dl-date { color: var(--sl-color-text); }
   .dl-link { color: var(--sl-color-white); text-decoration: none; border-bottom: 1px solid var(--sl-color-gray-5); transition: border-color 120ms; }
   .dl-link:hover { border-color: var(--dl-accent); }
   .dl-offline { margin-top: 1rem; padding: 0.6rem 0.9rem; border-radius: 8px; background: var(--sl-color-gray-6); color: var(--sl-color-gray-2); font-size: 0.9rem; }
 
-  .dl-foryou { margin-top: 2.5rem; padding: 1.5rem; border-radius: var(--dl-radius); background: linear-gradient(135deg, color-mix(in srgb, var(--dl-accent) 14%, var(--sl-color-bg)), var(--sl-color-bg-nav)); border: 1px solid color-mix(in srgb, var(--dl-accent) 30%, var(--sl-color-hairline)); }
+  .dl-foryou { margin-top: 2.5rem; padding: 1.5rem; border-radius: var(--dl-radius); background: var(--dl-accent-soft); border: 1px solid var(--dl-border); }
   .dl-foryou-head h2 { font-size: 1.15rem; }
-  .dl-foryou-head p { margin-top: 0.25rem; font-size: 0.9rem; color: var(--sl-color-gray-3); }
-  .dl-foryou-cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); margin-top: 1.25rem; }
-  .dl-primary { display: flex; flex-direction: column; gap: 0.3rem; padding: 1.1rem 1.25rem; border-radius: 12px; text-decoration: none; color: var(--sl-color-black); background: var(--dl-accent); box-shadow: 0 10px 30px -12px color-mix(in srgb, var(--dl-accent) 70%, transparent); transition: transform 120ms, box-shadow 120ms; }
-  .dl-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 36px -12px color-mix(in srgb, var(--dl-accent) 80%, transparent); }
-  .dl-primary--cli { background: var(--sl-color-gray-6); color: var(--sl-color-white); box-shadow: none; border: 1px solid var(--sl-color-hairline); }
+  .dl-foryou-head p { margin-top: 0.25rem; font-size: 0.9rem; color: var(--sl-color-text); }
+  .dl-foryou-cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); margin-top: 1.25rem; }
+  .dl-primary { display: flex; flex-direction: column; gap: 0.3rem; padding: 1.1rem 1.25rem; border-radius: 12px; text-decoration: none; color: var(--sl-color-text-invert); background: var(--sl-color-bg-accent); border: 1px solid transparent; transition: border-color 120ms, background 120ms; }
+  .dl-primary:hover { background: color-mix(in srgb, var(--sl-color-bg-accent) 90%, var(--sl-color-bg)); }
+  .dl-primary--cli { background: var(--sl-color-bg); color: var(--sl-color-white); box-shadow: none; border: 1px solid var(--dl-border); }
+  .dl-primary--cli:hover { background: var(--dl-accent-soft); border-color: var(--dl-accent); }
   .dl-primary-kind { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85; }
-  .dl-primary-name { font-family: var(--sl-font-mono); font-size: 1.05rem; font-weight: 600; word-break: break-all; }
+  .dl-primary-name { font-family: var(--__sl-font-mono); font-size: 1.05rem; font-weight: 600; overflow-wrap: anywhere; }
   .dl-primary-hint { font-size: 0.85rem; opacity: 0.85; }
 
   .dl-platforms { margin-top: 3rem; }
   .dl-platforms > h2, .dl-more h2 { font-size: 1.4rem; margin-bottom: 1.25rem; color: var(--sl-color-white); }
-  .dl-grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
-  .dl-card { display: flex; flex-direction: column; gap: 1rem; padding: 1.4rem; border-radius: var(--dl-radius); background: var(--sl-color-bg-nav); border: 1px solid var(--sl-color-hairline); transition: border-color 120ms; }
-  .dl-card:hover { border-color: color-mix(in srgb, var(--dl-accent) 45%, var(--sl-color-hairline)); }
+  .dl-grid { display: grid; align-items: start; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+  .dl-card { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; padding: 1.5rem; border-radius: var(--dl-radius); background: var(--dl-surface); border: 1px solid var(--dl-border); transition: border-color 120ms; }
+  .dl-card:hover { border-color: color-mix(in srgb, var(--dl-accent) 45%, var(--dl-border)); }
   .dl-card--wide { grid-column: 1 / -1; }
   .dl-card-head h3, .dl-more h3 { font-size: 1.1rem; color: var(--sl-color-white); }
-  .dl-card-head p, .dl-more p { margin-top: 0.35rem; font-size: 0.875rem; line-height: 1.55; color: var(--sl-color-gray-3); }
-  .dl-table { width: 100%; border-collapse: collapse; margin: 0; font-size: 0.875rem; }
-  .dl-table th, .dl-table td { padding: 0.5rem 0.4rem; border: 0; border-top: 1px solid var(--sl-color-hairline); text-align: left; vertical-align: top; background: none; }
-  .dl-table thead th { border-top: 0; padding-top: 0; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sl-color-gray-3); }
+  .dl-card-head p, .dl-more p { margin-top: 0.35rem; font-size: 0.875rem; line-height: 1.55; color: var(--sl-color-text); }
+  .dl-table { display: table; table-layout: fixed; width: 100%; border-collapse: collapse; margin: 0; font-size: 0.875rem; }
+  .dl-table th, .dl-table td { padding: 0.5rem 0.4rem; border: 0; border-top: 1px solid var(--dl-border); text-align: left; vertical-align: top; background: none; }
+  .dl-table thead th { border-top: 0; padding-top: 0; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sl-color-text); }
+  .dl-table thead th:first-child { width: 24%; }
   .dl-table tbody th { font-weight: 600; white-space: nowrap; color: var(--sl-color-white); }
-  .dl-variant { display: block; font-size: 0.72rem; font-weight: 500; color: var(--sl-color-gray-3); }
+  .dl-variant { display: block; font-size: 0.72rem; font-weight: 500; color: var(--sl-color-text); }
   .dl-table td { display: table-cell; }
   .dl-table td > .dl-asset { margin: 0 0.35rem 0.35rem 0; }
-  .dl-asset { display: inline-flex; align-items: baseline; gap: 0.4rem; padding: 0.3rem 0.65rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600; text-decoration: none; color: var(--sl-color-white); background: var(--sl-color-gray-6); border: 1px solid var(--sl-color-hairline); transition: background 120ms, border-color 120ms; }
+  .dl-asset { display: inline-flex; flex-wrap: wrap; max-width: 100%; overflow-wrap: anywhere; align-items: baseline; gap: 0.15rem 0.4rem; padding: 0.35rem 0.6rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600; text-decoration: none; color: var(--sl-color-white); background: var(--sl-color-bg); border: 1px solid var(--dl-border); transition: background 120ms, border-color 120ms; }
   .dl-asset:hover { background: var(--dl-accent-soft); border-color: color-mix(in srgb, var(--dl-accent) 45%, transparent); }
-  .dl-asset small { font-weight: 500; color: var(--sl-color-gray-3); }
+  .dl-asset small { flex-basis: 100%; font-weight: 500; color: var(--sl-color-text); }
   .dl-asset--missing { opacity: 0.45; }
-  .dl-size { font-family: var(--sl-font-mono); font-size: 0.72rem; font-weight: 400; color: var(--sl-color-gray-3); }
+  .dl-size { font-family: var(--__sl-font-mono); font-size: 0.72rem; font-weight: 400; color: var(--sl-color-text); }
   .dl-size:empty { display: none; }
   .dl-none { color: var(--sl-color-gray-4); }
   .dl-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-  .dl-store { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; padding-top: 0.75rem; border-top: 1px solid var(--sl-color-hairline); font-size: 0.85rem; color: var(--sl-color-gray-3); }
+  .dl-store { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; padding-top: 0.75rem; border-top: 1px solid var(--dl-border); font-size: 0.85rem; color: var(--sl-color-text); }
   .dl-store a { color: var(--sl-color-white); text-decoration: none; border-bottom: 1px solid var(--sl-color-gray-5); }
   .dl-store a:hover { border-color: var(--dl-accent); }
 
-  .dl-more { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); margin-top: 3rem; }
-  .dl-code { margin: 0; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.8rem; background: var(--sl-color-gray-6); border: 1px solid var(--sl-color-hairline); overflow-x: auto; }
+  .dl-more { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); margin-top: 3rem; }
+  .dl-code { margin: 0; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.8rem; background: var(--sl-color-bg); border: 1px solid var(--dl-border); overflow-x: auto; }
   .dl-code code { background: none; padding: 0; }
   .dl-more .dl-link { margin-top: auto; align-self: flex-start; font-size: 0.9rem; }
-  .dl-next { margin-top: 2.5rem; font-size: 0.95rem; color: var(--sl-color-gray-2); }
+  .dl-next { margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--dl-border); font-size: 0.95rem; color: var(--sl-color-gray-2); }
 
   @media (max-width: 40rem) {
     .dl-hero { padding-top: 2rem; }
-    .dl-card { padding: 1.1rem; }
+    .dl-card, .dl-foryou { padding: 1rem; }
+    .dl-table th, .dl-table td { padding-inline: 0.2rem; }
+    .dl-primary { padding: 1rem; }
   }
 </style>
