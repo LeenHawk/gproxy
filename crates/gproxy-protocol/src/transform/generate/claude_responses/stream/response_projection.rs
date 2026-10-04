@@ -79,6 +79,7 @@ impl ResponsesToClaudeStream {
                     block,
                     arguments_done,
                     closed,
+                    ..
                 } => {
                     if block.is_none() {
                         let n = self.allocate_block()?;

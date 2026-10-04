@@ -29,6 +29,7 @@ pub(super) enum Kind {
         name: String,
         caller: Option<Option<cc::Caller>>,
         pending: String,
+        argument_bytes: usize,
         block: Option<i64>,
         arguments_done: bool,
         closed: bool,
@@ -121,6 +122,7 @@ impl ResponsesToClaudeStream {
                         name: v.name,
                         caller,
                         pending: v.arguments,
+                        argument_bytes: held,
                         block: None,
                         arguments_done: false,
                         closed: false,
@@ -295,8 +297,15 @@ impl ResponsesToClaudeStream {
         }
 
         self.bind(index, Some(id))?;
-        let block = match self.items.get(&index).map(|v| &v.kind) {
-            Some(Kind::Function { block, .. }) => *block,
+        let block = match self.items.get_mut(&index).map(|v| &mut v.kind) {
+            Some(Kind::Function {
+                block,
+                argument_bytes,
+                ..
+            }) => {
+                *argument_bytes += value.len();
+                *block
+            }
             Some(Kind::Mcp { .. }) => return Ok(()),
             _ => return Err(invalid("arguments on non-call")),
         };
@@ -343,6 +352,20 @@ impl ResponsesToClaudeStream {
         let object: serde_json::Map<String, serde_json::Value> = serde_json::from_str(value)
             .map_err(|e| invalid(format!("Claude function input requires an object: {e}")))?;
         drop(object);
+        if let Some(Item {
+            id,
+            kind: Kind::Function { argument_bytes, .. },
+            ..
+        }) = self.items.get(&index)
+        {
+            let suffix = &value[*argument_bytes..];
+            if !suffix.is_empty() {
+                let id = id
+                    .clone()
+                    .ok_or_else(|| invalid("missing function item ID"))?;
+                self.append_args(index, &id, suffix.to_owned(), out)?;
+            }
+        }
         if let Some(Item {
             kind:
                 Kind::Function {

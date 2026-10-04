@@ -78,6 +78,7 @@ impl ResponsesToChatStream {
                             call_id: v.call_id,
                             name: v.name,
                             tool_index,
+                            argument_bytes: 0,
                             sent: false,
                         },
                     },
@@ -192,6 +193,7 @@ impl ResponsesToChatStream {
                     call_id,
                     name,
                     tool_index,
+                    argument_bytes,
                     sent,
                 },
             ..
@@ -208,6 +210,7 @@ impl ResponsesToChatStream {
             )
             .map_err(|e| TransformError::invalid_result("identity.call", e.to_string()))?
             .emitted_id;
+        *argument_bytes += args.len();
         let mut function = cs::DeltaFunctionCall::builder().arguments(args).build();
         if !*sent {
             function.name = Some(Some(name.clone()));

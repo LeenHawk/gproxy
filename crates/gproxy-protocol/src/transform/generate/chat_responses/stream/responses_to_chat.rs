@@ -35,6 +35,7 @@ pub(super) enum ItemKind {
         call_id: String,
         name: String,
         tool_index: i64,
+        argument_bytes: usize,
         sent: bool,
     },
     Reasoning,
@@ -226,7 +227,19 @@ impl ResponsesToChatStream {
                 self.bind_item(v.output_index, Some(&v.item_id))?;
                 self.emit_tool(v.output_index, v.delta, &mut out)?;
             }
-            rs::StreamEvent::FunctionCallArgumentsDone(_) => {}
+            rs::StreamEvent::FunctionCallArgumentsDone(v) => {
+                self.bind_item(v.output_index, Some(&v.item_id))?;
+                if let Some(ItemState {
+                    kind: ItemKind::Function { argument_bytes, .. },
+                    ..
+                }) = self.items.get(&v.output_index)
+                {
+                    let suffix = v.arguments[*argument_bytes..].to_owned();
+                    if !suffix.is_empty() {
+                        self.emit_tool(v.output_index, suffix, &mut out)?;
+                    }
+                }
+            }
             rs::StreamEvent::Completed(_) | rs::StreamEvent::Incomplete(_) => {
                 self.finish_source(&mut out)?;
             }
