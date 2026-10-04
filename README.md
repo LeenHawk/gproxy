@@ -231,6 +231,10 @@ feature set, add `embedded-console`.
 
 ## Development
 
+An experimental native iOS 26 host supports user-started local proxy sessions
+without a VPN. See [iOS build and validation](crates/gproxy-host-ios/README.md);
+background duration and App Store acceptance have not been verified.
+
 Native builds require stable Rust, Go, and Clang. The console and docs require Node.js 22.12+ (24 LTS recommended) and pnpm. Linux desktop builds also require the WebKitGTK 4.1, GTK 3, and libsoup 3 development packages.
 
 ```sh

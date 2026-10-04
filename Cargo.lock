@@ -3015,6 +3015,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "gproxy-host-ios"
+version = "4.0.4"
+dependencies = [
+ "axum",
+ "gproxy",
+ "gproxy-app",
+ "gproxy-host-axum",
+ "hyper-util",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "gproxy-host-tauri"
 version = "4.0.4"
 dependencies = [

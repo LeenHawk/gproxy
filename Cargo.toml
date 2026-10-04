@@ -18,6 +18,7 @@ members = [
     "crates/gproxy-host-edge",
     "crates/gproxy",
     "crates/gproxy-host-tauri",
+    "crates/gproxy-host-ios",
 ]
 
 # `cargo check`, `cargo test` and `cargo clippy` with no `-p` and no

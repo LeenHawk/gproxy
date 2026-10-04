@@ -1,0 +1,34 @@
+name: Gproxy
+options:
+  deploymentTarget:
+    iOS: '26.0'
+targets:
+  Gproxy:
+    type: application
+    platform: iOS
+    sources:
+      - path: .
+        excludes: [project.yml, Info.plist, build, Gproxy.xcodeproj]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.leenhawk.gproxy.ios
+        INFOPLIST_FILE: Info.plist
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        SWIFT_VERSION: '5.0'
+        SWIFT_OBJC_BRIDGING_HEADER: Gproxy-Bridging-Header.h
+        TARGETED_DEVICE_FAMILY: '1,2'
+        ENABLE_BITCODE: NO
+        LIBRARY_SEARCH_PATHS: '$(inherited) $(SRCROOT)/../../../target/$(GPROXY_RUST_TARGET)/release'
+        GPROXY_RUST_TARGET: aarch64-apple-ios
+        OTHER_LDFLAGS: '$(inherited) -lgproxy_host_ios -lc++ -lz -lsqlite3 -liconv -lresolv -framework Security -framework CoreFoundation -framework SystemConfiguration'
+      configs:
+        Debug:
+          'GPROXY_RUST_TARGET[sdk=iphonesimulator*]': aarch64-apple-ios-sim
+        Release:
+          'GPROXY_RUST_TARGET[sdk=iphonesimulator*]': aarch64-apple-ios-sim
+    dependencies:
+      - sdk: BackgroundTasks.framework
+      - sdk: WebKit.framework
+    scheme:
+      testTargets: []

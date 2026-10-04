@@ -229,6 +229,10 @@ cargo build --locked --release -p gproxy --bin gproxy \
 
 ## 开发
 
+实验性的 iOS 26 原生入口支持用户主动开启本地代理会话，不创建 VPN。
+构建和验证方法见 [iOS 说明](crates/gproxy-host-ios/README.md)；后台持续时间
+和 App Store 审核尚未验证。
+
 原生构建需要 stable Rust、Go 和 Clang；控制台与文档需要 Node.js 22.12+（推荐 24 LTS）和 pnpm。Linux 桌面构建还需要 WebKitGTK 4.1、GTK 3 与 libsoup 3 开发包。
 
 ```sh

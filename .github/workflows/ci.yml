@@ -89,6 +89,11 @@ jobs:
         run: cargo clippy -p gproxy --bin gproxy-serverless --no-default-features --features channels,postgres,embedded-console -- -D warnings
       - run: cargo test
         if: matrix.check == 'backend'
+      - name: Native iOS host lifecycle
+        if: matrix.check == 'backend'
+        run: |
+          cargo clippy -p gproxy-host-ios --all-targets -- -D warnings
+          cargo test -p gproxy-host-ios --lib
       - run: bash scripts/with-tauri-desktop-lib.sh cargo clippy -p gproxy-host-tauri --all-targets -- -D warnings
         if: matrix.check == 'desktop'
       - run: bash scripts/with-tauri-desktop-lib.sh cargo test -p gproxy-host-tauri
