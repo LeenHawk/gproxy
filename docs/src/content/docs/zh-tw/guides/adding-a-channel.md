@@ -1,5 +1,5 @@
 ---
-title: 新增通道
+title: 新增渠道
 description: "一個 v4 渠道的結構：BaseChannel 契約、可選能力 trait、模組佈局，以及從一個 Cargo feature 到註冊完成的九步。"
 ---
 

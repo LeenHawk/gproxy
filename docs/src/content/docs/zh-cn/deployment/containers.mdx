@@ -5,11 +5,11 @@ description: 使用原生 GPROXY 容器与托管 PostgreSQL 部署网关。
 
 import { Card, CardGrid, LinkButton } from "@astrojs/starlight/components";
 
-这些模板将 **latest 稳定版** PostgreSQL 预编译程序打包进轻量 Node.js 容器，运行一个应用实例并创建托管数据库。它们复用现有 HTTP/SSE/WebSocket 转发入口，并校验发布包的 SHA-256，无需编译 Rust。普通 CLI 容器只包含 SQLite 驱动，不能直接替代此镜像。应用和数据库可能产生费用，部署前请核对所选套餐。
+这些模板将 **latest 稳定版** PostgreSQL 预编译程序打包进轻量 Node.js 容器，运行一个应用实例并连接 PostgreSQL 数据库。它们复用现有 HTTP/SSE/WebSocket 转发入口，并校验发布包的 SHA-256，无需编译 Rust。普通 CLI 容器只包含 SQLite 驱动，不能直接替代此镜像。应用和数据库可能产生费用，部署前请核对所选套餐。
 
 <CardGrid>
   <Card title="Render" icon="rocket">
-    <p>Starter 服务 + Basic PostgreSQL，自动绑定数据库并生成密码与主密钥。</p>
+    <p>免费 Web 服务，连接自备的外置 PostgreSQL，自动生成密码与主密钥。</p>
     <LinkButton href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev" variant="secondary" icon="external">部署到 Render</LinkButton>
   </Card>
   <Card title="Heroku" icon="rocket">
@@ -24,11 +24,11 @@ import { Card, CardGrid, LinkButton } from "@astrojs/starlight/components";
 
 ## Render
 
-1. 点击上方 Render 卡片中的部署按钮，检查仓库根目录 `render.yaml` Blueprint：Starter Web 服务和 Basic PostgreSQL 数据库。
-2. 部署这两个资源。数据库连接自动绑定，管理员密码和加密主密钥由 Render 生成。
+1. 点击上方 Render 卡片中的部署按钮，检查仓库根目录 `render.yaml` Blueprint：免费 Web 服务，使用外置 PostgreSQL 数据库。
+2. 将 `GPROXY_DATABASE_URL` 填为自备的外置 PostgreSQL 连接地址，然后部署服务。数据库需允许 Render 连接，连接地址应保留数据库提供商要求的 SSL 参数。管理员密码和加密主密钥由 Render 生成。
 3. 在服务的 **Environment** 设置中查看并保存 `GPROXY_ADMIN_PASSWORD` 和 `GPROXY_MASTER_KEY`。打开服务地址的 `/console/`，使用 `admin` 登录。
 
-数据库默认只接受内网连接。模板采用付费数据库，避免免费数据库到期失效。健康检查使用 `8787` 端口的 `/healthz`。
+模板不创建数据库。Render Web 服务默认使用免费套餐，外置数据库的费用与限制取决于所选提供商。免费 Web 服务空闲时会休眠，再次请求可能需要等待唤醒。健康检查使用 `8787` 端口的 `/healthz`。
 
 ## Heroku
 
