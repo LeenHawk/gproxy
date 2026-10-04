@@ -21,7 +21,10 @@
 //! * **Credential.** A device login at `auth.x.ai` and a form-encoded
 //!   refresh; the account subject and email come out of the id token at login
 //!   and live in the credential's metadata (`oauth`).
-//! * **Quota.** `/billing?format=credits` on the chat proxy (`quota`).
+//! * **Models.** Reasoning effort support follows the account's catalogue,
+//!   cached in scoped channel state (`models`).
+//! * **Quota.** `/billing?format=credits` and optional `/settings` on the
+//!   chat proxy (`quota`).
 //!
 //! Session identity: `design/session-identity.md` reads Grok Build's session
 //! from `x-grok-session-id`, and says `x-grok-conv-id` is *not* it — the CLI
@@ -43,6 +46,7 @@
 
 mod auth;
 mod config;
+mod models;
 mod oauth;
 mod quota;
 mod shape;
@@ -56,14 +60,15 @@ pub use config::{
 pub use quota::{TOP_UP_URL, USAGE_DIMENSION};
 pub use usage::{COST_TICKS_METRIC, UPSTREAM_COST_METRIC, UPSTREAM_PRICED_DIMENSION};
 
-use crate::channel::{UsageExtras, 
+use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
     ConfigKeyKind, CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
-    OAuthDeviceCode, PrepareContext, ProviderView, QuotaQuery, forwardable,
+    OAuthDeviceCode, OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaQuery,
+    UsageExtras, forwardable,
 };
 use crate::channels::shared::compatible::http::strip_query_auth;
 use config::base_url;
-use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
+use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
 use serde_json::{Map, Value};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -80,6 +85,11 @@ pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
         "x-grok-client-version",
         "x-grok-client-identifier",
         "x-grok-client-mode",
+        "x-grok-req-id",
+        "x-grok-agent-id",
+        "x-grok-turn-idx",
+        "x-grok-transient-retry",
+        "x-grok-deployment-id",
         "x-xai-token-auth",
         "x-authenticateresponse",
         "user-agent",
@@ -97,6 +107,7 @@ const CHANNEL_HEADERS: &[&str] = &[
     "x-grok-client-mode",
     "x-grok-conv-id",
     "x-grok-user-id",
+    "x-grok-model-override",
     "x-userid",
     "x-email",
     "user-agent",
@@ -218,6 +229,27 @@ impl BaseChannel for GrokBuild {
         ID
     }
 
+    fn list_models<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        models::list(self, context)
+    }
+
+    fn generate_content<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        models::generate(self, Operation::GenerateContent, context)
+    }
+
+    fn stream_generate_content<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        models::generate(self, Operation::StreamGenerateContent, context)
+    }
+
     /// An xAI account through the Grok Build CLI: a device login, a
     /// refreshable token, and the credit window the chat proxy reports.
     fn descriptor(&self) -> ChannelDescriptor {
@@ -317,6 +349,22 @@ impl BaseChannel for GrokBuild {
         );
         let (body, conversation) = match body {
             HttpBody::Bytes(bytes) if generation && dialect == Dialect::OpenAi => {
+                let bytes = if let Some(conversation) = source
+                    .get("x-grok-conv-id")
+                    .and_then(|value| value.to_str().ok())
+                    && !conversation.trim().is_empty()
+                {
+                    let mut value: Value = serde_json::from_slice(&bytes)
+                        .map_err(|error| shape::invalid(error.to_string()))?;
+                    if let Some(object) = value.as_object_mut() {
+                        object
+                            .entry("prompt_cache_key")
+                            .or_insert_with(|| Value::String(conversation.into()));
+                    }
+                    gproxy_protocol::connection::Bytes::from(value.to_string())
+                } else {
+                    bytes
+                };
                 let shaped = shape::request(&bytes)?;
                 let conversation = shape::cache_key(&shaped);
                 (HttpBody::Bytes(shaped), conversation)
@@ -328,7 +376,12 @@ impl BaseChannel for GrokBuild {
             // caller wrote them; the conversation id is still mirrored when
             // the caller stated one.
             HttpBody::Bytes(bytes) => {
-                let conversation = shape::cache_key(&bytes);
+                let conversation = shape::cache_key(&bytes).or_else(|| {
+                    source
+                        .get("x-grok-conv-id")
+                        .and_then(|value| value.to_str().ok())
+                        .map(str::to_owned)
+                });
                 (HttpBody::Bytes(bytes), conversation)
             }
             other => (other, None),
@@ -369,6 +422,36 @@ impl BaseChannel for GrokBuild {
             reply,
             conversation.as_deref(),
         )?;
+        if surface == Surface::Media
+            && !config
+                .headers
+                .keys()
+                .any(|name| name.eq_ignore_ascii_case("user-agent"))
+        {
+            headers.insert(
+                http::header::USER_AGENT,
+                http::HeaderValue::from_str(&auth::user_agent(true))
+                    .map_err(|_| ChannelError::InvalidConfig("invalid CLI user agent".into()))?,
+            );
+        }
+        if generation {
+            if !headers.contains_key("x-grok-req-id") {
+                headers.insert(
+                    "x-grok-req-id",
+                    http::HeaderValue::from_str(&shape::uuid()?).unwrap(),
+                );
+            }
+            if let HttpBody::Bytes(bytes) = &body
+                && let Ok(value) = serde_json::from_slice::<Value>(bytes)
+                && let Some(model) = value.get("model").and_then(Value::as_str)
+            {
+                headers.insert(
+                    "x-grok-model-override",
+                    http::HeaderValue::from_str(model)
+                        .map_err(|_| shape::invalid("model is not a valid header value"))?,
+                );
+            }
+        }
         let mut builder = http::Request::builder().method(method).uri(uri);
         if let Some(map) = builder.headers_mut() {
             *map = headers;

@@ -135,6 +135,15 @@ Build's `x-grok-session-id`, and names the per-request and per-turn ids
 beside them as explicitly not sessions. Kiro has no entry in that ladder and
 its client sends none.
 
+Grok Build Responses default to
+`store: false` and request encrypted reasoning for replay. Requests with a
+reasoning effort consult the account's model catalogue, cached in scoped
+channel state for five minutes; an unavailable catalogue leaves the caller's
+effort intact. Billing reads both `/billing?format=credits` and optional
+`/settings`, exposing prepaid and on-demand USD amounts, historical usage,
+subscription labels and shared-credit status. On-demand and history readings
+are observations and do not independently block account selection.
+
 ## Vendors That Need No Channel
 
 A channel is code to maintain against someone else's wire. A vendor earns one
