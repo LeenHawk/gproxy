@@ -48,7 +48,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang cmake g++ libclang-dev make pkg-config ninja-build
-          sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'ndk;30.0.15729638'
+          sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'build-tools;34.0.0' 'ndk;30.0.15729638'
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
       - name: Build pinned Android UPX
         run: bash scripts/install-android-upx.sh

@@ -25,6 +25,9 @@ val privacyDir = rootProject.file("../../../../distribution/mobile/privacy")
 
 android {
     compileSdk = 36
+    buildToolsVersion = "36.1.0"
+    ndkVersion = "30.0.15729638"
+    providers.environmentVariable("ANDROID_NDK_HOME").orNull?.let { ndkPath = it }
     namespace = "com.leenhawk.gproxy.app"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"

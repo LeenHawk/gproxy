@@ -6,10 +6,20 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def remove_tree(path):
+    def readonly(function, name, error):
+        if os.name != "nt" or not isinstance(error, PermissionError):
+            raise error
+        os.chmod(name, stat.S_IREAD | stat.S_IWRITE)
+        function(name)
+    shutil.rmtree(path, onexc=readonly)
 
 
 def hashes(directory):
@@ -49,7 +59,7 @@ def reproduce(command, output, result, canonical):
     try:
         attempts = []
         for attempt in ("first", "second"):
-            subprocess.run(["git", "clone", "--quiet", "--shared", "--no-checkout", str(ROOT), str(work)], check=True)
+            subprocess.run(["git", "clone", "--quiet", "--no-hardlinks", "--shared", "--no-checkout", str(ROOT), str(work)], check=True)
             subprocess.run(["git", "checkout", "--quiet", "--detach", commit], cwd=work, check=True)
             print(f"{attempt}: {commit} at {work}", flush=True)
             subprocess.run(command, cwd=work, env=env, check=True)
@@ -62,7 +72,7 @@ def reproduce(command, output, result, canonical):
             if not manifest:
                 raise ValueError("Cannot verify an empty output directory")
             attempts.append(manifest)
-            shutil.rmtree(work)
+            remove_tree(work)
         first, second = attempts
         report["files"] = [{"name": name, "first": first.get(name), "second": second.get(name),
                             "equal": first.get(name) == second.get(name)}
@@ -75,7 +85,7 @@ def reproduce(command, output, result, canonical):
         raise
     finally:
         (result / "report.json").write_text(json.dumps(report, indent=2) + "\n")
-        shutil.rmtree(canonical)
+        remove_tree(canonical)
     return report["passed"]
 
 

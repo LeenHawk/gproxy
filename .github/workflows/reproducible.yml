@@ -1,8 +1,6 @@
 name: Reproducible builds
 
 on:
-  push:
-    branches: [build/reproducible-all-platforms]
   workflow_dispatch:
     inputs:
       target:
@@ -95,11 +93,41 @@ jobs:
           mkdir -p dist/reproducible
           docker image inspect gproxy-reproduce-tools --format '{{.Id}}' > dist/reproducible/toolchain-image.txt
       - name: Build and compare two independent package sets
-        run: python scripts/reproduce-build.py --result dist/reproducible -- bash scripts/reproduce-dispatch.sh "$TARGET" "$KIND"
+        run: python scripts/reproduce-build.py --result dist/reproducible -- "$(command -v bash)" scripts/reproduce-dispatch.sh "$TARGET" "$KIND"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: reproducible-${{ matrix.kind }}-${{ matrix.target }}
           path: dist/reproducible/
           if-no-files-found: warn
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: repro-report-${{ matrix.kind }}-${{ matrix.target }}
+          path: dist/reproducible/report.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  coverage:
+    name: Check complete target coverage
+    if: always() && !cancelled()
+    needs: [inventory, rebuild]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: repro-report-*
+          path: dist/reproducible-reports
+      - name: Require every requested comparison and release package
+        env:
+          REPRO_MATRIX: ${{ needs.inventory.outputs.matrix }}
+          REPRO_FULL_MATRIX: ${{ (inputs.target == '' || inputs.target == 'all') && (inputs.kind == '' || inputs.kind == 'all') }}
+        run: python3 scripts/check-reproducible-reports.py dist/reproducible-reports
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: reproducible-coverage
+          path: dist/reproducible-summary.json
           retention-days: 14

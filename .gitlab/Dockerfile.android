@@ -23,6 +23,6 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && mv /opt/android/cmdline-tools/cmdline-tools /opt/android/cmdline-tools/latest \
     && rm /tmp/android.zip \
     && yes | sdkmanager --licenses >/dev/null
-RUN sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.1.0' 'ndk;30.0.15729638' \
+RUN sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.1.0' 'build-tools;34.0.0' 'ndk;30.0.15729638' \
     && rustup target add x86_64-linux-android aarch64-linux-android \
     && cargo install cargo-ndk --locked --version 4.1.2

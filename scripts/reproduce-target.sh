@@ -71,11 +71,11 @@ case "$kind" in
     bash scripts/package-tauri-release.sh
     ;;
   cli | headless)
-    features=()
+    features=(--locked)
     if [ "$kind" = headless ]; then
       export ARTIFACT_NAME="$(jq -r --arg target "$TARGET_TRIPLE" '.include[] | select(.target==$target) | .headless_artifact' scripts/release-targets.json)"
       export GPROXY_HEADLESS=true PACKAGE_INSTALLERS=false
-      features=(--no-default-features --features channels,memory,fs,bundled-vocabulary)
+      features=(--locked --no-default-features --features channels,memory,fs,bundled-vocabulary)
     fi
     case "$BUILDER" in
       cargo-alpine) bash scripts/build-musl.sh "$TARGET_TRIPLE" ;;
@@ -86,7 +86,7 @@ case "$kind" in
           [ "$kind" != headless ] || options=(-Headless)
           pwsh -NoProfile -File scripts/build-windows-release.ps1 -Target "$TARGET_TRIPLE" "${options[@]}"
         else
-          python3 scripts/reproducible-run.py cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" "${features[@]}"
+          python3 scripts/reproducible-run.py cargo build --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" "${features[@]}"
         fi
         ;;
       *) echo "Unsupported reproducibility builder: $BUILDER" >&2; exit 1 ;;

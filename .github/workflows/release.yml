@@ -154,7 +154,7 @@ jobs:
       - name: Install Android toolchain
         if: matrix.kind == 'application' && matrix.os == 'android'
         run: |
-          sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'ndk;30.0.15729638'
+          sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'build-tools;34.0.0' 'ndk;30.0.15729638'
           echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0

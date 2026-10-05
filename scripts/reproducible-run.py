@@ -4,6 +4,7 @@ import importlib.util
 import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -45,6 +46,7 @@ if __name__ == "__main__":
         command.pop(0)
     if not command:
         sys.exit("usage: reproducible-run.py COMMAND [ARG ...]")
+    command[0] = shutil.which(command[0]) or command[0]
     target = None
     if "--target" in command:
         target = command[command.index("--target") + 1]
