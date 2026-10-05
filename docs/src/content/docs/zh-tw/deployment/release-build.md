@@ -191,6 +191,15 @@ bash scripts/check-docs.sh
 
 ## 釋出
 
+在工作目錄乾淨、目前提交已進入 `main` 後執行 `bash scripts/release.sh`。
+正式版推送標籤前，會用 `pnpm update --latest` 更新前端與文件站的 npm 相依套件，
+用 `cargo upgrade` 更新 Rust registry 相依版本限制（包含主要版本與固定版本），
+再用 `cargo update` 更新 `Cargo.lock`。需先安裝輔助工具：
+`cargo install cargo-edit --locked`。
+如果更新改變了已追蹤檔案，指令碼會在建立或推送標籤前停止。
+先處理相容性變更、執行上面的檢查，再提交並推送到 `main`，然後重新執行指令碼。
+預先發行標籤不執行這項相依套件更新。
+
 版本 tag 必須與 workspace 版本一致，並提供 `docs/release-notes/v<版本>.md`。釋出流程構建包、生成簽名更新清單並上傳附件；構建或簽名要求未滿足時，不能視為釋出完成。
 
 版本 tag 還會呼叫 `scripts/publish-crates.sh` 釋出選定的 MIT 庫，其他 crate 使用 git 或路徑依賴。詳情見[嵌入核心庫](/zh-tw/reference/embedding/)。

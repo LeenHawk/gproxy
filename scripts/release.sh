@@ -25,7 +25,28 @@ if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     echo "$tag already points at a different commit" >&2
     exit 1
   fi
-else
+fi
+
+# Stable tags must include the latest dependency updates, reviewed and committed
+# on main. Do not publish the old commit after an update changes the worktree.
+if [[ "$version" != *-* ]]; then
+  command -v pnpm >/dev/null || { echo "pnpm is required to refresh release dependencies" >&2; exit 1; }
+  command -v cargo >/dev/null || { echo "cargo is required to refresh release dependencies" >&2; exit 1; }
+  cargo upgrade --version >/dev/null 2>&1 || {
+    echo "cargo-upgrade is required; install it with: cargo install cargo-edit --locked" >&2
+    exit 1
+  }
+  pnpm --dir console update --latest
+  pnpm --dir docs update --latest
+  cargo upgrade --manifest-path Cargo.toml --incompatible allow --pinned allow
+  cargo update
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "dependencies updated; validate, commit and push the changes to main, then rerun scripts/release.sh" >&2
+    exit 1
+  fi
+fi
+
+if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
   git tag -a "$tag" -m "gproxy $tag"
 fi
 

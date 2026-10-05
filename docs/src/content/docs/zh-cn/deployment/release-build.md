@@ -191,6 +191,15 @@ bash scripts/check-docs.sh
 
 ## 发布
 
+在工作区干净、当前提交已进入 `main` 后执行 `bash scripts/release.sh`。
+正式版推送标签前，会用 `pnpm update --latest` 更新前端和文档站的 npm 依赖，
+用 `cargo upgrade` 更新 Rust 注册表依赖约束（包括大版本和固定版本），
+再用 `cargo update` 刷新 `Cargo.lock`。需先安装辅助工具：
+`cargo install cargo-edit --locked`。
+如果更新改变了已跟踪文件，脚本会在创建或推送标签前停止。
+先处理兼容性变更、执行上面的检查，再提交并推送到 `main`，然后重新运行脚本。
+预发布标签不执行这项依赖刷新。
+
 版本 tag 必须与 workspace 版本一致，并提供 `docs/release-notes/v<版本>.md`。发布流程构建包、生成签名更新清单并上传附件；构建或签名要求未满足时，不能视为发布完成。
 
 版本 tag 还会调用 `scripts/publish-crates.sh` 发布选定的 MIT 库，其他 crate 使用 git 或路径依赖。详情见[嵌入核心库](/zh-cn/reference/embedding/)。
