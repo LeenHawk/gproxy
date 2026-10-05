@@ -34,8 +34,8 @@ Application ZIP 保留桌面資源，macOS ZIP 包含完整 `.app`。
 鴻蒙構建使用快取工具鏈映像和固定版本的實驗性 Tauri 分支，其他平台繼續使用穩定版。
 HAP 安裝前需要簽名，尚未做真機驗證；暫不提供背景服務。
 
-nightly 附件使用固定名稱，提交 SHA 記錄在更新清單中。Linux x86_64 在 Ubuntu 22.04 構建，
-ARM64 在 Ubuntu 24.04 構建，安裝時需要發行版提供 WebKitGTK 4.1。
+nightly 附件使用固定名稱，提交 SHA 記錄在更新清單中。GNU Linux 應用依賴發行版的
+GTK 3 與 WebKitGTK 4.1；Alpine APK 面向 musl，musl 應用 DEB 內建圖形執行環境並使用 Bubblewrap。
 macOS 使用 ad-hoc 簽名，尚未接入 Developer ID 簽名和公證。
 
 Windows 使用 Microsoft Store 的包身份。`release` 環境需配置四個變數：
@@ -96,7 +96,7 @@ Release 工作流程獨立構建以下無前端 ZIP 包，無需等待前端構�
 | 平台 | 架構 | 下載包 |
 | --- | --- | --- |
 | Linux GNU | x86_64、aarch64、riscv64 | `gproxy-headless-linux-<arch>.zip` |
-| Linux musl | x86_64、aarch64、riscv64 | `gproxy-headless-linux-<arch>-musl.zip` |
+| Linux musl | x86_64、aarch64、riscv64 | `gproxy-headless-linux-<arch>-musl.zip`, `gproxy-headless-linux-<arch>-musl.apk` |
 | Windows | x86_64、aarch64 | `gproxy-headless-windows-<arch>.zip` |
 | macOS | x86_64、aarch64 | `gproxy-headless-macos-<arch>.zip` |
 | Android（Termux） | x86_64、aarch64 | `gproxy-headless-android-<arch>.zip` |
@@ -199,6 +199,7 @@ bash scripts/check-docs.sh
 如果更新改變了已追蹤檔案，指令碼會在建立或推送標籤前停止。
 先處理相容性變更、執行上面的檢查，再提交並推送到 `main`，然後重新執行指令碼。
 預先發行標籤不執行這項相依套件更新。
+RSA/getrandom、JNI/Tauri、Codex reqwest 與 WebSocket 設定的相容橋接依賴保留上游要求的版本線，仍透過 `cargo update` 更新相容版本。
 
 版本 tag 必須與 workspace 版本一致，並提供 `docs/release-notes/v<版本>.md`。釋出流程構建包、生成簽名更新清單並上傳附件；構建或簽名要求未滿足時，不能視為釋出完成。
 

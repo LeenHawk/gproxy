@@ -38,7 +38,10 @@ if [[ "$version" != *-* ]]; then
   }
   pnpm --dir console update --latest
   pnpm --dir docs update --latest
-  cargo upgrade --manifest-path Cargo.toml --incompatible allow --pinned allow
+  # These bridge upstream version-specific types/backends; see Cargo.toml.
+  # cargo update still refreshes every compatible version in their lock entries.
+  cargo upgrade --manifest-path Cargo.toml --incompatible allow --pinned allow \
+    --exclude getrandom --exclude jni --exclude reqwest --exclude tungstenite
   cargo update
   if ! git diff --quiet || ! git diff --cached --quiet; then
     echo "dependencies updated; validate, commit and push the changes to main, then rerun scripts/release.sh" >&2

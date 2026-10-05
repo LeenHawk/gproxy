@@ -1,0 +1,1 @@
+Capture payloads now support compression, deduplication and configurable retention. Default retention is 7 days / 2 GiB; metadata is retained when payloads expire. Add system theme selection, batch history deletion and signed publisher announcements. Improve model metadata, upstream CLI compatibility and streaming tool calls. Back up your database before upgrading.

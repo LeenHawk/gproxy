@@ -34,8 +34,8 @@ Application ZIP 保留桌面资源，macOS ZIP 包含完整 `.app`。
 鸿蒙构建使用缓存工具链镜像和固定版本的实验性 Tauri 分支，其他平台继续使用稳定版。
 HAP 已完成模拟器验证，发布包未签名，安装前需要自行签名。已实现持续后台运行支持，但可用性取决于设备、系统版本及授权；应用进程退出后代理会停止。
 
-nightly 附件使用固定名称，提交 SHA 记录在更新清单中。Linux x86_64 在 Ubuntu 22.04 构建，
-ARM64 在 Ubuntu 24.04 构建，安装时需要发行版提供 WebKitGTK 4.1。
+nightly 附件使用固定名称，提交 SHA 记录在更新清单中。GNU Linux 应用依赖发行版的
+GTK 3 和 WebKitGTK 4.1；Alpine APK 面向 musl，musl 应用 DEB 内置图形运行库并使用 Bubblewrap。
 macOS 使用 ad-hoc 签名，尚未接入 Developer ID 签名和公证。
 
 Windows 使用 Microsoft Store 的包身份。`release` 环境需配置四个变量：
@@ -96,7 +96,7 @@ Release 工作流独立构建以下无前端 ZIP 包，无需等待前端构建�
 | 平台 | 架构 | 下载包 |
 | --- | --- | --- |
 | Linux GNU | x86_64、aarch64、riscv64 | `gproxy-headless-linux-<arch>.zip` |
-| Linux musl | x86_64、aarch64、riscv64 | `gproxy-headless-linux-<arch>-musl.zip` |
+| Linux musl | x86_64、aarch64、riscv64 | `gproxy-headless-linux-<arch>-musl.zip`, `gproxy-headless-linux-<arch>-musl.apk` |
 | Windows | x86_64、aarch64 | `gproxy-headless-windows-<arch>.zip` |
 | macOS | x86_64、aarch64 | `gproxy-headless-macos-<arch>.zip` |
 | Android（Termux） | x86_64、aarch64 | `gproxy-headless-android-<arch>.zip` |
@@ -199,6 +199,7 @@ bash scripts/check-docs.sh
 如果更新改变了已跟踪文件，脚本会在创建或推送标签前停止。
 先处理兼容性变更、执行上面的检查，再提交并推送到 `main`，然后重新运行脚本。
 预发布标签不执行这项依赖刷新。
+RSA/getrandom、JNI/Tauri、Codex reqwest 和 WebSocket 配置的兼容桥接依赖保留上游要求的版本线，仍通过 `cargo update` 更新兼容版本。
 
 版本 tag 必须与 workspace 版本一致，并提供 `docs/release-notes/v<版本>.md`。发布流程构建包、生成签名更新清单并上传附件；构建或签名要求未满足时，不能视为发布完成。
 
