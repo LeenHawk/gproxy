@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../reproducible-env.sh"
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
 tools_dir="$HOME/.local/share/gproxy-fdroid"

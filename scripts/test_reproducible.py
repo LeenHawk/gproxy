@@ -1,0 +1,75 @@
+"""Regression checks for release reproducibility, without publishing artifacts."""
+import importlib.util
+import os
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+import zipfile
+
+
+def module(name):
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(name + ".py"))
+    value = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(value)
+    return value
+
+
+archive = module("reproducible-archive")
+verify = module("verify-reproducible")
+build = module("reproducible-run")
+
+
+class ReproducibleTests(unittest.TestCase):
+    def test_archive_ignores_order_and_mtime_but_preserves_contents_and_modes(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "1700000000"}):
+            root = Path(directory)
+            for attempt in (1, 2):
+                tree = root / str(attempt)
+                tree.mkdir()
+                for name in ("binary", "data") if attempt == 1 else ("data", "binary"):
+                    path = tree / name
+                    path.write_bytes(name.encode())
+                    path.chmod(0o755 if name == "binary" else 0o644)
+                    os.utime(path, (attempt * 1000000000, attempt * 1000000000))
+                archive.archive(tree, root / f"{attempt}.zip", ["."])
+            self.assertEqual((root / "1.zip").read_bytes(), (root / "2.zip").read_bytes())
+            with zipfile.ZipFile(root / "1.zip") as package:
+                self.assertEqual(package.read("binary"), b"binary")
+                self.assertEqual(package.getinfo("binary").external_attr >> 16 & 0o777, 0o755)
+
+    @unittest.skipIf(os.name == "nt", "Creating Windows symlinks requires extra privileges")
+    def test_bundle_symlink_is_not_dereferenced(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "1700000000"}):
+            root = Path(directory)
+            (root / "app").mkdir()
+            (root / "app/Applications").symlink_to("/Applications")
+            archive.archive(root / "app", root / "bundle.zip", ["."])
+            with zipfile.ZipFile(root / "bundle.zip") as package:
+                self.assertEqual(package.read("Applications"), b"/Applications")
+                self.assertEqual(package.getinfo("Applications").external_attr >> 16 & 0o170000, 0o120000)
+
+    def test_missing_targets_and_changed_bytes_cannot_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first, second = root / "a", root / "b"
+            first.mkdir()
+            second.mkdir()
+            (first / "app.zip").write_bytes(b"a")
+            (second / "app.zip").write_bytes(b"b")
+            result = verify.compare(first, second, ["app.zip", "missing.apk"])
+            self.assertEqual([row["status"] for row in result], ["different", "missing"])
+
+    def test_build_preserves_existing_rust_flags_and_source_identity(self):
+        with patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "1700000000", "GPROXY_BUILD_HASH": "a" * 40,
+                                    "RUSTFLAGS": "-C target-feature=+crt-static"}, clear=True):
+            env = build.build_environment("aarch64-pc-windows-msvc")
+        flags = env["CARGO_ENCODED_RUSTFLAGS"].split("\x1f")
+        self.assertIn("target-feature=+crt-static", flags)
+        self.assertIn("link-arg=/Brepro", flags)
+        self.assertEqual(env["SOURCE_DATE_EPOCH"], "1700000000")
+        self.assertEqual(env["GPROXY_BUILD_HASH"], "a" * 40)
+
+
+if __name__ == "__main__":
+    unittest.main()

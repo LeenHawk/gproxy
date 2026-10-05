@@ -15,10 +15,10 @@ docker run --rm --platform "$platform" \
   --env GOCACHE=/workspace/target/.cache/go-build \
   --env GOMODCACHE=/workspace/target/.cache/go-mod \
   --env 'RUSTFLAGS=-C target-feature=+crt-static' \
-  --env GPROXY_BUILD_HASH \
+  --env SOURCE_DATE_EPOCH --env GPROXY_BUILD_HASH \
   gproxy-musl-builder sh -eu -c '
     native_target="$(rustc -vV | sed -n "s/^host: //p")"
-    cargo build --locked --release -p gproxy --bin gproxy-serverless \
+    python3 scripts/reproducible-run.py cargo build --locked --release -p gproxy --bin gproxy-serverless \
       --target "$native_target" --no-default-features --features channels,postgres,embedded-console
     mkdir -p "target/$1/release"
     if [ "$native_target" != "$1" ]; then

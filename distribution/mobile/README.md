@@ -123,10 +123,10 @@ the upstream signature are optional and have not been established.
 
 ### Automatic release submission
 
-After the Release workflow successfully publishes a stable release, it calls
-`.github/workflows/fdroid-publish.yml`. Dev/nightly and beta/staging publications
-do not submit to F-Droid. The workflow can also be dispatched manually with a
-published version and defaults to a read-only dry run.
+Automatic F-Droid MR submission is temporarily disabled. The Release workflow
+does not call `.github/workflows/fdroid-publish.yml`, and the F-Droid workflow is
+disabled on GitHub. Once explicitly re-enabled, it only supports manual dispatch
+with a published version and defaults to a read-only dry run.
 
 The `release` GitHub environment must contain `FDROID_GITLAB_TOKEN`, a GitLab
 project access token with `api` scope and Developer access to the public
@@ -140,6 +140,12 @@ inclusion, the script retains accepted build history and reviewer changes to
 the recipe when submitting the next version. If F-Droid's own tag updater has
 already added that version, or the version is already pending, submission is
 skipped. Older releases never replace a newer pending or accepted version.
+MR descriptions use the upstream [App inclusion](https://gitlab.com/fdroid/fdroiddata/-/blob/master/.gitlab/merge_request_templates/App%20inclusion.md)
+and [App update](https://gitlab.com/fdroid/fdroiddata/-/blob/master/.gitlab/merge_request_templates/App%20update.md)
+checklists stored in `distribution/fdroid/app-*.md`. Review the checklist in the
+MR; automation does not mark unverified requirements as complete. Existing
+checklist edits are preserved when the pending version advances. Keep these
+copies in sync if F-Droid changes its submission requirements.
 F-Droid CI and maintainer approval still determine acceptance/publication;
 successful submission does not mean the app is available in the repository.
 

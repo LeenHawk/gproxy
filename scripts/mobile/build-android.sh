@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Source build for store distribution. No release APK is downloaded or repacked.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../reproducible-env.sh"
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
 distribution="${1:?usage: build-android.sh fdroid|google-play|appgallery [aarch64|x86_64]}"

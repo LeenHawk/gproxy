@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../reproducible-env.sh"
 source scripts/gitlab/env.sh
 mkdir -p dist/release
 case "${1:?cli|application|edge}" in
   cli)
     echo "Building CLI / server: $ARTIFACT_NAME"
     case "$BUILDER" in
-      cargo) cargo build --locked --release --bin gproxy --target "$TARGET_TRIPLE" ;;
+      cargo) python3 scripts/reproducible-run.py cargo build --locked --release --bin gproxy --target "$TARGET_TRIPLE" ;;
       cargo-alpine) scripts/build-musl.sh "$TARGET_TRIPLE" ;;
       termux) bash scripts/build-termux.sh "$TARGET_TRIPLE" ;;
     esac

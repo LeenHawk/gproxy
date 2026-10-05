@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/reproducible-env.sh"
 
 # Records what a build actually resolved. Image tags float within a pinned
 # line, so the tag alone does not identify a build six months later — this
@@ -49,6 +50,7 @@ else
 fi
 
 jq -n \
+  --argjson source_date_epoch "$SOURCE_DATE_EPOCH" \
   --arg version "$GPROXY_VERSION" \
   --arg commit "$commit" \
   --arg tag "${GITHUB_REF_NAME:-}" \
@@ -61,6 +63,7 @@ jq -n \
   --argjson upx "${UPX_ENABLED:-false}" \
   --argjson images "$images" \
   '{version: $version, commit: $commit, tag: $tag, target: $target,
+    source_date_epoch: $source_date_epoch,
     builder: $builder,
     toolchain: {rustc: $rustc, node: $node, pnpm: $pnpm},
     compression: {upx: $upx, upx_version: $upx_version},

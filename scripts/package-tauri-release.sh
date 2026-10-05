@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build the application host, keeping its identity separate from server archives.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/reproducible-env.sh"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 : "${TARGET_TRIPLE:?}"
@@ -36,14 +37,14 @@ case "$TARGET_OS:$TARGET_TRIPLE" in
     if [ "$TARGET_OS" = macos ]; then
       apps=("$root/target/$TARGET_TRIPLE/release/bundle/macos/"*.app)
       test "${#apps[@]}" -eq 1 && test -d "${apps[0]}"
-      ditto -c -k --sequesterRsrc --keepParent "${apps[0]}" "$output/$ARTIFACT_NAME.zip"
+      python3 "$root/scripts/reproducible-archive.py" --root "$(dirname "${apps[0]}")" --output "$output/$ARTIFACT_NAME.zip" "$(basename "${apps[0]}")"
     else
       work="$(mktemp -d)"
       # Preserve the DEB payload, including desktop resources, in the ZIP.
       dpkg-deb -x "${files[0]}" "$work"
       cp "$root/README.md" "$root/LICENSE" "$work/"
       printf '%s\n' 'Run ./usr/bin/gproxy-desktop. GTK 3 and WebKitGTK 4.1 runtime libraries are required; the DEB installs those dependencies automatically.' > "$work/RUN.txt"
-      (cd "$work" && zip -9 -q -r "$output/$ARTIFACT_NAME.zip" .)
+      python3 "$root/scripts/reproducible-archive.py" --root "$work" --output "$output/$ARTIFACT_NAME.zip"
       rm -rf "$work"
     fi
     ;;
@@ -83,19 +84,23 @@ case "$TARGET_OS:$TARGET_TRIPLE" in
     apk_dir=crates/gproxy-host-tauri/gen/android/app/build/outputs/apk
     mapfile -t files < <(find "$apk_dir" -name '*-release-unsigned.apk')
     test "${#files[@]}" -eq 1
+    work="$(mktemp -d)"
+    trap 'rm -rf "$work"' EXIT
+    "$(android_build_tool "$sdk" zipalign)" -f -P 16 4 "${files[0]}" "$work/aligned.apk"
+    if [ "${GPROXY_UNSIGNED_BUILD:-0}" = 1 ]; then
+      cp "$work/aligned.apk" "$output/$ARTIFACT_NAME.apk"
+    else
     : "${ANDROID_SIGNING_KEYSTORE_B64:?}"
     : "${ANDROID_SIGNING_KEYSTORE_PASSWORD:?}"
     : "${ANDROID_SIGNING_KEY_ALIAS:?}"
-    work="$(mktemp -d)"
-    trap 'rm -rf "$work"' EXIT
     printf '%s' "$ANDROID_SIGNING_KEYSTORE_B64" | base64 -d > "$work/key.jks"
     chmod 600 "$work/key.jks"
-    "$(android_build_tool "$sdk" zipalign)" -f -P 16 4 "${files[0]}" "$work/aligned.apk"
     signer_args=(--ks "$work/key.jks" --ks-pass env:ANDROID_SIGNING_KEYSTORE_PASSWORD --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" --v4-signing-enabled false)
     if [ -n "${ANDROID_SIGNING_KEY_PASSWORD:-}" ]; then signer_args+=(--key-pass env:ANDROID_SIGNING_KEY_PASSWORD); fi
     signer="$(android_build_tool "$sdk" apksigner)"
     "$signer" sign "${signer_args[@]}" --out "$output/$ARTIFACT_NAME.apk" "$work/aligned.apk"
     "$signer" verify --verbose "$output/$ARTIFACT_NAME.apk"
+    fi
     ;;
   *) echo "unsupported application OS: $TARGET_OS" >&2; exit 1 ;;
 esac

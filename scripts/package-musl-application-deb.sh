@@ -2,6 +2,7 @@
 # A glibc desktop cannot load Alpine's GTK/WebKit libraries. Ship their musl
 # runtime privately and enter it with bubblewrap, keeping the host network/home.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/reproducible-env.sh"
 umask 022
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
@@ -23,7 +24,9 @@ cp /usr/share/apk/keys/"$alpine_arch"/*.pub distribution/alpine/gproxy-alpine.rs
 cp /etc/apk/repositories "$runtime/etc/apk/"
 # Cross packaging must not execute foreign maintainer scripts. Generate the
 # graphical caches explicitly below with host tools or the RISC-V emulator.
-fakeroot apk --root "$runtime" --arch "$alpine_arch" --initdb --no-scripts \
+trust_args=()
+if [ "${GPROXY_UNSIGNED_BUILD:-0}" = 1 ]; then trust_args=(--allow-untrusted); fi
+fakeroot apk "${trust_args[@]}" --root "$runtime" --arch "$alpine_arch" --initdb --no-scripts \
   add --no-cache alpine-baselayout ca-certificates-bundle "$apk_file"
 glib-compile-schemas "$runtime/usr/share/glib-2.0/schemas"
 pixbuf_dir="$(find "$runtime/usr/lib/gdk-pixbuf-2.0" -type d -name loaders -print -quit)"
@@ -61,6 +64,7 @@ Description: GPROXY desktop application with an Alpine musl runtime
  Includes musl GTK and WebKitGTK libraries in a private runtime.
  Uses bubblewrap with the host display, home directory and network.
 CONTROL
+python3 scripts/reproducible-env.py --normalize-tree "$package"
 dpkg-deb --root-owner-group --build "$package" "$output/$ARTIFACT_NAME.deb"
 chmod 644 "$output/$ARTIFACT_NAME.deb"
 (cd "$output" && sha256sum "$ARTIFACT_NAME.deb" > "$ARTIFACT_NAME.deb.sha256")

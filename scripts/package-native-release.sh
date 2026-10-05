@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/reproducible-env.sh"
 
 target="${TARGET_TRIPLE:?missing TARGET_TRIPLE}"
 target_os="${TARGET_OS:?missing TARGET_OS}"
@@ -49,7 +50,7 @@ fi
 
 archive="$output_dir/$artifact.zip"
 rm -f "$archive" "$archive.sha256"
-(cd "$package" && zip -9 -q -r "$archive" .)
+python3 scripts/reproducible-archive.py --root "$package" --output "$archive"
 (cd "$output_dir" && checksum "$artifact.zip" > "$artifact.zip.sha256")
 
 if [ "${PACKAGE_INSTALLERS:-true}" = false ]; then exit 0; fi

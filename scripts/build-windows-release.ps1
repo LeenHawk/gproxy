@@ -25,7 +25,7 @@ try {
     & $compiler.FullName /nologo /fo $resource $source
     if ($LASTEXITCODE -ne 0) { throw "Windows resource compilation failed: $LASTEXITCODE" }
     $featureArgs = if ($Headless) { @('--no-default-features', '--features', 'channels,memory,fs,bundled-vocabulary') } else { @() }
-    & cargo rustc @featureArgs --locked --release -p gproxy --bin gproxy --target $Target -- -C "link-arg=$resource"
+    & python "$PSScriptRoot/reproducible-run.py" cargo rustc @featureArgs --locked --release -p gproxy --bin gproxy --target $Target -- -C "link-arg=$resource"
     if ($LASTEXITCODE -ne 0) { throw "Windows release build failed: $LASTEXITCODE" }
 } finally {
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue

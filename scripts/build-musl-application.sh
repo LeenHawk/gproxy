@@ -29,9 +29,9 @@ fi
   --env 'RUSTFLAGS=-C target-feature=-crt-static' \
   --env TARGET_TRIPLE --env ARTIFACT_NAME \
   --env GPROXY_BUILD_VERSION --env GPROXY_BUILD_CHANNEL \
-  --env GPROXY_BUILD_HASH --env GPROXY_UPDATE_PUBKEY \
+  --env SOURCE_DATE_EPOCH --env GPROXY_BUILD_HASH --env GPROXY_UPDATE_PUBKEY \
   --env GPROXY_INSTALLATION_KIND --env GPROXY_BUILD_UPDATE_SOURCE \
-  --env ALPINE_SIGNING_PRIVATE_KEY_B64 \
+  --env ALPINE_SIGNING_PRIVATE_KEY_B64 --env GPROXY_UNSIGNED_BUILD \
   "$image" bash -euo pipefail -c '
     export TAURI_CONFIG="$(node -e '\''console.log(JSON.stringify({version:process.env.GPROXY_BUILD_VERSION}))'\'')"
     native_target="${GPROXY_CARGO_TARGET:-$(rustc -vV | sed -n "s/^host: //p")}"

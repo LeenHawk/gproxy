@@ -3,6 +3,7 @@
 # Workers Assets, in `deploy/cloudflare`, zipped so `wrangler deploy` works
 # from the unpacked archive without a Rust toolchain.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/reproducible-env.sh"
 
 console_dist="${CONSOLE_DIST:-$PWD/console/dist}"
 output_dir="${OUTPUT_DIR:-$PWD/dist/release}"
@@ -24,7 +25,7 @@ command -v worker-build >/dev/null || {
 # `target_features` section wasm-bindgen reads to learn reference types are on:
 # without it `worker-build`'s abort handler fails with "externref table
 # required for catch wrappers". Strip debug sections only after worker-build.
-(cd crates/gproxy-host-edge && CARGO_PROFILE_RELEASE_STRIP=none worker-build --release)
+(cd crates/gproxy-host-edge && CARGO_PROFILE_RELEASE_STRIP=none python3 ../../scripts/reproducible-run.py worker-build --release)
 node scripts/strip-wasm-debug.mjs crates/gproxy-host-edge/build/index_bg.wasm
 rm -rf "$deploy/build"
 cp -R crates/gproxy-host-edge/build "$deploy/build"
@@ -44,8 +45,8 @@ test -n "$wasm" || { echo "worker-build produced no wasm" >&2; exit 1; }
 cp "$wasm" "$output_dir/gproxy-edge.wasm"
 archive="$output_dir/gproxy-edge-cloudflare.zip"
 rm -f "$archive" "$archive.sha256"
-(cd deploy && zip -9 -q -r "$archive" cloudflare \
-  -x "cloudflare/node_modules/*" "cloudflare/.wrangler/*")
+python3 scripts/reproducible-archive.py --root deploy --output "$archive" \
+  --exclude "cloudflare/node_modules" --exclude "cloudflare/.wrangler" cloudflare
 (cd "$output_dir" && for file in gproxy-edge.wasm gproxy-edge-cloudflare.zip; do
   sha256sum "$file" > "$file.sha256"
 done)

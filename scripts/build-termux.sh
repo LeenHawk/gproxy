@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build the checked-out commit with the same source recipe submitted to Termux.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/reproducible-env.sh"
 target="${1:?usage: build-termux.sh TARGET_TRIPLE}"
 case "$target" in
   x86_64-linux-android) architecture=x86_64 ;;
@@ -45,7 +46,7 @@ tar -C distribution/termux -cf - gproxy | "$engine" exec -i "$container" \
   tar -xf - -C /home/builder/termux-packages/packages
 "$engine" exec -i "$container" bash -c 'cat > /home/builder/gproxy.tar.gz' < "$work/source.tar.gz"
 "$engine" exec \
-  --env GPROXY_BUILD_VERSION --env GPROXY_BUILD_CHANNEL --env GPROXY_BUILD_HASH \
+  --env SOURCE_DATE_EPOCH --env GPROXY_BUILD_VERSION --env GPROXY_BUILD_CHANNEL --env GPROXY_BUILD_HASH \
   --env GPROXY_HEADLESS --env GPROXY_UPDATE_PUBKEY --env GPROXY_BUILD_UPDATE_SOURCE --env GOPROXY --env CARGO_BUILD_JOBS \
   "$container" bash -eu -c '
     cd /home/builder/termux-packages

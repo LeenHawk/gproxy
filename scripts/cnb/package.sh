@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../reproducible-env.sh"
 source scripts/cnb/env.sh
 : "${RELEASE_RUN_ID:?}"
 : "${TARGET_TRIPLE:?}"
@@ -65,7 +66,7 @@ case "${1:?prepare|cli|application|upload|edge}" in
     case "$TARGET_OS" in
       linux)
         if [ "$BUILDER" = cargo-alpine ]; then scripts/build-musl.sh "$TARGET_TRIPLE"
-        else cargo build --locked --release --bin gproxy --target "$TARGET_TRIPLE"; fi
+        else python3 scripts/reproducible-run.py cargo build --locked --release --bin gproxy --target "$TARGET_TRIPLE"; fi
         mkdir -p "dist/container/$TARGET_TRIPLE"
         cp "target/$TARGET_TRIPLE/release/gproxy" "dist/container/$TARGET_TRIPLE/gproxy"
         ;;
@@ -78,7 +79,7 @@ case "${1:?prepare|cli|application|upload|edge}" in
         export BUILDER=cargo-xwin
         ;;
       macos)
-        cargo zigbuild --locked --release --bin gproxy --target "$TARGET_TRIPLE"
+        python3 scripts/reproducible-run.py cargo zigbuild --locked --release --bin gproxy --target "$TARGET_TRIPLE"
         rcodesign sign "target/$TARGET_TRIPLE/release/gproxy"
         python3 scripts/cnb/verify-macho.py "target/$TARGET_TRIPLE/release/gproxy"
         export BUILDER=cargo-zigbuild
@@ -105,7 +106,7 @@ case "${1:?prepare|cli|application|upload|edge}" in
     if [ "$TARGET_OS" = windows ]; then
       work="$(mktemp -d)"
       cp "$binary" README.md LICENSE "$work/"
-      (cd "$work" && zip -9 -qr "$OLDPWD/dist/release/$ARTIFACT_NAME.zip" .)
+      python3 scripts/reproducible-archive.py --root "$work" --output "dist/release/$ARTIFACT_NAME.zip"
       rm -rf "$work"
       (cd dist/release && sha256sum "$ARTIFACT_NAME.zip" > "$ARTIFACT_NAME.zip.sha256")
     else

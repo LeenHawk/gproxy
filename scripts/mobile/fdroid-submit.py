@@ -128,7 +128,8 @@ def submit(generated, dry_run=False):
         builds = [b for b in current["Builds"] if b["versionCode"] == code]
         if len(builds) != 1 or builds[0]["commit"] != generated["Builds"][0]["commit"]:
             raise ValueError("Existing versionCode points to a different source commit")
-        if mr:
+        heading = "## Required" if accepted else "## Checklist"
+        if mr and (mr.get("description") or "").startswith(heading):
             print(f"Already submitted: {mr['web_url']}")
             return
 
@@ -162,7 +163,14 @@ def submit(generated, dry_run=False):
                 action["action"] = "update"
         api(f"projects/{fork['id']}/repository/commits", "POST", commit)
 
-    description = (
+    template = "app-update.md" if accepted else "app-inclusion.md"
+    checklist = (ROOT / "distribution/fdroid" / template).read_text()
+    # Keep reviewer checklist edits when advancing an existing submission.
+    existing = (mr or {}).get("description") or ""
+    heading = "## Required" if accepted else "## Checklist"
+    if existing.startswith(heading):
+        checklist = existing.split("\n\n## Submission details\n", 1)[0]
+    description = checklist.rstrip() + "\n\n## Submission details\n\n" + (
         f"Submit GPROXY {version} (versionCode {code}), AGPL-3.0-or-later.\n\n"
         f"Source: https://github.com/LeenHawk/gproxy/releases/tag/v{version}\n\n"
         f"Pinned commit: `{generated['Builds'][0]['commit']}`. "
@@ -172,10 +180,14 @@ def submit(generated, dry_run=False):
         "for proprietary AI integrations. It uses F-Droid signing; upstream-signature "
         "reproducible builds have not been established. Device/runtime testing is "
         "not established by this submission.\n\n"
+        "New checklist items remain unchecked until reviewed; automation does not certify "
+        "policy compliance or reproducibility. The APK contains only ARM64 native code, "
+        "so it is already limited to one ABI. The rustup srclib supplies the build "
+        "toolchain, not an app source dependency.\n\n"
         "This release was submitted automatically. F-Droid CI and maintainer review "
         "are pending for this revision. Existing reviewer recipe changes are retained."
     )
-    details = {"title": f"Update GPROXY to {version}" if accepted else "New app: GPROXY",
+    details = {"title": f"GPROXY: update to {version}" if accepted else "New app: GPROXY",
                "description": description}
     if mr:
         result = api(f"projects/{upstream['id']}/merge_requests/{mr['iid']}", "PUT", details)

@@ -29,6 +29,8 @@ jobs:
       version: ${{ steps.metadata.outputs.version }}
       channel: ${{ steps.metadata.outputs.channel }}
       manifest_version: ${{ steps.metadata.outputs.manifest_version }}
+      source_date_epoch: ${{ steps.metadata.outputs.source_date_epoch }}
+      source_date: ${{ steps.metadata.outputs.source_date }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -37,6 +39,8 @@ jobs:
         run: python3 scripts/check-workflow-actions.py
       - id: metadata
         run: |
+          echo "source_date_epoch=$(git show -s --format=%ct HEAD)" >> "$GITHUB_OUTPUT"
+          echo "source_date=$(git show -s --format=%cI HEAD)" >> "$GITHUB_OUTPUT"
           python3 scripts/release-context.py --validate | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> "$GITHUB_OUTPUT"
           # CLI and Application get separate runners and caches, including
           # their independent LTO links and best-compression packaging.
@@ -61,11 +65,11 @@ jobs:
           package_json_file: console/package.json
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 'lts/*'
+          node-version: '24.21.0'
           cache: pnpm
           cache-dependency-path: console/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: python3 ../scripts/reproducible-run.py pnpm build
         env:
           GPROXY_BUILD_HASH: ${{ github.sha }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -122,7 +126,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         if: matrix.kind == 'application'
         with:
-          node-version: 'lts/*'
+          node-version: '24.21.0'
           cache: pnpm
           cache-dependency-path: crates/gproxy-host-tauri/pnpm-lock.yaml
       - name: Prepare application assets and CLI
@@ -161,7 +165,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         if: matrix.builder != 'cargo-alpine' && (matrix.kind != 'cli' || matrix.os != 'android')
         with:
-          toolchain: stable
+          toolchain: 1.99.0
           targets: ${{ matrix.target }}
       - uses: ./.github/actions/ghcr-rust-cache
         if: matrix.kind != 'cli' || matrix.os != 'android'
@@ -190,7 +194,7 @@ jobs:
               if [ "${{ matrix.os }}" = windows ]; then
                 pwsh -NoProfile -File scripts/build-windows-release.ps1 -Target "${{ matrix.target }}"
               else
-                cargo build --locked --release --bin gproxy --target "${{ matrix.target }}"
+                python3 scripts/reproducible-run.py cargo build --locked --release --bin gproxy --target "${{ matrix.target }}"
               fi
               ;;
             cargo-alpine) scripts/build-musl.sh "${{ matrix.target }}" ;;
@@ -648,7 +652,7 @@ jobs:
 
   container:
     name: Container ${{ matrix.variant }}-${{ matrix.arch }}
-    needs: [native, riscv]
+    needs: [prepare, native, riscv]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -710,15 +714,18 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/gproxy
           tags: type=raw,value=${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}${{ matrix.suffix }}
+          labels: org.opencontainers.image.created=${{ needs.prepare.outputs.source_date }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: deploy/container/Dockerfile.release
           platforms: linux/${{ matrix.arch }}
-          push: true
           provenance: mode=max
           sbom: true
-          build-args: RUNTIME_BASE=${{ matrix.runtime_base }}
+          outputs: type=image,push=true,rewrite-timestamp=true
+          build-args: |
+            RUNTIME_BASE=${{ matrix.runtime_base }}
+            SOURCE_DATE_EPOCH=${{ needs.prepare.outputs.source_date_epoch }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
 
@@ -752,7 +759,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
-          toolchain: stable
+          toolchain: 1.99.0
       - uses: ./.github/actions/ghcr-rust-cache
         with:
           key: linux-checks
@@ -807,7 +814,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         if: matrix.os != 'android' && matrix.builder != 'cargo-alpine'
         with:
-          toolchain: stable
+          toolchain: 1.99.0
           targets: ${{ matrix.target }}
       - uses: ./.github/actions/ghcr-rust-cache
         if: matrix.os != 'android'
@@ -827,7 +834,7 @@ jobs:
           case "$TARGET_OS" in
             android) bash scripts/build-termux.sh "$TARGET_TRIPLE" ;;
             windows) pwsh -NoProfile -File scripts/build-windows-release.ps1 -Target "$TARGET_TRIPLE" -Headless ;;
-            *) cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" \
+            *) python3 scripts/reproducible-run.py cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" \
                  --no-default-features --features channels,memory,fs,bundled-vocabulary ;;
           esac
       - name: Codesign macOS binary
@@ -993,7 +1000,7 @@ jobs:
           path: console/dist
       - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
-          toolchain: stable
+          toolchain: 1.99.0
           targets: wasm32-unknown-unknown
       - uses: ./.github/actions/ghcr-rust-cache
         with:
@@ -1004,12 +1011,12 @@ jobs:
           package_json_file: console/package.json
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 'lts/*'
+          node-version: '24.21.0'
           cache: pnpm
           cache-dependency-path: console/pnpm-lock.yaml
       - name: Install worker-build
         # 0.8.7's bundled lockfile contains yanked yoke-derive 0.8.3.
-        run: cargo install worker-build --version 0.8.7
+        run: cargo install worker-build --locked --version 0.8.7
       - run: scripts/package-edge-release.sh
       - name: Record build provenance
         env:
@@ -1053,7 +1060,7 @@ jobs:
           version: 9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 'lts/*'
+          node-version: '24.21.0'
       - name: Dry-run the Cloudflare deployment
         run: |
           work="$RUNNER_TEMP/edge"
@@ -1168,16 +1175,6 @@ jobs:
       version: ${{ needs.prepare.outputs.version }}
     secrets:
       WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
-
-  fdroid-publish:
-    name: Submit F-Droid update
-    needs: [prepare, publish]
-    if: ${{ needs.prepare.outputs.channel == 'release' }}
-    permissions:
-      contents: read
-    uses: ./.github/workflows/fdroid-publish.yml
-    with:
-      version: ${{ needs.prepare.outputs.version }}
 
   store-publish:
     name: Submit Microsoft Store update

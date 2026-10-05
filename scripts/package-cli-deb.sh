@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/reproducible-env.sh"
 : "${TARGET_TRIPLE:?}" "${TARGET_OS:?}" "${ARTIFACT_NAME:?}"
 version="${GPROXY_BUILD_VERSION:-$(scripts/release-metadata.sh version)}"
 output="${OUTPUT_DIR:-$PWD/dist/release}"
@@ -16,6 +17,7 @@ if [ "$TARGET_OS" = android ]; then
         "$root/data/data/com.termux/files/usr/bin/gproxy"
     installed_size="$(du -sk --exclude=DEBIAN "$root" | cut -f1)"
     sed -i "s/^Installed-Size:.*/Installed-Size: $installed_size/" "$root/DEBIAN/control"
+    python3 scripts/reproducible-env.py --normalize-tree "$root"
     dpkg-deb --root-owner-group --build "$root" "$output/$ARTIFACT_NAME.deb"
     (cd "$output" && sha256sum "$ARTIFACT_NAME.deb" > "$ARTIFACT_NAME.deb.sha256")
     exit 0
@@ -50,5 +52,6 @@ Description: GPROXY command-line server
  The CLI and server executable. The desktop application is a separate package.
 CONTROL
 if [ -n "$dependencies" ]; then printf '%s\n' "$dependencies" >> "$root/DEBIAN/control"; fi
+python3 scripts/reproducible-env.py --normalize-tree "$root"
 dpkg-deb --root-owner-group --build "$root" "$output/$ARTIFACT_NAME.deb"
 (cd "$output" && sha256sum "$ARTIFACT_NAME.deb" > "$ARTIFACT_NAME.deb.sha256")

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../reproducible-env.sh"
 source scripts/gitlab/env.sh
 mode="${1:?cli|headless|application}"
 export GOCACHE="$CI_PROJECT_DIR/.cache/go-build" GOMODCACHE="$CI_PROJECT_DIR/.cache/go-mod"
@@ -65,10 +66,10 @@ case "$mode" in
     fi
     if [ "$TARGET_OS" = macos ] || [[ "$TARGET_TRIPLE" == *-musl ]]; then
       if [[ "$TARGET_TRIPLE" == *-musl ]]; then export RUSTFLAGS='-C target-feature=+crt-static'; fi
-      cargo zigbuild --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" "${feature_args[@]}"
+      python3 scripts/reproducible-run.py cargo zigbuild --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" "${feature_args[@]}"
       export BUILDER=cargo-zigbuild
     else
-      cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" "${feature_args[@]}"
+      python3 scripts/reproducible-run.py cargo build --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" "${feature_args[@]}"
       export BUILDER=cargo-cross-gcc
     fi
     binary="target/$TARGET_TRIPLE/release/gproxy"

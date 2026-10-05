@@ -8,7 +8,7 @@ RUN set -eu; \
       *) echo "unsupported musl build architecture" >&2; exit 1 ;; \
     esac; \
     apk add --no-cache build-base "rust~$rust_version" "cargo~$rust_version" \
-        ca-certificates clang22 clang22-dev cmake git go linux-headers perl pkgconf; \
+        python3 ca-certificates clang22 clang22-dev cmake git go linux-headers perl pkgconf; \
     ln -s /usr/bin/clang-22 /usr/local/bin/clang; \
     rustc --version; \
     printf 'fn main() { println!("musl std OK"); }\n' | rustc -o /tmp/musl-toolchain-check -; \

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Repackage the already built musl CLI archives; no target execution or QEMU.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/reproducible-env.sh"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 : "${GPROXY_BUILD_VERSION:?}"
@@ -14,8 +15,9 @@ if [ "${1:-}" != --inside ]; then
     --volume "$input:/archives:ro" --volume "$output:/output" \
     --env ASSETS_DIR=/archives --env OUTPUT_DIR=/output \
     --env GPROXY_BUILD_VERSION --env ALPINE_SIGNING_PRIVATE_KEY_B64 \
+    --env SOURCE_DATE_EPOCH --env GPROXY_BUILD_HASH --env GPROXY_UNSIGNED_BUILD \
     "$image" sh -eu -c '
-      apk add --no-cache bash fakeroot openssl jq unzip
+      apk add --no-cache python3 bash fakeroot openssl jq unzip
       bash scripts/package-alpine-cli-release.sh --inside
     '
   exit 0

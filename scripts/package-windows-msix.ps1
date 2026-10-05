@@ -70,6 +70,8 @@ try {
 </Package>
 "@ | Set-Content -Encoding utf8 "$work/AppxManifest.xml"
     $package = Join-Path $OutputDir "$Artifact.msix"
+    & python "$PSScriptRoot/reproducible-env.py" --normalize-tree $work
+    if ($LASTEXITCODE -ne 0) { throw "MSIX timestamp normalization failed: $LASTEXITCODE" }
     & $makeappx.FullName pack /d $work /p $package /o
     if ($LASTEXITCODE -ne 0) { throw "MSIX packaging failed: $LASTEXITCODE" }
     $hash = (Get-FileHash $package -Algorithm SHA256).Hash.ToLower()
