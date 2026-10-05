@@ -2,14 +2,15 @@
 """Resolve branch publication to the updater's dev, beta and release channels."""
 import json
 import os
+from pathlib import Path
 import shlex
 import subprocess
 import sys
+import tomllib
 
 
 def context():
-    source_version = subprocess.check_output(
-        ["bash", "scripts/release-metadata.sh", "version"], text=True).strip()
+    source_version = tomllib.loads(Path("Cargo.toml").read_text())["workspace"]["package"]["version"]
     tag = os.environ.get("CI_COMMIT_TAG", "")
     ref_type = os.environ.get("GITHUB_REF_TYPE", "tag" if tag else "branch")
     ref = os.environ.get("GITHUB_REF_NAME") or tag or os.environ.get("CI_COMMIT_REF_NAME", "dev")

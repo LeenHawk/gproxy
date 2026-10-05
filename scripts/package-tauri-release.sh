@@ -33,7 +33,11 @@ case "$TARGET_OS:$TARGET_TRIPLE" in
     fi
     files=("$root/target/$TARGET_TRIPLE/release/bundle/$bundle/"*."$bundle")
     test "${#files[@]}" -eq 1 && test -f "${files[0]}"
-    cp "${files[0]}" "$output/$ARTIFACT_NAME.$bundle"
+    if [ "$TARGET_OS" = linux ]; then
+      python3 "$root/scripts/reproducible-deb.py" "${files[0]}" "$output/$ARTIFACT_NAME.$bundle"
+    else
+      cp "${files[0]}" "$output/$ARTIFACT_NAME.$bundle"
+    fi
     if [ "$TARGET_OS" = macos ]; then
       apps=("$root/target/$TARGET_TRIPLE/release/bundle/macos/"*.app)
       test "${#apps[@]}" -eq 1 && test -d "${apps[0]}"

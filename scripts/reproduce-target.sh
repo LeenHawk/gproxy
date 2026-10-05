@@ -93,6 +93,10 @@ case "$kind" in
     esac
     binary="target/$TARGET_TRIPLE/release/gproxy"
     [ "$TARGET_OS" != windows ] || binary+=.exe
+    if [ "$TARGET_OS" = linux ] && [ "$kind" = cli ]; then
+      mkdir -p "dist/container/$TARGET_TRIPLE"
+      cp "$binary" "dist/container/$TARGET_TRIPLE/gproxy"
+    fi
     if [ "$UPX_ENABLED" = true ]; then
       args=(--best --lzma)
       [ "$TARGET_TRIPLE" != aarch64-pc-windows-msvc ] || args=(--best --nrv2e)

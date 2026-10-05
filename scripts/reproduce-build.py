@@ -14,6 +14,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def remove_tree(path):
+    # Go module downloads use read-only directories even for their owner.
+    # This tree was created by this invocation; never follow its symlinks.
+    for directory, _, _ in os.walk(path, followlinks=False):
+        mode = os.stat(directory, follow_symlinks=False).st_mode
+        os.chmod(directory, stat.S_IMODE(mode) | stat.S_IRWXU)
     def readonly(function, name, error):
         if os.name != "nt" or not isinstance(error, PermissionError):
             raise error

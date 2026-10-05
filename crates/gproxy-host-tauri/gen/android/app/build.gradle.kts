@@ -1,5 +1,4 @@
 import java.util.Properties
-import org.gradle.api.tasks.bundling.AbstractArchiveTask
 
 plugins {
     id("com.android.application")
@@ -60,9 +59,9 @@ android {
         getByName("release") {
             isMinifyEnabled = true
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
                 *fileTree(".") { include("**/*.pro") }
-                    .sortedBy { it.relativeTo(projectDir).invariantSeparatorsPath }.toTypedArray()
+                    .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
+                    .toList().toTypedArray()
             )
         }
     }
@@ -135,10 +134,4 @@ tasks.configureEach {
             }
         }
     }
-}
-
-// Keep intermediate JAR/ZIP inputs independent of checkout order and mtimes.
-tasks.withType<AbstractArchiveTask>().configureEach {
-    isPreserveFileTimestamps = false
-    isReproducibleFileOrder = true
 }

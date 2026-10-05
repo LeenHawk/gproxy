@@ -37,8 +37,10 @@ Serverless packages, and saves both outputs with a JSON comparison report.
 It uses public update/Store identities, creates unsigned packages, and does not
 publish a release or access production signing keys. A missing output, failed
 build or byte difference is a failure. Passing an individual job is not proof
-that all platforms are reproducible. Container images and the experimental iOS
-branch also need their own comparisons before whole-project acceptance.
+that all platforms are reproducible. The workflow also compares OCI images built from the independently built Linux
+executables. The experimental iOS device/simulator checks run separately on
+`build/reproducible-ios`, based on the isolated `ios` branch. All of these results
+are required before whole-project acceptance.
 
 For F-Droid, build the F-Droid flavor rather than comparing it to the direct
 distribution flavor: they have different updater settings. After byte-level

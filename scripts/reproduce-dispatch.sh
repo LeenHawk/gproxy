@@ -37,3 +37,8 @@ DOCKERFILE
     --env SOURCE_DATE_EPOCH --env GPROXY_BUILD_HASH --env GPROXY_UNSIGNED_BUILD \
     gproxy-reproduce-apk bash scripts/package-alpine.sh "$kind"
 fi
+
+if [ "$kind" = cli ] && [ -f "dist/container/$target/gproxy" ]; then
+  mkdir -p "dist/release/container-input/$target"
+  cp "dist/container/$target/gproxy" "dist/release/container-input/$target/gproxy"
+fi

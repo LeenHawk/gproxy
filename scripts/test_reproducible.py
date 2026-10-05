@@ -18,6 +18,7 @@ def module(name):
 archive = module("reproducible-archive")
 verify = module("verify-reproducible")
 build = module("reproducible-run")
+replay = module("reproduce-build")
 
 
 class ReproducibleTests(unittest.TestCase):
@@ -59,6 +60,18 @@ class ReproducibleTests(unittest.TestCase):
             (second / "app.zip").write_bytes(b"b")
             result = verify.compare(first, second, ["app.zip", "missing.apk"])
             self.assertEqual([row["status"] for row in result], ["different", "missing"])
+
+    def test_clean_rebuild_removes_readonly_go_module_directories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tree = Path(directory) / "owned-build"
+            module_dir = tree / "go-mod/cache/example"
+            module_dir.mkdir(parents=True)
+            source = module_dir / "source.go"
+            source.write_text("package example\n")
+            source.chmod(0o444)
+            module_dir.chmod(0o555)
+            replay.remove_tree(tree)
+            self.assertFalse(tree.exists())
 
     def test_build_preserves_existing_rust_flags_and_source_identity(self):
         with patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "1700000000", "GPROXY_BUILD_HASH": "a" * 40,

@@ -8,6 +8,8 @@ import sys
 
 root = Path(sys.argv[1])
 matrix = json.loads(os.environ["REPRO_MATRIX"])["include"]
+if os.environ.get("REPRO_FULL_MATRIX") == "true":
+    matrix += [dict(row, kind="container") for row in json.loads(os.environ["REPRO_CONTAINER_MATRIX"])["include"]]
 commit = os.environ["GITHUB_SHA"]
 failures = []
 packages = set()

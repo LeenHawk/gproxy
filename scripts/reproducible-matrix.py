@@ -2,13 +2,18 @@
 """Derive reproducibility coverage from the published release target inventory."""
 import argparse
 import json
+import sys
 from pathlib import Path
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--target", default="all")
 parser.add_argument("--kind", default="all")
+parser.add_argument("--containers", action="store_true")
 args = parser.parse_args()
 rows = json.loads((Path(__file__).with_name("release-targets.json")).read_text())["include"]
+if args.containers:
+    print(json.dumps({"include": [{"target": row["target"]} for row in rows if row["os"] == "linux"]}))
+    sys.exit(0)
 matrix = []
 for row in rows:
     kinds = ["cli"]
