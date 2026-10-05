@@ -373,31 +373,74 @@ async fn capture_upgrade_backfills_headers_and_preserves_legacy_identity_bodies(
     store.install().await.unwrap();
     // Rebuild the empty capture tables without this migration's columns/FKs,
     // retaining the old entity columns, primary keys and owner/session FKs.
-    use gproxy_store::entity::usage::{upstream_record, upstream_event, downstream_event};
+    use gproxy_store::entity::usage::{downstream_event, upstream_event, upstream_record};
     let schema = sea_orm::Schema::new(DbBackend::Sqlite);
     let definitions = [
-        ("upstream_records", schema.create_table_from_entity(upstream_record::Entity)),
-        ("downstream_records", schema.create_table_from_entity(downstream_record::Entity)),
-        ("upstream_events", schema.create_table_from_entity(upstream_event::Entity)),
-        ("downstream_events", schema.create_table_from_entity(downstream_event::Entity)),
+        (
+            "upstream_records",
+            schema.create_table_from_entity(upstream_record::Entity),
+        ),
+        (
+            "downstream_records",
+            schema.create_table_from_entity(downstream_record::Entity),
+        ),
+        (
+            "upstream_events",
+            schema.create_table_from_entity(upstream_event::Entity),
+        ),
+        (
+            "downstream_events",
+            schema.create_table_from_entity(downstream_event::Entity),
+        ),
     ];
-    for table in ["capture_body_blobs", "capture_bodies", "capture_blobs", "upstream_events", "downstream_events", "upstream_records", "downstream_records", "header_sets"] {
-        db.execute_unprepared(&format!("DROP TABLE {table}")).await.unwrap();
+    for table in [
+        "capture_body_blobs",
+        "capture_bodies",
+        "capture_blobs",
+        "upstream_events",
+        "downstream_events",
+        "upstream_records",
+        "downstream_records",
+        "header_sets",
+    ] {
+        db.execute_unprepared(&format!("DROP TABLE {table}"))
+            .await
+            .unwrap();
     }
-    let added = ["request_headers_hash", "response_headers_hash", "request_body_id", "request_body_encoding", "response_body_encoding", "encoding", "chunk_offsets", "body_id"];
+    let added = [
+        "request_headers_hash",
+        "response_headers_hash",
+        "request_body_id",
+        "request_body_encoding",
+        "response_body_encoding",
+        "encoding",
+        "chunk_offsets",
+        "body_id",
+    ];
     for (name, definition) in definitions {
         let mut legacy = Table::create();
         legacy.table(name);
         for column in definition.get_columns() {
-            if !added.contains(&column.get_column_name().as_str()) { legacy.col(column.clone()); }
+            if !added.contains(&column.get_column_name().as_str()) {
+                legacy.col(column.clone());
+            }
         }
-        for index in definition.get_indexes() { legacy.index(&mut index.clone()); }
+        for index in definition.get_indexes() {
+            legacy.index(&mut index.clone());
+        }
         for key in definition.get_foreign_key_create_stmts() {
-            if !key.get_foreign_key().get_columns().iter().any(|column| added.contains(&column.as_str())) {
+            if !key
+                .get_foreign_key()
+                .get_columns()
+                .iter()
+                .any(|column| added.contains(&column.as_str()))
+            {
                 legacy.foreign_key(&mut key.clone());
             }
         }
-        db.execute_raw(DbBackend::Sqlite.build(&legacy)).await.unwrap();
+        db.execute_raw(DbBackend::Sqlite.build(&legacy))
+            .await
+            .unwrap();
     }
     for name in ["capture_payload_retention_days", "capture_payload_max_mb"] {
         db.execute_unprepared(&format!("ALTER TABLE settings DROP COLUMN {name}"))

@@ -96,9 +96,21 @@ pub struct Model {
     #[sea_orm(indexed)]
     pub ended_at_ms: Option<i64>,
 
-    #[sea_orm(belongs_to, relation_enum = "RequestHeaderSet", from = "request_headers_hash", to = "hash", on_delete = "Restrict")]
+    #[sea_orm(
+        belongs_to,
+        relation_enum = "RequestHeaderSet",
+        from = "request_headers_hash",
+        to = "hash",
+        on_delete = "Restrict"
+    )]
     pub request_header_set: BelongsTo<Option<super::header_set::Entity>>,
-    #[sea_orm(belongs_to, relation_enum = "ResponseHeaderSet", from = "response_headers_hash", to = "hash", on_delete = "Restrict")]
+    #[sea_orm(
+        belongs_to,
+        relation_enum = "ResponseHeaderSet",
+        from = "response_headers_hash",
+        to = "hash",
+        on_delete = "Restrict"
+    )]
     pub response_header_set: BelongsTo<Option<super::header_set::Entity>>,
     #[sea_orm(
         self_ref,

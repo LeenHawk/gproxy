@@ -89,7 +89,9 @@ pub fn start(app: &Arc<App<DatabaseConnection>>, updater: Arc<Updater>) -> Runti
                             || last_budget.elapsed() >= CAPTURE_BUDGET_INTERVAL)
                     {
                         let limit = (mb.max(0) as u64).saturating_mul(1024 * 1024);
-                        if let Err(error) = store.enforce_capture_payload_budget(limit, now_ms).await {
+                        if let Err(error) =
+                            store.enforce_capture_payload_budget(limit, now_ms).await
+                        {
                             tracing::error!(%error, "capture payload budget failed");
                         }
                         last_budget = tokio::time::Instant::now();
