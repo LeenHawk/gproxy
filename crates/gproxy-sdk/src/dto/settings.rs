@@ -60,6 +60,8 @@ impl From<setting::Model> for SettingsDto {
                     .tokenizer_auth_token
                     .is_some_and(|token| !token.is_empty()),
                 retention_days: row.retention_days,
+                capture_payload_retention_days: row.capture_payload_retention_days,
+                capture_payload_max_mb: row.capture_payload_max_mb,
                 quota_observation_retention_days: row.quota_observation_retention_days,
                 max_database_size_mb: row.max_database_size_mb,
                 update_channel: row.update_channel,
@@ -130,6 +132,10 @@ pub struct InstanceSettingsDto {
     /// its presence is reported.
     pub has_tokenizer_auth_token: bool,
     pub retention_days: Option<u32>,
+    #[serde(default = "default_capture_retention")]
+    pub capture_payload_retention_days: Option<u32>,
+    #[serde(default = "default_capture_max_mb")]
+    pub capture_payload_max_mb: Option<i64>,
     /// Days of upstream quota observations to keep; None keeps them all.
     /// Cycles are never pruned. Absent in an older export, which reads as
     /// the 90-day default.
@@ -242,6 +248,10 @@ pub struct InstanceSettingsPatch {
     pub tokenizer_auth_token: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub retention_days: Option<Option<u32>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub capture_payload_retention_days: Option<Option<u32>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub capture_payload_max_mb: Option<Option<i64>>,
     /// `null` keeps every observation.
     #[serde(default, deserialize_with = "double_option")]
     pub quota_observation_retention_days: Option<Option<u32>>,
@@ -337,4 +347,11 @@ fn default_observation_retention() -> Option<u32> {
 
 fn empty_header_list() -> Value {
     serde_json::json!([])
+}
+
+fn default_capture_retention() -> Option<u32> {
+    Some(7)
+}
+fn default_capture_max_mb() -> Option<i64> {
+    Some(2048)
 }

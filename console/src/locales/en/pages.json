@@ -294,6 +294,8 @@
     "defaultVocabularyFileId": "Default vocabulary",
     "tokenizerAuthToken": "Vocabulary download token",
     "retentionDays": "Request history retention (days)",
+    "capturePayloadRetentionDays": "Capture payload retention (days)",
+    "capturePayloadMaxMb": "Capture payload size limit (MiB)",
     "maxDatabaseSizeMb": "SQLite database size limit (MiB)",
     "updateSource": "Update source",
     "updateChannel": "Update channel",

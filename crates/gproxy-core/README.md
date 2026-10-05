@@ -388,3 +388,10 @@ cargo clippy -p gproxy-core --target wasm32-unknown-unknown --all-targets -- -D 
 Tests run against an in-memory SQLite Store, the memory cache and scripted
 channels/clients; they establish the engine's contracts, not a working gateway
 or a real provider. See [crate boundaries](../../design/crates.md).
+
+The StoreObserver background writer coalesces capture chunks per direction at
+about 64 KiB or one second idle, and flushes on finish, explicit flush and sender
+drop. Redaction runs before enqueueing; compression and request-body CDC run only
+in the writer. Forwarded stream bytes and the Observer/CaptureSink contracts are
+unchanged. The store's capture hydrator restores original chunk/frame boundaries,
+sequences and timestamps from encoded segments.

@@ -9,6 +9,7 @@ use gproxy_protocol::{capability::CapabilityFuture, connection::WsFrame};
 use gproxy_seaorm::{BatchConnectionTrait, FixedDecimal};
 use gproxy_store::{
     Store,
+    capture::{Chunk, Segment, Segments, tenant_scope},
     entity::usage::{
         capture_link, upstream_event as event, upstream_record as record, usage_record,
     },
@@ -155,7 +156,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
 
 enum Write {
     Head(Box<record::ActiveModel>),
-    Event(event::ActiveModel),
+    Event(Chunk),
     Finish(CaptureEnd, oneshot::Sender<()>),
     Flush(oneshot::Sender<()>),
 }
@@ -189,14 +190,13 @@ impl StoreCapture {
         } else {
             payload.to_vec()
         };
-        self.send(Write::Event(event::ActiveModel {
-            capture_id: Set(self.id.clone()),
-            sequence: Set(sequence as i64),
-            turn_id: Set(turn_id.map(str::to_owned)),
-            direction: Set(direction),
-            kind: Set(kind),
-            payload: Set(payload),
-            observed_at_ms: Set(now_ms()),
+        self.send(Write::Event(Chunk {
+            sequence: sequence as i64,
+            turn_id: turn_id.map(str::to_owned),
+            direction,
+            kind,
+            payload,
+            observed_at_ms: now_ms(),
         }));
     }
 }
@@ -332,14 +332,8 @@ impl CaptureSink for StoreCapture {
         })
     }
 }
-/// Captured events written per statement batch while an exchange is running.
-const EVENT_BATCH: usize = 64;
-
-/// The capture's writer. Everything but the body is kept here in memory and
-/// written once, when the exchange ends: a row inserted and then patched four
-/// times was five transactions, each read back, for one record. Body events,
-/// when the body is captured, are written in batches as they come, and the row
-/// is inserted with the first of them, which it has to exist before.
+/// Only the background writer buffers/compresses captured bytes. The capture
+/// sink redacts and enqueues owned chunks without delaying the forwarded stream.
 async fn write_capture<C: BatchConnectionTrait + Send + Sync + 'static>(
     store: Arc<Store<C>>,
     mut row: record::ActiveModel,
@@ -350,82 +344,60 @@ async fn write_capture<C: BatchConnectionTrait + Send + Sync + 'static>(
     link: String,
 ) {
     let id = row.id.clone().unwrap();
+    let scope = tenant_scope(
+        row.api_key_id
+            .try_as_ref()
+            .and_then(|value| value.as_deref()),
+        row.user_id.try_as_ref().and_then(|value| value.as_deref()),
+        &format!("upstream:{id}"),
+    );
     let mut inserted = false;
-    let mut events: Vec<event::ActiveModel> = Vec::new();
+    let mut segments = Segments::default();
     let mut ack = None;
     let mut end = CaptureEnd::Interrupted;
     let mut status = None;
-    while let Some(write) = rx.recv().await {
-        match write {
-            Write::Flush(ack) => {
-                if !inserted {
-                    let backend = store.connection().get_database_backend();
-                    match store.upstream_records().insert_statement(row.clone()) {
-                        Ok(statement) => match store
-                            .connection()
-                            .atomic_batch_owned(vec![
-                                statement,
-                                link_statement(backend, &link, &id),
-                            ])
-                            .await
-                        {
-                            Ok(_) => inserted = true,
-                            Err(error) => {
-                                lost.store(true, Ordering::Relaxed);
-                                tracing::error!(capture_id = %id, %error, "connection capture write failed");
-                            }
-                        },
-                        Err(error) => {
-                            tracing::error!(capture_id = %id, %error, "connection capture write failed");
-                        }
-                    }
-                }
-                let _ = ack.send(());
-            }
-            Write::Head(patch) => {
+    loop {
+        // Sleep until the next chunk when nothing is pending; otherwise wake
+        // when the oldest pending segment goes idle so it is flushed on time.
+        let write = match segments.deadline() {
+            Some(deadline) => crate::rt::timeout(deadline, rx.recv()).await,
+            None => Some(rx.recv().await),
+        };
+        let (ready, flush) = match write {
+            None => (segments.drain(false), None),
+            Some(None) => break,
+            Some(Some(Write::Flush(ack))) => (segments.drain(true), Some(ack)),
+            Some(Some(Write::Head(patch))) => {
                 if let sea_orm::ActiveValue::Set(s) = &patch.response_status {
                     status = *s;
                 }
                 merge(&mut row, *patch);
+                continue;
             }
-            Write::Event(event) => {
-                events.push(event);
-                if events.len() >= EVENT_BATCH {
-                    let mut statements = Vec::with_capacity(events.len() + 1);
-                    if !inserted {
-                        match store.upstream_records().insert_statement(row.clone()) {
-                            Ok(statement) => statements.push(statement),
-                            Err(error) => {
-                                lost.store(true, Ordering::Relaxed);
-                                tracing::error!(capture_id = %id, %error, "capture write failed");
-                                events.clear();
-                                continue;
-                            }
-                        }
-                    }
-                    let backend = store.connection().get_database_backend();
-                    if !inserted {
-                        statements.push(link_statement(backend, &link, &id));
-                    }
-                    statements.extend(
-                        events
-                            .drain(..)
-                            .map(|event| event::Entity::insert(event).build(backend)),
-                    );
-                    match store.connection().atomic_batch_owned(statements).await {
-                        Ok(_) => inserted = true,
-                        Err(error) => {
-                            lost.store(true, Ordering::Relaxed);
-                            tracing::error!(capture_id = %id, %error, "capture write failed");
-                        }
-                    }
-                }
-            }
-            Write::Finish(value, sender) => {
+            Some(Some(Write::Event(event))) => (segments.push(event), None),
+            Some(Some(Write::Finish(value, sender))) => {
                 end = value;
                 ack = Some(sender);
                 break;
             }
+        };
+        if (!ready.is_empty() || flush.is_some())
+            && let Err(error) = persist_capture(
+                &store,
+                &row,
+                &mut inserted,
+                ready,
+                &link,
+                &scope,
+                flush.is_some(),
+            )
+            .await
+        {
+            lost.store(true, Ordering::Relaxed);
+            tracing::error!(capture_id = %id, %error, "capture write failed");
+        }
+        if let Some(ack) = flush {
+            let _ = ack.send(());
         }
     }
     let incomplete = lost.load(Ordering::Relaxed);
@@ -464,37 +436,53 @@ async fn write_capture<C: BatchConnectionTrait + Send + Sync + 'static>(
             CaptureEnd::Cancelled => Some("request cancelled or response dropped".into()),
         }
     });
-    let backend = store.connection().get_database_backend();
-    let head = if inserted {
-        store
-            .upstream_records()
-            .update_statement(row)
-            .map(|statement| statement.into_iter().collect())
-    } else {
-        store
-            .upstream_records()
-            .insert_statement(row)
-            .map(|statement| vec![statement])
-    };
-    match head {
-        Ok(mut statements) => {
-            if !inserted {
-                statements.push(link_statement(backend, &link, &id));
-            }
-            statements.extend(
-                events
-                    .into_iter()
-                    .map(|event| event::Entity::insert(event).build(backend)),
-            );
-            if let Err(error) = store.connection().atomic_batch_owned(statements).await {
-                tracing::error!(capture_id = %id, %error, "capture finalization failed");
-            }
-        }
-        Err(error) => tracing::error!(capture_id = %id, %error, "capture finalization failed"),
+    if let Err(error) = persist_capture(
+        &store,
+        &row,
+        &mut inserted,
+        segments.drain(true),
+        &link,
+        &scope,
+        true,
+    )
+    .await
+    {
+        lost.store(true, Ordering::Relaxed);
+        tracing::error!(capture_id = %id, %error, "capture finalization failed");
     }
     if let Some(ack) = ack {
         let _ = ack.send(());
     }
+}
+
+async fn persist_capture<C: BatchConnectionTrait>(
+    store: &Store<C>,
+    row: &record::ActiveModel,
+    inserted: &mut bool,
+    segments: Vec<Segment>,
+    link: &str,
+    scope: &str,
+    write_head: bool,
+) -> gproxy_store::Result<()> {
+    let id = row.id.clone().unwrap();
+    let mut statements = if !*inserted || write_head {
+        store.capture_upstream_head(row.clone(), *inserted)?
+    } else {
+        Vec::new()
+    };
+    if !*inserted {
+        statements.push(link_statement(
+            store.connection().get_database_backend(),
+            link,
+            &id,
+        ));
+    }
+    for segment in segments {
+        statements.extend(store.capture_upstream_segment(&id, scope, segment)?);
+    }
+    store.connection().atomic_batch_owned(statements).await?;
+    *inserted = true;
+    Ok(())
 }
 
 /// Copy every column `patch` sets onto `row`.
@@ -584,7 +572,8 @@ fn secret_values(value: &Value) -> Vec<Vec<u8>> {
     visit(value, &mut out);
     out
 }
-/// Also mask possible fragments at chunk boundaries; never buffer the stream.
+/// Also mask possible fragments at chunk boundaries; never buffer the forwarded
+/// stream. Redacted log bytes may be coalesced by the background writer.
 fn redact_bytes(bytes: &[u8], secrets: &[Vec<u8>]) -> Vec<u8> {
     let mut out = bytes.to_vec();
     for secret in secrets {
@@ -762,4 +751,126 @@ fn link_statement(
         .to_owned(),
     )
     .build(backend)
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod storage_tests {
+    use super::*;
+    use gproxy_store::capture::{compress, decompress};
+
+    #[test]
+    fn redaction_happens_before_the_writer_compresses_bytes() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let sink = StoreCapture {
+            id: "redaction".into(),
+            tx,
+            lost: Arc::new(AtomicBool::new(false)),
+            full: true,
+            redact: true,
+            secrets: vec![b"secret-sentinel".to_vec()],
+        };
+        let original = b"data: {\"token\":\"secret-sentinel\"}\n\n".repeat(3000);
+        sink.bytes(
+            1,
+            event::CaptureDirection::Response,
+            event::CaptureEventKind::Bytes,
+            &original,
+            None,
+        );
+        let Write::Event(chunk) = rx.try_recv().unwrap() else {
+            panic!("expected captured chunk")
+        };
+        assert!(!chunk.payload.windows(15).any(|w| w == b"secret-sentinel"));
+        let (encoding, stored) = compress(&chunk.payload).unwrap();
+        assert_eq!(encoding, "zstd");
+        assert_eq!(decompress(&encoding, &stored).unwrap(), chunk.payload);
+        // The source bytes, which the caller forwards, were never changed.
+        assert!(original.windows(15).any(|w| w == b"secret-sentinel"));
+    }
+
+    #[tokio::test]
+    async fn idle_and_explicit_flush_persist_pending_segments_before_finish() {
+        let mut options = sea_orm::ConnectOptions::new("sqlite::memory:");
+        options.max_connections(1).sqlx_logging(false);
+        let store = Arc::new(Store::new(
+            sea_orm::Database::connect(options).await.unwrap(),
+        ));
+        store.sync().await.unwrap();
+        let (tx, rx) = mpsc::unbounded_channel();
+        let worker = tokio::spawn(write_capture(
+            store.clone(),
+            record::ActiveModel {
+                id: Set("idle".into()),
+                kind: Set(record::CaptureKind::Http),
+                started_at_ms: Set(1),
+                ..Default::default()
+            },
+            rx,
+            Arc::new(AtomicBool::new(false)),
+            true,
+            tokio_util::sync::CancellationToken::new(),
+            "downstream".into(),
+        ));
+        tx.send(Write::Event(Chunk {
+            sequence: 0,
+            turn_id: None,
+            direction: event::CaptureDirection::Response,
+            kind: event::CaptureEventKind::Bytes,
+            payload: b"first".to_vec(),
+            observed_at_ms: 1,
+        }))
+        .unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if !store
+                    .upstream_events()
+                    .query(event::Entity::find())
+                    .await
+                    .unwrap()
+                    .is_empty()
+                {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert!(
+            store
+                .upstream_records()
+                .get_many(&["idle".into()])
+                .await
+                .unwrap()[0]
+                .as_ref()
+                .unwrap()
+                .ended_at_ms
+                .is_none()
+        );
+        tx.send(Write::Event(Chunk {
+            sequence: 1,
+            turn_id: None,
+            direction: event::CaptureDirection::Response,
+            kind: event::CaptureEventKind::Bytes,
+            payload: b"second".to_vec(),
+            observed_at_ms: 2,
+        }))
+        .unwrap();
+        let (ack, done) = oneshot::channel();
+        tx.send(Write::Flush(ack)).unwrap();
+        done.await.unwrap();
+        assert_eq!(
+            store
+                .upstream_events()
+                .query(event::Entity::find())
+                .await
+                .unwrap()
+                .len(),
+            2
+        );
+        let (ack, done) = oneshot::channel();
+        tx.send(Write::Finish(CaptureEnd::Complete, ack)).unwrap();
+        done.await.unwrap();
+        worker.await.unwrap();
+    }
 }

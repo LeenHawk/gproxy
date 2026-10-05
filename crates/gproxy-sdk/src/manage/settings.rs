@@ -180,6 +180,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
                     None => None,
                 });
             }
+            if let Some(value) = instance.capture_payload_retention_days {
+                row.capture_payload_retention_days = Set(value);
+            }
+            if let Some(value) = instance.capture_payload_max_mb {
+                if value.is_some_and(|size| size < 0) {
+                    return Err(SdkError::invalid(
+                        "capturePayloadMaxMb must not be negative",
+                    ));
+                }
+                row.capture_payload_max_mb = Set(value);
+            }
             if let Some(value) = instance.retention_days {
                 row.retention_days = Set(value);
             }

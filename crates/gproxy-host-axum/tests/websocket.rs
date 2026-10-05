@@ -1501,8 +1501,12 @@ async fn downstream_record(host: &Host) -> capture_record::Model {
     rows.remove(0)
 }
 
-async fn events(host: &Host, capture_id: &str) -> Vec<capture_event::Model> {
-    host.app
+async fn events(
+    host: &Host,
+    capture_id: &str,
+) -> Vec<gproxy_store::entity::usage::capture_event::Model> {
+    let rows = host
+        .app
         .gproxy()
         .store()
         .downstream_events()
@@ -1511,6 +1515,12 @@ async fn events(host: &Host, capture_id: &str) -> Vec<capture_event::Model> {
                 .filter(capture_event::Column::CaptureId.eq(capture_id))
                 .order_by_asc(capture_event::Column::Sequence),
         )
+        .await
+        .unwrap();
+    host.app
+        .gproxy()
+        .store()
+        .hydrate_capture_events(rows.into_iter().map(Into::into).collect())
         .await
         .unwrap()
 }

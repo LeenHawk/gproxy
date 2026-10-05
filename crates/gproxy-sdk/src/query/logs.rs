@@ -195,6 +195,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
                 .await?;
             (row.into(), events.into_iter().map(Into::into).collect())
         };
+        let row = store.hydrate_capture(row).await?;
+        let events = store.hydrate_capture_events(events).await?;
         let events_truncated = events.len() as u64 > MAX_DETAIL_EVENTS;
         Ok(CaptureDetailDto {
             record: record(row),
@@ -257,7 +259,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
                 .into_iter()
                 .map(capture_event::Model::from),
         );
-        events.sort_by(|a, b| (&a.capture_id, a.sequence).cmp(&(&b.capture_id, b.sequence)));
+        let mut events = store.hydrate_capture_events(events).await?;
         let events_truncated = events.len() as u64 > MAX_DETAIL_EVENTS;
         events.truncate(MAX_DETAIL_EVENTS as usize);
         let usage = store
@@ -272,9 +274,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
             .into_iter()
             .map(UsageRecordDto::from)
             .collect();
+        let downstream = record(store.hydrate_capture(downstream.into()).await?);
+        let mut hydrated_upstream = Vec::with_capacity(upstream.len());
+        for row in upstream {
+            hydrated_upstream.push(record(store.hydrate_capture(row.into()).await?));
+        }
         Ok(LogDetailDto {
-            downstream: record(downstream.into()),
-            upstream: upstream.into_iter().map(|row| record(row.into())).collect(),
+            downstream,
+            upstream: hydrated_upstream,
             events: events.into_iter().map(event).collect(),
             events_truncated,
             usage,

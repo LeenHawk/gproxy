@@ -129,6 +129,12 @@ pub struct Model {
     // Files and maintenance
     /// Completed request history retention; None disables age-based cleanup.
     pub retention_days: Option<u32>,
+    /// Full capture payload TTL, independent of metadata history. None disables it.
+    #[sea_orm(default_value = 7)]
+    pub capture_payload_retention_days: Option<u32>,
+    /// Encoded capture payload budget in MiB, on every SQL backend.
+    #[sea_orm(default_value = 2048)]
+    pub capture_payload_max_mb: Option<i64>,
     /// Upstream quota observation log (`credential_quota_cycles`) retention;
     /// None keeps every observation. Separate from `retention_days` because
     /// the log feeds per-cycle cost analysis long after request bodies are

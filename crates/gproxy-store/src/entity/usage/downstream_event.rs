@@ -26,6 +26,13 @@ pub struct Model {
     /// Captured bytes under logging redaction policy. HTTP byte chunks retain
     /// SSE/NDJSON/JSON-array delimiters; WS text/binary preserves message boundaries.
     pub payload: Vec<u8>,
+    #[sea_orm(default_value = "identity")]
+    pub encoding: String,
+    /// Unsigned varint pairs per chunk: end offset, sequence delta from the
+    /// segment head. None denotes one legacy, uncoalesced chunk.
+    pub chunk_offsets: Option<Vec<u8>>,
+    #[sea_orm(indexed)]
+    pub body_id: Option<String>,
     pub observed_at_ms: i64,
     #[sea_orm(
         belongs_to,

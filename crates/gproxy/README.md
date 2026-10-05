@@ -484,3 +484,26 @@ Three things change:
 2. **`gproxy migrate` as its own step**, with one writer, before any instance
    starts.
 3. **Rotate with one instance running**, as above.
+
+## Capture payload retention
+
+The existing runtime maintenance loop prunes full capture payloads every minute
+and when its settings change. Configure **Settings → Maintenance → Capture
+payload retention / size limit** in the Console, or PATCH the instance settings:
+
+```json
+{
+  "instance": {
+    "capturePayloadRetentionDays": 7,
+    "capturePayloadMaxMb": 2048
+  }
+}
+```
+
+These are database settings, like `retentionDays`, rather than startup environment
+variables. `null` disables one limit; zero expires completed payloads immediately
+or gives them a zero-byte budget. Metadata/usage history follows the independent
+`retentionDays` policy. Active captures are retained. The cap counts encoded
+payload bytes and manifests, not SQLite pages or indexes; SQLite reuses freed
+pages, while its separate `maxDatabaseSizeMb` policy governs physical cleanup.
+Embedders/edge schedulers can call `Store::prune_capture_payloads` explicitly.

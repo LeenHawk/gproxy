@@ -67,6 +67,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> History<'_, C> {
             }
         };
         self.sweep_links().await?;
+        store.collect_capture_garbage().await?;
         Ok(deleted.into_iter().sum())
     }
 

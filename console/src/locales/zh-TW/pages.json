@@ -294,6 +294,8 @@
     "defaultVocabularyFileId": "預設詞表",
     "tokenizerAuthToken": "詞表下載權杖",
     "retentionDays": "請求歷史保留天數",
+    "capturePayloadRetentionDays": "擷取本文保留天數",
+    "capturePayloadMaxMb": "擷取本文大小上限（MiB）",
     "maxDatabaseSizeMb": "SQLite 資料庫大小上限（MiB）",
     "updateSource": "更新來源",
     "updateChannel": "更新管道",

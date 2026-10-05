@@ -1120,3 +1120,11 @@ each with its own `index.ts`; `pnpm types` in `console/` runs both. `ts-rs`
 exports a type together with its dependencies, so each directory is
 self-contained and neither imports across the seam — at the cost of the sdk
 shapes a portal DTO carries being declared in both.
+
+Downstream capture persistence uses the store's encoded write plans: canonical
+header-set references, tenant-scoped request-body CDC, compressed inline responses
+and coalesced WebSocket events. Capture DTOs still return decoded headers/bodies
+and original frames through the SDK query layer. Payload retention settings are
+`instance.capturePayloadRetentionDays` (default 7) and
+`instance.capturePayloadMaxMb` (default 2048 MiB); `null` disables the respective
+limit. They are separate from metadata `retentionDays`.

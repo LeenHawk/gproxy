@@ -23,6 +23,7 @@ pub use control::{AllData, ControlData, IdentityData, RoutingData};
 mod revision;
 pub use revision::Commit;
 mod cache;
+pub mod capture;
 pub mod migration;
 pub mod operations;
 pub use cache::StoreCache;
@@ -80,6 +81,10 @@ fn register_entities<R: gproxy_seaorm::EntityRegistry>(registry: R) -> R {
         .register(entity::usage::upstream_event::Entity)
         .register(entity::usage::downstream_event::Entity)
         .register(entity::usage::capture_link::Entity)
+        .register(entity::usage::header_set::Entity)
+        .register(entity::usage::capture_blob::Entity)
+        .register(entity::usage::capture_body::Entity)
+        .register(entity::usage::capture_body_blob::Entity)
         .register(entity::resource::file_object::Entity)
         .register(entity::resource::agent_session::Entity)
         .register(entity::resource::agent_assignment::Entity)

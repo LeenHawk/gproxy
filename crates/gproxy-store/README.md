@@ -532,3 +532,64 @@ This models v3 affinity/resource ownership and locally surveyed client APIs. Sto
 implements concurrent handoff persistence; exhaustion detection, resource recreation,
 token translation and live WS continuation remain core/adapter work. An inventoried
 endpoint alone is not evidence of cross-account migration support.
+
+## Capture payload storage
+
+`capture` owns capture write plans, codecs, hydration and payload pruning. The
+ordinary repositories expose physical rows; call `hydrate_capture` and
+`hydrate_capture_events` before exposing their bodies/headers to consumers.
+SDK capture detail queries already do this. Write plans must be executed as one
+`atomic_batch_owned`, including their record, manifest, blob links and events.
+
+The core writer coalesces each direction into roughly 64 KiB segments, flushing
+after one second of inactivity, on explicit flush, and on finish/sender drop.
+The largest original chunk may exceed 64 KiB. Segments preserve kind and turn;
+`chunk_offsets` contains one unsigned varint pair per chunk (cumulative end
+offset, sequence delta), so interleaved directions, empty chunks, SSE/NDJSON
+delimiters and WebSocket message boundaries round-trip exactly. Per-chunk
+arrival times are not kept: a hydrated chunk reports its segment head's
+`observed_at_ms`, which is within the one-second idle window of the truth.
+`BodyFraming` retains its wire meaning. Redaction precedes all storage transforms.
+
+Native writers use zstd level 3, retaining identity when compression would grow
+the data. WASM writers use identity; their pure-Rust decoder also reads zstd.
+Inline response bodies use the same encoding. Request bodies/segments use
+FastCDC (2/8/32 KiB min/average/max), with zstd-compressed blobs. A body manifest
+orders blob references. BLAKE3 blob keys are keyed by a digest of `api_key_id`,
+falling back to `user_id`; unattributed captures get separate scopes. Identical
+buffered downstream/upstream requests reuse blobs. Segment boundaries on streamed
+requests can introduce additional terminal CDC chunks.
+
+`header_sets` deduplicates canonical JSON: lower-case names, stable sorting by
+name, unchanged values and repeated-value order. Per-request values such as
+request IDs and Date remain exact, so those sets only deduplicate when equal.
+The migration backfills old header JSON in bounded pages and clears the nullable
+inline columns. Legacy bodies remain identity encoded until retention removes
+them; migration does not rewrite large historical payloads.
+
+Deleting captures cascades through body manifests/links; `collect_capture_garbage`
+removes blobs with no remaining link. SDK history deletion invokes it, as does
+periodic payload retention. Blob foreign keys prevent a concurrent sweep from
+leaving dangling references; a conflicting sweep can be retried next period.
+Header sets remain while any metadata row references them; the same sweep removes
+unreferenced sets. `capture_links` still has no foreign keys.
+
+`PayloadRetention` defaults to seven days and 2 GiB of encoded payload bytes,
+including chunk offsets and manifest hash references. Pruning clears oldest
+completed captures' bodies/events, preserves their metadata and associations,
+and marks their bodies `NotCaptured`. In-progress captures are excluded, so they
+can temporarily exceed the budget. SQLite free pages are reused; this logical
+payload budget does not imply a 2 GiB database file.
+
+The two passes have different costs, and hosts should schedule them apart.
+`prune_expired_capture_payloads` is an indexed range on `ended_at_ms` and is
+cheap enough for a one-minute tick. `enforce_capture_payload_budget` has to sum
+the payload columns, which scans the payload tables; it measures once per round,
+removes the estimated overshoot in one go, and gives up after three rounds, so
+the native host runs it every fifteen minutes and when the policy changes.
+`prune_capture_payloads` runs both back to back for callers without a scheduler.
+
+For a live PostgreSQL storage test, point `GPROXY_CAPTURE_TEST_POSTGRES_URL` at a
+disposable database and run `cargo test -p gproxy-store --features
+sea-orm/sqlx-postgres --test capture_storage`. Each fixture creates its own test
+schema. The ordinary test run uses SQLite.

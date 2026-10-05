@@ -42,6 +42,8 @@ fn settings() -> setting::Model {
         response_header_blacklist: serde_json::json!([]),
         query_parameter_blacklist: serde_json::json!([]),
         retention_days: None,
+        capture_payload_retention_days: Some(7),
+        capture_payload_max_mb: Some(2048),
         quota_observation_retention_days: Some(90),
         max_database_size_mb: None,
         update_channel: None,

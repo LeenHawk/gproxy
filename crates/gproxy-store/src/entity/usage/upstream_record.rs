@@ -48,9 +48,16 @@ pub struct Model {
     pub request_query: Option<String>,
     /// JSON [name, value] string pairs, preserving repeated headers.
     pub request_headers: Option<Json>,
+    /// Content-addressed header set; the nullable JSON column is for legacy reads.
+    #[sea_orm(indexed)]
+    pub request_headers_hash: Option<String>,
     /// Buffered bytes stored directly in the database, never in FileObject.
     /// Event-backed bodies leave this unset; empty bytes mean a captured empty body.
     pub request_body: Option<Vec<u8>>,
+    #[sea_orm(default_value = "identity")]
+    pub request_body_encoding: String,
+    #[sea_orm(indexed)]
+    pub request_body_id: Option<String>,
     #[sea_orm(default_value = "buffered")]
     pub request_framing: BodyFraming,
     #[sea_orm(default_value = "not_captured")]
@@ -60,7 +67,12 @@ pub struct Model {
     // status; each subsequent WS turn must not be assigned status 101/200.
     pub response_status: Option<i32>,
     pub response_headers: Option<Json>,
+    /// Content-addressed header set; the nullable JSON column is for legacy reads.
+    #[sea_orm(indexed)]
+    pub response_headers_hash: Option<String>,
     pub response_body: Option<Vec<u8>>,
+    #[sea_orm(default_value = "identity")]
+    pub response_body_encoding: String,
     #[sea_orm(default_value = "buffered")]
     pub response_framing: BodyFraming,
     #[sea_orm(default_value = "not_captured")]
@@ -81,8 +93,13 @@ pub struct Model {
     /// Exchange/turn termination, or socket closure for WsConnection.
     /// Indexed for retention, which deletes the oldest-ended rows first.
     #[sea_orm(indexed)]
+    #[sea_orm(indexed)]
     pub ended_at_ms: Option<i64>,
 
+    #[sea_orm(belongs_to, relation_enum = "RequestHeaderSet", from = "request_headers_hash", to = "hash", on_delete = "Restrict")]
+    pub request_header_set: BelongsTo<Option<super::header_set::Entity>>,
+    #[sea_orm(belongs_to, relation_enum = "ResponseHeaderSet", from = "response_headers_hash", to = "hash", on_delete = "Restrict")]
+    pub response_header_set: BelongsTo<Option<super::header_set::Entity>>,
     #[sea_orm(
         self_ref,
         relation_enum = "Session",

@@ -491,6 +491,7 @@ impl DownstreamCapture {
             kind: Set(kind),
             payload: Set(payload),
             observed_at_ms: Set(now_ms()),
+            ..Default::default()
         });
         Some(self.events.len() - 1)
     }
@@ -581,16 +582,22 @@ impl DownstreamCapture {
         ));
         row.response_body = Set(response_body);
 
-        let mut statements = vec![store.downstream_records().insert_statement(row)?];
+        let id = row.id.clone().unwrap();
+        let scope = gproxy_store::capture::tenant_scope(
+            row.api_key_id
+                .try_as_ref()
+                .and_then(|value| value.as_deref()),
+            row.user_id.try_as_ref().and_then(|value| value.as_deref()),
+            &format!("downstream:{id}"),
+        );
+        let mut statements = store.capture_downstream_head(row, false)?;
         for (turn, outcome) in turns {
             statements.extend(turn.into_statements(store, outcome)?);
         }
         // Every frame the socket carried, in observed order, after the record
         // they belong to: `downstream_events.capture_id` is
         // a foreign key onto the row just inserted.
-        for event in events {
-            statements.push(store.downstream_events().insert_statement(event)?);
-        }
+        statements.extend(store.capture_downstream_events(&id, &scope, events)?);
         Ok(statements)
     }
 }

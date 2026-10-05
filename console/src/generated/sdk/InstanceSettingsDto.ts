@@ -4,16 +4,16 @@
  * Identity, network, execution limits and maintenance. `config_revision` is
  * read-only: it is the write path's own counter.
  */
-export type InstanceSettingsDto = { instanceName: string, allowedHeaders: string[], oauthClientAllowlist: string[] | null, connectionProfileId: string | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null, corsOrigins: string[], trustedProxies: string[],
+export type InstanceSettingsDto = { instanceName: string, allowedHeaders: string[], oauthClientAllowlist: string[] | null, connectionProfileId: string | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null, corsOrigins: string[], trustedProxies: string[], 
 /**
  * Absent in an export from a build without it, which reads as off.
  */
-alwaysSecureCookie: boolean, maxAttempts: number, enableSettlement: boolean, enableUsage: boolean, configRevision: number, requestTimeoutMs: number, streamIdleTimeoutMs: number, maxRequestBodyBytes: number, maxUploadBodyBytes: number, maxResponseBodyBytes: number, maxStreamEventBytes: number, maxWsFrameBytes: number, maxMultipartParts: number, enableTokenizerVocabs: boolean, enableTokenizerDownload: boolean, defaultVocabularyFileId: string | null,
+alwaysSecureCookie: boolean, maxAttempts: number, enableSettlement: boolean, enableUsage: boolean, configRevision: number, requestTimeoutMs: number, streamIdleTimeoutMs: number, maxRequestBodyBytes: number, maxUploadBodyBytes: number, maxResponseBodyBytes: number, maxStreamEventBytes: number, maxWsFrameBytes: number, maxMultipartParts: number, enableTokenizerVocabs: boolean, enableTokenizerDownload: boolean, defaultVocabularyFileId: string | null, 
 /**
  * The vocabulary source token is sealed like a credential secret; only
  * its presence is reported.
  */
-hasTokenizerAuthToken: boolean, retentionDays: number | null,
+hasTokenizerAuthToken: boolean, retentionDays: number | null, capturePayloadRetentionDays: number | null, capturePayloadMaxMb: number | null, 
 /**
  * Days of upstream quota observations to keep; None keeps them all.
  * Cycles are never pruned. Absent in an older export, which reads as

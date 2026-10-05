@@ -56,13 +56,19 @@ async fn settings(h: &Harness, settlement: bool, usage: bool, log: bool, body: b
         .unwrap();
     h.core.reload_data().await.unwrap();
 }
-async fn captures(h: &Harness) -> Vec<capture::Model> {
-    h.core
+async fn captures(h: &Harness) -> Vec<gproxy_store::entity::usage::capture_record::Model> {
+    let rows = h
+        .core
         .store()
         .upstream_records()
         .query(capture::Entity::find())
         .await
-        .unwrap()
+        .unwrap();
+    let mut hydrated = Vec::new();
+    for row in rows {
+        hydrated.push(h.core.store().hydrate_capture(row.into()).await.unwrap());
+    }
+    hydrated
 }
 async fn usages(h: &Harness) -> Vec<usage_record::Model> {
     h.core
@@ -72,11 +78,17 @@ async fn usages(h: &Harness) -> Vec<usage_record::Model> {
         .await
         .unwrap()
 }
-async fn events(h: &Harness) -> Vec<event::Model> {
-    h.core
+async fn events(h: &Harness) -> Vec<gproxy_store::entity::usage::capture_event::Model> {
+    let rows = h
+        .core
         .store()
         .upstream_events()
         .query(event::Entity::find())
+        .await
+        .unwrap();
+    h.core
+        .store()
+        .hydrate_capture_events(rows.into_iter().map(Into::into).collect())
         .await
         .unwrap()
 }
