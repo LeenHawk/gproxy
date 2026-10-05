@@ -487,9 +487,13 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
   .dl-primary-name { font-family: var(--__sl-font-mono); font-size: 1.05rem; font-weight: 600; overflow-wrap: anywhere; }
   .dl-primary-hint { font-size: 0.85rem; opacity: 0.85; }
 
-  .dl-platforms { margin-top: 3rem; }
+  .dl-platforms { margin-top: 3rem; container-type: inline-size; }
   .dl-platforms > h2, .dl-more h2 { font-size: 1.4rem; margin-bottom: 1.25rem; color: var(--sl-color-white); }
-  .dl-grid { display: grid; align-items: start; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+  .dl-grid { display: grid; align-items: start; gap: 1.25rem; grid-template-columns: minmax(0, 1fr); }
+  @container (min-width: 45.25rem) {
+    .dl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dl-card[data-platform='linux'] { grid-row: span 3; }
+  }
   .dl-card { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; padding: 1.5rem; border-radius: var(--dl-radius); background: var(--dl-surface); border: 1px solid var(--dl-border); transition: border-color 120ms; }
   .dl-card:hover { border-color: color-mix(in srgb, var(--dl-accent) 45%, var(--dl-border)); }
   .dl-card--wide { grid-column: 1 / -1; }
