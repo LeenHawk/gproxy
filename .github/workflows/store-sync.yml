@@ -37,7 +37,7 @@ jobs:
           MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
           DRY_RUN: ${{ inputs.dry_run || false }}
         run: scripts/sync-store-msix.ps1 -DryRun:($env:DRY_RUN -eq 'true') -WingetReadyPath store-winget-ready.json
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         if: ${{ !inputs.dry_run }}
         with:
           python-version: '3.12'
