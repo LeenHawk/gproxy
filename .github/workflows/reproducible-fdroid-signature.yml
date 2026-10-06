@@ -1,5 +1,8 @@
 name: Verify F-Droid signature reproduction
 on:
+  push:
+    branches: [build/reproducible-all-platforms]
+    paths: [.github/workflows/reproducible-fdroid-signature.yml]
   workflow_dispatch:
 permissions:
   contents: read
