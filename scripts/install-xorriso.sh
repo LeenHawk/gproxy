@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-prefix="${RUNNER_TEMP:?}/gproxy-xorriso-1.5.6"
+prefix="${RUNNER_TEMP:?}/gproxy-xorriso-1.5.6-gproxy1"
 if [ ! -x "$prefix/bin/xorriso" ]; then
   work="$(mktemp -d)"
   trap 'rm -rf "$work"' EXIT
@@ -9,6 +9,19 @@ if [ ! -x "$prefix/bin/xorriso" ]; then
   tar -xzf "$work/source.tar.gz" -C "$work"
   (
     cd "$work/xorriso-1.5.6"
+    # libisofs writes legacy ???? type/creator codes on ordinary HFS+ files.
+    # macOS exposes these as FinderInfo, which invalidates sealed app resources.
+    # Leave the fields zero, as on a normal clean signed .app; retain symlink codes.
+    python3 - <<'PY'
+from pathlib import Path
+path = Path("libisofs/hfsplus.c")
+source = path.read_text()
+for field in ("file_type", "file_creator"):
+    old = f'memcpy (common->{field}, "????", 4);'
+    assert source.count(old) == 1
+    source = source.replace(old, f'memset (common->{field}, 0, 4);')
+path.write_text(source)
+PY
     CPPFLAGS="${CPPFLAGS:-} -include sys/types.h" ./configure --prefix="$prefix" --disable-libacl --disable-xattr
     make -j2
     make install
