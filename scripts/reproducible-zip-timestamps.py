@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 import struct
+import subprocess
 import zipfile
 
 
@@ -40,4 +41,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", type=Path)
     args = parser.parse_args()
-    normalize(args.archive, int(os.environ["SOURCE_DATE_EPOCH"]))
+    epoch = os.environ.get("SOURCE_DATE_EPOCH") or subprocess.check_output(
+        ["git", "show", "-s", "--format=%ct", "HEAD"],
+        cwd=Path(__file__).resolve().parents[1], text=True).strip()
+    normalize(args.archive, int(epoch))

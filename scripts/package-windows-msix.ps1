@@ -74,6 +74,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "MSIX timestamp normalization failed: $LASTEXITCODE" }
     & $makeappx.FullName pack /d $work /p $package /o
     if ($LASTEXITCODE -ne 0) { throw "MSIX packaging failed: $LASTEXITCODE" }
+    & python "$PSScriptRoot/reproducible-zip-timestamps.py" $package
+    if ($LASTEXITCODE -ne 0) { throw "MSIX ZIP timestamp normalization failed: $LASTEXITCODE" }
     $hash = (Get-FileHash $package -Algorithm SHA256).Hash.ToLower()
     "$hash  $Artifact.msix" | Set-Content -Encoding ascii "$package.sha256"
 } finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }
