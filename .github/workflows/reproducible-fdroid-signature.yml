@@ -1,9 +1,23 @@
 name: Verify F-Droid signature reproduction
 on:
-  push:
-    branches: [build/reproducible-all-platforms]
-    paths: [.github/workflows/reproducible-fdroid-signature.yml]
   workflow_dispatch:
+    inputs:
+      upstream_run_id:
+        description: Successful upstream F-Droid reproduction run
+        required: true
+        type: string
+      fdroid_job_id:
+        description: Independent fdroiddata build job in project 87163432
+        required: true
+        type: string
+      source_commit:
+        description: Exact source commit being verified
+        required: true
+        type: string
+      unsigned_sha256:
+        description: Expected SHA-256 of both unsigned APKs
+        required: true
+        type: string
 permissions:
   contents: read
   actions: read
@@ -16,26 +30,29 @@ jobs:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           github-token: ${{ github.token }}
-          run-id: 37439555926
+          run-id: ${{ inputs.upstream_run_id }}
           name: reproducible-store-fdroid-aarch64-linux-android
           path: upstream
       - name: Fetch and compare the independent F-Droid rebuild
         env:
           FDROID_GITLAB_TOKEN: ${{ secrets.FDROID_GITLAB_TOKEN }}
+          FDROID_JOB_ID: ${{ inputs.fdroid_job_id }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          UNSIGNED_SHA256: ${{ inputs.unsigned_sha256 }}
         run: |
           python3 - <<'PY'
           import hashlib, io, json, os, urllib.request, zipfile
           from pathlib import Path
           report = json.loads(Path('upstream/report.json').read_text())
-          assert report['commit'] == 'ea12f43f6a2f23569abc590595135aa9830e1b8e'
+          assert report['commit'] == os.environ['SOURCE_COMMIT']
           assert report['passed']
           request = urllib.request.Request(
-              'https://gitlab.com/api/v4/projects/87163432/jobs/16962393936/artifacts',
+              f"https://gitlab.com/api/v4/projects/87163432/jobs/{int(os.environ['FDROID_JOB_ID'])}/artifacts",
               headers={'PRIVATE-TOKEN': os.environ['FDROID_GITLAB_TOKEN']})
           with urllib.request.urlopen(request) as response:
               with zipfile.ZipFile(io.BytesIO(response.read())) as archive:
                   rebuilt = archive.read('tmp/com.leenhawk.gproxy.app_4001000.apk')
-          expected = '76eab684403e9a4d813a9dd8db638c49707490954b0d9477a94fced4495b8ab4'
+          expected = os.environ['UNSIGNED_SHA256'].lower()
           assert hashlib.sha256(rebuilt).hexdigest() == expected
           assert hashlib.sha256(Path('upstream/first/gproxy-fdroid-aarch64.apk').read_bytes()).hexdigest() == expected
           Path('rebuilt.apk').write_bytes(rebuilt)
