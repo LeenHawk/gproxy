@@ -1,7 +1,5 @@
 name: Inspect reproducibility differences
 on:
-  push:
-    branches: [build/reproducible-all-platforms]
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,7 +24,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import zipfile, hashlib, json, difflib
+          import zipfile, hashlib, json, difflib, re, collections, subprocess, tarfile
           root=Path('pairs')
           if (root/'report.json').exists(): print((root/'report.json').read_text())
           for first in (root/'first').glob('*'):
@@ -40,9 +38,32 @@ jobs:
                       left,right=a.read(name),b.read(name)
                       if left!=right:
                           print('CONTENT',name,len(left),len(right),hashlib.sha256(left).hexdigest(),hashlib.sha256(right).hexdigest())
+                          if name.endswith('.abc'):
+                              positions=[i for i,(x,y) in enumerate(zip(left,right)) if x!=y]
+                              print('ABC byte differences',len(positions),positions[:48])
+                              x=collections.Counter(re.findall(rb'[ -~]{8,}',left)); y=collections.Counter(re.findall(rb'[ -~]{8,}',right))
+                              print('ABC first strings',list(x-y)[:12]); print('ABC second strings',list(y-x)[:12])
                           if name.endswith(('.json','.properties','.txt')) and max(len(left),len(right))<100000:
                               print('\n'.join(list(difflib.unified_diff(left.decode(errors='replace').splitlines(),right.decode(errors='replace').splitlines()))[:35]))
                       x,y=a.getinfo(name),b.getinfo(name)
                       for key in ['date_time','compress_type','compress_size','external_attr','extra','comment']:
                           if getattr(x,key)!=getattr(y,key): print('METADATA',name,key,str(getattr(x,key))[:160],str(getattr(y,key))[:160])
+          def deb_manifest(path):
+              proc=subprocess.Popen(['dpkg-deb','--fsys-tarfile',str(path)],stdout=subprocess.PIPE)
+              entries={}
+              with tarfile.open(fileobj=proc.stdout,mode='r|') as archive:
+                  for member in archive:
+                      digest=None
+                      if member.isfile():
+                          with archive.extractfile(member) as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
+                      entries[member.name]=(member.mode,member.uid,member.gid,member.mtime,member.linkname,digest)
+              assert proc.wait()==0
+              return entries
+          for first in (root/'first').glob('*.deb'):
+              second=root/'second'/first.name
+              if not second.exists():continue
+              a,b=deb_manifest(first),deb_manifest(second)
+              print('DEB',first.name)
+              for name in sorted(a.keys()|b.keys()):
+                  if a.get(name)!=b.get(name): print('DEB DIFFERENCE',name,a.get(name),b.get(name))
           PY

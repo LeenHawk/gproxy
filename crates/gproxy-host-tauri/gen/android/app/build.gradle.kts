@@ -1,4 +1,7 @@
 import java.util.Properties
+import com.android.build.gradle.internal.tasks.R8Task
+import com.google.gson.Gson
+import com.google.gson.JsonParser
 
 plugins {
     id("com.android.application")
@@ -133,5 +136,17 @@ tasks.configureEach {
                 }
             }
         }
+    }
+}
+
+// AGP 8.11 includes elapsed R8 execution time in AAB diagnostics. Preserve the
+// optimization metadata and DEX checksums, but omit this non-reproducible metric
+// before bundling/signing. It does not affect R8 optimization or app bytecode.
+tasks.withType<R8Task>().configureEach {
+    doLast {
+        val file = r8Metadata.get().asFile
+        val metadata = JsonParser.parseString(file.readText()).asJsonObject
+        metadata.getAsJsonObject("compilation").remove("buildTimeNs")
+        file.writeText(Gson().toJson(metadata))
     }
 }
