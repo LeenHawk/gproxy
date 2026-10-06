@@ -1,0 +1,48 @@
+name: Inspect reproducibility differences
+on:
+  push:
+    branches: [build/reproducible-all-platforms]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        artifact:
+          - reproducible-application-aarch64-unknown-linux-ohos
+          - reproducible-store-google-play-aarch64-linux-android
+          - reproducible-application-x86_64-unknown-linux-musl
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ github.token }}
+          run-id: 37286899495
+          name: ${{ matrix.artifact }}
+          path: pairs
+      - name: Compare package contents and ZIP metadata
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile, hashlib, json, difflib
+          root=Path('pairs')
+          if (root/'report.json').exists(): print((root/'report.json').read_text())
+          for first in (root/'first').glob('*'):
+              second=root/'second'/first.name
+              if not second.is_file() or not zipfile.is_zipfile(first): continue
+              with zipfile.ZipFile(first) as a, zipfile.ZipFile(second) as b:
+                  print('PACKAGE',first.name,'same order',a.namelist()==b.namelist())
+                  for name in sorted(set(a.namelist())|set(b.namelist())):
+                      if name not in a.namelist() or name not in b.namelist():
+                          print('MISSING',name); continue
+                      left,right=a.read(name),b.read(name)
+                      if left!=right:
+                          print('CONTENT',name,len(left),len(right),hashlib.sha256(left).hexdigest(),hashlib.sha256(right).hexdigest())
+                          if name.endswith(('.json','.properties','.txt')) and max(len(left),len(right))<100000:
+                              print('\n'.join(list(difflib.unified_diff(left.decode(errors='replace').splitlines(),right.decode(errors='replace').splitlines()))[:35]))
+                      x,y=a.getinfo(name),b.getinfo(name)
+                      for key in ['date_time','compress_type','compress_size','external_attr','extra','comment']:
+                          if getattr(x,key)!=getattr(y,key): print('METADATA',name,key,str(getattr(x,key))[:160],str(getattr(y,key))[:160])
+          PY

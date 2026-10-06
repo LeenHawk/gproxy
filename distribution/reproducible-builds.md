@@ -62,7 +62,7 @@ After obtaining the signed reference APK and an independent F-Droid rebuild:
 python3 -m pip install apksigcopier==1.1.1
 python3 scripts/mobile/verify-reproducible-apk.py reference.apk rebuilt.apk \
   --build-tools "$ANDROID_HOME/build-tools/34.0.0" \
-  --expected-cert-sha256 <independently-verified-upstream-certificate-fingerprint> \
+  --expected-cert-sha256 "$EXPECTED_CERT_SHA256" \
   --report dist/reproducible-apk.json
 ```
 
