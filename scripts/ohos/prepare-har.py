@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Package the matching Ability HAR instead of the CLI template's beta.0 HAR."""
 import json
+import gzip
+import tarfile
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import json5
 
@@ -33,7 +34,25 @@ if len(archives) != 1:
 project = root / "crates/gproxy-host-tauri/gen/ohos"
 vendor = project / "vendor"
 vendor.mkdir(exist_ok=True)
-shutil.copyfile(archives[0], vendor / "ability.har")
+# ohpm incorporates the HAR digest into paths embedded in Ark bytecode. Keep
+# the dependency archive stable before installation, rather than patching ABC.
+epoch = int(subprocess.check_output(
+    ["git", "-C", str(source), "show", "-s", "--format=%ct", pin["revision"]], text=True))
+with tarfile.open(archives[0], "r:*") as original, (vendor / "ability.har").open("wb") as output:
+    with gzip.GzipFile(filename="", mode="wb", fileobj=output, mtime=epoch, compresslevel=9) as compressed:
+        with tarfile.open(fileobj=compressed, mode="w", format=tarfile.PAX_FORMAT) as normalized:
+            for member in sorted(original.getmembers(), key=lambda entry: entry.name):
+                member.uid = member.gid = 0
+                member.uname = member.gname = ""
+                member.mtime = epoch
+                member.pax_headers = {key: value for key, value in member.pax_headers.items()
+                                      if key not in {"mtime", "atime", "ctime", "uid", "gid", "uname", "gname"}}
+                contents = original.extractfile(member) if member.isfile() else None
+                try:
+                    normalized.addfile(member, contents)
+                finally:
+                    if contents is not None:
+                        contents.close()
 package = project / "entry/oh-package.json5"
 config = json5.loads(package.read_text())
 config["dependencies"]["@ohos-rs/ability"] = "file:../vendor/ability.har"

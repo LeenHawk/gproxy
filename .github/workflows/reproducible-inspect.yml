@@ -9,15 +9,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        artifact:
-          - reproducible-application-aarch64-unknown-linux-ohos
-          - reproducible-store-google-play-aarch64-linux-android
-          - reproducible-application-x86_64-unknown-linux-musl
+        include:
+          - artifact: reproducible-application-aarch64-unknown-linux-ohos
+            run: 37286899495
+          - artifact: reproducible-store-google-play-aarch64-linux-android
+            run: 37286899495
+          - artifact: reproducible-application-x86_64-unknown-linux-musl
+            run: 37286899495
+          - artifact: reproducible-cli-x86_64-pc-windows-msvc
+            run: 37439547139
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           github-token: ${{ github.token }}
-          run-id: 37286899495
+          run-id: ${{ matrix.run }}
           name: ${{ matrix.artifact }}
           path: pairs
       - name: Compare package contents and ZIP metadata
@@ -43,7 +48,7 @@ jobs:
                               print('ABC byte differences',len(positions),positions[:48])
                               x=collections.Counter(re.findall(rb'[ -~]{8,}',left)); y=collections.Counter(re.findall(rb'[ -~]{8,}',right))
                               print('ABC first strings',list(x-y)[:12]); print('ABC second strings',list(y-x)[:12])
-                          if name.endswith(('.json','.properties','.txt')) and max(len(left),len(right))<100000:
+                          if name.endswith(('.json','.properties','.txt','.xml')) and max(len(left),len(right))<100000:
                               print('\n'.join(list(difflib.unified_diff(left.decode(errors='replace').splitlines(),right.decode(errors='replace').splitlines()))[:35]))
                       x,y=a.getinfo(name),b.getinfo(name)
                       for key in ['date_time','compress_type','compress_size','external_attr','extra','comment']:

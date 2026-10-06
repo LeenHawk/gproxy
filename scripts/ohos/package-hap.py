@@ -4,6 +4,8 @@ import hashlib
 import os
 from pathlib import Path
 import struct
+import subprocess
+import sys
 import zipfile
 
 signing = "signed" if os.environ.get("GPROXY_OHOS_SIGNING_CONFIG") else "unsigned"
@@ -29,6 +31,8 @@ output = Path("dist/release")
 output.mkdir(parents=True, exist_ok=True)
 package = output / (os.environ["ARTIFACT_NAME"] + ".hap")
 package.write_bytes(paths[0].read_bytes())
+if signing == "unsigned":
+    subprocess.run([sys.executable, "scripts/reproducible-zip-timestamps.py", str(package)], check=True)
 with package.open("rb") as stream:
     digest = hashlib.file_digest(stream, "sha256").hexdigest()
 Path(str(package) + ".sha256").write_text(f"{digest}  {package.name}\n")

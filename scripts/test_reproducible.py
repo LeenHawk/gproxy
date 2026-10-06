@@ -19,6 +19,7 @@ archive = module("reproducible-archive")
 verify = module("verify-reproducible")
 build = module("reproducible-run")
 replay = module("reproduce-build")
+zip_times = module("reproducible-zip-timestamps")
 
 
 class ReproducibleTests(unittest.TestCase):
@@ -60,6 +61,25 @@ class ReproducibleTests(unittest.TestCase):
             (second / "app.zip").write_bytes(b"b")
             result = verify.compare(first, second, ["app.zip", "missing.apk"])
             self.assertEqual([row["status"] for row in result], ["different", "missing"])
+
+    def test_zip_timestamp_fix_preserves_alignment_and_compressed_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for attempt, date in [(1, (2020, 1, 1, 0, 0, 0)), (2, (2026, 1, 1, 0, 0, 0))]:
+                path = root / f"{attempt}.hap"
+                with zipfile.ZipFile(path, "w") as package:
+                    item = zipfile.ZipInfo("module", date)
+                    item.extra = b"\xff\xff\x04\x00pad!"
+                    package.writestr(item, b"unchanged payload" * 100, compress_type=zipfile.ZIP_DEFLATED)
+                with zipfile.ZipFile(path) as package:
+                    before = package.getinfo("module")
+                zip_times.normalize(path, 1700000000)
+                with zipfile.ZipFile(path) as package:
+                    after = package.getinfo("module")
+                    self.assertEqual((before.header_offset, before.compress_size, before.extra),
+                                     (after.header_offset, after.compress_size, after.extra))
+                    self.assertEqual(package.read("module"), b"unchanged payload" * 100)
+            self.assertEqual((root / "1.hap").read_bytes(), (root / "2.hap").read_bytes())
 
     def test_clean_rebuild_removes_readonly_go_module_directories(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Exercise the production build/package scripts without publishing or signing.
 set -euo pipefail
-export TARGET_TRIPLE="${1:?target}" kind="${2:?cli|headless|application|edge|serverless}"
+export TARGET_TRIPLE="${1:?target}"
+kind="${2:?cli|headless|application|edge|serverless}"
 export CI_PROJECT_DIR="$PWD" CI_COMMIT_SHA="$GPROXY_BUILD_HASH"
 export GITHUB_SHA="$GPROXY_BUILD_HASH" GITHUB_REF_TYPE=tag
 export GITHUB_REF_NAME="v$(bash scripts/release-metadata.sh version)"

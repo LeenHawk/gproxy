@@ -9,7 +9,7 @@ if [ ! -x "$prefix/bin/xorriso" ]; then
   tar -xzf "$work/source.tar.gz" -C "$work"
   (
     cd "$work/xorriso-1.5.6"
-    ./configure --prefix="$prefix" --disable-libacl --disable-xattr
+    CPPFLAGS="${CPPFLAGS:-} -include sys/types.h" ./configure --prefix="$prefix" --disable-libacl --disable-xattr
     make -j2
     make install
   )

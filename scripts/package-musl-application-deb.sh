@@ -28,6 +28,8 @@ trust_args=()
 if [ "${GPROXY_UNSIGNED_BUILD:-0}" = 1 ]; then trust_args=(--allow-untrusted); fi
 fakeroot apk "${trust_args[@]}" --root "$runtime" --arch "$alpine_arch" --initdb --no-scripts \
   add --no-cache alpine-baselayout ca-certificates-bundle "$apk_file"
+# This is a build-time installation log, not part of the application runtime.
+rm -f "$runtime/var/log/apk.log"
 glib-compile-schemas "$runtime/usr/share/glib-2.0/schemas"
 pixbuf_dir="$(find "$runtime/usr/lib/gdk-pixbuf-2.0" -type d -name loaders -print -quit)"
 query="$runtime/usr/bin/gdk-pixbuf-query-loaders"
