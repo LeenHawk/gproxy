@@ -1,34 +1,39 @@
 name: Reproducible macOS packaging
 on:
-  push:
-    branches: [build/reproducible-all-platforms]
   workflow_dispatch:
     inputs:
       run_id:
         description: Run containing two independently built macOS ZIPs
-        default: '37283419140'
-      artifact:
-        default: reproducible-cli-aarch64-apple-darwin
-      package:
-        default: gproxy-macos-aarch64
+        default: '37286899495'
 permissions:
   contents: read
   actions: read
 jobs:
   package:
-    runs-on: macos-26
+    name: ${{ matrix.kind }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [cli, application]
+        arch: [aarch64, x86_64]
+        include:
+          - arch: aarch64
+            runner: macos-26
+          - arch: x86_64
+            runner: macos-26-intel
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           github-token: ${{ github.token }}
-          run-id: ${{ inputs.run_id || '37283419140' }}
-          name: ${{ inputs.artifact || 'reproducible-cli-aarch64-apple-darwin' }}
+          run-id: ${{ inputs.run_id }}
+          name: reproducible-${{ matrix.kind }}-${{ matrix.arch }}-apple-darwin
           path: dist/macos-input
       - run: bash scripts/install-xorriso.sh
       - name: Repackage and mount-verify both independent inputs
         env:
-          PACKAGE: ${{ inputs.package || 'gproxy-macos-aarch64' }}
+          PACKAGE: gproxy-${{ matrix.kind == 'application' && 'tauri-' || '' }}macos-${{ matrix.arch }}
         run: |
           export SOURCE_DATE_EPOCH="$(python3 -c 'import json; print(json.load(open("dist/macos-input/report.json"))["source_date_epoch"])')"
           work="$RUNNER_TEMP/gproxy-package-check"
@@ -50,6 +55,6 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: macos-package-check
+          name: macos-package-check-${{ matrix.kind }}-${{ matrix.arch }}
           path: dist/macos-package-check/
           retention-days: 14

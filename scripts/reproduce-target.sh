@@ -54,6 +54,7 @@ elif [ "$UPX_ENABLED" = true ]; then
   bash scripts/install-upx.sh
 fi
 release_tool_paths
+if [ "$TARGET_OS" = windows ] && [ "$UPX_ENABLED" = true ]; then upx --version; fi
 
 case "$kind" in
   store-fdroid | store-google-play | store-appgallery)

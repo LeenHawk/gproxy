@@ -19,5 +19,9 @@ if [ -n "${TARGET_TRIPLE:-}" ]; then
   export NDK_TARGET="$(jq -r '.ndk_target // empty' <<< "$row")"
 fi
 release_tool_paths() {
-  while IFS= read -r directory; do export PATH="$directory:$PATH"; done < "$GITHUB_PATH"
+  while IFS= read -r directory; do
+    directory="${directory%$'\r'}"
+    if [[ "$directory" == [A-Za-z]:* ]]; then directory="$(cygpath -u "$directory")"; fi
+    export PATH="$directory:$PATH"
+  done < "$GITHUB_PATH"
 }
