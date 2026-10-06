@@ -1072,10 +1072,64 @@ jobs:
           pnpm --dir "$work/cloudflare" install --frozen-lockfile --ignore-scripts
           pnpm --dir "$work/cloudflare" check
 
+  fdroid:
+    name: Signed F-Droid reference APK
+    needs: prepare
+    if: needs.prepare.outputs.channel == 'release'
+    runs-on: ubuntu-24.04
+    environment: release
+    env:
+      CONTAINER: android
+      CARGO_BUILD_JOBS: '2'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Rebuild F-Droid packages at fixed paths
+        run: |
+          docker build -f .gitlab/Dockerfile.android -t gproxy-reproduce-tools .
+          python3 scripts/reproduce-build.py --result dist/reproducible -- "$(command -v bash)" scripts/reproduce-dispatch.sh aarch64-linux-android store-fdroid
+      - name: Install signature tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;34.0.0'
+          python3 -m pip install apksigcopier==1.1.1
+      - name: Sign and verify the reference APK
+        env:
+          ANDROID_SIGNING_KEYSTORE_B64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_B64 }}
+          ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          mkdir -p dist/release
+          printf '%s' "$ANDROID_SIGNING_KEYSTORE_B64" | base64 -d > "$work/key.jks"
+          chmod 600 "$work/key.jks"
+          signer="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+          options=(--ks "$work/key.jks" --ks-pass env:ANDROID_SIGNING_KEYSTORE_PASSWORD --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" --v4-signing-enabled false)
+          if [ -n "$ANDROID_SIGNING_KEY_PASSWORD" ]; then options+=(--key-pass env:ANDROID_SIGNING_KEY_PASSWORD); fi
+          "$signer" sign "${options[@]}" --out dist/release/gproxy-fdroid-aarch64.apk dist/reproducible/first/gproxy-fdroid-aarch64.apk
+          python3 scripts/mobile/verify-reproducible-apk.py dist/release/gproxy-fdroid-aarch64.apk dist/reproducible/second/gproxy-fdroid-aarch64.apk \
+            --build-tools "$ANDROID_HOME/build-tools/34.0.0" --expected-cert-sha256 80b7795d2d557bad6fba2a956771c91f77f1ceef5e2b536e45eee314a74eed1c \
+            --report dist/reproducible/signature-report.json
+          (cd dist/release && sha256sum gproxy-fdroid-aarch64.apk > gproxy-fdroid-aarch64.apk.sha256)
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: application-fdroid-aarch64
+          path: dist/release/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: fdroid-release-verification
+          path: dist/reproducible/*report.json
+
   publish:
     if: ${{ always() && !failure() && !cancelled() }}
     name: Publish GitHub, GitLab and CNB releases
-    needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, alpine-packages, serverless, edge, edge-check, container-manifest, publish-crates]
+    needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, alpine-packages, serverless, edge, edge-check, container-manifest, publish-crates, fdroid]
     runs-on: ubuntu-latest
     concurrency:
       group: gproxy-release-publication

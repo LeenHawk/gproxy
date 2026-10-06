@@ -41,7 +41,7 @@ jobs:
           UNSIGNED_SHA256: ${{ inputs.unsigned_sha256 }}
         run: |
           python3 - <<'PY'
-          import hashlib, io, json, os, urllib.request, zipfile
+          import hashlib, io, json, os, re, urllib.request, zipfile
           from pathlib import Path
           report = json.loads(Path('upstream/report.json').read_text())
           assert report['commit'] == os.environ['SOURCE_COMMIT']
@@ -51,7 +51,9 @@ jobs:
               headers={'PRIVATE-TOKEN': os.environ['FDROID_GITLAB_TOKEN']})
           with urllib.request.urlopen(request) as response:
               with zipfile.ZipFile(io.BytesIO(response.read())) as archive:
-                  rebuilt = archive.read('tmp/com.leenhawk.gproxy.app_4001000.apk')
+                  names = [n for n in archive.namelist() if re.fullmatch(r'tmp/com\.leenhawk\.gproxy\.app_\d+\.apk', n)]
+                  assert len(names) == 1
+                  rebuilt = archive.read(names[0])
           expected = os.environ['UNSIGNED_SHA256'].lower()
           assert hashlib.sha256(rebuilt).hexdigest() == expected
           assert hashlib.sha256(Path('upstream/first/gproxy-fdroid-aarch64.apk').read_bytes()).hexdigest() == expected

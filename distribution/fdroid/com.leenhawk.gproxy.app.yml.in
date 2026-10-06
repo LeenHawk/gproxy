@@ -16,6 +16,10 @@ AutoName: GPROXY
 
 RepoType: git
 Repo: https://github.com/LeenHawk/gproxy.git
+Binaries: https://github.com/LeenHawk/gproxy/releases/download/v%v/gproxy-fdroid-aarch64.apk
+
+AllowedAPKSigningKeys:
+  - 80b7795d2d557bad6fba2a956771c91f77f1ceef5e2b536e45eee314a74eed1c
 
 Builds:
   - versionName: @VERSION@
