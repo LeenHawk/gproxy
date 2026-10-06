@@ -16,6 +16,9 @@ packages = set()
 for row in matrix:
     name = f"repro-report-{row['kind']}-{row['target']}"
     path = root / name / "report.json"
+    # download-artifact extracts a single matched artifact directly into root.
+    if len(matrix) == 1 and not path.is_file():
+        path = root / "report.json"
     if not path.is_file():
         failures.append(f"{name}: missing report")
         continue
