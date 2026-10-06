@@ -182,8 +182,8 @@ def submit(generated, dry_run=False):
         "not established by this submission.\n\n"
         "New checklist items remain unchecked until reviewed; automation does not certify "
         "policy compliance or reproducibility. The APK contains only ARM64 native code, "
-        "so it is already limited to one ABI. The rustup srclib supplies the build "
-        "toolchain, not an app source dependency.\n\n"
+        "so it is already limited to one ABI. Debian's rustup package installs the "
+        "pinned Rust toolchain; no rustup srclib is needed.\n\n"
         "This release was submitted automatically. F-Droid CI and maintainer review "
         "are pending for this revision. Existing reviewer recipe changes are retained."
     )

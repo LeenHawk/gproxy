@@ -54,7 +54,9 @@ disable baseline profiles, shrinking, stripping or VCS metadata.
 Android compilation uses build-tools 36.1.0 and NDK 30.0.15729638. APK signing
 uses `apksigner` from build-tools 34.0.0, following the guide's warning about
 signature-copy incompatibilities in newer signers. The F-Droid build mirrors
-upstream's source/Cargo/NDK paths and explicitly selects Debian OpenJDK 21.
+upstream's source/Cargo/NDK paths and selects the OpenJDK 21 already provided by
+F-Droid. The recipe installs Debian's `rustup` package to provision the pinned
+Rust toolchain, without a rustup srclib or an extra JDK installation.
 
 After obtaining the signed reference APK and an independent F-Droid rebuild:
 

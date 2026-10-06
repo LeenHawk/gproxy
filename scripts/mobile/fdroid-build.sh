@@ -16,7 +16,6 @@ trap 'rm -rf "$build_root"' EXIT
 cp -a "$root" "$build_root/source"
 ln -s "$ANDROID_NDK_HOME" "$build_root/android-ndk"
 export ANDROID_NDK_HOME="$build_root/android-ndk" ANDROID_NDK_ROOT="$build_root/android-ndk" NDK_HOME="$build_root/android-ndk"
-source "$CARGO_HOME/env"
 cd "$build_root/source"
 export PATH="$JAVA_HOME/bin:$tools_dir/gproxy-android-upx/bin:$CARGO_HOME/bin:$tools_dir/node-v24.21.0-linux-x64/bin:$tools_dir/pnpm/bin:$tools_dir/go/bin:$tools_dir/gradle-8.14.3/bin:$PATH"
 # fdroidserver removes upstream wrapper scripts/JARs during source scanning.

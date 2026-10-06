@@ -24,11 +24,9 @@ Builds:
     sudo:
       - apt-get update
       - apt-get install -y clang cmake g++ libclang-dev make pkg-config ninja-build
-        openjdk-21-jdk-headless python3 unzip xz-utils
+        python3 rustup unzip xz-utils
     output: dist/mobile/fdroid/aarch64/gproxy-fdroid-aarch64.apk
-    srclibs:
-      - rustup@1.28.2
-    prebuild: bash scripts/mobile/fdroid-tools.sh $$rustup$$
+    prebuild: bash scripts/mobile/fdroid-tools.sh
     build:
       - export ANDROID_HOME=$$SDK$$ ANDROID_NDK_HOME=$$NDK$$
       - bash scripts/mobile/fdroid-build.sh
