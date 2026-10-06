@@ -337,6 +337,9 @@ macos-dmg:
             PACKAGE_MODE: [cli, application]
   timeout: 30m
   script:
+    - source scripts/gitlab/env.sh
+    - bash scripts/install-xorriso.sh
+    - release_tool_paths
     - python3 scripts/gitlab/package-dmg.py
   artifacts:
     expire_in: 3 days

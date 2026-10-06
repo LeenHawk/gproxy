@@ -29,22 +29,24 @@ case "$TARGET_OS:$TARGET_TRIPLE" in
       pnpm exec tauri bundle --target "$TARGET_TRIPLE" --bundles "$bundle" --config "$config" --no-binary-patching
     else
       # Keep the .app as a requested output; DMG-only bundling deletes it before ZIP packaging.
-      bash "$root/scripts/with-tauri-desktop-lib.sh" pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --bundles app,dmg --config "$config" -- --locked
-    fi
-    files=("$root/target/$TARGET_TRIPLE/release/bundle/$bundle/"*."$bundle")
-    test "${#files[@]}" -eq 1 && test -f "${files[0]}"
-    if [ "$TARGET_OS" = linux ]; then
-      python3 "$root/scripts/reproducible-deb.py" "${files[0]}" "$output/$ARTIFACT_NAME.$bundle"
-    else
-      cp "${files[0]}" "$output/$ARTIFACT_NAME.$bundle"
+      bash "$root/scripts/with-tauri-desktop-lib.sh" pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --bundles app --config "$config" -- --locked
     fi
     if [ "$TARGET_OS" = macos ]; then
       apps=("$root/target/$TARGET_TRIPLE/release/bundle/macos/"*.app)
       test "${#apps[@]}" -eq 1 && test -d "${apps[0]}"
-      python3 "$root/scripts/reproducible-archive.py" --root "$(dirname "${apps[0]}")" --output "$output/$ARTIFACT_NAME.zip" "$(basename "${apps[0]}")"
-    else
       work="$(mktemp -d)"
-      # Preserve the DEB payload, including desktop resources, in the ZIP.
+      trap 'rm -rf "$work"' EXIT
+      cp -R "${apps[0]}" "$work/"
+      ln -s /Applications "$work/Applications"
+      python3 "$root/scripts/reproducible-dmg.py" --source "$work" --output "$output/$ARTIFACT_NAME.dmg" --volume-name GPROXY
+      python3 "$root/scripts/reproducible-archive.py" --root "$(dirname "${apps[0]}")" --output "$output/$ARTIFACT_NAME.zip" "$(basename "${apps[0]}")"
+      rm -rf "$work"
+      trap - EXIT
+    else
+      files=("$root/target/$TARGET_TRIPLE/release/bundle/deb/"*.deb)
+      test "${#files[@]}" -eq 1 && test -f "${files[0]}"
+      python3 "$root/scripts/reproducible-deb.py" "${files[0]}" "$output/$ARTIFACT_NAME.deb"
+      work="$(mktemp -d)"
       dpkg-deb -x "${files[0]}" "$work"
       cp "$root/README.md" "$root/LICENSE" "$work/"
       printf '%s\n' 'Run ./usr/bin/gproxy-desktop. GTK 3 and WebKitGTK 4.1 runtime libraries are required; the DEB installs those dependencies automatically.' > "$work/RUN.txt"

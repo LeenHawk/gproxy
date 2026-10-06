@@ -5,6 +5,7 @@ import hashlib
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 
 
@@ -26,9 +27,9 @@ def package(binary: Path, artifact: str, output: Path) -> None:
             "has a separate gproxy-tauri package. No service is enabled automatically.\n"
         )
         package_path = output / f"{artifact}.dmg"
-        subprocess.run(["hdiutil", "create", "-ov", "-format", "UDZO", "-fs", "HFS+",
-                        "-volname", "GPROXY CLI", "-srcfolder", str(root), str(package_path)], check=True)
-        subprocess.run(["hdiutil", "verify", str(package_path)], check=True)
+        subprocess.run([sys.executable, str(Path(__file__).with_name("reproducible-dmg.py")),
+                        "--source", str(root), "--output", str(package_path),
+                        "--volume-name", "GPROXY CLI"], check=True)
         with package_path.open("rb") as stream:
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
         Path(str(package_path) + ".sha256").write_text(f"{digest}  {package_path.name}\n")

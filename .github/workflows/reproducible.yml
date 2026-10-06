@@ -76,6 +76,9 @@ jobs:
         with:
           toolchain: 1.99.0
           targets: ${{ matrix.target }}
+      - name: Install reproducible macOS image builder
+        if: matrix.os == 'macos'
+        run: bash scripts/install-xorriso.sh
       - name: Install native Linux build dependencies
         if: matrix.container == '' && matrix.os == 'linux' && matrix.builder == 'cargo'
         run: |

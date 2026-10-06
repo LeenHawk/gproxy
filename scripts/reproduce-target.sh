@@ -19,6 +19,12 @@ source scripts/reproducible-env.sh
 export GPROXY_UNSIGNED_BUILD=1
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
 export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+if [ "$TARGET_OS" = android ] && [[ "$kind" = application || "$kind" = store-* ]]; then
+  # The F-Droid recipe uses this same NDK path (and the same pinned NDK).
+  ndk_link="$(dirname "$CARGO_HOME")/android-ndk"
+  ln -sfn "$ANDROID_NDK_HOME" "$ndk_link"
+  export ANDROID_NDK_HOME="$ndk_link" ANDROID_NDK_ROOT="$ndk_link" NDK_HOME="$ndk_link"
+fi
 
 if [ "$kind" != headless ]; then
   pnpm --dir console install --frozen-lockfile

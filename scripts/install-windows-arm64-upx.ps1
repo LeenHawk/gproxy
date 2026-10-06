@@ -19,7 +19,7 @@ if (-not (Test-Path $packerExecutable)) {
     Invoke-Checked git @('-C', $source, 'fetch', '--depth', '1', 'origin', $revision)
     Invoke-Checked git @('-C', $source, 'checkout', '--detach', 'FETCH_HEAD')
     Invoke-Checked git @('-C', $source, 'submodule', 'update', '--init', '--recursive', '--depth', '1')
-    Invoke-Checked cmake @('-S', $source, '-B', "$source/build", '-A', $hostArchitecture, '-DUPX_CONFIG_DISABLE_WERROR=ON')
+    Invoke-Checked cmake @('-S', $source, '-B', "$source/build", '-A', $hostArchitecture, '-T', 'host=x64', '-DUPX_CONFIG_DISABLE_WERROR=ON')
     Invoke-Checked cmake @('--build', "$source/build", '--config', 'Release', '--target', 'upx', '--parallel', '4')
     New-Item -ItemType Directory -Force -Path $packerCache | Out-Null
     Copy-Item "$source/build/Release/upx.exe" $packerExecutable

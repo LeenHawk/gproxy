@@ -32,7 +32,10 @@ if __name__ == "__main__":
         epoch = int(values["SOURCE_DATE_EPOCH"])
         paths = [args.normalize_tree, *args.normalize_tree.rglob("*")]
         for path in paths:
-            os.utime(path, (epoch, epoch), follow_symlinks=False)
+            if path.is_symlink():
+                os.utime(path, (epoch, epoch), follow_symlinks=False)
+            else:
+                os.utime(path, (epoch, epoch))
     elif args.format == "json":
         print(json.dumps(values))
     elif args.format == "github":

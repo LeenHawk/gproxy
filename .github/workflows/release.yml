@@ -134,6 +134,9 @@ jobs:
         run: |
           node console/scripts/sync-to-embed.mjs
           pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
+      - name: Install reproducible macOS image builder
+        if: matrix.os == 'macos'
+        run: bash scripts/install-xorriso.sh
       - name: Install Linux desktop dependencies
         if: matrix.kind == 'application' && matrix.os == 'linux' && matrix.builder != 'cargo-alpine'
         run: |

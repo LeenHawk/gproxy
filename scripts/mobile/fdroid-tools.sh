@@ -2,8 +2,12 @@
 # F-Droid prebuild: pinned FLOSS build tools, outside the scanned app checkout.
 set -euo pipefail
 rustup_source="${1:?path to F-Droid rustup srclib}"
-tools_dir="$HOME/.local/share/gproxy-fdroid"
+# Match the upstream reproducibility build before installing Rust or Cargo tools.
+build_root=/tmp/gproxy-reproduce
+(umask 077; mkdir "$build_root")
+tools_dir="$build_root/tools"
 mkdir -p "$tools_dir"
+export RUSTUP_HOME="$tools_dir/rustup" CARGO_HOME="$build_root/cargo"
 download() {
   local url="$1" checksum="$2" file="$tools_dir/$3"
   curl --fail --location --retry 3 "$url" -o "$file"
@@ -18,7 +22,6 @@ tar -xf "$tools_dir/go.tar.gz" -C "$tools_dir"
 download https://services.gradle.org/distributions/gradle-8.14.3-bin.zip \
   bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531 gradle.zip
 unzip -q -o "$tools_dir/gradle.zip" -d "$tools_dir"
-export RUSTUP_HOME="$tools_dir/rustup" CARGO_HOME="$tools_dir/cargo"
 bash "$rustup_source/rustup-init.sh" -y --no-modify-path --default-toolchain 1.98.0 \
   --profile minimal --target aarch64-linux-android
 export PATH="$tools_dir/node-v24.21.0-linux-x64/bin:$PATH"

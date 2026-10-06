@@ -16,6 +16,8 @@ if [ -n "${CONTAINER:-}" ]; then
     --env CARGO_BUILD_JOBS --env CARGO_INCREMENTAL=0 \
     --env GIT_CONFIG_COUNT=1 --env GIT_CONFIG_KEY_0=safe.directory --env "GIT_CONFIG_VALUE_0=$PWD" \
     gproxy-reproduce-tools bash scripts/reproduce-target.sh "$target" "$kind"
+  restore_owner
+  trap - EXIT
 else
   bash scripts/reproduce-target.sh "$target" "$kind"
 fi

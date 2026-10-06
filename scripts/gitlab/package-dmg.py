@@ -69,9 +69,8 @@ for row in rows:
         Path(str(archive_path) + ".sha256").write_text(f"{zip_digest}  {archive_path.name}\n")
         (image_root / "Applications").symlink_to("/Applications")
         package = output / f"{artifact}.dmg"
-        subprocess.run(["hdiutil", "create", "-ov", "-format", "UDZO", "-fs", "HFS+",
-                        "-volname", config["productName"], "-srcfolder", str(image_root), str(package)], check=True)
-        subprocess.run(["hdiutil", "verify", str(package)], check=True)
+        subprocess.run([sys.executable, "scripts/reproducible-dmg.py", "--source", str(image_root),
+                        "--output", str(package), "--volume-name", config["productName"]], check=True)
         digest = hashlib.sha256()
         with package.open("rb") as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
