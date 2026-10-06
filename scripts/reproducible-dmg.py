@@ -73,7 +73,8 @@ def package(source, output, volume_name):
         raw = root / "volume.hfs"
         raw.write_bytes(hfs_partition(image.read_bytes()))
         subprocess.run(["hdiutil", "convert", str(raw), "-format", "UDZO",
-                        "-imagekey", "zlib-level=9", "-ov", "-o", str(output)], check=True)
+                        "-srcimagekey", "diskimage-class=CRawDiskImage",
+                        "-tgtimagekey", "zlib-level=9", "-ov", "-o", str(output)], check=True)
         # A single-segment UDIF uses this identifier only to associate segments.
         # It is outside the data-fork/master checksums. Set it before any signing.
         with output.open("r+b") as stream:
