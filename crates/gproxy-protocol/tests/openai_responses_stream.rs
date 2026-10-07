@@ -59,6 +59,7 @@ fn fixtures() -> Vec<Value> {
 }
 fn rest(e: &StreamEvent) -> &gproxy_protocol::Rest {
     match e {
+        StreamEvent::Keepalive => unreachable!("keepalive is not a JSON payload fixture"),
         StreamEvent::Created(x) => &x.rest,
         StreamEvent::Queued(x) => &x.rest,
         StreamEvent::InProgress(x) => &x.rest,
