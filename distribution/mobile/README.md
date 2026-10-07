@@ -118,36 +118,36 @@ fdroid build --server com.leenhawk.gproxy.app
 
 Do not submit the `.yml.in` template or claim a local APK build is an F-Droid
 isolated-server build. The full recipe, toolchain availability, source scanner
-and resulting APK still need to pass fdroiddata CI. Reproducible builds using
-the upstream signature are optional and have not been established.
+and resulting APK still need to pass fdroiddata CI. The recipe's `Binaries` URL
+points to the signed reference APK published with each stable GitHub release;
+`AllowedAPKSigningKeys` pins its signing certificate. F-Droid independently
+rebuilds the application and verifies it against that reference APK.
 
-### Automatic release submission
+### F-Droid automatic updates
 
-Automatic F-Droid MR submission is temporarily disabled. The Release workflow
-does not call `.github/workflows/fdroid-publish.yml`, and the F-Droid workflow is
-disabled on GitHub. Once explicitly re-enabled, it only supports manual dispatch
-with a published version and defaults to a read-only dry run.
+After initial inclusion, F-Droid owns version tracking and build-recipe updates:
 
-The `release` GitHub environment must contain `FDROID_GITLAB_TOKEN`, a GitLab
-project access token with `api` scope and Developer access to the public
-`LeenHawk/fdroiddata` fork and permission
-to open/update merge requests at `fdroid/fdroiddata`. The fork must already exist.
-The submission script checks that the stable GitHub release is published and
-its tag belongs to `origin/main`, then pins the recipe to the full source commit.
+- `UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$` selects stable release tags,
+  excluding the floating `nightly` and `staging` tags and prereleases.
+- `UpdateCheckData` reads `versionCode` from
+  `distribution/mobile/tauri.store.conf.json` and the version name from
+  `crates/gproxy-host-tauri/tauri.conf.json` at that tag.
+- `AutoUpdateMode: Version` reuses the latest accepted build recipe for the new
+  version and selects the matching source revision.
 
-Before initial inclusion, new releases update the existing GPROXY MR. After
-inclusion, the script retains accepted build history and reviewer changes to
-the recipe when submitting the next version. If F-Droid's own tag updater has
-already added that version, or the version is already pending, submission is
-skipped. Older releases never replace a newer pending or accepted version.
-MR descriptions use the upstream [App inclusion](https://gitlab.com/fdroid/fdroiddata/-/blob/master/.gitlab/merge_request_templates/App%20inclusion.md)
-and [App update](https://gitlab.com/fdroid/fdroiddata/-/blob/master/.gitlab/merge_request_templates/App%20update.md)
-checklists stored in `distribution/fdroid/app-*.md`. Review the checklist in the
-MR; automation does not mark unverified requirements as complete. Existing
-checklist edits are preserved when the pending version advances. Keep these
-copies in sync if F-Droid changes its submission requirements.
-F-Droid CI and maintainer approval still determine acceptance/publication;
-successful submission does not mean the app is available in the repository.
+Each stable release must increase the Android version code and publish
+`gproxy-fdroid-aarch64.apk` at the URL declared by `Binaries`. The Release
+workflow retains that signed reference APK build. GitHub does not submit a
+separate F-Droid merge request for every release.
+
+Initial inclusion and changes to the build recipe still require a manual
+fdroiddata merge request. Until the initial MR is merged, F-Droid's updater
+cannot track this application from its main metadata repository. Use the
+metadata renderer above when a manual recipe update is needed, and follow the
+upstream [App inclusion](https://gitlab.com/fdroid/fdroiddata/-/blob/master/.gitlab/merge_request_templates/App%20inclusion.md)
+or [App update](https://gitlab.com/fdroid/fdroiddata/-/blob/master/.gitlab/merge_request_templates/App%20update.md)
+checklist. F-Droid CI, maintainer approval, and repository publication remain
+separate from publishing the upstream GitHub release.
 
 ## Native HarmonyOS AppGallery
 
