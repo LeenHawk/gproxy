@@ -78,7 +78,7 @@ jobs:
           printf '%s' "$ANDROID_SIGNING_KEYSTORE_B64" | base64 -d > "$work/key.jks"
           chmod 600 "$work/key.jks"
           signer="$ANDROID_HOME/build-tools/34.0.0/apksigner"
-          options=(--ks "$work/key.jks" --ks-pass env:ANDROID_SIGNING_KEYSTORE_PASSWORD --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" --v4-signing-enabled false)
+          options=(--ks "$work/key.jks" --ks-pass env:ANDROID_SIGNING_KEYSTORE_PASSWORD --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" --v1-signing-enabled false --v4-signing-enabled false)
           if [ -n "$ANDROID_SIGNING_KEY_PASSWORD" ]; then options+=(--key-pass env:ANDROID_SIGNING_KEY_PASSWORD); fi
           "$signer" sign "${options[@]}" --out dist/fdroid-signature/gproxy-fdroid-aarch64.apk upstream/first/gproxy-fdroid-aarch64.apk
           curl --fail --location --retry 3 https://github.com/LeenHawk/gproxy/releases/download/v4.1.0/gproxy-tauri-android-aarch64.apk -o "$work/released.apk"

@@ -603,6 +603,8 @@ jobs:
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Trust the container checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Validate update identity
         env:
           GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
@@ -914,6 +916,8 @@ jobs:
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Trust the container checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Validate update identity
         env:
           GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
@@ -1108,7 +1112,9 @@ jobs:
           printf '%s' "$ANDROID_SIGNING_KEYSTORE_B64" | base64 -d > "$work/key.jks"
           chmod 600 "$work/key.jks"
           signer="$ANDROID_HOME/build-tools/34.0.0/apksigner"
-          options=(--ks "$work/key.jks" --ks-pass env:ANDROID_SIGNING_KEYSTORE_PASSWORD --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" --v4-signing-enabled false)
+          # minSdk 28 uses v3; omit v1 ZIP entries that apksigcopier cannot
+          # reproduce with Python 3.13.15 filename-flag normalization.
+          options=(--ks "$work/key.jks" --ks-pass env:ANDROID_SIGNING_KEYSTORE_PASSWORD --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" --v1-signing-enabled false --v4-signing-enabled false)
           if [ -n "$ANDROID_SIGNING_KEY_PASSWORD" ]; then options+=(--key-pass env:ANDROID_SIGNING_KEY_PASSWORD); fi
           "$signer" sign "${options[@]}" --out dist/release/gproxy-fdroid-aarch64.apk dist/reproducible/first/gproxy-fdroid-aarch64.apk
           python3 scripts/mobile/verify-reproducible-apk.py dist/release/gproxy-fdroid-aarch64.apk dist/reproducible/second/gproxy-fdroid-aarch64.apk \
