@@ -151,7 +151,8 @@ async fn running_the_migrator_twice_is_a_no_op() {
             "m20260926_000001_credential_cycles",
             "m20260930_000001_allowed_headers",
             "m20261005_000001_capture_storage",
-            "m20261007_000001_rewrite_conditions"
+            "m20261007_000001_rewrite_conditions",
+            "m20261008_000001_usage_timing"
         ]
     );
     let after_first = schema(store.connection()).await;
@@ -507,4 +508,25 @@ async fn capture_upgrade_backfills_headers_and_preserves_legacy_identity_bodies(
         );
     }
     assert!(store.migrate().await.unwrap().applied.is_empty());
+}
+
+#[tokio::test]
+async fn usage_timing_upgrade_matches_fresh_columns() {
+    let fresh = connection().await;
+    Store::new(fresh.clone()).install().await.unwrap();
+    let older = connection().await;
+    Store::new(older.clone()).install().await.unwrap();
+    for sql in [
+        "ALTER TABLE usage_records DROP COLUMN duration_ms",
+        "ALTER TABLE usage_records DROP COLUMN ttft_ms",
+        "DELETE FROM seaql_migrations WHERE version = 'm20261008_000001_usage_timing'",
+    ] {
+        older.execute_unprepared(sql).await.unwrap();
+    }
+    let report = Store::new(older.clone()).migrate().await.unwrap();
+    assert_eq!(report.applied, ["m20261008_000001_usage_timing"]);
+    assert_eq!(
+        columns(&older, "usage_records").await,
+        columns(&fresh, "usage_records").await
+    );
 }

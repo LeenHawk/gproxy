@@ -263,6 +263,7 @@
     "cacheCreation5mTokens": "缓存写入（5 分钟）",
     "cacheCreation30mTokens": "缓存写入（30 分钟）",
     "cacheCreation1hTokens": "缓存写入（1 小时）",
+    "averageOutputTps": "平均输出 TPS",
     "cacheHitRate": "缓存命中率"
   },
   "oauthConsent": {

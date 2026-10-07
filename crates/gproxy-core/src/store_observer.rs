@@ -112,6 +112,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
             let mut statements = Vec::with_capacity(report.exchanges.len() * 2);
             for exchange in &report.exchanges {
                 let row = usage_record::ActiveModel {
+                    duration_ms: Set(exchange.duration_ms),
+                    ttft_ms: Set(exchange.ttft_ms),
                     request_id: Set(exchange.capture_id.clone()),
                     user_id: reported(request.attribution.user_id.clone()),
                     api_key_id: reported(request.attribution.api_key_id.clone()),

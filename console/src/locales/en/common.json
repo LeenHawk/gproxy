@@ -263,6 +263,7 @@
     "cacheCreation5mTokens": "Cache writes (5 min)",
     "cacheCreation30mTokens": "Cache writes (30 min)",
     "cacheCreation1hTokens": "Cache writes (1 hour)",
+    "averageOutputTps": "Average output TPS",
     "cacheHitRate": "Cache hit rate"
   },
   "oauthConsent": {

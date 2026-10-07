@@ -72,6 +72,8 @@ pub struct UsageRecordDto {
     pub metrics: Value,
     pub started_at_ms: i64,
     pub ended_at_ms: Option<i64>,
+    pub duration_ms: Option<i64>,
+    pub ttft_ms: Option<i64>,
 }
 
 impl From<gproxy_core::usage_scan::UsageRecord> for UsageRecordDto {
@@ -94,6 +96,8 @@ impl From<gproxy_core::usage_scan::UsageRecord> for UsageRecordDto {
             metrics: row.metrics,
             started_at_ms: row.started_at_ms,
             ended_at_ms: row.ended_at_ms,
+            duration_ms: row.duration_ms,
+            ttft_ms: row.ttft_ms,
         }
     }
 }
@@ -154,6 +158,9 @@ pub struct UsageSummaryDto {
     pub requests: u64,
     pub input_tokens: u64,
     pub output_tokens: u64,
+    /// Output tokens per second of generation time, excluding first-token wait.
+    /// Only records with reported output tokens, TTFT and positive generation time contribute.
+    pub average_output_tps: Option<f64>,
     pub cached_input_tokens: u64,
     /// Total cache writes across all three retention periods.
     pub cache_creation_tokens: u64,

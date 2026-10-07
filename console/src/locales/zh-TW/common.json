@@ -263,6 +263,7 @@
     "cacheCreation5mTokens": "快取寫入（5 分鐘）",
     "cacheCreation30mTokens": "快取寫入（30 分鐘）",
     "cacheCreation1hTokens": "快取寫入（1 小時）",
+    "averageOutputTps": "平均輸出 TPS",
     "cacheHitRate": "快取命中率"
   },
   "oauthConsent": {

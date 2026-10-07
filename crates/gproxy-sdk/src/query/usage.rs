@@ -315,6 +315,8 @@ struct Totals {
     requests: u64,
     input_tokens: u64,
     output_tokens: u64,
+    timed_output_tokens: u64,
+    output_duration_ms: u64,
     cached_input_tokens: u64,
     cache_creation_5m_tokens: u64,
     cache_creation_30m_tokens: u64,
@@ -330,6 +332,17 @@ impl Totals {
     fn add(&mut self, row: &UsageRecord) {
         self.requests += 1;
         self.add_tokens(&UsageTokensDto::from_row(row));
+        if let (Some(tokens), Some(duration)) = (
+            row.output_tokens(),
+            row.duration_ms
+                .zip(row.ttft_ms)
+                .filter(|(_, ttft)| *ttft >= 0)
+                .and_then(|(duration, ttft)| duration.checked_sub(ttft))
+                .filter(|duration| *duration > 0),
+        ) {
+            self.timed_output_tokens = self.timed_output_tokens.saturating_add(tokens);
+            self.output_duration_ms = self.output_duration_ms.saturating_add(duration as u64);
+        }
         for (key, value) in row.quantities() {
             let sum = self.quantities.entry(key).or_default();
             *sum = sum.saturating_add(value);
@@ -372,6 +385,8 @@ impl Totals {
                 .collect(),
             input_tokens: self.input_tokens,
             output_tokens: self.output_tokens,
+            average_output_tps: (self.output_duration_ms > 0)
+                .then(|| self.timed_output_tokens as f64 * 1000.0 / self.output_duration_ms as f64),
             cached_input_tokens: self.cached_input_tokens,
             cache_creation_tokens: self
                 .cache_creation_5m_tokens
