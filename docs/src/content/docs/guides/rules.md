@@ -144,3 +144,26 @@ Add `filterBody` and/or `filterHeader` to gate an existing action. Both conditio
 `filterHeader` reads original inbound request headers for any target and phase. Header names are case-insensitive; values are exact, case-sensitive strings without comma splitting. With repeated headers, `eq` matches any equal value; `ne` requires a present header with no equal value.
 
 Operators are `eq`, `ne`, `exists`, and `not_exists`. Equality/inequality require `value`; existence operators reject it. A missing field does not satisfy `ne`. Conditions run per complete body, SSE event, NDJSON record, JSON-array element or WebSocket message, without cross-message state. Clear a condition with `null`; omitted PATCH fields retain existing conditions.
+
+### JMESPath expressions
+
+`filterBody` also accepts a JMESPath expression string. It evaluates the current body, and only boolean `true` runs the action. Type errors, unknown functions, other evaluation errors and non-boolean results do not match. Syntax is validated on save. The existing `{ "path", "op", "value" }` object form remains supported.
+
+This rule sets `max_tokens` to 0 only when a text block in the last message contains the keepalive marker. Earlier messages cannot trigger it:
+
+```json
+{
+  "action": "set",
+  "phase": "request",
+  "target": "body",
+  "paths": [
+    "max_tokens"
+  ],
+  "replacement": "0",
+  "filterBody": "length(messages[-1].content[?type(text) == 'string' && contains(text, '[cache-keepalive]')]) > `0`"
+}
+```
+
+Negative indexes, projections, `contains()`, comparisons and boolean composition follow the [JMESPath specification](https://jmespath.org/specification.html). Missing fields evaluate to `null` and may be explicitly tested; non-JSON payloads never match. The action's `paths` still use the existing dot-path syntax independently of the expression.
+
+Expressions compile once. An unchanged payload shares one converted JMESPath document; an actual preceding body edit invalidates that snapshot. Rules without expressions do not create this extra representation. Each stream unit is independent. Queries traversing the full document still scale with its size.

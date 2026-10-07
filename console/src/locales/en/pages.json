@@ -480,7 +480,11 @@
       "eq": "Equals",
       "ne": "Does not equal",
       "exists": "Exists",
-      "not_exists": "Does not exist"
+      "not_exists": "Does not exist",
+      "bodyMode": "Body condition mode",
+      "fieldCondition": "Field comparison",
+      "expression": "JMESPath body condition",
+      "expressionHelp": "Optional. Return boolean true to run the rule. Supports negative indexes, filters and contains(). Evaluates the current body after earlier rules. Evaluation errors and non-boolean results do not match."
     }
   },
   "update": {

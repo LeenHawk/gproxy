@@ -480,7 +480,11 @@
       "eq": "等於",
       "ne": "不等於",
       "exists": "存在",
-      "not_exists": "不存在"
+      "not_exists": "不存在",
+      "bodyMode": "本文條件方式",
+      "fieldCondition": "欄位比較",
+      "expression": "JMESPath 本文條件",
+      "expressionHelp": "選填。運算式回傳布林值 true 才執行規則。支援負索引、篩選和 contains()；讀取前面規則修改後的目前本文。缺少所需資料導致的求值錯誤或非布林結果均不觸發。"
     }
   },
   "update": {

@@ -104,6 +104,30 @@ JSON 改写需要填写路径，例如 `temperature` 或 `messages.*.content`。
 
 SSE、NDJSON、JSON 数组流和 WebSocket 按单个事件/元素/消息判断，不跨事件累积。普通 HTTP 正文按整份判断。清空表单路径/名称，或将 API 字段设为 `null`，即可移除对应条件；PATCH 省略字段则保留原值。
 
+
+### JMESPath 表达式
+
+`filterBody` 也接受 JMESPath 表达式字符串。表达式针对当前正文求值，仅返回布尔值 `true` 时执行动作；类型错误、未知函数、其他求值错误或非布尔结果都不触发。表达式语法在保存时校验。原有 `{ "path", "op", "value" }` 对象格式继续可用。
+
+例如，只在最后一条消息的任意文本块包含 keepalive marker 时将 `max_tokens` 设为 0，历史消息中的 marker 不会命中：
+
+```json
+{
+  "action": "set",
+  "phase": "request",
+  "target": "body",
+  "paths": [
+    "max_tokens"
+  ],
+  "replacement": "0",
+  "filterBody": "length(messages[-1].content[?type(text) == 'string' && contains(text, '[cache-keepalive]')]) > `0`"
+}
+```
+
+负索引 `[-1]`、多值筛选、`contains()`、比较和逻辑组合均遵循 [JMESPath 规范](https://jmespath.org/specification.html)。缺失字段按 JMESPath 规则产生 `null`，可显式用表达式判断；非 JSON 正文不参与条件求值。`paths` 修改目标仍沿用原有点路径语法，与表达式独立。
+
+表达式预先编译；正文不变时，共用已转换的 JMESPath 数据。前面规则实际修改正文后再重新转换，避免使用过期值。不使用表达式的规则不会创建 JMESPath 数据副本。每个流式事件独立判断。复杂全量查询的成本仍随正文大小增加。
+
 ## 通过 API 管理
 
 下面创建一条正则替换规则，把指定路径中的 `widget` 替换为 `gadget`。将规则集 ID 替换为你的实际值。

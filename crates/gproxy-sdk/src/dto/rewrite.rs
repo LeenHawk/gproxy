@@ -99,7 +99,7 @@ pub struct RewriteRuleDto {
     #[cfg_attr(
         feature = "ts",
         ts(
-            type = "{ path: string; op: \"eq\" | \"ne\" | \"exists\" | \"not_exists\"; value?: unknown } | null"
+            type = "string | { path: string; op: \"eq\" | \"ne\" | \"exists\" | \"not_exists\"; value?: unknown } | null"
         )
     )]
     pub filter_body: Option<Value>,
@@ -190,7 +190,7 @@ pub struct RewriteRuleWrite {
     #[cfg_attr(
         feature = "ts",
         ts(
-            type = "{ path: string; op: \"eq\" | \"ne\" | \"exists\" | \"not_exists\"; value?: unknown } | null"
+            type = "string | { path: string; op: \"eq\" | \"ne\" | \"exists\" | \"not_exists\"; value?: unknown } | null"
         )
     )]
     pub filter_body: Option<Value>,
@@ -244,7 +244,7 @@ pub struct RewriteRulePatch {
     #[cfg_attr(
         feature = "ts",
         ts(
-            type = "{ path: string; op: \"eq\" | \"ne\" | \"exists\" | \"not_exists\"; value?: unknown } | null"
+            type = "string | { path: string; op: \"eq\" | \"ne\" | \"exists\" | \"not_exists\"; value?: unknown } | null"
         )
     )]
     pub filter_body: Option<Option<Value>>,

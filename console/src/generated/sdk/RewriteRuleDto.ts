@@ -21,4 +21,4 @@ paths: string[] | null, pattern: string, replacement: string,
 /**
  * JSON array of `{"operation": …, "dialect": …}`.
  */
-filterOperationKeys: { operation: string, dialect: string }[] | null, filterModelPattern: string | null, filterHeaderPattern: string | null, filterEventPattern: string | null, filterBody: { path: string; op: "eq" | "ne" | "exists" | "not_exists"; value?: unknown } | null, filterHeader: { name: string; op: "eq" | "ne" | "exists" | "not_exists"; value?: string } | null, sortOrder: number, enabled: boolean, createdAtMs: number, updatedAtMs: number, };
+filterOperationKeys: { operation: string, dialect: string }[] | null, filterModelPattern: string | null, filterHeaderPattern: string | null, filterEventPattern: string | null, filterBody: string | { path: string; op: "eq" | "ne" | "exists" | "not_exists"; value?: unknown } | null, filterHeader: { name: string; op: "eq" | "ne" | "exists" | "not_exists"; value?: string } | null, sortOrder: number, enabled: boolean, createdAtMs: number, updatedAtMs: number, };

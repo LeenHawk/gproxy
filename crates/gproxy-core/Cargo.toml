@@ -29,6 +29,7 @@ regex = { workspace = true }
 rust_decimal = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
+jmespath = { workspace = true }
 serde_json = { workspace = true }
 serde_urlencoded = { workspace = true }
 sha2 = { workspace = true }

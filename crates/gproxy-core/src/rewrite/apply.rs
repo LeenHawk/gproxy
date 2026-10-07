@@ -181,6 +181,7 @@ fn apply_text<'a>(
     let mut payload = Payload {
         text: Cow::Borrowed(input),
         document: None,
+        jmespath: None,
         dirty: false,
         changed: false,
     };
@@ -190,10 +191,7 @@ fn apply_text<'a>(
         };
         if let Some(condition) = &rule.body_condition {
             // Invalid/non-JSON units cannot satisfy a JSON condition, including absence.
-            if !payload
-                .json()
-                .is_ok_and(|document| condition.matches(document))
-            {
+            if !payload.matches(condition) {
                 continue;
             }
         }
@@ -232,6 +230,9 @@ fn apply_text<'a>(
                 }
                 _ => unreachable!("compiled body action"),
             };
+            if changed {
+                payload.jmespath = None;
+            }
             payload.dirty |= changed;
             payload.changed |= changed;
             continue;
@@ -256,6 +257,7 @@ fn apply_text<'a>(
         if let Some(next) = next {
             payload.text = Cow::Owned(next);
             payload.document = None;
+            payload.jmespath = None;
             payload.changed = true;
         }
     }
@@ -268,10 +270,18 @@ fn apply_text<'a>(
 struct Payload<'a> {
     text: Cow<'a, str>,
     document: Option<Result<serde_json::Value, String>>,
+    jmespath: Option<Result<jmespath::Rcvar, jmespath::JmespathError>>,
     dirty: bool,
     changed: bool,
 }
 impl Payload<'_> {
+    fn matches(&mut self, condition: &super::BodyCondition) -> bool {
+        if self.json().is_err() {
+            return false;
+        }
+        let document = self.document.as_ref().unwrap().as_ref().unwrap();
+        condition.matches(document, &mut self.jmespath)
+    }
     fn json(&mut self) -> Result<&mut serde_json::Value, RewriteError> {
         self.document
             .get_or_insert_with(|| serde_json::from_str(&self.text).map_err(|e| e.to_string()))

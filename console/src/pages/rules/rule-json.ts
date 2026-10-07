@@ -46,6 +46,10 @@ export function parseRuleJson(text: string, invalid: (field: string) => string):
   for (const key of ["filterBody", "filterHeader"] as const) {
     const condition = rule[key]
     if (condition === null) continue
+    if (key === "filterBody" && typeof condition === "string") {
+      if (!condition.trim()) throw new Error(invalid(key))
+      continue
+    }
     const field = key === "filterBody" ? "path" : "name"
     if (!condition || typeof condition !== "object" || Array.isArray(condition)) throw new Error(invalid(key))
     const object = condition as unknown as Record<string, unknown>

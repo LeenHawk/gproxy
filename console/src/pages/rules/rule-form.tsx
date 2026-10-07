@@ -1,5 +1,5 @@
-import { ConditionFields } from "./condition-fields"
-import { conditionDraft, bodyCondition, headerCondition } from "./conditions"
+import { BodyConditionFields, ConditionFields } from "./condition-fields"
+import { conditionDraft, bodyConditionDraft, bodyCondition, headerCondition } from "./conditions"
 import { FilterFields } from "./filter-fields"
 import { useQuery } from "@tanstack/react-query"
 import { ruleSets } from "@/api/routing-rules"
@@ -60,7 +60,7 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
   const [ttl, setTtl] = useState<string>(config.ttl ?? "default")
   const [modelFilter, setModelFilter] = useState(original?.filterModelPattern ?? "")
   const [headerFilter, setHeaderFilter] = useState(original?.filterHeaderPattern ?? "")
-  const [bodyPredicate, setBodyPredicate] = useState(() => conditionDraft(original?.filterBody))
+  const [bodyPredicate, setBodyPredicate] = useState(() => bodyConditionDraft(original?.filterBody))
   const [headerPredicate, setHeaderPredicate] = useState(() => conditionDraft(original?.filterHeader))
   const [eventFilter, setEventFilter] = useState(original?.filterEventPattern ?? "")
   const [operations, setOperations] = useState(original?.filterOperationKeys ? JSON.stringify(original.filterOperationKeys, null, 2) : "")
@@ -126,7 +126,7 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
         setDialect(content.dialect ?? "openai"); setText(content.text ?? ""); setPosition(content.position ?? "prepend")
         setCacheTarget(content.target ?? "message"); setCacheIndex(content.index?.toString() ?? ""); setTtl(content.ttl ?? "default")
         setModelFilter(write.filterModelPattern ?? ""); setHeaderFilter(write.filterHeaderPattern ?? ""); setEventFilter(write.filterEventPattern ?? "")
-        setBodyPredicate(conditionDraft(write.filterBody)); setHeaderPredicate(conditionDraft(write.filterHeader))
+        setBodyPredicate(bodyConditionDraft(write.filterBody)); setHeaderPredicate(conditionDraft(write.filterHeader))
         setOperations(write.filterOperationKeys ? JSON.stringify(write.filterOperationKeys, null, 2) : ""); setEnabled(write.enabled ?? true)
       }
       setMode(next)
@@ -172,7 +172,7 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
         <details data-field-span="full"><summary className="cursor-pointer text-sm">{t("rules.filters")}</summary><FieldGroup className="mt-3">
           <FilterFields providerId={providerId} ruleSetId={setId} model={modelFilter} onModel={setModelFilter} operations={operations} onOperations={setOperations} headers={headerFilter} onHeaders={setHeaderFilter} />
           <ConditionFields kind="header" value={headerPredicate} onChange={setHeaderPredicate} />
-          {kind !== "header" && (semantic || kind === "rewrite" || target === "body") ? <ConditionFields kind="body" value={bodyPredicate} onChange={setBodyPredicate} /> : null}
+          {kind !== "header" && (semantic || kind === "rewrite" || target === "body") ? <BodyConditionFields value={bodyPredicate} onChange={setBodyPredicate} /> : null}
           {!semantic && kind !== "header" && target === "body" ? input(t("fields.filterEventPattern"), eventFilter, setEventFilter) : null}
         </FieldGroup></details>
         <Field orientation="horizontal"><FieldLabel htmlFor="rule-enabled">{t("fields.enabled")}</FieldLabel><Switch id="rule-enabled" checked={enabled} onCheckedChange={setEnabled} /></Field>

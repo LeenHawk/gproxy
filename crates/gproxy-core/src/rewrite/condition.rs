@@ -11,8 +11,23 @@ enum Comparison<T = Value> {
     NotExists,
 }
 pub struct BodyCondition {
-    path: Vec<PathSegment>,
-    comparison: Comparison,
+    matcher: BodyMatcher,
+}
+enum BodyMatcher {
+    Fields {
+        path: Vec<PathSegment>,
+        comparison: Comparison,
+    },
+    Jmespath(jmespath::Expression<'static>),
+}
+
+/// The upstream generic `search(&Value)` converts the full tree every time.
+/// Its public input trait lets us reuse one conversion without nightly specialization.
+struct CachedDocument<'a>(&'a jmespath::Rcvar);
+impl jmespath::ToJmespath for CachedDocument<'_> {
+    fn to_jmespath(self) -> Result<jmespath::Rcvar, jmespath::JmespathError> {
+        Ok(self.0.clone())
+    }
 }
 pub struct HeaderCondition {
     name: HeaderName,
@@ -66,24 +81,50 @@ fn decode<'a>(value: &'a Value, key: &str) -> Result<(&'a str, Comparison), Rewr
 }
 impl BodyCondition {
     pub(super) fn compile(value: &Value) -> Result<Self, RewriteCompileError> {
+        if let Some(source) = value.as_str() {
+            if source.trim().is_empty() {
+                return Err(invalid("JMESPath expression must not be empty"));
+            }
+            let expression =
+                jmespath::compile(source).map_err(|error| invalid(format!("JMESPath: {error}")))?;
+            return Ok(Self {
+                matcher: BodyMatcher::Jmespath(expression),
+            });
+        }
         let (path, comparison) = decode(value, "path")?;
         let mut paths = super::compile::parse_paths(&serde_json::json!([path]))?;
         let path = paths.remove(0);
         if path.contains(&PathSegment::Wildcard) {
             return Err(invalid("condition paths do not support wildcards"));
         }
-        Ok(Self { path, comparison })
+        Ok(Self {
+            matcher: BodyMatcher::Fields { path, comparison },
+        })
     }
-    pub(super) fn matches(&self, document: &Value) -> bool {
-        let value = self
-            .path
-            .iter()
-            .try_fold(document, |current, part| match part {
-                PathSegment::Key(key) => current.as_object()?.get(key),
-                PathSegment::Index(index) => current.as_array()?.get(*index),
-                PathSegment::Wildcard => None,
-            });
-        match &self.comparison {
+    pub(super) fn matches(
+        &self,
+        document: &Value,
+        cached: &mut Option<Result<jmespath::Rcvar, jmespath::JmespathError>>,
+    ) -> bool {
+        let (path, comparison) = match &self.matcher {
+            BodyMatcher::Fields { path, comparison } => (path, comparison),
+            BodyMatcher::Jmespath(expression) => {
+                let data = cached.get_or_insert_with(|| {
+                    jmespath::Variable::from_serializable(document).map(jmespath::Rcvar::new)
+                });
+                return data.as_ref().is_ok_and(|data| {
+                    expression
+                        .search(CachedDocument(data))
+                        .is_ok_and(|result| result.as_boolean() == Some(true))
+                });
+            }
+        };
+        let value = path.iter().try_fold(document, |current, part| match part {
+            PathSegment::Key(key) => current.as_object()?.get(key),
+            PathSegment::Index(index) => current.as_array()?.get(*index),
+            PathSegment::Wildcard => None,
+        });
+        match comparison {
             Comparison::Eq(expected) => value == Some(expected),
             Comparison::Ne(expected) => value.is_some_and(|v| v != expected),
             Comparison::Exists => value.is_some(),

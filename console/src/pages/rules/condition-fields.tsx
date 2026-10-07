@@ -1,7 +1,9 @@
 import { useId } from "react"
 import { useTranslation } from "react-i18next"
-import type { ConditionDraft } from "./conditions"
+import type { BodyConditionDraft, ConditionDraft } from "./conditions"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -27,5 +29,23 @@ export function ConditionFields({ kind, value, onChange }: { kind: "body" | "hea
         <Input id={`${id}-value`} aria-label={`${label} ${t("rules.conditions.value")}`} value={value.value} placeholder={kind === "body" ? '"high"' : "fast"} onChange={event => onChange({ ...value, value: event.target.value })} />
       </Field> : null}
     </> : null}
+  </FieldGroup>
+}
+
+export function BodyConditionFields({ value, onChange }: { value: BodyConditionDraft; onChange: (value: BodyConditionDraft) => void }) {
+  const { t } = useTranslation(), id = useId()
+  return <FieldGroup>
+    <Field data-field-span="full">
+      <FieldLabel>{t("rules.conditions.bodyMode")}</FieldLabel>
+      <ToggleGroup type="single" variant="outline" aria-label={t("rules.conditions.bodyMode")} value={value.mode} onValueChange={mode => { if (mode === "fields" || mode === "jmespath") onChange({ ...value, mode }) }}>
+        <ToggleGroupItem value="jmespath">JMESPath</ToggleGroupItem>
+        <ToggleGroupItem value="fields">{t("rules.conditions.fieldCondition")}</ToggleGroupItem>
+      </ToggleGroup>
+    </Field>
+    {value.mode === "fields" ? <ConditionFields kind="body" value={value.fields} onChange={fields => onChange({ ...value, fields })} /> : <Field data-field-span="full">
+      <FieldLabel htmlFor={id}>{t("rules.conditions.expression")}</FieldLabel>
+      <Textarea id={id} rows={4} spellCheck={false} value={value.expression} onChange={event => onChange({ ...value, expression: event.target.value })} aria-describedby={`${id}-help`} placeholder="contains(messages[-1].content[0].text, '[cache-keepalive]')" />
+      <FieldDescription id={`${id}-help`}>{t("rules.conditions.expressionHelp")}</FieldDescription>
+    </Field>}
   </FieldGroup>
 }

@@ -480,7 +480,11 @@
       "eq": "等于",
       "ne": "不等于",
       "exists": "存在",
-      "not_exists": "不存在"
+      "not_exists": "不存在",
+      "bodyMode": "正文条件方式",
+      "fieldCondition": "字段比较",
+      "expression": "JMESPath 正文条件",
+      "expressionHelp": "选填。表达式返回布尔值 true 才执行规则。支持负索引、筛选和 contains()；读取前面规则修改后的当前正文。缺少所需数据导致的求值错误或非布尔结果均不触发。"
     }
   },
   "update": {

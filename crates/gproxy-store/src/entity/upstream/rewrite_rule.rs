@@ -45,7 +45,7 @@ pub struct Model {
     /// Regex against the SSE event name (falling back to JSON type), or WS JSON type.
     #[sea_orm(column_type = "Text")]
     pub filter_event_pattern: Option<String>,
-    /// Typed comparison against the current JSON body; body targets only.
+    /// JMESPath expression string or legacy field comparison; body targets only.
     pub filter_body: Option<Json>,
     /// Typed comparison against an original inbound request header.
     pub filter_header: Option<Json>,
