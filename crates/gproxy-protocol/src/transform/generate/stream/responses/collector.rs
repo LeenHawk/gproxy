@@ -83,7 +83,9 @@ impl ResponsesStreamCollector {
         }
 
         self.bytes += bounded(&event, self.limits.max_bytes.saturating_sub(self.bytes))?;
-        let seq = super::events::sequence(&event);
+        let Some(seq) = super::events::sequence(&event) else {
+            return Ok(());
+        };
         if seq < 0 || self.sequence.is_some_and(|v| seq <= v) {
             return Err(invalid("nonmonotonic sequence number"));
         }
@@ -94,6 +96,7 @@ impl ResponsesStreamCollector {
             return Err(invalid("response.created required before other events"));
         }
         match event {
+            s::StreamEvent::Keepalive => {}
             s::StreamEvent::Created(v) => {
                 if self.response.is_some() {
                     return Err(invalid("duplicate/nonempty response.created"));

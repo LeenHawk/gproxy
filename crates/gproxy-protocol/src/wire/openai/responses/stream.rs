@@ -12,6 +12,9 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum StreamEvent {
+    /// Undocumented upstream heartbeat; converted to Claude ping or otherwise ignored.
+    #[serde(rename = "keepalive")]
+    Keepalive,
     #[serde(rename = "response.created")]
     Created(ResponseCreated),
     #[serde(rename = "response.queued")]

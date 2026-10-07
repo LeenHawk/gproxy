@@ -142,6 +142,16 @@ fn r_to_c(events: Vec<rs::StreamEvent>) -> c::GenerateContentResponseBody {
     let mut stream = ResponsesToClaudeStream::new(rc(), flow(), Default::default()).unwrap();
     let mut output = Vec::new();
     for event in events {
+        let heartbeat = serde_json::from_value(json!({
+            "type": "keepalive", "sequence_number": 999
+        }))
+        .unwrap();
+        let ping = stream.push(heartbeat).unwrap().value;
+        assert_eq!(ping.len(), 1);
+        assert_eq!(
+            serde_json::to_value(&ping[0]).unwrap(),
+            json!({"type": "ping"})
+        );
         output.extend(stream.push(event).unwrap().value);
     }
     let end = stream.finish().unwrap();

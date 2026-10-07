@@ -1,7 +1,8 @@
 use super::*;
 
-pub(super) fn sequence(event: &s::StreamEvent) -> i64 {
-    match event {
+pub(super) fn sequence(event: &s::StreamEvent) -> Option<i64> {
+    Some(match event {
+        s::StreamEvent::Keepalive => return None,
         s::StreamEvent::Created(v) => v.sequence_number,
         s::StreamEvent::Queued(v) => v.sequence_number,
         s::StreamEvent::InProgress(v) => v.sequence_number,
@@ -55,5 +56,5 @@ pub(super) fn sequence(event: &s::StreamEvent) -> i64 {
         s::StreamEvent::McpListToolsCompleted(v) => v.sequence_number,
         s::StreamEvent::McpListToolsFailed(v) => v.sequence_number,
         s::StreamEvent::Error(v) => v.sequence_number,
-    }
+    })
 }

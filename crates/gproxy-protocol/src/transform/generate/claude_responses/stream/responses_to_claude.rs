@@ -141,6 +141,9 @@ impl ResponsesToClaudeStream {
             .push(event.clone())?;
         let mut out = Vec::new();
         match event {
+            s::StreamEvent::Keepalive => out.push(cs::StreamEvent::Ping(cs::PingEvent {
+                rest: Default::default(),
+            })),
             s::StreamEvent::Created(v) => {
                 self.response_id = Some(id(
                     &mut self.flow,
