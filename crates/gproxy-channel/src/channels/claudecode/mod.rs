@@ -65,18 +65,18 @@ pub const DEFAULT_TOKEN_URL: &str = "https://platform.claude.com/v1/oauth/token"
 /// The manual-callback redirect the CLI registers (v3 `auth.rs`).
 pub const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
 pub const DEFAULT_CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-/// Default refresh scopes verified against CLI 2.1.292, including plugins.
+/// Default refresh scopes verified against CLI 2.1.293, including plugins.
 pub const OAUTH_SCOPE: &str = "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins";
-/// Interactive login adds `org:create_api_key` (CLI 2.1.292).
+/// Interactive login adds `org:create_api_key` (CLI 2.1.293).
 pub const LOGIN_SCOPE: &str = concat!(
     "org:create_api_key ",
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins"
 );
 pub const OAUTH_BETA: &str = "oauth-2025-04-20";
 /// The CLI version the channel impersonates; audited in
-/// `design/claudecode-2.1.292.md` against the installed binary and local capture.
-pub const CLI_VERSION: &str = "2.1.292";
-pub const CLI_USER_AGENT: &str = "claude-cli/2.1.292 (external, cli)";
+/// `design/claudecode-2.1.293.md` against the installed binary and local capture.
+pub const CLI_VERSION: &str = "2.1.293";
+pub const CLI_USER_AGENT: &str = "claude-cli/2.1.293 (external, cli)";
 pub const ANTHROPIC_VERSION: &str = "2023-06-01";
 /// The CLI marks a request it sends in low-priority mode with this header
 /// (CLI 2.1.283).
@@ -375,7 +375,7 @@ fn stainless_arch() -> &'static str {
 }
 
 /// A client user agent is honoured only when it is the impersonated CLI
-/// version with a plausible entrypoint, e.g. `claude-cli/2.1.292 (external,
+/// version with a plausible entrypoint, e.g. `claude-cli/2.1.293 (external,
 /// sdk-cli)`; anything else becomes the CLI's own (v3 `auth.rs`).
 fn valid_cli_user_agent(value: &str) -> bool {
     value
