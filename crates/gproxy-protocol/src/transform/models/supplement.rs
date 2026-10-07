@@ -17,6 +17,8 @@ pub struct OpenAiModelSupplement {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClaudeModelSupplement {
     pub display_name: Option<String>,
+    #[serde(default)]
+    pub line: Option<String>,
     pub allowed_fallback_models: Vec<String>,
     pub capabilities: ClaudeCapabilities,
     pub max_input_tokens: Option<i64>,
@@ -34,6 +36,8 @@ pub struct ClaudeCapabilities {
     pub image_input: bool,
     pub pdf_input: bool,
     pub structured_outputs: bool,
+    #[serde(default)]
+    pub server_tools: Option<ClaudeServerTools>,
     pub thinking: ClaudeThinking,
 }
 
@@ -60,6 +64,15 @@ pub struct ClaudeThinking {
     pub supported: bool,
     pub adaptive: bool,
     pub enabled: bool,
+    #[serde(default)]
+    pub disabled: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClaudeServerTools {
+    pub supported: bool,
+    pub web_search: bool,
+    pub code_execution: bool,
 }
 
 impl ClaudeCapabilities {
@@ -91,11 +104,20 @@ impl ClaudeCapabilities {
             image_input: support(self.image_input),
             pdf_input: support(self.pdf_input),
             structured_outputs: support(self.structured_outputs),
+            server_tools: self
+                .server_tools
+                .map(|tools| claude_models::ServerToolsCapability {
+                    supported: tools.supported,
+                    web_search: support(tools.web_search),
+                    code_execution: support(tools.code_execution),
+                    rest: Default::default(),
+                }),
             thinking: claude_models::ThinkingCapability {
                 supported: self.thinking.supported,
                 types: claude_models::ThinkingTypes {
                     adaptive: support(self.thinking.adaptive),
                     enabled: support(self.thinking.enabled),
+                    disabled: self.thinking.disabled.map(support),
                     rest: Default::default(),
                 },
                 rest: Default::default(),

@@ -34,10 +34,12 @@ fn caps() -> ClaudeCapabilities {
         image_input: true,
         pdf_input: false,
         structured_outputs: true,
+        server_tools: None,
         thinking: ClaudeThinking {
             supported: true,
             adaptive: true,
             enabled: true,
+            disabled: None,
         },
     }
 }
@@ -45,6 +47,7 @@ fn caps() -> ClaudeCapabilities {
 fn claude_supplement() -> ClaudeModelSupplement {
     ClaudeModelSupplement {
         display_name: Some("Model display".into()),
+        line: None,
         allowed_fallback_models: vec!["fallback".into()],
         capabilities: caps(),
         max_input_tokens: Some(1000),

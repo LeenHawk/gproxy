@@ -19,5 +19,6 @@ pub use list::{
 };
 pub use supplement::{
     ClaudeCapabilities, ClaudeContextManagement, ClaudeEffort, ClaudeModelSupplement,
-    ClaudeThinking, Converted, GeminiModelSupplement, ListPageFacts, OpenAiModelSupplement,
+    ClaudeServerTools, ClaudeThinking, Converted, GeminiModelSupplement, ListPageFacts,
+    OpenAiModelSupplement,
 };

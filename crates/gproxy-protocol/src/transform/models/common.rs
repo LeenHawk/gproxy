@@ -169,6 +169,7 @@ pub(crate) fn claude_model(
         capabilities: supplement.capabilities.into_wire(),
         created_at,
         display_name,
+        line: Some(supplement.line),
         max_input_tokens,
         max_tokens,
         type_: claude_models::ModelType::Model,
@@ -189,6 +190,7 @@ pub(crate) fn report_claude_loss(report: &mut Report) {
         "batch",
         "citations",
         "code_execution",
+        "server_tools",
         "context_management",
         "pdf_input",
         "structured_outputs",
@@ -199,6 +201,7 @@ pub(crate) fn report_claude_loss(report: &mut Report) {
             "target has no corresponding Claude capability field",
         );
     }
+    report.omitted("model.line", "target dialect has no model line field");
     report.omitted(
         "model.allowed_fallback_models",
         "target dialect has no fallback list",

@@ -155,6 +155,25 @@ pub(crate) fn target(
     report: &mut Report,
 ) {
     let model = model.to_ascii_lowercase();
+    // Haiku 5.5 keeps disabled thinking and forced tools, but removes budgets.
+    if crate::transform::instructions::family(&model, "claude-haiku-5-5") {
+        if let Some(cc::ThinkingConfig::Enabled(config)) = thinking.as_ref() {
+            *thinking = Some(cc::ThinkingConfig::Adaptive(cc::ThinkingAdaptive {
+                block_binding: config.block_binding.clone(),
+                display: config.display,
+                rest: config.rest.clone(),
+            }));
+            report.changed(
+                "thinking.type",
+                "Haiku 5.5 uses adaptive thinking instead of manual budgets",
+            );
+            report.omitted(
+                "thinking.budget_tokens",
+                "Haiku 5.5 does not accept a thinking token budget",
+            );
+        }
+        return;
+    }
     let sonnet = crate::transform::instructions::family(&model, "claude-sonnet-5-5");
     if !sonnet
         && !["claude-opus-5-5", "claude-fable-5-1", "claude-mythos-5-1"]

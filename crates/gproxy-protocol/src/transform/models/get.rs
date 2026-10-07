@@ -121,6 +121,15 @@ pub fn claude_to_gemini(
         "model.allowed_fallback_models",
         "Gemini has no fallback-model list",
     );
+    if input.line.is_some() {
+        report.omitted("model.line", "Gemini has no model line field");
+    }
+    if input.capabilities.server_tools.is_some() {
+        report.omitted(
+            "model.capabilities.server_tools",
+            "Gemini has no server-tool capability fields",
+        );
+    }
     report.omitted("model.created_at", "Gemini has no model creation timestamp");
     report.omitted("model.type", "Gemini has no model type field");
     let value = gemini_models::Model {
