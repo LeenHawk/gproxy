@@ -95,6 +95,18 @@ class SubmissionTests(unittest.TestCase):
         self.assertEqual(content["Builds"][0]["build"], "reviewer-build-command")
         self.assertEqual(self.writes[1][0:2], ("projects/1/merge_requests/1", "PUT"))
 
+    def test_version_update_preserves_upstream_signing(self):
+        self.pending(3)
+        self.current["Binaries"] = "https://example.com/v%v/app.apk"
+        self.current["AllowedAPKSigningKeys"] = ["a" * 64]
+        submitter.submit(document(4))
+        content = yaml.safe_load(self.writes[0][2]["actions"][0]["content"])
+        self.assertEqual(content["Binaries"], self.current["Binaries"])
+        self.assertEqual(content["AllowedAPKSigningKeys"], "a" * 64)
+        description = self.writes[1][2]["description"]
+        self.assertIn("upstream-signed APK", description)
+        self.assertNotIn("It uses F-Droid signing", description)
+
     def test_version_update_preserves_reviewed_checklist(self):
         self.pending(3)
         checklist = "## Checklist\n\n* [x] Reviewed by maintainer"

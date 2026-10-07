@@ -1,6 +1,14 @@
 name: Submit F-Droid release
 
 on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+    secrets:
+      FDROID_GITLAB_TOKEN:
+        required: true
   workflow_dispatch:
     inputs:
       version:

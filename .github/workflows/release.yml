@@ -1227,6 +1227,18 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  fdroid-publish:
+    name: Submit F-Droid update
+    needs: [prepare, publish]
+    if: ${{ needs.prepare.outputs.channel == 'release' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/fdroid-publish.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+    secrets:
+      FDROID_GITLAB_TOKEN: ${{ secrets.FDROID_GITLAB_TOKEN }}
+
   winget-publish:
     name: Submit WinGet updates
     needs: [prepare, publish]

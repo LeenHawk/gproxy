@@ -170,6 +170,12 @@ def submit(generated, dry_run=False):
     heading = "## Required" if accepted else "## Checklist"
     if existing.startswith(heading):
         checklist = existing.split("\n\n## Submission details\n", 1)[0]
+    signing = (
+        "It uses the upstream-signed APK through Binaries and pins the release "
+        "certificate through AllowedAPKSigningKeys. "
+        if document.get("Binaries") and document.get("AllowedAPKSigningKeys") else
+        "It uses F-Droid signing; upstream-signature reproducible builds have not been established. "
+    )
     description = checklist.rstrip() + "\n\n## Submission details\n\n" + (
         f"Submit GPROXY {version} (versionCode {code}), AGPL-3.0-or-later.\n\n"
         f"Source: https://github.com/LeenHawk/gproxy/releases/tag/v{version}\n\n"
@@ -177,15 +183,13 @@ def submit(generated, dry_run=False):
         "English/Chinese Fastlane metadata lives in the upstream source repository. "
         "The upstream maintainer authorizes this submission.\n\n"
         "The recipe builds the ARM64 Android APK from source and declares NonFreeNet "
-        "for proprietary AI integrations. It uses F-Droid signing; upstream-signature "
-        "reproducible builds have not been established. Device/runtime testing is "
-        "not established by this submission.\n\n"
+        f"for proprietary AI integrations. {signing}"
+        "Device/runtime testing is not established by this submission.\n\n"
         "New checklist items remain unchecked until reviewed; automation does not certify "
         "policy compliance or reproducibility. The APK contains only ARM64 native code, "
         "so it is already limited to one ABI. Debian's rustup package installs the "
         "pinned Rust toolchain; no rustup srclib is needed.\n\n"
-        "This release was submitted automatically. F-Droid CI and maintainer review "
-        "are pending for this revision. Existing reviewer recipe changes are retained."
+        "This release was submitted automatically. Existing reviewer recipe changes are retained."
     )
     details = {"title": f"GPROXY: update to {version}" if accepted else "New app: GPROXY",
                "description": description}
