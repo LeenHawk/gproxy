@@ -145,7 +145,7 @@ pub fn apply_body(
         return Ok(None);
     }
     let text = std::str::from_utf8(body).map_err(|_| RewriteError::NonUtf8Body)?;
-    Ok(apply_text(rules, text)?.map(String::into_bytes))
+    Ok(apply_text(rules.iter().map(Arc::as_ref), text)?.map(String::into_bytes))
 }
 
 /// Rewrite one decoded stream/WS unit. `event_type` is the SSE event name
@@ -156,7 +156,7 @@ pub fn apply_unit(
     event_type: Option<&str>,
     data: &str,
 ) -> Result<Option<String>, RewriteError> {
-    let applicable: Vec<Arc<RewriteRuleData>> = rules
+    let applicable = rules
         .iter()
         .filter(|rule| {
             rule.action.dialect() != Some(gproxy_protocol::Dialect::OpenAiResponsesWebSocket)
@@ -166,70 +166,129 @@ pub fn apply_unit(
             None => true,
             Some(matcher) => event_type.is_some_and(|event| matcher.is_match(event)),
         })
-        .cloned()
-        .collect();
-    if applicable.is_empty() {
-        return Ok(None);
-    }
-    apply_text(&applicable, data)
+        .map(Arc::as_ref);
+    apply_text(applicable, data)
 }
 
 /// Rules interleave in order, each on the previous rule's output. Regex path
 /// replacements splice selected strings and preserve all other bytes. Set
 /// actions parse JSON and assign typed values, creating missing object keys;
 /// malformed JSON is an error rather than an apparently successful assignment.
-fn apply_text(rules: &[Arc<RewriteRuleData>], input: &str) -> Result<Option<String>, RewriteError> {
-    let mut current: Cow<'_, str> = Cow::Borrowed(input);
-    let mut changed = false;
+fn apply_text<'a>(
+    rules: impl Iterator<Item = &'a RewriteRuleData>,
+    input: &str,
+) -> Result<Option<String>, RewriteError> {
+    let mut payload = Payload {
+        text: Cow::Borrowed(input),
+        document: None,
+        dirty: false,
+        changed: false,
+    };
     for rule in rules {
         let RewriteTarget::Body { paths } = &rule.target else {
             continue;
         };
-        let next = if !matches!(rule.action, RuleAction::Replace) {
-            let mut document: serde_json::Value = serde_json::from_str(&current)
-                .map_err(|error| RewriteError::InvalidJson(error.to_string()))?;
-            let before = document.clone();
-            let applied = match &rule.action {
+        if let Some(condition) = &rule.body_condition {
+            // Invalid/non-JSON units cannot satisfy a JSON condition, including absence.
+            if !payload
+                .json()
+                .is_ok_and(|document| condition.matches(document))
+            {
+                continue;
+            }
+        }
+        if !matches!(rule.action, RuleAction::Replace) {
+            let document = payload.json()?;
+            let changed = match &rule.action {
                 RuleAction::Set(_) | RuleAction::Delete | RuleAction::Merge(_) => {
+                    let mut changed = false;
                     for path in paths.as_ref().expect("compiled JSON paths") {
-                        super::json_edit::apply(&mut document, path, &rule.action)?;
+                        changed |= super::json_edit::apply(document, path, &rule.action)?;
                     }
-                    true
+                    changed
                 }
-                RuleAction::SystemText(config) => super::content::system_text(
-                    &mut document,
-                    rule.action.dialect(),
-                    &config.text,
-                    config.position,
-                ),
-                RuleAction::CacheBreakpoint(config) => {
-                    super::cache::apply(&mut document, rule.action.dialect(), config)
+                // Native content helpers can canonicalize while returning false, or
+                // return true for an existing marker. Keep their established no-op semantics.
+                RuleAction::SystemText(_) | RuleAction::CacheBreakpoint(_) => {
+                    let before = document.clone();
+                    let applied = match &rule.action {
+                        RuleAction::SystemText(config) => super::content::system_text(
+                            document,
+                            rule.action.dialect(),
+                            &config.text,
+                            config.position,
+                        ),
+                        RuleAction::CacheBreakpoint(config) => {
+                            super::cache::apply(document, rule.action.dialect(), config)
+                        }
+                        _ => unreachable!(),
+                    };
+                    if !applied {
+                        *document = before;
+                        false
+                    } else {
+                        *document != before
+                    }
                 }
                 _ => unreachable!("compiled body action"),
             };
-            (applied && document != before).then(|| document.to_string())
-        } else {
-            match paths {
-                None => match rule
-                    .pattern
-                    .replace_all(&current, rule.entity.replacement.as_str())
-                {
-                    Cow::Borrowed(_) => None,
-                    Cow::Owned(replaced) => Some(replaced),
-                },
-                Some(paths) => rewrite_at_paths(&current, paths, &mut |text| match rule
-                    .pattern
-                    .replace_all(text, rule.entity.replacement.as_str())
-                {
-                    Cow::Borrowed(_) => None,
-                    Cow::Owned(replaced) => Some(replaced),
-                }),
-            }
+            payload.dirty |= changed;
+            payload.changed |= changed;
+            continue;
+        }
+        payload.flush();
+        let next = match paths {
+            None => match rule
+                .pattern
+                .replace_all(&payload.text, rule.entity.replacement.as_str())
+            {
+                Cow::Borrowed(_) => None,
+                Cow::Owned(replaced) => Some(replaced),
+            },
+            Some(paths) => rewrite_at_paths(&payload.text, paths, &mut |text| match rule
+                .pattern
+                .replace_all(text, rule.entity.replacement.as_str())
+            {
+                Cow::Borrowed(_) => None,
+                Cow::Owned(replaced) => Some(replaced),
+            }),
         };
         if let Some(next) = next {
-            current = Cow::Owned(next);
-            changed = true;
+            payload.text = Cow::Owned(next);
+            payload.document = None;
+            payload.changed = true;
         }
     }
-    Ok(changed.then(|| current.into_owned()))
+    payload.flush();
+    Ok(payload.changed.then(|| payload.text.into_owned()))
+}
+
+/// A body/unit owns one lazy parsed representation until a text edit invalidates it.
+/// Failed parses are cached too, so several nonmatching predicates scan only once.
+struct Payload<'a> {
+    text: Cow<'a, str>,
+    document: Option<Result<serde_json::Value, String>>,
+    dirty: bool,
+    changed: bool,
+}
+impl Payload<'_> {
+    fn json(&mut self) -> Result<&mut serde_json::Value, RewriteError> {
+        self.document
+            .get_or_insert_with(|| serde_json::from_str(&self.text).map_err(|e| e.to_string()))
+            .as_mut()
+            .map_err(|error| RewriteError::InvalidJson(error.clone()))
+    }
+    fn flush(&mut self) {
+        if self.dirty {
+            self.text = Cow::Owned(
+                self.document
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .to_string(),
+            );
+            self.dirty = false;
+        }
+    }
 }

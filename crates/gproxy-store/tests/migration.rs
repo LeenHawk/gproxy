@@ -150,7 +150,8 @@ async fn running_the_migrator_twice_is_a_no_op() {
             "m20260921_000001_baseline",
             "m20260926_000001_credential_cycles",
             "m20260930_000001_allowed_headers",
-            "m20261005_000001_capture_storage"
+            "m20261005_000001_capture_storage",
+            "m20261007_000001_rewrite_conditions"
         ]
     );
     let after_first = schema(store.connection()).await;

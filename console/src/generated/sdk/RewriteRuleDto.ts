@@ -5,7 +5,7 @@
  * compiler first, so a rule that would be skipped at assembly is refused
  * here instead of silently doing nothing.
  */
-export type RewriteRuleDto = { id: string, ruleSetId: string, 
+export type RewriteRuleDto = { id: string, ruleSetId: string,
 /**
  * `request`, `response` or `both`.
  */
@@ -13,12 +13,12 @@ phase: string, action: string,
 /**
  * `body`, `header` or `query`.
  */
-target: string, targetName: string | null, 
+target: string, targetName: string | null,
 /**
  * JSON array of dot paths; body target only.
  */
-paths: string[] | null, pattern: string, replacement: string, 
+paths: string[] | null, pattern: string, replacement: string,
 /**
  * JSON array of `{"operation": …, "dialect": …}`.
  */
-filterOperationKeys: { operation: string, dialect: string }[] | null, filterModelPattern: string | null, filterHeaderPattern: string | null, filterEventPattern: string | null, sortOrder: number, enabled: boolean, createdAtMs: number, updatedAtMs: number, };
+filterOperationKeys: { operation: string, dialect: string }[] | null, filterModelPattern: string | null, filterHeaderPattern: string | null, filterEventPattern: string | null, filterBody: { path: string; op: "eq" | "ne" | "exists" | "not_exists"; value?: unknown } | null, filterHeader: { name: string; op: "eq" | "ne" | "exists" | "not_exists"; value?: string } | null, sortOrder: number, enabled: boolean, createdAtMs: number, updatedAtMs: number, };

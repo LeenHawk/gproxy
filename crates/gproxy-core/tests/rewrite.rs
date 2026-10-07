@@ -58,6 +58,8 @@ fn rule(id: &str, spec: Rule) -> Arc<RewriteRuleData> {
             filter_model_pattern: spec.model.map(str::to_owned),
             filter_header_pattern: spec.header.map(str::to_owned),
             filter_event_pattern: spec.event.map(str::to_owned),
+            filter_body: None,
+            filter_header: None,
             sort_order: 0,
             enabled: true,
             created_at_ms: 0,

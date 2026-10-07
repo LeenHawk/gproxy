@@ -469,7 +469,19 @@
       "both": "请求和响应"
     },
     "selectSet": "选择规则集，查看其中的规则。",
-    "providerCount": "{{count}} 个供应商"
+    "providerCount": "{{count}} 个供应商",
+    "conditions": {
+      "body": "正文条件路径",
+      "header": "请求头条件名称",
+      "bodyHelp": "选填。判断前面规则修改后的当前 JSON 正文。支持点路径和数组索引，不支持通配符；值使用 JSON 类型，缺字段与 null 不同。",
+      "headerHelp": "选填。判断原始入站请求头。名称不区分大小写，值精确比较；同名头任一值相等即命中，不等于要求头存在且所有值均不相等。",
+      "operator": "比较方式",
+      "value": "比较值",
+      "eq": "等于",
+      "ne": "不等于",
+      "exists": "存在",
+      "not_exists": "不存在"
+    }
   },
   "update": {
     "verifySignature": "校验更新签名",

@@ -69,6 +69,41 @@ JSON 改写需要填写路径，例如 `temperature` 或 `messages.*.content`。
 
 正文重写以完整事件为单位执行，例如 SSE 事件或 JSON 数组元素，不以网络数据块为单位。单个事件超过 `settings.maxStreamEventBytes` 时会报错。可以用事件过滤器只修改特定类型的事件。
 
+## 正文与请求头条件
+
+在过滤条件中填写正文路径或请求头名称，即可让规则按字段值触发。两者与现有模型、操作、请求头正则及事件条件同时满足时才执行：
+
+```json
+{
+  "action": "set",
+  "phase": "request",
+  "target": "body",
+  "paths": [
+    "service_tier"
+  ],
+  "pattern": "",
+  "replacement": "\"priority\"",
+  "filterBody": {
+    "path": "reasoning.effort",
+    "op": "eq",
+    "value": "high"
+  },
+  "filterHeader": {
+    "name": "x-client-mode",
+    "op": "eq",
+    "value": "fast"
+  }
+}
+```
+
+`filterBody` 判断当前 JSON 正文，能看到前面规则的修改；仅支持正文目标。路径支持 `reasoning.effort`、`messages.0.role`，不支持 `*`。值按 JSON 类型比较，`"1"` 不等于 `1`。
+
+`filterHeader` 判断**原始入站请求头**，可用于正文、请求头和查询参数规则。名称不区分大小写，值区分大小写且不自动分割逗号列表。同名头有多个值时，`eq` 任一值相等即命中；`ne` 要求头存在且所有值均不相等。
+
+比较方式为 `eq`、`ne`、`exists`、`not_exists`。前两者必须提供 `value`；后两者不填写 `value`。缺字段不满足 `ne`；JSON `null` 是存在的值。非 JSON 正文不满足任何正文条件，包括 `not_exists`。
+
+SSE、NDJSON、JSON 数组流和 WebSocket 按单个事件/元素/消息判断，不跨事件累积。普通 HTTP 正文按整份判断。清空表单路径/名称，或将 API 字段设为 `null`，即可移除对应条件；PATCH 省略字段则保留原值。
+
 ## 通过 API 管理
 
 下面创建一条正则替换规则，把指定路径中的 `widget` 替换为 `gadget`。将规则集 ID 替换为你的实际值。

@@ -95,6 +95,22 @@ pub struct RewriteRuleDto {
     pub filter_model_pattern: Option<String>,
     pub filter_header_pattern: Option<String>,
     pub filter_event_pattern: Option<String>,
+    #[serde(default)]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ path: string; op: \"eq\" | \"ne\" | \"exists\" | \"not_exists\"; value?: unknown } | null"
+        )
+    )]
+    pub filter_body: Option<Value>,
+    #[serde(default)]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ name: string; op: \"eq\" | \"ne\" | \"exists\" | \"not_exists\"; value?: string } | null"
+        )
+    )]
+    pub filter_header: Option<Value>,
     pub sort_order: i64,
     pub enabled: bool,
     pub created_at_ms: i64,
@@ -117,6 +133,8 @@ impl From<rewrite_rule::Model> for RewriteRuleDto {
             filter_model_pattern: row.filter_model_pattern,
             filter_header_pattern: row.filter_header_pattern,
             filter_event_pattern: row.filter_event_pattern,
+            filter_body: row.filter_body,
+            filter_header: row.filter_header,
             sort_order: row.sort_order,
             enabled: row.enabled,
             created_at_ms: row.created_at_ms,
@@ -169,6 +187,22 @@ pub struct RewriteRuleWrite {
     #[serde(default)]
     pub filter_event_pattern: Option<String>,
     #[serde(default)]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ path: string; op: \"eq\" | \"ne\" | \"exists\" | \"not_exists\"; value?: unknown } | null"
+        )
+    )]
+    pub filter_body: Option<Value>,
+    #[serde(default)]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ name: string; op: \"eq\" | \"ne\" | \"exists\" | \"not_exists\"; value?: string } | null"
+        )
+    )]
+    pub filter_header: Option<Value>,
+    #[serde(default)]
     pub sort_order: Option<i64>,
     #[serde(default)]
     pub enabled: Option<bool>,
@@ -206,6 +240,22 @@ pub struct RewriteRulePatch {
     pub filter_header_pattern: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub filter_event_pattern: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ path: string; op: \"eq\" | \"ne\" | \"exists\" | \"not_exists\"; value?: unknown } | null"
+        )
+    )]
+    pub filter_body: Option<Option<Value>>,
+    #[serde(default, deserialize_with = "double_option")]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ name: string; op: \"eq\" | \"ne\" | \"exists\" | \"not_exists\"; value?: string } | null"
+        )
+    )]
+    pub filter_header: Option<Option<Value>>,
     #[serde(default)]
     pub sort_order: Option<i64>,
     #[serde(default)]

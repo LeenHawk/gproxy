@@ -6,6 +6,7 @@ const defaults: RuleJson = {
   action: "replace", phase: "request", target: "body", targetName: null,
   paths: null, pattern: "", replacement: "", filterOperationKeys: null,
   filterModelPattern: null, filterHeaderPattern: null, filterEventPattern: null,
+  filterBody: null, filterHeader: null,
   enabled: true,
 }
 
@@ -42,5 +43,15 @@ export function parseRuleJson(text: string, invalid: (field: string) => string):
   if (rule.enabled !== null && typeof rule.enabled !== "boolean") throw new Error(invalid("enabled"))
   if (rule.paths !== null && (!Array.isArray(rule.paths) || rule.paths.some(path => typeof path !== "string"))) throw new Error(invalid("paths"))
   if (rule.filterOperationKeys !== null && (!Array.isArray(rule.filterOperationKeys) || rule.filterOperationKeys.some(key => !key || typeof key.operation !== "string" || typeof key.dialect !== "string"))) throw new Error(invalid("filterOperationKeys"))
+  for (const key of ["filterBody", "filterHeader"] as const) {
+    const condition = rule[key]
+    if (condition === null) continue
+    const field = key === "filterBody" ? "path" : "name"
+    if (!condition || typeof condition !== "object" || Array.isArray(condition)) throw new Error(invalid(key))
+    const object = condition as unknown as Record<string, unknown>
+    if (Object.keys(object).some(k => ![field, "op", "value"].includes(k)) || typeof object[field] !== "string" || !object[field].trim() || !["eq", "ne", "exists", "not_exists"].includes(String(object.op))) throw new Error(invalid(key))
+    const compares = object.op === "eq" || object.op === "ne"
+    if (compares !== Object.hasOwn(object, "value") || (compares && key === "filterHeader" && typeof object.value !== "string")) throw new Error(invalid(key))
+  }
   return rule as RuleJson
 }

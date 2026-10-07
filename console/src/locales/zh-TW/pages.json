@@ -469,7 +469,19 @@
       "both": "請求和回應"
     },
     "selectSet": "選擇規則集，查看其中的規則。",
-    "providerCount": "{{count}} 個供應商"
+    "providerCount": "{{count}} 個供應商",
+    "conditions": {
+      "body": "本文條件路徑",
+      "header": "請求標頭條件名稱",
+      "bodyHelp": "選填。判斷前面規則修改後的目前 JSON 本文。支援點路徑和陣列索引，不支援萬用字元；值使用 JSON 型別，缺少欄位與 null 不同。",
+      "headerHelp": "選填。判斷原始傳入請求標頭。名稱不區分大小寫，值精確比較；同名標頭任一值相等即符合，不等於要求標頭存在且所有值均不相等。",
+      "operator": "比較方式",
+      "value": "比較值",
+      "eq": "等於",
+      "ne": "不等於",
+      "exists": "存在",
+      "not_exists": "不存在"
+    }
   },
   "update": {
     "verifySignature": "驗證更新簽章",

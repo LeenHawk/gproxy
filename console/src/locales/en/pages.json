@@ -469,7 +469,19 @@
       "both": "Request and response"
     },
     "selectSet": "Select a rule set to view its rules.",
-    "providerCount": "{{count}} providers"
+    "providerCount": "{{count}} providers",
+    "conditions": {
+      "body": "Body condition path",
+      "header": "Header condition name",
+      "bodyHelp": "Optional. Match the current JSON body after earlier rules. Use dot paths and array indexes; no wildcards. Values are typed JSON. Missing differs from null.",
+      "headerHelp": "Optional. Match original inbound request headers. Names ignore case; values are exact text. Equality matches any repeated value; inequality requires the header and no equal value.",
+      "operator": "Comparison",
+      "value": "Comparison value",
+      "eq": "Equals",
+      "ne": "Does not equal",
+      "exists": "Exists",
+      "not_exists": "Does not exist"
+    }
   },
   "update": {
     "verifySignature": "Verify update signatures",

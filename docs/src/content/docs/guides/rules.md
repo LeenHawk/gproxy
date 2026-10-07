@@ -111,3 +111,36 @@ curl -sS -X POST http://127.0.0.1:8787/admin/api/operation-rules \
 Without overrides, channel defaults apply. `POST /admin/api/providers/{id}/routing-defaults/reset` clears the provider's operation and endpoint overrides.
 
 The `custom` channel also requires a `dialects` configuration, for example `["openai_chat", "openai"]`. If an operation fails, check upstream support, this list, and operation overrides.
+
+## Body and header conditions
+
+Add `filterBody` and/or `filterHeader` to gate an existing action. Both conditions and all other configured filters must match.
+
+```json
+{
+  "action": "set",
+  "phase": "request",
+  "target": "body",
+  "paths": [
+    "service_tier"
+  ],
+  "pattern": "",
+  "replacement": "\"priority\"",
+  "filterBody": {
+    "path": "reasoning.effort",
+    "op": "eq",
+    "value": "high"
+  },
+  "filterHeader": {
+    "name": "x-client-mode",
+    "op": "eq",
+    "value": "fast"
+  }
+}
+```
+
+`filterBody` reads the current JSON payload after preceding rules. It is supported only for body targets. Paths accept dot-separated keys and array indexes, without wildcards. Equality preserves JSON types; missing differs from `null`. Invalid JSON never matches a body condition, including `not_exists`.
+
+`filterHeader` reads original inbound request headers for any target and phase. Header names are case-insensitive; values are exact, case-sensitive strings without comma splitting. With repeated headers, `eq` matches any equal value; `ne` requires a present header with no equal value.
+
+Operators are `eq`, `ne`, `exists`, and `not_exists`. Equality/inequality require `value`; existence operators reject it. A missing field does not satisfy `ne`. Conditions run per complete body, SSE event, NDJSON record, JSON-array element or WebSocket message, without cross-message state. Clear a condition with `null`; omitted PATCH fields retain existing conditions.

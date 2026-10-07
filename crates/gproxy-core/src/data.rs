@@ -214,6 +214,8 @@ pub struct RewriteRuleData {
     pub model_matcher: Option<Regex>,
     pub header_matcher: Option<Regex>,
     pub event_matcher: Option<Regex>,
+    pub body_condition: Option<crate::rewrite::BodyCondition>,
+    pub header_condition: Option<crate::rewrite::HeaderCondition>,
 }
 
 #[cfg(test)]

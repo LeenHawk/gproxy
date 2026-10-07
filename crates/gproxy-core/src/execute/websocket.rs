@@ -553,9 +553,7 @@ pub(crate) fn rewrite_text(
 ) -> Result<WsFrame, TransportError> {
     match frame {
         WsFrame::Text(text) if !rules.is_empty() => {
-            let event = serde_json::from_str::<serde_json::Value>(&text)
-                .ok()
-                .and_then(|v| v.get("type")?.as_str().map(str::to_owned));
+            let event = crate::rewrite::event_type_for(rules, &text);
             match apply_unit(rules, event.as_deref(), &text) {
                 Ok(Some(rewritten)) => Ok(WsFrame::Text(rewritten)),
                 Ok(None) => Ok(WsFrame::Text(text)),

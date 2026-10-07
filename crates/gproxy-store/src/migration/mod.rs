@@ -66,6 +66,7 @@ mod m20260921_000001_baseline;
 mod m20260926_000001_credential_cycles;
 mod m20260930_000001_allowed_headers;
 mod m20261005_000001_capture_storage;
+mod m20261007_000001_rewrite_conditions;
 
 /// Every migration this build carries, oldest first.
 ///
@@ -80,6 +81,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260926_000001_credential_cycles::Migration),
             Box::new(m20260930_000001_allowed_headers::Migration),
             Box::new(m20261005_000001_capture_storage::Migration),
+            Box::new(m20261007_000001_rewrite_conditions::Migration),
         ]
     }
 }
