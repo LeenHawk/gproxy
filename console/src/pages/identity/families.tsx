@@ -36,6 +36,7 @@ import type {
 import { CollectionPage } from "@/pages/identity/collection"
 import { UserQuotasDialog } from "@/pages/identity/user-quotas"
 import { MembersDialog } from "@/pages/identity/members"
+import { operationChoices } from "@/pages/providers/operation-options"
 
 const ROLES = ["user", "admin"] as const
 const ACTIONS = ["allow", "deny"] as const
@@ -242,7 +243,7 @@ export function PermissionsPage() {
     { name: "userId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), source: optionSource(admin.users, row => ({ value: row.id, label: `${row.name} (${row.id})` })) },
     { name: "apiKeyId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), source: optionSource(admin.apiKeys, row => ({ value: row.id, label: `${row.name} (${row.prefix})` })) },
     { name: "providerId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), source: optionSource(providers, row => ({ value: row.id, label: `${row.name} (${row.id})` })) },
-    { name: "operation", kind: "text", nullable: true },
+    { name: "operation", kind: "searchable", nullable: true, emptyLabel: t("form.all"), choices: operationChoices.map(({ value }) => ({ value, label: t(`operation.${value}`, { defaultValue: value }) })) },
     { name: "priority", kind: "number" },
   ]
   return (
