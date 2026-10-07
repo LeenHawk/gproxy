@@ -14,7 +14,7 @@ printf '%s' "$DOCKERHUB_TOKEN" | skopeo login docker.io --username leenhawk --pa
 
 tags=("$RELEASE_TAG")
 if [ "$GPROXY_BUILD_CHANNEL" = release ]; then tags+=(staging); fi
-source="ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+source="${GPROXY_CONTAINER_SOURCE:?}"
 for suffix in "" -musl; do
   for tag in "${tags[@]}"; do
     skopeo copy --all --preserve-digests \

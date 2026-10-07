@@ -736,6 +736,8 @@ jobs:
 
   container-manifest:
     name: Container manifests
+    outputs:
+      source: ${{ steps.images.outputs.source }}
     needs: container
     runs-on: ubuntu-latest
     steps:
@@ -746,6 +748,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create GNU and musl manifests
+        id: images
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
           tag="$image:$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
@@ -753,6 +756,7 @@ jobs:
             "$tag-amd64" "$tag-arm64" "$tag-riscv64"
           docker buildx imagetools create -t "$tag-musl" \
             "$tag-amd64-musl" "$tag-arm64-musl" "$tag-riscv64-musl"
+          echo "source=$tag" >> "$GITHUB_OUTPUT"
 
   publish-crates:
     if: github.ref_type == 'tag'
@@ -1135,6 +1139,8 @@ jobs:
   publish:
     if: ${{ always() && !failure() && !cancelled() }}
     name: Publish GitHub, GitLab and CNB releases
+    env:
+      GPROXY_CONTAINER_SOURCE: ${{ needs.container-manifest.outputs.source }}
     needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, alpine-packages, serverless, edge, edge-check, container-manifest, publish-crates, fdroid]
     runs-on: ubuntu-latest
     concurrency:
