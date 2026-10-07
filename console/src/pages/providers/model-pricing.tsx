@@ -29,7 +29,7 @@ export function ModelPricingDialog({ providerId, model, onClose }: { providerId:
   const rule = candidates.find(r => r.id === selected) ?? candidates.find(r => r.operation === null) ?? candidates[0]
   const rates = useQuery({ queryKey: ["admin", "/price-rates", rule?.id], queryFn: () => directory(priceRates, { priceRuleId: rule!.id }), enabled: !!rule })
   const tiers = useQuery({ queryKey: ["admin", "/price-tiers", rule?.id], queryFn: () => directory(priceTiers, { priceRuleId: rule!.id }), enabled: !!rule })
-  const refresh = () => Promise.all([client.invalidateQueries({ queryKey: ["model-catalog"] }), ...["/price-rules", "/price-rates", "/price-tiers", "/provider-models"].map(path => client.invalidateQueries({ queryKey: ["admin", path] }))])
+  const refresh = () => Promise.all([client.invalidateQueries({ queryKey: ["admin", "/models"] }), ...["/price-rules", "/price-rates", "/price-tiers", "/provider-models"].map(path => client.invalidateQueries({ queryKey: ["admin", path] }))])
   const save = useMutation({ mutationFn: async (body: Record<string, unknown>) => {
     if (editing!.kind === "rule") return editing!.row ? priceRules.update(editing!.row.id, body) : priceRules.create({ currency: "USD", ...body, providerId, modelPattern: model })
     if (editing!.kind === "tier") return editing!.row ? priceTiers.update(editing!.row.id, body) : priceTiers.create({ ...body, priceRuleId: rule!.id })

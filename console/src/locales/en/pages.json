@@ -706,11 +706,8 @@
     "referencePrice": "Input / output USD/1M",
     "details": "Details",
     "applyPrice": "Apply default price",
-    "reset": "Remove local entry",
     "applied": "Created {{created}}, kept {{skipped}}, unmatched {{unmatched}}",
     "applyPriceCount": "Apply default price ({{count}})",
-    "resetCount": "Remove local entries ({{count}})",
-    "resetSelected": "Remove {{count}} selected local entries?",
     "tierFields": {
       "inputPrice": "Input",
       "outputPrice": "Output",
@@ -727,6 +724,10 @@
     "tierCount": "Tiered · {{count}}",
     "searchPlaceholder": "Search models or provider instances",
     "providerInstances": "Provider instances",
+    "loadDefaults": "Load default models",
+    "loadDefaultsHelp": "Import selected built-in models into the model list. Existing models and pricing are unchanged.",
+    "deleteCount": "Delete models ({{count}})",
+    "deleteSelected": "Delete {{count}} selected models?",
     "importRemote": "Import from OpenRouter",
     "importRemoteHelp": "Select model metadata to import. Existing custom values are kept; pricing is unchanged.",
     "metadataImported": "Imported metadata for {{count}} models."

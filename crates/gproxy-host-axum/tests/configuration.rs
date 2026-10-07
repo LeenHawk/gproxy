@@ -724,7 +724,6 @@ const TABLE: &[(Method, &str)] = &[
     (Method::GET, "/admin/api/tls-presets"),
     (Method::GET, "/admin/api/rule-presets"),
     (Method::GET, "/admin/api/default-model-catalog"),
-    (Method::GET, "/admin/api/model-catalog"),
     (Method::GET, "/admin/api/model-names"),
     (Method::GET, "/admin/api/operation-keys"),
     (

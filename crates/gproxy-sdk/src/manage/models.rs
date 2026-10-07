@@ -25,7 +25,7 @@ use crate::{
 /// Global model metadata. Routing can name a model that is not in here; the
 /// catalog exists for vocabularies, pricing patterns and presentation.
 pub struct Models<'a, C> {
-    writer: Writer<'a, C>,
+    pub(super) writer: Writer<'a, C>,
 }
 
 impl<'a, C> Models<'a, C> {
@@ -36,7 +36,7 @@ impl<'a, C> Models<'a, C> {
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Models<'_, C> {
     pub async fn list(&self, query: ListQuery) -> SdkResult<Page<ModelDto>> {
-        crud::list(self, query).await
+        self.page(query).await
     }
     pub async fn get(&self, id: &str) -> SdkResult<ModelDto> {
         crud::get(self, id).await

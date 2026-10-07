@@ -42,7 +42,6 @@ exported!(
     ConfigKey,
     ConfigKeyKind,
     LoginMode,
-    CatalogModelDto,
     CatalogProviderDto,
     // catalog
     ApplyDefaultPricesReportDto,

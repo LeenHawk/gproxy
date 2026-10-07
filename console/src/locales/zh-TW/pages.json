@@ -706,11 +706,8 @@
     "referencePrice": "輸入 / 輸出 USD/百萬",
     "details": "詳情",
     "applyPrice": "套用預設價格",
-    "reset": "移除本機項目",
     "applied": "新增 {{created}}，保留 {{skipped}}，未匹配 {{unmatched}}",
     "applyPriceCount": "套用預設價格（{{count}}）",
-    "resetCount": "移除本機項目（{{count}}）",
-    "resetSelected": "移除選取的 {{count}} 個本機項目？",
     "tierFields": {
       "inputPrice": "輸入",
       "outputPrice": "輸出",
@@ -727,6 +724,10 @@
     "tierCount": "分段價 · {{count}}",
     "searchPlaceholder": "搜尋模型或供應商實例",
     "providerInstances": "供應商實例",
+    "loadDefaults": "載入預設模型",
+    "loadDefaultsHelp": "將選取的內建模型寫入模型清單，保留現有模型與價格設定。",
+    "deleteCount": "刪除模型（{{count}}）",
+    "deleteSelected": "刪除選取的 {{count}} 個模型？",
     "importRemote": "從 OpenRouter 匯入",
     "importRemoteHelp": "選擇要匯入的模型中繼資料，保留既有自訂值，不修改價格。",
     "metadataImported": "已匯入 {{count}} 個模型的中繼資料。"

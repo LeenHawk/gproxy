@@ -305,6 +305,8 @@ impl From<gproxy_core::CredentialSummary> for CredentialSummaryDto {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ModelDto {
+    #[serde(default)]
+    pub providers: Vec<super::CatalogProviderDto>,
     pub id: String,
     pub name: String,
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
@@ -315,6 +317,7 @@ pub struct ModelDto {
 impl From<model::Model> for ModelDto {
     fn from(row: model::Model) -> Self {
         Self {
+            providers: Vec::new(),
             id: row.id,
             name: row.name,
             metadata: row.metadata,

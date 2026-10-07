@@ -274,7 +274,6 @@ where
         .route("/tls-presets", get(tls_presets::<C>))
         .route("/rule-presets", get(rule_presets::<C>))
         .route("/default-model-catalog", get(default_models::<C>))
-        .route("/model-catalog", get(model_catalog::<C>))
         .route("/model-names", get(model_names::<C>))
         .route("/operation-keys", get(operation_keys::<C>))
         .route("/models/openrouter", get(openrouter_models::<C>))
@@ -1121,32 +1120,6 @@ where
             endpoints()
                 .operation_rules()
                 .reset_mapping(&id, &operation, &dialect)
-        )
-    })
-    .await
-}
-
-async fn model_catalog<C>(
-    State(state): State<HostState<C>>,
-    Extension(scope): Extension<AdminScope>,
-    Query(query): Query<ListQuery>,
-) -> Response
-where
-    C: BatchConnectionTrait + Send + Sync + 'static,
-{
-    crate::send(async move {
-        gate!("models", scope);
-        gate!("providers", scope);
-        gate!("provider-models", scope);
-        gate!("price-rules", scope);
-        reply_sdk(
-            state
-                .app()
-                .gproxy()
-                .manage()
-                .catalog()
-                .models_page(query)
-                .await,
         )
     })
     .await
