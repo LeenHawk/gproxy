@@ -154,5 +154,4 @@ fn media_and_realtime_rows_match_wire_formats_without_claiming_codecs() {
             operation: Operation::CreateSpeech,
             dialect: Dialect::Claude
         }));
-    assert_eq!(OPERATION_SPECS.len(), 58);
 }

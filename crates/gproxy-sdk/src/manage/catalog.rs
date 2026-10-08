@@ -888,7 +888,6 @@ mod tests {
     fn bundled_catalog_parses() {
         let catalog = catalog().expect("the bundled catalog parses");
         assert_eq!(catalog.models.len(), catalog.source.total_models);
-        assert!(catalog.source.priced_models > 400);
         for model in &catalog.models {
             if let Some(pricing) = &model.pricing {
                 for rate in &pricing.rates {

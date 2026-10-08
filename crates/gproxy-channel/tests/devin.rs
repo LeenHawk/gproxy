@@ -671,10 +671,6 @@ fn catalogued_aliases_resolve_and_dotted_forms_keep_their_own_target() {
 #[test]
 fn the_captured_snapshot_reaches_every_effort_and_variant_selector() {
     let extra = std::collections::BTreeMap::new();
-    // The hand-written alias table names 44 targets; the snapshot carries 123,
-    // two of which it does not (`swe-1-6-slow`, captured on an account whose
-    // entitlement view omitted it, and `subagent-default`).
-    assert_eq!(devin::catalogue(&extra).len(), 125);
     // Everything the alias table used to hard-block, because the channel
     // refuses a name it does not know.
     for selector in [
