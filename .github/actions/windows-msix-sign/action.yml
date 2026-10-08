@@ -1,14 +1,6 @@
 name: SignPath MSIX
 description: Sign the release MSIX after preserving the Store submission
 inputs:
-  test-certificate-thumbprint:
-    description: SHA-1 thumbprint of the self-signed onboarding certificate
-    required: false
-    default: ''
-  test-signing:
-    description: Temporary allowance for self-signed onboarding certificates
-    default: 'false'
-    required: false
   target:
     description: Rust target triple
     required: true
@@ -95,8 +87,6 @@ runs:
     - name: Verify signed MSIX and generate release checksum
       shell: pwsh
       env:
-        SIGNPATH_TEST_MODE: ${{ inputs.test-signing }}
-        SIGNPATH_TEST_CERTIFICATE_THUMBPRINT: ${{ inputs.test-certificate-thumbprint }}
         SIGNED_DIRECTORY: ${{ runner.temp }}/signed-${{ inputs.artifact }}
         ARTIFACT: ${{ inputs.artifact }}
         IDENTITY: ${{ inputs.identity-name }}
@@ -104,4 +94,4 @@ runs:
         PUBLISHER: ${{ inputs.publisher }}
       run: |
         scripts/verify-windows-msix.ps1 -Directory $env:SIGNED_DIRECTORY -Artifact $env:ARTIFACT `
-          -IdentityName $env:IDENTITY -Executable $env:EXECUTABLE -Publisher $env:PUBLISHER -TestSigning:($env:SIGNPATH_TEST_MODE -eq 'true')
+          -IdentityName $env:IDENTITY -Executable $env:EXECUTABLE -Publisher $env:PUBLISHER

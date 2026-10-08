@@ -85,25 +85,6 @@ SignPath, verify the downloaded signatures and timestamps, regenerate checksums,
 then proceed to publication. Update public code-signing documentation after
 production activation is confirmed.
 
-## Temporary test certificate switch
-
-`SIGNPATH_TEST_MODE=true` in the GitHub `release` environment enables temporary
-trust for the self-signed test certificate. Set
-`SIGNPATH_TEST_CERTIFICATE_THUMBPRINT` to the certificate's SHA-1 thumbprint
-(40 hex characters). Both ZIP and MSIX verifiers require that exact signer,
-add it to the runner's current-user root store only while verifying the file,
-require a `Valid` signature, then remove the temporary trust. This handles
-Windows reporting `UnknownError` for an untrusted self-signed root without
-accepting an invalid signature. Timestamp requirements are relaxed in test mode.
-MSIX publisher and identity checks remain enabled. Set `SIGNPATH_MSIX_PUBLISHER`
-to the full Subject of the selected test certificate when exercising MSIX signing.
-
-This flag does not enable signing: `SIGNPATH_ENABLED` controls submission to
-SignPath. It also does not suppress the workflow's normal publication steps.
-WinGet retains its trusted-signature check. The flag defaults to false; disable
-it when switching to the production policy, then remove this temporary input
-and the `TestSigning` branches from both verifier scripts after onboarding.
-
 ## Pipeline contract
 
 `SIGNPATH_ENABLED` unset or `false` preserves unsigned builds during onboarding.
