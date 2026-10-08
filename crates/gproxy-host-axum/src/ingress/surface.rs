@@ -104,6 +104,7 @@ surfaces! { table;
     // --------------------------------------------------------- everything --
     POST "/v1/embeddings" => CreateEmbedding / OpenAi;
     POST "/v1/moderations" => CreateModeration / OpenAi;
+    POST "/v1/decisions" => CreateDecision / OpenAi;
     POST "/v1/rerank" => Rerank / OpenAi;
     POST "/v1/conversations" => CreateConversation / OpenAi;
     POST "/v1/search" => WebSearch / OpenAi;

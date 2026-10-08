@@ -333,6 +333,14 @@ pub trait BaseChannel: Send + Sync {
         operations::http(self, Operation::CreateModeration, context)
     }
 
+    /// Evaluate typed predicate, choice and score questions with OpenAI Decisions.
+    fn create_decision<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        operations::http(self, Operation::CreateDecision, context)
+    }
+
     /// Review content for safety.
     fn guardian_review<'a>(
         &'a self,

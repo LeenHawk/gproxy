@@ -320,6 +320,9 @@ pub struct ConfirmationPolicies {
 )]
 pub struct ToolMessages {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub functions_namespace_functions_description_prefixes:
+        Option<std::collections::BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub indirect_description_prefixes: Option<IndirectDescriptionPrefixes>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub send_user_message_async: Option<ToolMessage>,

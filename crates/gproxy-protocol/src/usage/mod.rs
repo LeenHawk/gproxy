@@ -84,6 +84,7 @@ fn reader(operation: Operation, dialect: Dialect) -> Option<Reader> {
         Operation::GenerateContent
         | Operation::StreamGenerateContent
         | Operation::CompactContent => generate,
+        Operation::CreateDecision if dialect == Dialect::OpenAi => Reader::Responses,
         Operation::CountTokens => Reader::CountTokens(match generate {
             Reader::Claude => &Reader::Claude,
             Reader::Chat => &Reader::Chat,

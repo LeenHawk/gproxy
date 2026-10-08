@@ -261,6 +261,7 @@ impl BaseChannel for OpenAi {
             | Operation::GetModel
             | Operation::CompactContent
             | Operation::CreateModeration
+            | Operation::CreateDecision
             | Operation::CreateEmbedding
             | Operation::CreateImage
             | Operation::EditImage

@@ -4,6 +4,7 @@ pub mod codex;
 pub mod compact;
 pub mod conversation;
 pub mod count_tokens;
+pub mod decisions;
 pub mod embeddings;
 pub mod files;
 pub mod guardian;

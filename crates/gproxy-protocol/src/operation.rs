@@ -48,6 +48,8 @@ pub enum Operation {
     // moderation
     /// Standard OpenAI moderation JSON, distinct from Codex Guardian's SSE.
     CreateModeration,
+    /// Typed predicate, choice and score answers from the OpenAI Decisions API.
+    CreateDecision,
     GuardianReview,
     GuardianClassify,
     // context management
@@ -106,6 +108,7 @@ impl Operation {
             Self::GenerateContent
             | Self::StreamGenerateContent
             | Self::CreateModeration
+            | Self::CreateDecision
             | Self::GuardianReview
             | Self::GuardianClassify
             | Self::CompactContent
@@ -347,6 +350,7 @@ mod tests {
                 "generate_content",
                 "stream_generate_content",
                 "create_moderation",
+                "create_decision",
                 "guardian_review",
                 "guardian_classify",
                 "compact_content",

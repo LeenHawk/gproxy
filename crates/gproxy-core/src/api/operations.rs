@@ -49,6 +49,7 @@ http_operations! {
     stream_generate_content => StreamGenerateContent,
     guardian_review => GuardianReview,
     create_moderation => CreateModeration,
+    create_decision => CreateDecision,
     guardian_classify => GuardianClassify,
     compact_content => CompactContent,
     summarize_memory => SummarizeMemory,
