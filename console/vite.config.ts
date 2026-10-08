@@ -30,35 +30,25 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), {
     name: "console-fonts",
     transformIndexHtml() {
-      return [{ tag: "link", attrs: { rel: "stylesheet", href: `/console/fonts/${fontStylesheet}` }, injectTo: "head" }]
+      return [{ tag: "meta", attrs: { name: "gproxy-fonts", content: "/console/fonts/active.css" }, injectTo: "head" }]
     },
     generateBundle() {
-      // Ship the stylesheet and every font subset with all Console bundles.
-      for (const file of fontFiles) {
-        this.emitFile({ type: "asset", fileName: `fonts/${file}`, source: readFileSync(path.join(fontDir, file)) })
-      }
+      // Native hosts download font binaries only after an explicit user action.
+      this.emitFile({ type: "asset", fileName: `fonts/${fontStylesheet}`, source: fontCss })
+      this.emitFile({ type: "asset", fileName: "fonts/manifest.json", source: JSON.stringify({
+        stylesheet: fontStylesheet,
+        files: [...fontFiles].filter(file => file.endsWith(".woff2")),
+      }) })
       for (const file of readdirSync(path.join(fontDir, "licenses"))) {
         this.emitFile({ type: "asset", fileName: `licenses/fonts/${file}`, source: readFileSync(path.join(fontDir, "licenses", file)) })
       }
-    },
-    configureServer(server) {
-      server.middlewares.use((request, response, next) => {
-        const file = request.url?.split("?")[0].match(/\/(?:console\/)?fonts\/([a-f0-9]{64}\.(?:css|woff2))$/)?.[1]
-        if (!file) return next()
-        try {
-          const bytes = readFileSync(path.join(fontDir, file))
-          response.setHeader("Content-Type", file.endsWith(".css") ? "text/css" : "font/woff2")
-          response.end(bytes)
-        } catch {
-          next()
-        }
-      })
     },
   }],
   resolve: { alias: { "@": path.join(consoleDir, "src") } },
   server: {
     proxy: {
       "/info": { target: backend, changeOrigin: true },
+      "/console/fonts/": { target: backend, changeOrigin: true },
       // `changeOrigin` plus an explicit `origin` is what gets a dev request
       // past the same-origin check the host applies to unsafe methods.
       "/admin/api": { target: backend, changeOrigin: true, headers: { origin: backend } },

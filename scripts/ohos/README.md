@@ -16,8 +16,10 @@ beta.0 package. The old HAR called `init()` without the context containing the
 module name and private files directory, which prevents GPROXY startup.
 This is not stable Tauri platform support.
 
-Fonts and their license notices are bundled with the Console and served through
-the same local asset URLs as the rest of the UI.
+System fonts are the default. After an explicit download, the read-only
+`gproxy-fonts` protocol serves verified fonts from the application data directory.
+The protocol is registered with ArkWeb before NativeAbility starts. Font license
+notices remain bundled.
 
 ## Build isolation
 

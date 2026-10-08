@@ -1156,5 +1156,16 @@
     "ohosMinimizedHelp": "需要開啟持續背景執行。開啟系統匣時隱藏至狀態列，否則最小化視窗；手動開啟應用程式時顯示視窗。",
     "ohosClose": "關閉視窗後繼續執行",
     "ohosCloseHelp": "需要開啟狀態列圖示和持續背景執行。"
+  },
+  "fonts": {
+    "title": "介面字型",
+    "description": "可選：從 gproxy.leenhawk.com 下載 Noto 字型（約 9.2 MiB）。伺服器會收到執行 GPROXY 的裝置 IP 位址。GPROXY 將字型儲存到本地資料目錄，供離線使用。可以略過，之後在設定中下載。",
+    "system": "正在使用系統字型，尚未啟用字型下載。",
+    "installed": "正在使用已下載的字型。",
+    "loading": "正在檢查本地字型…",
+    "downloading": "正在下載字型",
+    "progress": "正在下載字型… {{progress}}%",
+    "download": "下載介面字型",
+    "remove": "刪除字型並使用系統字型"
   }
 }

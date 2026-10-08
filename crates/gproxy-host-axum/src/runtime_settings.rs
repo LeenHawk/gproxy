@@ -60,6 +60,7 @@ pub async fn info<C>(State(state): State<HostState<C>>) -> Response {
         "instanceName": data.settings.as_ref().map(|s| s.instance_name.as_str()).unwrap_or("GPROXY"),
         "version": env!("CARGO_PKG_VERSION"),
         "hash": env!("GPROXY_BUILD_HASH"),
+        "fontManagement": cfg!(not(target_arch = "wasm32")),
     }))
 }
 

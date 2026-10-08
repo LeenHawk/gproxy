@@ -10,6 +10,7 @@ import { OhosSettings } from "./ohos"
 import { AndroidPermissions } from "./mobile-permissions"
 import { FieldGroup } from "@/components/ui/field"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { FontSettings } from "@/components/font-settings"
 import { PrivacyNotice } from "@/components/privacy-notice"
 
 export function ApplicationSettings() {
@@ -24,6 +25,7 @@ export function ApplicationSettings() {
     <QueryState isPending={data.isPending} error={data.error}>
       {data.data?.ohos ? <OhosSettings original={data.data.ohos} /> : data.data ? <ApplicationForm key={JSON.stringify(data.data)} original={data.data} /> : null}
     </QueryState>
+    <FontSettings />
     <div><PrivacyNotice /></div>
   </div>
 }

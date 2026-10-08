@@ -8,6 +8,7 @@ import { normalizeSourceMasterKey, parseConfiguration } from "@/api/transfer"
 import type { ConfigurationExportDto } from "@/generated/sdk"
 import { copyText } from "@/lib/copy-text"
 import { usePageTitle } from "@/lib/use-page-title"
+import { FontSettings } from "@/components/font-settings"
 import { ShellNotices } from "@/components/shell-notices"
 import { ShellPreferenceFields } from "@/components/shell-preference-fields"
 import { SUPPORTED_LANGS, setLanguage, type LangCode } from "@/i18n"
@@ -117,6 +118,7 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
       <div className="flex min-w-0 items-center gap-2"><img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} alt="" className="size-10" /><span className="font-semibold">GPROXY</span></div>
       <Select value={i18n.language} onValueChange={value => void setLanguage(value as LangCode)}><SelectTrigger aria-label={t("setup.language")} className="w-auto"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{SUPPORTED_LANGS.map(code => <SelectItem key={code} value={code}>{t(`language.${code}`)}</SelectItem>)}</SelectGroup></SelectContent></Select>
     </header>
+    {!result && step === 0 ? <FontSettings /> : null}
     {!result ? <ol role="list" className="flex flex-wrap justify-between gap-2" aria-label={t("setup.steps")}>{titles.map((title, index) => <li key={title} className="flex min-w-0 items-center gap-2 text-sm" aria-current={step === index ? "step" : undefined}><Badge variant={step === index ? "default" : "secondary"}>{index + 1}</Badge><span className="whitespace-normal wrap-anywhere">{title}</span></li>)}</ol> : null}
     {result ? <Card>
       <CardHeader><CardTitle headingLevel={1} tabIndex={-1}>{t("setup.ready")}</CardTitle><CardDescription>{t("setup.readyHelp")}</CardDescription></CardHeader>

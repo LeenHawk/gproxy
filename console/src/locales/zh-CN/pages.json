@@ -1156,5 +1156,16 @@
     "ohosMinimizedHelp": "需要开启持续后台运行。开启托盘时隐藏到状态栏，否则最小化窗口；手动打开应用时显示窗口。",
     "ohosClose": "关闭窗口后继续运行",
     "ohosCloseHelp": "需要开启状态栏图标和持续后台运行。"
+  },
+  "fonts": {
+    "title": "界面字体",
+    "description": "可选：从 gproxy.leenhawk.com 下载 Noto 字体（约 9.2 MiB）。服务器会收到运行 GPROXY 的设备 IP 地址。GPROXY 将字体保存到本地数据目录，供离线使用。可以跳过，之后在设置中下载。",
+    "system": "正在使用系统字体，尚未开启字体下载。",
+    "installed": "正在使用已下载的字体。",
+    "loading": "正在检查本地字体…",
+    "downloading": "正在下载字体",
+    "progress": "正在下载字体… {{progress}}%",
+    "download": "下载界面字体",
+    "remove": "删除字体并使用系统字体"
   }
 }

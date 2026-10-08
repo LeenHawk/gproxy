@@ -33,6 +33,7 @@ cp -R crates/gproxy-host-edge/build "$deploy/build"
 rm -rf "$deploy/public"
 mkdir -p "$deploy/public/console"
 cp -R "$console_dist/." "$deploy/public/console/"
+node console/scripts/prepare-edge-fonts.mjs "$deploy/public/console"
 # The single-page fallback serves the root document.
 cp "$deploy/public/console/index.html" "$deploy/public/index.html"
 cp "$deploy/_headers" "$deploy/public/_headers"

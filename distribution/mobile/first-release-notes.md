@@ -5,7 +5,7 @@
 ## en-US
 
 First store edition of GPROXY.
-Manage your own providers, credentials, models and routes. View usage and budgets in the built-in console. Store-managed updates, an offline privacy notice and bundled interface fonts. Provider accounts and model subscriptions are not included.
+Manage your own providers, credentials, models and routes. View usage and budgets in the built-in console. Store-managed updates, an offline privacy notice and optional interface-font downloads. Provider accounts and model subscriptions are not included.
 
 ## zh-CN
 

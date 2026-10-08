@@ -1,6 +1,7 @@
 import { NativeAbility } from '@ohos-rs/ability';
 import { AbilityConstant, Want } from '@kit.AbilityKit';
 import window from '@ohos.window';
+import webview from '@ohos.web.webview';
 import native from 'libgproxy_host_tauri.so';
 import { GproxyBackground } from './GproxyBackground';
 
@@ -15,6 +16,12 @@ export default class EntryAbility extends NativeAbility {
     this.autoStartup = launchParam.launchReason === AbilityConstant.LaunchReason.AUTO_STARTUP;
     this.background = new GproxyBackground(this.context, this.autoStartup);
     native.registerGproxyBackground(command => this.background!.dispatch(command));
+    // The local font handler needs a standard scheme before ArkWeb starts.
+    webview.WebviewController.customizeSchemes([{
+      schemeName: 'gproxy-fonts', isSupportCORS: true, isSupportFetch: true,
+      isStandard: true, isLocal: false, isDisplayIsolated: false,
+      isSecure: false, isCspBypassing: false, isCodeCacheSupported: false,
+    }]);
     await super.onCreate(want, launchParam);
   }
 

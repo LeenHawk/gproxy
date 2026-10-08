@@ -64,7 +64,10 @@ Gradle removes the install permission, update Activity/provider and update
 notification action. Rust excludes the JNI download entry point. Without this
 environment variable, the ordinary direct-distribution build keeps its updater.
 
-All application builds bundle their fonts and license notices for offline use.
+Applications use system fonts by default. Setup and Settings offer an optional font
+download from the documentation site, saved by GPROXY in its local data directory
+for offline use. Settings can delete the download and restore system fonts.
+Font license notices remain bundled.
 Applications launch directly without requiring acceptance of the privacy notice.
 Application settings include an offline **Privacy notice** dialog on all platforms.
 Android store builds also provide a **Privacy** action in the gateway notification.

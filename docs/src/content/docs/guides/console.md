@@ -143,7 +143,7 @@ back import.
 
 ## Fonts
 
-The Console bundles Noto Sans, Noto Sans SC/TC and Noto Sans Mono, including their license notices. CLI and Application serve fonts locally without external downloads. Edge deploys the same fonts as same-origin static assets. Headless packages exclude the Console and its fonts.
+The Console uses system fonts by default in CLI and Application builds. You can choose to download Noto Sans, Noto Sans SC/TC and Noto Sans Mono during application setup or in Settings. GPROXY downloads about 9.2 MiB from `https://gproxy.leenhawk.com/fonts/`, verifies the files and stores them in its local data directory for offline use. No font requests are made to the CDN until you choose to download. Deleting the fonts in Settings restores system fonts. Edge serves bundled same-origin static fonts; headless packages contain no Console or fonts.
 
 ## Building the Console
 

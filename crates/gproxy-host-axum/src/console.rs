@@ -28,6 +28,8 @@ use http::{HeaderValue, Method, StatusCode, header};
 #[cfg(feature = "embedded-console")]
 use rust_embed::RustEmbed;
 
+pub mod fonts;
+
 /// Where the console is served from, `/console` and below.
 pub const CONSOLE_PATH: &str = "/console";
 
@@ -41,6 +43,7 @@ struct Embedded;
 #[derive(Debug)]
 pub struct Console {
     source: Source,
+    fonts: fonts::FontCache,
 }
 
 #[derive(Debug)]
@@ -66,7 +69,33 @@ impl Console {
             _ if Embedded::get("index.html").is_some() => Source::Embedded,
             _ => Source::Disabled,
         };
-        Self { source }
+        Self {
+            source,
+            fonts: fonts::FontCache::new("data/fonts".into()),
+        }
+    }
+
+    pub fn with_font_cache(mut self, path: impl Into<std::path::PathBuf>) -> Self {
+        self.fonts = fonts::FontCache::new(path.into());
+        self
+    }
+
+    pub fn fonts(&self) -> &fonts::FontCache {
+        &self.fonts
+    }
+
+    pub async fn download_fonts(&self) -> std::io::Result<fonts::FontStatus> {
+        let manifest = self
+            .read("fonts/manifest.json")
+            .await
+            .ok_or_else(|| std::io::Error::other("Console font manifest is unavailable"))?;
+        let package: fonts::FontPackage =
+            serde_json::from_slice(&manifest).map_err(std::io::Error::other)?;
+        let css = self
+            .read(&format!("fonts/{}", package.stylesheet))
+            .await
+            .ok_or_else(|| std::io::Error::other("Console font stylesheet is unavailable"))?;
+        self.fonts.download(&package, &css).await
     }
 
     pub fn is_enabled(&self) -> bool {
@@ -82,6 +111,20 @@ impl Console {
             return Some(not_found("the console is not enabled on this instance"));
         }
         let head = method == Method::HEAD;
+        if asset == "fonts/active.css" {
+            let bytes = self.fonts.stylesheet().await.unwrap_or_default();
+            let mut response = asset_response(&asset, bytes, head);
+            response
+                .headers_mut()
+                .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+            return Some(response);
+        }
+        if let Some(filename) = fonts::filename(&asset) {
+            return Some(match self.fonts.read(filename).await {
+                Some(bytes) => asset_response(&asset, bytes, head),
+                None => not_found("font has not been downloaded"),
+            });
+        }
         match self.read(&asset).await {
             Some(bytes) => Some(asset_response(&asset, bytes, head)),
             // The SPA fallback: a document request for a route the bundle

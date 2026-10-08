@@ -1156,5 +1156,16 @@
     "ohosMinimizedHelp": "Requires continuous background running. Hide to the status bar when enabled, or minimize the window otherwise. Opening the app manually shows its window.",
     "ohosClose": "Keep running when closing the window",
     "ohosCloseHelp": "Requires the status bar and an active continuous background task."
+  },
+  "fonts": {
+    "title": "Interface fonts",
+    "description": "Optional: download Noto fonts (about 9.2 MiB) from gproxy.leenhawk.com. The server receives the IP address of the device running GPROXY. GPROXY saves the fonts in its local data directory for offline use. You can skip this and download them later in Settings.",
+    "system": "Using system fonts. No font downloads are enabled.",
+    "installed": "Downloaded fonts are in use.",
+    "loading": "Checking local fonts…",
+    "downloading": "Downloading fonts",
+    "progress": "Downloading fonts… {{progress}}%",
+    "download": "Download interface fonts",
+    "remove": "Delete fonts and use system fonts"
   }
 }
