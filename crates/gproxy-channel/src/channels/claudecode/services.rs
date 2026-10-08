@@ -1,4 +1,5 @@
-//! Claude Code CLI services: the OAuth-scoped `/api/**` calls the CLI makes
+//! Claude Code CLI services: the OAuth-scoped `/api/**` calls, MCP discovery
+//! and public MCP directory requests the CLI makes
 //! besides Messages. Wire facts follow `samples/claude-code-2.1.252`
 //! (`CLAUDE_AI_OAUTH_ROUTES.md`, `ANALYSIS.md` and the route literals in the
 //! native binary): profile, validate, roles, bootstrap, usage, policy
@@ -7,7 +8,8 @@
 //! redirects and the Claude Design (`frame`) surface. `ANALYSIS.md` records
 //! that all of them resolve against `BASE_API_URL` (`api.anthropic.com`);
 //! `claude.ai` only serves the cookie login, so `claude_ai_url` is not
-//! consulted here.
+//! consulted here. MCP discovery and public directory routes were verified
+//! against `samples/claude-code-2.1.294/readable/`.
 //!
 //! The route table is the policy. Each row's `ServiceClass` says what the
 //! vendor endpoint returns; `call` renders it under the requested
@@ -40,7 +42,7 @@ use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 use serde_json::{Value, json};
 use std::sync::OnceLock;
 
-/// The vendor prefix every CLI control call lives under.
+/// The legacy vendor prefix; MCP uses explicit routes outside it.
 const VENDOR_PREFIX: &str = "/api/";
 
 pub const KIND_FILE: &str = "claude:file";
@@ -63,6 +65,11 @@ const fn resource(kind: &'static str, access: ResourceAccess) -> ServiceClass {
 /// Known calls: method, vendor path template, transport, idempotent, class.
 /// Specific rows precede the `/api/{*path}` families.
 const ROUTE_TABLE: &[(&str, &str, ServiceTransport, bool, ServiceClass)] = &[
+    // OAuth connector discovery is account state, available only in the
+    // Credential view. Public directory responses contain no account state.
+    ("GET", "/v1/mcp_servers", Http, true, Restricted),
+    ("GET", "/mcp-registry/v0/servers", Http, true, Catalog),
+    ("GET", "/api/directory/servers", Http, true, Catalog),
     // Identity, validation and roles.
     ("GET", "/api/hello", Http, true, Catalog),
     ("GET", "/api/hello/{name}", Http, true, Catalog),
@@ -453,7 +460,8 @@ pub fn service_routes() -> &'static [ServiceRoute] {
 }
 
 fn is_vendor_path(path: &str) -> bool {
-    path.len() > VENDOR_PREFIX.len() && path.starts_with(VENDOR_PREFIX)
+    (path.len() > VENDOR_PREFIX.len() && path.starts_with(VENDOR_PREFIX))
+        || matches!(path, "/v1/mcp_servers" | "/mcp-registry/v0/servers")
 }
 
 /// The client query minus any `key` credential parameter.
@@ -561,12 +569,36 @@ fn forward(
             prefixes: &[],
         },
     )?;
-    let headers = service_headers(
+    let mut headers = service_headers(
         &config,
         identity.access_token,
         &request.headers,
         allowlist.as_ref(),
     )?;
+    if request.path == "/v1/mcp_servers" {
+        let beta = headers["anthropic-beta"]
+            .to_str()
+            .map_err(|_| invalid_config("anthropic-beta"))?;
+        if !beta
+            .split(',')
+            .any(|value| value.trim() == "mcp-servers-2025-12-04")
+        {
+            let beta = format!("{beta},mcp-servers-2025-12-04");
+            headers.insert(
+                HeaderName::from_static("anthropic-beta"),
+                header_value(&beta)?,
+            );
+        }
+    }
+    if matches!(
+        request.path.as_str(),
+        "/mcp-registry/v0/servers" | "/api/directory/servers"
+    ) {
+        headers.remove(header::AUTHORIZATION);
+        headers.remove(header::COOKIE);
+        headers.remove("x-api-key");
+        headers.remove("x-organization-uuid");
+    }
     let url = format!("{}{}", base_url(account.provider), request.path);
     let uri = match forwarded_query(request.query) {
         Some(query) => format!("{url}?{query}"),
@@ -946,7 +978,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_the_vendor_prefix_is_classified() {
+    fn vendor_prefix_and_explicit_mcp_paths_are_classified() {
         assert!(is_vendor_path("/api/oauth/profile"));
         assert!(is_vendor_path("/api/oauth/brand_new_in_a_later_cli"));
         assert!(!is_vendor_path("/api/"));
@@ -955,7 +987,7 @@ mod tests {
     }
 
     #[test]
-    fn every_listed_route_is_classified_under_the_vendor_prefix() {
+    fn every_listed_route_is_classified() {
         for route in routes() {
             assert!(
                 is_vendor_path(route.path_template),

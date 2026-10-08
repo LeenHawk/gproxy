@@ -5,7 +5,8 @@
 //! and `shared/claude/*` on `main`) and Anthropic's API reference. The key
 //! travels in `x-api-key` with `anthropic-version: 2023-06-01`; the routes are
 //! `/v1/models`, `/v1/models/{model}`, `/v1/messages`,
-//! `/v1/messages/count_tokens` and, on the OpenAI SDK compatibility layer,
+//! `/v1/messages/count_tokens`, `/v1/files` and file item/content routes,
+//! and, on the OpenAI SDK compatibility layer,
 //! `/v1/chat/completions`. The channel picks the route from the operation
 //! rather than from the client's path, which is what `custom` cannot do.
 //!
@@ -26,8 +27,11 @@
 //! which needs an Admin key; `secret.quota_api_key` holds it when the
 //! inference key is not one.
 //!
-//! The credential is `{"api_key": "...", "quota_api_key": "..."}`. There is
-//! no login, no refresh and no client fingerprint to impersonate, so
+//! The credential is `{"api_key": "...", "quota_api_key": "..."}`.
+//! Multi-workspace keys select a workspace with a static
+//! `headers.anthropic-workspace-id`; `allowed_headers` can explicitly delegate
+//! that choice to the caller. There is no login, no refresh and no client
+//! fingerprint to impersonate, so
 //! `default_connection` stays `None` and the host's own profile decides.
 
 mod config;

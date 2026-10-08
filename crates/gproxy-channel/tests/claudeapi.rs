@@ -668,3 +668,143 @@ async fn reads_the_organization_cost_report_with_the_admin_key() {
         Err(ChannelError::InvalidCredential)
     ));
 }
+
+#[test]
+fn files_preserve_multipart_and_use_native_item_routes() {
+    let config = json!({"headers": {"anthropic-workspace-id": "wrkspc_owner"}});
+    let secret = json!({"api_key": "sk-ant-upstream"});
+    let multipart = b"--boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"data.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n\x00\xff\r\n--boundary--\r\n";
+    for (operation, method, path, expected) in [
+        (
+            Operation::CreateFile,
+            Method::POST,
+            "/client/upload",
+            "/v1/files",
+        ),
+        (
+            Operation::ListFiles,
+            Method::GET,
+            "/client/list",
+            "/v1/files",
+        ),
+        (
+            Operation::RetrieveFile,
+            Method::GET,
+            "/client/files/file_123",
+            "/v1/files/file_123",
+        ),
+        (
+            Operation::DeleteFile,
+            Method::DELETE,
+            "/client/files/file_123",
+            "/v1/files/file_123",
+        ),
+        (
+            Operation::RetrieveFileContent,
+            Method::GET,
+            "/client/files/file_123/content",
+            "/v1/files/file_123/content",
+        ),
+    ] {
+        assert_eq!(
+            Claudeapi.native_dialects(provider(&config, None), operation),
+            [Dialect::Claude]
+        );
+        let mut input = request(
+            path,
+            Some("limit=2&after_id=file_1&key=client-secret"),
+            multipart,
+        );
+        input.method = method.clone();
+        input.headers.insert(
+            "content-type",
+            HeaderValue::from_static("multipart/form-data; boundary=boundary"),
+        );
+        input.headers.insert(
+            "anthropic-workspace-id",
+            HeaderValue::from_static("wrkspc_client"),
+        );
+        let output = prepare(
+            &config,
+            None,
+            &secret,
+            operation,
+            Dialect::Claude,
+            input,
+            None,
+        )
+        .unwrap();
+        assert_eq!(output.method(), method);
+        assert_eq!(
+            output.uri().to_string(),
+            format!("https://api.anthropic.com{expected}?limit=2&after_id=file_1")
+        );
+        assert_eq!(
+            output.headers()["content-type"],
+            "multipart/form-data; boundary=boundary"
+        );
+        assert_eq!(output.headers()["anthropic-workspace-id"], "wrkspc_owner");
+        assert_eq!(output.headers()["x-api-key"], "sk-ant-upstream");
+        assert!(output.headers().get("authorization").is_none());
+        assert!(
+            output.headers().get("anthropic-beta").is_none(),
+            "stable Files needs no forced beta"
+        );
+        let HttpBody::Bytes(bytes) = output.into_body() else {
+            panic!("buffered upload")
+        };
+        assert_eq!(bytes.as_ref(), multipart);
+    }
+}
+
+#[tokio::test]
+async fn file_download_preserves_binary_response_and_headers() {
+    use gproxy_channel::channel::ChannelBinding;
+    use std::sync::Arc;
+
+    let config = json!({});
+    let secret = json!({"api_key": "sk-ant-upstream"});
+    let bytes = Bytes::from_static(b"\x00\xffbinary\r\n");
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("application/octet-stream"),
+    );
+    headers.insert(
+        "content-disposition",
+        HeaderValue::from_static("attachment; filename=data.bin"),
+    );
+    let client = Arc::new(ScriptClient::new(vec![WireResponse {
+        status: StatusCode::OK,
+        headers: headers.clone(),
+        body: HttpBody::Bytes(bytes.clone()),
+    }]));
+    let binding = ChannelBinding::new(
+        &Claudeapi,
+        provider(&config, None),
+        credential(&secret),
+        client.clone(),
+    );
+    let mut input = request("/v1/files/file_123/content", None, b"");
+    input.method = Method::GET;
+    let response = binding
+        .send(
+            OperationKey {
+                operation: Operation::RetrieveFileContent,
+                dialect: Dialect::Claude,
+            },
+            input,
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, StatusCode::OK);
+    assert_eq!(response.headers, headers);
+    let HttpBody::Bytes(body) = response.body else {
+        panic!("binary download")
+    };
+    assert_eq!(body, bytes);
+    assert_eq!(
+        client.sent()[0].1,
+        "https://api.anthropic.com/v1/files/file_123/content"
+    );
+}
