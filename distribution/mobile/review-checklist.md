@@ -55,9 +55,9 @@ been created. Unchecked items below are not completed by a repository merge.
 - [ ] Test install/update with the intended signing key, including preservation
   of the configured gateway database. A locally generated test key is not proof
   of production update compatibility.
-- [ ] Test the offline notice: decline exits; accept opens setup; re-launch skips
-  an accepted version; a changed version requires acknowledgement again; boot
-  cannot start a gateway before acknowledgement.
+- [ ] Test direct startup without accepting a privacy notice. Open and close the
+  offline notice from settings and the Android store notification; closing it
+  must not stop the gateway. Boot and sticky restarts require no acknowledgement.
 - [ ] Test notifications denied, notification Stop/Privacy, backgrounding,
   user-enabled boot start, battery restrictions and device reboot.
 - [ ] Submit the Google Play foreground-service declaration and a video showing

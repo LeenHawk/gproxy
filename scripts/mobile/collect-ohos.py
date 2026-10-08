@@ -43,8 +43,8 @@ with zipfile.ZipFile(packages[0]) as app:
             section_size, section_count = struct.unpack_from("<HH", library, 58)
             if not section_offset or not section_count or section_size != 64 or section_offset + section_size * section_count > len(library):
                 raise ValueError("OHOS application library must retain its ELF section table; do not UPX-pack it")
-            if manifest["module"]["mainElement"] != "PrivacyAbility":
-                raise ValueError("Store HAP does not use the privacy launcher")
+            if manifest["module"]["mainElement"] != "EntryAbility":
+                raise ValueError("Store HAP does not launch the application directly")
         (output / Path(name).name).write_bytes(data)
 destination = output / ("gproxy-appgallery-ohos" + suffix)
 shutil.copyfile(packages[0], destination)

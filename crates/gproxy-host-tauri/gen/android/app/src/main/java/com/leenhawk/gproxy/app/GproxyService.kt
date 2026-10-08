@@ -76,10 +76,6 @@ class GproxyService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (!GproxyPrivacyActivity.accepted(this)) {
-            stopSelf()
-            return START_NOT_STICKY
-        }
         if (intent?.action == ACTION_STOP) {
             stopEverything()
             return START_NOT_STICKY
@@ -205,8 +201,7 @@ class GproxyService : Service() {
                         if (resources.configuration.locales[0].language == "zh") "隐私说明" else "Privacy",
                         PendingIntent.getActivity(
                             this@GproxyService, 2,
-                            Intent(this@GproxyService, GproxyPrivacyActivity::class.java)
-                                .putExtra("viewOnly", true),
+                            Intent(this@GproxyService, GproxyPrivacyActivity::class.java),
                             PendingIntent.FLAG_IMMUTABLE,
                         ),
                     )
@@ -230,7 +225,7 @@ class GproxyService : Service() {
         PendingIntent.getActivity(
             this,
             0,
-            Intent(this, if (BuildConfig.SELF_UPDATE) MainActivity::class.java else GproxyPrivacyActivity::class.java)
+            Intent(this, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
@@ -262,7 +257,6 @@ class GproxyService : Service() {
          * rather than a crash for whatever the platform decides next.
          */
         fun start(context: Context) {
-            if (!GproxyPrivacyActivity.accepted(context)) return
             try {
                 context.startForegroundService(
                     Intent(context, GproxyService::class.java)

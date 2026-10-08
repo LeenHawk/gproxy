@@ -27,7 +27,9 @@ for forbidden in ("REQUEST_INSTALL_PACKAGES", "FOREGROUND_SERVICE_DATA_SYNC", "G
     if forbidden in manifest:
         raise ValueError(f"Store manifest still includes {forbidden}")
 if "GproxyPrivacyActivity" not in manifest:
-    raise ValueError("Store APK is missing its privacy launcher")
+    raise ValueError("Store APK is missing its offline privacy notice")
+if "launchable-activity: name='com.leenhawk.gproxy.app.MainActivity'" not in badging:
+    raise ValueError("Store APK does not launch the application directly")
 ndk = Path(os.environ["ANDROID_NDK_HOME"])
 nm = next(ndk.glob("toolchains/llvm/prebuilt/*/bin/llvm-nm"))
 with zipfile.ZipFile(apk) as archive, tempfile.TemporaryDirectory(prefix="gproxy-store-elf-") as work:

@@ -7,17 +7,7 @@
     <application>
         <service android:name=".GproxyService" android:foregroundServiceType="specialUse"
             tools:replace="android:foregroundServiceType" />
-        <!-- Consent is shown by a native Activity before Tauri or Rust loads. -->
-        <activity android:name=".MainActivity" android:exported="false" tools:replace="android:exported">
-            <intent-filter tools:node="removeAll" />
-        </activity>
-        <activity android:name=".GproxyPrivacyActivity" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
-        </activity>
+        <activity android:name=".GproxyPrivacyActivity" android:exported="false" />
         <activity android:name=".GproxyUpdateActivity" tools:node="remove" />
         <provider android:name=".GproxyUpdateProvider" tools:node="remove" />
     </application>

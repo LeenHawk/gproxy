@@ -35,7 +35,6 @@ android {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = "com.leenhawk.gproxy.app"
         buildConfigField("boolean", "SELF_UPDATE", selfUpdate.toString())
-        buildConfigField("String", "PRIVACY_VERSION", "\"${privacyDir.resolve("version.txt").readText().trim()}\"")
         // Tauri's template says 24. 28 is what v3's APK shipped, and it is
         // what the foreground service wants: notification channels, typed
         // foreground services and `canRequestPackageInstalls` all arrived by

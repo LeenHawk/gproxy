@@ -64,12 +64,11 @@ Gradle removes the install permission, update Activity/provider and update
 notification action. Rust excludes the JNI download entry point. Without this
 environment variable, the ordinary direct-distribution build keeps its updater.
 
-All application builds bundle their fonts and license notices for offline use. All store builds open a native, offline privacy notice before Tauri or the
-gateway starts. Declining exits; accepting records the notice version. Boot and
-sticky service restarts cannot bypass an unaccepted notice. The running Android
-gateway's notification provides a **Privacy** action for rereading it. Application
-settings also include an offline **Privacy notice** dialog on both platforms. Change
-`distribution/mobile/privacy/version.txt` whenever the notice materially changes.
+All application builds bundle their fonts and license notices for offline use.
+Applications launch directly without requiring acceptance of the privacy notice.
+Application settings include an offline **Privacy notice** dialog on all platforms.
+Android store builds also provide a **Privacy** action in the gateway notification.
+The notice is informational; closing it does not stop the gateway.
 
 By default, packages are **unsigned preparation output**. For Play/AppGallery,
 set these environment variables for a release build:
