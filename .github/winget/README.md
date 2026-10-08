@@ -1,7 +1,7 @@
 # WinGet packages
 
 The checked-in 4.0.0 manifests record the original portable ZIP submissions.
-New CI submissions use Microsoft-signed MSIX installers exclusively.
+New CI submissions use trusted, signed MSIX installers exclusively.
 A manifest pins a specific released version, URL and SHA-256; older manifests
 must not be rewritten to point at a newer binary.
 
@@ -36,8 +36,7 @@ winget install --id 9NBMH3S5K0L9 --source msstore
 ```
 
 Stable releases automatically call `winget-publish.yml` after release assets are
-published. It verifies MSIX checksums, Microsoft signature trust, identity and manifest schemas,
+published. It verifies MSIX checksums, Authenticode trust and timestamps, identity and manifest schemas,
 then submits one PR per edition using the `WINGET_TOKEN` repository secret.
-Existing MSIX versions/open PRs are skipped. Unsigned releases wait for the daily
-Store sync job, which retries after signed packages are available. Manual dispatch defaults to validation
+Existing MSIX versions/open PRs are skipped. Unsigned releases are skipped. SignPath signs release MSIX packages before publication. Manual dispatch defaults to validation
 only (`dry_run`); see [configuration and maintenance](../../dev_docs/winget.md).

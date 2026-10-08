@@ -1,9 +1,10 @@
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <zip-file>
-    <zip-file path="gproxy*.zip">
-      <pe-file path="gproxy.exe" product-name="GPROXY" original-filename="gproxy.exe">
+    <msix-file path="gproxy*.msix">
+      <pe-file path="gproxy*.exe">
         <authenticode-sign />
       </pe-file>
-    </zip-file>
+      <authenticode-sign />
+    </msix-file>
   </zip-file>
 </artifact-configuration>

@@ -4,9 +4,9 @@
 `LeenHawk.GPROXY.Desktop` 和 `LeenHawk.GPROXY.CLI` 提交到
 `microsoft/winget-pkgs`。main 的 staging、dev 的 nightly 和预发布版本不触发。
 
-流程只提交 Microsoft 签名的 Windows x64/ARM64 MSIX，校验 SHA256SUMS、
-Windows Authenticode 信任及 Microsoft 签名者、包标识/版本/架构、WinGet Schema。
-未签名的版本暂不提交，等待每日 Store 同步。不同版本各自保留清单。
+流程提交具有可信签名的 Windows x64/ARM64 MSIX，校验 SHA256SUMS、
+Windows Authenticode 信任及时间戳、包标识/版本/架构、WinGet Schema。
+发布流水线通过 SignPath 签名；未签名的版本跳过提交。不同版本各自保留清单。
 已存在的 MSIX 版本或同版本打开的 PR 会跳过；旧 ZIP 版本合并后可提交同版本
 MSIX 替换清单。打开的旧 ZIP PR 会先等待合并，避免冲突提交。
 提交成功不代表上架；仍需微软验证、合并并同步到 WinGet 源。
@@ -50,10 +50,9 @@ target/winget-venv/bin/python scripts/prepare-winget.py --version 4.0.0 --editio
 清单位于 `dist/winget/manifests`。本地 Schema/哈希验证不能代替 Windows
 实际安装测试；上游 PR 的安装验证状态需要单独检查。
 
-## 每日 Store 同步
+## MSIX 签名来源
 
-`store-sync.yml` 在签名 MSIX 和 SHA256SUMS 上传成功后，输出可提交的版本/产品。
-一个产品的 x64、ARM64 都验证成功才进入 WinGet 提交；两个产品分别处理。
-同步发现附件已签名也会继续检查 WinGet，因此前次 PR 提交失败可在下次重试。
-使用同一个 `prepare-winget.py` 生成 MSIX 清单和 `WINGET_TOKEN` 提交 PR。
-Store 同步的 dry run 不上传附件、不生成或提交 WinGet PR。
+发布 CI 直接用 SignPath 签署现有名称的 MSIX，随后自动调用 WinGet 提交流程。
+每日 Store 同步 CI 已移除。旧版微软签名的 MSIX 仍可通过签名校验。
+签名证书 Publisher 改变会改变 PackageFamilyName；脚本从实际包清单计算该值，
+不能将 SignPath 包视为已有 Store 身份安装的原位升级。

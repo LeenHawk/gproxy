@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate versioned WinGet manifests from verified Microsoft-signed release MSIX packages."""
+"""Generate versioned WinGet manifests from verified signed release MSIX packages."""
 import argparse
 import base64
 import hashlib
@@ -76,11 +76,12 @@ def msix_metadata(path):
         if 'AppxSignature.p7x' not in archive.namelist():
             return None
         manifest = ET.fromstring(archive.read('AppxManifest.xml'))
-    # Presence of a signature is insufficient: Windows must trust Microsoft.
+    # Require a trusted timestamped package signature, whether the release
+    # was signed by SignPath or Microsoft Store.
     subprocess.run(['pwsh', '-NoProfile', '-Command',
         "$s = Get-AuthenticodeSignature -LiteralPath $env:WINGET_MSIX_PATH; "
-        "if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch "
-        "'(?:^|,\\s*)O=Microsoft Corporation(?:,|$)') { throw 'MSIX requires a trusted Microsoft signature' }"],
+        "if ($s.Status -ne 'Valid' -or -not $s.TimeStamperCertificate) "
+        "{ throw 'MSIX requires a trusted timestamped signature' }"],
         env={**os.environ, 'WINGET_MSIX_PATH': str(path.resolve())}, check=True)
     ns = {'m': 'http://schemas.microsoft.com/appx/manifest/foundation/windows10'}
     identity = manifest.find('m:Identity', ns).attrib
@@ -122,7 +123,7 @@ def main():
         digest = verify_zip(downloads / name, checksums[name], 'AppxManifest.xml')
         metadata = msix_metadata(downloads / name)
         if metadata is None:
-            print(f'{edition} {version}: waiting for Microsoft Store signing.')
+            print(f'{edition} {version}: unsigned MSIX; skipping WinGet submission.')
             return
         identity, minimum = metadata
         arch = 'x64' if name.endswith('-x86_64.msix') else 'arm64'

@@ -93,38 +93,15 @@ and `-DisplayName` values are used exactly as supplied. Both modes require the
 real shared publisher values. Configure the same public identity variables in
 any other CI service that invokes this packaging script.
 
-The initial GitHub release MSIX files and preparation bundles are unsigned
-submission packages. Microsoft signs the Store-distributed copies after certification.
-Use the portable ZIPs for ordinary direct installation or WinGet community
-packages; do not submit unsigned MSIX files as installable WinGet packages.
+Store submission artifacts and preparation bundles retain their Partner Center
+identity and are unsigned for submission. Microsoft signs the Store-distributed
+copies after certification.
 
-## Retrieve Microsoft-signed release packages
-
-**Sync Microsoft Store signed MSIX** (`store-sync.yml`) runs daily at 03:23 UTC
-(11:23 China time) and can also be dispatched manually. Scheduled workflows
-must be present on the default branch (`main`). It examines the ten most
-recently published stable version releases on GitHub, excluding drafts,
-prereleases and floating channel releases.
-
-For both Desktop and CLI, the job queries Microsoft's public Store catalog and
-SFS delivery service without Store account credentials. It replaces an unsigned
-MSIX only when the package identity, publisher, version and architecture match,
-the Windows signature check trusts its Microsoft signer, and the application
-payload is identical. Signed inner packages are extracted from Store bundles
-without repacking. Existing Microsoft-signed assets are left in place.
-
-The job preserves attachment names and updates their entries in `SHA256SUMS`.
-It shares the release publication concurrency lock. Update manifests contain
-ZIP/APK artifacts rather than MSIX, so no manifest or channel pointer changes
-are needed. This job updates GitHub attachments only.
-
-Unpublished products, delivery files not yet available, and historical versions
-no longer served by the Store are reported and left unchanged for later checks;
-a newer Store version never replaces an older release. Unexpected API,
-signature, checksum or payload errors fail the job. Set `dry_run=true` on a
-manual dispatch to perform all matching and validation without uploading files.
-The job uses the existing public Store identity variables, `GITHUB_TOKEN`, and
-the `release` environment; no new secrets are required.
+GitHub release MSIX packages keep the existing filenames. When SignPath is
+enabled, CI rebuilds them with the certificate's Publisher, signs the main EXE
+and MSIX, verifies the signatures, and publishes them directly. See
+[SignPath configuration](../signpath/README.md). The daily Store package
+synchronization workflow has been removed; WinGet consumes signed release assets.
 
 Use [listing.md](listing.md), [listings.json](listings.json) and
 [PRIVACY.md](../../PRIVACY.md) for the bilingual/trilingual submission material.

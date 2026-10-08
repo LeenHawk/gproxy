@@ -276,7 +276,7 @@ jobs:
           target: ${{ matrix.target }}
           artifact: ${{ matrix.artifact }}
           version: ${{ needs.prepare.outputs.version }}
-          sign: ${{ vars.SIGNPATH_ENABLED == 'true' && github.ref_type == 'tag' }}
+          sign: ${{ vars.SIGNPATH_ENABLED == 'true' }}
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
@@ -302,6 +302,21 @@ jobs:
           path: dist/release/${{ matrix.artifact }}.msix
           if-no-files-found: error
           retention-days: 30
+      - name: Sign Windows cli MSIX
+        if: matrix.kind == 'cli' && matrix.os == 'windows' && vars.SIGNPATH_ENABLED == 'true'
+        uses: ./.github/actions/windows-msix-sign
+        with:
+          target: ${{ matrix.target }}
+          artifact: ${{ matrix.artifact }}
+          version: ${{ needs.prepare.outputs.version }}
+          mode: cli
+          identity-name: ${{ vars.MS_STORE_CLI_IDENTITY_NAME }}
+          display-name: ${{ vars.MS_STORE_CLI_DISPLAY_NAME }}
+          publisher: ${{ vars.SIGNPATH_MSIX_PUBLISHER }}
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
       - name: Record build provenance
         if: matrix.kind == 'cli'
         env:
@@ -366,6 +381,21 @@ jobs:
           path: dist/release/${{ matrix.application_artifact }}.msix
           if-no-files-found: error
           retention-days: 30
+      - name: Sign Windows application MSIX
+        if: matrix.kind == 'application' && matrix.os == 'windows' && vars.SIGNPATH_ENABLED == 'true'
+        uses: ./.github/actions/windows-msix-sign
+        with:
+          target: ${{ matrix.target }}
+          artifact: ${{ matrix.application_artifact }}
+          version: ${{ needs.prepare.outputs.version }}
+          mode: application
+          identity-name: ${{ vars.MS_STORE_IDENTITY_NAME }}
+          display-name: ${{ vars.MS_STORE_DISPLAY_NAME }}
+          publisher: ${{ vars.SIGNPATH_MSIX_PUBLISHER }}
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
       - name: Record application build provenance
         if: matrix.kind == 'application'
         env:
@@ -875,7 +905,7 @@ jobs:
           target: ${{ matrix.target }}
           artifact: ${{ matrix.headless_artifact }}
           version: ${{ needs.prepare.outputs.version }}
-          sign: ${{ vars.SIGNPATH_ENABLED == 'true' && github.ref_type == 'tag' }}
+          sign: ${{ vars.SIGNPATH_ENABLED == 'true' }}
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}

@@ -1,0 +1,97 @@
+name: SignPath MSIX
+description: Sign the release MSIX after preserving the Store submission
+inputs:
+  target:
+    description: Rust target triple
+    required: true
+  artifact:
+    description: Release artifact basename
+    required: true
+  version:
+    description: Release version
+    required: true
+  mode:
+    description: cli or application
+    required: true
+  identity-name:
+    description: Existing MSIX package identity name
+    required: true
+  display-name:
+    description: Existing application display name
+    required: true
+  publisher:
+    description: Exact Subject of the SignPath production certificate
+    required: true
+  api-token:
+    description: SignPath API token
+    required: true
+  organization-id:
+    description: SignPath organization ID
+    required: true
+  project-slug:
+    description: SignPath project slug
+    required: true
+  signing-policy-slug:
+    description: SignPath production signing policy slug
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Package with signing certificate publisher
+      id: package
+      shell: pwsh
+      env:
+        TARGET: ${{ inputs.target }}
+        ARTIFACT: ${{ inputs.artifact }}
+        VERSION: ${{ inputs.version }}
+        MODE: ${{ inputs.mode }}
+        IDENTITY: ${{ inputs.identity-name }}
+        DISPLAY: ${{ inputs.display-name }}
+        PUBLISHER: ${{ inputs.publisher }}
+        SIGNPATH_API_TOKEN: ${{ inputs.api-token }}
+        SIGNPATH_ORGANIZATION_ID: ${{ inputs.organization-id }}
+        SIGNPATH_PROJECT_SLUG: ${{ inputs.project-slug }}
+        SIGNPATH_SIGNING_POLICY_SLUG: ${{ inputs.signing-policy-slug }}
+      run: |
+        foreach ($name in @('IDENTITY', 'DISPLAY', 'PUBLISHER', 'SIGNPATH_API_TOKEN', 'SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG', 'SIGNPATH_SIGNING_POLICY_SLUG')) {
+          if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "Missing $name" }
+        }
+        switch ($env:MODE) {
+          cli { $executable = 'gproxy.exe' }
+          application { $executable = 'gproxy-desktop.exe' }
+          default { throw "Unsupported MSIX mode: $env:MODE" }
+        }
+        scripts/package-windows-msix.ps1 -Target $env:TARGET -Artifact $env:ARTIFACT -Version $env:VERSION `
+          -Mode $env:MODE -OutputDir dist/signpath-msix -IdentityName $env:IDENTITY -DisplayName $env:DISPLAY `
+          -Publisher $env:PUBLISHER -PublisherDisplayName 'SignPath Foundation'
+        "executable=$executable" >> $env:GITHUB_OUTPUT
+    - name: Upload unsigned release MSIX
+      id: unsigned
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: unsigned-msix-${{ inputs.artifact }}
+        path: dist/signpath-msix/${{ inputs.artifact }}.msix
+        if-no-files-found: error
+        retention-days: 7
+    - name: Sign executable and MSIX
+      uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+      with:
+        api-token: ${{ inputs.api-token }}
+        organization-id: ${{ inputs.organization-id }}
+        project-slug: ${{ inputs.project-slug }}
+        signing-policy-slug: ${{ inputs.signing-policy-slug }}
+        artifact-configuration-slug: windows-msix
+        github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+        wait-for-completion: true
+        output-artifact-directory: ${{ runner.temp }}/signed-${{ inputs.artifact }}
+    - name: Verify signed MSIX and generate release checksum
+      shell: pwsh
+      env:
+        SIGNED_DIRECTORY: ${{ runner.temp }}/signed-${{ inputs.artifact }}
+        ARTIFACT: ${{ inputs.artifact }}
+        IDENTITY: ${{ inputs.identity-name }}
+        EXECUTABLE: ${{ steps.package.outputs.executable }}
+        PUBLISHER: ${{ inputs.publisher }}
+      run: |
+        scripts/verify-windows-msix.ps1 -Directory $env:SIGNED_DIRECTORY -Artifact $env:ARTIFACT `
+          -IdentityName $env:IDENTITY -Executable $env:EXECUTABLE -Publisher $env:PUBLISHER

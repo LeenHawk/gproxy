@@ -1,5 +1,5 @@
 name: Windows release packages
-description: Package portable Windows binaries and optionally sign tagged releases with SignPath
+description: Package portable Windows binaries and optionally sign beta, dev and release builds with SignPath
 inputs:
   target:
     description: Rust target triple
@@ -67,9 +67,6 @@ runs:
         github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
         wait-for-completion: true
         output-artifact-directory: ${{ runner.temp }}/signed-${{ inputs.artifact }}
-        parameters: |
-          artifact: ${{ toJSON(inputs.artifact) }}
-          version: ${{ toJSON(inputs.version) }}
     - name: Verify signed packages and replace release checksums
       if: ${{ inputs.sign == 'true' }}
       shell: pwsh
