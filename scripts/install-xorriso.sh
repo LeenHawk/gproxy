@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-prefix="${RUNNER_TEMP:?}/gproxy-xorriso-1.5.6-gproxy1"
+prefix="${RUNNER_TEMP:?}/gproxy-xorriso-1.5.6-gproxy2"
 if [ ! -x "$prefix/bin/xorriso" ]; then
   work="$(mktemp -d)"
   trap 'rm -rf "$work"' EXIT
@@ -20,6 +20,18 @@ for field in ("file_type", "file_creator"):
     old = f'memcpy (common->{field}, "????", 4);'
     assert source.count(old) == 1
     source = source.replace(old, f'memset (common->{field}, 0, 4);')
+# The final allocation byte covers 1..8 blocks, never zero. Otherwise an
+# eight-block boundary marks live data free and hdiutil zeroes it during UDZO
+# conversion. Also write the final byte when it starts a new bitmap block.
+old = '''    if (over)
+      {
+\tmemset (buffer + over, 0, sizeof (buffer) - over);
+\tbuffer[over] = 0xff00 >> (t->hfsp_total_blocks % 8);'''
+new = '''      {
+\tmemset (buffer + over, 0, sizeof (buffer) - over);
+\tbuffer[over] = 0xff00 >> (((t->hfsp_total_blocks - 1) % 8) + 1);'''
+assert source.count(old) == 1
+source = source.replace(old, new)
 path.write_text(source)
 PY
     CPPFLAGS="${CPPFLAGS:-} -include sys/types.h" ./configure --prefix="$prefix" --disable-libacl --disable-xattr

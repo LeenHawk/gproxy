@@ -11,18 +11,27 @@ import subprocess
 import tempfile
 
 
+def tree_entries(root):
+    entries = {}
+    for path in sorted(root.rglob("*")):
+        name = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            value = b"link\0" + os.fsencode(os.readlink(path))
+        elif path.is_dir():
+            value = b"directory\0"
+        else:
+            value = b"executable\0" if path.stat().st_mode & 0o111 else b"file\0"
+            with path.open("rb") as stream:
+                value += hashlib.file_digest(stream, "sha256").digest()
+        entries[name] = value
+    return entries
+
+
 def tree_hash(root):
     digest = hashlib.sha256()
-    for path in sorted(root.rglob("*")):
-        digest.update(path.relative_to(root).as_posix().encode() + b"\0")
-        if path.is_symlink():
-            digest.update(b"link\0" + os.fsencode(os.readlink(path)))
-        elif path.is_dir():
-            digest.update(b"directory\0")
-        else:
-            digest.update(b"executable\0" if path.stat().st_mode & 0o111 else b"file\0")
-            with path.open("rb") as stream:
-                digest.update(hashlib.file_digest(stream, "sha256").digest())
+    for name, value in tree_entries(root).items():
+        digest.update(name.encode() + b"\0")
+        digest.update(value)
     return digest.digest()
 
 
@@ -92,7 +101,14 @@ def package(source, output, volume_name):
         subprocess.run(["hdiutil", "attach", "-readonly", "-nobrowse", "-mountpoint", str(mount), str(output)], check=True)
         try:
             if tree_hash(mount) != identity:
-                raise ValueError("Mounted DMG contents differ from the staged payload")
+                expected, actual = tree_entries(payload), tree_entries(mount)
+                differences = [
+                    f"{name!r}: staged={expected.get(name)!r}, mounted={actual.get(name)!r}"
+                    for name in sorted(expected.keys() | actual.keys())
+                    if expected.get(name) != actual.get(name)
+                ]
+                raise ValueError("Mounted DMG contents differ from the staged payload:\n"
+                                 + "\n".join(differences))
             for app in mount.glob("*.app"):
                 if (app / "Contents/_CodeSignature/CodeResources").is_file():
                     subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
