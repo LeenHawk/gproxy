@@ -16,11 +16,8 @@ beta.0 package. The old HAR called `init()` without the context containing the
 module name and private files directory, which prevents GPROXY startup.
 This is not stable Tauri platform support.
 
-The application declares `gproxy-fonts` as a standard CORS/fetch-capable scheme
-before `NativeAbility` initializes ArkWeb. Registering only the per-WebView Rust
-handler is insufficient: ArkWeb otherwise rejects font requests before they
-reach that handler. The scheme does not bypass CSP or gain local-file privileges;
-the existing font URL validation, read-only handler and SHA-256 cache stay in use.
+Fonts and their license notices are bundled with the Console and served through
+the same local asset URLs as the rest of the UI.
 
 ## Build isolation
 

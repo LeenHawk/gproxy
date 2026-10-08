@@ -105,10 +105,7 @@ Application 全新實例先顯示三步設定精靈，完成後進入應用內�
 
 ## 字型
 
-控制台使用 Noto Sans、Noto Sans SC/TC 和 Noto Sans Mono。CLI 和 Application
-在首次使用時從 `https://gproxy.leenhawk.com/fonts/` 下載頁面需要的字型分片，快取在
-資料目錄的 `fonts/` 下，重啟後和離線時都可複用。Edge 由瀏覽器直接從同一個
-Cloudflare CDN 載入並快取字型。下載期間或下載失敗時，頁面使用系統字型顯示。
+控制台內建 Noto Sans、Noto Sans SC/TC 和 Noto Sans Mono 及其授權說明。CLI 和 Application 從本地載入字型，無需外部下載。Edge 將同一套字型作為同源靜態資源部署。Headless 套件不包含控制台及其字型。
 
 ## 構建控制台
 

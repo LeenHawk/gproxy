@@ -41,9 +41,6 @@ pub async fn run(mut settings: Settings) -> Result<()> {
     settings.config.cache = gproxy_app::config::CacheBackendConfig::Store;
     settings.config.trusted_proxies = vec!["127.0.0.1".into()];
     settings.config.file_storage = None;
-    // Only downloaded console fonts use this directory; database state and
-    // credentials never do. Function code directories are read-only.
-    settings.config.data_dir = Some(std::env::temp_dir().join("gproxy").to_string_lossy().into());
 
     let mut options = ConnectOptions::new(dsn.clone());
     options

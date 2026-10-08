@@ -1,9 +1,12 @@
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://gproxy.leenhawk.com; img-src 'self' data: blob:; font-src 'self' data: https://gproxy.leenhawk.com; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer
   X-Robots-Tag: noindex, nofollow
 
 /console/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/console/fonts/*
   Cache-Control: public, max-age=31536000, immutable

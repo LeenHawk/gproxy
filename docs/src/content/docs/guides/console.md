@@ -143,12 +143,7 @@ back import.
 
 ## Fonts
 
-The Console uses Noto Sans, Noto Sans SC/TC and Noto Sans Mono. CLI and
-Application download the required font subsets from
-`https://gproxy.leenhawk.com/fonts/` on first use and cache them in `fonts/`
-under their data directory. Cached fonts work offline and survive restarts.
-Edge loads fonts directly from the same Cloudflare CDN into the browser cache.
-System fonts render the page while a download is pending or unavailable.
+The Console bundles Noto Sans, Noto Sans SC/TC and Noto Sans Mono, including their license notices. CLI and Application serve fonts locally without external downloads. Edge deploys the same fonts as same-origin static assets. Headless packages exclude the Console and its fonts.
 
 ## Building the Console
 

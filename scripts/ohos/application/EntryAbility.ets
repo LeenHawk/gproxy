@@ -1,7 +1,6 @@
 import { NativeAbility } from '@ohos-rs/ability';
 import { AbilityConstant, Want } from '@kit.AbilityKit';
 import window from '@ohos.window';
-import webview from '@ohos.web.webview';
 import native from 'libgproxy_host_tauri.so';
 import { GproxyBackground } from './GproxyBackground';
 import { privacyAccepted, STORE_DISTRIBUTION } from './GproxyPrivacy';
@@ -27,19 +26,6 @@ export default class EntryAbility extends NativeAbility {
     }
     this.background = new GproxyBackground(this.context, this.autoStartup);
     native.registerGproxyBackground(command => this.background!.dispatch(command));
-    // The Rust handler is installed later, per WebView. ArkWeb also needs this
-    // scheme declared before NativeAbility initializes the WebEngine.
-    webview.WebviewController.customizeSchemes([{
-      schemeName: 'gproxy-fonts',
-      isSupportCORS: true,
-      isSupportFetch: true,
-      isStandard: true,
-      isLocal: false,
-      isDisplayIsolated: false,
-      isSecure: false,
-      isCspBypassing: false,
-      isCodeCacheSupported: false,
-    }]);
     await super.onCreate(want, launchParam);
   }
 

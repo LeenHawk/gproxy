@@ -64,8 +64,7 @@ Gradle removes the install permission, update Activity/provider and update
 notification action. Rust excludes the JNI download entry point. Without this
 environment variable, the ordinary direct-distribution build keeps its updater.
 
-Store builds use the same on-demand font download/cache as desktop applications,
-with license notices kept offline. All store builds open a native, offline privacy notice before Tauri or the
+All application builds bundle their fonts and license notices for offline use. All store builds open a native, offline privacy notice before Tauri or the
 gateway starts. Declining exits; accepting records the notice version. Boot and
 sticky service restarts cannot bypass an unaccepted notice. The running Android
 gateway's notification provides a **Privacy** action for rereading it. Application

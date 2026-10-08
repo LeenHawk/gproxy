@@ -96,7 +96,6 @@ pub mod dataplane;
 pub mod desktop;
 pub mod engine;
 pub mod error;
-mod fonts;
 pub mod ipc;
 #[cfg(target_env = "ohos")]
 mod ohos;
@@ -149,7 +148,7 @@ pub fn run() -> StartResult<()> {
         }
         context
     };
-    let builder = fonts::register(tauri::Builder::default())
+    let builder = tauri::Builder::default()
         .invoke_handler(ipc::invoke_handler::<tauri::Wry>())
         .setup(move |app| {
             #[cfg(target_env = "ohos")]
@@ -159,10 +158,6 @@ pub fn run() -> StartResult<()> {
             let setup = setup::Setup::new(data_dir);
             app.manage(preferences::RuntimeStatus::default());
             let choices = setup.choices()?;
-            app.manage(fonts::FontConsole(std::sync::Arc::new(
-                gproxy_host_axum::console::Console::from_config(&Default::default())
-                    .with_font_cache(choices.data_dir.join("fonts")),
-            )));
             if choices.completed {
                 let desktop =
                     handle.block_on(engine::ensure_started(&choices.data_dir, store()))?;

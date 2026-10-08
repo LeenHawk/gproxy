@@ -28,8 +28,6 @@ use http::{HeaderValue, Method, StatusCode, header};
 #[cfg(feature = "embedded-console")]
 use rust_embed::RustEmbed;
 
-mod fonts;
-
 /// Where the console is served from, `/console` and below.
 pub const CONSOLE_PATH: &str = "/console";
 
@@ -43,7 +41,6 @@ struct Embedded;
 #[derive(Debug)]
 pub struct Console {
     source: Source,
-    fonts: fonts::FontCache,
 }
 
 #[derive(Debug)]
@@ -69,17 +66,7 @@ impl Console {
             _ if Embedded::get("index.html").is_some() => Source::Embedded,
             _ => Source::Disabled,
         };
-        Self {
-            source,
-            fonts: fonts::FontCache::new("data/fonts".into()),
-        }
-    }
-
-    /// The CLI uses its instance data directory; the app can use this before
-    /// the first-run wizard has created an instance or opened a database.
-    pub fn with_font_cache(mut self, path: impl Into<std::path::PathBuf>) -> Self {
-        self.fonts = fonts::FontCache::new(path.into());
-        self
+        Self { source }
     }
 
     pub fn is_enabled(&self) -> bool {
@@ -97,16 +84,6 @@ impl Console {
         let head = method == Method::HEAD;
         match self.read(&asset).await {
             Some(bytes) => Some(asset_response(&asset, bytes, head)),
-            None if fonts::filename(&asset).is_some() => {
-                let filename = fonts::filename(&asset).unwrap();
-                Some(match self.fonts.read(filename).await {
-                    Ok(bytes) => asset_response(&asset, bytes, head),
-                    Err(error) => {
-                        tracing::warn!(%error, filename, "could not cache console font");
-                        (StatusCode::BAD_GATEWAY, "font download unavailable").into_response()
-                    }
-                })
-            }
             // The SPA fallback: a document request for a route the bundle
             // owns. An asset request that missed stays a 404.
             None if is_document(&asset) => match self.read("index.html").await {
