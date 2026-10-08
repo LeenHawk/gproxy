@@ -281,6 +281,7 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          test-signing: ${{ vars.SIGNPATH_TEST_MODE == 'true' }}
       - name: Package Windows CLI MSIX
         if: matrix.kind == 'cli' && matrix.os == 'windows'
         shell: pwsh
@@ -317,6 +318,7 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          test-signing: ${{ vars.SIGNPATH_TEST_MODE == 'true' }}
       - name: Record build provenance
         if: matrix.kind == 'cli'
         env:
@@ -396,6 +398,7 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          test-signing: ${{ vars.SIGNPATH_TEST_MODE == 'true' }}
       - name: Record application build provenance
         if: matrix.kind == 'application'
         env:
@@ -910,6 +913,7 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          test-signing: ${{ vars.SIGNPATH_TEST_MODE == 'true' }}
       - run: bash scripts/build-provenance.sh
       - uses: ./.github/actions/attest-release
         with:

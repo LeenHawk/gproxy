@@ -3,13 +3,20 @@ param(
     [Parameter(Mandatory)][string]$Artifact,
     [Parameter(Mandatory)][string]$IdentityName,
     [Parameter(Mandatory)][string]$Executable,
-    [Parameter(Mandatory)][string]$Publisher
+    [Parameter(Mandatory)][string]$Publisher,
+    [switch]$TestSigning
 )
 
 $ErrorActionPreference = 'Stop'
 function Assert-Signature([string]$Path) {
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
-    if ($signature.Status -ne 'Valid' -or -not $signature.TimeStamperCertificate) {
+    # Temporary onboarding switch; remove after production certificate activation.
+    if ($TestSigning) {
+        if (-not $signature.SignerCertificate -or $signature.Status -notin @('Valid', 'NotTrusted')) {
+            throw "Missing or invalid test signature: $Path ($($signature.Status))"
+        }
+        Write-Warning "Test signing: certificate trust and timestamp requirements relaxed for $Path"
+    } elseif ($signature.Status -ne 'Valid' -or -not $signature.TimeStamperCertificate) {
         throw "Missing trusted timestamped signature: $Path ($($signature.Status))"
     }
     if ($signature.SignerCertificate.Subject -cne $Publisher) {
