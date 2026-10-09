@@ -60,9 +60,9 @@ case "$kind" in
   store-fdroid | store-google-play | store-appgallery)
     bash scripts/install-android-upx.sh
     release_tool_paths
-    bash scripts/mobile/build-android.sh "${kind#store-}" "${TARGET_TRIPLE%%-*}"
+    bash scripts/mobile/build-android.sh "${kind#store-}" universal
     mkdir -p dist/release
-    cp dist/mobile/"${kind#store-}"/"${TARGET_TRIPLE%%-*}"/* dist/release/
+    cp dist/mobile/"${kind#store-}"/universal/* dist/release/
     ;;
   edge) bash scripts/package-edge-release.sh ;;
   serverless)

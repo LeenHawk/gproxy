@@ -46,3 +46,6 @@ and populates GHCR; existing Actions caches are not copied or deleted. Missing
 caches, ORAS installation failures and registry errors do not fail the build.
 Full upload/download and Windows/macOS runner behavior must be verified by
 GitHub Actions after pushing the change.
+
+Android channel builds use `CARGO_TARGET_DIR` to restore their fixed-path target cache.
+When `GRADLE_USER_HOME` is set, Gradle dependency and wrapper caches are shared as well.

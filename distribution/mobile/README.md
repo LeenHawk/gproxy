@@ -51,12 +51,17 @@ bash scripts/mobile/build-android.sh google-play
 bash scripts/mobile/build-android.sh appgallery
 ```
 
+Android builds use `scripts/mobile/build-android.sh` for all distributions.
+Its default `universal` target includes both `arm64-v8a` and `x86_64`; pass
+`aarch64` or `x86_64` explicitly for a single-ABI package. GitHub direct APKs
+keep their per-architecture names and updater. Store packages omit that updater.
+The verifier rejects missing, extra or incorrectly labelled ABIs in APKs/AABs.
 Each script builds the Console and Rust library from source. Output is in
-`dist/mobile/<channel>/aarch64/`. Google Play produces an AAB plus an APK for
+`dist/mobile/<channel>/universal/`. Google Play produces an AAB plus an APK for
 inspection/testing; upload the AAB to Play. F-Droid and Android AppGallery use
 APKs. The script checks package/version, a non-debuggable manifest, removal of
 the APK updater and install permission, ELF 16 KiB alignment and APK ZIP alignment.
-Store packages use ThinLTO and no UPX. A 16 KiB device/emulator test is still
+Store packages use fat LTO and the pinned Android UPX tool. A 16 KiB device/emulator test is still
 required; binary alignment alone is not runtime validation.
 
 `GPROXY_ANDROID_DISTRIBUTION` selects `fdroid`, `google-play` or `appgallery`.
@@ -137,9 +142,28 @@ After initial inclusion, F-Droid owns version tracking and build-recipe updates:
   version and selects the matching source revision.
 
 Each stable release must increase the Android version code and publish
-`gproxy-fdroid-aarch64.apk` at the URL declared by `Binaries`. The Release
-workflow retains that signed reference APK build. GitHub does not submit a
-separate F-Droid merge request for every release.
+`gproxy-fdroid-universal.apk` at the URL declared by `Binaries`. The Release
+workflow builds it in the shared Android application job, alongside the two
+direct APKs and `gproxy-google-play-universal.aab`. All use the pinned Android
+container, one frontend build and shared Cargo/Gradle caches. There is no
+separate F-Droid job or second self-rebuild in the release path. Dev CI also
+builds the store packages to validate them before a stable tag; F-Droid still
+tracks only stable releases. Signature-copy
+compatibility is checked against the unsigned output of that one build;
+F-Droid still independently rebuilds and verifies the reference. The manual
+reproducibility workflow remains available for diagnosing byte differences.
+GitHub does not submit a separate F-Droid merge request for every release.
+
+The Play AAB uses the separate `GOOGLE_PLAY_UPLOAD_KEYSTORE_B64`,
+`GOOGLE_PLAY_UPLOAD_STORE_PASSWORD`, `GOOGLE_PLAY_UPLOAD_KEY_ALIAS` and optional
+`GOOGLE_PLAY_UPLOAD_KEY_PASSWORD` secrets in the `release` environment. Without
+that upload key, the AAB is unsigned preparation output, not ready for upload.
+The public APK key is never silently substituted. No automatic Play submission
+is performed.
+
+Moving an existing F-Droid recipe from the ARM64 reference to the universal
+reference requires updating both `Binaries` and `output` in fdroiddata; merging
+an old recipe does not update those fields automatically.
 
 Initial inclusion and changes to the build recipe still require a manual
 fdroiddata merge request. Until the initial MR is merged, F-Droid's updater

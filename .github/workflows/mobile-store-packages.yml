@@ -17,10 +17,9 @@ jobs:
     if: inputs.platform != 'harmonyos'
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      matrix:
-        channel: [fdroid, google-play, appgallery]
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -40,7 +39,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # 1.98.0
         with:
           toolchain: 1.98.0
-          targets: aarch64-linux-android
+          targets: aarch64-linux-android,x86_64-linux-android
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
           packages: platform-tools
@@ -56,14 +55,21 @@ jobs:
         run: |
           pnpm --dir console install --frozen-lockfile
           pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
+      - uses: ./.github/actions/ghcr-rust-cache
+        with:
+          key: android-store-preparation-universal
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and inspect unsigned store packages
-        env:
-          STORE_CHANNEL: ${{ matrix.channel }}
-        run: bash scripts/mobile/build-android.sh "$STORE_CHANNEL" aarch64
+        run: |
+          pnpm --dir console build
+          export GPROXY_ANDROID_FRONTEND_READY=1
+          for channel in fdroid google-play appgallery; do
+            bash scripts/mobile/build-android.sh "$channel" universal
+          done
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: mobile-${{ matrix.channel }}-arm64-unsigned
-          path: dist/mobile/${{ matrix.channel }}/aarch64/
+          name: mobile-android-universal-unsigned
+          path: dist/mobile/
           if-no-files-found: error
           retention-days: 14
 

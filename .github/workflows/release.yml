@@ -44,7 +44,7 @@ jobs:
           python3 scripts/release-context.py --validate | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> "$GITHUB_OUTPUT"
           # CLI and Application get separate runners and caches, including
           # their independent LTO links and best-compression packaging.
-          echo "matrix=$(jq -c '{include: [.include[] | select(.os != "ohos") | if (.target | startswith("riscv64gc-")) then select(.application_builder == "cargo-alpine") | . + {kind:"application",builder:.application_builder} elif .application_artifact then . + {kind:"cli"}, . + {kind:"application"} else . + {kind:"cli"} end]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
+          echo "matrix=$(jq -c '{include: [.include[] | select(.os != "ohos") | if (.target | startswith("riscv64gc-")) then select(.application_builder == "cargo-alpine") | . + {kind:"application",builder:.application_builder} elif .os == "android" then . + {kind:"cli"} elif .application_artifact then . + {kind:"cli"}, . + {kind:"application"} else . + {kind:"cli"} end]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "headless_matrix=$(jq -c '{include: [.include[] | select(.headless_artifact) | select(.target | startswith("riscv64gc-") | not)]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "headless_riscv_matrix=$(jq -c '{include: [.include[] | select(.headless_artifact) | select(.target | startswith("riscv64gc-"))]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
           echo "riscv_matrix=$(jq -c '{include: [.include[] | select(.target | startswith("riscv64gc-")) | if .application_artifact and .application_builder != "cargo-alpine" then . + {kind:"cli"}, . + {kind:"application"} else . + {kind:"cli"} end]}' scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
@@ -142,24 +142,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libdbus-1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
-      - name: Set up Java
-        if: matrix.kind == 'application' && matrix.os == 'android'
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
-          cache-dependency-path: |
-            crates/gproxy-host-tauri/gen/android/**/*.gradle*
-            crates/gproxy-host-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties
-      - if: matrix.kind == 'application' && matrix.os == 'android'
-        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
-      - name: Install Android toolchain
-        if: matrix.kind == 'application' && matrix.os == 'android'
-        run: |
-          sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'build-tools;34.0.0' 'ndk;30.0.15729638'
-          echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: matrix.builder != 'cargo-alpine' && (matrix.kind != 'cli' || matrix.os != 'android')
         with:
@@ -176,8 +158,6 @@ jobs:
           key: packages-${{ matrix.target }}-${{ matrix.kind }}
           restore-key: packages-${{ matrix.target }}
           token: ${{ secrets.GITHUB_TOKEN }}
-      - if: matrix.kind == 'application' && matrix.os == 'android'
-        run: cargo install cargo-ndk --locked
       - name: Configure native Windows ARM64 dependencies
         if: matrix.target == 'aarch64-pc-windows-msvc'
         shell: bash
@@ -347,9 +327,6 @@ jobs:
             dist/release/${{ matrix.artifact }}.msix.sha256
           retention-days: 1
 
-      - name: Install Android shared-library UPX fix
-        if: matrix.kind == 'application' && matrix.os == 'android'
-        run: scripts/install-android-upx.sh
       - name: Build application installer
         if: matrix.kind == 'application'
         env:
@@ -1110,68 +1087,116 @@ jobs:
           pnpm --dir "$work/cloudflare" install --frozen-lockfile --ignore-scripts
           pnpm --dir "$work/cloudflare" check
 
-  fdroid:
-    name: Signed F-Droid reference APK
+  android-applications:
+    name: Android applications (GitHub APK, F-Droid APK, Play AAB)
     needs: prepare
-    if: needs.prepare.outputs.channel == 'release'
     runs-on: ubuntu-24.04
+    timeout-minutes: 180
     environment: release
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     env:
-      CONTAINER: android
+      CARGO_HOME: /tmp/gproxy-reproduce/cargo
+      CARGO_TARGET_DIR: /tmp/gproxy-reproduce/source/target
+      GRADLE_USER_HOME: /tmp/gproxy-reproduce/gradle
       CARGO_BUILD_JOBS: '2'
+      GPROXY_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
+      GPROXY_BUILD_CHANNEL: ${{ needs.prepare.outputs.channel }}
+      GPROXY_BUILD_HASH: ${{ github.sha }}
+      SOURCE_DATE_EPOCH: ${{ needs.prepare.outputs.source_date_epoch }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - name: Free disk for the shared Android container and both ABI caches
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          python-version: '3.13'
-      - name: Rebuild F-Droid packages at fixed paths
-        run: |
-          docker build -f .gitlab/Dockerfile.android -t gproxy-reproduce-tools .
-          python3 scripts/reproduce-build.py --result dist/reproducible -- "$(command -v bash)" scripts/reproduce-dispatch.sh aarch64-linux-android store-fdroid
-      - name: Install signature tools
-        run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;34.0.0'
-          python3 -m pip install apksigcopier==1.1.1
-      - name: Sign and verify the reference APK
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare the shared pinned Android toolchain
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: .gitlab/Dockerfile.android
+          load: true
+          tags: gproxy-android-release
+          cache-from: type=registry,ref=ghcr.io/leenhawk/gproxy-build-android:buildcache
+          cache-to: type=registry,ref=ghcr.io/leenhawk/gproxy-build-android:buildcache,mode=max
+      - uses: ./.github/actions/ghcr-rust-cache
+        with:
+          key: android-applications-universal
+          token: ${{ secrets.GITHUB_TOKEN }}
+          save: 'true'
+      - name: Build Android application channels once at fixed paths
         env:
+          GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
           ANDROID_SIGNING_KEYSTORE_B64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_B64 }}
           ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
           ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
           ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+          GOOGLE_PLAY_UPLOAD_KEYSTORE_B64: ${{ secrets.GOOGLE_PLAY_UPLOAD_KEYSTORE_B64 }}
+          GOOGLE_PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.GOOGLE_PLAY_UPLOAD_STORE_PASSWORD }}
+          GOOGLE_PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.GOOGLE_PLAY_UPLOAD_KEY_ALIAS }}
+          GOOGLE_PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.GOOGLE_PLAY_UPLOAD_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          work="$(mktemp -d)"
-          trap 'rm -rf "$work"' EXIT
+          test -n "$GPROXY_UPDATE_PUBKEY"
+          mkdir -p /tmp/gproxy-reproduce/source
+          # Copy the actual source tree without replacing the restored Cargo target cache.
+          tar --exclude='./target' --exclude='./dist' --exclude='node_modules' -cf - . | tar -xf - -C /tmp/gproxy-reproduce/source
+          restore_owner() {
+            docker run --rm --volume /tmp/gproxy-reproduce:/tmp/gproxy-reproduce \
+              gproxy-android-release chown -R "$(id -u):$(id -g)" /tmp/gproxy-reproduce
+          }
+          trap restore_owner EXIT
+          docker run --rm --volume /tmp/gproxy-reproduce:/tmp/gproxy-reproduce \
+            --workdir /tmp/gproxy-reproduce/source \
+            --env CARGO_HOME --env CARGO_TARGET_DIR --env GRADLE_USER_HOME --env CARGO_BUILD_JOBS \
+            --env CARGO_INCREMENTAL=0 --env SOURCE_DATE_EPOCH --env GPROXY_BUILD_HASH \
+            --env GPROXY_BUILD_VERSION --env GPROXY_BUILD_CHANNEL --env GPROXY_UPDATE_PUBKEY \
+            --env GITHUB_SHA --env GITHUB_REF_NAME \
+            --env ANDROID_SIGNING_KEYSTORE_B64 --env ANDROID_SIGNING_KEYSTORE_PASSWORD \
+            --env ANDROID_SIGNING_KEY_ALIAS --env ANDROID_SIGNING_KEY_PASSWORD \
+            --env GOOGLE_PLAY_UPLOAD_KEYSTORE_B64 --env GOOGLE_PLAY_UPLOAD_STORE_PASSWORD \
+            --env GOOGLE_PLAY_UPLOAD_KEY_ALIAS --env GOOGLE_PLAY_UPLOAD_KEY_PASSWORD \
+            --env GIT_CONFIG_COUNT=1 --env GIT_CONFIG_KEY_0=safe.directory \
+            --env GIT_CONFIG_VALUE_0=/tmp/gproxy-reproduce/source \
+            gproxy-android-release bash scripts/mobile/release-android.sh
+          restore_owner
+          trap - EXIT
           mkdir -p dist/release
-          printf '%s' "$ANDROID_SIGNING_KEYSTORE_B64" | base64 -d > "$work/key.jks"
-          chmod 600 "$work/key.jks"
-          signer="$ANDROID_HOME/build-tools/34.0.0/apksigner"
-          # minSdk 28 uses v3; omit v1 ZIP entries that apksigcopier cannot
-          # reproduce with Python 3.13.15 filename-flag normalization.
-          options=(--ks "$work/key.jks" --ks-pass env:ANDROID_SIGNING_KEYSTORE_PASSWORD --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" --v1-signing-enabled false --v4-signing-enabled false)
-          if [ -n "$ANDROID_SIGNING_KEY_PASSWORD" ]; then options+=(--key-pass env:ANDROID_SIGNING_KEY_PASSWORD); fi
-          "$signer" sign "${options[@]}" --out dist/release/gproxy-fdroid-aarch64.apk dist/reproducible/first/gproxy-fdroid-aarch64.apk
-          python3 scripts/mobile/verify-reproducible-apk.py dist/release/gproxy-fdroid-aarch64.apk dist/reproducible/second/gproxy-fdroid-aarch64.apk \
-            --build-tools "$ANDROID_HOME/build-tools/34.0.0" --expected-cert-sha256 80b7795d2d557bad6fba2a956771c91f77f1ceef5e2b536e45eee314a74eed1c \
-            --report dist/reproducible/signature-report.json
-          (cd dist/release && sha256sum gproxy-fdroid-aarch64.apk > gproxy-fdroid-aarch64.apk.sha256)
+          cp /tmp/gproxy-reproduce/source/dist/release/* dist/release/
+      - uses: ./.github/actions/attest-release
+        with:
+          artifact: gproxy-tauri-android-aarch64
+      - uses: ./.github/actions/attest-release
+        with:
+          artifact: gproxy-tauri-android-x86_64
+      - uses: ./.github/actions/attest-release
+        if: needs.prepare.outputs.channel == 'release' || needs.prepare.outputs.channel == 'dev'
+        with:
+          artifact: gproxy-fdroid-universal
+      - uses: ./.github/actions/attest-release
+        if: needs.prepare.outputs.channel == 'release' || needs.prepare.outputs.channel == 'dev'
+        with:
+          artifact: gproxy-google-play-universal
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: application-fdroid-aarch64
+          name: application-android
           path: dist/release/
           if-no-files-found: error
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: fdroid-release-verification
-          path: dist/reproducible/*report.json
+          retention-days: 1
 
   publish:
     if: ${{ always() && !failure() && !cancelled() }}
     name: Publish GitHub, GitLab and CNB releases
     env:
       GPROXY_CONTAINER_SOURCE: ${{ needs.container-manifest.outputs.source }}
-    needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, alpine-packages, serverless, edge, edge-check, container-manifest, publish-crates, fdroid]
+    needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, alpine-packages, serverless, edge, edge-check, container-manifest, publish-crates, android-applications]
     runs-on: ubuntu-latest
     concurrency:
       group: gproxy-release-publication
@@ -1290,7 +1315,7 @@ jobs:
 
   cache-cleanup:
     name: Clean old GHCR build caches
-    needs: [native, riscv, ohos-cli, ohos-application, headless, headless-riscv, serverless, edge]
+    needs: [native, riscv, ohos-cli, ohos-application, headless, headless-riscv, serverless, edge, android-applications]
     if: ${{ always() && !cancelled() && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
     permissions:

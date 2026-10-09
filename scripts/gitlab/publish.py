@@ -218,8 +218,8 @@ def verify_packages():
                     raise ValueError(f"Missing headless executable: {name}")
                 if row["os"] == "android" and "gproxy.bin" not in archive.namelist():
                     raise ValueError(f"Missing headless Android binary: {name}")
-    if os.environ.get("GITHUB_ACTIONS") == "true" and os.environ.get("GPROXY_BUILD_CHANNEL") == "release":
-        expected.append("gproxy-fdroid-aarch64.apk")
+    if os.environ.get("GITHUB_ACTIONS") == "true" and os.environ.get("GPROXY_BUILD_CHANNEL") in {"release", "dev"}:
+        expected.extend(["gproxy-fdroid-universal.apk", "gproxy-google-play-universal.aab"])
     extensions = {"linux": ".deb", "macos": ".dmg", "windows": ".msix", "android": ".apk", "ohos": ".hap"}
     for row in matrix:
         cli = row["artifact"]
@@ -272,7 +272,7 @@ def upload_assets(host, release, assets):
 
 
 def release_assets(directory):
-    extensions = {".zip", ".deb", ".dmg", ".msix", ".apk", ".hap", ".wasm"}
+    extensions = {".zip", ".deb", ".dmg", ".msix", ".apk", ".aab", ".hap", ".wasm"}
     assets = sorted(path for path in directory.iterdir()
                     if path.is_file() and path.suffix in extensions)
     checksums = directory / "SHA256SUMS"

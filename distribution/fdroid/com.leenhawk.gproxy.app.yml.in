@@ -16,7 +16,7 @@ AutoName: GPROXY
 
 RepoType: git
 Repo: https://github.com/LeenHawk/gproxy.git
-Binaries: https://github.com/LeenHawk/gproxy/releases/download/v%v/gproxy-fdroid-aarch64.apk
+Binaries: https://github.com/LeenHawk/gproxy/releases/download/v%v/gproxy-fdroid-universal.apk
 
 AllowedAPKSigningKeys:
   - 80b7795d2d557bad6fba2a956771c91f77f1ceef5e2b536e45eee314a74eed1c
@@ -29,7 +29,7 @@ Builds:
       - apt-get update
       - apt-get install -y clang cmake g++ libclang-dev make pkg-config ninja-build
         python3 rustup unzip xz-utils
-    output: dist/mobile/fdroid/aarch64/gproxy-fdroid-aarch64.apk
+    output: dist/mobile/fdroid/universal/gproxy-fdroid-universal.apk
     prebuild: bash scripts/mobile/fdroid-tools.sh
     build:
       - export ANDROID_HOME=$$SDK$$ ANDROID_NDK_HOME=$$NDK$$

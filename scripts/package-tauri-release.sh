@@ -71,28 +71,14 @@ case "$TARGET_OS:$TARGET_TRIPLE" in
       -Target "$TARGET_TRIPLE" -Artifact "$ARTIFACT_NAME" -OutputDir dist/release
     ;;
   android:*)
-    export CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
-    source "$root/scripts/android/sdk.sh"
-    ndk="$(android_ndk_root)"
-    export ANDROID_NDK_HOME="$ndk"
-    export GPROXY_ANDROID_ABI="$(android_abi "$TARGET_TRIPLE")"
-    export "CMAKE_TOOLCHAIN_FILE_${TARGET_TRIPLE//-/_}=$root/scripts/cmake/android.cmake"
-    ranlib=("$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-ranlib)
-    test "${#ranlib[@]}" -eq 1 && test -x "${ranlib[0]}"
-    # OpenSSL's cc-rs lookup otherwise falls back to the removed GNU ranlib.
-    export "RANLIB_${TARGET_TRIPLE//-/_}=${ranlib[0]}"
-    arch="${TARGET_TRIPLE%%-*}"
-    bindgen="BINDGEN_EXTRA_CLANG_ARGS_${TARGET_TRIPLE//-/_}"
-    export "$bindgen=--target=${TARGET_TRIPLE}28"
-    bash "$root/scripts/with-tauri-android-lib.sh" pnpm exec tauri android build --ci --apk --target "$arch" --config "$config" -- --locked
     cd "$root"
+    # Reuse the channel-aware Android builder; this entrypoint owns release signing.
+    GPROXY_ANDROID_FRONTEND_READY=1 bash scripts/mobile/build-android.sh direct "${TARGET_TRIPLE%%-*}"
+    source scripts/android/sdk.sh
     sdk="$(android_sdk_root)"
-    apk_dir=crates/gproxy-host-tauri/gen/android/app/build/outputs/apk
-    mapfile -t files < <(find "$apk_dir" -name '*-release-unsigned.apk')
-    test "${#files[@]}" -eq 1
     work="$(mktemp -d)"
     trap 'rm -rf "$work"' EXIT
-    "$(android_build_tool "$sdk" zipalign)" -f -P 16 4 "${files[0]}" "$work/aligned.apk"
+    cp "dist/mobile/direct/${TARGET_TRIPLE%%-*}/gproxy-direct-${TARGET_TRIPLE%%-*}.apk" "$work/aligned.apk"
     if [ "${GPROXY_UNSIGNED_BUILD:-0}" = 1 ]; then
       cp "$work/aligned.apk" "$output/$ARTIFACT_NAME.apk"
     else

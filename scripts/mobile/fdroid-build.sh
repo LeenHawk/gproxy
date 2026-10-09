@@ -24,6 +24,6 @@ printf '#!/usr/bin/env bash\nexec gradle "$@"\n' > crates/gproxy-host-tauri/gen/
 chmod +x crates/gproxy-host-tauri/gen/android/gradlew
 pnpm --dir console install --frozen-lockfile
 pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
-bash scripts/mobile/build-android.sh fdroid aarch64
-mkdir -p "$root/dist/mobile/fdroid/aarch64"
-cp dist/mobile/fdroid/aarch64/gproxy-fdroid-aarch64.apk "$root/dist/mobile/fdroid/aarch64/"
+bash scripts/mobile/build-android.sh fdroid universal
+mkdir -p "$root/dist/mobile/fdroid/universal"
+cp dist/mobile/fdroid/universal/gproxy-fdroid-universal.apk "$root/dist/mobile/fdroid/universal/"

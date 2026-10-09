@@ -56,7 +56,7 @@ jobs:
                   rebuilt = archive.read(names[0])
           expected = os.environ['UNSIGNED_SHA256'].lower()
           assert hashlib.sha256(rebuilt).hexdigest() == expected
-          assert hashlib.sha256(Path('upstream/first/gproxy-fdroid-aarch64.apk').read_bytes()).hexdigest() == expected
+          assert hashlib.sha256(Path('upstream/first/gproxy-fdroid-universal.apk').read_bytes()).hexdigest() == expected
           Path('rebuilt.apk').write_bytes(rebuilt)
           print('Independent GitHub and F-Droid APK SHA256:', expected)
           PY
@@ -80,7 +80,7 @@ jobs:
           signer="$ANDROID_HOME/build-tools/34.0.0/apksigner"
           options=(--ks "$work/key.jks" --ks-pass env:ANDROID_SIGNING_KEYSTORE_PASSWORD --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" --v1-signing-enabled false --v4-signing-enabled false)
           if [ -n "$ANDROID_SIGNING_KEY_PASSWORD" ]; then options+=(--key-pass env:ANDROID_SIGNING_KEY_PASSWORD); fi
-          "$signer" sign "${options[@]}" --out dist/fdroid-signature/gproxy-fdroid-aarch64.apk upstream/first/gproxy-fdroid-aarch64.apk
+          "$signer" sign "${options[@]}" --out dist/fdroid-signature/gproxy-fdroid-universal.apk upstream/first/gproxy-fdroid-universal.apk
           curl --fail --location --retry 3 https://github.com/LeenHawk/gproxy/releases/download/v4.1.0/gproxy-tauri-android-aarch64.apk -o "$work/released.apk"
           "$signer" verify --verbose --print-certs "$work/released.apk" > "$work/released-cert.txt"
           fingerprint="$(python3 - "$work/released-cert.txt" <<'PY'
@@ -90,7 +90,7 @@ jobs:
           print(values[0])
           PY
           )"
-          python3 scripts/mobile/verify-reproducible-apk.py dist/fdroid-signature/gproxy-fdroid-aarch64.apk rebuilt.apk \
+          python3 scripts/mobile/verify-reproducible-apk.py dist/fdroid-signature/gproxy-fdroid-universal.apk rebuilt.apk \
             --build-tools "$ANDROID_HOME/build-tools/34.0.0" --expected-cert-sha256 "$fingerprint" \
             --report dist/fdroid-signature/report.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
