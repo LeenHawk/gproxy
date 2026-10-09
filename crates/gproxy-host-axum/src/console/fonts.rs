@@ -64,9 +64,7 @@ impl FontCache {
     }
 
     pub(super) async fn read(&self, filename: &str) -> Option<Vec<u8>> {
-        if self.stylesheet().await.is_none() {
-            return None;
-        }
+        self.stylesheet().await.as_ref()?;
         self.cached(filename).await
     }
 
