@@ -2,7 +2,7 @@
 
 use crate::ProviderData;
 use gproxy_channel::channel::{BaseChannel, ProviderView};
-use gproxy_protocol::{Dialect, Operation, OperationKey, spec::OPERATION_SPECS};
+use gproxy_protocol::{Dialect, Operation, OperationKey};
 use gproxy_store::entity::upstream::operation_rule;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -38,97 +38,14 @@ pub fn local_supported(key: OperationKey) -> bool {
         )
 }
 
-/// Only edges implemented by the family drivers are offered to configuration.
+/// Only edges protocol adapts are offered to configuration.
 pub fn can_convert(source: OperationKey, target: OperationKey) -> bool {
-    use Dialect::*;
-    use Operation::*;
-    if source == target || super::spec_for(source).is_none() {
-        return false;
-    }
-    let generation = |d| matches!(d, OpenAi | OpenAiChat | Claude | Gemini);
-    match source.operation {
-        GenerateContent => {
-            matches!(target.operation, GenerateContent | StreamGenerateContent)
-                && (generation(source.dialect) || source.dialect == OpenAiResponsesWebSocket)
-                && (generation(target.dialect)
-                    || (source.dialect == OpenAi
-                        && target.dialect == OpenAiResponsesWebSocket
-                        && target.operation == StreamGenerateContent))
-        }
-        StreamGenerateContent => {
-            matches!(target.operation, StreamGenerateContent | GenerateContent)
-                && (generation(source.dialect) || source.dialect == OpenAiResponsesWebSocket)
-                && (generation(target.dialect) || target.dialect == OpenAiResponsesWebSocket)
-                && (target.operation != GenerateContent
-                    || target.dialect != OpenAiResponsesWebSocket)
-        }
-        WebSearch => {
-            source.dialect == OpenAi
-                && target.operation == GenerateContent
-                && matches!(target.dialect, OpenAi | Claude | Gemini)
-        }
-        GuardianReview | GuardianClassify | CompactContent | SummarizeMemory => {
-            source.dialect == OpenAi
-                && target.operation == GenerateContent
-                && generation(target.dialect)
-        }
-        CountTokens => {
-            target.operation == CountTokens
-                && source.dialect != target.dialect
-                && matches!(source.dialect, OpenAi | Claude | Gemini)
-                && matches!(target.dialect, Claude | Gemini)
-        }
-        CreateEmbedding => {
-            target.operation == CreateEmbedding
-                && matches!(
-                    (source.dialect, target.dialect),
-                    (OpenAi, Gemini) | (Gemini, OpenAi)
-                )
-        }
-        BatchCreateEmbedding => {
-            source.dialect == Gemini
-                && target.operation == CreateEmbedding
-                && target.dialect == OpenAi
-        }
-        CreateImage | EditImage => {
-            source.dialect == OpenAi
-                && target.operation == GenerateContent
-                && target.dialect == Gemini
-        }
-        ListModels | GetModel | CreateFile | ListFiles | RetrieveFile | RetrieveFileContent
-        | DeleteFile => {
-            source.operation == target.operation
-                && source.dialect != target.dialect
-                && matches!(source.dialect, OpenAi | Claude | Gemini)
-                && matches!(target.dialect, OpenAi | Claude | Gemini)
-        }
-        CreateVideo | RetrieveVideo | DownloadVideoContent => {
-            source.operation == target.operation
-                && matches!(
-                    (source.dialect, target.dialect),
-                    (OpenAi, Gemini) | (Gemini, OpenAi)
-                )
-        }
-        _ => false,
-    }
+    gproxy_protocol::adapt::is_conversion_edge(source, target)
 }
 
 pub fn conversion_targets(source: OperationKey) -> Vec<OperationKey> {
-    let mut targets: Vec<_> = OPERATION_SPECS.iter().map(|s| s.key).collect();
-    // Gemini's native video API is an upstream-only wire, not a public ingress.
-    for operation in [
-        Operation::CreateVideo,
-        Operation::RetrieveVideo,
-        Operation::DownloadVideoContent,
-    ] {
-        targets.push(OperationKey {
-            operation,
-            dialect: Dialect::Gemini,
-        });
-    }
-    targets.retain(|&target| can_convert(source, target));
+    let mut targets: Vec<_> = gproxy_protocol::adapt::conversion_targets(source).collect();
     targets.sort();
-    targets.dedup();
     targets
 }
 

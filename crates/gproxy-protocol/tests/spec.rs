@@ -155,3 +155,27 @@ fn media_and_realtime_rows_match_wire_formats_without_claiming_codecs() {
             dialect: Dialect::Claude
         }));
 }
+
+#[test]
+fn conversion_edges_join_distinct_declared_surfaces() {
+    use gproxy_protocol::adapt::CONVERSION_EDGES;
+    let declared = |key: OperationKey| OPERATION_SPECS.iter().any(|spec| spec.key == key);
+    // Gemini's native video API is an upstream-only wire, not a public ingress.
+    let upstream_only = |key: OperationKey| {
+        key.dialect == Dialect::Gemini
+            && matches!(
+                key.operation,
+                Operation::CreateVideo | Operation::RetrieveVideo | Operation::DownloadVideoContent
+            )
+    };
+    let mut seen = HashSet::new();
+    for edge in CONVERSION_EDGES {
+        assert!(seen.insert(edge), "duplicate edge {edge:?}");
+        assert_ne!(edge.source, edge.target, "self edge {edge:?}");
+        assert!(declared(edge.source), "undeclared source {edge:?}");
+        assert!(
+            declared(edge.target) || upstream_only(edge.target),
+            "undeclared target {edge:?}"
+        );
+    }
+}
