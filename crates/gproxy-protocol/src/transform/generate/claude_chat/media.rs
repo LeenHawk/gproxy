@@ -74,7 +74,25 @@ pub(super) fn openai_user_blocks(
                 }))
             }
             chat::UserContentPart::File(file) => {
-                if let Some(document) = crate::transform::optional(file_document(file))? {
+                let image = file
+                    .file
+                    .file_data
+                    .as_deref()
+                    .filter(|data| data.starts_with("data:image/"));
+                // Claude reads images as image blocks; documents are PDF or text.
+                if let Some(data) = image {
+                    let Some(source) =
+                        crate::transform::optional(claude_image_source(data.to_owned()))?
+                    else {
+                        continue;
+                    };
+                    output.push(c::ContentBlock::Image(c::ImageBlock {
+                        type_: c::ImageBlockType::Tag,
+                        source,
+                        cache_control: None,
+                        rest: Rest::new(),
+                    }));
+                } else if let Some(document) = crate::transform::optional(file_document(file))? {
                     output.push(c::ContentBlock::Document(document));
                 }
             }

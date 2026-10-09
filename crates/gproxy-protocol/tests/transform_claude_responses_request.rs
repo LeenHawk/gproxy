@@ -141,3 +141,38 @@ fn mcp_connector_and_paired_history_preserve_native_no_approval_contract() {
         .is_ok()
     );
 }
+
+#[test]
+fn image_file_data_becomes_a_claude_image_in_messages_and_tool_results() {
+    let png = "iVBORw0KGgo=";
+    let data = format!("data:image/png;base64,{png}");
+    let input: r::GenerateContentRequestBody = serde_json::from_value(json!({
+        "model":"gpt", "max_output_tokens":32,
+        "input":[
+            {"type":"message","role":"user","content":[
+                {"type":"input_text","text":"look"},
+                {"type":"input_file","file_data":data,"filename":"a.png"}
+            ]},
+            {"type":"function_call","call_id":"call","name":"f","arguments":"{}"},
+            {"type":"function_call_output","call_id":"call","output":[
+                {"type":"input_file","file_data":data,"filename":"b.png"}
+            ]}
+        ]
+    }))
+    .unwrap();
+    let output = responses_to_claude_request(input, "claude", ClaudeRequestContext::default())
+        .unwrap()
+        .value;
+    let wire = serde_json::to_value(&output).unwrap();
+    let image =
+        json!({"type":"image","source":{"type":"base64","media_type":"image/png","data":png}});
+    assert_eq!(wire["messages"][0]["content"][1], image, "{wire}");
+    let result = wire["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|message| message["content"].as_array().cloned().unwrap_or_default())
+        .find(|block| block["type"] == "tool_result")
+        .unwrap();
+    assert_eq!(result["content"][0], image, "{wire}");
+}

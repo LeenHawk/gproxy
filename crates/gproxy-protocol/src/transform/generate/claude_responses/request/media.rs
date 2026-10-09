@@ -88,35 +88,7 @@ pub(super) fn to_claude(value: r::InputContent) -> Result<c::ContentBlock, Trans
                 .image_url
                 .flatten()
                 .ok_or_else(|| TransformError::missing_metadata("image_url"))?;
-            let source = if let Some(data) = url.strip_prefix("data:") {
-                let (mime, bytes) = data
-                    .split_once(";base64,")
-                    .ok_or_else(|| TransformError::shape("image_url", "invalid data URI"))?;
-                STANDARD
-                    .decode(bytes)
-                    .map_err(|e| TransformError::shape("image_url", e.to_string()))?;
-                c::ImageSource::Base64(
-                    c::Base64Source::builder(
-                        bytes.into(),
-                        match mime {
-                            "image/jpeg" => c::ImageMediaType::Jpeg,
-                            "image/png" => c::ImageMediaType::Png,
-                            "image/gif" => c::ImageMediaType::Gif,
-                            "image/webp" => c::ImageMediaType::Webp,
-                            _ => {
-                                return Err(TransformError::unsupported(
-                                    "image.mime",
-                                    "unsupported Claude image MIME",
-                                ));
-                            }
-                        },
-                    )
-                    .build(),
-                )
-            } else {
-                c::ImageSource::Url(c::UrlSource::builder(url).build())
-            };
-            c::ContentBlock::Image(c::ImageBlock::builder(c::ImageBlockType::Tag, source).build())
+            image_block(url, "image_url")?
         }
         r::InputContent::File(value) => {
             if value.file_id.flatten().is_some() {
@@ -130,6 +102,10 @@ pub(super) fn to_claude(value: r::InputContent) -> Result<c::ContentBlock, Trans
                 let data = value
                     .file_data
                     .ok_or_else(|| TransformError::missing_metadata("file_data"))?;
+                // Claude reads images as image blocks; documents are PDF or text.
+                if data.starts_with("data:image/") {
+                    return image_block(data, "file_data");
+                }
                 if let Some(bytes) = data.strip_prefix("data:application/pdf;base64,") {
                     STANDARD
                         .decode(bytes)
@@ -158,6 +134,41 @@ pub(super) fn to_claude(value: r::InputContent) -> Result<c::ContentBlock, Trans
             c::ContentBlock::Document(block)
         }
     })
+}
+
+/// A Claude image block for a URL or a base64 data URI of a Claude image MIME.
+fn image_block(url: String, field: &str) -> Result<c::ContentBlock, TransformError> {
+    let source = if let Some(data) = url.strip_prefix("data:") {
+        let (mime, bytes) = data
+            .split_once(";base64,")
+            .ok_or_else(|| TransformError::shape(field, "invalid data URI"))?;
+        STANDARD
+            .decode(bytes)
+            .map_err(|e| TransformError::shape(field, e.to_string()))?;
+        c::ImageSource::Base64(
+            c::Base64Source::builder(
+                bytes.into(),
+                match mime {
+                    "image/jpeg" => c::ImageMediaType::Jpeg,
+                    "image/png" => c::ImageMediaType::Png,
+                    "image/gif" => c::ImageMediaType::Gif,
+                    "image/webp" => c::ImageMediaType::Webp,
+                    _ => {
+                        return Err(TransformError::unsupported(
+                            "image.mime",
+                            "unsupported Claude image MIME",
+                        ));
+                    }
+                },
+            )
+            .build(),
+        )
+    } else {
+        c::ImageSource::Url(c::UrlSource::builder(url).build())
+    };
+    Ok(c::ContentBlock::Image(
+        c::ImageBlock::builder(c::ImageBlockType::Tag, source).build(),
+    ))
 }
 
 pub(super) fn result_to_responses(
