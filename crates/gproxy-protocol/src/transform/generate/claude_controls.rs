@@ -1,5 +1,6 @@
 //! Project Claude's conversation-scoped controls onto a single target request.
 use crate::{
+    Rest,
     transform::Report,
     wire::claude::{content as c, count_tokens as cc, generate_content as g, tools as t},
 };
@@ -161,7 +162,7 @@ pub(crate) fn target(
             *thinking = Some(cc::ThinkingConfig::Adaptive(cc::ThinkingAdaptive {
                 block_binding: config.block_binding.clone(),
                 display: config.display,
-                rest: config.rest.clone(),
+                rest: Rest::new(),
             }));
             report.changed(
                 "thinking.type",
