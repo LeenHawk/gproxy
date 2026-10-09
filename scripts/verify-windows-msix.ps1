@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory)][string]$Artifact,
     [Parameter(Mandatory)][string]$IdentityName,
     [Parameter(Mandatory)][string]$Executable,
-    [Parameter(Mandatory)][string]$Publisher
+    [Parameter(Mandatory)][string]$Publisher,
+    [string]$OutputDirectory = 'dist/release'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,7 +29,8 @@ try {
     }
     Assert-Signature (Join-Path $work $Executable)
     $name = "$Artifact.msix"
-    $destination = Join-Path 'dist/release' $name
+    $destination = Join-Path $OutputDirectory $name
+    New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
     Copy-Item -LiteralPath $package -Destination $destination -Force
     $hash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLower()
     "$hash  $name" | Set-Content -Encoding ascii "$destination.sha256"

@@ -1,9 +1,8 @@
 # SignPath activation
 
-The Foundation has confirmed that the project is eligible for the OSS program.
-Account onboarding and technical validation with the self-signed test certificate
-come next; the production certificate will be ordered after SignPath reviews the
-working setup. Keep `SIGNPATH_ENABLED` unset or `false` until that is complete.
+The project has completed test-certificate onboarding. Production certificate
+issuance is still pending. Release builds attempt production signing; unsuccessful
+signing keeps the original unsigned package.
 
 ## Review material
 
@@ -77,21 +76,27 @@ command arguments, logs, or committed files.
 
 The existing Release workflow consumes these settings for Windows x86_64 and
 ARM64, for regular/Headless CLI ZIPs and regular CLI/Desktop MSIX packages.
-No extra workflow is required. MSIX builds retain the existing package names
+No extra workflow is required; signing runs in the Release workflow on `main`,
+`dev` and version tags. MSIX builds retain the existing package names
 and filenames; their Publisher uses `SIGNPATH_MSIX_PUBLISHER`. Copy the complete
 Subject from the certificate, not the Store Publisher ID or organization name.
-With signing enabled, beta, dev and release builds upload the unsigned packages, wait for
-SignPath, verify the downloaded signatures and timestamps, regenerate checksums,
-then proceed to publication. Update public code-signing documentation after
-production activation is confirmed.
+With signing enabled, beta, dev and release builds upload the unsigned packages,
+request production signing, and verify the downloaded signatures and timestamps.
+Only verified packages replace the originals. A signing failure is recorded as a
+warning and the original package and checksum continue to publication. Update
+public code-signing documentation after production activation is confirmed.
 
 ## Pipeline contract
 
 `SIGNPATH_ENABLED` unset or `false` preserves unsigned builds during onboarding.
-When `true`, all three channels require signing: `main` publishes signed beta
-(`staging`) builds, `dev` publishes signed dev (`nightly`) builds, and version
-tags publish signed release/prerelease builds according to the existing channel
-rules. All use the same production signing policy and certificate.
+When `true`, all three channels attempt signing: `main` publishes beta (`staging`)
+builds, `dev` publishes dev (`nightly`) builds, and version tags publish
+release/prerelease builds according to the existing channel rules. All use the
+same production signing policy (`release-signing`) and certificate. A missing
+certificate, unavailable signing service, rejected request, timeout or failed
+signature verification does not fail the build or block other release jobs.
+`test-signing` is rejected by the release actions. No temporary test-certificate
+trust is enabled in this workflow.
 Disabling the variable later permits unsigned builds again; protect who
 can edit repository Actions variables.
 
@@ -116,13 +121,25 @@ Each wildcard must match exactly one file (SignPath defaults to one match).
 Version-specific PE metadata constraints are omitted; the ZIP configuration
 retains its fixed product name and original filename constraints.
 `wait-for-completion: true` waits for signing and downloads the result; it does
-not configure an approval process. The action uses its default completion timeout.
+not configure an approval process. CI waits up to 300 seconds for completion,
+with 60-second service retry and signed-artifact download timeouts.
 
 Signed output is downloaded to a separate directory. Windows must validate
 the trusted Authenticode signature and timestamp on the portable EXE before
-the unsigned archive is replaced. SHA-256 sidecars are then regenerated.
-Only these final packages proceed to provenance, the update manifest and
-publication. Signing failure has no unsigned fallback when signing is enabled.
+the unsigned archive is replaced. Verification and checksum generation use a
+separate staging directory, leaving the original package and checksum untouched
+on failure. Only successful verification promotes the signed package; otherwise
+CI reports an unsigned fallback in the job summary. Packaging, build, provenance
+and publication failures still fail normally. Microsoft Store submissions keep
+their existing identity and are not replaced by this signing attempt.
+
+Set `SIGNPATH_ENABLED=true` and `SIGNPATH_SIGNING_POLICY_SLUG=release-signing`
+in the `release` environment to attempt production signing. Allow `main`, `dev`
+and intended `v*` tags in the policy's origin verification for
+`.github/workflows/release.yml`. Update `SIGNPATH_MSIX_PUBLISHER` with the exact
+production certificate Subject when it is issued; a missing or test Publisher
+keeps the original MSIX. The standalone `signpath` onboarding branch is not a
+release dependency.
 
 This repository change does not provision accounts or certificates. A real
 SignPath request and Windows verification remain required;

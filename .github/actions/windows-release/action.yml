@@ -11,7 +11,7 @@ inputs:
     description: Workspace release version
     required: true
   sign:
-    description: Require trusted production signatures
+    description: Attempt trusted production signing; keep the unsigned package on failure
     required: true
   api-token:
     description: SignPath API token
@@ -28,7 +28,16 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Package Windows portable archive
+      id: package
+      shell: pwsh
+      env:
+        TARGET_TRIPLE: ${{ inputs.target }}
+        ARTIFACT_NAME: ${{ inputs.artifact }}
+      run: scripts/package-native-release.ps1
     - name: Validate signing configuration
+      id: config
+      continue-on-error: true
       if: ${{ inputs.sign == 'true' }}
       shell: pwsh
       env:
@@ -40,15 +49,11 @@ runs:
         foreach ($name in @('SIGNPATH_API_TOKEN', 'SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG', 'SIGNPATH_SIGNING_POLICY_SLUG')) {
           if (-not [Environment]::GetEnvironmentVariable($name)) { throw "Missing $name" }
         }
-    - name: Package Windows portable archive
-      shell: pwsh
-      env:
-        TARGET_TRIPLE: ${{ inputs.target }}
-        ARTIFACT_NAME: ${{ inputs.artifact }}
-      run: scripts/package-native-release.ps1
+        if ($env:SIGNPATH_SIGNING_POLICY_SLUG -eq 'test-signing') { throw 'Release signing requires a production policy' }
     - name: Upload unsigned packages for SignPath
-      if: ${{ inputs.sign == 'true' }}
+      if: ${{ inputs.sign == 'true' && steps.config.outcome == 'success' }}
       id: unsigned
+      continue-on-error: true
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: unsigned-${{ inputs.artifact }}
@@ -56,7 +61,9 @@ runs:
         if-no-files-found: error
         retention-days: 7
     - name: Sign and download Windows packages
-      if: ${{ inputs.sign == 'true' }}
+      id: sign
+      continue-on-error: true
+      if: ${{ steps.unsigned.outcome == 'success' }}
       uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
       with:
         api-token: ${{ inputs.api-token }}
@@ -66,11 +73,34 @@ runs:
         artifact-configuration-slug: windows-release
         github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
         wait-for-completion: true
+        wait-for-completion-timeout-in-seconds: 300
+        service-unavailable-timeout-in-seconds: 60
+        download-signed-artifact-timeout-in-seconds: 60
         output-artifact-directory: ${{ runner.temp }}/signed-${{ inputs.artifact }}
-    - name: Verify signed packages and replace release checksums
-      if: ${{ inputs.sign == 'true' }}
+    - name: Verify production signature and stage signed package
+      id: verify
+      continue-on-error: true
+      if: ${{ steps.sign.outcome == 'success' }}
       shell: pwsh
       env:
         SIGNED_DIRECTORY: ${{ runner.temp }}/signed-${{ inputs.artifact }}
         ARTIFACT_NAME: ${{ inputs.artifact }}
-      run: scripts/verify-windows-signatures.ps1 -Directory $env:SIGNED_DIRECTORY -Artifact $env:ARTIFACT_NAME
+        VERIFIED_DIRECTORY: ${{ runner.temp }}/verified-${{ inputs.artifact }}
+      run: scripts/verify-windows-signatures.ps1 -Directory $env:SIGNED_DIRECTORY -Artifact $env:ARTIFACT_NAME -OutputDirectory $env:VERIFIED_DIRECTORY
+    - name: Use verified signed portable package
+      if: ${{ steps.verify.outcome == 'success' }}
+      shell: pwsh
+      env:
+        VERIFIED_DIRECTORY: ${{ runner.temp }}/verified-${{ inputs.artifact }}
+        ARTIFACT: ${{ inputs.artifact }}
+      run: |
+        Copy-Item "$env:VERIFIED_DIRECTORY/$env:ARTIFACT.zip", "$env:VERIFIED_DIRECTORY/$env:ARTIFACT.zip.sha256" dist/release -Force
+        "$env:ARTIFACT.zip: production signature verified." >> $env:GITHUB_STEP_SUMMARY
+    - name: Report unsigned fallback
+      if: ${{ !cancelled() && inputs.sign == 'true' && steps.package.outcome == 'success' && steps.verify.outcome != 'success' }}
+      shell: pwsh
+      env:
+        ARTIFACT: ${{ inputs.artifact }}
+      run: |
+        Write-Warning "SignPath signing failed or is unavailable for $env:ARTIFACT.zip; publishing the original unsigned package."
+        "$env:ARTIFACT.zip: SignPath unavailable; original unsigned package retained." >> $env:GITHUB_STEP_SUMMARY

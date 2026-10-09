@@ -1,5 +1,5 @@
 name: SignPath MSIX
-description: Sign the release MSIX after preserving the Store submission
+description: Attempt production signing; preserve the original release MSIX on failure
 inputs:
   target:
     description: Rust target triple
@@ -39,6 +39,7 @@ runs:
   steps:
     - name: Package with signing certificate publisher
       id: package
+      continue-on-error: true
       shell: pwsh
       env:
         TARGET: ${{ inputs.target }}
@@ -56,6 +57,9 @@ runs:
         foreach ($name in @('IDENTITY', 'DISPLAY', 'PUBLISHER', 'SIGNPATH_API_TOKEN', 'SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG', 'SIGNPATH_SIGNING_POLICY_SLUG')) {
           if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "Missing $name" }
         }
+        if ($env:SIGNPATH_SIGNING_POLICY_SLUG -eq 'test-signing' -or $env:PUBLISHER -like '*Test certificate*') {
+          throw 'Release MSIX signing requires a production policy and certificate publisher'
+        }
         switch ($env:MODE) {
           cli { $executable = 'gproxy.exe' }
           application { $executable = 'gproxy-desktop.exe' }
@@ -67,6 +71,8 @@ runs:
         "executable=$executable" >> $env:GITHUB_OUTPUT
     - name: Upload unsigned release MSIX
       id: unsigned
+      if: ${{ steps.package.outcome == 'success' }}
+      continue-on-error: true
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: unsigned-msix-${{ inputs.artifact }}
@@ -74,6 +80,9 @@ runs:
         if-no-files-found: error
         retention-days: 7
     - name: Sign executable and MSIX
+      id: sign
+      if: ${{ steps.unsigned.outcome == 'success' }}
+      continue-on-error: true
       uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
       with:
         api-token: ${{ inputs.api-token }}
@@ -83,15 +92,39 @@ runs:
         artifact-configuration-slug: windows-msix
         github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
         wait-for-completion: true
+        wait-for-completion-timeout-in-seconds: 300
+        service-unavailable-timeout-in-seconds: 60
+        download-signed-artifact-timeout-in-seconds: 60
         output-artifact-directory: ${{ runner.temp }}/signed-${{ inputs.artifact }}
-    - name: Verify signed MSIX and generate release checksum
+    - name: Verify production signatures and stage signed MSIX
+      id: verify
+      if: ${{ steps.sign.outcome == 'success' }}
+      continue-on-error: true
       shell: pwsh
       env:
         SIGNED_DIRECTORY: ${{ runner.temp }}/signed-${{ inputs.artifact }}
+        VERIFIED_DIRECTORY: ${{ runner.temp }}/verified-msix-${{ inputs.artifact }}
         ARTIFACT: ${{ inputs.artifact }}
         IDENTITY: ${{ inputs.identity-name }}
         EXECUTABLE: ${{ steps.package.outputs.executable }}
         PUBLISHER: ${{ inputs.publisher }}
       run: |
         scripts/verify-windows-msix.ps1 -Directory $env:SIGNED_DIRECTORY -Artifact $env:ARTIFACT `
-          -IdentityName $env:IDENTITY -Executable $env:EXECUTABLE -Publisher $env:PUBLISHER
+          -IdentityName $env:IDENTITY -Executable $env:EXECUTABLE -Publisher $env:PUBLISHER -OutputDirectory $env:VERIFIED_DIRECTORY
+    - name: Use verified signed MSIX
+      if: ${{ steps.verify.outcome == 'success' }}
+      shell: pwsh
+      env:
+        VERIFIED_DIRECTORY: ${{ runner.temp }}/verified-msix-${{ inputs.artifact }}
+        ARTIFACT: ${{ inputs.artifact }}
+      run: |
+        Copy-Item "$env:VERIFIED_DIRECTORY/$env:ARTIFACT.msix", "$env:VERIFIED_DIRECTORY/$env:ARTIFACT.msix.sha256" dist/release -Force
+        "$env:ARTIFACT.msix: production signatures verified." >> $env:GITHUB_STEP_SUMMARY
+    - name: Report unsigned fallback
+      if: ${{ !cancelled() && steps.verify.outcome != 'success' }}
+      shell: pwsh
+      env:
+        ARTIFACT: ${{ inputs.artifact }}
+      run: |
+        Write-Warning "SignPath signing failed or is unavailable for $env:ARTIFACT.msix; publishing the original unsigned package."
+        "$env:ARTIFACT.msix: SignPath unavailable; original unsigned package retained." >> $env:GITHUB_STEP_SUMMARY

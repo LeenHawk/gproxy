@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory)][string]$Directory,
-    [Parameter(Mandatory)][string]$Artifact
+    [Parameter(Mandatory)][string]$Artifact,
+    [string]$OutputDirectory = 'dist/release'
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,7 +18,8 @@ try {
     Expand-Archive -LiteralPath $archive -DestinationPath "$work/zip"
     Assert-Signature "$work/zip/gproxy.exe"
     $name = "$Artifact.zip"
-    $destination = Join-Path "dist/release" $name
+    $destination = Join-Path $OutputDirectory $name
+    New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
     Copy-Item -LiteralPath $archive -Destination $destination -Force
     $hash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLower()
     "$hash  $name" | Out-File -Encoding ascii "$destination.sha256"
