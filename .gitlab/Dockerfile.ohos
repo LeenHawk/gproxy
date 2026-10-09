@@ -6,5 +6,6 @@ COPY scripts/ohos/compiler-warnings.patch /opt/gproxy-compiler-warnings.patch
 RUN cd /opt/ohos-tauri && git apply --check /opt/gproxy-compiler-warnings.patch \
     && git apply /opt/gproxy-compiler-warnings.patch
 COPY scripts/install-android-upx.sh /opt/gproxy-install-upx.sh
+COPY scripts/install-android-upx.patch /opt/gproxy-install-upx.patch
 RUN bash /opt/gproxy-install-upx.sh /opt/gproxy-upx
 ENV PATH="/opt/gproxy-upx/bin:/usr/local/go/bin:${PATH}"

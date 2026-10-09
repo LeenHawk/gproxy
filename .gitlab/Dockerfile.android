@@ -33,5 +33,6 @@ RUN curl -fsSL --retry 3 https://services.gradle.org/distributions/gradle-8.14.3
     && unzip -q /tmp/gradle.zip -d /opt && rm /tmp/gradle.zip \
     && python3 -m pip install --break-system-packages apksigcopier==1.1.1
 COPY scripts/install-android-upx.sh /tmp/install-android-upx.sh
+COPY scripts/install-android-upx.patch /tmp/install-android-upx.patch
 RUN bash /tmp/install-android-upx.sh /opt/gproxy-android-upx
 ENV PATH="/opt/gradle-8.14.3/bin:/opt/gproxy-android-upx/bin:${PATH}"
