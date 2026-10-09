@@ -15,12 +15,12 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.1",
-    "@tauri-apps/api": "^2.12.1",
+    "@tauri-apps/api": "^2.12.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "i18next": "^26.4.2",
-    "lucide-react": "^1.52.0",
+    "lucide-react": "^1.54.0",
     "radix-ui": "^1.7.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -49,11 +49,11 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
     "jsdom": "^30.1.2",
-    "shadcn": "^4.21.3",
+    "shadcn": "^4.21.4",
     "tailwindcss": "^4.3.3",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.71.1",
-    "vite": "^8.3.3",
+    "vite": "^8.3.4",
     "vitest": "^5.0.3"
   }
 }

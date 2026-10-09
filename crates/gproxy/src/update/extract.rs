@@ -97,7 +97,7 @@ pub(super) mod fixture {
     /// executable and not the README.
     pub(crate) fn archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
         let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-        let options: zip::write::FileOptions<'_, ()> =
+        let options: zip::write::SimpleFileOptions =
             zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         for (name, contents) in entries {
             writer.start_file(*name, options).unwrap();
