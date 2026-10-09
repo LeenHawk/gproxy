@@ -7,7 +7,7 @@
     "deploy": "wrangler deploy",
     "check": "wrangler deploy --dry-run"
   },
-  "devDependencies": { "fflate": "0.8.3", "wrangler": "4.145.0" },
+  "devDependencies": { "fflate": "0.8.3", "wrangler": "4.149.0" },
   "cloudflare": {
     "bindings": {
       "GPROXY_DATABASE_URL": {
