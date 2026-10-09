@@ -24,6 +24,17 @@ open class BuildTask : DefaultTask() {
 
     @TaskAction
     fun assemble() {
+        if (System.getenv("GPROXY_ANDROID_REUSE_NATIVE") == "1") {
+            val abi = when (target) {
+                "aarch64" -> "arm64-v8a"
+                "x86_64" -> "x86_64"
+                else -> throw GradleException("Unsupported prebuilt Android target: $target")
+            }
+            if (!project.file("src/main/jniLibs/$abi/libgproxy_host_tauri.so").isFile) {
+                throw GradleException("Missing prebuilt application library for $abi")
+            }
+            return
+        }
         val executable = """node""";
         try {
             runTauriCli(executable)
@@ -35,7 +46,7 @@ open class BuildTask : DefaultTask() {
                     "$executable.cmd",
                     "$executable.bat",
                 )
-                
+
                 var lastException: Exception = e
                 for (fallback in fallbacks) {
                     try {

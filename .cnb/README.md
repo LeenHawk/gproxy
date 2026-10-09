@@ -16,7 +16,7 @@ The target list remains `scripts/release-targets.json`. Each target has a
 | Linux musl x86_64 / ARM64 | `gproxy-linux-*-musl.zip` | None |
 | Windows x86_64 / ARM64 | `gproxy-windows-*.zip`, containing `gproxy.exe` | `gproxy-tauri-windows-*.exe`, NSIS installer for `gproxy-desktop.exe` |
 | macOS x86_64 / ARM64 | `gproxy-macos-*.zip`, containing `gproxy` | `gproxy-tauri-macos-*.app.zip`, containing the ad-hoc signed `GPROXY.app` |
-| Android x86_64 / ARM64 | Termux `gproxy-android-*.zip` and `.deb` | `gproxy-tauri-android-*.apk` (`com.leenhawk.gproxy.app`) |
+| Android x86_64 / ARM64 | Termux `gproxy-android-*.zip` and `.deb` | `gproxy-tauri-android-*.apk` (`com.leenhawk.gproxy.desktop`) |
 
 The CLI updater uses the bare target triple. Android Application updates use
 the distinct `<target>-tauri-apk` manifest entries. The legacy server wrapper

@@ -210,6 +210,8 @@ def verify_packages():
             if not (name := row.get("headless_artifact")):
                 continue
             expected += [name + ".zip", name + ".provenance.json"]
+            if row["os"] == "windows":
+                expected.append(name + ".msix")
             if row["target"].endswith("-linux-musl"):
                 expected.append(name + ".apk")
             with zipfile.ZipFile(directory / (name + ".zip")) as archive:

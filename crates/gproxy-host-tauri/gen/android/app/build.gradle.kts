@@ -30,10 +30,10 @@ android {
     buildToolsVersion = "36.1.0"
     ndkVersion = "30.0.15729638"
     providers.environmentVariable("ANDROID_NDK_HOME").orNull?.let { ndkPath = it }
-    namespace = "com.leenhawk.gproxy.app"
+    namespace = "com.leenhawk.gproxy.desktop"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        applicationId = "com.leenhawk.gproxy.app"
+        applicationId = "com.leenhawk.gproxy.desktop"
         buildConfigField("boolean", "SELF_UPDATE", selfUpdate.toString())
         // Tauri's template says 24. 28 is what v3's APK shipped, and it is
         // what the foreground service wants: notification channels, typed

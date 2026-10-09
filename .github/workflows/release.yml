@@ -887,6 +887,31 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+      - name: Package Windows Headless MSIX
+        if: matrix.os == 'windows'
+        shell: pwsh
+        env:
+          MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
+          MS_STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          Expand-Archive -Path "dist/release/${{ matrix.headless_artifact }}.zip" -DestinationPath "$env:RUNNER_TEMP/headless-msix" -Force
+          Copy-Item "$env:RUNNER_TEMP/headless-msix/gproxy.exe" "target/${{ matrix.target }}/release/gproxy.exe" -Force
+          ./scripts/package-windows-msix.ps1 -Target '${{ matrix.target }}' -Artifact '${{ matrix.headless_artifact }}' -Version '${{ needs.prepare.outputs.version }}' -Mode headless -OutputDir dist/release
+      - name: Sign Windows Headless MSIX
+        if: matrix.os == 'windows' && vars.SIGNPATH_ENABLED == 'true'
+        uses: ./.github/actions/windows-msix-sign
+        with:
+          target: ${{ matrix.target }}
+          artifact: ${{ matrix.headless_artifact }}
+          version: ${{ needs.prepare.outputs.version }}
+          mode: headless
+          identity-name: LeenHawk.GPROXYHeadless
+          display-name: GPROXY Headless
+          publisher: ${{ vars.SIGNPATH_MSIX_PUBLISHER }}
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
       - run: bash scripts/build-provenance.sh
       - uses: ./.github/actions/attest-release
         with:
@@ -1087,11 +1112,103 @@ jobs:
           pnpm --dir "$work/cloudflare" install --frozen-lockfile --ignore-scripts
           pnpm --dir "$work/cloudflare" check
 
-  android-applications:
-    name: Android applications (GitHub APK, F-Droid APK, Play AAB)
+  android-toolchain:
+    name: Shared Android toolchain
     needs: prepare
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.reference.outputs.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Free disk for the Android toolchain
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: .gitlab/Dockerfile.android
+          push: true
+          tags: ghcr.io/leenhawk/gproxy-build-android:${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/leenhawk/gproxy-build-android:buildcache
+          cache-to: type=registry,ref=ghcr.io/leenhawk/gproxy-build-android:buildcache,mode=max
+      - id: reference
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: echo "image=ghcr.io/leenhawk/gproxy-build-android@$DIGEST" >> "$GITHUB_OUTPUT"
+
+  android-build:
+    name: Android ${{ matrix.distribution }} (${{ matrix.arch }})
+    needs: [prepare, console, android-toolchain]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment: release
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        distribution: [direct, fdroid, google-play]
+        arch: [aarch64, x86_64]
+    env:
+      CARGO_HOME: /tmp/gproxy-reproduce/cargo
+      CARGO_TARGET_DIR: /tmp/gproxy-reproduce/source/target
+      GRADLE_USER_HOME: /tmp/gproxy-reproduce/gradle
+      CARGO_BUILD_JOBS: '2'
+      GPROXY_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
+      GPROXY_BUILD_CHANNEL: ${{ needs.prepare.outputs.channel }}
+      GPROXY_BUILD_HASH: ${{ github.sha }}
+      SOURCE_DATE_EPOCH: ${{ needs.prepare.outputs.source_date_epoch }}
+      ANDROID_TOOLCHAIN_IMAGE: ${{ needs.android-toolchain.outputs.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Free disk for the Android container and native cache
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: console-dist
+          path: console/dist
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/ghcr-rust-cache
+        with:
+          key: android-${{ matrix.distribution }}-${{ matrix.arch }}
+          restore-key: android-applications-universal
+          token: ${{ secrets.GITHUB_TOKEN }}
+          save: 'true'
+      - name: Build one channel and ABI
+        env:
+          DISTRIBUTION: ${{ matrix.distribution }}
+          ARCH: ${{ matrix.arch }}
+          GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+        run: |
+          test -n "$GPROXY_UPDATE_PUBKEY"
+          bash scripts/mobile/run-android-container.sh build "$DISTRIBUTION" "$ARCH"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-build-${{ matrix.distribution }}-${{ matrix.arch }}
+          path: dist/android-build/
+          compression-level: 1
+          if-no-files-found: error
+          retention-days: 1
+
+  android-packages:
+    name: Assemble and sign Android packages (no Rust compilation)
+    needs: [prepare, console, android-toolchain, android-build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     environment: release
     permissions:
       contents: read
@@ -1107,33 +1224,32 @@ jobs:
       GPROXY_BUILD_CHANNEL: ${{ needs.prepare.outputs.channel }}
       GPROXY_BUILD_HASH: ${{ github.sha }}
       SOURCE_DATE_EPOCH: ${{ needs.prepare.outputs.source_date_epoch }}
+      ANDROID_TOOLCHAIN_IMAGE: ${{ needs.android-toolchain.outputs.image }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Free disk for the shared Android container and both ABI caches
+      - name: Free disk for the Android container and native cache
         run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: console-dist
+          path: console/dist
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Prepare the shared pinned Android toolchain
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: .gitlab/Dockerfile.android
-          load: true
-          tags: gproxy-android-release
-          cache-from: type=registry,ref=ghcr.io/leenhawk/gproxy-build-android:buildcache
-          cache-to: type=registry,ref=ghcr.io/leenhawk/gproxy-build-android:buildcache,mode=max
       - uses: ./.github/actions/ghcr-rust-cache
         with:
-          key: android-applications-universal
+          key: android-package-inputs
           token: ${{ secrets.GITHUB_TOKEN }}
           save: 'true'
-      - name: Build Android application channels once at fixed paths
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: android-build-*
+          path: dist/android-build
+          merge-multiple: true
+      - name: Assemble universal store packages and sign release outputs
         env:
-          GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
           ANDROID_SIGNING_KEYSTORE_B64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_B64 }}
           ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
           ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
@@ -1142,34 +1258,7 @@ jobs:
           GOOGLE_PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.GOOGLE_PLAY_UPLOAD_STORE_PASSWORD }}
           GOOGLE_PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.GOOGLE_PLAY_UPLOAD_KEY_ALIAS }}
           GOOGLE_PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.GOOGLE_PLAY_UPLOAD_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          test -n "$GPROXY_UPDATE_PUBKEY"
-          mkdir -p /tmp/gproxy-reproduce/source
-          # Copy the actual source tree without replacing the restored Cargo target cache.
-          tar --exclude='./target' --exclude='./dist' --exclude='node_modules' -cf - . | tar -xf - -C /tmp/gproxy-reproduce/source
-          restore_owner() {
-            docker run --rm --volume /tmp/gproxy-reproduce:/tmp/gproxy-reproduce \
-              gproxy-android-release chown -R "$(id -u):$(id -g)" /tmp/gproxy-reproduce
-          }
-          trap restore_owner EXIT
-          docker run --rm --volume /tmp/gproxy-reproduce:/tmp/gproxy-reproduce \
-            --workdir /tmp/gproxy-reproduce/source \
-            --env CARGO_HOME --env CARGO_TARGET_DIR --env GRADLE_USER_HOME --env CARGO_BUILD_JOBS \
-            --env CARGO_INCREMENTAL=0 --env SOURCE_DATE_EPOCH --env GPROXY_BUILD_HASH \
-            --env GPROXY_BUILD_VERSION --env GPROXY_BUILD_CHANNEL --env GPROXY_UPDATE_PUBKEY \
-            --env GITHUB_SHA --env GITHUB_REF_NAME \
-            --env ANDROID_SIGNING_KEYSTORE_B64 --env ANDROID_SIGNING_KEYSTORE_PASSWORD \
-            --env ANDROID_SIGNING_KEY_ALIAS --env ANDROID_SIGNING_KEY_PASSWORD \
-            --env GOOGLE_PLAY_UPLOAD_KEYSTORE_B64 --env GOOGLE_PLAY_UPLOAD_STORE_PASSWORD \
-            --env GOOGLE_PLAY_UPLOAD_KEY_ALIAS --env GOOGLE_PLAY_UPLOAD_KEY_PASSWORD \
-            --env GIT_CONFIG_COUNT=1 --env GIT_CONFIG_KEY_0=safe.directory \
-            --env GIT_CONFIG_VALUE_0=/tmp/gproxy-reproduce/source \
-            gproxy-android-release bash scripts/mobile/release-android.sh
-          restore_owner
-          trap - EXIT
-          mkdir -p dist/release
-          cp /tmp/gproxy-reproduce/source/dist/release/* dist/release/
+        run: bash scripts/mobile/run-android-container.sh package dist/android-build
       - uses: ./.github/actions/attest-release
         with:
           artifact: gproxy-tauri-android-aarch64
@@ -1177,11 +1266,9 @@ jobs:
         with:
           artifact: gproxy-tauri-android-x86_64
       - uses: ./.github/actions/attest-release
-        if: needs.prepare.outputs.channel == 'release' || needs.prepare.outputs.channel == 'dev'
         with:
           artifact: gproxy-fdroid-universal
       - uses: ./.github/actions/attest-release
-        if: needs.prepare.outputs.channel == 'release' || needs.prepare.outputs.channel == 'dev'
         with:
           artifact: gproxy-google-play-universal
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -1196,7 +1283,7 @@ jobs:
     name: Publish GitHub, GitLab and CNB releases
     env:
       GPROXY_CONTAINER_SOURCE: ${{ needs.container-manifest.outputs.source }}
-    needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, alpine-packages, serverless, edge, edge-check, container-manifest, publish-crates, android-applications]
+    needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, alpine-packages, serverless, edge, edge-check, container-manifest, publish-crates, android-packages]
     runs-on: ubuntu-latest
     concurrency:
       group: gproxy-release-publication
@@ -1315,7 +1402,7 @@ jobs:
 
   cache-cleanup:
     name: Clean old GHCR build caches
-    needs: [native, riscv, ohos-cli, ohos-application, headless, headless-riscv, serverless, edge, android-applications]
+    needs: [native, riscv, ohos-cli, ohos-application, headless, headless-riscv, serverless, edge, android-build, android-packages]
     if: ${{ always() && !cancelled() && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
     permissions:

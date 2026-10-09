@@ -35,7 +35,7 @@ instructions. Application ZIPs contain the Linux desktop payload, Windows
 executable plus emitted DLLs, or the signed macOS `.app`. Linux ZIPs require
 GTK/WebKitGTK and Windows ZIPs require WebView2 on the host.
 
-Android Application identity is `com.leenhawk.gproxy.app`; its signed update
+Android Application identity is `com.leenhawk.gproxy.desktop`; its signed update
 key remains `<triple>-tauri-apk`. CLI updates still use ZIPs and bare triples.
 The desktop host does not acquire CLI-style executable replacement.
 

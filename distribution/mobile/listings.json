@@ -1,6 +1,6 @@
 {
   "name": "GPROXY",
-  "packageName": "com.leenhawk.gproxy.app",
+  "packageName": "com.leenhawk.gproxy.desktop",
   "publisher": "Leen Hawk",
   "website": "https://gproxy.leenhawk.com/",
   "source": "https://github.com/LeenHawk/gproxy",

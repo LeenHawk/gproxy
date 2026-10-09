@@ -1,4 +1,4 @@
-package com.leenhawk.gproxy.app
+package com.leenhawk.gproxy.desktop
 
 import android.content.ContentProvider
 import android.content.ContentValues

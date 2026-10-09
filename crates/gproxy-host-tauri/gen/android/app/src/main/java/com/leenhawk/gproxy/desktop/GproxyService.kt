@@ -1,4 +1,4 @@
-package com.leenhawk.gproxy.app
+package com.leenhawk.gproxy.desktop
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -241,7 +241,7 @@ class GproxyService : Service() {
         /** Whether the boot receiver starts the instance. On by default. */
         const val PREF_AUTO_START = "auto_start"
 
-        const val ACTION_STOP = "com.leenhawk.gproxy.app.STOP"
+        const val ACTION_STOP = "com.leenhawk.gproxy.desktop.STOP"
 
         private const val CHANNEL = "gproxy-gateway"
         private const val NOTIFICATION = 8787

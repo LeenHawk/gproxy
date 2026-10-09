@@ -3,15 +3,15 @@ param(
     [Parameter(Mandatory)][string]$Artifact,
     [Parameter(Mandatory)][string]$Version,
     [string]$OutputDir = 'dist/store',
-    [ValidateSet('cli', 'application')][string]$Mode = 'application',
-    [string]$IdentityName = $(if ($Mode -eq 'cli') { $env:MS_STORE_CLI_IDENTITY_NAME } else { $env:MS_STORE_IDENTITY_NAME }),
-    [string]$DisplayName = $(if ($Mode -eq 'cli') { $env:MS_STORE_CLI_DISPLAY_NAME } else { $env:MS_STORE_DISPLAY_NAME }),
+    [ValidateSet('cli', 'headless', 'application')][string]$Mode = 'application',
+    [string]$IdentityName = $(if ($Mode -eq 'headless') { 'LeenHawk.GPROXYHeadless' } elseif ($Mode -eq 'cli') { $env:MS_STORE_CLI_IDENTITY_NAME } else { $env:MS_STORE_IDENTITY_NAME }),
+    [string]$DisplayName = $(if ($Mode -eq 'headless') { 'GPROXY Headless' } elseif ($Mode -eq 'cli') { $env:MS_STORE_CLI_DISPLAY_NAME } else { $env:MS_STORE_DISPLAY_NAME }),
     [string]$Publisher = $env:MS_STORE_IDENTITY_PUBLISHER,
     [string]$PublisherDisplayName = $env:MS_STORE_PUBLISHER_DISPLAY_NAME
 )
 $ErrorActionPreference = 'Stop'
 foreach ($value in @($IdentityName, $DisplayName, $Publisher, $PublisherDisplayName)) {
-    if ([string]::IsNullOrWhiteSpace($value)) { throw "The $Mode Store identity, display name, publisher and publisher display name are required" }
+    if ([string]::IsNullOrWhiteSpace($value)) { throw "The $Mode MSIX identity, display name, publisher and publisher display name are required" }
 }
 if ($Version -notmatch '^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$') { throw "Invalid version: $Version" }
 $packageVersion = (@(1, 2, 3) | ForEach-Object { [uint16]$Matches[$_] }) -join '.'
@@ -25,7 +25,7 @@ $sdkBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin'
 $makeappx = Get-ChildItem "$sdkBin/*/x64/makeappx.exe" |
     Sort-Object { [version]$_.Directory.Parent.Name } -Descending | Select-Object -First 1
 if (-not $makeappx) { throw 'Windows SDK makeappx.exe was not found' }
-$executable = if ($Mode -eq 'cli') { 'gproxy.exe' } else { 'gproxy-desktop.exe' }
+$executable = if ($Mode -ne 'application') { 'gproxy.exe' } else { 'gproxy-desktop.exe' }
 $binary = "target/$Target/release/$executable"
 if (-not (Test-Path $binary)) { throw "Missing executable: $binary" }
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid())
@@ -42,9 +42,10 @@ try {
     $displayXml = [System.Security.SecurityElement]::Escape($DisplayName)
     $publisherXml = [System.Security.SecurityElement]::Escape($Publisher)
     $publisherDisplayXml = [System.Security.SecurityElement]::Escape($PublisherDisplayName)
-    $applicationAttributes = if ($Mode -eq 'cli') { 'desktop4:SupportsMultipleInstances="true"' } else { '' }
-    $extensions = if ($Mode -eq 'cli') {
-        '<uap5:Extension Category="windows.appExecutionAlias" Executable="gproxy.exe" EntryPoint="Windows.FullTrustApplication"><uap5:AppExecutionAlias desktop4:Subsystem="console"><uap5:ExecutionAlias Alias="gproxy.exe" /></uap5:AppExecutionAlias></uap5:Extension>'
+    $applicationAttributes = if ($Mode -ne 'application') { 'desktop4:SupportsMultipleInstances="true"' } else { '' }
+    $alias = if ($Mode -eq 'headless') { 'gproxy-headless.exe' } else { 'gproxy.exe' }
+    $extensions = if ($Mode -ne 'application') {
+        '<uap5:Extension Category="windows.appExecutionAlias" Executable="gproxy.exe" EntryPoint="Windows.FullTrustApplication"><uap5:AppExecutionAlias desktop4:Subsystem="console"><uap5:ExecutionAlias Alias="{0}" /></uap5:AppExecutionAlias></uap5:Extension>' -f $alias
     } else {
         "<desktop:Extension Category=`"windows.startupTask`" uap10:Parameters=`"--autostart`" Executable=`"gproxy-desktop.exe`" EntryPoint=`"Windows.FullTrustApplication`"><desktop:StartupTask TaskId=`"GproxyStartup`" Enabled=`"false`" DisplayName=`"$displayXml`" /></desktop:Extension>"
     }

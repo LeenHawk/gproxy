@@ -12,7 +12,7 @@ signing keeps the original unsigned package.
 - Maintainer/PR reviewer: https://github.com/LeenHawk
 - License: AGPL-3.0-or-later application, MIT for the crates identified in
   their manifests; no commercial dual-licensing is introduced by this integration.
-- Scope: x86_64 and ARM64 portable CLI EXEs and release CLI/Desktop MSIX packages.
+- Scope: x86_64 and ARM64 portable CLI EXEs and release CLI/Headless/Desktop MSIX packages.
   Microsoft Store submissions retain their Partner Center identity.
 - Build: GitHub-hosted Windows runners, public source and release workflow,
   embedded Console compiled by the same workflow. Windows x86_64 and ARM64
@@ -75,7 +75,7 @@ Alternatively, enter the secret interactively with
 command arguments, logs, or committed files.
 
 The existing Release workflow consumes these settings for Windows x86_64 and
-ARM64, for regular/Headless CLI ZIPs and regular CLI/Desktop MSIX packages.
+ARM64, for regular/Headless CLI ZIPs and CLI/Headless/Desktop MSIX packages.
 No extra workflow is required; signing runs in the Release workflow on `main`,
 `dev` and version tags. MSIX builds retain the existing package names
 and filenames; their Publisher uses `SIGNPATH_MSIX_PUBLISHER`. Copy the complete

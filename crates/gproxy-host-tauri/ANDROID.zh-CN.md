@@ -106,7 +106,7 @@ state 交给了 261 条命令；不存在一种诚实的「停止」能让这些
 ## 为什么网关是进程，而不是窗口
 
 这套安排之所以合法，依赖 Tauri 生成代码里的一个事实，所以这里带出处地写明：
-`gen/android/app/src/main/java/com/leenhawk/gproxy/app/generated/WryActivity.kt`
+`gen/android/app/src/main/java/com/leenhawk/gproxy/desktop/generated/WryActivity.kt`
 是从 **`ProcessLifecycleOwner`** 而不是 activity 里调用 `Rust.create()` 的——
 也就是真正运行 `gproxy_host_tauri::start` 的那一次调用：
 
@@ -196,7 +196,7 @@ pnpm exec tauri android build --apk --debug       # debug
 ## 把 APK 读回来（v4.0.0 历史构建）
 
 下面是标识更名前的真实输出，保留旧包名和 JNI 名称作为历史记录；当前构建使用
-`com.leenhawk.gproxy.app`。
+`com.leenhawk.gproxy.desktop`。
 
 对 release 构建跑 `aapt dump badging`，略去九十多行翻译过的
 `application-label-*`：
@@ -330,7 +330,7 @@ Android 相关的东西一样都没删。`scripts/android/`、
   制，从 shell 里启动——那是与「带窗口的 App」完全不同的另一个故事，不受这里任
   何改动影响。
 
-当前图形版在安卓、鸿蒙和桌面平台统一使用 `com.leenhawk.gproxy.app`，
+当前图形版在安卓、鸿蒙和桌面平台统一使用 `com.leenhawk.gproxy.desktop`，
 命令行版 **GPROXY CLI** 已经存在，其对应的项目命名为 `com.leenhawk.gproxy.cli`。
 macOS CLI 新服务使用该标识，已有旧服务继续兼容。v3 旧封装包仍为
 `io.github.leenhawk.gproxy`，早期 v4 包使用 `dev.gproxy.desktop`。

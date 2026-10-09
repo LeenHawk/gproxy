@@ -51,7 +51,7 @@ jobs:
               headers={'PRIVATE-TOKEN': os.environ['FDROID_GITLAB_TOKEN']})
           with urllib.request.urlopen(request) as response:
               with zipfile.ZipFile(io.BytesIO(response.read())) as archive:
-                  names = [n for n in archive.namelist() if re.fullmatch(r'tmp/com\.leenhawk\.gproxy\.app_\d+\.apk', n)]
+                  names = [n for n in archive.namelist() if re.fullmatch(r'tmp/com\.leenhawk\.gproxy\.desktop_\d+\.apk', n)]
                   assert len(names) == 1
                   rebuilt = archive.read(names[0])
           expected = os.environ['UNSIGNED_SHA256'].lower()

@@ -14,7 +14,7 @@ version = os.environ.get("GPROXY_BUILD_VERSION") or subprocess.check_output(
 ).strip()
 app_scope = project / "AppScope/app.json5"
 app_config = json5.loads(app_scope.read_text())
-app_config["app"]["bundleName"] = "com.leenhawk.gproxy.app"
+app_config["app"]["bundleName"] = "com.leenhawk.gproxy.desktop"
 app_config["app"]["versionName"] = version
 major, minor, patch = map(int, version.split("-")[0].split("."))
 app_config["app"]["versionCode"] = major * 1_000_000 + minor * 1_000 + patch

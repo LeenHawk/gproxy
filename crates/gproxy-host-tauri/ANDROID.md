@@ -123,7 +123,7 @@ unavailable instead of offering the old wrapper APK.
 
 This arrangement is only legal because of something in Tauri's generated code,
 so it is worth stating with the citation:
-`gen/android/app/src/main/java/com/leenhawk/gproxy/app/generated/WryActivity.kt`
+`gen/android/app/src/main/java/com/leenhawk/gproxy/desktop/generated/WryActivity.kt`
 calls `Rust.create()` — the call that runs `gproxy_host_tauri::start` — from
 **`ProcessLifecycleOwner`**, not from the activity:
 
@@ -220,7 +220,7 @@ about 43 MB. Build release unless you need a debugger.
 ## The APK, read back (historical v4.0.0 build)
 
 The following output predates the identifier rename. Its old package/JNI names
-are retained as historical evidence; current builds use `com.leenhawk.gproxy.app`.
+are retained as historical evidence; current builds use `com.leenhawk.gproxy.desktop`.
 
 `aapt dump badging` on the release build, with the ninety-odd translated
 `application-label-*` lines cut:
@@ -366,7 +366,7 @@ not the legacy wrapper APK. These are two different things:
   Android ABI, run from a shell — which is a separate story from an app with a
   window, and unaffected by any of this.
 
-The current application identifier is `com.leenhawk.gproxy.app` across Android,
+The current application identifier is `com.leenhawk.gproxy.desktop` across Android,
 HarmonyOS and desktop platforms. The command-line edition already exists as
 **GPROXY CLI**; its corresponding project namespace is `com.leenhawk.gproxy.cli`.
 New macOS CLI services use that namespace; existing legacy registrations remain supported.

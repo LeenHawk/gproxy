@@ -11,7 +11,7 @@ inputs:
     description: Release version
     required: true
   mode:
-    description: cli or application
+    description: cli, headless or application
     required: true
   identity-name:
     description: Existing MSIX package identity name
@@ -62,6 +62,7 @@ runs:
         }
         switch ($env:MODE) {
           cli { $executable = 'gproxy.exe' }
+          headless { $executable = 'gproxy.exe' }
           application { $executable = 'gproxy-desktop.exe' }
           default { throw "Unsupported MSIX mode: $env:MODE" }
         }

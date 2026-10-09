@@ -92,7 +92,7 @@ def msix_metadata(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--version', required=True)
-    parser.add_argument('--edition', choices=['CLI', 'Desktop'], required=True)
+    parser.add_argument('--edition', choices=['CLI', 'Desktop', 'Headless'], required=True)
     parser.add_argument('--output', type=Path, default=Path('dist/winget'))
     parser.add_argument('--skip-existing', action='store_true')
     args = parser.parse_args()
@@ -108,7 +108,7 @@ def main():
         raise ValueError('WinGet requires a published stable release')
     downloads = args.output / 'downloads' / edition
     downloads.mkdir(parents=True, exist_ok=True)
-    prefix = 'gproxy-tauri' if edition == 'Desktop' else 'gproxy'
+    prefix = {'Desktop': 'gproxy-tauri', 'CLI': 'gproxy', 'Headless': 'gproxy-headless'}[edition]
     names = [f'{prefix}-windows-{arch}.msix' for arch in ('x86_64', 'aarch64')]
     command = ['gh', 'release', 'download', f'v{version}', '--repo', REPO,
                '--dir', str(downloads), '--clobber']
@@ -126,8 +126,16 @@ def main():
             print(f'{edition} {version}: unsigned MSIX; skipping WinGet submission.')
             return
         identity, minimum = metadata
+        if edition == 'Headless':
+            with zipfile.ZipFile(downloads / name) as archive:
+                manifest = ET.fromstring(archive.read('AppxManifest.xml'))
+                aliases = manifest.findall('.//{http://schemas.microsoft.com/appx/manifest/uap/windows10/5}ExecutionAlias')
+                if [alias.get('Alias') for alias in aliases] != ['gproxy-headless.exe']:
+                    raise ValueError(f'Headless MSIX must expose only gproxy-headless.exe: {name}')
+                if 'gproxy.exe' not in archive.namelist():
+                    raise ValueError(f'Headless MSIX is missing gproxy.exe: {name}')
         arch = 'x64' if name.endswith('-x86_64.msix') else 'arm64'
-        expected_name = 'LeenHawk.GPROXYGateway' if edition == 'Desktop' else 'LeenHawk.GPROXYCLI'
+        expected_name = {'Desktop': 'LeenHawk.GPROXYGateway', 'CLI': 'LeenHawk.GPROXYCLI', 'Headless': 'LeenHawk.GPROXYHeadless'}[edition]
         if (identity['Name'] != expected_name or identity['Version'] != version + '.0'
                 or identity['ProcessorArchitecture'] != arch):
             raise ValueError(f'MSIX identity/version/architecture mismatch: {name}')
@@ -135,7 +143,8 @@ def main():
                               InstallerSha256=digest, PackageFamilyName=package_family(identity), MinimumOSVersion=minimum)
     destination = args.output / 'manifests' / edition
     destination.mkdir(parents=True, exist_ok=True)
-    for template in sorted((TEMPLATES / edition / '4.0.0').glob('*.yaml')):
+    templates = Path('.github/winget/templates/Headless') if edition == 'Headless' else TEMPLATES / edition / '4.0.0'
+    for template in sorted(templates.glob('*.yaml')):
         doc = yaml.safe_load(template.read_text(encoding='utf-8'))
         doc['PackageVersion'] = version
         if 'ReleaseNotesUrl' in doc:

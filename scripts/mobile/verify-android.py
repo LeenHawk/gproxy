@@ -25,11 +25,11 @@ if not is_bundle:
     aapt = sdk / "build-tools/36.1.0/aapt2"
     badging = subprocess.check_output([aapt, "dump", "badging", apk], text=True)
     identity = re.search(r"package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging)
-    if not identity or identity.group(1) != "com.leenhawk.gproxy.app":
+    if not identity or identity.group(1) != "com.leenhawk.gproxy.desktop":
         raise ValueError("Unexpected APK identity")
     if store:
         config = json.loads(subprocess.check_output([sys.executable, root / "scripts/mobile/version.py"], text=True))
-        expected = ("com.leenhawk.gproxy.app", str(config["bundle"]["android"]["versionCode"]), config["version"])
+        expected = ("com.leenhawk.gproxy.desktop", str(config["bundle"]["android"]["versionCode"]), config["version"])
         if identity.groups() != expected:
             raise ValueError(f"APK identity/version does not match {expected}")
     elif identity.group(3) != os.environ["GPROXY_BUILD_VERSION"]:
@@ -46,7 +46,7 @@ if not is_bundle:
             raise ValueError("Store APK is missing its offline privacy notice")
     elif any(required not in manifest for required in updater):
         raise ValueError("Direct APK is missing its updater or installation permission")
-    if "launchable-activity: name='com.leenhawk.gproxy.app.MainActivity'" not in badging:
+    if "launchable-activity: name='com.leenhawk.gproxy.desktop.MainActivity'" not in badging:
         raise ValueError("APK does not launch the application directly")
 # The paired APK above verifies the Google Play manifest. AAB native payloads
 # must independently contain the same requested architectures and store policy.
@@ -83,7 +83,7 @@ with zipfile.ZipFile(apk) as archive, tempfile.TemporaryDirectory(prefix="gproxy
             library = Path(work) / "libgproxy_host_tauri.so"
             library.write_bytes(data)
             symbols = subprocess.check_output([nm, "--dynamic", "--defined-only", library], text=True)
-            has_updater = "Java_com_leenhawk_gproxy_app_GproxyNative_nativeUpdate" in symbols
+            has_updater = "Java_com_leenhawk_gproxy_desktop_GproxyNative_nativeUpdate" in symbols
             if has_updater == store:
                 raise ValueError(f"Native updater does not match {args.distribution} policy: {name}")
 print(f"Verified {apk.name}: {args.distribution}, ABIs {sorted(app_abis)}, {len(libraries)} aligned native libraries")

@@ -8,7 +8,7 @@ does not create store products, submit a review, or publish an application.
 
 ## Identity and versions
 
-- Application/bundle name: `com.leenhawk.gproxy.app`; listing name: **GPROXY**.
+- Application/bundle name: `com.leenhawk.gproxy.desktop`; listing name: **GPROXY**.
 - The graphical application uses this identifier on Android, HarmonyOS and all
   desktop platforms. The command-line edition already exists as **GPROXY CLI**.
   `com.leenhawk.gproxy.cli` is its corresponding project namespace. New macOS CLI service
@@ -92,7 +92,7 @@ never put passwords or private keys in store listing files or issue comments.
 
 ## F-Droid submission
 
-The recipe is `distribution/fdroid/com.leenhawk.gproxy.app.yml.in`. It uses pinned,
+The recipe is `distribution/fdroid/com.leenhawk.gproxy.desktop.yml.in`. It uses pinned,
 checksum-verified Node/Go/Gradle tools and the F-Droid `rustup` source library.
 The Android UPX packer is built from the same pinned FLOSS source revision as
 the direct-release packer, outside the scanned application checkout. Store
@@ -114,12 +114,12 @@ newer; the earlier `v4.0.2` tag does not contain this build support):
 
 ```sh
 python3 scripts/mobile/fdroid-metadata.py <public-commit-or-tag>
-# Copy the generated dist/mobile/fdroid/metadata/com.leenhawk.gproxy.app.yml
+# Copy the generated dist/mobile/fdroid/metadata/com.leenhawk.gproxy.desktop.yml
 # into your fdroiddata fork's metadata/ directory, then in that fork:
 fdroid readmeta
-fdroid lint com.leenhawk.gproxy.app
-fdroid checkupdates --allow-dirty com.leenhawk.gproxy.app
-fdroid build --server com.leenhawk.gproxy.app
+fdroid lint com.leenhawk.gproxy.desktop
+fdroid checkupdates --allow-dirty com.leenhawk.gproxy.desktop
+fdroid build --server com.leenhawk.gproxy.desktop
 ```
 
 Do not submit the `.yml.in` template or claim a local APK build is an F-Droid
@@ -143,15 +143,20 @@ After initial inclusion, F-Droid owns version tracking and build-recipe updates:
 
 Each stable release must increase the Android version code and publish
 `gproxy-fdroid-universal.apk` at the URL declared by `Binaries`. The Release
-workflow builds it in the shared Android application job, alongside the two
-direct APKs and `gproxy-google-play-universal.aab`. All use the pinned Android
-container, one frontend build and shared Cargo/Gradle caches. There is no
-separate F-Droid job or second self-rebuild in the release path. Dev CI also
-builds the store packages to validate them before a stable tag; F-Droid still
-tracks only stable releases. Signature-copy
-compatibility is checked against the unsigned output of that one build;
-F-Droid still independently rebuilds and verifies the reference. The manual
-reproducibility workflow remains available for diagnosing byte differences.
+workflow uses six parallel channel/ABI jobs: direct, F-Droid and Google Play,
+each for ARM64 and x86_64. They share the pinned Android image and Console
+artifact, with separate channel/ABI Cargo caches. Each job exports its native
+libraries, generated Android project inputs and a checked per-ABI APK.
+
+A packaging job verifies that both ABIs come from the same commit, version and
+application identity, then assembles the universal F-Droid APK and Play AAB with
+`GPROXY_ANDROID_REUSE_NATIVE=1`. Gradle verifies that the prebuilt libraries exist
+and does not call the Rust compiler in this phase. Only this job receives private
+signing keys. The two direct APKs are signed from their existing builder outputs.
+There is no second self-rebuild in the release path. UPX outputs are validated
+before reuse, so incremental packaging never strips an already-packed library.
+F-Droid still performs its own independent rebuild; the manual reproducibility
+workflow remains available for diagnosing byte differences.
 GitHub does not submit a separate F-Droid merge request for every release.
 
 The Play AAB uses the separate `GOOGLE_PLAY_UPLOAD_KEYSTORE_B64`,

@@ -17,11 +17,19 @@ if not any(library.name == "libgproxy_host_tauri.so" for library in libraries):
     raise ValueError(f"Application library not found in {args.directory}")
 with tempfile.TemporaryDirectory(prefix="gproxy-native-upx-") as work:
     for library in libraries:
+        pack = library.name == "libgproxy_host_tauri.so" and not args.strip_only
+        # AGP can retain an already-packed ABI in incremental task outputs.
+        # Never strip it again; validate it before reusing the staged bytes.
+        if pack and subprocess.run(
+            ["upx", "--list", library], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        ).returncode == 0:
+            subprocess.run(["upx", "--test", library], check=True)
+            continue
         packed = Path(work) / library.name
         shutil.copyfile(library, packed)
         packed.chmod(0o755)
         subprocess.run([args.strip_tool, "--strip-unneeded", packed], check=True)
-        if library.name == "libgproxy_host_tauri.so" and not args.strip_only:
+        if pack:
             options = ["--android-shlib"] if args.android else []
             subprocess.run(["upx", "--best", "--lzma", *options, packed], check=True)
             subprocess.run(["upx", "--test", packed], check=True)

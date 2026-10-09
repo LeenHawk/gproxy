@@ -47,11 +47,28 @@ done
 unset GPROXY_ANDROID_ABI
 if [ "${GPROXY_ANDROID_FRONTEND_READY:-0}" != 1 ]; then pnpm --dir console build; fi
 formats=(--apk)
-if [ "$distribution" = google-play ]; then formats+=(--aab); fi
-(
-  cd crates/gproxy-host-tauri
-  bash "$root/scripts/with-tauri-android-lib.sh" pnpm exec tauri android build --ci "${formats[@]}" --target "${arches[@]}" --config "$config" -- --locked
-)
+bundle=0
+if [ "$distribution" = google-play ] && [ "${GPROXY_ANDROID_APK_ONLY:-0}" != 1 ]; then
+  formats+=(--aab)
+  bundle=1
+fi
+if [ "${GPROXY_ANDROID_REUSE_NATIVE:-0}" = 1 ]; then
+  gradle_arches=()
+  for name in "${arches[@]}"; do
+    if [ "$name" = aarch64 ]; then gradle_arches+=(arm64); else gradle_arches+=("$name"); fi
+  done
+  tasks=(assembleUniversalRelease)
+  if [ "$bundle" = 1 ]; then tasks+=(bundleUniversalRelease); fi
+  gradle --project-dir crates/gproxy-host-tauri/gen/android \
+    "-PtargetList=$(IFS=,; echo "${arches[*]}")" \
+    "-ParchList=$(IFS=,; echo "${gradle_arches[*]}")" \
+    "-PabiList=$(IFS=,; echo "${abis[*]}")" "${tasks[@]}"
+else
+  (
+    cd crates/gproxy-host-tauri
+    bash "$root/scripts/with-tauri-android-lib.sh" pnpm exec tauri android build --ci "${formats[@]}" --target "${arches[@]}" --config "$config" -- --locked
+  )
+fi
 
 output="$root/dist/mobile/$distribution/$arch"
 mkdir -p "$output"
@@ -68,7 +85,7 @@ apk="$output/gproxy-$distribution-$arch.apk"
 cp "$apk_dir/$apk_name" "$apk"
 python3 scripts/mobile/verify-android.py "$apk" --distribution "$distribution" --abis "${abis[@]}"
 "$(android_build_tool "$(android_sdk_root)" zipalign)" -c -P 16 4 "$apk"
-if [ "$distribution" = google-play ]; then
+if [ "$bundle" = 1 ]; then
   bundle_dir=crates/gproxy-host-tauri/gen/android/app/build/outputs/bundle/universalRelease
   bundles=("$bundle_dir/"*.aab)
   test "${#bundles[@]}" -eq 1 && test -f "${bundles[0]}"
@@ -78,7 +95,7 @@ if [ "$distribution" = google-play ]; then
 fi
 if [ -n "${GPROXY_ANDROID_KEYSTORE:-}" ] && [[ "$distribution" != fdroid && "$distribution" != direct ]]; then
   "$(android_build_tool "$(android_sdk_root)" apksigner)" verify "$apk"
-  if [ "$distribution" = google-play ]; then jarsigner -verify "$aab"; fi
+  if [ "$bundle" = 1 ]; then jarsigner -verify "$aab"; fi
 else
   echo "Unsigned preparation output; signing is still required before installation/upload."
 fi

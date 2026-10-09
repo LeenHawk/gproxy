@@ -114,9 +114,7 @@ case "$kind" in
     if [ "$TARGET_OS" = macos ]; then codesign --force --sign - --timestamp=none "$binary"; fi
     if [ "$TARGET_OS" = windows ]; then
       pwsh -NoProfile -File scripts/package-native-release.ps1
-      if [ "$kind" = cli ]; then
-        pwsh -NoProfile -File scripts/package-windows-msix.ps1 -Target "$TARGET_TRIPLE" -Artifact "$ARTIFACT_NAME" -Version "$GPROXY_BUILD_VERSION" -Mode cli -OutputDir dist/release
-      fi
+      pwsh -NoProfile -File scripts/package-windows-msix.ps1 -Target "$TARGET_TRIPLE" -Artifact "$ARTIFACT_NAME" -Version "$GPROXY_BUILD_VERSION" -Mode "$kind" -OutputDir dist/release
     else
       bash scripts/package-native-release.sh
     fi

@@ -63,7 +63,7 @@ use crate::{StartError, StartResult};
 /// The service name every entry is filed under. It is the bundle identifier
 /// from `tauri.conf.json`: one application, one service, so an uninstall that
 /// sweeps the store by service takes both entries and nothing else.
-pub const KEYCHAIN_SERVICE: &str = "com.leenhawk.gproxy.app";
+pub const KEYCHAIN_SERVICE: &str = "com.leenhawk.gproxy.desktop";
 
 /// The master key's account name within the service.
 pub const MASTER_KEY_ACCOUNT: &str = "master-key";
