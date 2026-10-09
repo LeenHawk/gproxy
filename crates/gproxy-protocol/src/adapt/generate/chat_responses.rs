@@ -409,4 +409,7 @@ impl ResponsesViaChat {
     }
 }
 
-mod synthesis;
+super::prepared::prepared_generation!(ChatViaResponses, h::GenerateContentRequestBody => r::GenerateContentRequestBody);
+super::prepared::stream_synthesis!(ChatViaResponses, h::GenerateContentRequestBody);
+super::prepared::prepared_generation!(ResponsesViaChat, r::GenerateContentRequestBody => h::GenerateContentRequestBody);
+super::prepared::stream_synthesis!(ResponsesViaChat, r::GenerateContentRequestBody);

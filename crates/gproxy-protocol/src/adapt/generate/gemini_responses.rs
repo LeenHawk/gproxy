@@ -449,6 +449,9 @@ impl ResponsesViaGemini {
     }
 }
 
-mod synthesis;
+super::prepared::prepared_generation!(GeminiViaResponses, g::GenerateContentRequestBody => r::GenerateContentRequestBody);
+super::prepared::stream_synthesis!(GeminiViaResponses, g::GenerateContentRequestBody);
+super::prepared::prepared_generation!(ResponsesViaGemini, r::GenerateContentRequestBody => g::GenerateContentRequestBody);
+super::prepared::stream_synthesis!(ResponsesViaGemini, r::GenerateContentRequestBody, context: p::GeminiReplayContext);
 
 mod image_resources;

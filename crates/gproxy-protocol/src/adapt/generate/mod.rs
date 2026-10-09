@@ -13,6 +13,7 @@ mod history;
 mod identity_facts;
 pub mod image_resources;
 mod legacy_chat;
+mod prepared;
 mod request_ids;
 mod resources;
 mod state;
