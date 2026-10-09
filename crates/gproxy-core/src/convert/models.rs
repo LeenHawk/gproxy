@@ -371,7 +371,7 @@ fn supplement_metadata(
     }
 }
 
-pub(super) fn local_metadata(
+pub fn local_metadata(
     metadata: &serde_json::Value,
     dialect: Dialect,
     provider: &str,
@@ -386,11 +386,14 @@ pub(super) fn local_metadata(
     let object = value.as_object_mut().expect("object");
     let fields: &[(&str, &str)] = match dialect {
         Dialect::Claude => &[
+            ("created_at", "created_at"),
             ("display_name", "display_name"),
             ("context_window", "max_input_tokens"),
             ("max_output_tokens", "max_tokens"),
         ],
         Dialect::Gemini => &[
+            ("base_model_id", "baseModelId"),
+            ("version", "version"),
             ("display_name", "displayName"),
             ("description", "description"),
             ("context_window", "inputTokenLimit"),
@@ -399,6 +402,8 @@ pub(super) fn local_metadata(
             ("thinking_supported", "thinking"),
         ],
         _ => &[
+            ("created", "created"),
+            ("owned_by", "owned_by"),
             ("display_name", "display_name"),
             ("description", "description"),
             ("context_window", "context_window"),

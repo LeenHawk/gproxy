@@ -448,15 +448,20 @@ where
         Err(error) => return Some(ErrorResponse(error).into_response()),
     };
 
-    if matched.operation.operation == gproxy_protocol::Operation::ListModels
-        && !matches!(mount, Mount::Provider(_))
-    {
-        return Some(model_catalog(
-            state,
-            &caller,
-            mount,
-            matched.operation.dialect,
-        ));
+    if matches!(
+        matched.operation.operation,
+        gproxy_protocol::Operation::ListModels | gproxy_protocol::Operation::GetModel
+    ) {
+        return Some(
+            model_catalog(
+                state,
+                &caller,
+                mount,
+                matched.operation,
+                matched.model.as_deref(),
+            )
+            .await,
+        );
     }
 
     // The handshake is taken out of the request once there is a caller and
@@ -552,12 +557,6 @@ where
     }
     let outcome = app.call(&caller, request).await;
     Some(match outcome {
-        Ok(outcome)
-            if matched.operation.operation == gproxy_protocol::Operation::ListModels
-                && matched.operation.dialect == gproxy_protocol::Dialect::OpenAi =>
-        {
-            models::response(app, outcome, cancel, core.limits.codec())
-        }
         Ok(outcome) => {
             let mut response = streamed(app, outcome, cancel);
             absolutize_upload_url(&mut response, upload_base.as_deref());
@@ -620,11 +619,12 @@ fn absolutize_upload_url(response: &mut Response, base: Option<&str>) {
 }
 
 /// Return names that can be used unchanged at this base URL.
-fn model_catalog<C>(
+async fn model_catalog<C>(
     state: &HostState<C>,
     caller: &Caller,
     mount: &Mount,
-    dialect: gproxy_protocol::Dialect,
+    operation: gproxy_protocol::OperationKey,
+    requested: Option<&str>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
@@ -632,6 +632,55 @@ where
     use gproxy_protocol::Dialect;
     use serde_json::json;
 
+    let dialect = operation.dialect;
+    let core = state.app().gproxy().core().snapshot();
+    let routing = state.app().gproxy().routing();
+    let requested_name = requested.map(|name| mounted_model(mount, name));
+    let providers = core
+        .providers
+        .iter()
+        .filter(|(id, provider)| {
+            requested_name.as_ref().is_none_or(|name| {
+                if let Some((_, route)) = routing.route_for(name) {
+                    route
+                        .members
+                        .iter()
+                        .any(|member| member.provider_id == **id)
+                } else {
+                    name.strip_prefix(&format!("{}/", provider.entity.name))
+                        .is_some()
+                }
+            })
+        })
+        .filter(|(id, provider)| match mount {
+            Mount::Aggregated => true,
+            Mount::Provider(name) => provider.entity.name == *name,
+            Mount::Namespace(name) => routing
+                .names
+                .iter()
+                .filter(|(model, _)| model.starts_with(&format!("{name}/")))
+                .filter_map(|(_, route)| routing.routes.get(route))
+                .any(|route| {
+                    route
+                        .members
+                        .iter()
+                        .any(|member| member.provider_id == **id)
+                }),
+        })
+        .map(|(id, _)| id.clone())
+        .collect();
+    if let Err(error) = state
+        .app()
+        .refresh_model_catalog(
+            caller,
+            &providers,
+            operation.operation,
+            requested_name.as_deref(),
+        )
+        .await
+    {
+        return ErrorResponse(error).into_response();
+    }
     let data = state.app().data();
     let operations = gproxy_app::Operations::new(state.app().gproxy(), &data, state.app().config());
     let models = match operations.portal(caller).models() {
@@ -647,22 +696,76 @@ where
         .filter(|model| model.permitted)
         .filter_map(|model| {
             let name = match mount {
-                Mount::Namespace(_) => model.name.strip_prefix(&prefix)?.to_owned(),
+                Mount::Namespace(_) | Mount::Provider(_) => {
+                    model.name.strip_prefix(&prefix)?.to_owned()
+                }
                 _ => model.name.clone(),
             };
+            if requested_name
+                .as_ref()
+                .is_some_and(|requested| requested != &model.name)
+            {
+                return None;
+            }
+            let backing = if let Some((_, route)) = routing.route_for(&model.name) {
+                route
+                    .members
+                    .iter()
+                    .map(|member| member.provider_id.clone())
+                    .collect()
+            } else {
+                core.providers
+                    .values()
+                    .filter(|provider| {
+                        model
+                            .name
+                            .starts_with(&format!("{}/", provider.entity.name))
+                    })
+                    .map(|provider| provider.entity.id.clone())
+                    .collect()
+            };
+            if gproxy_app::admission::permission::allowed_providers(
+                &data,
+                caller,
+                Some(&model.name),
+                operation.operation,
+                &backing,
+                &state.app().config().oauth.cli_client_ids,
+            )
+            .is_err()
+            {
+                return None;
+            }
+            let metadata = models::metadata(&core, &routing, &model.name);
             if dialect == Dialect::OpenAi {
-                let metadata = models::metadata(&core, &routing, &model.name);
                 codex_models.push(models::project(&name, &metadata));
             }
-            Some(name)
-        })
-        .map(|name| match dialect {
-            Dialect::Claude => json!({
-                "id": name, "type": "model", "display_name": name,
-                "created_at": "1970-01-01T00:00:00Z"
-            }),
-            Dialect::Gemini => json!({"name": format!("models/{name}"), "displayName": name}),
-            _ => json!({"id": name, "object": "model", "created": 0, "owned_by": "gproxy"}),
+            let owner = match mount {
+                Mount::Provider(name) => name.as_str(),
+                _ => "gproxy",
+            };
+            let mut value = gproxy_core::convert::local_model_metadata(&metadata, dialect, owner);
+            let object = value.as_object_mut().expect("local model metadata");
+            match dialect {
+                Dialect::Claude => {
+                    object.insert("id".into(), json!(name));
+                    object.insert("type".into(), json!("model"));
+                    object.entry("display_name").or_insert(json!(name));
+                    object
+                        .entry("created_at")
+                        .or_insert(json!("1970-01-01T00:00:00Z"));
+                }
+                Dialect::Gemini => {
+                    object.insert("name".into(), json!(format!("models/{name}")));
+                    object.entry("displayName").or_insert(json!(name));
+                }
+                _ => {
+                    object.insert("id".into(), json!(name));
+                    object.insert("object".into(), json!("model"));
+                    object.entry("created").or_insert(json!(0));
+                }
+            }
+            Some(value)
         })
         .collect();
     let codex_models = match codex_models.into_iter().collect::<Result<Vec<_>, _>>() {
@@ -674,6 +777,18 @@ where
             .into_response();
         }
     };
+    if operation.operation == gproxy_protocol::Operation::GetModel {
+        return match models.into_iter().next() {
+            Some(model) => axum::Json(model).into_response(),
+            None => (
+                StatusCode::NOT_FOUND,
+                axum::Json(json!({"error": {
+                    "type": "not_found_error", "message": "model is not in the local catalog"
+                }})),
+            )
+                .into_response(),
+        };
+    }
     let body = match dialect {
         Dialect::Claude => json!({
             "first_id": models.first().and_then(|m| m.get("id")),

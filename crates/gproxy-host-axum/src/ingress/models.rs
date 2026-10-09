@@ -1,73 +1,8 @@
-//! OpenAI model lists also carry a Codex catalog, independent of client headers.
-use std::sync::Arc;
-
-use axum::response::Response;
-use gproxy_app::{App, CallOutcome};
+//! Metadata and Codex projection for the configured downstream model catalog.
 use gproxy_core::CoreData;
-use gproxy_protocol::{
-    HttpBody,
-    codec::{CodecLimits, encode_json, read_http_body},
-    connection::TransportError,
-    wire::openai::models::Model,
-};
+use gproxy_protocol::wire::openai::models::Model;
 use gproxy_sdk::resolve::RoutingTable;
-use gproxy_seaorm::BatchConnectionTrait;
-use http::header;
 use serde_json::{Value, json};
-
-use crate::response::{CancelOnDrop, Trailer, leased, streamed};
-
-/// Keep the normal response lease, cancellation and capture around the transformed body.
-pub(super) fn response<C>(
-    app: Arc<App<C>>,
-    outcome: CallOutcome,
-    cancel: CancelOnDrop,
-    limits: CodecLimits,
-) -> Response
-where
-    C: BatchConnectionTrait + Send + Sync + 'static,
-{
-    if !outcome.execution.response().status.is_success() {
-        return streamed(app, outcome, cancel);
-    }
-    let CallOutcome {
-        execution,
-        admitted,
-        mut capture,
-    } = outcome;
-    let (mut response, usage) = execution.into_parts();
-    for name in [header::CONTENT_LENGTH, header::ETAG, header::LAST_MODIFIED] {
-        response.headers.remove(name);
-    }
-    let body = response.body;
-    response.body = HttpBody::Stream(Box::pin(futures_util::stream::once(async move {
-        let bytes = read_http_body(body, limits).await?;
-        let mut value: Value = serde_json::from_slice(&bytes)?;
-        let data = value
-            .get("data")
-            .and_then(Value::as_array)
-            .ok_or_else(|| std::io::Error::other("model list is missing data"))?;
-        let models = data
-            .iter()
-            .map(|model| {
-                let id = model
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| std::io::Error::other("model entry is missing id"))?;
-                Ok(project(id, model)?)
-            })
-            .collect::<Result<Vec<_>, std::io::Error>>()?;
-        value["models"] = json!(models);
-        Ok::<_, TransportError>(encode_json(&value, limits)?)
-    })));
-    if let Some(capture) = capture.as_mut() {
-        capture.record_response_head(response.status, &response.headers);
-    }
-    leased(
-        Trailer::new(app, admitted, capture, usage, cancel),
-        response,
-    )
-}
 
 /// Required Codex fields get neutral defaults; actual model capabilities and extensions win.
 pub(super) fn project(id: &str, source: &Value) -> Result<Model, serde_json::Error> {

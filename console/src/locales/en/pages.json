@@ -258,7 +258,7 @@
   },
   "providerForm": {
     "autoRefreshModels": "Refresh model suggestions from upstream",
-    "autoRefreshModelsHelp": "When configuring route members, fetch current upstream models. Turn off to use only saved models.",
+    "autoRefreshModelsHelp": "On each client model list or detail request, refresh upstream models and merge them into the local catalog before returning the configured models. Turn off to use only saved models.",
     "dynamicAddress": "Chosen automatically from channel settings or credentials",
     "displayName": "Display name",
     "routeName": "Route name",

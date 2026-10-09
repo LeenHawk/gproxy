@@ -54,6 +54,7 @@ pub mod auth;
 pub use auth::{Authenticator, Caller, CallerKind, GrantContext};
 
 pub mod call;
+mod models;
 pub mod responses;
 pub use call::{CallOutcome, ConnectOutcome, DataPlaneRequest};
 

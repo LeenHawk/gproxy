@@ -54,6 +54,7 @@ pub struct CoreData {
     pub pricing: Arc<crate::pricing::PriceBook>,
 }
 
+#[derive(Clone)]
 pub struct ProviderData {
     pub entity: Arc<upstream::provider::Model>,
     /// Runtime config with the global and provider header allow-lists merged.

@@ -33,7 +33,7 @@ use gproxy_protocol::{
 };
 use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
 use gproxy_store::entity::upstream::{model, provider_model};
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryTrait, Set, sea_query::OnConflict};
 use serde_json::{Value, json};
 use web_time::Instant;
 
@@ -231,9 +231,23 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
         provider_id: &str,
         credential_id: Option<&str>,
     ) -> SdkResult<Vec<DiscoveredModelDto>> {
+        self.discover_models_with_credentials(provider_id, credential_id, None)
+            .await
+    }
+
+    async fn discover_models_with_credentials(
+        &self,
+        provider_id: &str,
+        credential_id: Option<&str>,
+        allowed: Option<&BTreeSet<String>>,
+    ) -> SdkResult<Vec<DiscoveredModelDto>> {
         let snapshot = self.writer.core().snapshot();
         let provider = provider(&snapshot, provider_id)?;
-        let credentials = credentials(&snapshot, provider, credential_id)?;
+        let mut credentials = credentials(&snapshot, provider, credential_id)?;
+        credentials.retain(|credential| allowed.is_none_or(|ids| ids.contains(&credential.id)));
+        if credentials.is_empty() {
+            return Err(SdkError::NoTarget(provider_id.into()));
+        }
         let dialect = native_dialect(provider, Operation::ListModels)?;
         let path = directory_path(dialect);
         let wire = WireRequest {
@@ -243,13 +257,19 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             headers: HeaderMap::new(),
             body: HttpBody::Bytes(Bytes::new()),
         };
+        // Discovery is an upstream read, independent of downstream list/get
+        // routing rules. Keep transport, credentials and endpoint overrides.
+        let mut discovery_provider = provider.as_ref().clone();
+        discovery_provider
+            .operation_rules
+            .retain(|rule| rule.operation != Operation::ListModels.id());
         let context = self.context(
             &snapshot,
             OperationKey {
                 operation: Operation::ListModels,
                 dialect,
             },
-            provider,
+            &Arc::new(discovery_provider),
             credentials,
             None,
         );
@@ -297,6 +317,59 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
                 })
             })
             .collect::<SdkResult<Vec<_>>>()
+    }
+
+    /// Refresh the stored catalog using only credentials visible to the caller.
+    /// Existing rows, including disabled models and operator metadata, are preserved.
+    pub async fn refresh_models(
+        &self,
+        provider_id: &str,
+        allowed_credentials: &BTreeSet<String>,
+    ) -> SdkResult<()> {
+        let discovered = self
+            .discover_models_with_credentials(provider_id, None, Some(allowed_credentials))
+            .await?;
+        let existing: BTreeSet<String> = self
+            .writer
+            .store()
+            .provider_models()
+            .query(
+                provider_model::Entity::find()
+                    .filter(provider_model::Column::ProviderId.eq(provider_id)),
+            )
+            .await?
+            .into_iter()
+            .map(|row| row.upstream_name)
+            .collect();
+        let statements = discovered
+            .into_iter()
+            .filter(|row| !existing.contains(&row.upstream_name))
+            .map(|row| {
+                BatchStatement::Execute(
+                    provider_model::Entity::insert(provider_model::ActiveModel {
+                        id: Set(crate::ids::random_id()),
+                        provider_id: Set(provider_id.into()),
+                        upstream_name: Set(row.upstream_name),
+                        model_id: Set(None),
+                        metadata: Set(row.metadata),
+                        enabled: Set(true),
+                    })
+                    .on_conflict(
+                        OnConflict::columns([
+                            provider_model::Column::ProviderId,
+                            provider_model::Column::UpstreamName,
+                        ])
+                        .do_nothing_on([provider_model::Column::Id])
+                        .to_owned(),
+                    )
+                    .build(self.writer.backend()),
+                )
+            })
+            .collect::<Vec<_>>();
+        if !statements.is_empty() {
+            self.writer.commit(statements, &[Scope::Models]).await?;
+        }
+        Ok(())
     }
 
     /// Add discovered names to a provider's catalog. Names it already offers
