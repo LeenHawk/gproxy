@@ -32,7 +32,7 @@ RUN curl -fsSL --retry 5 --retry-all-errors \
 FROM base AS upx
 RUN git init /tmp/upx \
     && git -C /tmp/upx remote add origin https://github.com/upx/upx.git \
-    && git -C /tmp/upx fetch --depth 1 origin b888ad87f5d7d8d890777b03d71f09d01a8eb902 \
+    && git -C /tmp/upx fetch --depth 1 origin b39171b1d215cd6427ff0f4939f0cadc316d17f2 \
     && git -C /tmp/upx checkout --detach FETCH_HEAD \
     && git -C /tmp/upx submodule update --init --recursive --depth 1 \
     && cmake -S /tmp/upx -B /tmp/upx/build -DCMAKE_BUILD_TYPE=Release -DUPX_CONFIG_DISABLE_WERROR=ON \

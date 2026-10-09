@@ -57,11 +57,7 @@ case "$TARGET_OS:$TARGET_TRIPLE" in
   windows:*)
     bash "$root/scripts/with-tauri-desktop-lib.sh" pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
     binary="$root/target/$TARGET_TRIPLE/release/gproxy-desktop.exe"
-    if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
-      upx --best --nrv2e "$binary"
-    else
-      upx --best --lzma "$binary"
-    fi
+    upx --best --lzma "$binary"
     upx --test "$binary"
     cd "$root"
     pwsh -NoProfile -File scripts/package-windows-msix.ps1 \

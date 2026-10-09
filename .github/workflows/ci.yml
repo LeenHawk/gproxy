@@ -284,11 +284,7 @@ jobs:
         run: |
           config="$(jq -cn --arg version "$GPROXY_BUILD_VERSION" '{version:$version}')"
           pnpm --dir crates/gproxy-host-tauri exec tauri build --ci --target "$TARGET" --no-bundle --config "$config" -- --locked
-          if [ "$TARGET" = aarch64-pc-windows-msvc ]; then
-            upx --best --nrv2e "target/$TARGET/release/gproxy-desktop.exe"
-          else
-            upx --best --lzma "target/$TARGET/release/gproxy-desktop.exe"
-          fi
+          upx --best --lzma "target/$TARGET/release/gproxy-desktop.exe"
           upx --test "target/$TARGET/release/gproxy-desktop.exe"
       - name: Validate application Store packaging
         if: ${{ !contains(steps.version.outputs.version, '-') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}

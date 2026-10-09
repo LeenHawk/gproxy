@@ -48,7 +48,7 @@ if ($Mode -eq 'cli') {
     if ($target -eq 'x86_64-pc-windows-msvc') {
         & scripts/pack-windows-cli.ps1 -Target $target
     } else {
-        Run-Checked upx @('--best', '--nrv2e', "target/$target/release/gproxy.exe")
+        Run-Checked upx @('--best', '--lzma', "target/$target/release/gproxy.exe")
         Run-Checked upx @('--test', "target/$target/release/gproxy.exe")
     }
     & scripts/package-native-release.ps1

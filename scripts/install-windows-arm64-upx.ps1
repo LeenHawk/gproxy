@@ -1,7 +1,8 @@
 # upx/upx#18927: protect the TLS index and decompress DLLs only on process attach.
+# upx/upx#18929: LZMA compression and the 0x52 filter for ARM64 PE files.
 # Pin the generated loader artifacts too, not just the ARM64 assembly source.
 $ErrorActionPreference = 'Stop'
-$revision = '079b95b2d16e8181e6099cb5a674e51d74332793'
+$revision = 'b39171b1d215cd6427ff0f4939f0cadc316d17f2'
 $source = Join-Path $env:RUNNER_TEMP 'gproxy-windows-arm64-upx'
 $hostArchitecture = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'ARM64' } else { 'x64' }
 # The Rust cache includes target/.tools. Keep the pinned native packer there

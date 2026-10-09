@@ -83,7 +83,7 @@ x64 CLI runs under Wine; the packed Wine check is informational because Wine
 can reject UPX loaders. The Windows packaging job requires both uncompressed
 and compressed x64 CLI executables to start successfully on Windows before
 publication.
-Windows ARM64 retains the patched UPX entry stub with fast NRV2E compression.
+Windows ARM64 uses an upstream UPX development revision with ARM64 PE LZMA support.
 macOS Mach-O is left uncompressed. Windows ARM64 execution and desktop GUI
 behavior are not exercised by these packaging checks.
 

@@ -106,9 +106,7 @@ case "$kind" in
       cp "$binary" "dist/container/$TARGET_TRIPLE/gproxy"
     fi
     if [ "$UPX_ENABLED" = true ]; then
-      args=(--best --lzma)
-      [ "$TARGET_TRIPLE" != aarch64-pc-windows-msvc ] || args=(--best --nrv2e)
-      upx "${args[@]}" "$binary"
+      upx --best --lzma "$binary"
       upx --test "$binary"
     fi
     if [ "$TARGET_OS" = macos ]; then codesign --force --sign - --timestamp=none "$binary"; fi
