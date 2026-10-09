@@ -383,6 +383,8 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
     };
     let created = call.now_ms.div_euclid(1000);
     let model = state.target.model.clone();
+    let (media, media_scope) = call.resources();
+    let resources = &call.generation_resources(&media, &media_scope);
 
     if candidate_count(client, body) >= 2 {
         let fanout_target = FanoutTarget {
@@ -397,12 +399,13 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
             ($pair:ty, $input:ty $(, |$index:ident| $ctx:expr)?) => {{
                 Box::pin(async move {
                     let input: $input = decode(body, limits)?;
-                    let mut fanout = Box::pin(<$pair>::prepare_stream(
+                    let mut fanout = Box::pin(<$pair>::prepare_stream_with_capabilities(
                         input,
                         fanout_target,
                         $(|$index: usize| $ctx,)?
                         settings,
                         state,
+                        resources,
                     ))
                     .await?;
                     if call.collect {
@@ -473,8 +476,8 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
             Box::pin(async move {
                 let $input_name: $input = decode(body, limits)?;
                 let context = $ctx;
-                let invocation = Box::pin(<$pair>::prepare_stream(
-                    $input_name, stream_target, context, settings, state,
+                let invocation = Box::pin(<$pair>::prepare_stream_with_capabilities(
+                    $input_name, stream_target, context, settings, state, resources,
                 ))
                 .await?;
                 run!(@start invocation)
@@ -484,8 +487,8 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
         ($pair:ty, $input:ty) => {{
             Box::pin(async move {
                 let input: $input = decode(body, limits)?;
-                let invocation = Box::pin(<$pair>::prepare_stream(
-                    input, stream_target, settings, state,
+                let invocation = Box::pin(<$pair>::prepare_stream_with_capabilities(
+                    input, stream_target, settings, state, resources,
                 ))
                 .await?;
                 run!(@start invocation)
@@ -961,6 +964,8 @@ async fn invoke_complete<C: BatchConnectionTrait + Send + Sync>(
     let identities = GenerationIdentity::new(namespace(), namespace(), client, target)?;
     let created = call.now_ms.div_euclid(1000);
     let synthesizing = matches!(completion, Completion::Synthesize { .. });
+    let (media, media_scope) = call.resources();
+    let resources = &call.generation_resources(&media, &media_scope);
 
     if candidate_count(client, body) >= 2 {
         let fanout_target = || FanoutTarget {
@@ -979,8 +984,10 @@ async fn invoke_complete<C: BatchConnectionTrait + Send + Sync>(
                 let fanout_target = fanout_target();
                 return Box::pin(async move {
                     let mut prepared =
-                        <$pair>::prepare(input, fanout_target, state $(, $extra)*)
-                            .await?;
+                        <$pair>::prepare_with_capabilities(
+                            input, fanout_target, state, resources $(, $extra)*
+                        )
+                        .await?;
                     let mut progress = FanoutProgress::default();
                     let converted = prepared
                         .invoke(upstream, &key, limits, state, &mut progress, $facts)
@@ -1044,12 +1051,14 @@ async fn invoke_complete<C: BatchConnectionTrait + Send + Sync>(
             // Boxed per pair to keep the dispatch frame small.
             Box::pin(async move {
                 let mut prepared = if synthesizing {
-                    <$pair>::prepare_for_stream_synthesis(
-                        input, endpoint, identities, state $(, $synth_extra)*
+                    <$pair>::prepare_for_stream_synthesis_with_capabilities(
+                        input, endpoint, identities, state, resources $(, $synth_extra)*
                     ).await?
                 } else {
-                    <$pair>::prepare_with_state(input, endpoint, identities, state $(, $extra)*)
-                        .await?
+                    <$pair>::prepare_with_capabilities(
+                        input, endpoint, identities, state, resources $(, $extra)*
+                    )
+                    .await?
                 };
                 let mut progress = GenerationProgress::default();
                 let outcome = prepared

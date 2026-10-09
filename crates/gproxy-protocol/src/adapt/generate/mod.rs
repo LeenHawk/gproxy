@@ -21,6 +21,6 @@ pub mod stream;
 mod transport;
 
 pub use crate::transform::generate::chat_responses::ToolCallKind;
-pub use resources::GenerationResources;
+pub use resources::{GenerationResources, reference_passes_through};
 pub use state::{ChatCallForm, GenerationStateAccess, GenerationToolReplay};
 pub use transport::{Endpoint, GenerationIdentity, GenerationOutcome, GenerationProgress};

@@ -190,6 +190,7 @@ fn identical_historical_fixtures_run_through_streaming_post_state_and_resource_c
                 limits: settings().codec,
                 max_references: 8,
                 now: UNIX_EPOCH,
+                target: Dialect::Gemini,
             };
             let access = access(&store, Dialect::Gemini);
             let prepared = ready(ChatViaGemini::prepare_stream_with_capabilities(

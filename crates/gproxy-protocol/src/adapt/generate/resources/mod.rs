@@ -6,6 +6,7 @@ mod claude;
 mod gemini;
 mod responses;
 use crate::{
+    Dialect,
     capability::{ResourceAccess, ResourceReference},
     codec::{self, CodecLimits},
     transform::{TransformError, TransformErrorKind},
@@ -19,10 +20,39 @@ pub struct GenerationResources<'a, R: ResourceAccess> {
     pub limits: CodecLimits,
     pub max_references: usize,
     pub now: SystemTime,
+    /// The dialect the request is converted into. A reference that dialect
+    /// reads as it stands is left in place rather than fetched.
+    pub target: Dialect,
+}
+
+/// Whether a media reference converted from `source` reaches `target` as a
+/// reference the upstream reads itself, so no bytes need fetching. Only
+/// URLs to dialects with a URL form for that media, and file IDs between the
+/// OpenAI dialects, survive conversion; every other reference is fetched.
+/// Tests pin this against what the direct transforms actually keep.
+pub fn reference_passes_through(
+    source: Dialect,
+    target: Dialect,
+    image: bool,
+    reference: &ResourceReference,
+) -> bool {
+    let target = target.pair_dialect();
+    match reference {
+        ResourceReference::Url(_) if image => target != Dialect::Gemini,
+        ResourceReference::Url(_) => matches!(target, Dialect::OpenAi | Dialect::Claude),
+        ResourceReference::Id(_) => {
+            !image
+                && source.family() == crate::WireFamily::OpenAi
+                && target.family() == crate::WireFamily::OpenAi
+        }
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
 }
 
 pub(super) struct Budget<'a, 'b, R: ResourceAccess> {
     ctx: &'a GenerationResources<'b, R>,
+    source: Dialect,
     remaining: u64,
     references: usize,
 }
@@ -40,9 +70,10 @@ impl Media {
 }
 
 impl<R: ResourceAccess> GenerationResources<'_, R> {
-    fn budget(&self) -> Budget<'_, '_, R> {
+    fn budget(&self, source: Dialect) -> Budget<'_, '_, R> {
         Budget {
             ctx: self,
+            source,
             remaining: self
                 .limits
                 .max_body_bytes
@@ -53,11 +84,15 @@ impl<R: ResourceAccess> GenerationResources<'_, R> {
 }
 
 impl<R: ResourceAccess> Budget<'_, '_, R> {
+    /// Fetch a reference the target cannot read, or `None` to leave it.
     async fn read(
         &mut self,
         reference: ResourceReference,
         image: bool,
-    ) -> Result<Media, TransformError> {
+    ) -> Result<Option<Media>, TransformError> {
+        if reference_passes_through(self.source, self.ctx.target, image, &reference) {
+            return Ok(None);
+        }
         if self.references >= self.ctx.max_references || self.remaining == 0 {
             return Err(limit());
         }
@@ -128,11 +163,11 @@ impl<R: ResourceAccess> Budget<'_, '_, R> {
                 "image bytes differ from MIME",
             ));
         }
-        Ok(Media {
+        Ok(Some(Media {
             bytes,
             mime,
             filename: result.metadata.filename,
-        })
+        }))
     }
 }
 

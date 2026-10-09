@@ -1,10 +1,12 @@
 //! One conversion call: everything a family driver needs, assembled by the
 //! attempt loop once per attempt.
 
-use crate::{AttemptUpstream, Core, ProtocolState, StateScope};
+use crate::{
+    AttemptUpstream, Core, ExecutionTarget, ProtocolState, ResourceScope, Resources, StateScope,
+};
 use gproxy_protocol::{
     Dialect, HttpBody, OperationKey, WireRequest, WireResponse,
-    adapt::generate::GenerationStateAccess,
+    adapt::generate::{GenerationResources, GenerationStateAccess},
     codec::CodecLimits,
     connection::{ByteStream, HeaderMap},
     transform::{TransformError, identity::IdentityTarget},
@@ -14,6 +16,10 @@ use std::time::{Duration, SystemTime};
 
 /// How long continuation state written for a conversion stays valid.
 pub(super) const STATE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// How many foreign media references one generation request may have
+/// fetched. Their bytes are bounded separately by the body and read limits.
+const MAX_GENERATION_REFERENCES: usize = 16;
 
 /// The client's request as a conversion family reads it: the addressing parts
 /// plus the already-buffered body.
@@ -88,6 +94,45 @@ impl<'a, C: BatchConnectionTrait + Send + Sync> Call<'a, C> {
     pub fn model(&self) -> Result<&'a str, TransformError> {
         self.model
             .ok_or_else(|| TransformError::missing_metadata("upstream_model"))
+    }
+
+    /// Resource access in this caller's scope, bound to the attempt's
+    /// provider and credentials.
+    pub fn resources(&self) -> (Resources<'a, C>, ResourceScope) {
+        let target = &self.upstream.attempt().request.target;
+        (
+            Resources::new(
+                self.core,
+                gproxy_protocol::capability::Upstream::limits(self.upstream),
+                self.limits,
+            ),
+            ResourceScope {
+                scope: self.state_scope.scope.clone(),
+                target: ExecutionTarget {
+                    requested_model: None,
+                    provider: target.provider.clone(),
+                    upstream_model: target.upstream_model.clone(),
+                    credentials: target.credentials.clone(),
+                },
+            },
+        )
+    }
+
+    /// Fetches the media references of a generation request that the target
+    /// dialect cannot read itself; see `reference_passes_through`.
+    pub fn generation_resources<'r>(
+        &self,
+        access: &'r Resources<'a, C>,
+        scope: &'r ResourceScope,
+    ) -> GenerationResources<'r, Resources<'a, C>> {
+        GenerationResources {
+            access,
+            scope,
+            limits: self.limits,
+            max_references: MAX_GENERATION_REFERENCES,
+            now: self.now(),
+            target: self.target,
+        }
     }
 
     /// Continuation state bound to this scope, upstream and model.

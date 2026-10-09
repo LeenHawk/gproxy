@@ -14,6 +14,7 @@ fn image_resources(
         limits: settings().codec,
         max_references,
         now: UNIX_EPOCH,
+        target: Dialect::OpenAi,
     }
 }
 fn image_feed() -> Feed {

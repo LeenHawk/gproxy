@@ -19,14 +19,14 @@
 //!   operations are refused.
 
 use super::{Call, Converted};
-use crate::{ExecutionTarget, ResourceScope, Resources, StateScope};
+use crate::StateScope;
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     adapt::{
         JsonInvocation,
         video::{self as adapt, VideoBinding, VideoJobState, VideoLimits, VideoProgress},
     },
-    capability::{StateStore, Upstream},
+    capability::StateStore,
     codec::{CodecError, CodecErrorKind, CodecLimits, decode_json, encode_json},
     transform::{
         TransformError, TransformErrorKind,
@@ -146,24 +146,6 @@ async fn load_job<C: BatchConnectionTrait + Send + Sync>(
         .ok_or_else(|| TransformError::missing_metadata("video.job_state"))?;
     decode_json(&entry.payload, call.limits)
         .map_err(|e| TransformError::invalid_result("video.state", e.to_string()))
-}
-
-fn resources<'a, C: BatchConnectionTrait + Send + Sync>(
-    call: &Call<'a, C>,
-) -> (Resources<'a, C>, ResourceScope) {
-    let target = &call.upstream.attempt().request.target;
-    (
-        Resources::new(call.core, call.upstream.limits(), call.limits),
-        ResourceScope {
-            scope: call.state_scope.scope.clone(),
-            target: ExecutionTarget {
-                requested_model: None,
-                provider: target.provider.clone(),
-                upstream_model: target.upstream_model.clone(),
-                credentials: target.credentials.clone(),
-            },
-        },
-    )
 }
 
 /// What the client sees as stable job facts. Veo reports none of Sora's
@@ -304,7 +286,7 @@ async fn create<C: BatchConnectionTrait + Send + Sync>(
             .strip_prefix("models/")
             .unwrap_or(&binding.model)
     );
-    let (resources, resource_scope) = resources(call);
+    let (resources, resource_scope) = call.resources();
     let scope = job_scope(call);
     let key = OperationKey {
         operation: Operation::CreateVideo,
@@ -389,7 +371,7 @@ async fn content<C: BatchConnectionTrait + Send + Sync>(
     let id = client_id(call, true)?;
     let scope = job_scope(call);
     let state = load_job(call, &scope, &id).await?;
-    let (resources, resource_scope) = resources(call);
+    let (resources, resource_scope) = call.resources();
     let read = adapt::native_content(
         &resources,
         &resource_scope,

@@ -7,7 +7,7 @@ impl<R: ResourceAccess> GenerationResources<'_, R> {
         input: r::GenerateContentRequestBody,
     ) -> Result<r::GenerateContentRequestBody, TransformError> {
         let mut input = input.into_declared();
-        let mut budget = self.budget();
+        let mut budget = self.budget(crate::Dialect::OpenAi);
         if let Some(r::Input::Items(items)) = &mut input.input {
             for item in items {
                 match item {
@@ -67,7 +67,9 @@ impl<R: ResourceAccess> Budget<'_, '_, R> {
                 } else {
                     return Ok(());
                 };
-                let media = self.read(reference, true).await?;
+                let Some(media) = self.read(reference, true).await? else {
+                    return Ok(());
+                };
                 image.image_url = Some(Some(media.data_uri()));
                 image.file_id = None;
             }
@@ -91,7 +93,9 @@ impl<R: ResourceAccess> Budget<'_, '_, R> {
                 } else {
                     return Ok(());
                 };
-                let media = self.read(reference, false).await?;
+                let Some(media) = self.read(reference, false).await? else {
+                    return Ok(());
+                };
                 file.file_data = Some(media.data_uri());
                 file.file_id = None;
                 file.file_url = None;
@@ -130,7 +134,9 @@ impl<R: ResourceAccess> Budget<'_, '_, R> {
                 } else {
                     return Ok(());
                 };
-                let media = self.read(reference, true).await?;
+                let Some(media) = self.read(reference, true).await? else {
+                    return Ok(());
+                };
                 image.image_url = Some(Some(media.data_uri()));
                 image.file_id = None;
             }
@@ -155,7 +161,9 @@ impl<R: ResourceAccess> Budget<'_, '_, R> {
                 } else {
                     return Ok(());
                 };
-                let media = self.read(reference, false).await?;
+                let Some(media) = self.read(reference, false).await? else {
+                    return Ok(());
+                };
                 file.file_data = Some(Some(media.data_uri()));
                 file.file_id = None;
                 file.file_url = None;

@@ -456,13 +456,12 @@ struct Resources {
     length: Option<u64>,
 }
 impl Resources {
-    fn png() -> Self {
-        use base64::Engine;
-        let bytes:bytes::Bytes=base64::engine::general_purpose::STANDARD.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC").unwrap().into();
+    fn pdf() -> Self {
+        let bytes = bytes::Bytes::from_static(b"%PDF-1.4\n%%EOF\n");
         Self {
             length: Some(bytes.len() as u64),
             bytes,
-            mime: "image/png".into(),
+            mime: "application/pdf".into(),
             reads: Default::default(),
         }
     }
@@ -541,18 +540,21 @@ fn resources<'a>(access: &'a Resources, scope: &'a String) -> GenerationResource
         limits: codec_limits(),
         max_references: 8,
         now: std::time::UNIX_EPOCH,
+        target: Dialect::Claude,
     }
 }
 
 #[test]
-fn materializes_foreign_image_once_before_all_child_posts() {
+fn materializes_foreign_file_once_before_all_child_posts() {
     let store = Store::default();
     let state = state(&store, Dialect::Claude);
-    let access = Resources::png();
+    let access = Resources::pdf();
     let scope = "client".to_string();
     let resources = resources(&access, &scope);
     let mut input = serde_json::to_value(chat_input()).unwrap();
-    input["messages"] = json!([{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://foreign/image.png"}}]}]);
+    // Claude reads an image URL itself; an OpenAI file ID must be fetched.
+    input["messages"] =
+        json!([{"role":"user","content":[{"type":"file","file":{"file_id":"file-foreign"}}]}]);
     let mut p = ready(ChatViaClaudeFanout::prepare_with_capabilities(
         serde_json::from_value(input).unwrap(),
         setup(Dialect::OpenAiChat, Dialect::Claude),
@@ -579,7 +581,9 @@ fn materializes_foreign_image_once_before_all_child_posts() {
             panic!()
         };
         let v: Value = serde_json::from_slice(bytes).unwrap();
-        assert_eq!(v["messages"][0]["content"][0]["source"]["type"], "base64");
+        let block = &v["messages"][0]["content"][0];
+        assert_eq!(block["type"], "document");
+        assert_eq!(block["source"]["type"], "base64");
     }
 }
 #[test]

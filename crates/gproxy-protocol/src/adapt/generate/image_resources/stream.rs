@@ -114,6 +114,7 @@ impl<H> ImageStreamProgress<H> {
                 limits,
                 max_references: resources.max_references.saturating_sub(used_reads),
                 now: resources.now,
+                target: resources.target,
             };
             let event = self.source.entry(self.source_index).or_default();
             let value = event.materialize(input, &bound).await?;
@@ -188,6 +189,7 @@ impl<H> ImageStreamProgress<H> {
                 limits,
                 max_references: resources.max_references.saturating_sub(used_count),
                 now: resources.now,
+                target: resources.target,
             };
             let value = self
                 .client
