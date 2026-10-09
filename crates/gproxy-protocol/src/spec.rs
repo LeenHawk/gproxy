@@ -35,606 +35,104 @@ pub struct OperationSpec {
     pub transport: OperationTransport,
 }
 
+const SSE: HttpBodyFormat = HttpBodyFormat::JsonStream(StreamFraming::Sse);
+const JSON_ARRAY: HttpBodyFormat = HttpBodyFormat::JsonStream(StreamFraming::JsonArray);
+
+const fn http(
+    operation: Operation,
+    dialect: Dialect,
+    request: &'static [HttpBodyFormat],
+    response: &'static [HttpBodyFormat],
+) -> OperationSpec {
+    OperationSpec {
+        key: OperationKey { operation, dialect },
+        transport: OperationTransport::Http { request, response },
+    }
+}
+
+const fn websocket(operation: Operation, dialect: Dialect) -> OperationSpec {
+    OperationSpec {
+        key: OperationKey { operation, dialect },
+        transport: OperationTransport::WebSocket,
+    }
+}
+
 /// Format alternatives describe the modelled wire surfaces, not runtime
 /// capabilities or default selection. Headers/query choose a format; ordering
 /// here does not imply a default or infer boundaries from transport chunks.
-pub const OPERATION_SPECS: &[OperationSpec] = &[
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::ListModels,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::ListModels,
-            dialect: Dialect::Claude,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::ListModels,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::GetModel,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::GetModel,
-            dialect: Dialect::Claude,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::GetModel,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CountTokens,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CountTokens,
-            dialect: Dialect::Claude,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CountTokens,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::GenerateContent,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::GenerateContent,
-            dialect: Dialect::Claude,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::GenerateContent,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::GenerateContent,
-            dialect: Dialect::OpenAiChat,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::StreamGenerateContent,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::JsonStream(StreamFraming::Sse)],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::StreamGenerateContent,
-            dialect: Dialect::Claude,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::JsonStream(StreamFraming::Sse)],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::StreamGenerateContent,
-            dialect: Dialect::OpenAiChat,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::JsonStream(StreamFraming::Sse)],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::StreamGenerateContent,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[
-                HttpBodyFormat::JsonStream(StreamFraming::Sse),
-                HttpBodyFormat::JsonStream(StreamFraming::JsonArray),
-            ],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateModeration,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateDecision,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::GuardianReview,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::JsonStream(StreamFraming::Sse)],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::GuardianClassify,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::JsonStream(StreamFraming::Sse)],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CompactContent,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::SummarizeMemory,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateConversation,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::WebSearch,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::Rerank,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateEmbedding,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateEmbedding,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::BatchCreateEmbedding,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateImage,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[
-                HttpBodyFormat::Json,
-                HttpBodyFormat::JsonStream(StreamFraming::Sse),
-            ],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::EditImage,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json, HttpBodyFormat::Multipart],
-            response: &[
-                HttpBodyFormat::Json,
-                HttpBodyFormat::JsonStream(StreamFraming::Sse),
-            ],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateSpeech,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json],
-            response: &[
-                HttpBodyFormat::Binary,
-                HttpBodyFormat::JsonStream(StreamFraming::Sse),
-            ],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateTranscription,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Multipart],
-            response: &[
-                HttpBodyFormat::Json,
-                HttpBodyFormat::Text,
-                HttpBodyFormat::JsonStream(StreamFraming::Sse),
-            ],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateTranslation,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Multipart],
-            response: &[HttpBodyFormat::Json, HttpBodyFormat::Text],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateFile,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Multipart],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateFile,
-            dialect: Dialect::Claude,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Multipart],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateFile,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::Http {
-            request: &[
-                HttpBodyFormat::Multipart,
-                HttpBodyFormat::Json,
-                HttpBodyFormat::Binary,
-            ],
-            response: &[HttpBodyFormat::Json, HttpBodyFormat::Empty],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::ListFiles,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::ListFiles,
-            dialect: Dialect::Claude,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::ListFiles,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::RetrieveFile,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::RetrieveFile,
-            dialect: Dialect::Claude,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::RetrieveFile,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::RetrieveFileContent,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Binary],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::RetrieveFileContent,
-            dialect: Dialect::Claude,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Binary],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::RetrieveFileContent,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Binary],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::DeleteFile,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::DeleteFile,
-            dialect: Dialect::Claude,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::DeleteFile,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateVideo,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Json, HttpBodyFormat::Multipart],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::RetrieveVideo,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::ListVideos,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::DeleteVideo,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Json],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::DownloadVideoContent,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Empty],
-            response: &[HttpBodyFormat::Binary],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::CreateRealtimeCall,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::Http {
-            request: &[HttpBodyFormat::Multipart],
-            response: &[HttpBodyFormat::Text],
-        },
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::GenerateContent,
-            dialect: Dialect::OpenAiResponsesWebSocket,
-        },
-        transport: OperationTransport::WebSocket,
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::StreamGenerateContent,
-            dialect: Dialect::OpenAiResponsesWebSocket,
-        },
-        transport: OperationTransport::WebSocket,
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::ConnectRealtime,
-            dialect: Dialect::OpenAi,
-        },
-        transport: OperationTransport::WebSocket,
-    },
-    OperationSpec {
-        key: OperationKey {
-            operation: Operation::ConnectRealtime,
-            dialect: Dialect::Gemini,
-        },
-        transport: OperationTransport::WebSocket,
-    },
-];
+pub const OPERATION_SPECS: &[OperationSpec] = {
+    use Dialect::*;
+    use HttpBodyFormat::*;
+    use Operation::*;
+    &[
+        http(ListModels, OpenAi, &[Empty], &[Json]),
+        http(ListModels, Claude, &[Empty], &[Json]),
+        http(ListModels, Gemini, &[Empty], &[Json]),
+        http(GetModel, OpenAi, &[Empty], &[Json]),
+        http(GetModel, Claude, &[Empty], &[Json]),
+        http(GetModel, Gemini, &[Empty], &[Json]),
+        http(CountTokens, OpenAi, &[Json], &[Json]),
+        http(CountTokens, Claude, &[Json], &[Json]),
+        http(CountTokens, Gemini, &[Json], &[Json]),
+        http(GenerateContent, OpenAi, &[Json], &[Json]),
+        http(GenerateContent, Claude, &[Json], &[Json]),
+        http(GenerateContent, Gemini, &[Json], &[Json]),
+        http(GenerateContent, OpenAiChat, &[Json], &[Json]),
+        http(StreamGenerateContent, OpenAi, &[Json], &[SSE]),
+        http(StreamGenerateContent, Claude, &[Json], &[SSE]),
+        http(StreamGenerateContent, OpenAiChat, &[Json], &[SSE]),
+        http(StreamGenerateContent, Gemini, &[Json], &[SSE, JSON_ARRAY]),
+        http(CreateModeration, OpenAi, &[Json], &[Json]),
+        http(CreateDecision, OpenAi, &[Json], &[Json]),
+        http(GuardianReview, OpenAi, &[Json], &[SSE]),
+        http(GuardianClassify, OpenAi, &[Json], &[SSE]),
+        http(CompactContent, OpenAi, &[Json], &[Json]),
+        http(SummarizeMemory, OpenAi, &[Json], &[Json]),
+        http(CreateConversation, OpenAi, &[Json], &[Json]),
+        http(WebSearch, OpenAi, &[Json], &[Json]),
+        http(Rerank, OpenAi, &[Json], &[Json]),
+        http(CreateEmbedding, OpenAi, &[Json], &[Json]),
+        http(CreateEmbedding, Gemini, &[Json], &[Json]),
+        http(BatchCreateEmbedding, Gemini, &[Json], &[Json]),
+        http(CreateImage, OpenAi, &[Json], &[Json, SSE]),
+        http(EditImage, OpenAi, &[Json, Multipart], &[Json, SSE]),
+        http(CreateSpeech, OpenAi, &[Json], &[Binary, SSE]),
+        http(
+            CreateTranscription,
+            OpenAi,
+            &[Multipart],
+            &[Json, Text, SSE],
+        ),
+        http(CreateTranslation, OpenAi, &[Multipart], &[Json, Text]),
+        http(CreateFile, OpenAi, &[Multipart], &[Json]),
+        http(CreateFile, Claude, &[Multipart], &[Json]),
+        http(
+            CreateFile,
+            Gemini,
+            &[Multipart, Json, Binary],
+            &[Json, Empty],
+        ),
+        http(ListFiles, OpenAi, &[Empty], &[Json]),
+        http(ListFiles, Claude, &[Empty], &[Json]),
+        http(ListFiles, Gemini, &[Empty], &[Json]),
+        http(RetrieveFile, OpenAi, &[Empty], &[Json]),
+        http(RetrieveFile, Claude, &[Empty], &[Json]),
+        http(RetrieveFile, Gemini, &[Empty], &[Json]),
+        http(RetrieveFileContent, OpenAi, &[Empty], &[Binary]),
+        http(RetrieveFileContent, Claude, &[Empty], &[Binary]),
+        http(RetrieveFileContent, Gemini, &[Empty], &[Binary]),
+        http(DeleteFile, OpenAi, &[Empty], &[Json]),
+        http(DeleteFile, Claude, &[Empty], &[Json]),
+        http(DeleteFile, Gemini, &[Empty], &[Json]),
+        http(CreateVideo, OpenAi, &[Json, Multipart], &[Json]),
+        http(RetrieveVideo, OpenAi, &[Empty], &[Json]),
+        http(ListVideos, OpenAi, &[Empty], &[Json]),
+        http(DeleteVideo, OpenAi, &[Empty], &[Json]),
+        http(DownloadVideoContent, OpenAi, &[Empty], &[Binary]),
+        http(CreateRealtimeCall, OpenAi, &[Multipart], &[Text]),
+        websocket(GenerateContent, OpenAiResponsesWebSocket),
+        websocket(StreamGenerateContent, OpenAiResponsesWebSocket),
+        websocket(ConnectRealtime, OpenAi),
+        websocket(ConnectRealtime, Gemini),
+    ]
+};
