@@ -52,6 +52,8 @@ After a failure, old tables remain under archive names and new tables may contai
 | Usage history (SQLite import) | Imported in bounded batches with original token counts, attribution and settled costs; no repricing or quota settlement. Extra v3 fields remain in `metrics.v3`. |
 | Captures, request logs, sessions and audit history | Retained in the v3 backup. Existing browser sessions need a fresh login. |
 
+Team and organization permissions expand into user rules for each imported member, including disabled users. The report lists every resulting rule; groups without imported members are reported as skipped. These rules capture membership at migration time: later membership changes do not update them. This fix applies to new v3 imports and does not restore permissions lost in an already completed upgrade.
+
 Providers with no translatable channel/configuration are left behind together with
 their dependent rows, with an explicit report. This does not ignore database I/O
 errors or incorrect encryption keys. Review the startup report for channel-specific
