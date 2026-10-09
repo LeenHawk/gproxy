@@ -233,7 +233,18 @@ pub fn gemini_to_openai_request(
     let target_model = non_empty(target_model, "target_model")?;
     let source_veo_request = input.clone();
 
-    let instance = input.instances.into_iter().next().expect("length checked");
+    let mut report = Report::default();
+    if input.instances.len() > 1 {
+        report.omitted(
+            "instances",
+            "OpenAI creates one video per request; only the first instance is mapped",
+        );
+    }
+    let instance = input
+        .instances
+        .into_iter()
+        .next()
+        .ok_or_else(|| TransformError::shape("instances", "one video instance is required"))?;
     let mut frame_images = Vec::new();
     if let Some(image) = instance.image {
         frame_images.push(frame_from_resource(
@@ -318,7 +329,7 @@ pub fn gemini_to_openai_request(
                 source_veo_request: Some(source_veo_request),
             },
         },
-        report: Report::default(),
+        report,
     })
 }
 

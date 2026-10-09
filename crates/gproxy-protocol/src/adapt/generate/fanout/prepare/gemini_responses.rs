@@ -18,8 +18,7 @@ impl GeminiViaResponsesFanout {
             .unwrap_or(1);
         input
             .generation_config
-            .as_mut()
-            .expect("count set")
+            .get_or_insert_with(|| g::GenerationConfig::builder().build())
             .candidate_count = Some(1);
         let mut children = Vec::new();
         for index in 0..count {

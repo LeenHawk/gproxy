@@ -325,6 +325,33 @@ fn four_typed_fanouts_execute_real_posts_order_candidates_and_sum_actual_charges
     assert_eq!(out.usage_metadata.unwrap().total_token_count, Some(12));
     assert_sends(&host);
 }
+#[test]
+fn gemini_fanout_without_generation_config_prepares_a_single_child() {
+    let mut body = input("g");
+    body.as_object_mut().unwrap().remove("generationConfig");
+    let body: gproxy_protocol::wire::gemini::GenerateContentRequestBody =
+        serde_json::from_value(body).unwrap();
+    let store = Store::default();
+    let state = state_fn(&store, Dialect::Claude);
+    assert!(
+        ready(GeminiViaClaudeFanout::prepare(
+            body.clone(),
+            setup(Dialect::Gemini, Dialect::Claude),
+            &state,
+            Some(64),
+        ))
+        .is_ok()
+    );
+    let state = state_fn(&store, Dialect::OpenAi);
+    assert!(
+        ready(GeminiViaResponsesFanout::prepare(
+            body,
+            setup(Dialect::Gemini, Dialect::OpenAi),
+            &state,
+        ))
+        .is_ok()
+    );
+}
 fn state_fn(store: &Store, dialect: Dialect) -> GenerationStateAccess<'_, Store> {
     state(store, dialect)
 }

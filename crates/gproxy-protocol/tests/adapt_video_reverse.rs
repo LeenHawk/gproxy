@@ -1153,3 +1153,41 @@ fn reverse_state_expires_no_earlier_than_its_publications() {
         }
     }
 }
+#[test]
+fn stored_child_without_its_source_instance_is_rejected_on_resume() {
+    let host = host(vec![native("a", "queued")]);
+    let resources = Resources::default();
+    let store = store();
+    let exp = expiry();
+    let mut p = ReverseVideoProgress::default();
+    create(
+        &host,
+        &resources,
+        &store,
+        input(1, 1),
+        ReverseVideoKind::Native,
+        exp,
+        &mut p,
+    )
+    .unwrap();
+    {
+        let mut entry = store.entry.lock().unwrap();
+        let entry = entry.as_mut().unwrap();
+        let mut state: Value = serde_json::from_slice(&entry.payload).unwrap();
+        state["children"][0]["source"]["instances"] = json!([]);
+        entry.payload = serde_json::to_vec(&state).unwrap().into();
+    }
+    let error = resume(
+        &host,
+        &resources,
+        &store,
+        ReverseVideoKind::Native,
+        exp,
+        &mut ReverseVideoProgress::default(),
+    )
+    .unwrap_err();
+    assert_eq!(
+        error.kind(),
+        gproxy_protocol::transform::TransformErrorKind::InvalidResult
+    );
+}
