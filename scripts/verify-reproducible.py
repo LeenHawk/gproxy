@@ -25,6 +25,8 @@ def expected_packages():
             names.add(cli + ".apk")
         if headless := row.get("headless_artifact"):
             names.add(headless + ".zip")
+            if row["os"] == "android":
+                names.add(headless + ".deb")
             if row["target"].endswith("-linux-musl"):
                 names.add(headless + ".apk")
         if app := row.get("application_artifact"):

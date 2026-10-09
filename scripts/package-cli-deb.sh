@@ -17,6 +17,12 @@ if [ "$TARGET_OS" = android ]; then
         "$root/data/data/com.termux/files/usr/bin/gproxy"
     installed_size="$(du -sk --exclude=DEBIAN "$root" | cut -f1)"
     sed -i "s/^Installed-Size:.*/Installed-Size: $installed_size/" "$root/DEBIAN/control"
+    if [ "${GPROXY_HEADLESS:-false}" = true ]; then
+        # Same `gproxy` command as the full package, so install one or the other.
+        sed -i 's/^Package: gproxy$/Package: gproxy-headless/' "$root/DEBIAN/control"
+        printf 'Conflicts: gproxy\nProvides: gproxy\n' >> "$root/DEBIAN/control"
+        grep -qx 'Package: gproxy-headless' "$root/DEBIAN/control"
+    fi
     python3 scripts/reproducible-env.py --normalize-tree "$root"
     dpkg-deb --root-owner-group --build "$root" "$output/$ARTIFACT_NAME.deb"
     (cd "$output" && sha256sum "$ARTIFACT_NAME.deb" > "$ARTIFACT_NAME.deb.sha256")

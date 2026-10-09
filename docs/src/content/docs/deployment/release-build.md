@@ -108,7 +108,7 @@ PostgreSQL, MySQL, Redis, and S3 require `postgres`, `mysql`, `redis`, and `s3` 
 
 ### Headless CLI for CI
 
-The Release workflow builds headless ZIP packages independently of the frontend:
+The Release workflow builds headless packages independently of the frontend:
 
 | Platform | Architectures | Package |
 | --- | --- | --- |
@@ -116,12 +116,15 @@ The Release workflow builds headless ZIP packages independently of the frontend:
 | Linux musl | x86_64, aarch64, riscv64 | `gproxy-headless-linux-<arch>-musl.zip`, `gproxy-headless-linux-<arch>-musl.apk` |
 | Windows | x86_64, aarch64 | `gproxy-headless-windows-<arch>.zip` |
 | macOS | x86_64, aarch64 | `gproxy-headless-macos-<arch>.zip` |
-| Android (Termux) | x86_64, aarch64 | `gproxy-headless-android-<arch>.zip` |
+| Android (Termux) | x86_64, aarch64 | `gproxy-headless-android-<arch>.zip`, `gproxy-headless-android-<arch>.deb` |
 
 Download from [Releases](https://github.com/LeenHawk/gproxy/releases): `nightly`
 for dev, `staging` for beta, or a stable version. Self-update selects the matching
-headless package. On Android, run `pkg install libc++ openssl ca-certificates`,
-extract the ZIP under Termux's home directory, then run `./gproxy serve --console=false`.
+headless package. On Android, install the Termux package with
+`pkg install ./gproxy-headless-android-<arch>.deb` and run `gproxy serve --console=false`.
+It replaces the full `gproxy` package, as both provide the `gproxy` command. To use
+the ZIP instead, run `pkg install libc++ openssl ca-certificates`, extract it under
+Termux's home directory, then run `./gproxy serve --console=false`.
 On Windows, use `gproxy.exe` in place of `gproxy`.
 
 This variant excludes the bundled Web console and retains proxy routes,

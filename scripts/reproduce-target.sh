@@ -83,6 +83,7 @@ case "$kind" in
     if [ "$kind" = headless ]; then
       export ARTIFACT_NAME="$(jq -r --arg target "$TARGET_TRIPLE" '.include[] | select(.target==$target) | .headless_artifact' scripts/release-targets.json)"
       export GPROXY_HEADLESS=true PACKAGE_INSTALLERS=false
+      [ "$TARGET_OS" != android ] || PACKAGE_INSTALLERS=true
       features=(--locked --no-default-features --features channels,memory,fs,bundled-vocabulary)
     fi
     case "$BUILDER" in

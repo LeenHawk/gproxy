@@ -873,7 +873,8 @@ jobs:
       - name: Package Unix archive
         if: matrix.os != 'windows'
         env:
-          PACKAGE_INSTALLERS: 'false'
+          # Android also gets a Termux .deb; other headless installers are separate.
+          PACKAGE_INSTALLERS: ${{ matrix.os == 'android' }}
         run: bash scripts/package-native-release.sh
       - name: Package and sign Windows release
         if: matrix.os == 'windows'
