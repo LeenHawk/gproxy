@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.gradle.process.ExecOperations
 import com.android.build.gradle.internal.tasks.R8Task
 import com.google.gson.Gson
 import com.google.gson.JsonParser
@@ -25,7 +26,33 @@ require(distribution in listOf("direct", "fdroid", "google-play", "appgallery"))
 val selfUpdate = distribution == "direct"
 val privacyDir = rootProject.file("../../../../distribution/mobile/privacy")
 
+// Wry 0.57 generates deprecated WebSQL and back-navigation calls. Compile
+// corrected copies without editing Cargo's generated inputs (which would
+// invalidate Wry's build script on every subsequent build).
+val wryPackagePath = "com/leenhawk/gproxy/desktop/generated"
+val prepareWrySources = tasks.register<Sync>("prepareWrySources") {
+    filteringCharset = "UTF-8"
+    from(layout.projectDirectory.dir("src/main/java/$wryPackagePath")) {
+        include("*.kt")
+        filter { line: String ->
+            when (line.trim()) {
+                "settings.databaseEnabled = true" -> "" // WebSQL; DOM storage stays enabled.
+                "this@WryActivity.onBackPressed()" ->
+                    line.replace(".onBackPressed()", ".onBackPressedDispatcher.onBackPressed()")
+                else -> line
+            }
+        }
+    }
+    into(layout.buildDirectory.dir("generated/wry"))
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    dependsOn(prepareWrySources)
+    exclude("$wryPackagePath/**")
+}
+
 android {
+    sourceSets.getByName("main").java.srcDir(layout.buildDirectory.dir("generated/wry"))
     compileSdk = 36
     buildToolsVersion = "36.1.0"
     ndkVersion = "30.0.15729638"
@@ -78,9 +105,6 @@ android {
         }
         buildTypes.getByName("release").signingConfig = upload
     }
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
     buildFeatures {
         buildConfig = true
     }
@@ -116,6 +140,13 @@ androidComponents {
     }
 }
 
+val execOperations = objects.newInstance<AndroidExecServices>().execOperations
+
+abstract class AndroidExecServices {
+    @get:javax.inject.Inject
+    abstract val execOperations: ExecOperations
+}
+
 // Pack the staged libraries after AGP's strip step, before APK/AAB assembly
 // and signing. Applying this to the native task covers every release channel.
 val nativePacker = rootProject.file("../../../../scripts/pack-mobile-native.py")
@@ -130,7 +161,7 @@ tasks.configureEach {
                 include("*/bin/llvm-strip")
             }.singleFile
             outputs.files.files.filter { it.isDirectory }.forEach { directory ->
-                project.exec {
+                execOperations.exec {
                     commandLine("python3", nativePacker.absolutePath,
                         directory.absolutePath, strip.absolutePath, "--android")
                 }

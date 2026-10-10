@@ -1,4 +1,6 @@
 import java.io.File
+import javax.inject.Inject
+import org.gradle.process.ExecOperations
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
@@ -6,7 +8,7 @@ import org.gradle.api.logging.LogLevel
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskAction
 
-open class BuildTask : DefaultTask() {
+open class BuildTask @Inject constructor(private val execOperations: ExecOperations) : DefaultTask() {
     companion object {
         /// The Tauri CLI that Gradle calls back into to run `cargo build` for
         /// one Android ABI. Pinned in the crate's `package.json` rather than
@@ -75,7 +77,7 @@ open class BuildTask : DefaultTask() {
         // is the crate root, which is where `node_modules` is.
         val args = listOf(CLI_SCRIPT, "android", "android-studio-script");
 
-        project.exec {
+        execOperations.exec {
             workingDir(File(project.projectDir, rootDirRel))
             executable(executable)
             args(args)
