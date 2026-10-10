@@ -289,6 +289,15 @@ impl BaseChannel for Claudeapi {
                     .map_err(|_| invalid_config(format!("header `{name}`")))?,
             );
         }
+        // A key that is not scoped to one workspace must name it on every
+        // request. The workspace belongs to the key, so it outranks the
+        // provider-wide header.
+        if let Some(workspace) = api_key(ctx.credential.secret, "workspace_id") {
+            headers.insert(
+                HeaderName::from_static("anthropic-workspace-id"),
+                HeaderValue::from_str(workspace).map_err(|_| ChannelError::InvalidCredential)?,
+            );
+        }
         let mut builder = http::Request::builder().method(method).uri(uri);
         if let Some(map) = builder.headers_mut() {
             *map = headers;

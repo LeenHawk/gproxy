@@ -27,11 +27,12 @@
 //! which needs an Admin key; `secret.quota_api_key` holds it when the
 //! inference key is not one.
 //!
-//! The credential is `{"api_key": "...", "quota_api_key": "..."}`.
-//! Multi-workspace keys select a workspace with a static
-//! `headers.anthropic-workspace-id`; `allowed_headers` can explicitly delegate
-//! that choice to the caller. There is no login, no refresh and no client
-//! fingerprint to impersonate, so
+//! The credential is `{"api_key": "...", "quota_api_key": "...",
+//! "workspace_id": "..."}`. A key that is not scoped to one workspace must
+//! send `anthropic-workspace-id`; `workspace_id` sets it per key, ahead of a
+//! provider-wide `headers.anthropic-workspace-id`, and `allowed_headers` can
+//! explicitly delegate that choice to the caller. There is no login, no
+//! refresh and no client fingerprint to impersonate, so
 //! `default_connection` stays `None` and the host's own profile decides.
 
 mod config;

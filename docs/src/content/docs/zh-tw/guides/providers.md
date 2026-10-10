@@ -20,7 +20,7 @@ description: "選擇渠道、新增供應商與憑證，配置登入、額度查
 | `antigravity` | 經 Antigravity 編輯器所用的 Code Assist 主機訪問 Google 帳號 | OAuth |
 | `aws_bedrock` | AWS Bedrock：按模型選介面——Anthropic 模型走 `InvokeModel`（event-stream 翻成 Claude SSE），GPT、Grok、Qwen、DeepSeek 等走 OpenAI 相容的 Chat Completions | AWS 金鑰對，或 Bedrock API key |
 | `azure` | Azure OpenAI，以及 Azure AI Foundry 託管的 Anthropic 模型 | `{"api_key"}` |
-| `claudeapi` | Anthropic 官方 API，加上它的 OpenAI 相容層與成本報表 | `{"api_key", "quota_api_key"}` |
+| `claudeapi` | Anthropic 官方 API，加上它的 OpenAI 相容層與成本報表；未限定到單一 workspace 的金鑰必須填寫 `workspace_id` | `{"api_key", "quota_api_key"?, "workspace_id"?}` |
 | `claudecode` | 經 Claude Code CLI 的請求使用 Claude.ai 訂閱 | OAuth |
 | `claudeweb` | claude.ai 瀏覽器會話，渲染成 Claude Messages SSE | 會話 cookie + 組織 |
 | `cline` | Cline 自家帳號，`api.cline.bot` | `{"api_key"}` 或 OAuth |
