@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { unzipSync } from "fflate";
 
 // Pin the Worker and console together. Change this tag to upgrade the template.
-const version = "v4.1.4";
+const version = "v4.1.5";
 const asset = "gproxy-edge-cloudflare.zip";
 const base = `https://github.com/LeenHawk/gproxy/releases/download/${version}`;
 const root = fileURLToPath(new URL(".", import.meta.url));
