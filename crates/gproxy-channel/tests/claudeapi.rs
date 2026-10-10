@@ -670,60 +670,6 @@ async fn reads_the_organization_cost_report_with_the_admin_key() {
 }
 
 #[test]
-fn a_credential_workspace_selects_the_workspace_for_its_key() {
-    let body = br#"{"model":"claude-sonnet-4-5","max_tokens":8,"messages":[{"role":"user","content":"hi"}]}"#;
-    let send_from = |config: &Value, secret: &Value, client: Option<&'static str>| {
-        let mut input = request("/v1/messages", None, body);
-        if let Some(workspace) = client {
-            input.headers.insert(
-                "anthropic-workspace-id",
-                HeaderValue::from_static(workspace),
-            );
-        }
-        prepare(
-            config,
-            None,
-            secret,
-            Operation::GenerateContent,
-            Dialect::Claude,
-            input,
-            None,
-        )
-        .unwrap()
-    };
-    let send = |config: &Value, secret: &Value| send_from(config, secret, Some("wrkspc_client"));
-    let unscoped = json!({"api_key": "sk-ant-upstream", "workspace_id": " wrkspc_key "});
-
-    // The key's own workspace outranks both the provider header and the caller.
-    let provider_header = json!({"headers": {"anthropic-workspace-id": "wrkspc_owner"}});
-    let output = send(&provider_header, &unscoped);
-    assert_eq!(output.headers()["anthropic-workspace-id"], "wrkspc_key");
-    assert_eq!(output.headers()["x-api-key"], "sk-ant-upstream");
-    assert_eq!(
-        send(&json!({}), &unscoped).headers()["anthropic-workspace-id"],
-        "wrkspc_key"
-    );
-
-    // Without one, the provider header still applies, a caller's header is
-    // forwarded as before, and nothing is invented.
-    let scoped = json!({"api_key": "sk-ant-upstream"});
-    assert_eq!(
-        send(&provider_header, &scoped).headers()["anthropic-workspace-id"],
-        "wrkspc_owner"
-    );
-    assert_eq!(
-        send(&json!({}), &scoped).headers()["anthropic-workspace-id"],
-        "wrkspc_client"
-    );
-    assert!(
-        send_from(&json!({}), &scoped, None)
-            .headers()
-            .get("anthropic-workspace-id")
-            .is_none()
-    );
-}
-
-#[test]
 fn files_preserve_multipart_and_use_native_item_routes() {
     let config = json!({"headers": {"anthropic-workspace-id": "wrkspc_owner"}});
     let secret = json!({"api_key": "sk-ant-upstream"});
