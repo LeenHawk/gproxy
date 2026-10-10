@@ -54,3 +54,14 @@ runs:
         restore-key: ${{ inputs.restore-key }}
         token: ${{ inputs.token }}
         save: ${{ inputs.save }}
+    # Vendored OpenSSL records SOURCE_DATE_EPOCH as "built on", but Cargo does
+    # not rerun its build script when that changes. A restored build would
+    # keep an earlier commit's date, so release binaries would not reproduce.
+    - name: Rebuild vendored OpenSSL for this commit
+      shell: bash
+      run: |
+        target="${CARGO_TARGET_DIR:-target}"
+        if [ -d "$target" ]; then
+          find "$target" -type d \( -name 'openssl-sys-*' -o -name 'openssl-src-*' \) \
+            \( -path '*/build/*' -o -path '*/.fingerprint/*' \) -prune -exec rm -rf {} +
+        fi
