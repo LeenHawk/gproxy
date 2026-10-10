@@ -25,7 +25,7 @@ MySQL 需要 8.0.13 或更新版本，以支持 JSON 列的默认表达式。Pos
 gproxy serve --dsn 'postgres://gproxy:…@db.internal:5432/gproxy'
 ```
 
-libSQL 是给没有 D1 的宿主——Deno、Netlify——准备的选项，因为 HTTP 那一段由调用方自己的
+libSQL 是给没有 D1 的宿主——例如 Netlify——准备的选项，因为 HTTP 那一段由调用方自己的
 传输提供，因此它在每个目标上都能用。
 
 ### 一套 API 覆盖全部

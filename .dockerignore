@@ -11,8 +11,6 @@ console/dist
 deploy/cloudflare/node_modules
 deploy/cloudflare/pkg
 deploy/cloudflare/public
-deploy/deno/pkg
-deploy/deno/public
 deploy/netlify/node_modules
 deploy/netlify/pkg
 deploy/netlify/public

@@ -93,7 +93,7 @@ Save the credentials from the first startup log and open `/console/`. The image 
 
 ## Hosted platforms
 
-Cloudflare Workers, Netlify, Vercel, and Deno all have deployment templates that require no local Rust toolchain. Cloudflare supports D1 or libSQL/Turso; the other three use PostgreSQL. For WebSocket / Realtime, choose Cloudflare, Vercel (WebSocket Beta), or Deno.
+Cloudflare Workers, Netlify, and Vercel all have deployment templates that require no local Rust toolchain. Cloudflare supports D1 or libSQL/Turso; the other two use PostgreSQL. For WebSocket / Realtime, choose Cloudflare or Vercel (WebSocket Beta).
 
 See [Hosted deployments](/deployment/edge/) for deploy buttons, database choices, and first login. The same page also covers release bundles and Wrangler for manual Workers deployment.
 

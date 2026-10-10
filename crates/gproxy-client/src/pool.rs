@@ -123,8 +123,7 @@ pub type ClientFactory =
 /// wasm32: one transport per distinct configuration, kept for the instance's
 /// lifetime. The JS host owns the sockets, so there is nothing to evict or
 /// prune. By default profiles resolve to the built-in fetch transport; an edge
-/// host that has its own client (Workers `Fetch` with bindings, Deno
-/// `createHttpClient` with proxies or CAs) injects it here.
+/// host that has its own client (Workers `Fetch` with bindings) injects it here.
 #[cfg(target_arch = "wasm32")]
 mod wasm {
     use super::ClientFactory;

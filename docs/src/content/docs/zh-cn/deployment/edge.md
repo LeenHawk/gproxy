@@ -1,11 +1,11 @@
 ---
 title: "托管平台部署"
-description: "在 Cloudflare Workers、Netlify、Vercel 或 Deno 上部署 GPROXY，选择数据库并完成首次登录。"
+description: "在 Cloudflare Workers、Netlify 或 Vercel 上部署 GPROXY，选择数据库并完成首次登录。"
 ---
 
 Northflank、Render 和 Heroku 的原生容器模板见[容器托管部署](/zh-cn/deployment/containers/)。
 
-GPROXY 提供 Cloudflare Workers、Netlify、Vercel 和 Deno 的部署模板。模板下载预编译的发布包，不需要安装 Rust。部署后，控制台和 API 使用同一个域名，控制台入口为 `/console/`。
+GPROXY 提供 Cloudflare Workers、Netlify 和 Vercel 的部署模板。模板下载预编译的发布包，不需要安装 Rust。部署后，控制台和 API 使用同一个域名，控制台入口为 `/console/`。
 
 ## 选择平台
 
@@ -14,9 +14,8 @@ GPROXY 提供 Cloudflare Workers、Netlify、Vercel 和 Deno 的部署模板。�
 | [Cloudflare Workers](#cloudflare-workers) | 部署时创建 D1 | libSQL / Turso | 支持 |
 | [Netlify Functions](#netlify) | Netlify Database | PostgreSQL | 不支持 |
 | [Vercel Functions](#vercel) | 部署时选择 PostgreSQL 产品 | PostgreSQL | 支持（平台 Beta） |
-| [Deno Deploy](#deno) | 创建应用后绑定 PostgreSQL | PostgreSQL | 支持 |
 
-只需要 HTTP 和 SSE 流式调用时，可选用任一模板；需要 WebSocket 或 Realtime 时，可选择 Cloudflare Workers、Vercel Functions（WebSocket Beta）、Deno Deploy，或使用 [CLI / 容器部署](/zh-cn/getting-started/installation/)。
+只需要 HTTP 和 SSE 流式调用时，可选用任一模板；需要 WebSocket 或 Realtime 时，可选择 Cloudflare Workers、Vercel Functions（WebSocket Beta），或使用 [CLI / 容器部署](/zh-cn/getting-started/installation/)。
 
 Cloudflare 使用 WASM，另外三个平台使用原生 serverless 程序。它们共用 GPROXY 的管理 API 和控制台，但数据库类型、函数时长和请求大小限制取决于平台。
 
@@ -85,33 +84,21 @@ Turso 地址可使用 `libsql://your-db.turso.io` 或对应的 HTTPS 地址。�
 
 这个模板使用 **Node.js Functions**，部署时不要改为 Edge Runtime。
 
-## Deno
-
-[在 Deno Deploy 创建应用][deno]
-
-使用新版 Deno Deploy（`console.deno.com`）。创建应用时选择包含模板的 `dev` 分支，确认使用 `deploy/serverless` 目录中的 `deno.json`。
-
-1. 填写管理员密码和主密钥。
-2. 已有 PostgreSQL 时，填写 `GPROXY_DATABASE_URL`。需要平台数据库时，创建应用后进入 **Databases** 页面，创建或绑定 PostgreSQL 数据库。
-3. 完成数据库配置后重新部署。平台绑定的连接由 `DATABASE_URL` 提供。
-
-Deno 的入口不会自动创建数据库。绑定完成前应用可能返回 503；补齐配置后重新部署即可。
-
 ## 首次登录与调用
 
 部署完成后，打开 `https://你的域名/console/`，使用 `admin`（或自定义用户名）和配置的密码登录。
 
 在控制台添加供应商与凭证，测试成功后创建模型路由和网关 API Key，再按[第一个请求](/zh-cn/getting-started/first-request/)发起调用。客户端使用部署域名作为服务地址，例如 `https://gateway.example.com/v1`，使用网关 API Key 鉴权。
 
-如果 Netlify、Vercel 或 Deno 返回 503，先查看函数日志，确认数据库已绑定、连接串有效，以及管理员密码和主密钥已设置。这些平台的 PostgreSQL 账户还需要创建 `gproxy` schema 和应用表的权限。
+如果 Netlify 或 Vercel 返回 503，先查看函数日志，确认数据库已绑定、连接串有效，以及管理员密码和主密钥已设置。这些平台的 PostgreSQL 账户还需要创建 `gproxy` schema 和应用表的权限。
 
 ## 更新与运行限制
 
 配置、账户和用量保存在数据库中，更新时保留数据库和主密钥。模板默认下载最新稳定版并校验 SHA-256；升级时清除平台构建缓存后重新部署即可。只有需要固定版本时，才将构建环境变量 `GPROXY_RELEASE_VERSION` 设为发布标签。所选版本需包含对应平台的发布附件。托管部署不使用控制台的原地二进制更新。
 
-所有模板均支持 HTTP 与 SSE；Netlify Functions 不接受 WebSocket 升级。Vercel 使用平台的 [WebSocket Beta](https://vercel.com/docs/functions/websockets)，Deno 使用原生 WebSocket 入口桥接到内部服务。WebSocket 连接仍可能因函数时长限制或实例回收而断开，客户端需要处理重连。长时间推理、大文件和高并发请求仍受平台限制，部署前可查看 [Netlify Functions](https://docs.netlify.com/build/functions/overview/)、[Vercel Functions](https://vercel.com/docs/functions/limitations) 和 [Deno Deploy](https://docs.deno.com/deploy/reference/limits/) 的当前额度。
+所有模板均支持 HTTP 与 SSE；Netlify Functions 不接受 WebSocket 升级。Vercel 使用平台的 [WebSocket Beta](https://vercel.com/docs/functions/websockets)。WebSocket 连接仍可能因函数时长限制或实例回收而断开，客户端需要处理重连。长时间推理、大文件和高并发请求仍受平台限制，部署前可查看 [Netlify Functions](https://docs.netlify.com/build/functions/overview/) 和 [Vercel Functions](https://vercel.com/docs/functions/limitations) 的当前额度。
 
-这三个模板不配置文件存储。需要 S3/R2 或可公开下载的文件时，可以使用下方的 Workers 自定义构建，或选择 CLI 部署。Netlify、Vercel 和 Deno 可用 `GPROXY_PUBLIC_BASE_URL` 固定公开访问地址。不设置时，Netlify 和 Vercel 使用平台提供的生产地址；其他平台的 OAuth 端点按每个请求的 Host 应答，发布链接保持禁用。
+这两个模板不配置文件存储。需要 S3/R2 或可公开下载的文件时，可以使用下方的 Workers 自定义构建，或选择 CLI 部署。Netlify 和 Vercel 可用 `GPROXY_PUBLIC_BASE_URL` 固定公开访问地址。不设置时，Netlify 和 Vercel 使用平台提供的生产地址；其他平台的 OAuth 端点按每个请求的 Host 应答，发布链接保持禁用。
 
 ## 手动部署 Cloudflare
 
@@ -188,4 +175,3 @@ pnpm --dir deploy/cloudflare check
 [netlify-external]: https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless#GPROXY_DATABASE_URL=
 [vercel-auto]: https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D
 [vercel-external]: https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY%2CGPROXY_DATABASE_URL
-[deno]: https://console.deno.com/new?clone=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&path=deploy%2Fserverless

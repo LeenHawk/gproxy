@@ -215,7 +215,7 @@ Feature `libsql` adds `LibsqlConnection`: the same `ConnectionTrait`,
 connection encodes the protocol; the HTTP leg is a caller-supplied
 `LibsqlTransport` (gproxy-client implements it for its `Client` behind its own
 `libsql` feature), so it runs natively and on wasm32 alike, including hosts
-without D1 such as Deno or Netlify Edge.
+without D1 such as Netlify Edge.
 
 ```rust
 let db = LibsqlConnection::new(transport, "libsql://db.turso.io", Some(token))?;

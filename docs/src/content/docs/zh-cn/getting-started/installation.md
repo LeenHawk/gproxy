@@ -92,7 +92,7 @@ docker logs gproxy
 
 ## 托管平台
 
-Cloudflare Workers、Netlify、Vercel 和 Deno 都提供部署模板，无需本机 Rust 工具链。Cloudflare 可用 D1 或 libSQL/Turso，其他三个平台使用 PostgreSQL；需要 WebSocket / Realtime 时可选 Cloudflare、Vercel（WebSocket Beta）或 Deno。
+Cloudflare Workers、Netlify 和 Vercel 都提供部署模板，无需本机 Rust 工具链。Cloudflare 可用 D1 或 libSQL/Turso，其他两个平台使用 PostgreSQL；需要 WebSocket / Realtime 时可选 Cloudflare 或 Vercel（WebSocket Beta）。
 
 部署按钮、数据库选择和首次登录步骤统一见[托管平台部署](/zh-cn/deployment/edge/)。需要手动部署 Workers 时，同一页也提供发布包和 Wrangler 的操作步骤。
 

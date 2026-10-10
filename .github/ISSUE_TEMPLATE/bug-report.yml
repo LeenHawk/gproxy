@@ -32,7 +32,6 @@ body:
         - Cloudflare
         - Netlify
         - Vercel
-        - Deno
         - 从源码构建 / Built from source
         - 其他 / Other
     validations:

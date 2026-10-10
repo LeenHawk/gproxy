@@ -1,11 +1,11 @@
 ---
 title: "Hosted deployments"
-description: "Deploy GPROXY on Cloudflare Workers, Netlify, Vercel, or Deno, connect a database, and sign in."
+description: "Deploy GPROXY on Cloudflare Workers, Netlify, or Vercel, connect a database, and sign in."
 ---
 
 For native containers on Northflank, Render, and Heroku, see [container hosting](/deployment/containers/).
 
-GPROXY provides deployment templates for Cloudflare Workers, Netlify, Vercel, and Deno. They download prebuilt release bundles, so no Rust installation is needed. The console and API share your deployment domain; the console is at `/console/`.
+GPROXY provides deployment templates for Cloudflare Workers, Netlify, and Vercel. They download prebuilt release bundles, so no Rust installation is needed. The console and API share your deployment domain; the console is at `/console/`.
 
 ## Choose a platform
 
@@ -14,11 +14,10 @@ GPROXY provides deployment templates for Cloudflare Workers, Netlify, Vercel, an
 | [Cloudflare Workers](#cloudflare-workers) | D1, created during deployment | libSQL / Turso | Supported |
 | [Netlify Functions](#netlify) | Netlify Database | PostgreSQL | Not supported |
 | [Vercel Functions](#vercel) | PostgreSQL product selected during deployment | PostgreSQL | Supported (platform Beta) |
-| [Deno Deploy](#deno) | PostgreSQL attached after app creation | PostgreSQL | Supported |
 
-For HTTP and SSE streaming, you can use any template. For WebSocket or Realtime, choose Cloudflare Workers, Vercel Functions (WebSocket Beta), Deno Deploy, or a [CLI / container deployment](/getting-started/installation/).
+For HTTP and SSE streaming, you can use any template. For WebSocket or Realtime, choose Cloudflare Workers, Vercel Functions (WebSocket Beta), or a [CLI / container deployment](/getting-started/installation/).
 
-Cloudflare runs WASM; the other three platforms run the native serverless executable. They share GPROXY's management API and console, while database types, function duration, and request size limits depend on the platform.
+Cloudflare runs WASM; the other two platforms run the native serverless executable. They share GPROXY's management API and console, while database types, function duration, and request size limits depend on the platform.
 
 ## Prepare the password and encryption key
 
@@ -85,33 +84,21 @@ Platform connections are read from `DATABASE_URL` or `POSTGRES_URL`. If your pro
 
 This template uses **Node.js Functions**. Do not switch it to Edge Runtime.
 
-## Deno
-
-[Create an application on Deno Deploy][deno]
-
-Use the current Deno Deploy at `console.deno.com`. Select the `dev` branch containing the template and use `deno.json` from `deploy/serverless`.
-
-1. Enter the administrator password and master key.
-2. For an existing PostgreSQL database, set `GPROXY_DATABASE_URL`. For a platform database, create the app, then open **Databases** to create or attach PostgreSQL.
-3. Redeploy after configuring the database. Platform bindings provide the connection through `DATABASE_URL`.
-
-The Deno entry does not create a database automatically. The app may return 503 until the database is attached; complete the configuration and redeploy.
-
 ## Sign in and make a request
 
 After deployment, open `https://your-domain/console/` and sign in with `admin` (or your chosen username) and the configured password.
 
 Add a provider and credential in the console. Test the credential, create a model route and gateway API key, then follow [Your first request](/getting-started/first-request/). Clients use your deployment URL, such as `https://gateway.example.com/v1`, and authenticate with the gateway API key.
 
-If Netlify, Vercel, or Deno returns 503, check the function logs and confirm that the database is attached, its connection string works, and the password and master key are set. The PostgreSQL account also needs permission to create the `gproxy` schema and application tables.
+If Netlify or Vercel returns 503, check the function logs and confirm that the database is attached, its connection string works, and the password and master key are set. The PostgreSQL account also needs permission to create the `gproxy` schema and application tables.
 
 ## Updates and runtime limits
 
 Configuration, accounts, and usage live in the database. Keep the database and master key when updating. Templates download the latest stable release by default and verify SHA-256. Clear the platform build cache and redeploy to upgrade. Set the build environment variable `GPROXY_RELEASE_VERSION` to a release tag only when you want to pin a version. The release must include the matching platform bundles. Hosted deployments do not use the console's in-place binary updater.
 
-All templates support HTTP and SSE; Netlify Functions rejects WebSocket upgrades. Vercel uses the platform’s [WebSocket Beta](https://vercel.com/docs/functions/websockets), while Deno bridges its native WebSocket entry to the internal service. Function duration limits or instance eviction can still disconnect WebSockets, so clients must handle reconnection. Long-running inference, large files, and high concurrency remain subject to platform limits. Check the current [Netlify Functions](https://docs.netlify.com/build/functions/overview/), [Vercel Functions](https://vercel.com/docs/functions/limitations), and [Deno Deploy](https://docs.deno.com/deploy/reference/limits/) allowances for your workload.
+All templates support HTTP and SSE; Netlify Functions rejects WebSocket upgrades. Vercel uses the platform’s [WebSocket Beta](https://vercel.com/docs/functions/websockets). Function duration limits or instance eviction can still disconnect WebSockets, so clients must handle reconnection. Long-running inference, large files, and high concurrency remain subject to platform limits. Check the current [Netlify Functions](https://docs.netlify.com/build/functions/overview/) and [Vercel Functions](https://vercel.com/docs/functions/limitations) allowances for your workload.
 
-These three templates do not configure file storage. For S3/R2 or publicly downloadable files, use a custom Workers build as described below, or the CLI. On Netlify, Vercel, and Deno, `GPROXY_PUBLIC_BASE_URL` fixes the public URL. Without it, Netlify and Vercel use the production URL the platform provides; elsewhere OAuth endpoints answer from each request's Host and publication links stay disabled.
+These two templates do not configure file storage. For S3/R2 or publicly downloadable files, use a custom Workers build as described below, or the CLI. On Netlify and Vercel, `GPROXY_PUBLIC_BASE_URL` fixes the public URL. Without it, Netlify and Vercel use the production URL the platform provides; elsewhere OAuth endpoints answer from each request's Host and publication links stay disabled.
 
 ## Manual Cloudflare deployment
 
@@ -188,4 +175,3 @@ See [Building from source](/deployment/release-build/) for build and packaging o
 [netlify-external]: https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless#GPROXY_DATABASE_URL=
 [vercel-auto]: https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D
 [vercel-external]: https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY%2CGPROXY_DATABASE_URL
-[deno]: https://console.deno.com/new?clone=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&path=deploy%2Fserverless

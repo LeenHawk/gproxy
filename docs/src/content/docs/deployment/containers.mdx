@@ -58,4 +58,4 @@ The secret group links the database's `POSTGRES_URI` to `GPROXY_DATABASE_URL`. T
 - Set `GPROXY_PUBLIC_BASE_URL` to the public HTTPS origin when using OAuth or published file URLs. These templates do not enable file storage. Use a custom native CLI build for filesystem or object storage support. Client IPs are taken from the socket peer, which can be the platform router; forwarded client-IP headers are not trusted.
 - The native host supports HTTP, SSE, and WebSocket. Platform router timeouts, idle limits, and restarts still apply; these templates do not remove those limits.
 
-For Workers and function deployments, see the [Cloudflare, Netlify, Vercel, and Deno guide](/deployment/edge/).
+For Workers and function deployments, see the [Cloudflare, Netlify, and Vercel guide](/deployment/edge/).
