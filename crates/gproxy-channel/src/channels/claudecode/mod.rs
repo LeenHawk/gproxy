@@ -73,10 +73,10 @@ pub const LOGIN_SCOPE: &str = concat!(
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins"
 );
 pub const OAUTH_BETA: &str = "oauth-2025-04-20";
-/// The CLI version the channel impersonates; audited in
+/// The CLI version the channel impersonates. Protocol behavior was audited in
 /// `design/claudecode-2.1.294.md` against the installed binary and local capture.
-pub const CLI_VERSION: &str = "2.1.294";
-pub const CLI_USER_AGENT: &str = "claude-cli/2.1.294 (external, cli)";
+pub const CLI_VERSION: &str = "2.1.296";
+pub const CLI_USER_AGENT: &str = "claude-cli/2.1.296 (external, cli)";
 pub const ANTHROPIC_VERSION: &str = "2023-06-01";
 /// The CLI marks a request it sends in low-priority mode with this header
 /// (CLI 2.1.283).
@@ -375,7 +375,7 @@ fn stainless_arch() -> &'static str {
 }
 
 /// A client user agent is honoured only when it is the impersonated CLI
-/// version with a plausible entrypoint, e.g. `claude-cli/2.1.294 (external,
+/// version with a plausible entrypoint, e.g. `claude-cli/2.1.296 (external,
 /// sdk-cli)`; anything else becomes the CLI's own (v3 `auth.rs`).
 fn valid_cli_user_agent(value: &str) -> bool {
     value
