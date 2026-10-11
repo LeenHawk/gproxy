@@ -225,6 +225,11 @@ const platforms: Platform[] = [
   { id: 'android', rows: (['aarch64', 'x86_64'] as const).map((arch) => ({ arch, app: [{ asset: `gproxy-tauri-android-${arch}.apk`, label: 'APK' }], cli: [{ asset: `gproxy-android-${arch}.deb`, label: 'Termux DEB' }, { asset: `gproxy-android-${arch}.zip`, label: 'ZIP' }] })) },
   { id: 'ohos', rows: (['aarch64', 'x86_64'] as const).map((arch) => ({ arch, app: [{ asset: `gproxy-tauri-ohos-${arch}-unsigned.hap`, label: 'HAP', tag: `${copy.experimental} · ${copy.unsigned}` }], cli: [{ asset: `gproxy-ohos-${arch}.zip`, label: 'ZIP' }] })) },
 ];
+// Two independently stacked columns: a grid row would size Linux's neighbours
+// to whichever side is taller and leave a gap on the other.
+const columns = [['linux', 'ohos'], ['windows', 'macos', 'android']].map((ids) =>
+  ids.map((id) => platforms.find((platform) => platform.id === id)!),
+);
 const headless = [
   ...(['x86_64', 'aarch64', 'riscv64'] as const).flatMap((arch) => [`gproxy-headless-linux-${arch}.zip`, `gproxy-headless-linux-${arch}-musl.zip`, `gproxy-headless-linux-${arch}-musl.apk`]),
   'gproxy-headless-windows-x86_64.zip', 'gproxy-headless-windows-aarch64.zip',
@@ -304,42 +309,46 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
   <section class="dl-platforms">
     <h2>{copy.platforms}</h2>
     <div class="dl-grid">
-      {platforms.map((platform) => (
-        <article class="dl-card" data-platform={platform.id}>
-          <header class="dl-card-head">
-            <h3>{copy.os[platform.id].name}</h3>
-            <p>{copy.os[platform.id].hint}</p>
-          </header>
-          <table class="dl-table">
-            <thead><tr><th scope="col"></th><th scope="col">{copy.app}</th><th scope="col">{copy.cli}</th></tr></thead>
-            <tbody>
-              {platform.rows.map((row) => (
-                <tr>
-                  <th scope="row"><span>{copy.arch[row.arch]}</span>{row.variant ? <span class="dl-variant">{row.variant}</span> : null}</th>
-                  <td>{row.app.length ? row.app.map((pkg) => (
-                    <a class="dl-asset" href={LATEST} data-asset={pkg.asset} title={pkg.asset}>{pkg.label}{pkg.tag ? <small>{pkg.tag}</small> : null}<span class="dl-size" data-size></span></a>
-                  )) : <span class="dl-none">—</span>}</td>
-                  <td>{row.cli.map((pkg) => (
-                    <a class="dl-asset" href={LATEST} data-asset={pkg.asset} title={pkg.asset}>{pkg.label}<span class="dl-size" data-size></span></a>
-                  ))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {platform.id === 'linux' ? (
-            <footer class="dl-store">
-              <a href="https://raw.githubusercontent.com/LeenHawk/gproxy/dev/distribution/alpine/gproxy-alpine.rsa.pub">{copy.alpineKey} ↗</a>
-              <a href="https://github.com/LeenHawk/gproxy/blob/dev/distribution/alpine/README.txt">{copy.alpineGuide} ↗</a>
-            </footer>
-          ) : null}
-          {platform.store ? (
-            <footer class="dl-store">
-              <span>{copy.store}</span>
-              <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct">{copy.storeDesktop} ↗</a>
-              <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct">{copy.storeCli} ↗</a>
-            </footer>
-          ) : null}
-        </article>
+      {columns.map((column) => (
+        <div class="dl-col">
+          {column.map((platform) => (
+            <article class="dl-card" data-platform={platform.id}>
+              <header class="dl-card-head">
+                <h3>{copy.os[platform.id].name}</h3>
+                <p>{copy.os[platform.id].hint}</p>
+              </header>
+              <table class="dl-table">
+                <thead><tr><th scope="col"></th><th scope="col">{copy.app}</th><th scope="col">{copy.cli}</th></tr></thead>
+                <tbody>
+                  {platform.rows.map((row) => (
+                    <tr>
+                      <th scope="row"><span>{copy.arch[row.arch]}</span>{row.variant ? <span class="dl-variant">{row.variant}</span> : null}</th>
+                      <td>{row.app.length ? row.app.map((pkg) => (
+                        <a class="dl-asset" href={LATEST} data-asset={pkg.asset} title={pkg.asset}>{pkg.label}{pkg.tag ? <small>{pkg.tag}</small> : null}<span class="dl-size" data-size></span></a>
+                      )) : <span class="dl-none">—</span>}</td>
+                      <td>{row.cli.map((pkg) => (
+                        <a class="dl-asset" href={LATEST} data-asset={pkg.asset} title={pkg.asset}>{pkg.label}<span class="dl-size" data-size></span></a>
+                      ))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {platform.id === 'linux' ? (
+                <footer class="dl-store">
+                  <a href="https://raw.githubusercontent.com/LeenHawk/gproxy/dev/distribution/alpine/gproxy-alpine.rsa.pub">{copy.alpineKey} ↗</a>
+                  <a href="https://github.com/LeenHawk/gproxy/blob/dev/distribution/alpine/README.txt">{copy.alpineGuide} ↗</a>
+                </footer>
+              ) : null}
+              {platform.store ? (
+                <footer class="dl-store">
+                  <span>{copy.store}</span>
+                  <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct">{copy.storeDesktop} ↗</a>
+                  <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct">{copy.storeCli} ↗</a>
+                </footer>
+              ) : null}
+            </article>
+          ))}
+        </div>
       ))}
 
       <article class="dl-card dl-card--wide">
@@ -570,9 +579,17 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
   .dl-platforms { margin-top: 3rem; container-type: inline-size; }
   .dl-platforms > h2, .dl-more h2 { font-size: 1.4rem; margin-bottom: 1.25rem; color: var(--sl-color-white); }
   .dl-grid { display: grid; align-items: start; gap: 1.25rem; grid-template-columns: minmax(0, 1fr); }
+  /* One column keeps the catalog order; two columns stack independently. */
+  .dl-col { display: contents; }
+  .dl-card[data-platform='linux'] { order: 1; }
+  .dl-card[data-platform='windows'] { order: 2; }
+  .dl-card[data-platform='macos'] { order: 3; }
+  .dl-card[data-platform='android'] { order: 4; }
+  .dl-card[data-platform='ohos'] { order: 5; }
+  .dl-card--wide { order: 6; }
   @container (min-width: 45.25rem) {
     .dl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .dl-card[data-platform='linux'] { grid-row: span 3; }
+    .dl-col { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
   }
   .dl-card { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; padding: 1.5rem; border-radius: var(--dl-radius); background: var(--dl-surface); border: 1px solid var(--dl-border); transition: border-color 120ms; }
   .dl-card:hover { border-color: color-mix(in srgb, var(--dl-accent) 45%, var(--dl-border)); }
