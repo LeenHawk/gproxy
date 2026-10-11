@@ -19,10 +19,10 @@ def expected_packages():
     for row in rows:
         cli = row["artifact"]
         names.add(cli + ".zip")
-        if row["os"] in cli_extensions:
-            names.add(cli + cli_extensions[row["os"]])
         if row["target"].endswith("-linux-musl"):
             names.add(cli + ".apk")
+        elif row["os"] in cli_extensions:
+            names.add(cli + cli_extensions[row["os"]])
         if headless := row.get("headless_artifact"):
             names.add(headless + ".zip")
             if row["os"] == "android":
@@ -31,8 +31,6 @@ def expected_packages():
                 names.add(headless + ".apk")
         if app := row.get("application_artifact"):
             names.add(app + row.get("application_extension", app_extensions[row["os"]]))
-            for extension in row.get("application_extra_extensions", []):
-                names.add(app + extension)
             if row["os"] in ("linux", "windows", "macos"):
                 names.add(app + ".zip")
     return sorted(names)

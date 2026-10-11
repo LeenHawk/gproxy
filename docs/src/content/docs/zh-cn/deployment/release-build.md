@@ -16,7 +16,7 @@ CLI（`gproxy-*`）和 Application（`gproxy-tauri-*`）是两类独立程序，
 | 平台 | CLI | Application |
 | --- | --- | --- |
 | Linux GNU（x86_64、aarch64、riscv64） | ZIP、DEB | ZIP、DEB |
-| Linux musl（x86_64、aarch64、riscv64） | ZIP、DEB | — |
+| Linux musl（x86_64、aarch64、riscv64） | ZIP、Alpine APK | ZIP、Alpine APK |
 | Windows（x86_64、aarch64） | ZIP、MSIX | ZIP、MSIX |
 | macOS（x86_64、aarch64） | ZIP、DMG | ZIP、DMG |
 | Android（x86_64、aarch64） | ZIP、Termux DEB | 仅 APK |
@@ -35,7 +35,7 @@ Application ZIP 保留桌面资源，macOS ZIP 包含完整 `.app`。
 HAP 已完成模拟器验证，发布包未签名，安装前需要自行签名。已实现持续后台运行支持，但可用性取决于设备、系统版本及授权；应用进程退出后代理会停止。
 
 nightly 附件使用固定名称，提交 SHA 记录在更新清单中。GNU Linux 应用依赖发行版的
-GTK 3 和 WebKitGTK 4.1；Alpine APK 面向 musl，musl 应用 DEB 内置图形运行库并使用 Bubblewrap。
+GTK 3 和 WebKitGTK 4.1；musl 构建面向 Alpine，只提供 APK，不提供 DEB。
 macOS 使用 ad-hoc 签名，尚未接入 Developer ID 签名和公证。
 
 Windows 使用 Microsoft Store 的包身份。`release` 环境需配置四个变量：

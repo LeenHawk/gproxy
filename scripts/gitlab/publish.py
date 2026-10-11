@@ -232,7 +232,8 @@ def verify_packages():
             executable = "gproxy.exe" if row["os"] == "windows" else "gproxy"
             if executable not in archive.namelist() or any("gproxy-desktop" in n for n in archive.namelist()):
                 raise ValueError(f"Wrong executable in CLI archive: {cli}")
-        if row["os"] != "ohos":
+        # musl CLIs ship as Alpine APKs (checked above), not DEBs.
+        if row["os"] != "ohos" and not row["target"].endswith("-linux-musl"):
             cli_extension = ".deb" if row["os"] == "android" else extensions[row["os"]]
             expected.append(cli + cli_extension)
         if app := row.get("application_artifact"):
@@ -241,7 +242,6 @@ def verify_packages():
             if row.get("application_builder", row["builder"]) == "cargo-alpine" and os.environ.get("GITHUB_ACTIONS") != "true":
                 continue
             expected += [app + row.get("application_extension", extensions[row["os"]]), app + ".provenance.json"]
-            expected += [app + extension for extension in row.get("application_extra_extensions", [])]
             if row["os"] not in ("android", "ohos"):
                 expected.append(app + ".zip")
                 with zipfile.ZipFile(directory / (app + ".zip")) as archive:

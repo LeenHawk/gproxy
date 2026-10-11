@@ -56,7 +56,13 @@ python3 scripts/reproducible-archive.py --root "$package" --output "$archive"
 if [ "${PACKAGE_INSTALLERS:-true}" = false ]; then exit 0; fi
 
 case "$target_os" in
-  linux | android) OUTPUT_DIR="$output_dir" bash scripts/package-cli-deb.sh ;;
+  # musl builds are for Alpine, which installs the APK instead.
+  linux | android)
+    case "$target" in
+      *-linux-musl) ;;
+      *) OUTPUT_DIR="$output_dir" bash scripts/package-cli-deb.sh ;;
+    esac
+    ;;
   macos)
     # Cross builds seal the DMG later on the macOS packaging runner.
     if [ "$(uname -s)" = Darwin ]; then

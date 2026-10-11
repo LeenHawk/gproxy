@@ -23,7 +23,7 @@ each has its own portable archives and installers. Applications embed the Consol
 | Platform | CLI | Application |
 | --- | --- | --- |
 | Linux GNU (x86_64, aarch64, riscv64) | ZIP, DEB | ZIP, DEB |
-| Linux musl (x86_64, aarch64, riscv64) | ZIP, DEB, Alpine APK | ZIP, DEB, Alpine APK |
+| Linux musl (x86_64, aarch64, riscv64) | ZIP, Alpine APK | ZIP, Alpine APK |
 | Windows (x86_64, aarch64) | ZIP, MSIX | ZIP, MSIX |
 | macOS (x86_64, aarch64) | ZIP, DMG | ZIP, DMG |
 | Android (x86_64, aarch64) | ZIP, Termux DEB | APK only |
@@ -45,9 +45,8 @@ other platforms retain stable Tauri. HAP files require signing before installati
 The HAP has been verified on an emulator. Continuous background execution is implemented, but availability depends on the device, OS version and granted permissions; the proxy stops when the application process exits.
 
 Nightly filenames stay fixed; the manifest records the commit SHA. GNU Linux
-Applications require the distribution's GTK 3 and WebKitGTK 4.1 packages. Alpine
-APKs target musl; musl Application DEBs bundle their graphical runtime and use
-Bubblewrap. macOS uses ad-hoc signing; Developer ID signing and
+Applications require the distribution's GTK 3 and WebKitGTK 4.1 packages. musl builds
+target Alpine and ship as APKs, not DEBs. macOS uses ad-hoc signing; Developer ID signing and
 notarization are not configured.
 
 Windows uses the Microsoft Store package identity. Configure four variables in

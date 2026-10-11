@@ -81,5 +81,4 @@ if [ "$mode" = application ]; then
   rm -f "$output/$ARTIFACT_NAME.zip"
   python3 scripts/reproducible-archive.py --root "$payload" --output "$output/$ARTIFACT_NAME.zip"
   chmod 644 "$output/$ARTIFACT_NAME.zip"
-  bash scripts/package-musl-application-deb.sh "$output/$ARTIFACT_NAME.apk"
 fi
