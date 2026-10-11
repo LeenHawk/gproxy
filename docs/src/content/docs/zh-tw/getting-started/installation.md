@@ -8,6 +8,60 @@ description: "選擇 GPROXY 4.0 的應用、命令列程式、容器或託管平
 
 開啟[下載頁](/zh-tw/download/)或 [最新穩定版](https://github.com/LeenHawk/gproxy/releases/latest)，再下載對應系統和架構的檔案。滾動更新的 `nightly` 提供開發快照。
 
+## 一鍵安裝
+
+安裝腳本用於安裝 **CLI** 或**無頭 CLI**。它會自動識別系統、架構和 libc，以該版本的 `SHA256SUMS` 驗證安裝套件，修改任何內容之前都會先確認。腳本不安裝應用版；在選單中選擇應用版會轉到[下載頁](/zh-tw/download/)（Windows 上為 Microsoft Store）。
+
+```sh
+# Linux、macOS、Android（Termux）
+curl -fsSL https://gproxy.leenhawk.com/install.sh | sh
+```
+
+```powershell
+# Windows PowerShell
+irm https://gproxy.leenhawk.com/install.ps1 | iex
+```
+
+選單支援英文、簡體中文和繁體中文，可以修改自動識別的平台、版本以及下載來源（GitHub、GitLab 或 CNB）。隨後可以一併設定實例：
+
+- 實例目錄，以及 SQLite 檔案或 PostgreSQL / MySQL DSN；
+- 監聽位址和埠；
+- 管理員使用者名稱和密碼（留空則自動產生，只列印一次）；
+- 全域上游代理（`http://`、`https://`、`socks5://`、`socks5h://`）；
+- 背景服務（`gproxy service install`）。
+
+這些設定會連同自動產生的 `GPROXY_MASTER_KEY` 一起寫入實例目錄下的 `.env`（權限 600），請備份該檔案。管理員透過 `gproxy bootstrap admin` 建立；代理寫入資料庫中的全域代理設定，與 控制台 → 設定 中的是同一項。如需手動啟動，在該目錄中執行 `gproxy serve`。再次執行腳本會升級程式：除非選擇重新設定，否則保留現有設定，主金鑰始終保留。
+
+在腳本或 CI 中可以直接傳參、略過提示。PowerShell 參數名相同，寫成 PascalCase（`-Edition`、`-Dsn`、`-AdminPassword`、`-Proxy`、`-Service`、`-Yes`），其中 `--host` 對應 `-ListenHost`，`--dir` 對應 `-InstallDir`：
+
+```sh
+curl -fsSL https://gproxy.leenhawk.com/install.sh | sh -s -- -y \
+  --edition headless --mirror cnb \
+  --dsn 'postgres://gproxy:secret@db:5432/gproxy' \
+  --host 0.0.0.0 --port 8787 \
+  --admin-user admin --proxy socks5h://127.0.0.1:1080 --service
+```
+
+```powershell
+& ([scriptblock]::Create((irm https://gproxy.leenhawk.com/install.ps1))) -Edition headless -Yes
+```
+
+| 參數 | 預設值 |
+| --- | --- |
+| `--edition cli\|headless\|app` | `cli` |
+| `--target linux-aarch64-musl` … | 自動識別 |
+| `--channel release\|beta\|dev` | `release` |
+| `--mirror github\|gitlab\|cnb` | 簡體中文為 `cnb`，其他為 `github` |
+| `--dir` | `~/.local/bin`（root 為 `/usr/local/bin`），Windows 為 `%LOCALAPPDATA%\Programs\gproxy` |
+| `--data-dir` | `~/.local/share/gproxy`，Windows 為 `%LOCALAPPDATA%\gproxy` |
+| `--db-path` / `--dsn` | `<data-dir>/gproxy.db` |
+| `--host` / `--port` | `127.0.0.1` / `8787` |
+| `--admin-user` / `--admin-password` | `admin` / 自動產生；也會讀取 `GPROXY_ADMIN_PASSWORD` |
+| `--proxy` | 無 |
+| `--service`、`--no-configure`、`--lang`、`-y` | 關閉 |
+
+在 Termux 中，腳本以 `apt` 安裝對應的 DEB；在 OpenHarmony 上，腳本會把 CLI ZIP 連同其內附的 `libc++` 一起解壓縮。
+
 ## 選擇下載檔案
 
 | 平台 | CLI（`gproxy-*`） | Application（`gproxy-tauri-*`） |

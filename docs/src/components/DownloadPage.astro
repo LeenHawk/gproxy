@@ -54,6 +54,12 @@ const copy = {
     store: 'Also on the Microsoft Store',
     storeDesktop: 'GPROXY Desktop',
     storeCli: 'GPROXY CLI',
+    quick: 'One-line install',
+    quickBody: 'Installs the CLI or headless CLI for this machine, verifies its SHA-256, and optionally sets up the database, administrator, global proxy and a background service. Prefer the desktop Application? Download it below.',
+    quickUnix: 'Linux · macOS · Termux',
+    quickWindows: 'Windows PowerShell',
+    quickGuide: 'Options and non-interactive use',
+    quickAnchor: 'one-line-install',
     experimental: 'experimental',
     unsigned: 'unsigned',
     arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
@@ -106,6 +112,12 @@ const copy = {
     store: '也可从 Microsoft Store 获取',
     storeDesktop: 'GPROXY Desktop',
     storeCli: 'GPROXY CLI',
+    quick: '一键安装',
+    quickBody: '为本机安装 CLI 或无头 CLI 并校验 SHA-256，可顺带配置数据库、管理员、全局代理和后台服务。想用桌面应用版？请在下方下载。',
+    quickUnix: 'Linux · macOS · Termux',
+    quickWindows: 'Windows PowerShell',
+    quickGuide: '参数与非交互用法',
+    quickAnchor: '一键安装',
     experimental: '实验性',
     unsigned: '未签名',
     arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
@@ -158,6 +170,12 @@ const copy = {
     store: '也可從 Microsoft Store 取得',
     storeDesktop: 'GPROXY Desktop',
     storeCli: 'GPROXY CLI',
+    quick: '一鍵安裝',
+    quickBody: '為本機安裝 CLI 或無頭 CLI 並驗證 SHA-256，可順帶設定資料庫、管理員、全域代理和背景服務。想用桌面應用版？請在下方下載。',
+    quickUnix: 'Linux · macOS · Termux',
+    quickWindows: 'Windows PowerShell',
+    quickGuide: '參數與非互動用法',
+    quickAnchor: '一鍵安裝',
     experimental: '實驗性',
     unsigned: '未簽章',
     arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
@@ -217,6 +235,26 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
     </div>
     <p class="dl-offline" data-offline hidden>{copy.offline}</p>
   </header>
+
+  <section class="dl-quick">
+    <article class="dl-card">
+      <header class="dl-card-head">
+        <h2>{copy.quick}</h2>
+        <p>{copy.quickBody}</p>
+      </header>
+      <div class="dl-quick-cmds">
+        <div>
+          <h3>{copy.quickUnix}</h3>
+          <pre class="dl-code"><code>curl -fsSL https://gproxy.leenhawk.com/install.sh | sh</code></pre>
+        </div>
+        <div>
+          <h3>{copy.quickWindows}</h3>
+          <pre class="dl-code"><code>irm https://gproxy.leenhawk.com/install.ps1 | iex</code></pre>
+        </div>
+      </div>
+      <a class="dl-link" href={`${prefix}/getting-started/installation/#${copy.quickAnchor}`}>{copy.quickGuide} →</a>
+    </article>
+  </section>
 
   <section class="dl-foryou" data-foryou hidden>
     <div class="dl-foryou-head">
@@ -522,6 +560,11 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
   .dl-more { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); margin-top: 3rem; }
   .dl-code { margin: 0; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.8rem; background: var(--sl-color-bg); border: 1px solid var(--dl-border); overflow-x: auto; }
   .dl-code code { background: none; padding: 0; }
+  .dl-quick { margin-top: 2.5rem; }
+  .dl-quick h2 { font-size: 1.25rem; color: var(--sl-color-white); }
+  .dl-quick h3 { margin-bottom: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--sl-color-gray-2); }
+  .dl-quick-cmds { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+  .dl-quick .dl-link { align-self: flex-start; font-size: 0.9rem; }
   .dl-more .dl-link { margin-top: auto; align-self: flex-start; font-size: 0.9rem; }
   .dl-next { margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--dl-border); font-size: 0.95rem; color: var(--sl-color-gray-2); }
 

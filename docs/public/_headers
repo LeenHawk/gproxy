@@ -6,3 +6,16 @@
 /fonts/manifest.json
   ! Cache-Control
   Cache-Control: no-cache
+
+# The installers are fetched by `curl | sh` and `irm | iex`. An explicit
+# charset keeps Windows PowerShell 5.1 from decoding them as Latin-1, and
+# no-cache lets a fix reach the next install.
+/install.sh
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: no-cache
+  X-Content-Type-Options: nosniff
+
+/install.ps1
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: no-cache
+  X-Content-Type-Options: nosniff

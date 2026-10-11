@@ -8,6 +8,60 @@ Choose **Application** for a local graphical app, or **CLI** for a server. Both 
 
 Open the [download page](/download/) or the [latest stable release](https://github.com/LeenHawk/gproxy/releases/latest), then download the file for your OS and architecture. The rolling `nightly` release provides development snapshots.
 
+## One-line install
+
+The installer script installs the **CLI** or **headless CLI**. It detects the OS, architecture and libc, verifies the package against the release's `SHA256SUMS`, and asks before changing anything. It does not install the Application; choose it in the menu to be sent to the [download page](/download/) (on Windows, to Microsoft Store).
+
+```sh
+# Linux, macOS, Android (Termux)
+curl -fsSL https://gproxy.leenhawk.com/install.sh | sh
+```
+
+```powershell
+# Windows PowerShell
+irm https://gproxy.leenhawk.com/install.ps1 | iex
+```
+
+The menus take English, Simplified Chinese or Traditional Chinese, and let you change the detected platform, the edition and the download source (GitHub, GitLab or CNB). You can then set up an instance:
+
+- the instance directory and either a SQLite file or a PostgreSQL / MySQL DSN;
+- the listen address and port;
+- the administrator name and password (leave it empty to generate one, printed once);
+- a global upstream proxy (`http://`, `https://`, `socks5://`, `socks5h://`);
+- a background service (`gproxy service install`).
+
+These settings are written to `.env` in the instance directory (mode 600) together with a generated `GPROXY_MASTER_KEY`. Back that file up. The administrator is created with `gproxy bootstrap admin`. The proxy is saved to the database as the global proxy setting, the same value as in Console → Settings. To start the server by hand, run `gproxy serve` from that directory. Running the script again upgrades the binary. It keeps the existing configuration unless you choose to reconfigure, and it always keeps the master key.
+
+For scripts and CI, pass options and skip the prompts. The PowerShell parameters use the same names in PascalCase (`-Edition`, `-Dsn`, `-AdminPassword`, `-Proxy`, `-Service`, `-Yes`); `--host` is `-ListenHost` and `--dir` is `-InstallDir`:
+
+```sh
+curl -fsSL https://gproxy.leenhawk.com/install.sh | sh -s -- -y \
+  --edition headless --mirror cnb \
+  --dsn 'postgres://gproxy:secret@db:5432/gproxy' \
+  --host 0.0.0.0 --port 8787 \
+  --admin-user admin --proxy socks5h://127.0.0.1:1080 --service
+```
+
+```powershell
+& ([scriptblock]::Create((irm https://gproxy.leenhawk.com/install.ps1))) -Edition headless -Yes
+```
+
+| Option | Default |
+| --- | --- |
+| `--edition cli\|headless\|app` | `cli` |
+| `--target linux-aarch64-musl` … | detected |
+| `--channel release\|beta\|dev` | `release` |
+| `--mirror github\|gitlab\|cnb` | `cnb` for Simplified Chinese, otherwise `github` |
+| `--dir` | `~/.local/bin` (`/usr/local/bin` as root), Windows `%LOCALAPPDATA%\Programs\gproxy` |
+| `--data-dir` | `~/.local/share/gproxy`, Windows `%LOCALAPPDATA%\gproxy` |
+| `--db-path` / `--dsn` | `<data-dir>/gproxy.db` |
+| `--host` / `--port` | `127.0.0.1` / `8787` |
+| `--admin-user` / `--admin-password` | `admin` / generated; `GPROXY_ADMIN_PASSWORD` is also read |
+| `--proxy` | none |
+| `--service`, `--no-configure`, `--lang`, `-y` | off |
+
+On Termux the script installs the matching DEB with `apt`; on OpenHarmony it unpacks the CLI ZIP beside its bundled `libc++`.
+
 ## Choose a package
 
 | Platform | CLI (`gproxy-*`) | Application (`gproxy-tauri-*`) |
