@@ -155,8 +155,8 @@ Cloudflare、Netlify 和 Vercel 的模板使用 **latest 稳定版** 预编译�
 
 | 方式 | 适用场景 | 入口 |
 | --- | --- | --- |
-| Application | 桌面或移动设备，应用内管理 | [平台安装说明](https://gproxy.leenhawk.com/zh-cn/getting-started/installation/) |
-| CLI / 容器 | 常驻服务器，浏览器管理 | [安装与容器配置](https://gproxy.leenhawk.com/zh-cn/getting-started/installation/) |
+| Application | 桌面或移动设备，应用内管理 | [下载与安装](https://gproxy.leenhawk.com/zh-cn/download/) |
+| CLI / 容器 | 常驻服务器，浏览器管理 | [下载与安装](https://gproxy.leenhawk.com/zh-cn/download/) |
 | Cloudflare / Netlify / Vercel | 托管平台，无需自备服务器 | [部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/edge/) |
 | Northflank / Render / Heroku | 原生容器与托管 PostgreSQL | [部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/containers/) |
 | Rust SDK | 嵌入自己的程序 | [gproxy-sdk](crates/gproxy-sdk/README.zh-CN.md) |

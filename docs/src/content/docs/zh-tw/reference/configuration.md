@@ -218,7 +218,7 @@ CLI 在 users 表為空時建立 0 號管理員和閘道器 API Key。已有實�
 
 空庫初始化時，`GPROXY_ADMIN_PASSWORD` 和 `GPROXY_BOOTSTRAP_ADMIN_API_KEY` 可指定初始值；省略時自動生成。程式只顯示生成的憑據，輸出到標準輸出。服務管理器和容器可能收集標準輸出，因此首次啟動日誌同樣需要保管。
 
-Application 使用[首次設定精靈](/zh-tw/getting-started/installation/#application在介面中設定)，不使用瀏覽器初始化頁。
+Application 使用[首次設定精靈](/zh-tw/download/#setup)，不使用瀏覽器初始化頁。
 
 ## 搬運一份配置
 

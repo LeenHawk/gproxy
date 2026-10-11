@@ -218,7 +218,7 @@ CLI 在 users 表为空时创建 0 号管理员和网关 API Key。已有实例�
 
 空库初始化时，`GPROXY_ADMIN_PASSWORD` 和 `GPROXY_BOOTSTRAP_ADMIN_API_KEY` 可指定初始值；省略时自动生成。程序只显示生成的凭据，输出到标准输出。服务管理器和容器可能收集标准输出，因此首次启动日志同样需要保管。
 
-Application 使用[首次设置向导](/zh-cn/getting-started/installation/#application在界面中设置)，不使用浏览器初始化页。
+Application 使用[首次设置向导](/zh-cn/download/#setup)，不使用浏览器初始化页。
 
 ## 搬运一份配置
 

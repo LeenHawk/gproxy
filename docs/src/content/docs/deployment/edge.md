@@ -15,7 +15,7 @@ GPROXY provides deployment templates for Cloudflare Workers, Netlify, and Vercel
 | [Netlify Functions](#netlify) | Netlify Database | PostgreSQL | Not supported |
 | [Vercel Functions](#vercel) | PostgreSQL product selected during deployment | PostgreSQL | Supported (platform Beta) |
 
-For HTTP and SSE streaming, you can use any template. For WebSocket or Realtime, choose Cloudflare Workers, Vercel Functions (WebSocket Beta), or a [CLI / container deployment](/getting-started/installation/).
+For HTTP and SSE streaming, you can use any template. For WebSocket or Realtime, choose Cloudflare Workers, Vercel Functions (WebSocket Beta), or a [CLI / container deployment](/download/).
 
 Cloudflare runs WASM; the other two platforms run the native serverless executable. They share GPROXY's management API and console, while database types, function duration, and request size limits depend on the platform.
 

@@ -42,7 +42,7 @@ GPROXY 是一個可自行部署的大模型 API 閘道器。把上游帳戶接�
 | CLI / 容器 | 部署到伺服器，提供 HTTP API 和瀏覽器控制台。 |
 | Cloudflare Workers | 使用邊緣執行環境和遠端儲存，支援 WebSocket / Realtime。 |
 
-安裝包和平台限制見[安裝](/zh-tw/getting-started/installation/)。從 v3 更新時，請先閱讀[遷移說明](/zh-tw/deployment/v3-to-v4/)。
+安裝包和平台限制見[下載與安裝](/zh-tw/download/)。從 v3 更新時，請先閱讀[遷移說明](/zh-tw/deployment/v3-to-v4/)。
 
 ## 模型名與請求地址
 

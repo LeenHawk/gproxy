@@ -15,7 +15,7 @@ GPROXY 提供 Cloudflare Workers、Netlify 和 Vercel 的部署模板。模板�
 | [Netlify Functions](#netlify) | Netlify Database | PostgreSQL | 不支持 |
 | [Vercel Functions](#vercel) | 部署时选择 PostgreSQL 产品 | PostgreSQL | 支持（平台 Beta） |
 
-只需要 HTTP 和 SSE 流式调用时，可选用任一模板；需要 WebSocket 或 Realtime 时，可选择 Cloudflare Workers、Vercel Functions（WebSocket Beta），或使用 [CLI / 容器部署](/zh-cn/getting-started/installation/)。
+只需要 HTTP 和 SSE 流式调用时，可选用任一模板；需要 WebSocket 或 Realtime 时，可选择 Cloudflare Workers、Vercel Functions（WebSocket Beta），或使用 [CLI / 容器部署](/zh-cn/download/)。
 
 Cloudflare 使用 WASM，另外三个平台使用原生 serverless 程序。它们共用 GPROXY 的管理 API 和控制台，但数据库类型、函数时长和请求大小限制取决于平台。
 

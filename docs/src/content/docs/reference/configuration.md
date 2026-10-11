@@ -222,7 +222,7 @@ The CLI creates administrator `0` and a gateway API key when the users table is 
 
 On a fresh database, `GPROXY_ADMIN_PASSWORD` and `GPROXY_BOOTSTRAP_ADMIN_API_KEY` supply initial values; omitted values are generated. Only generated credentials are printed, to stdout. Service managers and containers may collect stdout, so protect the first startup log.
 
-Application uses the [setup wizard](/getting-started/installation/#application-graphical-setup), not a browser initialization page.
+Application uses the [setup wizard](/download/#setup), not a browser initialization page.
 
 ## Moving a Configuration
 

@@ -155,8 +155,8 @@ These three templates package the **latest stable release** PostgreSQL executabl
 
 | Option | Use case | Guide |
 | --- | --- | --- |
-| Application | Desktop or mobile, managed in the app | [Platform installation](https://gproxy.leenhawk.com/getting-started/installation/) |
-| CLI / container | Persistent server with a browser console | [Installation and containers](https://gproxy.leenhawk.com/getting-started/installation/) |
+| Application | Desktop or mobile, managed in the app | [Download & install](https://gproxy.leenhawk.com/download/) |
+| CLI / container | Persistent server with a browser console | [Download & install](https://gproxy.leenhawk.com/download/) |
 | Cloudflare / Netlify / Vercel | Hosted service without your own server | [Deployment guide](https://gproxy.leenhawk.com/deployment/edge/) |
 | Northflank / Render / Heroku | Native container with managed PostgreSQL | [Deployment guide](https://gproxy.leenhawk.com/deployment/containers/) |
 | Rust SDK | Embed in your own program | [gproxy-sdk](crates/gproxy-sdk/README.md) |

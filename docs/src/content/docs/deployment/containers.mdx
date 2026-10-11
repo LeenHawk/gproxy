@@ -1,5 +1,5 @@
 ---
-title: Northflank, Render, and Heroku
+title: Docker, Northflank, Render, and Heroku
 description: Deploy the native GPROXY container with managed PostgreSQL.
 ---
 
@@ -21,6 +21,23 @@ These templates assemble a lightweight Node.js container around the prebuilt **l
     <LinkButton href="https://app.northflank.com/s/account/templates/new" variant="secondary" icon="external">Open template editor</LinkButton>
   </Card>
 </CardGrid>
+
+## Docker
+
+Images are published to `ghcr.io/leenhawk/gproxy` and Docker Hub at `leenhawk/gproxy` for amd64, arm64 and riscv64. Stable versions use `vX.Y.Z` tags, beta uses `staging`, and development snapshots use `nightly`; append `-musl` for musl images. Old v3 tags do not run v4.
+
+```sh
+export GPROXY_IMAGE='leenhawk/gproxy:<tag>'
+# Set GPROXY_MASTER_KEY to your saved 32-byte key (64 hex digits or base64).
+docker run -d --name gproxy --restart unless-stopped \
+  -p 127.0.0.1:8787:8787 \
+  -v gproxy-data:/app/data \
+  -e GPROXY_MASTER_KEY \
+  "$GPROXY_IMAGE"
+docker logs gproxy
+```
+
+Save the administrator credentials from the first startup log, then open `/console/`. The image runs as `65532:65532`, so a bind-mounted directory must be writable by that user. Keep the `/app/data` volume when replacing the container.
 
 ## Render
 

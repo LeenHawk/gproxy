@@ -11,7 +11,7 @@ API Key、組織或團隊上設定，個人概覽只讀。
 
 ## 首次啟動
 
-Application 全新實例先顯示三步設定精靈，完成後進入應用內控制台。CLI / 容器在首次啟動時建立管理員，透過瀏覽器 `/console/` 登入，不顯示應用內精靈。詳細步驟見[安裝](/zh-tw/getting-started/installation/)。
+Application 全新實例先顯示三步設定精靈，完成後進入應用內控制台。CLI / 容器在首次啟動時建立管理員，透過瀏覽器 `/console/` 登入，不顯示應用內精靈。詳細步驟見[下載與安裝](/zh-tw/download/#setup)。
 
 ## 管理範圍
 

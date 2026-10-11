@@ -41,7 +41,7 @@ const copy = {
     sums: 'SHA256SUMS',
     manifest: 'manifest.json',
     container: 'Containers',
-    containerBody: 'Images are published to GitHub Container Registry and Docker Hub for amd64, arm64 and riscv64, in GNU and musl variants. Stable versions use vX.Y.Z tags; beta is staging and development snapshots are nightly.',
+    containerBody: 'Images on GitHub Container Registry and Docker Hub for amd64, arm64 and riscv64. Stable versions use vX.Y.Z tags; beta is staging and development snapshots are nightly.',
     containerGuide: 'Container guide',
     hosted: 'Hosted platforms',
     hostedBody: 'Deploy to Cloudflare Workers, Netlify or Vercel without a local toolchain, with D1, libSQL or PostgreSQL behind it.',
@@ -49,17 +49,24 @@ const copy = {
     source: 'Build from source',
     sourceBody: 'A plain cargo build produces the CLI; the Application and the headless edition each have a short recipe.',
     sourceGuide: 'Building from source',
-    next: 'Installed? Continue with the',
-    nextLink: 'installation guide',
+    next: 'Installed? Continue with',
+    nextLink: 'Quick start',
+    upgrade: 'Upgrading from v3? Read the',
+    upgradeLink: 'migration guide',
     store: 'Also on the Microsoft Store',
     storeDesktop: 'GPROXY Desktop',
     storeCli: 'GPROXY CLI',
     quick: 'One-line install',
-    quickBody: 'Installs the CLI or headless CLI for this machine, verifies its SHA-256, and optionally sets up the database, administrator, global proxy and a background service. Prefer the desktop Application? Download it below.',
+    quickBody: 'Installs the CLI for this computer and walks you through the database, administrator account and proxy. For the desktop Application, download it below.',
     quickUnix: 'Linux · macOS · Termux',
     quickWindows: 'Windows PowerShell',
-    quickGuide: 'Options and non-interactive use',
-    quickAnchor: 'one-line-install',
+    quickMore: 'Skip the questions',
+    quickMoreBody: 'Add -y and any options to install without prompts. Run the script with --help to see them all.',
+    setup: 'After installing',
+    setupApp: 'Application',
+    setupAppBody: 'Open GPROXY. A short wizard asks for the port and data folder, an administrator name and password, and an optional configuration to import. Keep the address and API key it shows at the end.',
+    setupCli: 'CLI',
+    setupCliBody: 'If you used the one-line installer, start GPROXY with the command it printed. Otherwise run the command below. Then open the console in your browser and sign in. A new instance prints its administrator password and API key once, so save them.',
     experimental: 'experimental',
     unsigned: 'unsigned',
     arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
@@ -99,7 +106,7 @@ const copy = {
     sums: 'SHA256SUMS',
     manifest: 'manifest.json',
     container: '容器',
-    containerBody: '镜像同时发布到 GitHub Container Registry 与 Docker Hub，覆盖 amd64、arm64、riscv64，并提供 GNU 与 musl 两种变体。稳定版使用 vX.Y.Z 标签，beta 为 staging，开发快照为 nightly。',
+    containerBody: '镜像发布在 GitHub Container Registry 与 Docker Hub，支持 amd64、arm64、riscv64。稳定版使用 vX.Y.Z 标签，beta 为 staging，开发快照为 nightly。',
     containerGuide: '容器部署指南',
     hosted: '托管平台',
     hostedBody: '无需本地工具链即可部署到 Cloudflare Workers、Netlify 或 Vercel，后端可选 D1、libSQL 或 PostgreSQL。',
@@ -108,16 +115,23 @@ const copy = {
     sourceBody: '一条 cargo build 即可得到 CLI；应用版与无头版各有简短的构建步骤。',
     sourceGuide: '从源码构建',
     next: '安装完成？接着阅读',
-    nextLink: '安装指南',
+    nextLink: '快速开始',
+    upgrade: '从 v3 升级？请先阅读',
+    upgradeLink: '迁移说明',
     store: '也可从 Microsoft Store 获取',
     storeDesktop: 'GPROXY Desktop',
     storeCli: 'GPROXY CLI',
     quick: '一键安装',
-    quickBody: '为本机安装 CLI 或无头 CLI 并校验 SHA-256，可顺带配置数据库、管理员、全局代理和后台服务。想用桌面应用版？请在下方下载。',
+    quickBody: '为本机安装 CLI，并引导你设置数据库、管理员账户和代理。需要桌面应用版请在下方下载。',
     quickUnix: 'Linux · macOS · Termux',
     quickWindows: 'Windows PowerShell',
-    quickGuide: '参数与非交互用法',
-    quickAnchor: '一键安装',
+    quickMore: '跳过提问',
+    quickMoreBody: '加上 -y 和需要的参数即可无提示安装，用 --help 查看全部参数。',
+    setup: '安装之后',
+    setupApp: '应用版',
+    setupAppBody: '打开 GPROXY，简短的设置向导会依次询问端口和数据目录、管理员用户名和密码，以及是否导入已有配置。请记下最后显示的地址和 API 密钥。',
+    setupCli: 'CLI',
+    setupCliBody: '用一键安装的话，按脚本最后打印的命令启动即可；否则运行下面的命令。然后在浏览器打开控制台登录。新实例只会打印一次管理员密码和 API 密钥，请妥善保存。',
     experimental: '实验性',
     unsigned: '未签名',
     arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
@@ -157,7 +171,7 @@ const copy = {
     sums: 'SHA256SUMS',
     manifest: 'manifest.json',
     container: '容器',
-    containerBody: '映像同時發布到 GitHub Container Registry 與 Docker Hub，涵蓋 amd64、arm64、riscv64，並提供 GNU 與 musl 兩種變體。穩定版使用 vX.Y.Z 標籤，beta 為 staging，開發快照為 nightly。',
+    containerBody: '映像發布在 GitHub Container Registry 與 Docker Hub，支援 amd64、arm64、riscv64。穩定版使用 vX.Y.Z 標籤，beta 為 staging，開發快照為 nightly。',
     containerGuide: '容器部署指南',
     hosted: '託管平台',
     hostedBody: '無需本機工具鏈即可部署到 Cloudflare Workers、Netlify 或 Vercel，後端可選 D1、libSQL 或 PostgreSQL。',
@@ -166,16 +180,23 @@ const copy = {
     sourceBody: '一條 cargo build 即可得到 CLI；應用版與無頭版各有簡短的建置步驟。',
     sourceGuide: '從原始碼建置',
     next: '安裝完成？接著閱讀',
-    nextLink: '安裝指南',
+    nextLink: '快速開始',
+    upgrade: '從 v3 升級？請先閱讀',
+    upgradeLink: '遷移說明',
     store: '也可從 Microsoft Store 取得',
     storeDesktop: 'GPROXY Desktop',
     storeCli: 'GPROXY CLI',
     quick: '一鍵安裝',
-    quickBody: '為本機安裝 CLI 或無頭 CLI 並驗證 SHA-256，可順帶設定資料庫、管理員、全域代理和背景服務。想用桌面應用版？請在下方下載。',
+    quickBody: '為本機安裝 CLI，並引導你設定資料庫、管理員帳戶和代理。需要桌面應用版請在下方下載。',
     quickUnix: 'Linux · macOS · Termux',
     quickWindows: 'Windows PowerShell',
-    quickGuide: '參數與非互動用法',
-    quickAnchor: '一鍵安裝',
+    quickMore: '略過提問',
+    quickMoreBody: '加上 -y 和需要的參數即可無提示安裝，以 --help 查看全部參數。',
+    setup: '安裝之後',
+    setupApp: '應用版',
+    setupAppBody: '開啟 GPROXY，簡短的設定精靈會依序詢問埠和資料目錄、管理員使用者名稱和密碼，以及是否匯入既有設定。請記下最後顯示的位址和 API 金鑰。',
+    setupCli: 'CLI',
+    setupCliBody: '使用一鍵安裝的話，依腳本最後列印的指令啟動即可；否則執行下方指令。接著在瀏覽器開啟控制台登入。新實例只會列印一次管理員密碼和 API 金鑰，請妥善保存。',
     experimental: '實驗性',
     unsigned: '未簽章',
     arch: { x86_64: 'x86_64', aarch64: 'ARM64', riscv64: 'RISC-V 64' },
@@ -252,7 +273,12 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
           <pre class="dl-code"><code>irm https://gproxy.leenhawk.com/install.ps1 | iex</code></pre>
         </div>
       </div>
-      <a class="dl-link" href={`${prefix}/getting-started/installation/#${copy.quickAnchor}`}>{copy.quickGuide} →</a>
+      <details class="dl-details">
+        <summary>{copy.quickMore}</summary>
+        <p>{copy.quickMoreBody}</p>
+        <pre class="dl-code"><code>curl -fsSL https://gproxy.leenhawk.com/install.sh | sh -s -- -y --edition headless --proxy http://127.0.0.1:7890</code></pre>
+        <pre class="dl-code"><code>&amp; ([scriptblock]::Create((irm https://gproxy.leenhawk.com/install.ps1))) -Yes -Edition headless</code></pre>
+      </details>
     </article>
   </section>
 
@@ -328,11 +354,27 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
     </div>
   </section>
 
+  <section class="dl-setup" id="setup">
+    <h2>{copy.setup}</h2>
+    <div class="dl-setup-grid">
+      <article class="dl-card">
+        <h3>{copy.setupApp}</h3>
+        <p>{copy.setupAppBody}</p>
+      </article>
+      <article class="dl-card">
+        <h3>{copy.setupCli}</h3>
+        <p>{copy.setupCliBody}</p>
+        <pre class="dl-code"><code>gproxy serve --data-dir ./data</code></pre>
+        <pre class="dl-code"><code>http://127.0.0.1:8787/console/</code></pre>
+      </article>
+    </div>
+  </section>
+
   <section class="dl-more">
     <article class="dl-card">
       <h3>{copy.container}</h3>
       <p>{copy.containerBody}</p>
-      <pre class="dl-code"><code>docker pull leenhawk/gproxy:<span data-release-tag>latest</span></code></pre>
+      <pre class="dl-code"><code>docker run -d --name gproxy -p 127.0.0.1:8787:8787 -v gproxy-data:/app/data leenhawk/gproxy:<span data-release-tag>latest</span></code></pre>
       <a class="dl-link" href={`${prefix}/deployment/containers/`}>{copy.containerGuide} →</a>
     </article>
     <article class="dl-card">
@@ -356,7 +398,7 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
     </article>
   </section>
 
-  <p class="dl-next">{copy.next} <a href={`${prefix}/getting-started/installation/`}>{copy.nextLink}</a>.</p>
+  <p class="dl-next">{copy.next} <a href={`${prefix}/getting-started/quick-start/`}>{copy.nextLink}</a>. {copy.upgrade} <a href={`${prefix}/deployment/v3-to-v4/`}>{copy.upgradeLink}</a>.</p>
 </div>
 
 <script>
@@ -564,7 +606,14 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
   .dl-quick h2 { font-size: 1.25rem; color: var(--sl-color-white); }
   .dl-quick h3 { margin-bottom: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--sl-color-gray-2); }
   .dl-quick-cmds { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
-  .dl-quick .dl-link { align-self: flex-start; font-size: 0.9rem; }
+  .dl-details summary { cursor: pointer; font-size: 0.9rem; color: var(--sl-color-text-accent); }
+  .dl-details[open] { display: flex; flex-direction: column; gap: 0.6rem; }
+  .dl-details p { margin: 0; font-size: 0.875rem; color: var(--sl-color-text); }
+  .dl-setup { margin-top: 3rem; }
+  .dl-setup h2 { font-size: 1.4rem; margin-bottom: 1.25rem; color: var(--sl-color-white); }
+  .dl-setup h3 { font-size: 1.1rem; color: var(--sl-color-white); }
+  .dl-setup p { font-size: 0.875rem; line-height: 1.55; color: var(--sl-color-text); }
+  .dl-setup-grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); }
   .dl-more .dl-link { margin-top: auto; align-self: flex-start; font-size: 0.9rem; }
   .dl-next { margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--dl-border); font-size: 0.95rem; color: var(--sl-color-gray-2); }
 

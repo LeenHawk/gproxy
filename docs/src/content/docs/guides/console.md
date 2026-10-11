@@ -13,7 +13,7 @@ corresponding user, API key, organization or team.
 
 ## First startup
 
-A new Application instance opens a three-step wizard before the in-app console. CLI / container instances create an administrator on first startup and use the browser console at `/console/`, without the app wizard. See [Installation](/getting-started/installation/).
+A new Application instance opens a three-step wizard before the in-app console. CLI / container instances create an administrator on first startup and use the browser console at `/console/`, without the app wizard. See [Download & Install](/download/#setup).
 
 ## Management Scope
 

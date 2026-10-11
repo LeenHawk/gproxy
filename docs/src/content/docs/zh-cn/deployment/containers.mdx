@@ -1,5 +1,5 @@
 ---
-title: Northflank、Render 和 Heroku
+title: Docker、Northflank、Render 和 Heroku
 description: 使用原生 GPROXY 容器与托管 PostgreSQL 部署网关。
 ---
 
@@ -21,6 +21,23 @@ import { Card, CardGrid, LinkButton } from "@astrojs/starlight/components";
     <LinkButton href="https://app.northflank.com/s/account/templates/new" variant="secondary" icon="external">打开模板编辑器</LinkButton>
   </Card>
 </CardGrid>
+
+## Docker
+
+镜像发布到 `ghcr.io/leenhawk/gproxy` 和 Docker Hub 的 `leenhawk/gproxy`，支持 amd64、arm64、riscv64。稳定版使用 `vX.Y.Z` 标签，beta 为 `staging`，开发快照为 `nightly`；musl 镜像在标签后加 `-musl`。旧的 v3 标签无法运行 v4。
+
+```sh
+export GPROXY_IMAGE='leenhawk/gproxy:<tag>'
+# 把 GPROXY_MASTER_KEY 设为保存好的 32 字节密钥（64 位十六进制或 base64）。
+docker run -d --name gproxy --restart unless-stopped \
+  -p 127.0.0.1:8787:8787 \
+  -v gproxy-data:/app/data \
+  -e GPROXY_MASTER_KEY \
+  "$GPROXY_IMAGE"
+docker logs gproxy
+```
+
+从首次启动日志中保存管理员凭据，然后打开 `/console/`。镜像以 `65532:65532` 运行，绑定挂载的目录需要对该用户可写。替换容器时保留 `/app/data` 卷。
 
 ## Render
 

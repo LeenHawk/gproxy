@@ -43,6 +43,12 @@ function joinCjkLines() {
 export default defineConfig({
   site: 'https://gproxy.leenhawk.com',
   markdown: { remarkPlugins: [joinCjkLines] },
+  // Installation was merged into the download page.
+  redirects: {
+    '/getting-started/installation': '/download/',
+    '/zh-cn/getting-started/installation': '/zh-cn/download/',
+    '/zh-tw/getting-started/installation': '/zh-tw/download/',
+  },
   integrations: [
     starlight({
       title: 'GPROXY',
@@ -106,14 +112,9 @@ export default defineConfig({
           translations: { 'zh-CN': '快速上手', 'zh-TW': '快速上手' },
           items: [
             {
-              label: 'Download',
+              label: 'Download & Install',
               slug: 'download',
-              translations: { 'zh-CN': '下载', 'zh-TW': '下載' },
-            },
-            {
-              label: 'Installation',
-              slug: 'getting-started/installation',
-              translations: { 'zh-CN': '安装', 'zh-TW': '安裝' },
+              translations: { 'zh-CN': '下载与安装', 'zh-TW': '下載與安裝' },
             },
             {
               label: 'Quick Start',
@@ -224,9 +225,9 @@ export default defineConfig({
               translations: { 'zh-CN': '托管平台部署', 'zh-TW': '託管平台部署' },
             },
             {
-              label: 'Northflank / Render / Heroku',
+              label: 'Docker & Container Platforms',
               slug: 'deployment/containers',
-              translations: { 'zh-CN': '容器托管平台', 'zh-TW': '容器託管平台' },
+              translations: { 'zh-CN': 'Docker 与容器平台', 'zh-TW': 'Docker 與容器平台' },
             },
             {
               label: 'Building from Source',

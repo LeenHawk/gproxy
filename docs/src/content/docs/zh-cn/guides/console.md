@@ -11,7 +11,7 @@ API Key、组织或团队上设置，个人概览只读。
 
 ## 首次启动
 
-Application 全新实例先显示三步设置向导，完成后进入应用内控制台。CLI / 容器在首次启动时创建管理员，通过浏览器 `/console/` 登录，不显示应用内向导。详细步骤见[安装](/zh-cn/getting-started/installation/)。
+Application 全新实例先显示三步设置向导，完成后进入应用内控制台。CLI / 容器在首次启动时创建管理员，通过浏览器 `/console/` 登录，不显示应用内向导。详细步骤见[下载与安装](/zh-cn/download/#setup)。
 
 ## 管理范围
 

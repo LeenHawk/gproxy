@@ -4,7 +4,7 @@ description: "Add a provider and credential, create a model route, and send your
 ---
 
 
-Start GPROXY using the [installation guide](/getting-started/installation/). Application users complete the setup wizard and open the in-app console. CLI and container users open `http://127.0.0.1:8787/console/` and sign in with the administrator account created on first startup.
+Install and start GPROXY from [Download & Install](/download/#setup). Application users complete the setup wizard and open the in-app console. CLI and container users open `http://127.0.0.1:8787/console/` and sign in with the administrator account created on first startup.
 
 This example uses an OpenAI-compatible service. You need an upstream API key and a model ID supported by that service.
 
