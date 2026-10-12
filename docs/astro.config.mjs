@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightLlmsTxt from 'starlight-llms-txt';
 
 // Markdown renders a soft line break as a space. That is right between Latin
 // words and wrong between CJK characters, where the hard-wrapped zh-cn sources
@@ -80,6 +81,15 @@ export default defineConfig({
           content:
             'document.documentElement.lang = document.documentElement.lang.toLowerCase();',
         },
+      ],
+      // Serves /llms.txt, /llms-full.txt and /llms-small.txt from the English pages.
+      plugins: [
+        starlightLlmsTxt({
+          projectName: 'GPROXY',
+          details:
+            'GPROXY is a Rust LLM gateway: clients speak OpenAI, Anthropic or Gemini wire formats and GPROXY routes them to many upstream providers with per-user keys, quotas, usage accounting and an admin console.',
+          exclude: ['legal/**'],
+        }),
       ],
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/LeenHawk/gproxy' },
