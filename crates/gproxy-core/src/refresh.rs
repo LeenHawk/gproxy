@@ -28,8 +28,8 @@ const LEASE_TTL: Duration = Duration::from_secs(30);
 /// Waiting for a peer's refresh: poll interval and total patience.
 const LEASE_POLL: Duration = Duration::from_millis(100);
 const LEASE_WAIT: Duration = Duration::from_secs(10);
-/// `IfNeeded` refreshes when the material expires within this margin.
-pub const REFRESH_MARGIN_MS: i64 = 60_000;
+/// `IfNeeded` refreshes when the material expires within five minutes.
+pub const REFRESH_MARGIN_MS: i64 = 300_000;
 
 pub(crate) fn can_refresh(
     provider: &crate::ProviderData,
@@ -418,4 +418,31 @@ fn finish_peer(credential_id: &str, version: &CredentialVersion) -> CoreResult<C
         return Err(dead(credential_id, version));
     }
     Ok(summary(credential_id, version))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refresh_window_is_five_minutes() {
+        let now = 1_000_000;
+        for (expires_at_ms, expected) in [
+            (None, false),
+            (Some(now + 300_001), false),
+            (Some(now + 300_000), true),
+            (Some(now + 299_999), true),
+            (Some(now), true),
+            (Some(now - 1), true),
+        ] {
+            let version = CredentialVersion {
+                version: 0,
+                expires_at_ms,
+                secret: serde_json::Value::Null,
+                status: CredentialStatus::Active,
+                status_reason: None,
+            };
+            assert_eq!(needs_refresh(&version, now), expected, "{expires_at_ms:?}");
+        }
+    }
 }
