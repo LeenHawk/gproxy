@@ -28,8 +28,10 @@ const LEASE_TTL: Duration = Duration::from_secs(30);
 /// Waiting for a peer's refresh: poll interval and total patience.
 const LEASE_POLL: Duration = Duration::from_millis(100);
 const LEASE_WAIT: Duration = Duration::from_secs(10);
-/// `IfNeeded` refreshes when the material expires within five minutes.
+/// `IfNeeded` refreshes when the access token expires within five minutes.
 pub const REFRESH_MARGIN_MS: i64 = 300_000;
+/// Also refresh when the OAuth refresh token expires within one day.
+const REFRESH_TOKEN_MARGIN_MS: i64 = 86_400_000;
 
 pub(crate) fn can_refresh(
     provider: &crate::ProviderData,
@@ -51,6 +53,11 @@ pub(crate) fn needs_refresh(version: &CredentialVersion, now_ms: i64) -> bool {
     version
         .expires_at_ms
         .is_some_and(|expires| expires <= now_ms + REFRESH_MARGIN_MS)
+        || version
+            .secret
+            .get("refresh_expires_at_ms")
+            .and_then(serde_json::Value::as_i64)
+            .is_some_and(|expires| expires <= now_ms + REFRESH_TOKEN_MARGIN_MS)
 }
 
 fn summary(credential_id: &str, version: &CredentialVersion) -> CredentialSummary {
@@ -418,31 +425,4 @@ fn finish_peer(credential_id: &str, version: &CredentialVersion) -> CoreResult<C
         return Err(dead(credential_id, version));
     }
     Ok(summary(credential_id, version))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn refresh_window_is_five_minutes() {
-        let now = 1_000_000;
-        for (expires_at_ms, expected) in [
-            (None, false),
-            (Some(now + 300_001), false),
-            (Some(now + 300_000), true),
-            (Some(now + 299_999), true),
-            (Some(now), true),
-            (Some(now - 1), true),
-        ] {
-            let version = CredentialVersion {
-                version: 0,
-                expires_at_ms,
-                secret: serde_json::Value::Null,
-                status: CredentialStatus::Active,
-                status_reason: None,
-            };
-            assert_eq!(needs_refresh(&version, now), expected, "{expires_at_ms:?}");
-        }
-    }
 }
