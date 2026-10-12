@@ -14,6 +14,8 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
+const DEFAULT_REDIRECT_URI: &str = "http://127.0.0.1:1455/auth/callback";
+
 const OAUTH_SCOPE: &str =
     "openid profile email offline_access api.connectors.read api.connectors.invoke";
 
@@ -192,10 +194,14 @@ impl OAuthAuthorizationCode for Codex {
     ) -> OperationFuture<'a, AuthorizationStart> {
         Box::pin(async move {
             let config = CodexConfig::from_view(context.provider)?;
+            let redirect_uri = match request.redirect_uri.trim() {
+                "" => DEFAULT_REDIRECT_URI,
+                _ => request.redirect_uri,
+            };
             let query = form_encode(&[
                 ("response_type", "code"),
                 ("client_id", DEFAULT_CLIENT_ID),
-                ("redirect_uri", request.redirect_uri),
+                ("redirect_uri", redirect_uri),
                 ("scope", OAUTH_SCOPE),
                 ("code_challenge", request.code_challenge),
                 ("code_challenge_method", "S256"),
@@ -209,7 +215,7 @@ impl OAuthAuthorizationCode for Codex {
                     "{}/oauth/authorize?{query}",
                     config.issuer.trim_end_matches('/')
                 ),
-                redirect_uri: request.redirect_uri.to_owned(),
+                redirect_uri: redirect_uri.to_owned(),
                 // The exchange needs nothing this call learned.
                 provider_state: BTreeMap::new(),
             })
