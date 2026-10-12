@@ -11,6 +11,7 @@ import { HistoryFilters, type HistoryFilter } from "@/pages/observation/filters"
 import { DataTable, IdCell } from "@/components/data-table"
 import { Page, PageHeader, PageSection } from "@/components/page"
 import { EmptyNotice, LoadingRows, QueryState } from "@/components/state"
+import { UsageProviderCell, UsageCredentialCell } from "@/components/usage-upstream"
 import { UsageSummary } from "@/components/usage-summary"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -68,15 +69,15 @@ export function UsagePage({ global = false, renderRecords }: { global?: boolean;
               title={t("usage.groups")}
               actions={
                 <ToggleGroup type="single" value={groupBy} onValueChange={value => { if (value) setGroupBy(value as UsageGroupBy) }} size="sm" className="flex-wrap" aria-label={t("usage.groups")}>
-                  {(global ? ["user" as const, ...GROUPS] : GROUPS).map(group => (
-                    <ToggleGroupItem key={group} value={group}>{t(`values.${group}`)}</ToggleGroupItem>
+                  {(global ? ["user" as const, ...GROUPS, "credential" as const] : GROUPS).map(group => (
+                    <ToggleGroupItem key={group} value={group}>{t(group === "credential" ? "fields.credentialId" : `values.${group}`)}</ToggleGroupItem>
                   ))}
                 </ToggleGroup>
               }
             >
               <DataTable
                 columns={[
-                  { key: "key", cell: (row) => <IdCell value={row.key ?? "—"} /> },
+                  { key: "key", header: t(groupBy === "credential" ? "fields.credentialId" : `values.${groupBy}`), cell: (row) => global && groupBy === "provider" ? <UsageProviderCell id={row.key} /> : global && groupBy === "credential" ? <UsageCredentialCell id={row.key} /> : <IdCell value={row.key ?? "—"} /> },
                   { key: "requests", cell: (row) => formatCount(row.summary.requests, i18n.language) },
                   { key: "inputTokens", cell: (row) => formatCount(row.summary.inputTokens, i18n.language) },
                   { key: "outputTokens", cell: (row) => formatCount(row.summary.outputTokens, i18n.language) },

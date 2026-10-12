@@ -7,6 +7,7 @@ import { type HistoryFilter } from "./filters"
 import { useHistoryBatch } from "./history-batch"
 import { PageSection } from "@/components/page"
 import { DataTable, Pagination, IdCell } from "@/components/data-table"
+import { UsageProviderCell, UsageCredentialCell } from "@/components/usage-upstream"
 import { InstantCell } from "@/components/cells"
 import { EmptyNotice, QueryState } from "@/components/state"
 import { usePagination } from "@/lib/use-pagination"
@@ -42,6 +43,8 @@ function UsageRecords({ filter }: { filter: HistoryFilter }) {
         { key: "startedAtMs", cell: row => <InstantCell value={row.startedAtMs} /> },
         { key: "requestId", cell: row => <IdCell value={row.requestId} /> },
         { key: "userId", cell: row => <IdCell value={row.userId ?? "—"} /> },
+        { key: "providerId", cell: row => <UsageProviderCell id={row.exchanges[0]?.providerId ?? null} /> },
+        { key: "credentialId", cell: row => <UsageCredentialCell id={row.exchanges[0]?.credentialId ?? null} /> },
         { key: "model", cell: row => row.model },
         { key: "inputTokens", cell: row => row.tokens.inputTokens === null ? "—" : formatCount(row.tokens.inputTokens, i18n.language) },
         { key: "outputTokens", cell: row => row.tokens.outputTokens === null ? "—" : formatCount(row.tokens.outputTokens, i18n.language) },
