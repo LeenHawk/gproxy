@@ -656,6 +656,7 @@ fn credentials(
                 // v3's credentials had no expiry column; an OAuth credential's
                 // expiry lived inside the secret and v4's refresh re-reads it.
                 expires_at_ms: None,
+                refresh_expires_at_ms: None,
                 status: "active".into(),
                 status_reason: None,
                 enabled: row.config.enabled,

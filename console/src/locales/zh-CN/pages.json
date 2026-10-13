@@ -744,6 +744,9 @@
     "metadataImported": "已导入 {{count}} 个模型的元数据。"
   },
   "management": {
+    "accessTokenExpiry": "凭证 / 访问令牌过期时间",
+    "refreshTokenExpiry": "刷新令牌过期时间",
+    "pendingInitialRefresh": "待首次刷新",
     "credentialRegionHint": "覆盖供应商默认区域。留空时继承供应商设置（或凭证密钥中的 location）。",
     "allowPaidUsage": "允许使用积分余额",
     "paidUsageHint": "订阅额度耗尽后，允许使用已有积分或付费用量，不会自动开通计费。",

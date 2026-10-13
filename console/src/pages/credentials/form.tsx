@@ -46,7 +46,7 @@ export function CredentialForm({ providerId, channel, credentialKinds, inline = 
     label: t("providerConfig.region"), description: t("management.credentialRegionHint"),
   })
   const Form = inline ? RecordEditor : RecordDialog
-  return <>{ownership.error ? <ErrorNotice error={ownership.error} /> : null}<Form {...props} extra={secretActions} extraAfter="secret" submitDisabled={!original && !credentialKinds.length} mode={original ? "edit" : "create"} title={t(original ? "edit.credentials" : "create.credentials")} original={{ ...original, authKind: original?.authKind ?? credentialKinds[0], metadata: formMetadata, location: metadata.location ?? null, allowPaidUsage, owner: selectedOwner }} fields={[...fields, { name: "owner", label: t("management.owner"), kind: "select", required: true, choices }]}
+  return <>{ownership.error ? <ErrorNotice error={ownership.error} /> : null}<Form {...props} extra={secretActions} extraAfter="secret" submitDisabled={!original && !credentialKinds.length} mode={original ? "edit" : "create"} title={t(original ? "edit.credentials" : "create.credentials")} original={{ ...original, expiresAtMs: channel === "vertex" && original?.expiresAtMs === 0 ? null : original?.expiresAtMs, authKind: original?.authKind ?? credentialKinds[0], metadata: formMetadata, location: metadata.location ?? null, allowPaidUsage, owner: selectedOwner }} fields={[...fields, { name: "owner", label: t("management.owner"), kind: "select", required: true, choices }]}
     onSubmit={body => {
       const { owner, location, allowPaidUsage: paid, ...rest } = body
       const editedMetadata = rest.metadata ?? metadata

@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { QuotasPanel } from "@/pages/quotas"
 import { CredentialForm } from "./form"
+import { CredentialExpiry } from "./expiry"
 import { UpstreamQuota } from "./upstream"
 
 export function CredentialDetails({ credential, provider, initialTab = "basic", onClose }: { credential: CredentialDto; provider: CredentialProviderDto; initialTab?: "basic" | "limits" | "upstream"; onClose: () => void }) {
@@ -57,7 +58,12 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
     {action.error ? <ErrorNotice error={action.error} /> : null}
     <QueryState isPending={row.isPending} error={row.error}>
       <Tabs value={tab} onValueChange={value => setTab(value as typeof tab)}><TabsList variant="line" className="max-w-full"><TabsTrigger value="basic" disabled={busy}>{t("limits.basic")}</TabsTrigger><TabsTrigger value="limits" disabled={busy}>{t("limits.local")}</TabsTrigger><TabsTrigger value="upstream" disabled={busy}>{t("limits.upstream")}</TabsTrigger></TabsList>
-        <TabsContent value="basic" forceMount hidden={tab !== "basic"}><CredentialForm secretActions={<div className="flex flex-col gap-3">
+        <TabsContent value="basic" forceMount hidden={tab !== "basic"}>
+          <dl className="mb-4 grid gap-3 sm:grid-cols-2">
+            <div><dt className="text-sm text-muted-foreground">{t("management.accessTokenExpiry")}</dt><dd><CredentialExpiry value={current.expiresAtMs} pendingRefresh={provider.channel === "vertex"} /></dd></div>
+            <div><dt className="text-sm text-muted-foreground">{t("management.refreshTokenExpiry")}</dt><dd><CredentialExpiry value={current.refreshExpiresAtMs} /></dd></div>
+          </dl>
+          <CredentialForm secretActions={<div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={busy || !current.hasSecret} onClick={() => secret === null ? void reveal() : setSecret(null)}>{t(secret === null ? "management.reveal" : "keys.hide")}</Button>
             {provider.capabilities.refresh ? <Button variant="outline" size="sm" disabled={busy || !provider.enabled} onClick={() => { setSecret(null); action.mutate("refresh") }}>{t("management.refresh")}</Button> : null}
           </div>

@@ -113,8 +113,8 @@ pub struct ProviderPatch {
     pub enabled: Option<bool>,
 }
 
-/// A credential without its secret. `has_secret` is the only thing said about
-/// the sealed bytes; reading them back is `Credentials::reveal_secret`.
+/// A credential without its secret. Only presence and expiry timestamps are
+/// exposed; reading the material itself requires `Credentials::reveal_secret`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
@@ -143,6 +143,9 @@ pub struct CredentialDto {
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub metadata: Value,
     pub expires_at_ms: Option<i64>,
+    /// Read-only refresh-token expiry, projected from the sealed secret on management reads.
+    /// None means no expiry was reported or the secret could not be read.
+    pub refresh_expires_at_ms: Option<i64>,
     /// `active` or `dead`.
     pub status: String,
     pub status_reason: Option<String>,
@@ -165,6 +168,7 @@ impl From<credential::Model> for CredentialDto {
             proxy: row.proxy,
             metadata: row.metadata,
             expires_at_ms: row.expires_at_ms,
+            refresh_expires_at_ms: None,
             status: status_name(row.status).to_owned(),
             status_reason: row.status_reason,
             enabled: row.enabled,

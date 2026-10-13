@@ -744,6 +744,9 @@
     "metadataImported": "已匯入 {{count}} 個模型的中繼資料。"
   },
   "management": {
+    "accessTokenExpiry": "憑證 / 存取權杖到期時間",
+    "refreshTokenExpiry": "更新權杖到期時間",
+    "pendingInitialRefresh": "待首次更新",
     "credentialRegionHint": "覆蓋供應商預設區域。留空時繼承供應商設定（或憑證密鑰中的 location）。",
     "allowPaidUsage": "允許使用積分餘額",
     "paidUsageHint": "訂閱額度耗盡後，允許使用已有積分或付費用量，不會自動開通計費。",

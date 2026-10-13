@@ -744,6 +744,9 @@
     "metadataImported": "Imported metadata for {{count}} models."
   },
   "management": {
+    "accessTokenExpiry": "Credential / access token expires",
+    "refreshTokenExpiry": "Refresh token expires",
+    "pendingInitialRefresh": "Pending initial refresh",
     "credentialRegionHint": "Overrides the provider region. Leave empty to inherit the provider setting (or the location in the credential secret).",
     "allowPaidUsage": "Allow credit balance usage",
     "paidUsageHint": "Allow existing credits or paid usage after subscription limits are reached. This does not enable billing.",

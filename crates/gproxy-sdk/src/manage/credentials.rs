@@ -503,6 +503,21 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
     fn repository(&self) -> Repository<'_, C, Self::Entity> {
         self.writer.store().credentials()
     }
+    fn to_dto(&self, row: credential::Model) -> CredentialDto {
+        // Read only this timestamp after owner-scoped admission. A damaged or
+        // unavailable secret must not hide the row from credential management.
+        let refresh_expires_at_ms = self
+            .writer
+            .core()
+            .secret_codec()
+            .open(&row.id, &row.secret)
+            .ok()
+            .and_then(|secret| secret.get("refresh_expires_at_ms").and_then(Value::as_i64));
+        CredentialDto {
+            refresh_expires_at_ms,
+            ..row.into()
+        }
+    }
     fn condition(&self) -> sea_orm::Condition {
         self.owner.clone().unwrap_or_else(sea_orm::Condition::all)
     }
