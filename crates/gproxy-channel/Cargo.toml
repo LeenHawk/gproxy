@@ -188,6 +188,7 @@ vertex = [
     "dep:futures-util",
     "dep:getrandom_v02",
     "dep:rsa",
+    "dep:url",
     "dep:web-time",
 ]
 # Google Vertex AI Express mode: the Gemini surface with an API key in the

@@ -1,13 +1,14 @@
 //! The `BaseChannel` implementation: which dialects Vertex serves natively,
-//! and how one request is built. Every operation uses the default HTTP flow.
+//! and how one request is built. Model listing aggregates publisher pages;
+//! the remaining operations use the default HTTP flow.
 
 use super::config::VertexConfig;
 use super::endpoint::{self, model_from_path, validate_model};
 use super::{ID, Vertex, auth};
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, PrepareContext, ProviderView,
-    forwardable,
+    CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, OperationContext, OperationFuture,
+    PrepareContext, ProviderView, forwardable,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
 use http::{HeaderValue, header};
@@ -61,6 +62,13 @@ impl BaseChannel for Vertex {
             .chain(HOST_CONFIG_KEYS)
             .collect(),
         }
+    }
+
+    fn list_models<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, gproxy_protocol::WireResponse<HttpBody>> {
+        Box::pin(super::models::list(self, context))
     }
 
     /// Vertex resells each publisher's own wire. Google's models speak Gemini,
