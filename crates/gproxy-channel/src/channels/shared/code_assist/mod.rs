@@ -52,7 +52,9 @@ pub(crate) fn model_id(model: &str) -> &str {
 pub(crate) fn request_model(path: &str, body: Option<&Value>) -> Option<String> {
     if let Some((_, tail)) = path.split_once("/models/") {
         let raw = tail.split(':').next().unwrap_or(tail);
-        let decoded = percent_encoding::percent_decode_str(raw).decode_utf8().ok()?;
+        let decoded = percent_encoding::percent_decode_str(raw)
+            .decode_utf8()
+            .ok()?;
         let model = decoded.trim();
         return (!model.is_empty()).then(|| model.to_owned());
     }
