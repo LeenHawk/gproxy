@@ -737,6 +737,7 @@
     "metadataImported": "已匯入 {{count}} 個模型的中繼資料。"
   },
   "management": {
+    "credentialRegionHint": "覆蓋供應商預設區域。留空時繼承供應商設定（或憑證密鑰中的 location）。",
     "allowPaidUsage": "允許使用積分餘額",
     "paidUsageHint": "訂閱額度耗盡後，允許使用已有積分或付費用量，不會自動開通計費。",
     "codexPaidUsageHint": "訂閱額度耗盡後，允許使用已有積分。",

@@ -9,7 +9,6 @@ use crate::channel::{
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation};
 
-
 impl BaseChannel for VertexExpress {
     fn id(&self) -> &'static str {
         ID
@@ -22,9 +21,13 @@ impl BaseChannel for VertexExpress {
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities::default(),
             config_keys: [ConfigKey::optional(
+                "location",
+                ConfigKeyKind::String,
+                "Vertex region, for example us-central1 or global. Credential location overrides this default; defaults to global. Only the origin changes, not the publisher-scoped path.",
+            ).with_placeholder("global"), ConfigKey::optional(
                 "base_url",
                 ConfigKeyKind::String,
-                "Complete origin, replacing https://aiplatform.googleapis.com. Provider column, not config JSON. Express mode has no project and no region to configure.",
+                "Complete origin, replacing https://aiplatform.googleapis.com. Provider column, not config JSON. Overrides the region-derived origin; Express mode requires no project.",
             ).with_placeholder(endpoint::DEFAULT_ORIGIN)]
             .into_iter()
             .chain(HOST_CONFIG_KEYS)
@@ -51,8 +54,19 @@ impl BaseChannel for VertexExpress {
             .map(str::trim)
             .filter(|key| !key.is_empty())
             .ok_or(ChannelError::InvalidCredential)?;
+        let location = [
+            ctx.credential.metadata.get("location"),
+            ctx.credential.secret.get("location"),
+            ctx.provider.config.get("location"),
+        ]
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+        .map(str::trim)
+        .find(|value| !value.is_empty());
+        let origin = endpoint::origin(ctx.provider.base_url, location)?;
         let uri = endpoint::method_url(
-            ctx.provider.base_url,
+            Some(&origin),
             ctx.endpoint_override,
             ctx.operation,
             &ctx.request.path,

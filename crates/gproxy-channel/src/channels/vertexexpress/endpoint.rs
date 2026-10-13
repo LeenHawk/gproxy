@@ -4,8 +4,29 @@
 use crate::channel::ChannelError;
 use gproxy_protocol::{Dialect, Operation, OperationKey};
 
-/// Express mode has no regional host: one global origin serves every key.
+/// Default origin when no region is configured.
 pub(super) const DEFAULT_ORIGIN: &str = "https://aiplatform.googleapis.com";
+
+/// Resolve the optional regional origin; an explicit base URL wins.
+pub(super) fn origin(
+    base_url: Option<&str>,
+    location: Option<&str>,
+) -> Result<String, ChannelError> {
+    let location = trimmed(location).unwrap_or("global");
+    if !location
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    {
+        return Err(ChannelError::InvalidConfig(
+            "invalid Vertex Express location".into(),
+        ));
+    }
+    Ok(match trimmed(base_url) {
+        Some(base) => base.trim_end_matches('/').to_owned(),
+        None if location == "global" => DEFAULT_ORIGIN.to_owned(),
+        None => format!("https://{location}-aiplatform.googleapis.com"),
+    })
+}
 
 /// The complete upstream method URL for one request, key included.
 ///

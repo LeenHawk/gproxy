@@ -45,7 +45,7 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `openrouter` | `openrouter` | OpenRouter: provider routing preferences filled into the body, `HTTP-Referer`/`X-Title` attribution, the price the reply says it charged, `/v1/auth/key` | `{"api_key"}` |
 | `vercel` | `vercel` | Vercel AI Gateway: Chat, Responses, Claude Messages and embeddings, dual key headers, the team's `/v1/credits` balance | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
-| `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface on one global origin, key in the query, no project and no region | `{"api_key"}` |
+| `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface with a global default and optional regional origin, key in the query, no project | `{"api_key"}` |
 | `workbuddy` | `workbuddy` | Tencent Copilot through its editor plugin: device login, refresh, OpenAI Chat under `/v2` with the plugin's identity and account headers, the `/v3/config` catalogue, the enterprise and personal billing meters | `OAuthCredential` |
 | `xai` | `xai` | xAI (Grok): OpenAI Chat and Responses plus xAI's own `/v1/tts`, `/v1/stt` and `/v1/videos/generations`, `cost_in_usd_ticks` metering, the management billing probe | `{"api_key"}` |
 

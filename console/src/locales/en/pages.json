@@ -737,6 +737,7 @@
     "metadataImported": "Imported metadata for {{count}} models."
   },
   "management": {
+    "credentialRegionHint": "Overrides the provider region. Leave empty to inherit the provider setting (or the location in the credential secret).",
     "allowPaidUsage": "Allow credit balance usage",
     "paidUsageHint": "Allow existing credits or paid usage after subscription limits are reached. This does not enable billing.",
     "codexPaidUsageHint": "Allow existing credits after subscription limits are reached.",

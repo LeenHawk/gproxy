@@ -38,7 +38,7 @@ Cargo feature：
 | `opencode` | `opencode` | OpenCode Zen 与 Go：每档一个 origin，上面同时挂 Chat Completions、Responses 与 Claude Messages 三个面，CLI 的 `x-opencode-session` 会话头、Console 设备登录，Go 档的 `/usage` 窗口 | `{"api_key"}` 或 `OAuthCredential` |
 | `openrouter` | `openrouter` | OpenRouter：把 provider 选路偏好填进 body、`HTTP-Referer`／`X-Title` 归属头、响应里自报的价格、`/v1/auth/key` | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI：按项目与地区寻址 google／anthropic／OpenAI 兼容三个发布者；服务账号密钥经 `CredentialRefresh` 换取访问令牌 | Google 服务账号密钥 |
-| `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：单一全局 origin 上的 Gemini 面，key 走 query，无项目无地区 | `{"api_key"}` |
+| `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：默认全局、可配置区域 origin 的 Gemini 面，key 走 query，无项目 | `{"api_key"}` |
 | `workbuddy` | `workbuddy` | 经编辑器插件使用的腾讯 Copilot：设备登录与刷新、`/v2` 下带插件身份头与账号头的 OpenAI Chat、`/v3/config` 目录、企业与个人两套计费表 | `OAuthCredential` |
 | `xai` | `xai` | xAI（Grok）：OpenAI Chat 与 Responses，外加 xAI 自己的 `/v1/tts`、`/v1/stt`、`/v1/videos/generations`，`cost_in_usd_ticks` 计量，管理面的账单探测 | `{"api_key"}` |
 

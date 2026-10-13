@@ -17,7 +17,7 @@ pub(super) struct Place {
 /// service-account key and the provider's `base_url`.
 ///
 /// `project` comes from config first and from the key's own `project_id`
-/// second; `location` from config, then the key, then Google's default
+/// second; `location` from credential metadata, then the key, then config, then Google's default
 /// `us-central1`. Both end up in the URL path, so both are validated rather
 /// than encoded: a value with a `/` in it would silently address a different
 /// resource.
@@ -41,9 +41,15 @@ pub(super) fn resolve(
             )
         })?;
     validate_segment("project", project)?;
-    let location = setting(config.location.as_deref())
-        .or_else(|| setting(secret("location")))
-        .unwrap_or(DEFAULT_LOCATION);
+    let location = setting(
+        credential
+            .metadata
+            .get("location")
+            .and_then(serde_json::Value::as_str),
+    )
+    .or_else(|| setting(secret("location")))
+    .or_else(|| setting(config.location.as_deref()))
+    .unwrap_or(DEFAULT_LOCATION);
     validate_segment("location", location)?;
     let origin = match setting(provider.base_url) {
         Some(base) => base.trim_end_matches('/').to_owned(),

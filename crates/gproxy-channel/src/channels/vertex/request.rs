@@ -48,7 +48,7 @@ impl BaseChannel for Vertex {
                 ConfigKey::optional(
                     "location",
                     ConfigKeyKind::String,
-                    "Vertex region, for example us-central1, europe-west4 or global. Decides both the origin host and the method path; defaults to us-central1.",
+                    "Vertex region, for example us-central1, europe-west4 or global. Decides both the origin host and the method path; credential location overrides this default; defaults to us-central1.",
                 ).with_placeholder(super::config::DEFAULT_LOCATION),
                 ConfigKey::optional(
                     "base_url",

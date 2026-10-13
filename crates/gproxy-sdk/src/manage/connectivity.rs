@@ -703,10 +703,11 @@ fn native_dialect(provider: &Arc<ProviderData>, operation: Operation) -> SdkResu
         .into_iter()
         .find(|dialect| !matches!(dialect, Dialect::OpenAiResponsesWebSocket))
         .ok_or_else(|| {
-            SdkError::invalid(format!(
-                "channel `{}` speaks no HTTP dialect for {operation:?}",
-                provider.entity.channel
-            ))
+            SdkError::invalid(if operation == Operation::ListModels {
+                format!("channel `{}` does not support upstream model discovery; add models manually", provider.entity.channel)
+            } else {
+                format!("channel `{}` speaks no HTTP dialect for {operation:?}", provider.entity.channel)
+            })
         })
 }
 
