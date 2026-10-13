@@ -226,21 +226,19 @@ async fn list<C: BatchConnectionTrait + Send + Sync>(
     }
 }
 
-/// The bare model id from the client's own path: the segment after the last
-/// `/models/`, percent-decoded, without a Gemini `models/` resource prefix.
+/// The bare model id from the client's own path: the remainder after the first
+/// `/models/`, percent-decoded. The remainder is the id, not another wrapper.
 fn requested_id(path: &str) -> Result<String, TransformError> {
     let (_, tail) = path
-        .trim_end_matches('/')
-        .rsplit_once("/models/")
+        .split_once("/models/")
         .ok_or_else(|| TransformError::shape("request.path", "expected a `/models/{id}` path"))?;
     let id = percent_encoding::percent_decode_str(tail)
         .decode_utf8()
         .map_err(|_| TransformError::shape("request.path", "model id is not UTF-8"))?;
-    let id = id.strip_prefix("models/").unwrap_or(&id);
     if id.is_empty() {
         return Err(TransformError::shape("request.path", "empty model id"));
     }
-    Ok(id.to_owned())
+    Ok(id.into_owned())
 }
 
 fn supplement<'m, T>(

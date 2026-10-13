@@ -4,6 +4,7 @@
 
 use super::config::{DEFAULT_LOCATION, VertexConfig, setting};
 use crate::channel::{ChannelError, CredentialView, ProviderView};
+use crate::channels::shared::google_model;
 use gproxy_protocol::{Dialect, Operation, OperationKey};
 
 /// The Google Cloud coordinates every project-scoped method is addressed by.
@@ -74,7 +75,7 @@ pub(super) fn resolve(
 /// | operation, dialect | Vertex method |
 /// |---|---|
 /// | ListModels, Gemini | `/v1beta1/publishers/google/models` |
-/// | GetModel, Gemini | `/v1beta1/publishers/google/models/{model}` |
+/// | GetModel, Gemini | `/v1beta1/publishers/{publisher}/models/{model}` |
 /// | GenerateContent, Gemini | `/v1beta1/projects/{p}/locations/{l}/publishers/google/models/{model}:generateContent` |
 /// | StreamGenerateContent, Gemini | the same, `:streamGenerateContent` |
 /// | CountTokens, Gemini | the same, `:countTokens` |
@@ -127,18 +128,21 @@ fn method_path(
         project, location, ..
     } = place;
     let named = |publisher: &str, version: &str, verb: &str| -> Result<String, ChannelError> {
-        let model = required_model(operation, model)?;
-        Ok(format!(
-            "/{version}/projects/{project}/locations/{location}/publishers/{publisher}/models/{model}{verb}"
-        ))
+        let model = google_model::resource_path(required_model(operation, model)?, publisher)?;
+        let resource = if model.starts_with("projects/") {
+            model
+        } else {
+            format!("projects/{project}/locations/{location}/{model}")
+        };
+        Ok(format!("/{version}/{resource}{verb}"))
     };
     match (operation.operation, operation.dialect) {
         (Operation::ListModels, Dialect::Gemini) => {
             Ok("/v1beta1/publishers/google/models".to_owned())
         }
         (Operation::GetModel, Dialect::Gemini) => Ok(format!(
-            "/v1beta1/publishers/google/models/{}",
-            required_model(operation, model)?
+            "/v1beta1/{}",
+            google_model::resource_path(required_model(operation, model)?, "google")?
         )),
         (Operation::GenerateContent, Dialect::Gemini) => {
             named("google", "v1beta1", ":generateContent")
@@ -179,37 +183,6 @@ fn required_model(operation: OperationKey, model: Option<&str>) -> Result<&str, 
             operation.operation
         ))
     })
-}
-
-/// The bare model id a Vertex URL names. Gemini clients write it into the
-/// path, sometimes as the `models/{id}` resource name and sometimes as a full
-/// `publishers/google/models/{id}`; the last `/models/` segment is the id in
-/// every spelling. The verb, if any, is separated by `:`.
-pub(super) fn model_from_path(path: &str) -> Option<&str> {
-    let tail = match path.rsplit_once("/models/") {
-        Some((_, tail)) => tail,
-        None => path.rsplit('/').next()?,
-    };
-    let id = tail.split(':').next().unwrap_or(tail);
-    (!id.is_empty()).then_some(id)
-}
-
-/// A model id lands in a URL path segment. Percent-encoding it would hide a
-/// caller's mistake behind a request for a resource that does not exist, so a
-/// value that cannot be a segment is refused instead. Vertex's own Anthropic
-/// ids carry an `@` version suffix, which is a legal path character.
-pub(super) fn validate_model(model: &str) -> Result<(), ChannelError> {
-    let valid = !model.is_empty()
-        && model.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'@' | b'~')
-        });
-    if valid {
-        Ok(())
-    } else {
-        Err(ChannelError::InvalidConfig(format!(
-            "`{model}` is not a Vertex model id"
-        )))
-    }
 }
 
 fn validate_segment(name: &'static str, value: &str) -> Result<(), ChannelError> {

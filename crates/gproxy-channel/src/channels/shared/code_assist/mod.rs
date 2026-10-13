@@ -39,30 +39,22 @@ pub(crate) fn invalid_response(message: impl Into<String>) -> ChannelError {
     ChannelError::InvalidResponse(message.into())
 }
 
-/// The bare model id: `models/gemini-3-pro` and
-/// `projects/p/locations/l/models/gemini-3-pro` both reduce to the last
-/// segment (v3 `shared/gemini/model.rs::model_id`).
+/// Remove only Gemini's resource wrapper, never a publisher or an interior
+/// `/models/` in an upstream id. Code Assist's `model` field is an opaque id
+/// (google-gemini/gemini-cli, code_assist/converter.ts).
 pub(crate) fn model_id(model: &str) -> &str {
     let model = model.trim();
-    model
-        .rsplit_once("/models/")
-        .map(|(_, id)| id)
-        .unwrap_or_else(|| model.strip_prefix("models/").unwrap_or(model))
+    model.strip_prefix("models/").unwrap_or(model)
 }
 
-/// The model a native Gemini request names: the `{model}:{method}` segment of
-/// the path the client sent, else the body's own `model` field. v4 hands
-/// `prepare` the client's request, not the resolved upstream model, so the
-/// model is read back out of the request the same way the Gemini API does.
+/// The whole model remainder in a Gemini path, decoded exactly once. A
+/// body-only request already carries a decoded model value.
 pub(crate) fn request_model(path: &str, body: Option<&Value>) -> Option<String> {
-    let from_path = path
-        .rsplit_once("/models/")
-        .map(|(_, tail)| tail)
-        .and_then(|tail| tail.split(':').next())
-        .map(str::trim)
-        .filter(|model| !model.is_empty() && !model.contains('/'));
-    if let Some(model) = from_path {
-        return Some(model.to_owned());
+    if let Some((_, tail)) = path.split_once("/models/") {
+        let raw = tail.split(':').next().unwrap_or(tail);
+        let decoded = percent_encoding::percent_decode_str(raw).decode_utf8().ok()?;
+        let model = decoded.trim();
+        return (!model.is_empty()).then(|| model.to_owned());
     }
     let body = body?;
     let named = body
@@ -70,7 +62,6 @@ pub(crate) fn request_model(path: &str, body: Option<&Value>) -> Option<String> 
         .or_else(|| body.pointer("/request/model"))
         .and_then(Value::as_str)
         .map(model_id)
-        .map(str::trim)
         .filter(|model| !model.is_empty())?;
     Some(named.to_owned())
 }

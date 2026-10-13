@@ -652,10 +652,9 @@ fn catalogued_aliases_resolve_and_dotted_forms_keep_their_own_target() {
         "claude-sonnet-4-6",
         "the dashed form is itself a catalogue selector"
     );
-    assert_eq!(
-        devin::resolve("anthropic/claude-opus-4.8", &extra).unwrap(),
-        "claude-opus-4-8-medium",
-        "a vendor prefix is normalized away"
+    assert!(
+        devin::resolve("anthropic/claude-opus-4.8", &extra).is_err(),
+        "an unknown qualified name must not silently select a bare alias"
     );
     assert_eq!(
         devin::resolve("gemini-3-5-flash-medium", &extra).unwrap(),

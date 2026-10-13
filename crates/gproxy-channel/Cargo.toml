@@ -25,6 +25,7 @@ aistudio = []
 antigravity = [
     "dep:futures-util",
     "dep:getrandom",
+    "dep:percent-encoding",
     "dep:sha2",
     "dep:time",
     "dep:web-time",
@@ -105,7 +106,7 @@ dashscope = ["dep:futures-util"]
 # /anthropic, with prompt_cache_hit_tokens and the /user/balance probe.
 deepseek = ["dep:futures-util"]
 # GLM platform API and Coding Plan (glm / glmcode), dynamic ZCode catalogue.
-glm = ["dep:futures-util"]
+glm = ["dep:futures-util", "dep:percent-encoding"]
 # MiniMax text API / Token Plan and H3 video tasks.
 minimax = ["dep:futures-util"]
 # Devin (Windsurf) cloud upstream at server.codeium.com: Connect-RPC over
@@ -129,6 +130,7 @@ devin = [
 geminicli = [
     "dep:futures-util",
     "dep:getrandom",
+    "dep:percent-encoding",
     "dep:time",
     "dep:web-time",
 ]
@@ -187,13 +189,14 @@ vertex = [
     "dep:base64",
     "dep:futures-util",
     "dep:getrandom_v02",
+    "dep:percent-encoding",
     "dep:rsa",
     "dep:url",
     "dep:web-time",
 ]
 # Google Vertex AI Express mode: the Gemini surface with an API key in the
 # query, no project and no region.
-vertexexpress = []
+vertexexpress = ["dep:percent-encoding"]
 # WorkBuddy (Tencent Copilot, `copilot.tencent.com`): a device login through
 # the editor plugin's auth endpoints, OpenAI Chat under /v2 carrying the CLI's
 # identity headers, a /v3/config model catalogue and the two billing-meter

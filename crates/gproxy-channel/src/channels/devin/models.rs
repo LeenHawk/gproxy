@@ -227,18 +227,6 @@ pub const SELECTORS: &[(&str, &str)] = &[
     ("deepseek-v4", "deepseek-v4"),
 ];
 
-/// Lowercase, drop a leading `vendor/` prefix some clients prepend, and
-/// collapse dots into dashes — the reference's normalization, applied only
-/// after an exact match failed so a dotted family alias keeps its own target.
-fn normalize(name: &str) -> String {
-    let name = name.trim().to_ascii_lowercase();
-    let name = match name.split_once('/') {
-        Some((vendor, rest)) if !vendor.is_empty() && !rest.is_empty() => rest.to_owned(),
-        _ => name,
-    };
-    name.replace('.', "-")
-}
-
 fn lookup(name: &str, extra: &BTreeMap<String, String>) -> Option<String> {
     if let Some(selector) = extra.get(name) {
         return Some(selector.clone());
@@ -260,9 +248,8 @@ fn is_selector(name: &str, extra: &BTreeMap<String, String>) -> bool {
         || snapshot().contains_key(name)
 }
 
-/// The upstream selector for a client-facing model name, or a refusal.
+/// Resolve an exact upstream selector or an explicitly declared alias.
 pub fn resolve(name: &str, extra: &BTreeMap<String, String>) -> Result<String, ChannelError> {
-    let name = name.trim();
     if name.is_empty() {
         return Err(unknown(""));
     }
@@ -272,14 +259,7 @@ pub fn resolve(name: &str, extra: &BTreeMap<String, String>) -> Result<String, C
     if is_selector(name, extra) {
         return Ok(name.to_owned());
     }
-    let normalized = normalize(name);
-    if let Some(selector) = lookup(&normalized, extra) {
-        return Ok(selector);
-    }
-    if is_selector(&normalized, extra) {
-        return Ok(normalized);
-    }
-    if is_router(&normalized) {
+    if is_router(name) {
         return Err(router(name));
     }
     Err(unknown(name))

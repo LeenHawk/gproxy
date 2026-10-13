@@ -164,7 +164,10 @@ pub(super) fn serves_messages(model: &str) -> bool {
 
 /// The model id from a `/v1/models/{id}` style path.
 pub(super) fn model_from_path(path: &str) -> Result<String, ChannelError> {
-    let segment = path.trim_end_matches('/').rsplit('/').next().unwrap_or("");
+    let segment = path
+        .split_once("/models/")
+        .map(|(_, id)| id)
+        .unwrap_or("");
     if segment.is_empty() {
         return Err(ChannelError::InvalidConfig(
             "the request path names no model".into(),

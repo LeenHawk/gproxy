@@ -58,7 +58,7 @@ pub(super) async fn invoke(
         let segment = ctx
             .request
             .path
-            .rsplit_once("/models/")
+            .split_once("/models/")
             .map(|(_, id)| id)
             .filter(|id| !id.is_empty())
             .ok_or_else(|| invalid_config("model id missing from request path"))?;

@@ -2,6 +2,7 @@
 //! this channel computes an upstream URL.
 
 use crate::channel::ChannelError;
+use crate::channels::shared::google_model;
 use gproxy_protocol::{Dialect, Operation, OperationKey};
 
 /// Default origin when no region is configured.
@@ -86,41 +87,13 @@ fn method_path(operation: OperationKey, path: &str) -> Result<String, ChannelErr
         (Operation::CountTokens, Dialect::Gemini) => "countTokens",
         _ => return Err(ChannelError::UnsupportedOperation(operation)),
     };
-    let model = model_from_path(path).ok_or_else(|| {
+    let model = google_model::from_path(path)?.ok_or_else(|| {
         ChannelError::InvalidConfig(
             "a Vertex Express request must name its model in the path".into(),
         )
     })?;
-    validate_model(model)?;
-    Ok(format!("/v1/publishers/google/models/{model}:{verb}"))
-}
-
-/// The bare model id a Gemini path names, in any of its spellings
-/// (`{id}`, `models/{id}`, `publishers/google/models/{id}`), with the method
-/// verb after `:` removed.
-fn model_from_path(path: &str) -> Option<&str> {
-    let tail = match path.rsplit_once("/models/") {
-        Some((_, tail)) => tail,
-        None => path.rsplit('/').next()?,
-    };
-    let id = tail.split(':').next().unwrap_or(tail);
-    (!id.is_empty()).then_some(id)
-}
-
-/// A model id lands in a URL path segment; a value that cannot be one is
-/// refused rather than percent-encoded into a request for a resource that
-/// does not exist.
-fn validate_model(model: &str) -> Result<(), ChannelError> {
-    let valid = model
-        .bytes()
-        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'@'));
-    if valid {
-        Ok(())
-    } else {
-        Err(ChannelError::InvalidConfig(format!(
-            "`{model}` is not a Gemini model id"
-        )))
-    }
+    let resource = google_model::resource_path(&model, "google")?;
+    Ok(format!("/v1/{resource}:{verb}"))
 }
 
 /// Source authentication never reaches the upstream; the assigned key does.

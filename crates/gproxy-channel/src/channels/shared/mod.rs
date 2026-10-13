@@ -98,3 +98,7 @@ pub(crate) mod claude_fallback;
 
 #[cfg(any(feature = "claudeapi", feature = "vercel"))]
 pub(crate) mod claude_hygiene;
+
+/// Vertex's full resource names and publisher-qualified ids.
+#[cfg(any(feature = "vertex", feature = "vertexexpress"))]
+pub(crate) mod google_model;

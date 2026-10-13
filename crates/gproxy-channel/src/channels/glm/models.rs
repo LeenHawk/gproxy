@@ -80,11 +80,21 @@ pub(super) async fn reply(
         );
     }
     let (status, body) = if single {
-        let id = ctx.request.path.rsplit('/').next().unwrap_or_default();
+        let id = ctx
+            .request
+            .path
+            .split_once("/models/")
+            .map(|(_, id)| id)
+            .ok_or_else(|| {
+                ChannelError::InvalidConfig("model id missing from request path".into())
+            })?;
+        let id = percent_encoding::percent_decode_str(id)
+            .decode_utf8()
+            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
         match models.into_iter().find(|model| {
             model["id"]
                 .as_str()
-                .is_some_and(|m| m.eq_ignore_ascii_case(id))
+                .is_some_and(|m| m == id.as_ref())
         }) {
             Some(model) => (StatusCode::OK, model),
             None => (

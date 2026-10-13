@@ -78,25 +78,11 @@ pub(super) async fn list(
             }
             let page: Page = serde_json::from_slice(&read_body(response.body).await?)
                 .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
-            for mut model in page.publisher_models {
-                let name = model.get("name").and_then(Value::as_str).ok_or_else(|| {
-                    ChannelError::InvalidResponse("Vertex publisher model has no name".into())
-                })?;
-                let id = name.rsplit_once("/models/").map_or(name, |(_, id)| id);
-                let id = id.strip_prefix("models/").unwrap_or(id).to_owned();
-                if id.is_empty() {
-                    return Err(ChannelError::InvalidResponse(
-                        "Vertex publisher model has an empty name".into(),
-                    ));
-                }
-                let name = format!("models/{id}");
-                let fields = model.as_object_mut().expect("a named model is an object");
-                fields.insert("name".into(), json!(name));
-                fields.entry("baseModelId").or_insert(json!(id));
-                if let Some(version) = fields.get("versionId").cloned() {
-                    fields.entry("version").or_insert(version);
-                }
-                models.entry(name).or_insert(model);
+            for model in page.publisher_models {
+                let model = normalize(model)?;
+                models
+                    .entry(model["name"].as_str().unwrap().to_owned())
+                    .or_insert(model);
             }
             if page.next_page_token.is_empty() {
                 break;
@@ -130,6 +116,67 @@ pub(super) async fn list(
                 .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?,
         )),
     })
+}
+
+/// A PublisherModel has the same identity rules whether fetched alone or in
+/// a directory. Return the Gemini shape declared by this channel in both.
+pub(super) async fn get(
+    channel: &Vertex,
+    context: OperationContext<'_>,
+) -> Result<WireResponse, ChannelError> {
+    let request = channel.prepare(PrepareContext {
+        provider: context.provider,
+        credential: context.credential,
+        operation: OperationKey {
+            operation: Operation::GetModel,
+            dialect: context.dialect,
+        },
+        request: context.request,
+        endpoint_override: context.endpoint_override,
+    })?;
+    let mut response = context.client.send(request).await?;
+    if !response.status.is_success() {
+        return Ok(response);
+    }
+    let value = serde_json::from_slice(&read_body(response.body).await?)
+        .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
+    response.body = HttpBody::Bytes(Bytes::from(
+        serde_json::to_vec(&normalize(value)?)
+            .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?,
+    ));
+    response.headers.remove(header::CONTENT_LENGTH);
+    response.headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+    Ok(response)
+}
+
+fn normalize(mut model: Value) -> Result<Value, ChannelError> {
+    let name = model.get("name").and_then(Value::as_str).ok_or_else(|| {
+        ChannelError::InvalidResponse("Vertex publisher model has no name".into())
+    })?;
+    // The publisher is part of the upstream model identity, not the gateway's
+    // provider-routing prefix. Preserve the entire model remainder as well.
+    let id = match name
+        .strip_prefix("publishers/")
+        .and_then(|resource| resource.split_once("/models/"))
+    {
+        Some((publisher, model)) => format!("{publisher}/{model}"),
+        None => name.strip_prefix("models/").unwrap_or(name).to_owned(),
+    };
+    if id.is_empty() {
+        return Err(ChannelError::InvalidResponse(
+            "Vertex publisher model has an empty name".into(),
+        ));
+    }
+    let fields = model.as_object_mut().expect("a named model is an object");
+    fields.insert("name".into(), json!(format!("models/{id}")));
+    fields.entry("baseModelId").or_insert(json!(id));
+    if let Some(version) = fields.get("versionId").cloned() {
+        fields.entry("version").or_insert(version);
+    }
+    Ok(model)
 }
 
 async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
