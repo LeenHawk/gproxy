@@ -287,9 +287,21 @@ fn wants_stream(body: Option<&Value>) -> bool {
 ///
 /// Three segment forms, which is all the declared surfaces need: a literal,
 /// `{name}` for exactly one non-empty segment, and `{name}:action` for
-/// Gemini's method suffix. No trailing-rest form: every surface here names its
-/// whole path, and a `{*rest}` would silently swallow a path nobody declared.
+/// Gemini's method suffix. Model parameters may span slashes; other parameters
+/// stay single-segment, and every surface still names its whole path.
 fn match_pattern(pattern: &'static str, path: &str) -> Option<Vec<(&'static str, String)>> {
+    // Model names can contain raw or percent-encoded slashes. Only model
+    // routes capture the remaining path; file ids and other parameters still
+    // match exactly one segment.
+    if let Some((prefix, tail)) = pattern.split_once("/models/") {
+        let (name, action) = parameter(tail)?;
+        let value = path.strip_prefix(prefix)?.strip_prefix("/models/")?;
+        let value = match action {
+            Some(action) => value.strip_suffix(action)?.strip_suffix(':')?,
+            None => value,
+        };
+        return (!value.is_empty()).then(|| vec![(name, decode(value))]);
+    }
     let mut captured = Vec::new();
     let mut segments = path.strip_prefix('/')?.split('/');
     for expected in pattern.strip_prefix('/')?.split('/') {

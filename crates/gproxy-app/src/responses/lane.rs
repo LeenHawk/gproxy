@@ -929,9 +929,10 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
     fn model(&self, model: &str) -> String {
         match &self.context.prefix {
             Some(prefix)
-                if !model
-                    .strip_prefix(prefix)
-                    .is_some_and(|s| s.starts_with('/')) =>
+                if self.context.request.provider_id.is_some()
+                    || !model
+                        .strip_prefix(prefix)
+                        .is_some_and(|s| s.starts_with('/')) =>
             {
                 format!("{prefix}/{model}")
             }

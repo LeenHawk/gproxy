@@ -803,13 +803,15 @@ where
 
 /// The model name as the mount asked for it.
 ///
-/// `acme` + `fast` is `acme/fast`; `acme` + `acme/fast` is unchanged, so a
-/// client may spell the name either way and a console that renders the exposed
-/// name verbatim still works against a namespaced base URL.
+/// A namespace accepts an already qualified exposed name. A provider mount
+/// treats the entire supplied model as an upstream name, even if it begins
+/// with the provider's name; add the routing prefix separately so resolution
+/// removes only that prefix, never part of the actual model name.
 fn mounted_model(mount: &Mount, model: &str) -> String {
     match mount {
         Mount::Aggregated => model.to_owned(),
-        Mount::Namespace(name) | Mount::Provider(name) => {
+        Mount::Provider(name) => format!("{name}/{model}"),
+        Mount::Namespace(name) => {
             if model
                 .strip_prefix(name.as_str())
                 .is_some_and(|rest| rest.starts_with('/'))
@@ -1007,7 +1009,7 @@ mod tests {
     }
 
     #[test]
-    fn a_mount_prefixes_the_model_once() {
+    fn mounts_preserve_slashes_in_upstream_models() {
         let namespace = Mount::Namespace("acme".into());
         assert_eq!(mounted_model(&namespace, "fast"), "acme/fast");
         assert_eq!(mounted_model(&namespace, "acme/fast"), "acme/fast");
@@ -1016,6 +1018,18 @@ mod tests {
         assert_eq!(mounted_model(&namespace, "acmex/fast"), "acme/acmex/fast");
         assert_eq!(mounted_model(&Mount::Aggregated, "fast"), "fast");
         assert_eq!(mounted_model(&Mount::Provider("p1".into()), "m1"), "p1/m1");
+        assert_eq!(
+            mounted_model(&Mount::Aggregated, "p1/org/model"),
+            "p1/org/model"
+        );
+        assert_eq!(
+            mounted_model(&Mount::Provider("p1".into()), "org/model"),
+            "p1/org/model"
+        );
+        assert_eq!(
+            mounted_model(&Mount::Provider("p1".into()), "p1/org/model"),
+            "p1/p1/org/model"
+        );
     }
 
     #[test]

@@ -99,8 +99,8 @@ impl ProviderData {
     }
 
     /// The configured URL with `{model}` filled in with the upstream model,
-    /// percent-encoded as one path segment. A template needs the model in the
-    /// path for surfaces that put it there (Gemini's `models/{model}:…`, a
+    /// percent-encoded while preserving model-name slashes. A template needs
+    /// the model in the path for surfaces that put it there (`models/{model}:…`, a
     /// relay keyed by model); without a model the URL is used as written.
     pub fn operation_url_for(
         &self,
@@ -116,7 +116,7 @@ fn fill_model<'a>(url: &'a str, model: Option<&str>) -> std::borrow::Cow<'a, str
     match model.filter(|_| url.contains(MODEL_PLACEHOLDER)) {
         Some(model) => std::borrow::Cow::Owned(url.replace(
             MODEL_PLACEHOLDER,
-            &percent_encoding::utf8_percent_encode(model, MODEL_SEGMENT).to_string(),
+            &percent_encoding::utf8_percent_encode(model, MODEL_PATH).to_string(),
         )),
         None => std::borrow::Cow::Borrowed(url),
     }
@@ -125,13 +125,13 @@ fn fill_model<'a>(url: &'a str, model: Option<&str>) -> std::borrow::Cow<'a, str
 /// The placeholder an operation URL may carry for the upstream model.
 pub const MODEL_PLACEHOLDER: &str = "{model}";
 
-/// Everything but RFC 3986 unreserved characters, so a model name stays one
-/// path segment.
-const MODEL_SEGMENT: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+/// Escape reserved characters without losing slashes in model names.
+const MODEL_PATH: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
     .remove(b'-')
     .remove(b'_')
     .remove(b'.')
-    .remove(b'~');
+    .remove(b'~')
+    .remove(b'/');
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -224,7 +224,7 @@ mod model_placeholder_tests {
     use super::fill_model;
 
     #[test]
-    fn the_model_fills_the_placeholder_as_one_path_segment() {
+    fn the_model_fills_the_placeholder_preserving_slashes() {
         assert_eq!(
             fill_model(
                 "https://r.example/v1beta/models/{model}:generateContent",
@@ -234,7 +234,7 @@ mod model_placeholder_tests {
         );
         assert_eq!(
             fill_model("https://r.example/{model}/chat", Some("org/model a")),
-            "https://r.example/org%2Fmodel%20a/chat"
+            "https://r.example/org/model%20a/chat"
         );
         assert_eq!(
             fill_model("https://r.example/{model}", None),
