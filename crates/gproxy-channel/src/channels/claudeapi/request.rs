@@ -130,6 +130,7 @@ impl BaseChannel for Claudeapi {
         ChannelDescriptor {
             id: ID,
             display_name: "Claude API (Anthropic)",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
                 refresh: false,

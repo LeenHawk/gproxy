@@ -155,6 +155,7 @@ impl BaseChannel for Aistudio {
         ChannelDescriptor {
             id: ID,
             display_name: "Google AI Studio",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities::default(),
             config_keys: [

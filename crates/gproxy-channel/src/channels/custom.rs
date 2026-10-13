@@ -159,6 +159,7 @@ impl BaseChannel for Custom {
         ChannelDescriptor {
             id: ID,
             display_name: "Custom (API key)",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities::default(),
             config_keys: [

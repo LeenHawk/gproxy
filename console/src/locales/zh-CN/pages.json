@@ -1,4 +1,11 @@
 {
+  "credentialKinds": {
+    "api_key": "API Key",
+    "oauth": "OAuth",
+    "cookie": "Cookie",
+    "service_account": "服务账号",
+    "aws_access_key": "AWS 访问密钥对"
+  },
   "overview": {
     "title": "你好，{{name}}",
     "usage": "用量",

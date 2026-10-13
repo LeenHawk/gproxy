@@ -41,6 +41,8 @@
     "loading": "正在加载…"
   },
   "form": {
+    "vertexSecretHint": "粘贴完整的 Google 服务账号 JSON，包含 client_email、private_key；供应商未配置项目时还需 project_id。首次请求会自动换取访问令牌。",
+    "awsSecretHint": "API Key：粘贴 Bedrock API 密钥。访问密钥对：粘贴包含 access_key_id、secret_access_key 的 JSON，可选 session_token。",
     "all": "全部",
     "useCustom": "使用“{{value}}”",
     "choose": "请选择…",

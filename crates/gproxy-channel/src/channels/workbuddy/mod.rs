@@ -309,6 +309,7 @@ impl BaseChannel for WorkBuddy {
         ChannelDescriptor {
             id: ID,
             display_name: "WorkBuddy (Tencent Copilot)",
+            credential_kinds: vec!["oauth"],
             login_modes: vec![LoginMode::DeviceCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

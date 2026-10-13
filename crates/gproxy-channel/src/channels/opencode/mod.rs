@@ -98,6 +98,11 @@ impl BaseChannel for OpenCode {
         ChannelDescriptor {
             id: self.tier.id(),
             display_name: if zen { "OpenCode Zen" } else { "OpenCode Go" },
+            credential_kinds: if zen {
+                vec!["api_key", "oauth"]
+            } else {
+                vec!["api_key"]
+            },
             login_modes: if zen {
                 vec![LoginMode::ApiKey, LoginMode::DeviceCode]
             } else {

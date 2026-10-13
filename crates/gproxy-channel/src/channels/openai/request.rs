@@ -197,6 +197,7 @@ impl BaseChannel for OpenAi {
         ChannelDescriptor {
             id: ID,
             display_name: "OpenAI",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
                 refresh: false,

@@ -559,6 +559,7 @@ impl BaseChannel for Antigravity {
         ChannelDescriptor {
             id: ID,
             display_name: "Antigravity (Code Assist)",
+            credential_kinds: vec!["oauth"],
             login_modes: vec![LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

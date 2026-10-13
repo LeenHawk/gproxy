@@ -31,10 +31,25 @@ impl BaseChannel for Vertex {
         ID
     }
 
+    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), ChannelError> {
+        auth::validate_secret(secret)
+    }
+
+    fn initial_credential_expiry(&self, secret: &serde_json::Value) -> Option<i64> {
+        if auth::access_token(secret).is_err() {
+            Some(0)
+        } else {
+            secret
+                .get("expires_at_ms")
+                .and_then(serde_json::Value::as_i64)
+        }
+    }
+
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
             display_name: "Google Vertex AI",
+            credential_kinds: vec!["service_account"],
             login_modes: Vec::new(),
             capabilities: ChannelCapabilities {
                 refresh: true,

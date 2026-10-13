@@ -550,6 +550,7 @@ impl BaseChannel for Claudecode {
         ChannelDescriptor {
             id: ID,
             display_name: "Claude Code (Claude.ai)",
+            credential_kinds: vec!["oauth", "cookie"],
             login_modes: vec![LoginMode::AuthorizationCode, LoginMode::Cookie],
             capabilities: ChannelCapabilities {
                 refresh: true,

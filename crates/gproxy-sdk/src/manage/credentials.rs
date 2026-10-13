@@ -355,15 +355,34 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
         Ok(())
     }
 
-    async fn provider(&self, id: &str) -> SdkResult<String> {
+    async fn provider(
+        &self,
+        id: &str,
+    ) -> SdkResult<(String, std::sync::Arc<dyn gproxy_channel::BaseChannel>)> {
         let id = crud::text(id, "providerId")?;
-        crud::require_rows(
-            self.writer.store().providers(),
-            "provider",
-            std::slice::from_ref(&id),
-        )
-        .await?;
-        Ok(id)
+        let provider = self
+            .writer
+            .store()
+            .providers()
+            .get_many(std::slice::from_ref(&id))
+            .await?
+            .into_iter()
+            .next()
+            .flatten()
+            .ok_or_else(|| SdkError::not_found("provider", &id))?;
+        let channel = self
+            .writer
+            .core()
+            .channels()
+            .get(&provider.channel)
+            .cloned()
+            .ok_or_else(|| {
+                SdkError::invalid(format!(
+                    "channel `{}` is not registered in this build",
+                    provider.channel
+                ))
+            })?;
+        Ok((id, channel))
     }
 
     fn assert_row(&self, query: Select<credential::Entity>) -> BatchStatement {
@@ -553,20 +572,36 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
 
     async fn build(&self, write: CredentialWrite) -> SdkResult<(credential::ActiveModel, String)> {
         let id = crud::id_or_new(write.id.as_deref());
+        let (provider_id, channel) = self.provider(&write.provider_id).await?;
+        let auth_kind = crud::text(&write.auth_kind, "authKind")?;
+        let descriptor = channel.descriptor();
+        if !descriptor.credential_kinds.contains(&auth_kind.as_str()) {
+            return Err(SdkError::invalid(format!(
+                "channel `{}` does not accept credential type `{auth_kind}`; supported types: {}",
+                descriptor.id,
+                descriptor.credential_kinds.join(", ")
+            )));
+        }
+        channel
+            .validate_credential_secret(&write.secret)
+            .map_err(|error| SdkError::invalid(error.to_string()))?;
+        let expires_at_ms = channel
+            .initial_credential_expiry(&write.secret)
+            .or(write.expires_at_ms);
         let row = credential::ActiveModel {
             id: Set(id.clone()),
-            provider_id: Set(self.provider(&write.provider_id).await?),
+            provider_id: Set(provider_id),
             organization_id: Set(crud::optional_text(write.organization_id)),
             team_id: Set(crud::optional_text(write.team_id)),
             user_id: Set(crud::optional_text(write.user_id)),
             label: Set(crud::optional_text(write.label)),
-            auth_kind: Set(crud::text(&write.auth_kind, "authKind")?),
+            auth_kind: Set(auth_kind),
             secret: Set(self.seal(&id, &write.secret)?),
             version: Set(0),
             connection_profile_id: Set(self.profile(write.connection_profile_id).await?),
             proxy: Set(crud::proxy(write.proxy)?),
             metadata: Set(crud::object(write.metadata, "metadata")?),
-            expires_at_ms: Set(write.expires_at_ms),
+            expires_at_ms: Set(expires_at_ms),
             status: Set(CredentialStatus::Active),
             status_reason: Set(None),
             enabled: Set(write.enabled.unwrap_or(true)),
@@ -595,7 +630,15 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
             // Ownership changes invalidate in-flight refresh/status CAS too.
             row.version = Set(current.version.saturating_add(1));
         }
+        let mut initial_expiry = None;
         if let Some(secret) = patch.secret {
+            let (_, channel) = self.provider(&current.provider_id).await?;
+            // Existing rows may carry legacy kind labels. Validate their material
+            // without silently migrating immutable auth_kind values.
+            channel
+                .validate_credential_secret(&secret)
+                .map_err(|error| SdkError::invalid(error.to_string()))?;
+            initial_expiry = channel.initial_credential_expiry(&secret);
             // New material is a new version, exactly as a refresh would write
             // it: that is what makes peers re-read the row.
             row.secret = Set(self.seal(&current.id, &secret)?);
@@ -613,7 +656,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
         if let Some(profile) = patch.connection_profile_id {
             row.connection_profile_id = Set(self.profile(profile).await?);
         }
-        if let Some(expires_at_ms) = patch.expires_at_ms {
+        if let Some(expires_at_ms) = initial_expiry.map(Some).or(patch.expires_at_ms) {
             row.expires_at_ms = Set(expires_at_ms);
         }
         if let Some(organization_id) = patch.organization_id {

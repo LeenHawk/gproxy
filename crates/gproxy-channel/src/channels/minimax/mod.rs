@@ -41,6 +41,7 @@ impl BaseChannel for MiniMax {
         ChannelDescriptor {
             id: ID,
             display_name: "MiniMax",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities { quota_query: true, ..Default::default() },
             config_keys: [

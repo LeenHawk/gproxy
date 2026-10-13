@@ -57,19 +57,23 @@ pub(super) enum Auth<'a> {
 
 impl<'a> Auth<'a> {
     pub(super) fn from_credential(credential: CredentialView<'a>) -> Result<Self, ChannelError> {
-        if let Some(key) = field(credential.secret, "api_key") {
+        Self::from_secret(credential.secret)
+    }
+
+    pub(super) fn from_secret(secret: &'a Value) -> Result<Self, ChannelError> {
+        if let Some(key) = field(secret, "api_key") {
             return Ok(Self::Bearer(key));
         }
         let (Some(access_key_id), Some(secret_access_key)) = (
-            field(credential.secret, "access_key_id"),
-            field(credential.secret, "secret_access_key"),
+            field(secret, "access_key_id"),
+            field(secret, "secret_access_key"),
         ) else {
             return Err(ChannelError::InvalidCredential);
         };
         Ok(Self::AccessKey(sigv4::Credentials {
             access_key_id,
             secret_access_key,
-            session_token: field(credential.secret, "session_token"),
+            session_token: field(secret, "session_token"),
         }))
     }
 }

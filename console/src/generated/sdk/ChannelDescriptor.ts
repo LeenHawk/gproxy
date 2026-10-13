@@ -14,4 +14,8 @@ id: string, displayName: string,
 /**
  * Empty means no login flow is offered for this channel.
  */
-loginModes: Array<LoginMode>, capabilities: ChannelCapabilities, configKeys: Array<ConfigKey>, };
+loginModes: Array<LoginMode>,
+/**
+ * Stored credential types accepted on manual creation, distinct from login flows.
+ */
+credentialKinds: Array<string>, capabilities: ChannelCapabilities, configKeys: Array<ConfigKey>, };

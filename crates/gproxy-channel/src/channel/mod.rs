@@ -177,6 +177,23 @@ pub trait BaseChannel: Send + Sync {
         ChannelDescriptor {
             id: self.id(),
             display_name: self.id(),
+            credential_kinds: {
+                let mut kinds = Vec::new();
+                for mode in &login_modes {
+                    let kind = match mode {
+                        LoginMode::ApiKey => "api_key",
+                        LoginMode::AuthorizationCode | LoginMode::DeviceCode => "oauth",
+                        LoginMode::Cookie => "cookie",
+                    };
+                    if !kinds.contains(&kind) {
+                        kinds.push(kind);
+                    }
+                }
+                if kinds.is_empty() {
+                    kinds.push("api_key");
+                }
+                kinds
+            },
             login_modes,
             capabilities: ChannelCapabilities {
                 refresh: self.credential_refresh().is_some(),
@@ -188,6 +205,18 @@ pub trait BaseChannel: Send + Sync {
             },
             config_keys: Vec::new(),
         }
+    }
+
+    /// Validate manually supplied secret material without making an upstream request.
+    /// Channels with structured cloud credentials override this at the storage boundary.
+    fn validate_credential_secret(&self, _secret: &Value) -> Result<(), ChannelError> {
+        Ok(())
+    }
+
+    /// Expiry required by newly supplied material, e.g. an unexchanged service-account
+    /// key. Returning zero schedules refresh through the normal request-time flow.
+    fn initial_credential_expiry(&self, _secret: &Value) -> Option<i64> {
+        None
     }
 
     /// The outbound client this channel's upstream expects when nothing names

@@ -205,6 +205,7 @@ impl BaseChannel for ClaudeWeb {
         ChannelDescriptor {
             id: ID,
             display_name: "Claude Web (claude.ai session)",
+            credential_kinds: vec!["cookie"],
             login_modes: vec![LoginMode::Cookie],
             capabilities: ChannelCapabilities {
                 refresh: true,

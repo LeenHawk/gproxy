@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { authKinds } from "@/pages/providers/fields"
 import { ownerColumns, useOwnerChoices } from "./ownership"
 import { parseBulkCredentials, type BulkFormat } from "./bulk-parse"
 
@@ -20,9 +19,9 @@ export function CredentialBulkImport({ provider, onClose }: { provider: Credenti
   const id = useId()
   const client = useQueryClient()
   const ownership = useOwnerChoices()
-  const kinds = provider.channel === "devin" ? authKinds.filter(kind => kind.value === "oauth") : authKinds
+  const kinds = provider.credentialKinds.map(value => ({ value, label: t(`credentialKinds.${value}`, { defaultValue: value }) }))
   const [owner, setOwner] = useState(ownership.defaultOwner)
-  const [authKind, setAuthKind] = useState(provider.loginModes.includes("api_key") ? "api_key" : provider.loginModes.includes("cookie") ? "cookie" : "oauth")
+  const [authKind, setAuthKind] = useState(provider.credentialKinds[0] ?? "")
   const [format, setFormat] = useState<BulkFormat>("json")
   const [input, setInput] = useState("")
   const parsed = useMemo(() => parseBulkCredentials(input, format), [input, format])
@@ -37,12 +36,13 @@ export function CredentialBulkImport({ provider, onClose }: { provider: Credenti
     toast.success(t("credentialImport.imported", { count: rows.length }))
     onClose()
   } })
-  const blocked = !provider.enabled || save.isPending || !!ownership.error || !parsed.items.length || !!parsed.errors.length
+  const blocked = !authKind || !provider.enabled || save.isPending || !!ownership.error || !parsed.items.length || !!parsed.errors.length
   return <ManagementDialog title={t("credentialImport.title")} className="sm:max-w-2xl" onClose={onClose} busy={save.isPending}>
     <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); if (!blocked) save.mutate() }}>
       <fieldset disabled={save.isPending} className="min-w-0">
         <FieldGroup>
-          <Field><FieldLabel htmlFor={`${id}-auth`}>{t("fields.authKind")}</FieldLabel><Select value={authKind} onValueChange={value => { setAuthKind(value); setFormat("json"); save.reset() }}><SelectTrigger id={`${id}-auth`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{kinds.map(kind => <SelectItem key={kind.value} value={kind.value}>{kind.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
+          {provider.channel === "vertex" || provider.channel === "aws_bedrock" ? <FieldDescription>{t(provider.channel === "vertex" ? "form.vertexSecretHint" : "form.awsSecretHint")}</FieldDescription> : null}
+          {kinds.length > 1 ? <Field><FieldLabel htmlFor={`${id}-auth`}>{t("fields.authKind")}</FieldLabel><Select value={authKind} onValueChange={value => { setAuthKind(value); setFormat("json"); save.reset() }}><SelectTrigger id={`${id}-auth`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{kinds.map(kind => <SelectItem key={kind.value} value={kind.value}>{kind.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field> : null}
           <Field><FieldLabel htmlFor={`${id}-owner`}>{t("management.owner")}</FieldLabel><Select value={owner} onValueChange={setOwner}><SelectTrigger id={`${id}-owner`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{ownership.choices.map(choice => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
           <Field><FieldLabel htmlFor={`${id}-format`}>{t("credentialImport.format")}</FieldLabel><Select value={format} onValueChange={value => { setFormat(value as BulkFormat); save.reset() }}><SelectTrigger id={`${id}-format`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="json">JSON / JSONL</SelectItem>{authKind === "api_key" ? <SelectItem value="tokens">{t("credentialImport.tokens")}</SelectItem> : null}</SelectGroup></SelectContent></Select></Field>
           <Field data-field-span="full" data-invalid={parsed.errors.length > 0}>

@@ -41,6 +41,8 @@
     "loading": "Loading…"
   },
   "form": {
+    "vertexSecretHint": "Paste the complete Google service-account JSON (client_email and private_key; project_id unless configured on the provider). The first request automatically exchanges it for an access token.",
+    "awsSecretHint": "API Key: paste a Bedrock API key. Access key pair: paste JSON with access_key_id and secret_access_key; session_token is optional.",
     "all": "All",
     "useCustom": "Use “{{value}}”",
     "choose": "Choose…",

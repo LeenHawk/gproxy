@@ -46,6 +46,7 @@ impl BaseChannel for OpenRouter {
         ChannelDescriptor {
             id: ID,
             display_name: "OpenRouter",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
                 refresh: false,

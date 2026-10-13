@@ -513,6 +513,7 @@ impl BaseChannel for Devin {
         ChannelDescriptor {
             id: ID,
             display_name: "Devin (Windsurf, server.codeium.com)",
+            credential_kinds: vec!["oauth"],
             login_modes: vec![LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
                 refresh: false,

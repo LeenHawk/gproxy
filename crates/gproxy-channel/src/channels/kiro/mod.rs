@@ -587,6 +587,7 @@ impl BaseChannel for Kiro {
         ChannelDescriptor {
             id: ID,
             display_name: "Kiro (AWS CodeWhisperer)",
+            credential_kinds: vec!["oauth"],
             login_modes: vec![LoginMode::DeviceCode, LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

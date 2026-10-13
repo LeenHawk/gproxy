@@ -415,6 +415,7 @@ impl BaseChannel for GeminiCli {
         ChannelDescriptor {
             id: ID,
             display_name: "Gemini CLI (Code Assist)",
+            credential_kinds: vec!["oauth"],
             login_modes: vec![LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

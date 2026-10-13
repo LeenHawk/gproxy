@@ -1,4 +1,11 @@
 {
+  "credentialKinds": {
+    "api_key": "API Key",
+    "oauth": "OAuth",
+    "cookie": "Cookie",
+    "service_account": "Service account",
+    "aws_access_key": "AWS access key pair"
+  },
   "overview": {
     "title": "Hello, {{name}}",
     "usage": "Usage",

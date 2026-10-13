@@ -218,6 +218,15 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
                     display_name: provider.display_name,
                     channel: provider.channel,
                     enabled: provider.enabled,
+                    credential_kinds: descriptor
+                        .map(|channel| {
+                            channel
+                                .credential_kinds
+                                .iter()
+                                .map(|kind| (*kind).to_owned())
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                     login_modes: descriptor
                         .map(|channel| channel.login_modes.clone())
                         .unwrap_or_default(),

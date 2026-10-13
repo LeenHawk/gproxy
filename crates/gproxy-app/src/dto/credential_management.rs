@@ -11,6 +11,7 @@ pub struct CredentialProviderDto {
     pub display_name: Option<String>,
     pub channel: String,
     pub enabled: bool,
+    pub credential_kinds: Vec<String>,
     pub login_modes: Vec<gproxy_sdk::LoginMode>,
     pub capabilities: gproxy_sdk::ChannelCapabilities,
 }

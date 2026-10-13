@@ -256,6 +256,7 @@ impl BaseChannel for GrokBuild {
         ChannelDescriptor {
             id: ID,
             display_name: "Grok Build (xAI account)",
+            credential_kinds: vec!["oauth"],
             login_modes: vec![LoginMode::DeviceCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

@@ -28,10 +28,25 @@ impl BaseChannel for Azure {
         ID
     }
 
+    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), ChannelError> {
+        if secret
+            .get("api_key")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|key| !key.trim().is_empty())
+        {
+            Ok(())
+        } else {
+            Err(ChannelError::InvalidConfig(
+                "credential requires a nonempty `api_key`".into(),
+            ))
+        }
+    }
+
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
             display_name: "Microsoft Azure",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities::default(),
             config_keys: [

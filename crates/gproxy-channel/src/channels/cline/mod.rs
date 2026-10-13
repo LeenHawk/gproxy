@@ -61,6 +61,7 @@ impl BaseChannel for Cline {
         ChannelDescriptor {
             id: ID,
             display_name: "Cline",
+            credential_kinds: vec!["api_key", "oauth"],
             login_modes: vec![LoginMode::ApiKey, LoginMode::DeviceCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

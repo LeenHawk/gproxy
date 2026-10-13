@@ -1,14 +1,8 @@
 import type { FormField } from "@/components/record-form"
 
-export const authKinds = [
-  { value: "api_key", label: "API Key" },
-  { value: "oauth", label: "OAuth" },
-  { value: "cookie", label: "Cookie" },
-]
-
 export const credentialFields: Array<FormField> = [
   { name: "label", kind: "text", nullable: true },
-  { name: "authKind", kind: "select", required: true, createOnly: true, choices: authKinds },
+  { name: "authKind", kind: "select", required: true, createOnly: true },
   { name: "secret", kind: "json", required: true, parse: (text, values) => {
     if (values.authKind !== "api_key") return JSON.parse(text) as unknown
     const input = text.trim()

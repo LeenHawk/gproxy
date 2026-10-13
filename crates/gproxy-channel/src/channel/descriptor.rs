@@ -157,6 +157,8 @@ pub struct ChannelDescriptor {
     pub display_name: &'static str,
     /// Empty means no login flow is offered for this channel.
     pub login_modes: Vec<LoginMode>,
+    /// Stored credential types accepted on manual creation, distinct from login flows.
+    pub credential_kinds: Vec<&'static str>,
     pub capabilities: ChannelCapabilities,
     pub config_keys: Vec<ConfigKey>,
 }
