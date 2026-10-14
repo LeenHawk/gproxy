@@ -1,46 +1,17 @@
-//! The model selector catalogue.
+//! Live model discovery and backwards-compatible selector resolution.
 //!
-//! `GetChatMessageRequest.model_selector` (#21) is a string selector, not an
-//! enum ordinal: both the dash form (`swe-1-6-slow`) and the upstream's
-//! enum spelling (`MODEL_SWE_1_5_SLOW`) are accepted, and which of the two a
-//! model answers to is not derivable — it was captured from a live
-//! `GetCliModelConfigs` response.
+//! `GetCliModelConfigs` is a raw-protobuf unary RPC. Its enabled, concrete
+//! selectors are advertised without adding the historical snapshot. The host
+//! merges discoveries into its local, permission-filtered model catalogue.
 //!
-//! Two layers make up the catalogue:
+//! The 2026-07-08 snapshot and legacy aliases below are retained only for name
+//! compatibility and effort selection. They are not an admission whitelist:
+//! newly discovered selectors pass through unchanged, even after a restart.
+//! No unknown name is silently substituted with the free model. Router names
+//! still require the unsupported `AssignModel` method and are refused.
 //!
-//! * **The captured snapshot**, `assets/devin-catalog-snapshot.json`, copied
-//!   verbatim from `samples/windsurfapi/src/data/devin-catalog-snapshot.json`:
-//!   123 selectors with their provider, `_calibratedAt: 2026-07-08`. It is the
-//!   set of selectors #21 is known to accept, including every effort level
-//!   (`-low`/`-medium`/`-high`/`-xhigh`/`-max`), every `-fast` and `-priority`
-//!   variant and every `-1m` long-context variant. **The snapshot is dated.** A
-//!   live `GetCliModelConfigs` is the authority, and this channel does not call
-//!   it: the upstream's own list is an account-entitlement view rather than the
-//!   set of strings #21 accepts, and calling it would cost a round trip per
-//!   request. `config.models` is the escape valve for anything added since.
-//! * **The hand-written aliases** below, which map client-facing names onto
-//!   selectors. The snapshot carries an `alias` field too, but it is a *family*
-//!   alias repeated across every effort variant (seventeen of its aliases name
-//!   more than one selector), so it cannot choose a default on its own. These
-//!   entries make that choice and are the only place a name like
-//!   `claude-sonnet-4.6` acquires a specific target.
-//!
-//! Two rules travel with it:
-//!
-//! * **Unknown names are refused, never substituted.** The reference
-//!   originally degraded an unmapped name to the free selector and removed
-//!   that behaviour once it was understood that answering a paid request on a
-//!   free model changes both the answer and the billing
-//!   (`docs/DEVIN-CONNECT-CUTOVER.md` §1: a name the catalogue does not know
-//!   is rejected). Writing a family alias the catalogue does not list into
-//!   #21 is also what makes the upstream fail with an opaque internal error.
-//! * **A free account resolves only `swe-1-6-slow`.** Everything else answers
-//!   with an upgrade message. That is an account-tier wall rather than a
-//!   protocol gap, so this channel does not filter on it: the selector is
-//!   sent and the upstream's refusal is reported as it arrives. Note that the
-//!   snapshot does **not** list `swe-1-6-slow` at all — it was captured on an
-//!   account whose entitlement view omitted it — which is why the two layers
-//!   are unioned rather than one replacing the other.
+//! `config.models` remains an operator-controlled alias override. Listing a
+//! model does not establish account entitlement; execution may still be refused.
 
 use std::{collections::BTreeMap, sync::LazyLock};
 
@@ -248,10 +219,12 @@ fn is_selector(name: &str, extra: &BTreeMap<String, String>) -> bool {
         || snapshot().contains_key(name)
 }
 
-/// Resolve an exact upstream selector or an explicitly declared alias.
+/// Resolve legacy/configured aliases; forward other selectors unchanged.
+/// The host owns admission, and new live selectors must survive restarts without
+/// depending on this crate's historical snapshot. Never substitute another model.
 pub fn resolve(name: &str, extra: &BTreeMap<String, String>) -> Result<String, ChannelError> {
     if name.is_empty() {
-        return Err(unknown(""));
+        return Err(super::bad_request("devin request has no model"));
     }
     if let Some(selector) = lookup(name, extra) {
         return Ok(selector);
@@ -262,7 +235,7 @@ pub fn resolve(name: &str, extra: &BTreeMap<String, String>) -> Result<String, C
     if is_router(name) {
         return Err(router(name));
     }
-    Err(unknown(name))
+    Ok(name.to_owned())
 }
 
 /// `adaptive` and `arena-*` are routers rather than models.
@@ -282,20 +255,8 @@ fn router(name: &str) -> ChannelError {
     ))
 }
 
-fn unknown(name: &str) -> ChannelError {
-    ChannelError::InvalidConfig(format!(
-        "devin: `{name}` is not in the model catalogue, which was captured on \
-         {}. Name a catalogued selector, or add it under the provider's \
-         `models` configuration — that is where a selector the upstream added \
-         since the capture goes. An unknown name is refused rather than \
-         answered on the free `{FREE_SELECTOR}` model, which would change \
-         both the answer and the billing.",
-        *CALIBRATED_AT
-    ))
-}
-
-/// Every selector a provider can reach, sorted and deduplicated: the captured
-/// snapshot, the alias table's targets and whatever the provider configured.
+/// Historical effort candidates plus operator overrides. This does not
+/// determine the live discovery response or restrict newly discovered names.
 pub fn catalogue(extra: &BTreeMap<String, String>) -> Vec<String> {
     let mut names: Vec<String> = SELECTORS
         .iter()
@@ -308,25 +269,183 @@ pub fn catalogue(extra: &BTreeMap<String, String>) -> Vec<String> {
     names
 }
 
-/// An OpenAI `GET /v1/models` body for the catalogue. `owned_by` reports the
-/// snapshot's provider family where it has one, so a client can tell a Claude
-/// selector from a GPT one without a table of its own.
-pub fn openai_list(extra: &BTreeMap<String, String>) -> serde_json::Value {
-    let snapshot = snapshot();
-    let data: Vec<serde_json::Value> = catalogue(extra)
-        .into_iter()
-        .map(|id| {
-            let owner = snapshot
-                .get(&id)
-                .and_then(Option::as_deref)
-                .unwrap_or(super::config::ID);
-            serde_json::json!({
-                "id": id,
-                "object": "model",
-                "created": 0,
-                "owned_by": owner,
-            })
+/// Decode the live unary protobuf response. Fields are wire-calibrated in
+/// samples/devin-wire-report.md and windsurfapi/src/devin-connect-catalog.js.
+pub(super) fn decode_list(
+    bytes: &[u8],
+    extra: &BTreeMap<String, String>,
+) -> Result<serde_json::Value, ChannelError> {
+    use super::proto;
+    use serde_json::json;
+    let fields = proto::parse(bytes)?;
+    let mut data = BTreeMap::new();
+    for field in fields.iter().filter(|field| field.number == 1) {
+        let proto::Value::Bytes(bytes) = field.value else {
+            return Err(ChannelError::InvalidResponse(
+                "invalid Devin model entry".into(),
+            ));
+        };
+        let entry = proto::parse(bytes)?;
+        let Some(selector) = proto::text_of(&entry, 22).filter(|value| !value.is_empty()) else {
+            continue;
+        };
+        if proto::varint_of(&entry, 4) == Some(1) || is_router(selector) {
+            continue;
+        }
+        let owner = match proto::varint_of(&entry, 10) {
+            Some(1) => "cognition",
+            Some(2) => "openai",
+            Some(3) => "anthropic",
+            Some(4) => "google",
+            Some(7) => "moonshot",
+            Some(9) => "zhipu",
+            _ => "devin",
+        };
+        let mut model = json!({"id":selector,"object":"model","created":0,"owned_by":owner});
+        if let Some(label) = proto::text_of(&entry, 1).filter(|value| !value.is_empty()) {
+            model["display_name"] = json!(label);
+        }
+        if let Some(images) = proto::varint_of(&entry, 5) {
+            model["input_modalities"] = if images != 0 {
+                json!(["text", "image"])
+            } else {
+                json!(["text"])
+            };
+        }
+        data.insert(selector.to_owned(), model);
+    }
+    // Operator-declared targets remain available, but never merge the old
+    // embedded snapshot into a successful live discovery result.
+    for selector in extra.values().filter(|selector| !is_router(selector)) {
+        data.entry(selector.clone()).or_insert_with(
+            || json!({"id":selector,"object":"model","created":0,"owned_by":"devin"}),
+        );
+    }
+    Ok(json!({"object":"list","data":data.into_values().collect::<Vec<_>>()}))
+}
+
+/// Select an effort variant only from known selectors (including configured
+/// ones). Never fabricate an upstream model name or silently change families.
+pub(super) fn resolve_request(
+    name: &str,
+    request: &serde_json::Value,
+    extra: &BTreeMap<String, String>,
+) -> Result<String, ChannelError> {
+    const LEVELS: &[&str] = &["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+    fn split(selector: &str) -> (&str, Option<&str>, &str) {
+        let (stem, tail) = ["-priority", "-fast", "-1m"]
+            .into_iter()
+            .find_map(|tail| selector.strip_suffix(tail).map(|stem| (stem, tail)))
+            .unwrap_or((selector, ""));
+        if let Some((base, suffix)) =
+            stem.rsplit_once(if stem.starts_with("MODEL_") { '_' } else { '-' })
+            && let Some(level) = LEVELS
+                .iter()
+                .copied()
+                .chain(["thinking"])
+                .find(|level| suffix.eq_ignore_ascii_case(level))
+        {
+            return (base, Some(level), tail);
+        }
+        (stem, None, tail)
+    }
+    let name = name.strip_prefix("devin/").unwrap_or(name);
+    let (base, suffix) = name
+        .strip_suffix(')')
+        .and_then(|n| n.rsplit_once('('))
+        .or_else(|| name.rsplit_once(':'))
+        .map_or((name, None), |(n, effort)| (n, Some(effort)));
+    // A literal effort selector overrides request controls. An operator's alias
+    // is also an explicit choice and must not be remapped behind their back.
+    if extra.contains_key(base) || (suffix.is_none() && split(base).1.is_some()) {
+        return resolve(base, extra);
+    }
+    let effort = suffix
+        .or_else(|| {
+            request
+                .get("reasoning_effort")
+                .and_then(serde_json::Value::as_str)
         })
-        .collect();
-    serde_json::json!({"object": "list", "data": data})
+        .or_else(|| {
+            request
+                .pointer("/reasoning/effort")
+                .and_then(serde_json::Value::as_str)
+        });
+    let effort = effort.map(str::to_owned).or_else(|| {
+        match request
+            .pointer("/thinking/type")
+            .and_then(serde_json::Value::as_str)
+        {
+            Some("disabled") => Some("none".into()),
+            Some("adaptive") => Some("high".into()),
+            _ => request
+                .pointer("/thinking/budget_tokens")
+                .and_then(serde_json::Value::as_u64)
+                .filter(|budget| *budget > 0)
+                .map(|budget| {
+                    match budget {
+                        0..=4096 => "low",
+                        4097..=16384 => "medium",
+                        16385..=32768 => "high",
+                        _ => "max",
+                    }
+                    .into()
+                }),
+        }
+    });
+    let Some(effort) = effort else {
+        return resolve(base, extra);
+    };
+    let effort = match effort.as_str() {
+        "off" | "disabled" => "none",
+        "auto" | "adaptive" => "high",
+        value => value,
+    };
+    let rank = LEVELS
+        .iter()
+        .position(|level| *level == effort)
+        .ok_or_else(|| {
+            super::bad_request(format!("unsupported Devin reasoning effort `{effort}`"))
+        })?;
+    let resolved = resolve(base, extra)?;
+    // Private Sonnet 4.5 selectors have no effort suffix.
+    if matches!(resolved.as_str(), "MODEL_PRIVATE_2" | "MODEL_PRIVATE_3") {
+        return Ok(if effort == "none" {
+            "MODEL_PRIVATE_2"
+        } else {
+            "MODEL_PRIVATE_3"
+        }
+        .into());
+    }
+    let (family, _, tail) = split(&resolved);
+    let candidates = catalogue(extra);
+    let selected = candidates
+        .iter()
+        .filter_map(|candidate| {
+            let (other, level, other_tail) = split(candidate);
+            if other != family || other_tail != tail {
+                return None;
+            }
+            let index = LEVELS.iter().position(|v| Some(*v) == level)?;
+            Some((index, candidate.as_str()))
+        })
+        .min_by_key(|(index, _)| (index.abs_diff(rank), *index));
+    if let Some((_, selector)) = selected {
+        return Ok(selector.to_owned());
+    }
+    // Older Claude families expose a binary thinking/non-thinking pair.
+    let thinking = candidates.iter().find(|candidate| {
+        let (other, level, other_tail) = split(candidate);
+        other == family && other_tail == tail && level == Some("thinking")
+    });
+    if let Some(thinking) = thinking {
+        if effort != "none" {
+            return Ok(thinking.clone());
+        }
+        let plain = format!("{family}{tail}");
+        if is_selector(&plain, extra) {
+            return Ok(plain);
+        }
+    }
+    Ok(resolved)
 }

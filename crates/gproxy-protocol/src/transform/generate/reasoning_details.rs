@@ -1,7 +1,10 @@
 //! Formal OpenRouter reasoning envelopes. `format` selects a wire representation,
 //! not a cryptographic verifier: callers must route replay to the original model.
 use crate::{
-    transform::TransformError,
+    transform::{
+        TransformError,
+        identity::{IdentityFlow, IdentityRole, OutputItemKind, SourceIdentity, TargetIdPolicy},
+    },
     wire::{
         claude::content as c,
         openai::{
@@ -32,6 +35,24 @@ fn detail(kind: Kind, format: &str, index: i64, id: Option<String>) -> Detail {
     }
 }
 pub(crate) fn from_responses(item: &r::ReasoningItem, index: i64) -> Vec<Detail> {
+    if let Some(Some(carrier)) = &item.encrypted_content {
+        let native = match super::signature::Carried::parse(carrier) {
+            Some(super::signature::Carried::Claude(value)) => Some((CLAUDE, value)),
+            Some(super::signature::Carried::GeminiThought(value)) => Some((GEMINI, value)),
+            _ => None,
+        };
+        if let Some((format, signature)) = native {
+            let mut d = detail(Kind::Text, format, index, Some(item.id.clone()));
+            d.text = Some(Some(
+                item.content
+                    .as_ref()
+                    .map(|parts| parts.iter().map(|p| p.text.as_str()).collect::<String>())
+                    .unwrap_or_else(|| item.summary.iter().map(|p| p.text.as_str()).collect()),
+            ));
+            d.signature = Some(Some(signature.to_owned()));
+            return vec![d];
+        }
+    }
     let mut out = Vec::new();
     for part in &item.summary {
         let mut d = detail(Kind::Summary, OPENAI, index, Some(item.id.clone()));
@@ -82,14 +103,75 @@ pub(crate) fn from_redacted(block: &c::RedactedThinkingBlock, index: i64) -> Det
     d
 }
 
-/// Restore only matching format tags. Never place Claude ciphertext in a
-/// Responses encrypted_content field, or the reverse.
+/// Requests to a native Responses upstream restore only its own wire format.
 pub(crate) fn to_responses(details: &[Detail]) -> Result<Vec<r::ReasoningItem>, TransformError> {
+    responses(details, None)
+}
+
+/// Responses clients can carry standard signed text back to its source;
+/// native upstream requests must not receive these foreign carriers.
+pub(crate) fn to_responses_output(
+    details: &[Detail],
+    flow: &mut IdentityFlow,
+    policy: &TargetIdPolicy,
+) -> Result<Vec<r::ReasoningItem>, TransformError> {
+    responses(details, Some((flow, policy)))
+}
+
+fn responses(
+    details: &[Detail],
+    mut carrier_ids: Option<(&mut IdentityFlow, &TargetIdPolicy)>,
+) -> Result<Vec<r::ReasoningItem>, TransformError> {
     let mut out: Vec<r::ReasoningItem> = Vec::new();
-    for d in details
-        .iter()
-        .filter(|d| d.format.as_deref() == Some(OPENAI))
-    {
+    for (position, d) in details.iter().enumerate() {
+        // Standard OpenRouter text signatures use the same cross-protocol
+        // carriers as the direct Claude/Gemini -> Responses adapters.
+        if let Some((flow, policy)) = carrier_ids.as_mut()
+            && matches!(d.format.as_deref(), Some(CLAUDE | GEMINI))
+            && d.type_ == Kind::Text
+        {
+            let Some(signature) = d
+                .signature
+                .as_ref()
+                .and_then(Option::as_deref)
+                .filter(|value| !value.is_empty())
+            else {
+                continue;
+            };
+            let carrier = if d.format.as_deref() == Some(CLAUDE) {
+                super::signature::claude(signature)
+            } else {
+                super::signature::gemini_thought(Some(signature))
+            };
+            let id = flow
+                .resolve_or_allocate(
+                    IdentityRole::OutputItem(OutputItemKind::Reasoning),
+                    SourceIdentity::new(
+                        crate::Dialect::OpenAiChat,
+                        d.id.clone().flatten(),
+                        position as u64,
+                    ),
+                    policy,
+                )
+                .map_err(|error| TransformError::shape("reasoning_details.id", error.to_string()))?
+                .emitted_id;
+            let mut item =
+                r::ReasoningItem::builder(r::ReasoningItemType::ReasoningItem, id, Vec::new())
+                    .build();
+            item.encrypted_content = Some(Some(carrier));
+            if let Some(Some(text)) = &d.text {
+                item.content = Some(vec![
+                    r::ReasoningContent::builder(r::ReasoningTextType::ReasoningText, text.clone())
+                        .build(),
+                ]);
+            }
+            out.push(item);
+            continue;
+        }
+        if d.format.as_deref() != Some(OPENAI) {
+            continue;
+        }
+
         let Some(id) =
             d.id.as_ref()
                 .and_then(Option::as_ref)

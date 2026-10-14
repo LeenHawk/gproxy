@@ -110,7 +110,8 @@ impl ChatToResponsesStream {
     }
 
     pub(super) fn finish_choice(&mut self) -> Result<(), TransformError> {
-        let mut reasoning = rd::to_responses(&self.reasoning_details)?;
+        let mut reasoning =
+            rd::to_responses_output(&self.reasoning_details, &mut self.flow, &self.target_policy)?;
         if reasoning.is_empty() {
             let text = crate::wire::openai::chat::visible_reasoning(
                 &Some(Some(std::mem::take(&mut self.reasoning_text))),

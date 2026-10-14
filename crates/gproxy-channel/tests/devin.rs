@@ -617,18 +617,13 @@ async fn the_fingerprint_is_not_derived_from_the_session_token() {
 // ── Models ─────────────────────────────────────────────────────────────────
 
 #[test]
-fn an_unknown_model_is_refused_rather_than_downgraded() {
+fn a_new_selector_is_forwarded_unchanged_rather_than_downgraded() {
     let extra = std::collections::BTreeMap::new();
-    let error = devin::resolve("gpt-4o", &extra).unwrap_err();
-    let ChannelError::InvalidConfig(message) = &error else {
-        panic!("expected a configuration refusal: {error}");
-    };
-    assert!(message.contains("gpt-4o"), "{message}");
-    assert!(message.contains("catalogue"), "{message}");
-    assert!(
-        message.contains(devin::FREE_SELECTOR),
-        "the refusal explains why it does not fall back: {message}"
+    assert_eq!(
+        devin::resolve("future-model-high", &extra).unwrap(),
+        "future-model-high"
     );
+    assert!(devin::resolve("", &extra).is_err());
 }
 
 #[test]
@@ -652,8 +647,9 @@ fn catalogued_aliases_resolve_and_dotted_forms_keep_their_own_target() {
         "claude-sonnet-4-6",
         "the dashed form is itself a catalogue selector"
     );
-    assert!(
-        devin::resolve("anthropic/claude-opus-4.8", &extra).is_err(),
+    assert_eq!(
+        devin::resolve("anthropic/claude-opus-4.8", &extra).unwrap(),
+        "anthropic/claude-opus-4.8",
         "an unknown qualified name must not silently select a bare alias"
     );
     assert_eq!(
@@ -670,8 +666,7 @@ fn catalogued_aliases_resolve_and_dotted_forms_keep_their_own_target() {
 #[test]
 fn the_captured_snapshot_reaches_every_effort_and_variant_selector() {
     let extra = std::collections::BTreeMap::new();
-    // Everything the alias table used to hard-block, because the channel
-    // refuses a name it does not know.
+    // Historical selectors remain valid alongside newly discovered ones.
     for selector in [
         "claude-opus-4-8-medium-fast",
         "claude-opus-4-8-xhigh",
@@ -709,11 +704,30 @@ fn a_router_selector_is_refused_with_its_own_reason() {
 }
 
 #[tokio::test]
-async fn models_are_listed_locally() {
+async fn models_are_discovered_from_the_live_raw_protobuf_catalogue() {
     let config = json!({"models": {"house-model": "swe-9"}});
     let secret = secret();
     let metadata = json!({});
-    let client = ScriptClient::new(Vec::new());
+    let mut catalogue = devin::proto::Message::new();
+    for (selector, disabled) in [
+        ("future-model-high", 0),
+        ("disabled-model", 1),
+        ("adaptive", 0),
+    ] {
+        let mut model = devin::proto::Message::new();
+        model
+            .string(1, "Future Model")
+            .varint(4, disabled)
+            .varint(5, 1)
+            .varint(10, 3)
+            .string(22, selector);
+        catalogue.message(1, &model);
+    }
+    let client = ScriptClient::new(vec![WireResponse {
+        status: StatusCode::OK,
+        headers: HeaderMap::new(),
+        body: HttpBody::Bytes(Bytes::from(catalogue.into_bytes())),
+    }]);
     let response = Devin
         .list_models(context(
             provider(&config),
@@ -730,9 +744,32 @@ async fn models_are_listed_locally() {
         .iter()
         .map(|model| model["id"].as_str().unwrap())
         .collect();
-    assert!(ids.contains(&devin::FREE_SELECTOR));
-    assert!(ids.contains(&"swe-9"));
-    assert!(client.sent().is_empty());
+    assert_eq!(ids, vec!["future-model-high", "swe-9"]);
+    assert_eq!(body["data"][0]["display_name"], "Future Model");
+    assert_eq!(
+        body["data"][0]["input_modalities"],
+        json!(["text", "image"])
+    );
+    assert_eq!(body["data"][0]["owned_by"], "anthropic");
+    let sent = client.sent();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].0, Method::POST);
+    assert!(sent[0].1.ends_with(devin::connect::MODELS_PATH));
+    assert_eq!(sent[0].2["content-type"], "application/proto");
+    assert_eq!(
+        sent[0].2["authorization"],
+        "Basic devin-session-token$abc-devin-session-token$abc"
+    );
+    let fields = devin::proto::parse(&sent[0].3).unwrap();
+    let metadata = devin::proto::parse(devin::proto::bytes_of(&fields, 1).unwrap()).unwrap();
+    assert_eq!(
+        devin::proto::text_of(&metadata, 3),
+        Some("devin-session-token$abc")
+    );
+    assert_eq!(
+        devin::proto::text_of(&metadata, 31).unwrap().len(),
+        devin::FINGERPRINT_HEX_CHARS
+    );
 }
 
 // ── Streaming ──────────────────────────────────────────────────────────────
@@ -1587,6 +1624,17 @@ fn the_descriptor_declares_oauth_and_a_quota_query() {
             provider(&Value::Null),
             gproxy_protocol::Operation::GenerateContent
         ),
-        vec![Dialect::OpenAiChat]
+        vec![Dialect::OpenAiChat, Dialect::Claude]
+    );
+    let source = gproxy_protocol::OperationKey {
+        operation: gproxy_protocol::Operation::GenerateContent,
+        dialect: Dialect::OpenAi,
+    };
+    assert_eq!(
+        Devin
+            .default_conversion_target(provider(&Value::Null), source)
+            .unwrap()
+            .dialect,
+        Dialect::OpenAiChat
     );
 }

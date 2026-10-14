@@ -25,6 +25,8 @@ use crate::channel::ChannelError;
 pub const DEFAULT_BASE_URL: &str = "https://server.codeium.com";
 /// The generation method. Source: `devin-connect.js` file header.
 pub const CHAT_PATH: &str = "/exa.api_server_pb.ApiServerService/GetChatMessage";
+/// Live CLI catalogue: raw protobuf, not a framed chat stream.
+pub const MODELS_PATH: &str = "/exa.api_server_pb.ApiServerService/GetCliModelConfigs";
 /// Account plan and quota. Source: `samples/windsurfapi/src/windsurf-api.js`
 /// and `samples/cpa-manager-plus/apps/web/src/utils/quota/constants.ts`, which
 /// agree on the path and on the JSON codec.

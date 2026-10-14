@@ -3,7 +3,7 @@
 //! The only v4 channel whose upstream is not HTTP with JSON or SSE: it speaks
 //! **Connect-RPC over protobuf**. A request is one envelope, the response a
 //! multi-frame stream, and this channel translates those frames into OpenAI
-//! Chat Completions for the client.
+//! Chat Completions or Claude Messages for the client.
 //!
 //! # Where the facts come from
 //!
@@ -87,8 +87,8 @@
 //! | 3 | `ChatMessage` | repeated, in order |
 //! | 7 | constant `5` | meaning not recorded |
 //! | 8 | `CompletionConfig` | see below |
-//! | 15 | `ModelConfig` | `{1: session config uuid, 2: turn counter, 3: 4}` |
-//! | 16 | `session_id` | uuid |
+//! | 15 | session metadata | `{1: session uuid, 2: turn counter, 3: 4, 4: user boundary}` |
+//! | 16 | cascade id | session-stable uuid |
 //! | 20 | constant `1` | meaning not recorded |
 //! | 21 | `model_selector` | a **string** selector, not an enum ordinal |
 //!
@@ -108,11 +108,18 @@
 //! result), #3 text, #6 a native tool call, #7 the tool-call id a tool result
 //! answers, #10 repeated images as `{1: base64 text, 2: mime type}`. This
 //! channel emits these fields, preserving native tool calls and results.
+//! #11 is thinking text, #12 the opaque signature bytes, and #18 its type.
+//! Signatures travel through Chat reasoning_details, Claude thinking.signature,
+//! or Responses encrypted_content. Native signatures use standard reasoning_details;
+//! only Devin-owned opaque state needs a carrier preserving bytes and type.
+//! Shared transformers do not interpret that carrier. Session IDs come from client identifiers; the host
+//! owns the per-session counter. A stateless host derives the ordinal from
+//! assistant history, and a request without an identifier starts a fresh session.
 //!
 //! Two rules shape the turn list before it is encoded, both from the
 //! reference and both narrower than they look:
 //!
-//! * **An assistant turn with no text or tool calls is dropped**, images or not. The Kimi
+//! * **An assistant turn without text, tools or reasoning is dropped**, images or not. The Kimi
 //!   workaround records 10/10 empty retries for an empty assistant turn, and
 //!   `devin-connect-openai.js` adds that empty assistant turns poison the
 //!   upstream into repeating empty turns. Image-only assistant turns are
@@ -150,7 +157,7 @@
 //! # `GetChatMessageResponse`
 //!
 //! #3 answer text, #5 stop enum, #6 native tool-call deltas, #7 metadata,
-//! #9 thinking text. **The
+//! #9 thinking text, #10 signature fragments, #21 signature type. **The
 //! reference file header says the deltas ride #9; its own later calibration
 //! corrects that** ("Earlier code read #9 as the content — that was the
 //! thinking stream. The answer the caller actually wants is #3"), and this
@@ -195,23 +202,15 @@
 //!
 //! # Models
 //!
-//! `model_selector` takes strings such as `swe-1-6-slow` or
-//! `MODEL_SWE_1_5_SLOW`. The catalogue is the 123-selector capture in
-//! `assets/devin-catalog-snapshot.json`, copied from the reference's own
-//! `GetCliModelConfigs`/`GetCascadeModelConfigs` capture and dated
-//! `2026-07-08`, plus the hand-written alias table in `models.rs` that gives
-//! client-facing names a specific target. **The snapshot is dated, and a live
-//! `GetCliModelConfigs` is the authority**; this channel does not call it
-//! because the upstream's list is an account-entitlement view rather than the
-//! set of strings #21 accepts, and `config.models` is the escape valve for
-//! anything added since. A free-tier account resolves only `swe-1-6-slow`;
-//! every other selector answers with an upgrade message. That is an
-//! account-tier wall, not a protocol gap, so the channel sends the selector
-//! and reports the refusal rather than pre-filtering. A name the catalogue
-//! does not know is **refused**: the reference removed its silent degrade to
-//! the free selector once it was clear that answering a paid request on the
-//! free model changes both the answer and the billing
-//! (`DEVIN-CONNECT-CUTOVER.md` §1).
+//! Discovery calls `GetCliModelConfigs` with raw `application/proto` and no
+//! Connect frame header. Enabled concrete selectors, display names and image
+//! capabilities are returned to the host's normal catalogue refresh path.
+//! The downstream catalogue remains local and permission-filtered; upstream
+//! failures do not replace saved rows with a stale embedded snapshot.
+//!
+//! The dated snapshot and alias table are used only for backwards-compatible
+//! name/effort resolution. New selectors pass through unchanged rather than
+//! being refused by a static whitelist or downgraded to another model.
 //!
 //! # Quota
 //!
@@ -245,7 +244,7 @@
 //! # Not implemented, and why
 //!
 //! * **Forced tool choice.** Native function declarations, history, streamed
-//!   calls and tool results are supported; `tool_choice` supports `auto` and
+//!   calls, signed reasoning and tool results are supported; `tool_choice` supports `auto` and
 //!   `none`. Other choices are refused rather than silently weakened.
 //! * **Router selectors** (`adaptive`, `arena-*`). They need an `AssignModel`
 //!   round trip to resolve to a concrete `model_uid` first, and every field
@@ -285,7 +284,7 @@
 //!    guesses. It costs one session token and one request.
 //! 2. Native tool calls now use #6 with #1 id, #2 name and #3 JSON argument
 //!    fragments, following CLIProxyAPI and verified by CLI execution. Native
-//!    thinking-signature replay remains outside this channel's Chat surface.
+//!    thinking-signature replay uses #11/#12/#18 in history and #10/#21 in replies.
 //! 3. **A truncated or refused turn, captured.** The only way to pin stop-enum
 //!    integers for `length`, `content_filter` and `tool_calls`, which in turn
 //!    is the only way to stop inferring truncation from the caller's cap.
@@ -303,6 +302,7 @@
 //! — and the three versions the mirrors disagree about all work. Items 1 to 5
 //! need a token, not a binary.
 
+mod claude;
 mod config;
 pub mod connect;
 pub mod error;
@@ -312,7 +312,9 @@ mod prompt;
 pub mod proto;
 mod quota;
 mod reason;
+mod reasoning;
 mod request;
+mod session;
 mod stream;
 mod usage;
 
@@ -430,7 +432,20 @@ async fn start(context: OperationContext<'_>) -> Result<stream::Turn, ChannelErr
     };
     let body = read_body(context.request.body, MAX_REQUEST_BODY).await?;
     let value = request::parse(&body)?;
-    let prepared = request::build(&value, &config, &auth)?;
+    let value = if context.dialect == Dialect::Claude {
+        claude::request(value)?
+    } else {
+        value
+    };
+    let mut prepared = request::build(&value, &config, &auth)?;
+    let session = session::Session::resolve(
+        &value,
+        &context.request.headers,
+        &auth,
+        context.state.as_ref(),
+    )
+    .await?;
+    session.write(&mut prepared.body, &value);
 
     let allowlist = HeaderAllowlist::from_view(context.provider)?;
     // The client's own headers may pass, narrowed by the provider, but every
@@ -555,7 +570,7 @@ impl BaseChannel for Devin {
                 ConfigKey::optional(
                     "models",
                     ConfigKeyKind::Json,
-                    "Extra client-facing model name to upstream selector entries, merged over the built-in catalogue. The built-in catalogue is a dated capture, so this is where a selector the upstream added since goes. An unknown name is refused, never downgraded to the free selector.",
+                    "Operator-defined model aliases and additional selectors. Discovery uses the live upstream catalogue; unmapped selectors pass through unchanged and are never downgraded to another model.",
                 ),
                 ConfigKey::optional(
                     "max_tokens",
@@ -579,21 +594,42 @@ impl BaseChannel for Devin {
         }
     }
 
-    /// The client's dialect, not the upstream's: this channel converts
-    /// protobuf frames into Chat Completions itself, so a host that routes a
-    /// Chat Completions request here needs no conversion of its own.
+    /// Client-facing surfaces owned by this channel. Claude lets the host use
+    /// its existing signed-thinking/continuation adapters for other dialects;
+    /// no shared transformer needs knowledge of Devin's protobuf or signatures.
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
-            Operation::GenerateContent
-            | Operation::StreamGenerateContent
-            | Operation::ListModels => vec![Dialect::OpenAiChat],
+            Operation::GenerateContent | Operation::StreamGenerateContent => {
+                vec![Dialect::OpenAiChat, Dialect::Claude]
+            }
+            Operation::ListModels => vec![Dialect::OpenAiChat],
             _ => Vec::new(),
         }
     }
 
-    /// Answered locally from the captured catalogue: the upstream's own model
-    /// list is a separate Connect method, and its answer is an account
-    /// entitlement view rather than the set of selectors #21 accepts.
+    // Use the existing host adapters (including continuation history). These
+    // native surfaces expose standard reasoning fields, not a vendor format.
+    fn default_conversion_target(
+        &self,
+        _provider: ProviderView<'_>,
+        source: gproxy_protocol::OperationKey,
+    ) -> Option<gproxy_protocol::OperationKey> {
+        matches!(
+            source.operation,
+            Operation::GenerateContent | Operation::StreamGenerateContent
+        )
+        .then_some(gproxy_protocol::OperationKey {
+            operation: source.operation,
+            dialect: if source.dialect == Dialect::OpenAi {
+                Dialect::OpenAiChat
+            } else {
+                Dialect::Claude
+            },
+        })
+    }
+
+    /// Fetch upstream candidates. The host persists and permission-filters its
+    /// own downstream catalogue; failure leaves its saved rows untouched.
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
@@ -603,9 +639,39 @@ impl BaseChannel for Devin {
                 return Err(unsupported(Operation::ListModels, context.dialect));
             }
             let config = DevinConfig::from_view(context.provider)?;
-            let body = serde_json::to_vec(&models::openai_list(&config.models))
-                .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
-            Ok(local_response("application/json", Bytes::from(body)))
+            let auth = request::auth(&context.credential)?;
+            let url = context
+                .endpoint_override
+                .map(str::to_owned)
+                .unwrap_or_else(|| {
+                    format!(
+                        "{}{}",
+                        DevinConfig::base_url(context.provider),
+                        connect::MODELS_PATH
+                    )
+                });
+            let mut body = proto::Message::new();
+            body.message(1, &request::client_metadata(&config, &auth));
+            let mut headers = connect::proto_headers(auth.token)?;
+            headers.insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/proto"),
+            );
+            headers.remove("connect-accept-encoding");
+            config.static_headers(&mut headers)?;
+            let mut upstream = http::Request::post(url)
+                .body(HttpBody::Bytes(Bytes::from(body.into_bytes())))
+                .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+            *upstream.headers_mut() = headers;
+            let (status, bytes) = call(context.client.as_ref(), upstream).await?;
+            if !status.is_success() {
+                return deliver(error::from_response(status, &bytes));
+            }
+            let body = models::decode_list(&bytes, &config.models)?;
+            Ok(local_response(
+                "application/json",
+                Bytes::from(body.to_string()),
+            ))
         })
     }
 
@@ -614,9 +680,10 @@ impl BaseChannel for Devin {
         context: OperationContext<'a>,
     ) -> OperationFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
-            if context.dialect != Dialect::OpenAiChat {
+            if !matches!(context.dialect, Dialect::OpenAiChat | Dialect::Claude) {
                 return Err(unsupported(Operation::GenerateContent, context.dialect));
             }
+            let dialect = context.dialect;
             let turn = match start(context).await {
                 Ok(turn) => turn,
                 Err(error) => return deliver(error),
@@ -624,6 +691,11 @@ impl BaseChannel for Devin {
             let completion = match turn.collect().await {
                 Ok(completion) => completion,
                 Err(error) => return deliver(error),
+            };
+            let completion = if dialect == Dialect::Claude {
+                claude::response(completion)?
+            } else {
+                completion
             };
             let body = serde_json::to_vec(&completion)
                 .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
@@ -636,12 +708,15 @@ impl BaseChannel for Devin {
         context: OperationContext<'a>,
     ) -> OperationFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
-            if context.dialect != Dialect::OpenAiChat {
+            if !matches!(context.dialect, Dialect::OpenAiChat | Dialect::Claude) {
                 return Err(unsupported(
                     Operation::StreamGenerateContent,
                     context.dialect,
                 ));
             }
+            let adapter = (context.dialect == Dialect::Claude)
+                .then(claude::Stream::new)
+                .transpose()?;
             let mut turn = match start(context).await {
                 Ok(turn) => turn,
                 Err(error) => return deliver(error),
@@ -662,7 +737,7 @@ impl BaseChannel for Devin {
             Ok(WireResponse {
                 status: StatusCode::OK,
                 headers,
-                body: HttpBody::Stream(turn.into_stream(primed)),
+                body: HttpBody::Stream(turn.into_stream(primed, adapter)),
             })
         })
     }

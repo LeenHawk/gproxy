@@ -20,8 +20,6 @@ const REQ_CHAT_MESSAGE: u32 = 3;
 /// A constant 5 on every captured request; its meaning is not recorded.
 const REQ_CONSTANT_SEVEN: u32 = 7;
 const REQ_COMPLETION_CONFIG: u32 = 8;
-const REQ_MODEL_CONFIG: u32 = 15;
-const REQ_SESSION_ID: u32 = 16;
 /// A constant 1 on every captured request; its meaning is not recorded.
 const REQ_CONSTANT_TWENTY: u32 = 20;
 const REQ_MODEL_SELECTOR: u32 = 21;
@@ -54,11 +52,6 @@ const COMPLETION_CONTEXT_WINDOW: u32 = 3;
 const COMPLETION_TEMPERATURE: u32 = 5;
 const COMPLETION_TOP_K: u32 = 7;
 const COMPLETION_TOP_P: u32 = 8;
-
-// ModelConfig
-const MODEL_CONFIG_ID: u32 = 1;
-const MODEL_CONFIG_TURN: u32 = 2;
-const MODEL_CONFIG_CONSTANT: u32 = 3;
 
 /// `ChatMessage.source`. Only the values this channel emits are listed.
 const SOURCE_USER: u64 = 1;
@@ -224,6 +217,7 @@ struct Turn {
     images: Vec<(String, String)>,
     calls: Vec<Value>,
     call_id: Option<String>,
+    reasoning: super::reasoning::Reasoning,
 }
 
 pub(super) fn parse(body: &[u8]) -> Result<Value, ChannelError> {
@@ -253,6 +247,23 @@ fn stop_sequences(request: &Value) -> Vec<String> {
     }
 }
 
+pub(super) fn client_metadata(config: &DevinConfig, auth: &Auth<'_>) -> Message {
+    let mut metadata = Message::new();
+    metadata
+        .string(META_CLIENT_NAME, &config.client_name)
+        .string(META_CLIENT_VERSION, &config.client_version)
+        .string(META_SESSION_TOKEN, auth.token)
+        .string(META_LOCALE, &config.locale)
+        .string(META_OS, &config.os)
+        .string(META_VERSION_ECHO, &config.client_version)
+        .string(META_CLIENT_NAME_ECHO, &config.client_name);
+    if let Some(jwt) = auth.user_jwt {
+        metadata.string(META_USER_JWT, jwt);
+    }
+    metadata.string(META_FINGERPRINT, &auth.fingerprint);
+    metadata
+}
+
 pub(super) fn build(
     request: &Value,
     config: &DevinConfig,
@@ -264,7 +275,7 @@ pub(super) fn build(
         .map(str::trim)
         .filter(|model| !model.is_empty())
         .ok_or_else(|| super::bad_request("devin request has no model"))?;
-    let selector = models::resolve(model, &config.models)?;
+    let selector = models::resolve_request(model, request, &config.models)?;
 
     let messages = request
         .get("messages")
@@ -291,6 +302,11 @@ pub(super) fn build(
             }
             continue;
         }
+        let reasoning = if role == "assistant" {
+            super::reasoning::Reasoning::from_message(message)?
+        } else {
+            Default::default()
+        };
         let calls: Vec<Value> = message
             .get("tool_calls")
             .and_then(Value::as_array)
@@ -309,7 +325,8 @@ pub(super) fn build(
         // them out explicitly ("Image-only assistants retain the legacy
         // exclusion") because admitting one puts back exactly the text-empty
         // wire frame the exclusion exists to prevent.
-        if role == "assistant" && text.trim().is_empty() && calls.is_empty() {
+        if role == "assistant" && text.trim().is_empty() && calls.is_empty() && reasoning.is_empty()
+        {
             continue;
         }
         let source = if role == "assistant" {
@@ -336,16 +353,43 @@ pub(super) fn build(
             .rev()
             .take_while(|turn| turn.source == source)
             .count();
-        let mergeable = run >= 2
+        let mergeable = reasoning.is_empty()
+            && run >= 2
             && calls.is_empty()
             && call_id.is_none()
             && images.is_empty()
             && turns.last().is_some_and(|last| {
-                last.images.is_empty()
+                last.reasoning.is_empty()
+                    && last.images.is_empty()
                     && last.calls.is_empty()
                     && last.call_id.is_none()
                     && last.source == source
             });
+        // Responses carries reasoning as a separate item beside the assistant
+        // message/tool calls. Reunite it with that turn for Devin's signed history.
+        let reasoning_only = source == SOURCE_ASSISTANT
+            && text.is_empty()
+            && calls.is_empty()
+            && images.is_empty()
+            && !reasoning.is_empty();
+        if let Some(last) = turns.last_mut()
+            && source == SOURCE_ASSISTANT
+            && last.source == SOURCE_ASSISTANT
+            && ((reasoning_only && last.reasoning.is_empty())
+                || (reasoning.is_empty()
+                    && !last.reasoning.is_empty()
+                    && last.text.is_empty()
+                    && last.calls.is_empty()
+                    && last.images.is_empty()))
+        {
+            last.text.push_str(&text);
+            last.calls.extend(calls);
+            last.images.extend(images);
+            if reasoning_only {
+                last.reasoning = reasoning;
+            }
+            continue;
+        }
         match turns.last_mut() {
             Some(last) if mergeable => {
                 if !text.is_empty() {
@@ -361,6 +405,7 @@ pub(super) fn build(
                 images,
                 calls,
                 call_id,
+                reasoning,
             }),
         }
     }
@@ -402,19 +447,7 @@ pub(super) fn build(
         .and_then(Value::as_u64)
         .filter(|cap| *cap > 0);
 
-    let mut metadata = Message::new();
-    metadata
-        .string(META_CLIENT_NAME, &config.client_name)
-        .string(META_CLIENT_VERSION, &config.client_version)
-        .string(META_SESSION_TOKEN, auth.token)
-        .string(META_LOCALE, &config.locale)
-        .string(META_OS, &config.os)
-        .string(META_VERSION_ECHO, &config.client_version)
-        .string(META_CLIENT_NAME_ECHO, &config.client_name);
-    if let Some(jwt) = auth.user_jwt {
-        metadata.string(META_USER_JWT, jwt);
-    }
-    metadata.string(META_FINGERPRINT, &auth.fingerprint);
+    let metadata = client_metadata(config, auth);
 
     let mut completion = Message::new();
     let temperature = request
@@ -445,14 +478,6 @@ pub(super) fn build(
                 .unwrap_or(DEFAULT_TOP_P),
         );
 
-    // #15.1 is a per-session configuration id and #15.2 a turn counter in the
-    // captured CLI session; a stateless request matches the turn-1 capture.
-    let mut model_config = Message::new();
-    model_config
-        .string(MODEL_CONFIG_ID, &uuid()?)
-        .varint(MODEL_CONFIG_TURN, 1)
-        .varint(MODEL_CONFIG_CONSTANT, 4);
-
     let mut out = Message::new();
     out.message(REQ_CLIENT_METADATA, &metadata)
         .string(REQ_SYSTEM_PROMPT, &system);
@@ -461,8 +486,6 @@ pub(super) fn build(
     }
     out.varint(REQ_CONSTANT_SEVEN, 5)
         .message(REQ_COMPLETION_CONFIG, &completion)
-        .message(REQ_MODEL_CONFIG, &model_config)
-        .string(REQ_SESSION_ID, &uuid()?)
         .varint(REQ_CONSTANT_TWENTY, 1)
         .string(REQ_MODEL_SELECTOR, &selector);
     // Native ToolDef: CLIProxyAPI devin_wire.go, fields 1=name, 2=description, 3=JSON schema.
@@ -493,9 +516,7 @@ pub(super) fn build(
             );
         out.message(10, &definition);
     }
-    // #22 request_id is deliberately absent: the verified turn-1 request
-    // carries none, and it is a conversation-scoped id rather than a
-    // per-request one from turn 2 onwards.
+    // Session metadata is appended after validation by session::Session.
 
     Ok(Prepared {
         body: out.into_bytes(),
@@ -511,6 +532,13 @@ fn chat_message(turn: &Turn) -> Result<Message, ChannelError> {
         .string(MSG_UUID, &uuid()?)
         .varint(MSG_SOURCE, turn.source)
         .string(MSG_TEXT, &turn.text);
+    if !turn.reasoning.text.is_empty() {
+        message.string(11, &turn.reasoning.text);
+    }
+    if !turn.reasoning.signature.is_empty() {
+        message.bytes(12, &turn.reasoning.signature);
+        message.string(18, &turn.reasoning.signature_type);
+    }
     for call in &turn.calls {
         let mut encoded = Message::new();
         encoded

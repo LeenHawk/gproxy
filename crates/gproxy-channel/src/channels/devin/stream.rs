@@ -9,6 +9,7 @@
 //! | #5 | stop enum | `finish_reason` |
 //! | #7 | metadata sub-message | `usage` |
 //! | #9 | thinking text | `delta.reasoning_content` |
+//! | #10 / #21 | signature bytes / type | terminal `reasoning_details` snapshot |
 //!
 //! The reference file's own header says the deltas ride #9; its later
 //! calibration corrects that (`devin-connect.js`, the "Response frame
@@ -229,6 +230,8 @@ pub(super) struct Codec {
     stopped: bool,
     text: String,
     thinking: String,
+    signature: super::reasoning::Reasoning,
+    reasoning_details: Vec<Value>,
     started: bool,
     finish: Option<u64>,
     usage: Option<Usage>,
@@ -258,6 +261,8 @@ impl Codec {
             stopped: false,
             text: String::new(),
             thinking: String::new(),
+            signature: Default::default(),
+            reasoning_details: Vec::new(),
             started: false,
             finish: None,
             usage: None,
@@ -337,6 +342,16 @@ impl Codec {
             }
             chunks.push(self.chunk(json!({"tool_calls":[delta]}), None));
         }
+        for field in &fields {
+            if field.number == 10
+                && let proto::Value::Bytes(bytes) = field.value
+            {
+                self.signature.signature.extend_from_slice(bytes);
+            }
+        }
+        if let Some(kind) = proto::text_of(&fields, 21) {
+            self.signature.signature_type = kind.to_owned();
+        }
         if let Some(finish) = proto::varint_of(&fields, RES_FINISH) {
             self.finish = Some(finish);
         }
@@ -375,9 +390,9 @@ impl Codec {
     /// The terminal chunk. Usage rides it whenever the upstream reported a
     /// terminal metadata frame; an absent block means unreported rather than
     /// zero, so no `usage` key is written at all.
-    pub(super) fn close(&mut self) -> Vec<Value> {
+    pub(super) fn close(&mut self) -> Result<Vec<Value>, ChannelError> {
         if self.closed {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         self.closed = true;
         let mut chunks = Vec::new();
@@ -391,12 +406,17 @@ impl Codec {
             self.text.push_str(&tail);
             chunks.push(self.chunk(json!({ "content": tail }), None));
         }
+        if !self.signature.signature.is_empty() {
+            self.signature.text = self.thinking.clone();
+            self.reasoning_details = self.signature.details(&format!("rs_{}", self.id))?;
+            chunks.push(self.chunk(json!({"reasoning_details":self.reasoning_details}), None));
+        }
         let mut last = self.chunk(json!({}), Some(self.finish_reason()));
         if let Some(usage) = self.usage_json() {
             last["usage"] = usage;
         }
         chunks.push(last);
-        chunks
+        Ok(chunks)
     }
 
     /// Truncation is read from the usage, not from the stop enum. Only two of
@@ -439,6 +459,9 @@ impl Codec {
         let mut message = json!({"role": "assistant", "content": self.text});
         if !self.thinking.is_empty() {
             message["reasoning_content"] = json!(self.thinking);
+        }
+        if !self.reasoning_details.is_empty() {
+            message["reasoning_details"] = json!(self.reasoning_details);
         }
         if !self.calls.is_empty() {
             message["tool_calls"] = json!(self.calls);
@@ -510,8 +533,10 @@ impl Turn {
                         "devin stream ended without its Connect trailer".into(),
                     )));
                 }
-                let chunks = self.codec.close();
-                return (!chunks.is_empty()).then_some(Ok(chunks));
+                return match self.codec.close() {
+                    Ok(chunks) => (!chunks.is_empty()).then_some(Ok(chunks)),
+                    Err(error) => Some(Err(error)),
+                };
             };
             let chunk = match next {
                 Ok(chunk) => chunk,
@@ -541,8 +566,11 @@ impl Turn {
                             &failure.message,
                         )));
                     }
-                    chunks.extend(self.codec.close());
                     self.finished = true;
+                    match self.codec.close() {
+                        Ok(final_chunks) => chunks.extend(final_chunks),
+                        Err(error) => return Some(Err(error)),
+                    }
                     break;
                 }
                 match self.codec.frame(&frame.payload) {
@@ -576,25 +604,38 @@ impl Turn {
     }
 
     /// The Chat Completions SSE body, starting from the already-pulled batch.
-    pub(super) fn into_stream(self, primed: Vec<Value>) -> ByteStream {
+    pub(super) fn into_stream(
+        self,
+        primed: Vec<Value>,
+        adapter: Option<super::claude::Stream>,
+    ) -> ByteStream {
         Box::pin(futures_util::stream::unfold(
-            (self, Some(primed), false),
-            |(mut turn, primed, sent_done)| async move {
-                if let Some(primed) = primed {
-                    let encoded = encode(&primed);
-                    return Some((Ok(encoded), (turn, None, sent_done)));
-                }
-                if sent_done {
+            (self, Some(primed), adapter, false),
+            |(mut turn, primed, mut adapter, finished)| async move {
+                if finished {
                     return None;
                 }
-                match turn.step().await {
-                    Some(Ok(chunks)) => Some((Ok(encode(&chunks)), (turn, None, false))),
-                    Some(Err(error)) => {
-                        let boxed: TransportError = Box::new(error::as_stream_failure(error));
-                        Some((Err(boxed), (turn, None, true)))
-                    }
-                    None => Some((Ok(done()), (turn, None, true))),
-                }
+                let next = match primed {
+                    Some(chunks) => Some(Ok(chunks)),
+                    None => turn.step().await,
+                };
+                let terminal = next.is_none();
+                let result = match next {
+                    Some(Ok(chunks)) => match adapter.as_mut() {
+                        Some(adapter) => adapter.push(chunks),
+                        None => Ok(encode(&chunks)),
+                    },
+                    Some(Err(error)) => Err(error),
+                    None => match adapter.take() {
+                        Some(adapter) => adapter.finish(),
+                        None => Ok(done()),
+                    },
+                };
+                let finished = terminal || result.is_err();
+                let result = result.map_err(|error| -> TransportError {
+                    Box::new(error::as_stream_failure(error))
+                });
+                Some((result, (turn, None, adapter, finished)))
             },
         ))
     }

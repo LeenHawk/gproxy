@@ -82,12 +82,14 @@ pub(super) fn to_responses(
             rest: Default::default(),
         }));
     }
-    let restored = rd::to_responses(
+    let restored = rd::to_responses_output(
         message
             .reasoning_details
             .as_ref()
             .and_then(Option::as_deref)
             .unwrap_or(&[]),
+        flow,
+        policy,
     )?;
     let has_restored = !restored.is_empty();
     let mut output = restored
