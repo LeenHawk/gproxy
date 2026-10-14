@@ -18,9 +18,10 @@ use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
         AcquiredCredential, AuthorizationCode, AuthorizationRequest, AuthorizationStart,
-        CookieLogin, CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView,
-        DeviceAuthorization, DevicePoll, LoginContext, OAuthAuthorizationCode, OAuthCredential,
-        OAuthDeviceCode, OperationFuture, PrepareContext, ProviderView, QuotaQuery, QuotaSnapshot,
+        ChannelCapabilities, ChannelDescriptor, CookieLogin, CredentialContext, CredentialRefresh,
+        CredentialUpdate, CredentialView, DeviceAuthorization, DevicePoll, LoginContext, LoginMode,
+        OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, OperationFuture, PrepareContext,
+        ProviderView, QuotaQuery, QuotaSnapshot,
     },
 };
 use gproxy_protocol::{
@@ -82,6 +83,28 @@ impl BaseChannel for TestChannel {
 
     fn id(&self) -> &'static str {
         "test"
+    }
+    fn descriptor(&self) -> ChannelDescriptor {
+        ChannelDescriptor {
+            id: self.id(),
+            display_name: self.id(),
+            // The scripted bearer accepts manual API keys as well as login results.
+            credential_kinds: vec!["api_key", "oauth", "cookie"],
+            login_modes: vec![
+                LoginMode::ApiKey,
+                LoginMode::AuthorizationCode,
+                LoginMode::DeviceCode,
+                LoginMode::Cookie,
+            ],
+            capabilities: ChannelCapabilities {
+                refresh: self.credential_refresh().is_some(),
+                quota_query: self.quota_query().is_some(),
+                quota_reset: self.quota_reset().is_some(),
+                services: self.services().is_some(),
+                websocket: false,
+            },
+            config_keys: Vec::new(),
+        }
     }
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
         Some(self)
