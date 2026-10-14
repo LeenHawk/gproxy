@@ -219,7 +219,7 @@ Node.js, pnpm or desktop libraries to build:
 
 ```sh
 cargo build --locked --release -p gproxy --bin gproxy \
-  --no-default-features --features channels,memory,fs,bundled-vocabulary
+  --no-default-features --features channels,memory,fs,bundled-vocabulary,postgres,mysql
 ./target/release/gproxy serve --console=false
 ```
 

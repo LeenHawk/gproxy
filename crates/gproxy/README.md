@@ -446,7 +446,7 @@ For a CI binary without bundled frontend assets, skip the console build and run:
 
 ```sh
 cargo build --locked --release -p gproxy --bin gproxy \
-  --no-default-features --features channels,memory,fs,bundled-vocabulary
+  --no-default-features --features channels,memory,fs,bundled-vocabulary,postgres,mysql
 ./target/release/gproxy serve --console=false
 ```
 

@@ -84,7 +84,7 @@ case "$kind" in
       export ARTIFACT_NAME="$(jq -r --arg target "$TARGET_TRIPLE" '.include[] | select(.target==$target) | .headless_artifact' scripts/release-targets.json)"
       export GPROXY_HEADLESS=true PACKAGE_INSTALLERS=false
       [ "$TARGET_OS" != android ] || PACKAGE_INSTALLERS=true
-      features=(--locked --no-default-features --features channels,memory,fs,bundled-vocabulary)
+      features=(--locked --no-default-features --features channels,memory,fs,bundled-vocabulary,postgres,mysql)
     fi
     case "$BUILDER" in
       cargo-alpine) bash scripts/build-musl.sh "$TARGET_TRIPLE" ;;

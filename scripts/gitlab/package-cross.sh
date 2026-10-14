@@ -62,7 +62,7 @@ case "$mode" in
     if [ "$mode" = headless ]; then
       export ARTIFACT_NAME="$(jq -r --arg target "$TARGET_TRIPLE" '.include[] | select(.target==$target) | .headless_artifact' scripts/release-targets.json)"
       export PACKAGE_INSTALLERS=false
-      feature_args=(--no-default-features --features channels,memory,fs,bundled-vocabulary)
+      feature_args=(--no-default-features --features channels,memory,fs,bundled-vocabulary,postgres,mysql)
     fi
     if [ "$TARGET_OS" = macos ] || [[ "$TARGET_TRIPLE" == *-musl ]]; then
       if [[ "$TARGET_TRIPLE" == *-musl ]]; then export RUSTFLAGS='-C target-feature=+crt-static'; fi

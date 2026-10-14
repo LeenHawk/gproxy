@@ -50,7 +50,7 @@ termux_step_make() {
 	done
 	local feature_args=()
 	if [ "${GPROXY_HEADLESS:-false}" = true ]; then
-		feature_args=(--no-default-features --features channels,memory,fs,bundled-vocabulary)
+		feature_args=(--no-default-features --features channels,memory,fs,bundled-vocabulary,postgres,mysql)
 	fi
 	cargo build "${feature_args[@]}" --locked --release --target "$CARGO_TARGET_NAME" -p gproxy --bin gproxy -j "$TERMUX_PKG_MAKE_PROCESSES"
 }

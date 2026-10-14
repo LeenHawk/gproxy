@@ -26,8 +26,8 @@ path = "src/bin/serverless.rs"
 required-features = ["postgres"]
 
 [features]
-# A single-node SQLite instance with every channel this repository implements.
-default = ["channels", "memory", "fs", "bundled-vocabulary", "embedded-console"]
+# Every channel and native SQL driver; SQLite remains the default store.
+default = ["channels", "memory", "fs", "bundled-vocabulary", "embedded-console", "postgres", "mysql"]
 
 # Omit for CI builds that do not carry the Web console.
 embedded-console = ["gproxy-host-axum/embedded-console"]

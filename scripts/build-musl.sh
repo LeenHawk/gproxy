@@ -28,7 +28,7 @@ docker run --rm --platform "$platform" \
     requested_target="$1"
     shift
     if [ "${GPROXY_HEADLESS:-false}" = true ]; then
-      set -- --no-default-features --features channels,memory,fs,bundled-vocabulary
+      set -- --no-default-features --features channels,memory,fs,bundled-vocabulary,postgres,mysql
     fi
     python3 scripts/reproducible-run.py cargo build --locked --release -p gproxy --bin gproxy --target "$native_target" "$@"
     mkdir -p "target/$requested_target/release"
