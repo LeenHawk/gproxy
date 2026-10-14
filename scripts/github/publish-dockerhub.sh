@@ -15,10 +15,11 @@ printf '%s' "$DOCKERHUB_TOKEN" | skopeo login docker.io --username leenhawk --pa
 tags=("$RELEASE_TAG")
 if [ "$GPROXY_BUILD_CHANNEL" = release ]; then tags+=(staging); fi
 source="${GPROXY_CONTAINER_SOURCE:?}"
+image="${DOCKERHUB_IMAGE:-leenhawk/gproxy}"
 for suffix in "" -musl; do
   for tag in "${tags[@]}"; do
     skopeo copy --all --preserve-digests \
       "docker://$source$suffix" \
-      "docker://docker.io/leenhawk/gproxy:$tag$suffix"
+      "docker://docker.io/$image:$tag$suffix"
   done
 done

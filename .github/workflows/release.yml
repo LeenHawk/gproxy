@@ -1337,6 +1337,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: bash scripts/github/publish-dockerhub.sh
+      - name: Publish Docker Hub images to org
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_ORG_TOKEN }}
+          DOCKERHUB_IMAGE: gproxy2/gproxy
+        run: bash scripts/github/publish-dockerhub.sh
 
   alpine-packages:
     name: Signed Alpine CLI packages
