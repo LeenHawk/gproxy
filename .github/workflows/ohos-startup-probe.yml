@@ -42,7 +42,7 @@ jobs:
         run: bash scripts/install-android-upx.sh "$RUNNER_TEMP/gproxy-upx"
       - name: Compile corrected ArkTS host and reassemble unsigned HAP
         run: bash scripts/ohos/rebuild-hap.sh target/ohos-startup-probe/original.hap
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: gproxy-ohos-x86_64-startup-probe
           path: dist/release/gproxy-ohos-x86_64-startup-probe.hap

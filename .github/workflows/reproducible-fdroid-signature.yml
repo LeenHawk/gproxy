@@ -93,7 +93,7 @@ jobs:
           python3 scripts/mobile/verify-reproducible-apk.py dist/fdroid-signature/gproxy-fdroid-universal.apk rebuilt.apk \
             --build-tools "$ANDROID_HOME/build-tools/34.0.0" --expected-cert-sha256 "$fingerprint" \
             --report dist/fdroid-signature/report.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: fdroid-signature-verification
