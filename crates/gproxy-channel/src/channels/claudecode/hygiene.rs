@@ -100,7 +100,9 @@ const BILLING_PREFIX: &str = "x-anthropic-billing-header:";
 /// client sent when they pass the CLI's own validation: `cc_workload`,
 /// `cc_is_subagent=true`, `cc_prev_req`, `cc_prompt_id`, `cc_turn_origin`,
 /// then the paired `cc_prompt_index` / `cc_turn_index`. Unknown keys and
-/// invalid values are dropped; they would only fingerprint the proxy. Two
+/// invalid values are dropped; they would only fingerprint the proxy. Gateway
+/// attribution (`cc_gateway`) is also dropped: this channel impersonates the
+/// default direct OAuth client, not a gateway-configured CLI. Two
 /// fragments the CLI always sends on the OAuth path are synthesized when the
 /// client left them out: `cc_prev_req` from `prev_req`, the `request-id` of
 /// the session's previous upstream call, and `cc_prompt_id`, a UUID derived
