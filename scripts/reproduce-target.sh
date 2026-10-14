@@ -102,13 +102,13 @@ case "$kind" in
     esac
     binary="target/$TARGET_TRIPLE/release/gproxy"
     [ "$TARGET_OS" != windows ] || binary+=.exe
-    if [ "$TARGET_OS" = linux ] && [ "$kind" = cli ]; then
-      mkdir -p "dist/container/$TARGET_TRIPLE"
-      cp "$binary" "dist/container/$TARGET_TRIPLE/gproxy"
-    fi
     if [ "$UPX_ENABLED" = true ]; then
       upx --best --lzma "$binary"
       upx --test "$binary"
+    fi
+    if [ "$TARGET_OS" = linux ] && [ "$kind" = cli ]; then
+      mkdir -p "dist/container/$TARGET_TRIPLE"
+      cp "$binary" "dist/container/$TARGET_TRIPLE/gproxy"
     fi
     if [ "$TARGET_OS" = macos ]; then codesign --force --sign - --timestamp=none "$binary"; fi
     if [ "$TARGET_OS" = windows ]; then

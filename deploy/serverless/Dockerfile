@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/node:24-alpine AS prepare
+FROM docker.io/library/node:24-alpine AS prepare
 
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -9,7 +9,7 @@ COPY prepare-release.mjs ./
 ARG GPROXY_RELEASE_VERSION=latest
 RUN GPROXY_RELEASE_VERSION="$GPROXY_RELEASE_VERSION" node prepare-release.mjs
 
-FROM public.ecr.aws/docker/library/node:24-alpine
+FROM docker.io/library/node:24-alpine
 WORKDIR /app
 COPY --from=prepare /app/.gproxy ./.gproxy
 COPY lib/ ./lib/

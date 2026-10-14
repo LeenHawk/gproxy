@@ -183,18 +183,6 @@ jobs:
             cargo-alpine) scripts/build-musl.sh "${{ matrix.target }}" ;;
             termux) bash scripts/build-termux.sh "${{ matrix.target }}" ;;
           esac
-      - name: Stage container binary
-        if: ${{ matrix.kind == 'cli' && matrix.os == 'linux' }}
-        run: |
-          mkdir -p container-binary
-          cp "target/${{ matrix.target }}/release/gproxy" container-binary/gproxy
-      - name: Upload container binary
-        if: ${{ matrix.kind == 'cli' && matrix.os == 'linux' }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: container-bin-${{ matrix.target }}
-          path: container-binary/gproxy
-          retention-days: 1
       - name: Codesign binary
         if: ${{ matrix.kind == 'cli' && matrix.os == 'macos' }}
         run: codesign --force --sign - "target/${{ matrix.target }}/release/gproxy"
@@ -238,6 +226,18 @@ jobs:
           binary="target/${{ matrix.target }}/release/gproxy${{ matrix.os == 'windows' && '.exe' || '' }}"
           "$binary" --version
           "$binary" --help > "$RUNNER_TEMP/gproxy-release-help.txt"
+      - name: Stage container binary
+        if: ${{ matrix.kind == 'cli' && matrix.os == 'linux' }}
+        run: |
+          mkdir -p container-binary
+          cp "target/${{ matrix.target }}/release/gproxy" container-binary/gproxy
+      - name: Upload container binary
+        if: ${{ matrix.kind == 'cli' && matrix.os == 'linux' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: container-bin-${{ matrix.target }}
+          path: container-binary/gproxy
+          retention-days: 1
       - name: Package Unix archive
         if: ${{ matrix.kind == 'cli' && matrix.os != 'windows' }}
         env:

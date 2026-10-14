@@ -12,10 +12,6 @@ case "${1:?cli|application|edge}" in
       termux) bash scripts/build-termux.sh "$TARGET_TRIPLE" ;;
     esac
     binary="target/$TARGET_TRIPLE/release/gproxy"
-    if [ "$TARGET_OS" = linux ]; then
-      mkdir -p "dist/container/$TARGET_TRIPLE"
-      cp "$binary" "dist/container/$TARGET_TRIPLE/gproxy"
-    fi
     if [ "$TARGET_OS" = macos ]; then codesign --force --sign - "$binary"; codesign --verify --strict "$binary"; fi
     if [ "$UPX_ENABLED" = true ]; then
       scripts/install-upx.sh
@@ -24,6 +20,10 @@ case "${1:?cli|application|edge}" in
       upx --test "$binary"
     fi
     if [ "$TARGET_OS" != android ]; then "$binary" --version; "$binary" --help >/dev/null; fi
+    if [ "$TARGET_OS" = linux ]; then
+      mkdir -p "dist/container/$TARGET_TRIPLE"
+      cp "$binary" "dist/container/$TARGET_TRIPLE/gproxy"
+    fi
     scripts/package-native-release.sh
     scripts/build-provenance.sh
     ;;

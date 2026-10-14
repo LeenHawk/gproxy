@@ -67,8 +67,6 @@ case "${1:?prepare|cli|application|upload|edge}" in
       linux)
         if [ "$BUILDER" = cargo-alpine ]; then scripts/build-musl.sh "$TARGET_TRIPLE"
         else python3 scripts/reproducible-run.py cargo build --locked --release --bin gproxy --target "$TARGET_TRIPLE"; fi
-        mkdir -p "dist/container/$TARGET_TRIPLE"
-        cp "target/$TARGET_TRIPLE/release/gproxy" "dist/container/$TARGET_TRIPLE/gproxy"
         ;;
       windows)
         version_numbers="${GPROXY_BUILD_VERSION%%-*}"
@@ -95,7 +93,12 @@ case "${1:?prepare|cli|application|upload|edge}" in
       upx --best --lzma "$binary"
       upx --test "$binary"
     fi
-    if [ "$TARGET_OS" = linux ]; then "$binary" --version; "$binary" --help >/dev/null; fi
+    if [ "$TARGET_OS" = linux ]; then
+      "$binary" --version
+      "$binary" --help >/dev/null
+      mkdir -p "dist/container/$TARGET_TRIPLE"
+      cp "$binary" "dist/container/$TARGET_TRIPLE/gproxy"
+    fi
     if [ "$TARGET_TRIPLE" = x86_64-pc-windows-msvc ]; then
       WINEDEBUG=-all wine "$binary" --version
       WINEDEBUG=-all wine "$binary" --help >/dev/null

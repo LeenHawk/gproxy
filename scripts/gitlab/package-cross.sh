@@ -74,14 +74,14 @@ case "$mode" in
     fi
     binary="target/$TARGET_TRIPLE/release/gproxy"
     if [ "$TARGET_OS" = linux ]; then
-      mkdir -p "dist/container/$TARGET_TRIPLE"
-      cp "$binary" "dist/container/$TARGET_TRIPLE/gproxy"
       run_linux_cli "$binary"
       upx_args=(--best --lzma)
       if [[ "$TARGET_TRIPLE" == riscv64gc-* ]]; then upx_args+=(--no-filter); fi
       upx "${upx_args[@]}" "$binary"
       upx --test "$binary"
       run_linux_cli "$binary"
+      mkdir -p "dist/container/$TARGET_TRIPLE"
+      cp "$binary" "dist/container/$TARGET_TRIPLE/gproxy"
     else
       rcodesign sign "$binary"
       python3 scripts/cnb/verify-macho.py "$binary"
