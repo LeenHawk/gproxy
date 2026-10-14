@@ -100,14 +100,14 @@ jobs:
           docker image inspect gproxy-reproduce-tools --format '{{.Id}}' > dist/reproducible/toolchain-image.txt
       - name: Build and compare two independent package sets
         run: python scripts/reproduce-build.py --result dist/reproducible -- "$(command -v bash)" scripts/reproduce-dispatch.sh "$TARGET" "$KIND"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: reproducible-${{ matrix.kind }}-${{ matrix.target }}
           path: dist/reproducible/
           if-no-files-found: warn
           retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: repro-report-${{ matrix.kind }}-${{ matrix.target }}
@@ -134,13 +134,13 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
         run: bash scripts/reproduce-container.sh "$TARGET" dist/native-input
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: reproducible-container-${{ matrix.target }}
           path: dist/reproducible-container/
           retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: repro-report-container-${{ matrix.target }}
@@ -165,7 +165,7 @@ jobs:
           REPRO_CONTAINER_MATRIX: ${{ needs.inventory.outputs.containers }}
           REPRO_FULL_MATRIX: ${{ (inputs.target == '' || inputs.target == 'all') && (inputs.kind == '' || inputs.kind == 'all') }}
         run: python3 scripts/check-reproducible-reports.py dist/reproducible-reports
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: reproducible-coverage

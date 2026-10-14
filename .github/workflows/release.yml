@@ -72,7 +72,7 @@ jobs:
       - run: python3 ../scripts/reproducible-run.py pnpm build
         env:
           GPROXY_BUILD_HASH: ${{ github.sha }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: console-dist
           path: console/dist
@@ -190,7 +190,7 @@ jobs:
           cp "target/${{ matrix.target }}/release/gproxy" container-binary/gproxy
       - name: Upload container binary
         if: ${{ matrix.kind == 'cli' && matrix.os == 'linux' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: container-bin-${{ matrix.target }}
           path: container-binary/gproxy
@@ -276,7 +276,7 @@ jobs:
           ./scripts/package-windows-msix.ps1 -Target '${{ matrix.target }}' -Artifact '${{ matrix.artifact }}' -Version '${{ needs.prepare.outputs.version }}' -Mode cli -OutputDir dist/release
       - name: Preserve CLI Store submission
         if: matrix.kind == 'cli' && matrix.os == 'windows' && needs.prepare.outputs.channel == 'release'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: microsoft-store-unsigned-${{ matrix.artifact }}
           path: dist/release/${{ matrix.artifact }}.msix
@@ -311,7 +311,7 @@ jobs:
         uses: ./.github/actions/attest-release
         with:
           artifact: ${{ matrix.artifact }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: matrix.kind == 'cli'
         with:
           name: native-${{ matrix.target }}
@@ -352,7 +352,7 @@ jobs:
         run: scripts/package-tauri-release.sh
       - name: Preserve Store submission
         if: matrix.kind == 'application' && matrix.os == 'windows' && needs.prepare.outputs.channel == 'release'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: microsoft-store-unsigned-${{ matrix.application_artifact }}
           path: dist/release/${{ matrix.application_artifact }}.msix
@@ -386,7 +386,7 @@ jobs:
         if: matrix.kind == 'application'
         with:
           artifact: ${{ matrix.application_artifact }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: matrix.kind == 'application'
         with:
           name: application-${{ matrix.target }}
@@ -512,7 +512,7 @@ jobs:
       - uses: ./.github/actions/attest-release
         with:
           artifact: ${{ matrix.artifact }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-${{ matrix.target }}
           path: dist/release/${{ matrix.artifact }}.*
@@ -573,7 +573,7 @@ jobs:
       - uses: ./.github/actions/attest-release
         with:
           artifact: ${{ matrix.application_artifact }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: application-${{ matrix.target }}
           path: dist/release/${{ matrix.application_artifact }}.*
@@ -629,7 +629,7 @@ jobs:
       - name: Build, compress and run CLI with QEMU
         if: matrix.kind == 'cli'
         run: CI_PROJECT_DIR="$PWD" bash scripts/gitlab/package-cross.sh cli
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: matrix.kind == 'cli'
         with:
           name: container-bin-${{ matrix.target }}
@@ -640,7 +640,7 @@ jobs:
         if: matrix.kind == 'cli'
         with:
           artifact: ${{ matrix.artifact }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: matrix.kind == 'cli'
         with:
           name: native-${{ matrix.target }}
@@ -654,7 +654,7 @@ jobs:
         if: matrix.kind == 'application'
         with:
           artifact: ${{ matrix.application_artifact }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: matrix.kind == 'application'
         with:
           name: application-${{ matrix.target }}
@@ -917,7 +917,7 @@ jobs:
       - uses: ./.github/actions/attest-release
         with:
           artifact: ${{ env.ARTIFACT_NAME }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: headless-${{ matrix.target }}
           path: dist/release/${{ env.ARTIFACT_NAME }}.*
@@ -968,7 +968,7 @@ jobs:
       - uses: ./.github/actions/attest-release
         with:
           artifact: ${{ matrix.headless_artifact }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: headless-${{ matrix.target }}
           path: dist/release/${{ matrix.headless_artifact }}.*
@@ -1020,7 +1020,7 @@ jobs:
       - uses: ./.github/actions/attest-release
         with:
           artifact: ${{ env.ARTIFACT_NAME }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: serverless-${{ matrix.target }}
           path: dist/release/${{ env.ARTIFACT_NAME }}.*
@@ -1073,7 +1073,7 @@ jobs:
         uses: ./.github/actions/attest-release
         with:
           artifact: gproxy-edge
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: edge-bundles
           path: |
@@ -1197,7 +1197,7 @@ jobs:
         run: |
           test -n "$GPROXY_UPDATE_PUBKEY"
           bash scripts/mobile/run-android-container.sh build "$DISTRIBUTION" "$ARCH"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-build-${{ matrix.distribution }}-${{ matrix.arch }}
           path: dist/android-build/
@@ -1272,7 +1272,7 @@ jobs:
       - uses: ./.github/actions/attest-release
         with:
           artifact: gproxy-google-play-universal
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: application-android
           path: dist/release/
@@ -1367,7 +1367,7 @@ jobs:
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: dist/release/*.apk
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: alpine-cli-packages
           path: |
