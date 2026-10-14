@@ -56,6 +56,7 @@ pub(super) fn request(
             } else {
                 if let InputItem::Reasoning(reasoning) = &mut item {
                     reasoning.status = None;
+                    reasoning.content = None;
                 }
                 retained.push(item);
             }
