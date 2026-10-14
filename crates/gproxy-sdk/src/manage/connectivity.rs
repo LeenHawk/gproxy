@@ -29,10 +29,11 @@ use gproxy_core::{
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest,
     connection::{Bytes, HeaderMap},
+    wire::{DeclaredFields, openai::models::Model},
 };
 use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
 use gproxy_store::entity::upstream::{model, provider_model};
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryTrait, Set, sea_query::OnConflict};
 use serde_json::{Value, json};
 use web_time::Instant;
 
@@ -230,9 +231,23 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
         provider_id: &str,
         credential_id: Option<&str>,
     ) -> SdkResult<Vec<DiscoveredModelDto>> {
+        self.discover_models_with_credentials(provider_id, credential_id, None)
+            .await
+    }
+
+    async fn discover_models_with_credentials(
+        &self,
+        provider_id: &str,
+        credential_id: Option<&str>,
+        allowed: Option<&BTreeSet<String>>,
+    ) -> SdkResult<Vec<DiscoveredModelDto>> {
         let snapshot = self.writer.core().snapshot();
         let provider = provider(&snapshot, provider_id)?;
-        let credentials = credentials(&snapshot, provider, credential_id)?;
+        let mut credentials = credentials(&snapshot, provider, credential_id)?;
+        credentials.retain(|credential| allowed.is_none_or(|ids| ids.contains(&credential.id)));
+        if credentials.is_empty() {
+            return Err(SdkError::NoTarget(provider_id.into()));
+        }
         let dialect = native_dialect(provider, Operation::ListModels)?;
         let path = directory_path(dialect);
         let wire = WireRequest {
@@ -242,13 +257,19 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             headers: HeaderMap::new(),
             body: HttpBody::Bytes(Bytes::new()),
         };
+        // Discovery is an upstream read, independent of downstream list/get
+        // routing rules. Keep transport, credentials and endpoint overrides.
+        let mut discovery_provider = provider.as_ref().clone();
+        discovery_provider
+            .operation_rules
+            .retain(|rule| rule.operation != Operation::ListModels.id());
         let context = self.context(
             &snapshot,
             OperationKey {
                 operation: Operation::ListModels,
                 dialect,
             },
-            provider,
+            &Arc::new(discovery_provider),
             credentials,
             None,
         );
@@ -281,19 +302,76 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             .models()
             .query(model::Entity::find())
             .await?;
-        Ok(model_names(dialect, &document)
+        let prices = super::pricing::ModelPriceRules::load(self.writer).await?;
+        model_names(dialect, &document)
             .into_iter()
-            .map(|upstream_name| DiscoveredModelDto {
-                known: known.contains(upstream_name.as_str()),
-                has_default_price: catalog::has_default_price(&upstream_name),
-                metadata: import_metadata(
-                    &upstream_name,
-                    &defaults,
-                    discovered_metadata(dialect, &document, &upstream_name),
-                ),
-                upstream_name,
+            .map(|upstream_name| {
+                Ok(DiscoveredModelDto {
+                    known: known.contains(upstream_name.as_str()),
+                    has_price: Some(prices.has_price(Some(provider_id), &upstream_name)),
+                    has_default_price: catalog::has_default_price(&upstream_name),
+                    metadata: import_metadata(
+                        &upstream_name,
+                        &defaults,
+                        discovered_metadata(dialect, &document, &upstream_name)?,
+                    ),
+                    upstream_name,
+                })
             })
-            .collect())
+            .collect::<SdkResult<Vec<_>>>()
+    }
+
+    /// Refresh the stored catalog using only credentials visible to the caller.
+    /// Existing rows, including disabled models and operator metadata, are preserved.
+    pub async fn refresh_models(
+        &self,
+        provider_id: &str,
+        allowed_credentials: &BTreeSet<String>,
+    ) -> SdkResult<()> {
+        let discovered = self
+            .discover_models_with_credentials(provider_id, None, Some(allowed_credentials))
+            .await?;
+        let existing: BTreeSet<String> = self
+            .writer
+            .store()
+            .provider_models()
+            .query(
+                provider_model::Entity::find()
+                    .filter(provider_model::Column::ProviderId.eq(provider_id)),
+            )
+            .await?
+            .into_iter()
+            .map(|row| row.upstream_name)
+            .collect();
+        let statements = discovered
+            .into_iter()
+            .filter(|row| !existing.contains(&row.upstream_name))
+            .map(|row| {
+                BatchStatement::Execute(
+                    provider_model::Entity::insert(provider_model::ActiveModel {
+                        id: Set(crate::ids::random_id()),
+                        provider_id: Set(provider_id.into()),
+                        upstream_name: Set(row.upstream_name),
+                        model_id: Set(None),
+                        metadata: Set(row.metadata),
+                        enabled: Set(true),
+                    })
+                    .on_conflict(
+                        OnConflict::columns([
+                            provider_model::Column::ProviderId,
+                            provider_model::Column::UpstreamName,
+                        ])
+                        .do_nothing_on([provider_model::Column::Id])
+                        .to_owned(),
+                    )
+                    .build(self.writer.backend()),
+                )
+            })
+            .collect::<Vec<_>>();
+        if !statements.is_empty() {
+            self.writer.commit(statements, &[Scope::Models]).await?;
+        }
+        Ok(())
     }
 
     /// Add discovered names to a provider's catalog. Names it already offers
@@ -387,22 +465,25 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
                 .as_array()
                 .ok_or_else(|| SdkError::invalid("OpenRouter response has no model list"))?;
             let mut seen = BTreeSet::new();
-            Ok(rows
-                .iter()
+            rows.iter()
                 .filter_map(|row| {
                     let id = model_name(Dialect::OpenAi, row)?;
                     let name = id.rsplit('/').next()?.trim();
                     if name.is_empty() || !seen.insert(name.to_ascii_lowercase()) {
                         return None;
                     }
-                    Some(DiscoveredModelDto {
-                        upstream_name: name.into(),
-                        metadata: model_metadata(Some(row)),
+                    Some((name.to_owned(), row))
+                })
+                .map(|(name, row)| {
+                    Ok(DiscoveredModelDto {
+                        upstream_name: name,
+                        metadata: model_metadata(Some(row))?,
                         known: false,
                         has_default_price: false,
+                        has_price: None,
                     })
                 })
-                .collect())
+                .collect::<SdkResult<Vec<_>>>()
         })
         .await
         .ok_or_else(|| SdkError::invalid("OpenRouter model query timed out"))?
@@ -625,10 +706,17 @@ fn native_dialect(provider: &Arc<ProviderData>, operation: Operation) -> SdkResu
         .into_iter()
         .find(|dialect| !matches!(dialect, Dialect::OpenAiResponsesWebSocket))
         .ok_or_else(|| {
-            SdkError::invalid(format!(
-                "channel `{}` speaks no HTTP dialect for {operation:?}",
-                provider.entity.channel
-            ))
+            SdkError::invalid(if operation == Operation::ListModels {
+                format!(
+                    "channel `{}` does not support upstream model discovery; add models manually",
+                    provider.entity.channel
+                )
+            } else {
+                format!(
+                    "channel `{}` speaks no HTTP dialect for {operation:?}",
+                    provider.entity.channel
+                )
+            })
         })
 }
 
@@ -813,7 +901,7 @@ fn elapsed(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
-fn discovered_metadata(dialect: Dialect, document: &Value, name: &str) -> Value {
+fn discovered_metadata(dialect: Dialect, document: &Value, name: &str) -> SdkResult<Value> {
     let list = if dialect == Dialect::Gemini {
         "models"
     } else {
@@ -829,8 +917,21 @@ fn discovered_metadata(dialect: Dialect, document: &Value, name: &str) -> Value 
     model_metadata(item)
 }
 
-fn model_metadata(item: Option<&Value>) -> Value {
-    let mut result = serde_json::Map::new();
+fn model_metadata(item: Option<&Value>) -> SdkResult<Value> {
+    let mut fields = item.and_then(Value::as_object).cloned().unwrap_or_default();
+    // Directory identity belongs to the provider row, not its metadata.
+    fields.insert("id".into(), json!(""));
+    fields.insert("object".into(), json!("model"));
+    let model: Model = serde_json::from_value(Value::Object(fields))
+        .map_err(|error| SdkError::invalid(format!("model metadata: {error}")))?;
+    let Value::Object(mut result) = serde_json::to_value(model.into_declared())
+        .map_err(|error| SdkError::invalid(format!("model metadata: {error}")))?
+    else {
+        unreachable!("Model serializes as an object")
+    };
+    for key in ["id", "slug", "object", "created", "owned_by"] {
+        result.remove(key);
+    }
     if let Some(item) = item {
         for (key, aliases) in [
             ("display_name", &["display_name", "displayName"][..]),
@@ -887,7 +988,7 @@ fn model_metadata(item: Option<&Value>) -> Value {
             result.entry("display_name").or_insert_with(|| name.clone());
         }
     }
-    Value::Object(result)
+    Ok(Value::Object(result))
 }
 
 /// Fill upstream omissions, then apply the operator's explicit global overrides.

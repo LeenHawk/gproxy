@@ -1,3 +1,6 @@
+import { inShell } from "@/lib/transport"
+import { FontSettings } from "@/components/font-settings"
+import { ApplicationSettings } from "./application"
 import { useId, useState, type FormEvent } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
@@ -70,13 +73,16 @@ export function SettingsPage() {
               {t(`settingsGroup.${group.id}`)}
             </TabsTrigger>
           ))}
+          {inShell ? <TabsTrigger value="application">{t("shellPreferences.title")}</TabsTrigger> : null}
           {canTransfer ? <TabsTrigger value="transfer">{t("nav.transfer")}</TabsTrigger> : null}
         </TabsList>
-        <div hidden={tab === "transfer"}>
+        <div hidden={tab === "transfer" || tab === "application"}>
           <QueryState isPending={data.isPending} error={data.error}>
             {data.data ? <SettingsForm key={data.data.instance.configRevision} original={data.data} /> : null}
           </QueryState>
         </div>
+        {!inShell && info.data?.fontManagement && tab === "general" ? <FontSettings /> : null}
+        {inShell ? <TabsContent value="application"><ApplicationSettings /></TabsContent> : null}
         {canTransfer ? <TabsContent value="transfer"><TransferPanel /></TabsContent> : null}
       </Tabs>
     </Page>

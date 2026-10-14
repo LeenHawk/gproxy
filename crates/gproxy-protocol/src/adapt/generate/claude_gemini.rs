@@ -389,4 +389,7 @@ impl GeminiViaClaude {
     }
 }
 
-mod synthesis;
+super::prepared::prepared_generation!(ClaudeViaGemini, c::GenerateContentRequestBody => g::GenerateContentRequestBody);
+super::prepared::stream_synthesis!(ClaudeViaGemini, c::GenerateContentRequestBody, context: p::ClaudeGeminiRequestContext);
+super::prepared::prepared_generation!(GeminiViaClaude, g::GenerateContentRequestBody => c::GenerateContentRequestBody);
+super::prepared::stream_synthesis!(GeminiViaClaude, g::GenerateContentRequestBody, max_tokens: Option<i64>);

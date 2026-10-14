@@ -13,6 +13,8 @@
     feature = "cloudflare_ai_gateway",
     feature = "copilotcli",
     feature = "deepseek",
+    feature = "glm",
+    feature = "minimax",
     feature = "grokbuild",
     feature = "kimi",
     feature = "opencode",

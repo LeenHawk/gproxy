@@ -77,7 +77,6 @@ export function RulesEditor({ sets, availableSets = sets, attachments = [], prov
   return <>
     <div className="mb-4 flex flex-wrap gap-2"><Button disabled={busy} onClick={() => { save.reset(); setEditing("new") }}>{t("create.rules")}</Button><Button variant="outline" disabled={busy} onClick={() => { apply.reset(); setShowPresets(true) }}>{t("rules.applyPreset")}</Button></div>
     {remove.error || move.error ? <ErrorNotice error={remove.error ?? move.error} /> : null}
-    <p className="mb-3 text-xs text-muted-foreground">{t("rules.orderHint")}</p>
     {sets.length ? <div className="flex flex-col gap-3">{sets.map(set => {
       const source = choices.find(choice => choice.id === set.id)
       return <RuleGroup key={set.id} set={set} source={source} defaultOpen={sets.length === 1} renderRule={(row, index, total) => {

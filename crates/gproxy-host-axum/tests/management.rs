@@ -337,7 +337,11 @@ async fn a_portal_login_lists_keys_and_logs_out() {
     // Sign out, which clears the cookie and reports that a row went.
     let out = host
         .send(with(
-            post("/portal/api/logout", json!({})),
+            with(
+                post("/portal/api/logout", json!({})),
+                "origin",
+                "https://console.example.com",
+            ),
             "cookie",
             &cookie,
         ))
@@ -380,7 +384,11 @@ async fn a_portal_login_lists_keys_and_logs_out() {
     // rather than trapping a browser with one it can never discard.
     let out = host
         .send(with(
-            post("/portal/api/logout", json!({})),
+            with(
+                post("/portal/api/logout", json!({})),
+                "origin",
+                "https://console.example.com",
+            ),
             "cookie",
             &cookie,
         ))

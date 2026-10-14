@@ -72,9 +72,9 @@ mod xml;
 /// The service name on systemd, Task Scheduler and Termux.
 pub const NAME: &str = "gproxy";
 
-/// The reverse-DNS label launchd wants, and v3's. Renaming it would orphan an
-/// agent a v3 machine already has bootstrapped.
-pub const LABEL: &str = "io.github.leenhawk.gproxy";
+/// The CLI's canonical reverse-DNS identity. The launchd adapter also recognizes
+/// existing installations under the historical label.
+pub const LABEL: &str = "com.leenhawk.gproxy.cli";
 
 /// Run one `gproxy service …` invocation.
 ///

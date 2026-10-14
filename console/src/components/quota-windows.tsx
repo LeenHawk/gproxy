@@ -48,7 +48,7 @@ export function QuotaWindows({ windows }: { windows: Array<PortalQuotaWindowDto>
               words, since it has separators worth breaking at first.
             */}
             <p className="font-mono text-xs break-all text-muted-foreground">{window.windowKey}</p>
-            <Progress tone={percent === null ? "default" : percent >= 100 ? "destructive" : percent >= 80 ? "warning" : "success"} value={percent === null ? 0 : Math.min(100, percent)} />
+            <Progress aria-label={`${t(`values.${window.ownerKind}`)} · ${window.windowKey} · ${window.period}`} aria-valuetext={`${amount(window.used, window.unit)} / ${amount(window.limit, window.unit)}`} tone={percent === null ? "default" : percent >= 100 ? "destructive" : percent >= 80 ? "warning" : "success"} value={percent === null ? 0 : Math.min(100, percent)} />
             <p className="text-sm">
               {amount(window.used, window.unit)}
               <span className="text-muted-foreground"> / {amount(window.limit, window.unit)}</span>

@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/node:lts-trixie-slim AS console
+FROM public.ecr.aws/docker/library/node:24.21.0-trixie-slim AS console
 
 ARG GPROXY_BUILD_HASH=unknown
 WORKDIR /source
@@ -13,7 +13,7 @@ RUN GPROXY_BUILD_HASH="$GPROXY_BUILD_HASH" pnpm build
 FROM scratch AS console-dist
 COPY --from=console /source/console/dist/ /
 
-FROM public.ecr.aws/docker/library/rust:1-trixie AS builder
+FROM public.ecr.aws/docker/library/rust:1.99.0-trixie AS builder
 
 ARG CARGO_NET_OFFLINE=false
 ARG GPROXY_UPDATE_PUBKEY

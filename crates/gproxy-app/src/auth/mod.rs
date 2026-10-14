@@ -88,6 +88,10 @@ pub enum CallerKind {
 /// `access_digest` is the digest the token was resolved by, kept so a later
 /// stage can re-resolve the same token — admission re-reads the grant before
 /// an expensive call — without the plaintext travelling any further.
+///
+/// `scopes` bounds the operations the client may perform: resource admission
+/// requires `gproxy:<operation_id>` (or `gproxy:services` for vendor services)
+/// before applying the client baseline and the user's own permissions.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantContext {
     pub grant_id: String,
@@ -257,6 +261,29 @@ pub fn bearer_token(headers: &HeaderMap) -> Option<&str> {
         .or_else(|| headers.get("x-goog-api-key")?.to_str().ok())
         .map(str::trim)
         .filter(|value| !value.is_empty())
+}
+
+/// Remove caller credentials at the gateway boundary, before any channel
+/// sees the query. Decode names just as authentication does, while retaining
+/// every unrelated parameter byte for byte, including duplicates and order.
+/// The original request stays intact for capture and WebSocket reauthentication.
+pub(crate) fn upstream_query(query: Option<&str>) -> Option<String> {
+    let query = query?
+        .split('&')
+        .filter(|pair| {
+            !pair.is_empty()
+                && !form_urlencoded::parse(pair.as_bytes())
+                    .next()
+                    .is_some_and(|(name, _)| {
+                        matches!(
+                            name.as_ref(),
+                            "key" | "api_key" | "access_token" | "x-api-key"
+                        )
+                    })
+        })
+        .collect::<Vec<_>>()
+        .join("&");
+    (!query.is_empty()).then_some(query)
 }
 
 /// `Bearer` is case-insensitive per RFC 6750; clients spell it every way.

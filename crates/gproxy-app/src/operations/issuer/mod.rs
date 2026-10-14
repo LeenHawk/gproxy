@@ -40,7 +40,8 @@
 //! Every client here is public, with no secret to prove with, so the verifier
 //! is the only thing standing between a leaked code and a token.
 //!
-//! **Redirect URIs match exactly.** Not a prefix, not a wildcard, not
+//! **Redirect URIs match exactly, except HTTP loopback ports (RFC 8252 §7.3).**
+//! Not a prefix, not a wildcard, not
 //! "same origin". Prefix matching is the classic open redirect: a client
 //! registered for `https://app.example/cb` would also accept
 //! `https://app.example/cb.attacker.example` or

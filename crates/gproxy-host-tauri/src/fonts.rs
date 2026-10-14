@@ -1,4 +1,4 @@
-//! Fonts use the same download cache as the CLI, including during setup.
+//! Serve explicitly installed fonts from the application data directory.
 
 use std::sync::Arc;
 

@@ -164,7 +164,7 @@ export function Pagination({ page, pageSize, total, onPage, onPageSize }: {
           <SelectContent><SelectGroup>{PAGE_SIZES.map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectGroup></SelectContent>
         </Select>
       </Field>
-      <div className="flex items-center gap-2"><span>{t("pagination.position", { page, pages, total })}</span>
+      <div className="flex items-center gap-2"><span aria-live="polite" aria-atomic="true">{t("pagination.position", { page, pages, total })}</span>
         <Button variant="outline" size="icon-sm" aria-label={t("pagination.previous")} disabled={page <= 1} onClick={() => onPage(page - 1)}><ChevronLeft /></Button>
         <Button variant="outline" size="icon-sm" aria-label={t("pagination.next")} disabled={page >= pages} onClick={() => onPage(page + 1)}><ChevronRight /></Button>
       </div>

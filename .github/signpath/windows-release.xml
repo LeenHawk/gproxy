@@ -1,12 +1,7 @@
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
-  <parameters>
-    <parameter name="artifact" required="true" />
-    <parameter name="version" required="true" />
-  </parameters>
   <zip-file>
-    <zip-file path="${artifact}.zip">
-      <pe-file path="gproxy.exe" product-name="GPROXY" product-version="${version}"
-               file-version="${version}" original-filename="gproxy.exe">
+    <zip-file path="gproxy*.zip">
+      <pe-file path="gproxy.exe" product-name="GPROXY" original-filename="gproxy.exe">
         <authenticode-sign />
       </pe-file>
     </zip-file>

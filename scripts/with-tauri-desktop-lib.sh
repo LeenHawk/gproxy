@@ -15,4 +15,4 @@ const types = 'crate-type = ["lib", "cdylib"]';
 if (!text.includes(types)) throw new Error('Unexpected Tauri library crate types');
 fs.writeFileSync(file, text.replace(types, 'crate-type = ["lib"]'));
 JS
-"$@"
+python3 "$root/scripts/reproducible-run.py" "$@"

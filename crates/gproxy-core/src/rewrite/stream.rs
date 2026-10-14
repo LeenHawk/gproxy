@@ -90,7 +90,11 @@ impl StreamRewriter {
                 .ok()
                 .filter(|text| !text.trim().is_empty())
             {
-                Some(text) => match apply_unit(&self.rules, json_type(text).as_deref(), text)? {
+                Some(text) => match apply_unit(
+                    &self.rules,
+                    event_type_for(&self.rules, text).as_deref(),
+                    text,
+                )? {
                     Some(rewritten) => {
                         out.extend_from_slice(rewritten.as_bytes());
                         out.extend_from_slice(ending);
@@ -185,7 +189,11 @@ impl StreamRewriter {
                         state.emitted += 1;
                         match std::str::from_utf8(element).ok() {
                             Some(text) => {
-                                match apply_unit(&self.rules, json_type(text).as_deref(), text)? {
+                                match apply_unit(
+                                    &self.rules,
+                                    event_type_for(&self.rules, text).as_deref(),
+                                    text,
+                                )? {
                                     Some(rewritten) => out.extend_from_slice(rewritten.as_bytes()),
                                     None => out.extend_from_slice(element),
                                 }
@@ -239,10 +247,24 @@ fn split_line_ending(line: &[u8]) -> (&[u8], &[u8]) {
     }
 }
 
-fn json_type(text: &str) -> Option<String> {
-    serde_json::from_str::<serde_json::Value>(text)
-        .ok()
-        .and_then(|value| value.get("type")?.as_str().map(str::to_owned))
+/// Read only the event tag, skipping other JSON values without building a tree.
+/// Rules without event restrictions do not need even this scan.
+pub(crate) fn event_type_for<'a>(
+    rules: &[Arc<RewriteRuleData>],
+    text: &'a str,
+) -> Option<std::borrow::Cow<'a, str>> {
+    if !rules.iter().any(|rule| {
+        rule.event_matcher.is_some()
+            || rule.action.dialect() == Some(gproxy_protocol::Dialect::OpenAiResponsesWebSocket)
+    }) {
+        return None;
+    }
+    #[derive(serde::Deserialize)]
+    struct EventType<'a> {
+        #[serde(rename = "type", borrow)]
+        kind: Option<std::borrow::Cow<'a, str>>,
+    }
+    serde_json::from_str::<EventType<'_>>(text).ok()?.kind
 }
 
 /// One complete frame including its terminator. Only `data:` lines are ever
@@ -273,7 +295,9 @@ fn rewrite_sse_frame(
     if data == "[DONE]" {
         return Ok(frame.to_vec());
     }
-    let event_type = event.or_else(|| json_type(&data));
+    let event_type = event
+        .map(std::borrow::Cow::Owned)
+        .or_else(|| event_type_for(rules, &data));
     let Some(rewritten) = apply_unit(rules, event_type.as_deref(), &data)? else {
         return Ok(frame.to_vec());
     };

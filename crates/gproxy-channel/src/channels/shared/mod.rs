@@ -41,6 +41,8 @@ pub(crate) mod code_assist;
     feature = "copilotcli",
     feature = "dashscope",
     feature = "deepseek",
+    feature = "glm",
+    feature = "minimax",
     feature = "grokbuild",
     feature = "kimi",
     feature = "opencode",
@@ -96,3 +98,7 @@ pub(crate) mod claude_fallback;
 
 #[cfg(any(feature = "claudeapi", feature = "vercel"))]
 pub(crate) mod claude_hygiene;
+
+/// Vertex's full resource names and publisher-qualified ids.
+#[cfg(any(feature = "vertex", feature = "vertexexpress"))]
+pub(crate) mod google_model;

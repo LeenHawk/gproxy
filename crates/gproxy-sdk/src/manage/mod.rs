@@ -18,11 +18,12 @@
 //! cheap `reload_credentials` path. Everything else rebuilds the snapshot.
 
 mod catalog;
-mod catalog_page;
 mod connectivity;
 mod credentials;
 mod crud;
 mod endpoints;
+mod history;
+mod model_page;
 mod models;
 mod pricing;
 mod profiles;
@@ -39,6 +40,7 @@ pub use catalog::Catalog;
 pub use connectivity::Connectivity;
 pub use credentials::Credentials;
 pub use endpoints::Endpoints;
+pub use history::{History, LogSide, MAX_HISTORY_DELETE};
 pub use models::{Models, ProviderModels};
 pub use pricing::{PriceRates, PriceRules, PriceTiers, Pricing};
 pub use profiles::ConnectionProfiles;
@@ -172,6 +174,10 @@ impl<'a, C> Manage<'a, C> {
     pub fn tokenizer(&self) -> Tokenizer<'a, C> {
         Tokenizer::new(self.writer())
     }
+    /// Captured logs and usage records, which only ever leave by deletion.
+    pub fn history(&self) -> History<'a, C> {
+        History::new(self.inner)
+    }
 }
 
 /// The one write primitive every family goes through.
@@ -300,6 +306,9 @@ fn state_only(scopes: &[Scope]) -> Option<Vec<String>> {
 fn classify(error: StoreError) -> SdkError {
     let text = error.to_string();
     let lowered = text.to_ascii_lowercase();
+    if lowered.contains("config_revision") && lowered.contains("null") {
+        return SdkError::conflict("credential changed or left the authorized scope");
+    }
     const UNIQUE: [&str; 4] = [
         "unique constraint",
         "duplicate key",

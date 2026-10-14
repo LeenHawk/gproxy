@@ -170,6 +170,15 @@ where
     /// None when the patch sets no non-key column: there is nothing to write,
     /// which is not an error.
     pub fn update_statement(&self, patch: E::ActiveModel) -> Result<Option<sea_orm::Statement>> {
+        self.update_statement_where(patch, sea_orm::Condition::all())
+    }
+
+    /// Apply a patch only while a caller-supplied durable predicate holds.
+    pub fn update_statement_where(
+        &self,
+        patch: E::ActiveModel,
+        condition: sea_orm::Condition,
+    ) -> Result<Option<sea_orm::Statement>> {
         let key = active_key::<E>(&patch)?;
         let pk = E::PrimaryKey::iter()
             .map(|k| k.into_column().as_str())
@@ -189,6 +198,7 @@ where
             return Ok(None);
         }
         update.cond_where(key_condition::<E>(key.into_value_tuple()));
+        update.cond_where(condition);
         Ok(Some(self.db.get_database_backend().build(&update)))
     }
     pub fn delete_statement(&self, id: Key<E>) -> sea_orm::Statement {

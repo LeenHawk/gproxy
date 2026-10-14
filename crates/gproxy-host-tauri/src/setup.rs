@@ -20,8 +20,8 @@ pub struct Choices {
     pub host: String,
     pub port: u16,
     pub admin_user: String,
-    pub auto_start: bool,
-    pub tray: bool,
+    #[serde(flatten)]
+    pub preferences: crate::preferences::Preferences,
     pub completed: bool,
     #[serde(skip)]
     pub database: StoreBackendConfig,
@@ -50,8 +50,8 @@ pub struct SetupRequest {
     pub admin_user: String,
     pub password: String,
     pub api_key: Option<String>,
-    pub auto_start: bool,
-    pub tray: bool,
+    #[serde(flatten)]
+    pub preferences: crate::preferences::Preferences,
     pub import: Option<ImportRequest>,
     pub database: StoreBackendConfig,
 }
@@ -66,9 +66,9 @@ pub struct SetupResult {
 }
 
 pub struct Setup {
-    root: PathBuf,
+    pub(crate) root: PathBuf,
     store: std::sync::Arc<dyn crate::secrets::SecretStore>,
-    gate: tokio::sync::Mutex<()>,
+    pub(crate) gate: tokio::sync::Mutex<()>,
 }
 
 impl Setup {
@@ -138,9 +138,9 @@ impl Setup {
             );
         }
         #[cfg(target_env = "ohos")]
-        if request.auto_start || request.tray {
+        if request.preferences.auto_start || request.preferences.tray {
             return Err(AppError::invalid(
-                "OpenHarmony does not support launch at login or a desktop tray",
+                "Use the native application settings to manage OpenHarmony startup and status bar behavior",
             )
             .into());
         }
@@ -183,8 +183,7 @@ impl Setup {
             host: request.host,
             port: request.port,
             admin_user: request.admin_user,
-            auto_start: request.auto_start,
-            tray: request.tray,
+            preferences: request.preferences.normalized(),
             completed: false,
             database: request.database,
         };
@@ -240,14 +239,14 @@ impl Setup {
             None
         };
         // OS startup registration may involve WinRT and must not block the IPC executor.
-        let auto_start = choices.auto_start;
+        let auto_start = choices.preferences.auto_start;
         tauri::async_runtime::spawn_blocking(move || crate::startup::set(auto_start))
             .await
             .map_err(failure)?
             .map_err(failure)?;
         #[cfg(desktop)]
-        if choices.tray {
-            crate::tray::install(app).map_err(failure)?;
+        if choices.preferences.tray {
+            crate::tray::install(app, &choices.preferences.language).map_err(failure)?;
         }
         choices.completed = true;
         write_choices(&self.root, &choices).map_err(failure)?;
@@ -259,6 +258,8 @@ impl Setup {
             existing_admin_preserved: !desktop.admin_created() && !database_exists,
         };
         app.manage(desktop);
+        #[cfg(target_env = "ohos")]
+        crate::ohos::restore();
         Ok(result)
     }
 }
@@ -285,8 +286,10 @@ pub fn read_choices(root: &Path) -> StartResult<Choices> {
                 host: config.host,
                 port: config.port,
                 admin_user: "admin".to_owned(),
-                auto_start: false,
-                tray: cfg!(desktop) && !completed,
+                preferences: crate::preferences::Preferences {
+                    tray: cfg!(desktop) && !completed,
+                    ..Default::default()
+                },
                 completed,
                 database: config.store,
             })
@@ -336,7 +339,7 @@ fn validate_database(database: &StoreBackendConfig) -> IpcResult<()> {
     }
 }
 
-fn write_choices(root: &Path, choices: &Choices) -> std::io::Result<()> {
+pub(crate) fn write_choices(root: &Path, choices: &Choices) -> std::io::Result<()> {
     std::fs::create_dir_all(root)?;
     let bytes = serde_json::to_vec_pretty(choices)?;
     let temporary = root.join("desktop-setup.tmp");

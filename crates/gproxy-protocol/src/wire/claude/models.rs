@@ -58,6 +58,13 @@ pub struct ModelInfo {
     pub capabilities: ModelCapabilities,
     pub created_at: String,
     pub display_name: String,
+    /// Provider-reported model line; new lines are allowed without inferring from IDs.
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub line: Option<Option<String>>,
     pub max_input_tokens: i64,
     pub max_tokens: i64,
     #[serde(rename = "type")]
@@ -89,6 +96,8 @@ pub struct ModelCapabilities {
     pub image_input: CapabilitySupport,
     pub pdf_input: CapabilitySupport,
     pub structured_outputs: CapabilitySupport,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_tools: Option<ServerToolsCapability>,
     pub thinking: ThinkingCapability,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -160,6 +169,31 @@ pub struct ThinkingCapability {
 pub struct ThinkingTypes {
     pub adaptive: CapabilitySupport,
     pub enabled: CapabilitySupport,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disabled: Option<CapabilitySupport>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
+}
+
+/// Server tool availability is separate from programmatic tool calling
+/// (`ModelCapabilities::code_execution`).
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
+pub struct ServerToolsCapability {
+    pub supported: bool,
+    pub web_search: CapabilitySupport,
+    pub code_execution: CapabilitySupport,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+fn present_nullable<'de, D, T>(d: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(d).map(Some)
 }

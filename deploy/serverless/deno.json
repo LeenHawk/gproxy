@@ -1,9 +1,0 @@
-{
-  "nodeModulesDir": "auto",
-  "tasks": { "build": "deno run -A prepare-release.mjs", "start": "deno run -A deno/main.mjs" },
-  "deploy": {
-    "install": "deno install",
-    "build": "deno task build",
-    "runtime": { "type": "dynamic", "entrypoint": "deno/main.mjs" }
-  }
-}

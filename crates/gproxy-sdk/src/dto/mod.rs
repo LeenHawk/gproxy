@@ -44,8 +44,8 @@ pub use gproxy_channel::{
 };
 
 pub use catalog::{
-    ApplyDefaultPricesReportDto, ApplyDefaultPricesRequest, ApplyRulePreset, CatalogModelDto,
-    CatalogProviderDto, DefaultModelCatalogDto, DefaultModelCatalogSourceDto, DefaultModelDto,
+    ApplyDefaultPricesReportDto, ApplyDefaultPricesRequest, ApplyRulePreset, CatalogProviderDto,
+    DefaultModelCatalogDto, DefaultModelCatalogSourceDto, DefaultModelDto,
     DefaultModelPriceRateDto, DefaultModelPricingDto, DefaultModelTierDto, RulePresetCategory,
     RulePresetDto, TlsPresetDto,
 };
@@ -69,8 +69,8 @@ pub use login::{
     CredentialOwner, DevicePollOutcome, DeviceStart, DeviceStarted,
 };
 pub use logs::{
-    CaptureDetailDto, CaptureEventDto, CaptureRecordDto, LogBodyDto, LogBodyEncoding, LogDetailDto,
-    LogEntryDto, LogPageDto, LogQuery,
+    CaptureDetailDto, CaptureEventDto, CaptureRecordDto, HistoryDelete, HistoryDeleted, LogBodyDto,
+    LogBodyEncoding, LogDetailDto, LogEntryDto, LogPageDto, LogQuery,
 };
 pub use pricing::{
     PriceRateDto, PriceRatePatch, PriceRateWrite, PriceRuleDto, PriceRulePatch, PriceRuleWrite,

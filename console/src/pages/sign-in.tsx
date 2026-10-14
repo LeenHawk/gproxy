@@ -15,9 +15,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { usePageTitle } from "@/lib/use-page-title"
 
 export function SignInPage() {
   const { t } = useTranslation()
+  usePageTitle(t("signIn.title"))
   const client = useQueryClient()
   const [name, setName] = useState("")
   const [password, setPassword] = useState("")
@@ -43,7 +45,7 @@ export function SignInPage() {
             <img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} alt="" className="size-10" />
             <span className="text-lg font-semibold">GPROXY</span>
           </div>
-          <CardTitle>{t("signIn.title")}</CardTitle>
+          <CardTitle headingLevel={1}>{t("signIn.title")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
@@ -52,6 +54,7 @@ export function SignInPage() {
               <FieldLabel htmlFor="sign-in-name">{t("fields.name")}</FieldLabel>
               <Input
                 id="sign-in-name"
+                required
                 autoComplete="username"
                 autoFocus
                 value={name}
@@ -62,6 +65,7 @@ export function SignInPage() {
               <FieldLabel htmlFor="sign-in-password">{t("fields.password")}</FieldLabel>
               <Input
                 id="sign-in-password"
+                required
                 type="password"
                 autoComplete="current-password"
                 value={password}

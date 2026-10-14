@@ -218,21 +218,6 @@ pub struct ApplyRulePreset {
     pub preset_id: String,
 }
 
-/// One row of the merged, server-paged Console catalog.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
-pub struct CatalogModelDto {
-    pub name: String,
-    #[cfg_attr(feature = "ts", ts(type = "Record<string, unknown>"))]
-    pub metadata: Value,
-    pub providers: Vec<CatalogProviderDto>,
-    pub defaults: Option<DefaultModelDto>,
-    pub local: Option<super::ModelDto>,
-    pub price_pattern: String,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]

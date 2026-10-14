@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { QuotasPanel } from "@/pages/quotas"
 import { CredentialForm } from "./form"
+import { CredentialExpiry } from "./expiry"
 import { UpstreamQuota } from "./upstream"
 
 export function CredentialDetails({ credential, provider, initialTab = "basic", onClose }: { credential: CredentialDto; provider: CredentialProviderDto; initialTab?: "basic" | "limits" | "upstream"; onClose: () => void }) {
@@ -57,12 +58,17 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
     {action.error ? <ErrorNotice error={action.error} /> : null}
     <QueryState isPending={row.isPending} error={row.error}>
       <Tabs value={tab} onValueChange={value => setTab(value as typeof tab)}><TabsList variant="line" className="max-w-full"><TabsTrigger value="basic" disabled={busy}>{t("limits.basic")}</TabsTrigger><TabsTrigger value="limits" disabled={busy}>{t("limits.local")}</TabsTrigger><TabsTrigger value="upstream" disabled={busy}>{t("limits.upstream")}</TabsTrigger></TabsList>
-        <TabsContent value="basic" forceMount hidden={tab !== "basic"}><CredentialForm secretActions={<div className="flex flex-col gap-3">
+        <TabsContent value="basic" forceMount hidden={tab !== "basic"}>
+          <dl className="mb-4 grid gap-3 sm:grid-cols-2">
+            <div><dt className="text-sm text-muted-foreground">{t("management.accessTokenExpiry")}</dt><dd><CredentialExpiry value={current.expiresAtMs} pendingRefresh={provider.channel === "vertex"} /></dd></div>
+            <div><dt className="text-sm text-muted-foreground">{t("management.refreshTokenExpiry")}</dt><dd><CredentialExpiry value={current.refreshExpiresAtMs} /></dd></div>
+          </dl>
+          <CredentialForm secretActions={<div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={busy || !current.hasSecret} onClick={() => secret === null ? void reveal() : setSecret(null)}>{t(secret === null ? "management.reveal" : "keys.hide")}</Button>
             {provider.capabilities.refresh ? <Button variant="outline" size="sm" disabled={busy || !provider.enabled} onClick={() => { setSecret(null); action.mutate("refresh") }}>{t("management.refresh")}</Button> : null}
           </div>
           {revealError ? <ErrorNotice error={revealError} /> : null}
-        </div>} key={JSON.stringify(original)} inline open original={original} providerId={provider.id} channel={provider.channel} onOpenChange={() => {}} onSubmit={body => save.mutate(body)} pending={busy} error={save.error} />
+        </div>} key={JSON.stringify(original)} inline open original={original} providerId={provider.id} channel={provider.channel} credentialKinds={provider.credentialKinds} onOpenChange={() => {}} onSubmit={body => save.mutate(body)} pending={busy} error={save.error} />
           <section className="mt-4 flex flex-col gap-3 border-t pt-4" aria-label={t("fields.status")}>
             <div className="flex flex-wrap items-center gap-2"><span>{t("fields.status")}</span><Badge variant={current.status === "dead" ? "destructive" : "success"}>{t(`values.${current.status}`)}</Badge>
               <Button variant="outline" size="sm" disabled={busy} onClick={() => { setStatus(current.status); setReason(""); setEditingStatus(true); action.reset() }}>{t("limits.changeStatus")}</Button>

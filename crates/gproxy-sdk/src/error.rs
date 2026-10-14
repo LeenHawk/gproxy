@@ -103,6 +103,7 @@ fn core_status(error: &gproxy_core::CoreError) -> u16 {
         E::NoUsableCredential | E::RefreshContended { .. } | E::CredentialDead { .. } => 503,
         E::BudgetExhausted { .. } => 429,
         E::Forbidden(_) => 403,
+        E::ResourceNotFound { .. } => 404,
         // The continuation lives in another process; this one is the wrong
         // address for it, which is exactly what 421 says.
         E::ContinuationElsewhere { .. } => 421,

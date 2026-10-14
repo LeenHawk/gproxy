@@ -1,0 +1,1 @@
+Make F-Droid builds reproducible, add a headless Termux package, and update Claude Code and Codex compatibility.

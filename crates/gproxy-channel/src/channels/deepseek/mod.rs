@@ -37,6 +37,7 @@ impl BaseChannel for DeepSeek {
         ChannelDescriptor {
             id: ID,
             display_name: "DeepSeek",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
                 refresh: false,

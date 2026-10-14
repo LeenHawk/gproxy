@@ -165,6 +165,8 @@ fn rule_model(
         filter_model_pattern: crud::optional_text(write.filter_model_pattern),
         filter_header_pattern: crud::optional_text(write.filter_header_pattern),
         filter_event_pattern: crud::optional_text(write.filter_event_pattern),
+        filter_body: write.filter_body,
+        filter_header: write.filter_header,
         sort_order: write.sort_order.unwrap_or(0),
         enabled: write.enabled.unwrap_or(true),
         created_at_ms: now_ms,
@@ -190,6 +192,8 @@ fn active_rule(model: rewrite_rule::Model) -> rewrite_rule::ActiveModel {
         filter_model_pattern: Set(model.filter_model_pattern),
         filter_header_pattern: Set(model.filter_header_pattern),
         filter_event_pattern: Set(model.filter_event_pattern),
+        filter_body: Set(model.filter_body),
+        filter_header: Set(model.filter_header),
         sort_order: Set(model.sort_order),
         enabled: Set(model.enabled),
         created_at_ms: Set(model.created_at_ms),
@@ -461,6 +465,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for RewriteRules<
         }
         if let Some(value) = patch.filter_event_pattern {
             merged.filter_event_pattern = crud::optional_text(value);
+        }
+        if let Some(value) = patch.filter_body {
+            merged.filter_body = value;
+        }
+        if let Some(value) = patch.filter_header {
+            merged.filter_header = value;
         }
         if let Some(sort_order) = patch.sort_order {
             merged.sort_order = sort_order;

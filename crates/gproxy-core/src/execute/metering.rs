@@ -66,6 +66,7 @@ pub(crate) struct Reading {
     bytes: u64,
     /// The most a whole body is held for.
     cap: u64,
+    first_output_at: Option<web_time::Instant>,
 }
 
 impl Reading {
@@ -112,6 +113,7 @@ impl Reading {
             source,
             bytes: 0,
             cap,
+            first_output_at: None,
         }
     }
 
@@ -135,13 +137,19 @@ impl Reading {
             source,
             bytes: 0,
             cap: 0,
+            first_output_at: None,
         }
     }
 
     pub(crate) fn push(&mut self, chunk: &[u8]) {
         self.bytes = self.bytes.saturating_add(chunk.len() as u64);
         match &mut self.source {
-            Source::Stream(reader) => reader.push(chunk),
+            Source::Stream(reader) => {
+                reader.push(chunk);
+                if self.first_output_at.is_none() && reader.output_started() {
+                    self.first_output_at = Some(web_time::Instant::now());
+                }
+            }
             Source::Whole(slot) => {
                 if let Some(body) = slot {
                     if (body.len() + chunk.len()) as u64 > self.cap {
@@ -343,6 +351,7 @@ pub(crate) struct Meter {
     request_body: Option<Bytes>,
     status: http::StatusCode,
     reading: Option<Reading>,
+    started_at: web_time::Instant,
 }
 
 impl Meter {
@@ -360,6 +369,7 @@ impl Meter {
             request_body,
             status: http::StatusCode::OK,
             reading: None,
+            started_at: web_time::Instant::now(),
         }
     }
 
@@ -413,6 +423,10 @@ impl Meter {
             self.settlement = None;
             return;
         };
+        let duration_ms = i64::try_from(self.started_at.elapsed().as_millis()).ok();
+        let ttft_ms = reading.first_output_at.and_then(|first| {
+            i64::try_from(first.duration_since(self.started_at).as_millis()).ok()
+        });
         let bytes = reading.bytes;
         let operation = reading.operation;
         let mut usage = reading.finish(end);
@@ -437,6 +451,8 @@ impl Meter {
         let chosen = self.gate.chosen();
         if let (Some(capture_id), Some(usage)) = (chosen.clone(), usage.as_ref()) {
             self.funnel.record_exchange_usage(ExchangeUsage {
+                duration_ms,
+                ttft_ms,
                 capture_id,
                 attempt_id: attempt.attempt_id.clone(),
                 attempt_ordinal: attempt.ordinal,

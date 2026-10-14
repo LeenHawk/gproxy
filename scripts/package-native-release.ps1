@@ -18,7 +18,8 @@ try {
     Copy-Item README.md, LICENSE $package
     $archive = Join-Path $outputDir "$artifact.zip"
     Remove-Item $archive, "$archive.sha256" -Force -ErrorAction SilentlyContinue
-    Compress-Archive -Path "$package/*" -DestinationPath $archive
+    & python "$PSScriptRoot/reproducible-archive.py" --root $package --output $archive
+    if ($LASTEXITCODE -ne 0) { throw "ZIP packaging failed: $LASTEXITCODE" }
     $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
     "$hash  $artifact.zip" | Out-File -Encoding ascii "$archive.sha256"
 

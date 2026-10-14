@@ -8,22 +8,24 @@ runs:
   using: composite
   steps:
     - name: Attest build provenance
-      uses: actions/attest@v4.2.2
+      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
       with:
         subject-path: |
           dist/release/${{ inputs.artifact }}*.zip
           dist/release/${{ inputs.artifact }}*.apk
+          dist/release/${{ inputs.artifact }}*.aab
           dist/release/${{ inputs.artifact }}*.hap
           dist/release/${{ inputs.artifact }}*.wasm
           dist/release/${{ inputs.artifact }}*.deb
           dist/release/${{ inputs.artifact }}*.dmg
           dist/release/${{ inputs.artifact }}*.msix
     - name: Attest resolved build environment
-      uses: actions/attest@v4.2.2
+      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
       with:
         subject-path: |
           dist/release/${{ inputs.artifact }}*.zip
           dist/release/${{ inputs.artifact }}*.apk
+          dist/release/${{ inputs.artifact }}*.aab
           dist/release/${{ inputs.artifact }}*.hap
           dist/release/${{ inputs.artifact }}*.wasm
           dist/release/${{ inputs.artifact }}*.deb

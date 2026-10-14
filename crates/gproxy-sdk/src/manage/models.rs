@@ -3,10 +3,7 @@
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::{
     Repository,
-    entity::{
-        pricing::price_rule,
-        upstream::{model, provider_model},
-    },
+    entity::upstream::{model, provider_model},
 };
 use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, Select, Set};
 
@@ -25,7 +22,7 @@ use crate::{
 /// Global model metadata. Routing can name a model that is not in here; the
 /// catalog exists for vocabularies, pricing patterns and presentation.
 pub struct Models<'a, C> {
-    writer: Writer<'a, C>,
+    pub(super) writer: Writer<'a, C>,
 }
 
 impl<'a, C> Models<'a, C> {
@@ -36,10 +33,21 @@ impl<'a, C> Models<'a, C> {
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Models<'_, C> {
     pub async fn list(&self, query: ListQuery) -> SdkResult<Page<ModelDto>> {
-        crud::list(self, query).await
+        let mut page = self.page(query).await?;
+        let prices = super::pricing::ModelPriceRules::load(self.writer).await?;
+        for row in &mut page.items {
+            row.price_rules = Some(prices.for_model(None, &row.name));
+        }
+        Ok(page)
     }
     pub async fn get(&self, id: &str) -> SdkResult<ModelDto> {
-        crud::get(self, id).await
+        let mut row: ModelDto = crud::get(self, id).await?;
+        row.price_rules = Some(
+            super::pricing::ModelPriceRules::load(self.writer)
+                .await?
+                .for_model(None, &row.name),
+        );
+        Ok(row)
     }
     pub async fn create(&self, write: ModelWrite) -> SdkResult<ModelDto> {
         crud::create(self, write).await
@@ -157,31 +165,22 @@ impl<'a, C> ProviderModels<'a, C> {
 impl<C: BatchConnectionTrait + Send + Sync + 'static> ProviderModels<'_, C> {
     pub async fn list(&self, query: ListQuery) -> SdkResult<Page<ProviderModelDto>> {
         let mut page = crud::list(self, query).await?;
-        if !page.items.is_empty() {
-            let counts = self
-                .writer
-                .store()
-                .price_rules()
-                .count_many(
-                    page.items
-                        .iter()
-                        .map(|row| {
-                            price_rule::Entity::find()
-                                .filter(price_rule::Column::ProviderId.eq(&row.provider_id))
-                                .filter(price_rule::Column::ModelPattern.eq(&row.upstream_name))
-                                .filter(price_rule::Column::Enabled.eq(true))
-                        })
-                        .collect(),
-                )
-                .await?;
-            for (row, count) in page.items.iter_mut().zip(counts) {
-                row.has_price = Some(count > 0);
-            }
+        let prices = super::pricing::ModelPriceRules::load(self.writer).await?;
+        for row in &mut page.items {
+            let rules = prices.for_model(Some(&row.provider_id), &row.upstream_name);
+            row.has_price = Some(!rules.is_empty());
+            row.price_rules = Some(rules);
         }
         Ok(page)
     }
     pub async fn get(&self, id: &str) -> SdkResult<ProviderModelDto> {
-        crud::get(self, id).await
+        let mut row: ProviderModelDto = crud::get(self, id).await?;
+        let rules = super::pricing::ModelPriceRules::load(self.writer)
+            .await?
+            .for_model(Some(&row.provider_id), &row.upstream_name);
+        row.has_price = Some(!rules.is_empty());
+        row.price_rules = Some(rules);
+        Ok(row)
     }
     pub async fn create(&self, write: ProviderModelWrite) -> SdkResult<ProviderModelDto> {
         crud::create(self, write).await

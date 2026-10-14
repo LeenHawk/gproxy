@@ -7,7 +7,12 @@ export type UsageSummaryDto = {
 /**
  * Number of physical upstream calls, independent of downstream association count.
  */
-requests: number, inputTokens: number, outputTokens: number, cachedInputTokens: number,
+requests: number, inputTokens: number, outputTokens: number,
+/**
+ * Output tokens per second of generation time, excluding first-token wait.
+ * Only records with reported output tokens, TTFT and positive generation time contribute.
+ */
+averageOutputTps: number | null, cachedInputTokens: number,
 /**
  * Total cache writes across all three retention periods.
  */

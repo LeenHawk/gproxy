@@ -1,0 +1,77 @@
+name: Submit WinGet packages
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+    secrets:
+      WINGET_TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published stable version (for example 4.0.0)
+        required: true
+        type: string
+      dry_run:
+        description: Validate manifests without submitting pull requests
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: winget-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: [Desktop, CLI, Headless]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install manifest validation dependencies
+        run: python -m pip install PyYAML==6.0.3 jsonschema==4.26.0
+      - name: Generate and validate manifests from release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          EDITION: ${{ matrix.edition }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
+        run: |
+          $options = @()
+          if ($env:DRY_RUN -ne 'true') { $options += '--skip-existing' }
+          python scripts/prepare-winget.py --version "$env:VERSION" --edition "$env:EDITION" @options
+          if ($LASTEXITCODE -ne 0) { throw 'Manifest preparation failed.' }
+      - name: Save manifests for review
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: winget-${{ matrix.edition }}-${{ inputs.version }}
+          path: dist/winget/manifests/${{ matrix.edition }}
+          if-no-files-found: ignore
+      - name: Submit pull request with Microsoft WinGet Create
+        if: ${{ !inputs.dry_run && hashFiles(format('dist/winget/manifests/{0}/*.yaml', matrix.edition)) != '' }}
+        env:
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          EDITION: ${{ matrix.edition }}
+        run: |
+          if (!$env:WINGET_CREATE_GITHUB_TOKEN) { throw 'Configure the WINGET_TOKEN repository secret.' }
+          Invoke-WebRequest https://github.com/microsoft/winget-create/releases/download/v1.12.13.0/wingetcreate.exe -OutFile "$env:RUNNER_TEMP/wingetcreate.exe"
+          # Pinned digest of the v1.12.13.0 asset: this step holds the publisher token.
+          $tool = Get-Item "$env:RUNNER_TEMP/wingetcreate.exe"
+          if ((Get-FileHash $tool -Algorithm SHA256).Hash -ne '24042BD37915805615E6CF969AC57C6439124C3FE85823327F5F3FB24BD9FFEA') { throw 'wingetcreate.exe digest mismatch.' }
+          $signature = Get-AuthenticodeSignature $tool
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw 'wingetcreate.exe is not Microsoft-signed.' }
+          & "$env:RUNNER_TEMP/wingetcreate.exe" submit --no-open --prtitle "New version: LeenHawk.GPROXY.$env:EDITION version $env:VERSION" "dist/winget/manifests/$env:EDITION"
+          if ($LASTEXITCODE -ne 0) { throw "WinGet Create failed: $LASTEXITCODE" }

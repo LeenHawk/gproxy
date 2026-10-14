@@ -90,6 +90,31 @@ fn gemini_request_requires_published_resource_facts() {
 }
 
 #[test]
+fn gemini_request_without_instances_is_invalid_input() {
+    let body: g::PredictLongRunningRequestBody =
+        serde_json::from_value(json!({"instances": []})).unwrap();
+    let error = gemini_to_openai_request(body, "openrouter/veo", &BTreeMap::new()).unwrap_err();
+    assert_eq!(error.kind(), TransformErrorKind::InvalidInput);
+}
+
+#[test]
+fn gemini_request_maps_first_instance_and_reports_the_rest() {
+    let body: g::PredictLongRunningRequestBody = serde_json::from_value(json!({
+        "instances": [{"prompt": "first"}, {"prompt": "second"}]
+    }))
+    .unwrap();
+    let converted = gemini_to_openai_request(body, "openrouter/veo", &BTreeMap::new()).unwrap();
+    assert_eq!(converted.value.body.prompt.as_deref(), Some("first"));
+    assert!(
+        converted
+            .report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.field == "instances")
+    );
+}
+
+#[test]
 fn operation_response_uses_actual_identity_and_urls() {
     let operation: g::VideoOperation = serde_json::from_value(json!({
         "name":"operations/real-42",

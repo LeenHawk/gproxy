@@ -232,7 +232,7 @@ changes its model prefix and base URL.
 
 ### Global models and default metadata
 
-The Console's **Models** (`/console/model-catalog`) lists bundled models, context and output limits, modalities, supported parameters, reference rates and pricing tiers. Search the catalog, save local metadata overrides or add your own models. Removing a local entry leaves its bundled model visible.
+The Console's **Models** (`/console/model-catalog`) lists models saved in the database, using the same `/admin/api/models` endpoint as permission selectors. An empty database returns an empty list. **Load default models** imports selected entries from the bundled model table and keeps existing models unchanged; loading model metadata does not change pricing rules. Models can also be added manually or imported from OpenRouter. Deleting a model removes it from the list; it is not restored from bundled data during reads. The page shows saved capabilities and limits, provider associations, and bundled reference prices where available.
 
 Bundled model IDs are unqualified names, such as `claude-sonnet-4`, rather than `anthropic/claude-sonnet-4`. Source URLs and raw prices retain their provenance. Qualified upstream names still resolve by basename. Default price matching prefers the longest matching model fragment; provider price imports keep the provider's actual upstream name as the rule pattern. Prices are edited in the existing global-model and provider-model dialogs.
 

@@ -1,0 +1,1 @@
+修正 F-Droid 建置的可重現性，新增無前端 Termux 安裝套件，更新 Claude Code 與 Codex 相容性。

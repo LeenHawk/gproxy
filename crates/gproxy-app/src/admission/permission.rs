@@ -2,18 +2,23 @@
 //!
 //! Two filters, in this order.
 //!
-//! **The OAuth operation baseline** comes first, because it is about the
+//! **OAuth scopes and the operation baseline** come first, because they concern the
 //! *program* holding the token rather than the person who issued it. An
 //! access token is a credential a user handed to somebody else's binary; until
 //! an operator says otherwise, that binary may read the model catalogue, count
 //! tokens, generate, stream and compact, and nothing else. Naming a client in
 //! [`AppConfig.oauth.cli_client_ids`](crate::config::OAuthIssuerConfig) lifts
-//! the baseline for that client.
+//! the baseline for that client. Every operation still requires its exact
+//! `gproxy:<operation_id>` scope, including for those configured clients.
 //!
 //! **The permission rules** come second and produce the provider set, one
 //! [`PermissionSet::decide`](crate::snapshot::PermissionSet::decide) per
 //! provider. There is no implicit grant: a provider no rule reaches is not in
 //! the set, and an empty set is a refusal before any routing happens.
+//!
+//! A vendor service call goes through the same two filters by way of
+//! [`allow_service`], which adapts them to a request that names no model and
+//! no operation.
 
 use crate::{AppData, AppError, Caller, CallerKind};
 use gproxy_protocol::Operation;
@@ -26,8 +31,8 @@ use std::collections::BTreeSet;
 /// Everything absent from it — embeddings, images, audio, files, video,
 /// realtime, moderation — is either a different product a third-party client
 /// has no reason to reach through somebody else's account, or an expensive
-/// one. Adding a variant here widens what every already-issued token can do,
-/// so it is a deliberate decision and not a default.
+/// one. Adding a variant here widens access for tokens carrying that operation's
+/// scope, so it is a deliberate decision and not a default.
 const OAUTH_BASELINE: [Operation; 6] = [
     Operation::ListModels,
     Operation::GetModel,
@@ -37,7 +42,7 @@ const OAUTH_BASELINE: [Operation; 6] = [
     Operation::CompactContent,
 ];
 
-/// The OAuth baseline on its own, for a host that needs to answer "may this
+/// OAuth scope and baseline checks, for a host that needs to answer "may this
 /// token do that?" without computing a provider set.
 ///
 /// Applies to [`CallerKind::OAuthGrant`] only; every other caller passes
@@ -54,17 +59,86 @@ pub fn check_oauth_operation(
     if caller.kind != CallerKind::OAuthGrant {
         return Ok(());
     }
+    require_oauth_scope(caller, &format!("gproxy:{}", operation.id()))?;
+    if known_cli_client(caller, cli_client_ids) || OAUTH_BASELINE.contains(&operation) {
+        return Ok(());
+    }
+    Err(AppError::forbidden(
+        "this operation is not available to OAuth clients",
+    ))
+}
+
+/// Consent is an upper bound, including for operator-approved CLI clients.
+/// Unknown/identity scopes never implicitly authorize a resource operation.
+fn require_oauth_scope(caller: &Caller, required: &str) -> Result<(), AppError> {
+    if caller.kind != CallerKind::OAuthGrant
+        || caller
+            .grant
+            .as_ref()
+            .is_some_and(|grant| grant.scopes.iter().any(|scope| scope == required))
+    {
+        return Ok(());
+    }
+    Err(AppError::forbidden(format!(
+        "insufficient OAuth scope: {required} is required"
+    )))
+}
+
+/// Whether an OAuth-grant caller's client is one the operator named in
+/// `cli_client_ids`, which is what lifts the baseline for it.
+fn known_cli_client(caller: &Caller, cli_client_ids: &[String]) -> bool {
     let client_id = caller
         .grant
         .as_ref()
         .map(|grant| grant.client_id.as_str())
         .unwrap_or_default();
-    let known_cli = !client_id.is_empty() && cli_client_ids.iter().any(|id| id == client_id);
-    if known_cli || OAUTH_BASELINE.contains(&operation) {
+    !client_id.is_empty() && cli_client_ids.iter().any(|id| id == client_id)
+}
+
+/// Whether this caller may reach `provider_id`'s vendor services at all —
+/// the gate a service call passes before any credential is planned.
+///
+/// The same two filters as [`allowed_providers`], adapted to a request that
+/// names no model and no [`Operation`]:
+///
+/// - **The OAuth baseline.** Vendor services — account profile, usage,
+///   plugins, remote control — are not in [`OAUTH_BASELINE`]; they are the
+///   account surface rather than the model surface a third-party client was
+///   authorized for, and remote control in particular is not something a
+///   program should acquire through somebody else's token by default. So an
+///   OAuth-grant caller reaches them only when its client is named in
+///   `cli_client_ids`, exactly as it would for any operation outside the
+///   baseline. As there, an instance administrator's token gets no bypass.
+/// - **The permission rules**, through
+///   [`PermissionSet::allows_service`](crate::snapshot::PermissionSet::allows_service):
+///   only a rule scoped to any model and any operation describes a service.
+///   An instance administrator bypasses this filter for the reason given on
+///   [`allowed_providers`].
+///
+/// Without this gate a service would be decided by credential visibility
+/// alone, so a key whose rules refuse a provider could still read that
+/// provider's account endpoints through any credential it happens to see.
+pub fn allow_service(
+    snapshot: &AppData,
+    caller: &Caller,
+    provider_id: &str,
+    cli_client_ids: &[String],
+) -> Result<(), AppError> {
+    require_oauth_scope(caller, "gproxy:services")?;
+    if caller.kind == CallerKind::OAuthGrant && !known_cli_client(caller, cli_client_ids) {
+        return Err(AppError::forbidden(
+            "vendor services are not available to OAuth clients",
+        ));
+    }
+    if caller.is_instance_admin()
+        || snapshot
+            .permissions
+            .allows_service(&caller.subject(), provider_id)
+    {
         return Ok(());
     }
     Err(AppError::forbidden(
-        "this operation is not available to OAuth clients",
+        "this provider's services are not permitted for this caller",
     ))
 }
 
@@ -143,10 +217,36 @@ mod tests {
         caller.grant = Some(GrantContext {
             grant_id: "g1".into(),
             client_id: client_id.into(),
-            scopes: Vec::new(),
+            scopes: OAUTH_BASELINE
+                .into_iter()
+                .chain([
+                    Operation::CreateEmbedding,
+                    Operation::CreateImage,
+                    Operation::CreateSpeech,
+                    Operation::ConnectRealtime,
+                ])
+                .map(|operation| format!("gproxy:{}", operation.id()))
+                .chain(["gproxy:services".into()])
+                .collect(),
             access_digest: [0; 32],
         });
         caller
+    }
+
+    #[test]
+    fn oauth_consent_is_required_even_for_admins_and_known_cli_clients() {
+        let mut caller = grant_caller("codex");
+        caller.user_role = "admin".into();
+        let cli = ["codex".into()];
+        caller.grant.as_mut().unwrap().scopes.clear();
+        for operation in OAUTH_BASELINE.into_iter().chain([Operation::DeleteFile]) {
+            assert!(check_oauth_operation(&caller, operation, &cli).is_err());
+        }
+        assert!(allow_service(&snapshot(vec![]), &caller, "openai", &cli).is_err());
+        caller.grant.as_mut().unwrap().scopes = vec!["gproxy:list_models".into()];
+        assert!(check_oauth_operation(&caller, Operation::ListModels, &cli).is_ok());
+        assert!(check_oauth_operation(&caller, Operation::GenerateContent, &cli).is_err());
+        assert!(check_oauth_operation(&caller, Operation::DeleteFile, &cli).is_err());
     }
 
     #[test]
@@ -284,5 +384,40 @@ mod tests {
     fn an_api_key_caller_is_not_touched_by_the_baseline() {
         let caller = caller("alice", "user");
         assert!(check_oauth_operation(&caller, Operation::CreateImage, &[]).is_ok());
+    }
+
+    #[test]
+    fn a_service_needs_a_provider_wide_permission() {
+        let data = snapshot(vec![rule("r", "allow", Some("openai"), "*")]);
+        let alice = caller("alice", "user");
+        assert!(allow_service(&data, &alice, "openai", &[]).is_ok());
+        let error = allow_service(&data, &alice, "anthropic", &[]).unwrap_err();
+        assert_eq!(error.status_code(), 403);
+
+        // A model-scoped grant is about model traffic, not the account.
+        let data = snapshot(vec![rule("r", "allow", Some("openai"), "gpt-*")]);
+        assert!(allow_service(&data, &alice, "openai", &[]).is_err());
+
+        // The instance administrator keeps the rule bypass.
+        let data = snapshot(vec![rule("deny", "deny", None, "*")]);
+        assert!(allow_service(&data, &caller("root", "admin"), "openai", &[]).is_ok());
+    }
+
+    #[test]
+    fn a_service_is_outside_the_oauth_baseline() {
+        let data = snapshot(vec![rule("r", "allow", None, "*")]);
+        let error = allow_service(&data, &grant_caller("third-party"), "openai", &[]).unwrap_err();
+        assert_eq!(error.status_code(), 403);
+        assert!(error.to_string().contains("not available to OAuth clients"));
+
+        // Not even for an administrator's token.
+        let mut admin = grant_caller("third-party");
+        admin.user_role = "admin".into();
+        assert!(allow_service(&data, &admin, "openai", &[]).is_err());
+
+        // A configured CLI client is not held to it, but its rules still are.
+        let cli = ["codex".to_string()];
+        assert!(allow_service(&data, &grant_caller("codex"), "openai", &cli).is_ok());
+        assert!(allow_service(&snapshot(vec![]), &grant_caller("codex"), "openai", &cli).is_err());
     }
 }

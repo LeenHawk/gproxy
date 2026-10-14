@@ -221,6 +221,8 @@ pub struct Http2Settings {
 pub struct Fingerprint {
     /// ALPN protocols offered, in order. Empty keeps wreq's default offer.
     pub alpn: Vec<Alpn>,
+    /// Omit the ALPN extension instead of using the backend's default offer.
+    pub disable_alpn: Option<bool>,
     pub min_tls: Option<TlsVersion>,
     pub max_tls: Option<TlsVersion>,
     pub cipher_list: Option<String>,
@@ -239,6 +241,8 @@ pub struct Fingerprint {
     pub ocsp_stapling: Option<bool>,
     /// Offer the `signed_certificate_timestamp` extension.
     pub signed_cert_timestamps: Option<bool>,
+    pub session_ticket: Option<bool>,
+    pub psk_dhe_ke: Option<bool>,
     pub http2: Option<Http2Settings>,
     /// Default request headers in send order, with their original casing.
     /// Request headers with the same name replace them.
@@ -399,7 +403,9 @@ impl Fingerprint {
         use wreq::tls::{AlpnProtocol, TlsOptions, TlsVersion as WreqTlsVersion};
 
         let mut tls = TlsOptions::builder();
-        if !self.alpn.is_empty() {
+        if self.disable_alpn == Some(true) {
+            tls = tls.alpn_protocols(std::iter::empty::<AlpnProtocol>());
+        } else if !self.alpn.is_empty() {
             tls = tls.alpn_protocols(self.alpn.iter().map(|alpn| match alpn {
                 Alpn::Http1 => AlpnProtocol::HTTP1,
                 Alpn::Http2 => AlpnProtocol::HTTP2,
@@ -422,6 +428,12 @@ impl Fingerprint {
         }
         if let Some(enabled) = self.signed_cert_timestamps {
             tls = tls.enable_signed_cert_timestamps(enabled);
+        }
+        if let Some(enabled) = self.session_ticket {
+            tls = tls.session_ticket(enabled);
+        }
+        if let Some(enabled) = self.psk_dhe_ke {
+            tls = tls.psk_dhe_ke(enabled);
         }
         if let Some(list) = &self.cipher_list {
             tls = tls.cipher_list(list.clone());

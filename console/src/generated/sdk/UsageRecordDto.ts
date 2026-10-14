@@ -37,4 +37,4 @@ exchanges: Array<UsageExchangeDto>,
 /**
  * Dynamic dimensions and nested protocol-specific detail; fixed fields are above.
  */
-metrics: unknown, startedAtMs: number, endedAtMs: number | null, };
+metrics: unknown, startedAtMs: number, endedAtMs: number | null, durationMs: number | null, ttftMs: number | null, };

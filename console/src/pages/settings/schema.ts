@@ -82,6 +82,8 @@ export const groups = [
     id: "maintenance",
     fields: [
       instance("retentionDays", "number", { nullable: true, min: 1 }),
+      instance("capturePayloadRetentionDays", "number", { nullable: true, min: 0 }),
+      instance("capturePayloadMaxMb", "number", { nullable: true, min: 0 }),
       instance("maxDatabaseSizeMb", "number", { nullable: true, min: 0 }),
       instance("updateSource", "choice", { nullable: true, options: ["github", "gitlab", "cnb"] }),
       instance("updateChannel", "choice", { nullable: true, options: ["dev", "beta", "release"] }),

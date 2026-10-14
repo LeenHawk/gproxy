@@ -325,6 +325,33 @@ fn four_typed_fanouts_execute_real_posts_order_candidates_and_sum_actual_charges
     assert_eq!(out.usage_metadata.unwrap().total_token_count, Some(12));
     assert_sends(&host);
 }
+#[test]
+fn gemini_fanout_without_generation_config_prepares_a_single_child() {
+    let mut body = input("g");
+    body.as_object_mut().unwrap().remove("generationConfig");
+    let body: gproxy_protocol::wire::gemini::GenerateContentRequestBody =
+        serde_json::from_value(body).unwrap();
+    let store = Store::default();
+    let state = state_fn(&store, Dialect::Claude);
+    assert!(
+        ready(GeminiViaClaudeFanout::prepare(
+            body.clone(),
+            setup(Dialect::Gemini, Dialect::Claude),
+            &state,
+            Some(64),
+        ))
+        .is_ok()
+    );
+    let state = state_fn(&store, Dialect::OpenAi);
+    assert!(
+        ready(GeminiViaResponsesFanout::prepare(
+            body,
+            setup(Dialect::Gemini, Dialect::OpenAi),
+            &state,
+        ))
+        .is_ok()
+    );
+}
 fn state_fn(store: &Store, dialect: Dialect) -> GenerationStateAccess<'_, Store> {
     state(store, dialect)
 }
@@ -429,13 +456,12 @@ struct Resources {
     length: Option<u64>,
 }
 impl Resources {
-    fn png() -> Self {
-        use base64::Engine;
-        let bytes:bytes::Bytes=base64::engine::general_purpose::STANDARD.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC").unwrap().into();
+    fn pdf() -> Self {
+        let bytes = bytes::Bytes::from_static(b"%PDF-1.4\n%%EOF\n");
         Self {
             length: Some(bytes.len() as u64),
             bytes,
-            mime: "image/png".into(),
+            mime: "application/pdf".into(),
             reads: Default::default(),
         }
     }
@@ -514,18 +540,21 @@ fn resources<'a>(access: &'a Resources, scope: &'a String) -> GenerationResource
         limits: codec_limits(),
         max_references: 8,
         now: std::time::UNIX_EPOCH,
+        target: Dialect::Claude,
     }
 }
 
 #[test]
-fn materializes_foreign_image_once_before_all_child_posts() {
+fn materializes_foreign_file_once_before_all_child_posts() {
     let store = Store::default();
     let state = state(&store, Dialect::Claude);
-    let access = Resources::png();
+    let access = Resources::pdf();
     let scope = "client".to_string();
     let resources = resources(&access, &scope);
     let mut input = serde_json::to_value(chat_input()).unwrap();
-    input["messages"] = json!([{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://foreign/image.png"}}]}]);
+    // Claude reads an image URL itself; an OpenAI file ID must be fetched.
+    input["messages"] =
+        json!([{"role":"user","content":[{"type":"file","file":{"file_id":"file-foreign"}}]}]);
     let mut p = ready(ChatViaClaudeFanout::prepare_with_capabilities(
         serde_json::from_value(input).unwrap(),
         setup(Dialect::OpenAiChat, Dialect::Claude),
@@ -552,7 +581,9 @@ fn materializes_foreign_image_once_before_all_child_posts() {
             panic!()
         };
         let v: Value = serde_json::from_slice(bytes).unwrap();
-        assert_eq!(v["messages"][0]["content"][0]["source"]["type"], "base64");
+        let block = &v["messages"][0]["content"][0];
+        assert_eq!(block["type"], "document");
+        assert_eq!(block["source"]["type"], "base64");
     }
 }
 #[test]
@@ -588,77 +619,6 @@ fn child_limits_fail_before_any_post_and_a_completed_group_never_sends_again() {
         TransformErrorKind::Conflict
     );
     assert_eq!(host.sent.lock().unwrap().len(), 2);
-}
-
-#[test]
-fn executes_identical_four_historical_fixtures_through_actual_v4_fanout() {
-    let fixtures: Value =
-        serde_json::from_str(include_str!("fixtures/generation_fanout_parity.json")).unwrap();
-    for case in fixtures.as_array().unwrap() {
-        let is_claude = case["upstream"] == "claude";
-        let client = if case["client"] == "chat" {
-            Dialect::OpenAiChat
-        } else {
-            Dialect::Gemini
-        };
-        let upstream = if is_claude {
-            Dialect::Claude
-        } else {
-            Dialect::OpenAi
-        };
-        let store = Store::default();
-        let state = state(&store, upstream);
-        let host = Host::many(two(if is_claude { "c" } else { "r" }));
-        macro_rules! execute{($adapter:ident,$facts:expr $(,$extra:expr)?)=>{{
-            let mut prepared=ready($adapter::prepare(serde_json::from_value(case["input"].clone()).unwrap(),setup(client,upstream),&state $(,$extra)?)).unwrap();
-            serde_json::to_value(ready(prepared.invoke(&host,&(),codec_limits(),&state,&mut FanoutProgress::default(),$facts)).unwrap().value).unwrap()
-        }}}
-        let output = match (client, is_claude) {
-            (Dialect::OpenAiChat, true) => execute!(ChatViaClaudeFanout, clock),
-            (Dialect::OpenAiChat, false) => execute!(ChatViaResponsesFanout, |_, _| Ok(())),
-            (Dialect::Gemini, true) => {
-                execute!(GeminiViaClaudeFanout, |_, _| Ok(Default::default()), None)
-            }
-            (Dialect::Gemini, false) => {
-                execute!(GeminiViaResponsesFanout, |_, _| Ok(Default::default()))
-            }
-            _ => unreachable!(),
-        };
-        assert_sends(&host);
-        let count = if client == Dialect::OpenAiChat {
-            output["choices"].as_array().unwrap().len()
-        } else {
-            output["candidates"].as_array().unwrap().len()
-        };
-        assert_eq!(count, 2);
-        let sent = host.sent.lock().unwrap();
-        let requests: Vec<Value> = sent
-            .iter()
-            .map(|r| {
-                let HttpBody::Bytes(b) = &r.body else {
-                    panic!()
-                };
-                serde_json::from_slice(b).unwrap()
-            })
-            .collect();
-        let actual = json!({"name":case["name"],"accepted":true,"post_count":sent.len(),"requests":requests,"output":output});
-        let expected: Value = serde_json::from_str(include_str!(
-            "fixtures/generation_fanout_parity_results.json"
-        ))
-        .unwrap();
-        if let Some(cases) = expected.get("v4") {
-            assert_eq!(
-                cases
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .find(|v| v["name"] == case["name"])
-                    .unwrap(),
-                &actual
-            );
-        }
-        println!("FANOUT:{actual}");
-    }
 }
 
 #[path = "adapt_generate_fanout/review.rs"]

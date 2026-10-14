@@ -1,0 +1,1 @@
+修复 x86_64 Android 启动、跨协议图片与文件处理、模型目录刷新和 v3 权限迁移，更新 Claude Code 与 Codex 兼容性，增加 Files、MCP 支持，改进用量统计，内置字体并简化隐私说明。保留 F-Droid 可复现构建和原 APK 签名证书。

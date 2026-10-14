@@ -27,3 +27,10 @@ await cp(distDir, embedDir, { recursive: true, force: true })
 await empty(shellDir)
 await cp(distDir, path.join(shellDir, "console"), { recursive: true, force: true })
 await cp(path.join(distDir, "index.html"), path.join(shellDir, "index.html"), { force: true })
+
+// Keep application license notices alongside the bundled font licenses.
+const licenses = path.join(shellDir, "console/licenses")
+await mkdir(licenses, { recursive: true })
+await cp(path.resolve(consoleDir, "../LICENSE"), path.join(licenses, "GPROXY-AGPL.txt"))
+await cp(path.resolve(consoleDir, "../crates/gproxy-tokenizer/assets/tokenizers/LICENSE"), path.join(licenses, "DeepSeek-MIT.txt"))
+await cp(path.resolve(consoleDir, "../crates/gproxy-tokenizer/THIRD_PARTY_NOTICES.md"), path.join(licenses, "tokenizer-notices.md"))

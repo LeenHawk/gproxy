@@ -1,0 +1,78 @@
+---
+title: Docker, Northflank, Render, and Heroku
+description: Deploy the native GPROXY container with managed PostgreSQL.
+---
+
+import { Card, CardGrid, LinkButton } from "@astrojs/starlight/components";
+
+These templates assemble a lightweight Node.js container around the prebuilt **latest stable release** PostgreSQL executable, with one application instance connected to PostgreSQL. They reuse the existing HTTP/SSE/WebSocket bridge and verify the release archive checksums. No Rust build is required. The ordinary CLI container only includes SQLite, so it cannot replace this image. The service and database can incur charges; review the selected plans before deploying.
+
+<CardGrid>
+  <Card title="Render" icon="rocket">
+    <p>Free web service with your external PostgreSQL database. Secrets are generated automatically.</p>
+    <LinkButton href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev" variant="secondary" icon="external">Deploy to Render</LinkButton>
+  </Card>
+  <Card title="Heroku" icon="rocket">
+    <p>Basic dyno + Essential PostgreSQL. Bring your encryption key; the database is created for you.</p>
+    <LinkButton href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev" variant="secondary" icon="external">Deploy to Heroku</LinkButton>
+  </Card>
+  <Card title="Northflank" icon="rocket">
+    <p>Import the template to create a project, PostgreSQL database, and service. A public share link is not yet available.</p>
+    <LinkButton href="https://app.northflank.com/s/account/templates/new" variant="secondary" icon="external">Open template editor</LinkButton>
+  </Card>
+</CardGrid>
+
+## Docker
+
+Images are published to `ghcr.io/leenhawk/gproxy` and Docker Hub at `leenhawk/gproxy` for amd64, arm64 and riscv64. Stable versions use `vX.Y.Z` tags, beta uses `staging`, and development snapshots use `nightly`; append `-musl` for musl images. Old v3 tags do not run v4.
+
+```sh
+export GPROXY_IMAGE='leenhawk/gproxy:<tag>'
+# Set GPROXY_MASTER_KEY to your saved 32-byte key (64 hex digits or base64).
+docker run -d --name gproxy --restart unless-stopped \
+  -p 127.0.0.1:8787:8787 \
+  -v gproxy-data:/app/data \
+  -e GPROXY_MASTER_KEY \
+  "$GPROXY_IMAGE"
+docker logs gproxy
+```
+
+Save the administrator credentials from the first startup log, then open `/console/`. The image runs as `65532:65532`, so a bind-mounted directory must be writable by that user. Keep the `/app/data` volume when replacing the container.
+
+## Render
+
+1. Use the Render card above and review the root `render.yaml` Blueprint: a Free web service using an external PostgreSQL database.
+2. Set `GPROXY_DATABASE_URL` to your external PostgreSQL connection URL and deploy the service. The database must be reachable from Render; preserve any SSL parameters required by your database provider. Render generates the administrator password and encryption key.
+3. Open the service's **Environment** settings and save `GPROXY_ADMIN_PASSWORD` and `GPROXY_MASTER_KEY`. Visit the service URL followed by `/console/` and sign in as `admin`.
+
+The template does not create a database. The Render web service uses the free plan; external database pricing and limits depend on your provider. Free web services sleep when idle, so the next request may take longer. The health check is `/healthz` on port `8787`.
+
+## Heroku
+
+1. Generate a master key with `openssl rand -hex 32` and save it.
+2. Use the Heroku card above, choose an app name and region, and enter the key as `GPROXY_MASTER_KEY`.
+3. Review the Basic web dyno and `heroku-postgresql:essential-0` add-on, then deploy.
+4. Retrieve `GPROXY_ADMIN_PASSWORD` from **Settings → Reveal Config Vars** and sign in as `admin` at `/console/`.
+
+The root `app.json` and `heroku.yml` use `deploy/serverless/Dockerfile`. The Node.js entry listens on Heroku's dynamic `PORT`, and the shared gateway reads `DATABASE_URL`. It supports Heroku's assigned runtime UID. Local files are temporary; configuration, credentials, usage, and cache state are stored in PostgreSQL.
+
+## Northflank
+
+1. Create a template in your Northflank account or team. Switch to the JSON editor and paste the [template JSON](https://github.com/LeenHawk/gproxy/blob/dev/deploy/northflank/template.json).
+2. Set the template name to GPROXY. Adjust the `PROJECT_NAME` argument and the Project node's `region` (`europe-west`) if needed, then save and run it.
+3. The workflow creates a project, private PostgreSQL database, secret group, and public GPROXY service. Both workloads use `nf-compute-20`; the database requests 4 GiB of storage. Review these plans before running.
+4. Open the project's `gproxy-secrets` secret group and save the generated `GPROXY_ADMIN_PASSWORD` and `GPROXY_MASTER_KEY`. Open the service's public HTTPS URL followed by `/console/` and sign in as `admin`.
+
+Northflank's [shareable template links](https://northflank.com/docs/v1/application/infrastructure-as-code/share-a-template) are generated from a saved template in an account. This repository provides an importable template; it does not yet have a published Northflank share link. To provide a direct deployment button, save the template and generate a public share link. Check its access scope and expiry before sharing it.
+
+The secret group links the database's `POSTGRES_URI` to `GPROXY_DATABASE_URL`. The service builds `deploy/serverless/Dockerfile` from the repository's `dev` branch with `deploy/serverless` as its build context. Northflank preserves generated secrets across template runs. Readiness checks use `/healthz` on port `8787`.
+
+## Operating the service
+
+- Keep the database and `GPROXY_MASTER_KEY` across updates. Back up both. These templates accept `GPROXY_DATABASE_URL` or the platform's `DATABASE_URL`.
+- Builds download the latest stable release by default (`GPROXY_RELEASE_VERSION=latest`) and verify SHA-256. To upgrade, clear the platform build cache and redeploy. To pin a version, set this Docker build argument to a release tag; the release must contain both serverless Linux archives and `SHA256SUMS`.
+- The templates start with one application instance. Their shared cache is stored in PostgreSQL, using the existing serverless host.
+- Set `GPROXY_PUBLIC_BASE_URL` to the public HTTPS origin when using OAuth or published file URLs. These templates do not enable file storage. Use a custom native CLI build for filesystem or object storage support. Client IPs are taken from the socket peer, which can be the platform router; forwarded client-IP headers are not trusted.
+- The native host supports HTTP, SSE, and WebSocket. Platform router timeouts, idle limits, and restarts still apply; these templates do not remove those limits.
+
+For Workers and function deployments, see the [Cloudflare, Netlify, and Vercel guide](/deployment/edge/).

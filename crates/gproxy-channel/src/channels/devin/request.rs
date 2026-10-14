@@ -1,10 +1,8 @@
 //! An OpenAI Chat Completions request rendered as `GetChatMessageRequest`.
 //!
 //! Field numbers are the ones the reference client puts on the wire; each is
-//! named at its use site with the evidence class, and everything the
-//! reference keeps behind a default-off calibration switch (native tool
-//! definitions #10, tool_choice #12, prompt-cache options #13, request_id #22)
-//! is deliberately not emitted here. See the module documentation in `mod.rs`.
+//! named at its use site. Native tool definitions and history additionally
+//! follow CLIProxyAPI devin_wire.go, verified with real CLI tool round trips.
 
 use base64::Engine as _;
 use serde_json::Value;
@@ -89,11 +87,11 @@ pub(super) struct Auth<'a> {
 }
 
 /// Read the credential. The secret is `{"session_token": "..."}`, with
-/// `api_key` accepted as the name the reference pool uses for the same value,
+/// `api_key` accepted for manual credentials and `access_token` for saved OAuth logins,
 /// plus an optional `fingerprint`, an optional `device_seed` and an optional
 /// short-lived `user_jwt`.
 pub(super) fn auth<'a>(credential: &CredentialView<'a>) -> Result<Auth<'a>, ChannelError> {
-    let token = ["session_token", "api_key", "token"]
+    let token = ["session_token", "api_key", "token", "access_token"]
         .into_iter()
         .find_map(|key| credential.secret.get(key).and_then(Value::as_str))
         .map(str::trim)
@@ -224,6 +222,8 @@ struct Turn {
     source: u64,
     text: String,
     images: Vec<(String, String)>,
+    calls: Vec<Value>,
+    call_id: Option<String>,
 }
 
 pub(super) fn parse(body: &[u8]) -> Result<Value, ChannelError> {
@@ -253,40 +253,6 @@ fn stop_sequences(request: &Value) -> Vec<String> {
     }
 }
 
-/// Refuse a request whose tools would be silently lost. This channel writes
-/// no `ToolDef` (#10) and decodes no `delta_tool_calls` (#6): the request-side
-/// inner tags and every response-side tag are uncalibrated in both mirrors,
-/// and the reference keeps its own native path default-off for that reason.
-/// Accepting `tools` and dropping them produces a client that waits forever
-/// for a tool call it will never be sent, which is worse than a clear refusal
-/// — see the module documentation's "Not implemented, and why".
-fn reject_tools(request: &Value) -> Result<(), ChannelError> {
-    let declared = request
-        .get("tools")
-        .and_then(Value::as_array)
-        .is_some_and(|tools| !tools.is_empty())
-        || request
-            .get("functions")
-            .and_then(Value::as_array)
-            .is_some_and(|functions| !functions.is_empty());
-    let chosen = match request.get("tool_choice") {
-        Some(Value::String(choice)) => choice != "none",
-        Some(Value::Object(_)) => true,
-        _ => false,
-    };
-    if !declared && !chosen {
-        return Ok(());
-    }
-    Err(super::bad_request(
-        "devin: this channel does not support tool calling. The request-side \
-         ToolDef tags and every response-side ChatToolCall tag are \
-         uncalibrated in the mirrors this channel is built from, so declaring \
-         tools here would silently drop them and no tool call would ever come \
-         back. Send the request without `tools`/`tool_choice`, or route tool \
-         use to another provider.",
-    ))
-}
-
 pub(super) fn build(
     request: &Value,
     config: &DevinConfig,
@@ -299,7 +265,7 @@ pub(super) fn build(
         .filter(|model| !model.is_empty())
         .ok_or_else(|| super::bad_request("devin request has no model"))?;
     let selector = models::resolve(model, &config.models)?;
-    reject_tools(request)?;
+
     let messages = request
         .get("messages")
         .and_then(Value::as_array)
@@ -321,26 +287,19 @@ pub(super) fn build(
                 if !system.is_empty() {
                     system.push('\n');
                 }
-                system.push_str(&text);
+                system.push_str(&super::prompt::system(&text));
             }
             continue;
         }
-        // A tool turn has no native slot on the text path, so it is folded
-        // into the following user text the way the reference does when
-        // native tool history is off.
-        let text = if role == "tool" {
-            let id = message
-                .get("tool_call_id")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            if id.is_empty() {
-                format!("[tool result]: {text}")
-            } else {
-                format!("[tool result for {id}]: {text}")
-            }
-        } else {
-            text
-        };
+        let calls: Vec<Value> = message
+            .get("tool_calls")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let call_id = message
+            .get("tool_call_id")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
         // An assistant turn with no text is dropped, images or not. Two live
         // findings say so: the Kimi workaround records 10/10 empty retries for
         // empty assistant turns (`devin-connect.js`, the exclusion above its
@@ -350,11 +309,13 @@ pub(super) fn build(
         // them out explicitly ("Image-only assistants retain the legacy
         // exclusion") because admitting one puts back exactly the text-empty
         // wire frame the exclusion exists to prevent.
-        if role == "assistant" && text.trim().is_empty() {
+        if role == "assistant" && text.trim().is_empty() && calls.is_empty() {
             continue;
         }
         let source = if role == "assistant" {
             SOURCE_ASSISTANT
+        } else if role == "tool" {
+            4
         } else {
             SOURCE_USER
         };
@@ -376,10 +337,15 @@ pub(super) fn build(
             .take_while(|turn| turn.source == source)
             .count();
         let mergeable = run >= 2
+            && calls.is_empty()
+            && call_id.is_none()
             && images.is_empty()
-            && turns
-                .last()
-                .is_some_and(|last| last.images.is_empty() && last.source == source);
+            && turns.last().is_some_and(|last| {
+                last.images.is_empty()
+                    && last.calls.is_empty()
+                    && last.call_id.is_none()
+                    && last.source == source
+            });
         match turns.last_mut() {
             Some(last) if mergeable => {
                 if !text.is_empty() {
@@ -393,6 +359,8 @@ pub(super) fn build(
                 source,
                 text,
                 images,
+                calls,
+                call_id,
             }),
         }
     }
@@ -400,6 +368,34 @@ pub(super) fn build(
         return Err(super::bad_request("devin request has no usable content"));
     }
 
+    if request.get("tool_choice").is_some_and(|choice| {
+        !choice.is_null() && !matches!(choice.as_str(), Some("auto" | "none"))
+    }) {
+        return Err(super::bad_request(
+            "devin supports only auto or none tool_choice",
+        ));
+    }
+    let tools: Vec<&Value> = if request.get("tool_choice").and_then(Value::as_str) == Some("none") {
+        Vec::new()
+    } else {
+        request
+            .get("tools")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|tool| tool.get("function"))
+            .chain(
+                request
+                    .get("functions")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten(),
+            )
+            .collect()
+    };
+    if !tools.is_empty() && system.trim().is_empty() {
+        system = "You are a helpful assistant.".into();
+    }
     let max_tokens = request
         .get("max_tokens")
         .or_else(|| request.get("max_completion_tokens"))
@@ -469,6 +465,34 @@ pub(super) fn build(
         .string(REQ_SESSION_ID, &uuid()?)
         .varint(REQ_CONSTANT_TWENTY, 1)
         .string(REQ_MODEL_SELECTOR, &selector);
+    // Native ToolDef: CLIProxyAPI devin_wire.go, fields 1=name, 2=description, 3=JSON schema.
+    for tool in tools {
+        let name = tool
+            .get("name")
+            .and_then(Value::as_str)
+            .filter(|name| !name.is_empty())
+            .ok_or_else(|| super::bad_request("devin tool has no name"))?;
+        let mut definition = Message::new();
+        definition
+            .string(1, name)
+            .string(
+                2,
+                &super::prompt::tool_description(
+                    tool.get("description")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default(),
+                ),
+            )
+            .string(
+                3,
+                &tool
+                    .get("parameters")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({"type":"object","properties":{}}))
+                    .to_string(),
+            );
+        out.message(10, &definition);
+    }
     // #22 request_id is deliberately absent: the verified turn-1 request
     // carries none, and it is a conversation-scoped id rather than a
     // per-request one from turn 2 onwards.
@@ -487,6 +511,30 @@ fn chat_message(turn: &Turn) -> Result<Message, ChannelError> {
         .string(MSG_UUID, &uuid()?)
         .varint(MSG_SOURCE, turn.source)
         .string(MSG_TEXT, &turn.text);
+    for call in &turn.calls {
+        let mut encoded = Message::new();
+        encoded
+            .string(
+                1,
+                call.get("id").and_then(Value::as_str).unwrap_or_default(),
+            )
+            .string(
+                2,
+                call.pointer("/function/name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+            )
+            .string(
+                3,
+                call.pointer("/function/arguments")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+            );
+        message.message(6, &encoded);
+    }
+    if let Some(id) = &turn.call_id {
+        message.string(7, id);
+    }
     for (data, mime) in &turn.images {
         let mut image = Message::new();
         // #10.1 carries the base64 *text*, not the decoded bytes.

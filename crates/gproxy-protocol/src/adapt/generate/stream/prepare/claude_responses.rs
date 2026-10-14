@@ -1,9 +1,11 @@
+use std::future::Future;
+
 use super::super::super::{
-    GenerationResources, GenerationStateAccess,
+    Endpoint, GenerationIdentity, GenerationResources, GenerationStateAccess,
     claude_responses::{ClaudeViaResponses, ResponsesViaClaude},
 };
-use super::super::{StreamInvocation, StreamSettings, StreamTarget};
-use super::RequestMode;
+use super::super::{ResponsesHistoryCache, StreamInvocation, StreamSettings, StreamTarget};
+use super::{RequestMode, start};
 use crate::{
     capability::{ResourceAccess, StateStore},
     transform::{
@@ -21,69 +23,70 @@ pub struct ResponsesViaClaudeStreamFacts {
 impl ClaudeViaResponses {
     pub async fn prepare_stream<S: StateStore>(
         input: c::GenerateContentRequestBody,
-        mut target: StreamTarget,
+        target: StreamTarget,
         context: p::ResponsesToClaudeContext,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamInvocation<p::ResponsesToClaudeStream>, TransformError> {
-        let original = input.into_declared();
-        let prepared = Self::prepare_with_state(
-            original.clone().buffered(),
-            target.endpoint.clone(),
-            target.identities.clone(),
-            state,
-        )
-        .await?;
-        target.identities = prepared.identities().clone();
-        let bridge = p::ResponsesToClaudeStream::new_with_policy(
-            context,
-            target.identities.response.clone(),
-            settings.events.into(),
-            target.identities.response_policy.clone(),
-        )?;
-        StreamInvocation::new(
-            original,
-            prepared.target_request().clone().streaming(),
+        Self::stream(
+            input,
             target,
+            context,
             settings,
-            bridge,
-            prepared.report().clone(),
             state,
+            |input, endpoint, ids| Self::prepare_with_state(input, endpoint, ids, state),
         )
         .await
     }
     pub async fn prepare_stream_with_capabilities<S: StateStore, R: ResourceAccess>(
         input: c::GenerateContentRequestBody,
-        mut target: StreamTarget,
+        target: StreamTarget,
         context: p::ResponsesToClaudeContext,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<StreamInvocation<p::ResponsesToClaudeStream>, TransformError> {
+        Self::stream(
+            input,
+            target,
+            context,
+            settings,
+            state,
+            |input, endpoint, ids| {
+                Self::prepare_with_capabilities(input, endpoint, ids, state, resources)
+            },
+        )
+        .await
+    }
+    async fn stream<S: StateStore, Fut: Future<Output = Result<Self, TransformError>>>(
+        input: c::GenerateContentRequestBody,
+        target: StreamTarget,
+        context: p::ResponsesToClaudeContext,
+        settings: StreamSettings,
+        state: &GenerationStateAccess<'_, S>,
+        prepare: impl FnOnce(c::GenerateContentRequestBody, Endpoint, GenerationIdentity) -> Fut,
+    ) -> Result<StreamInvocation<p::ResponsesToClaudeStream>, TransformError> {
         let original = input.into_declared();
-        let prepared = Self::prepare_with_capabilities(
+        let prepared = prepare(
             original.clone().buffered(),
             target.endpoint.clone(),
             target.identities.clone(),
-            state,
-            resources,
         )
         .await?;
-        target.identities = prepared.identities().clone();
-        let bridge = p::ResponsesToClaudeStream::new_with_policy(
-            context,
-            target.identities.response.clone(),
-            settings.events.into(),
-            target.identities.response_policy.clone(),
-        )?;
-        StreamInvocation::new(
+        start(
             original,
-            prepared.target_request().clone().streaming(),
+            prepared,
             target,
             settings,
-            bridge,
-            prepared.report().clone(),
             state,
+            |_, target, settings| {
+                p::ResponsesToClaudeStream::new_with_policy(
+                    context,
+                    target.identities.response.clone(),
+                    settings.events.into(),
+                    target.identities.response_policy.clone(),
+                )
+            },
         )
         .await
     }
@@ -97,7 +100,18 @@ impl ResponsesViaClaude {
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamInvocation<p::ClaudeToResponsesStream>, TransformError> {
-        Self::prepare_stream_inner(input, target, context, settings, state, None).await
+        Self::stream(
+            input,
+            target,
+            context,
+            settings,
+            state,
+            None,
+            |input, endpoint, ids, request| {
+                Self::prepare_with_state(input, endpoint, ids, state, request)
+            },
+        )
+        .await
     }
     pub async fn prepare_stream_with_history_cache<S: StateStore>(
         input: r::GenerateContentRequestBody,
@@ -105,58 +119,21 @@ impl ResponsesViaClaude {
         context: ResponsesViaClaudeStreamFacts,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
-        history_cache: &super::super::ResponsesHistoryCache,
+        history_cache: &ResponsesHistoryCache,
     ) -> Result<StreamInvocation<p::ClaudeToResponsesStream>, TransformError> {
-        Self::prepare_stream_inner(input, target, context, settings, state, Some(history_cache))
-            .await
-    }
-    async fn prepare_stream_inner<S: StateStore>(
-        input: r::GenerateContentRequestBody,
-        mut target: StreamTarget,
-        mut context: ResponsesViaClaudeStreamFacts,
-        settings: StreamSettings,
-        state: &GenerationStateAccess<'_, S>,
-        history_cache: Option<&super::super::ResponsesHistoryCache>,
-    ) -> Result<StreamInvocation<p::ClaudeToResponsesStream>, TransformError> {
-        let original = input.into_declared();
-        let (history, expanded) = super::super::history::History::prepare_with_cache(
-            &original,
-            state,
-            settings.codec,
-            history_cache,
-        )
-        .await?;
-        context.response.response.request = original.clone();
-        context.response.response.request.input = expanded.input.clone();
-        let prepared = Self::prepare_with_state(
-            expanded.buffered(),
-            target.endpoint.clone(),
-            target.identities.clone(),
-            state,
-            context.request,
-        )
-        .await?;
-        target.identities = prepared.identities().clone();
-        history.claim_response_id(&mut target.identities, crate::Dialect::Claude)?;
-        let bridge = p::ClaudeToResponsesStream::new_with_policy(
-            context.response,
-            target.identities.response.clone(),
-            settings.events.into(),
-            target.identities.response_policy.clone(),
-        )?;
-        let mut invocation = StreamInvocation::new(
-            original,
-            prepared.target_request().clone().streaming(),
+        let cache = Some(history_cache);
+        Self::stream(
+            input,
             target,
+            context,
             settings,
-            bridge,
-            prepared.report().clone(),
             state,
+            cache,
+            |input, endpoint, ids, request| {
+                Self::prepare_with_state(input, endpoint, ids, state, request)
+            },
         )
-        .await?;
-        history.bind(&invocation.binding, state)?;
-        invocation.history = Some(history);
-        Ok(invocation)
+        .await
     }
     pub async fn prepare_stream_with_capabilities<S: StateStore, R: ResourceAccess>(
         input: r::GenerateContentRequestBody,
@@ -166,8 +143,16 @@ impl ResponsesViaClaude {
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<StreamInvocation<p::ClaudeToResponsesStream>, TransformError> {
-        Self::prepare_stream_with_capabilities_inner(
-            input, target, context, settings, state, resources, None,
+        Self::stream(
+            input,
+            target,
+            context,
+            settings,
+            state,
+            None,
+            |input, endpoint, ids, request| {
+                Self::prepare_with_capabilities(input, endpoint, ids, state, resources, request)
+            },
         )
         .await
     }
@@ -181,27 +166,35 @@ impl ResponsesViaClaude {
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
-        history_cache: &super::super::ResponsesHistoryCache,
+        history_cache: &ResponsesHistoryCache,
     ) -> Result<StreamInvocation<p::ClaudeToResponsesStream>, TransformError> {
-        Self::prepare_stream_with_capabilities_inner(
+        let cache = Some(history_cache);
+        Self::stream(
             input,
             target,
             context,
             settings,
             state,
-            resources,
-            Some(history_cache),
+            cache,
+            |input, endpoint, ids, request| {
+                Self::prepare_with_capabilities(input, endpoint, ids, state, resources, request)
+            },
         )
         .await
     }
-    async fn prepare_stream_with_capabilities_inner<S: StateStore, R: ResourceAccess>(
+    async fn stream<S: StateStore, Fut: Future<Output = Result<Self, TransformError>>>(
         input: r::GenerateContentRequestBody,
-        mut target: StreamTarget,
+        target: StreamTarget,
         mut context: ResponsesViaClaudeStreamFacts,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
-        resources: &GenerationResources<'_, R>,
-        history_cache: Option<&super::super::ResponsesHistoryCache>,
+        history_cache: Option<&ResponsesHistoryCache>,
+        prepare: impl FnOnce(
+            r::GenerateContentRequestBody,
+            Endpoint,
+            GenerationIdentity,
+            pair::ClaudeRequestContext,
+        ) -> Fut,
     ) -> Result<StreamInvocation<p::ClaudeToResponsesStream>, TransformError> {
         let original = input.into_declared();
         let (history, expanded) = super::super::history::History::prepare_with_cache(
@@ -213,31 +206,28 @@ impl ResponsesViaClaude {
         .await?;
         context.response.response.request = original.clone();
         context.response.response.request.input = expanded.input.clone();
-        let prepared = Self::prepare_with_capabilities(
+        let prepared = prepare(
             expanded.buffered(),
             target.endpoint.clone(),
             target.identities.clone(),
-            state,
-            resources,
             context.request,
         )
         .await?;
-        target.identities = prepared.identities().clone();
-        history.claim_response_id(&mut target.identities, crate::Dialect::Claude)?;
-        let bridge = p::ClaudeToResponsesStream::new_with_policy(
-            context.response,
-            target.identities.response.clone(),
-            settings.events.into(),
-            target.identities.response_policy.clone(),
-        )?;
-        let mut invocation = StreamInvocation::new(
+        let mut invocation = start(
             original,
-            prepared.target_request().clone().streaming(),
+            prepared,
             target,
             settings,
-            bridge,
-            prepared.report().clone(),
             state,
+            |_, target, settings| {
+                history.claim_response_id(&mut target.identities, crate::Dialect::Claude)?;
+                p::ClaudeToResponsesStream::new_with_policy(
+                    context.response,
+                    target.identities.response.clone(),
+                    settings.events.into(),
+                    target.identities.response_policy.clone(),
+                )
+            },
         )
         .await?;
         history.bind(&invocation.binding, state)?;

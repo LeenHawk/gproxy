@@ -76,6 +76,6 @@ export function ProviderModels({ provider }: { provider: ProviderDto }) {
     ]} actions={actions} renderCard={r => <ModelSummaryCard name={r.upstreamName} metadata={object(r.metadata)} control={enabled(r)} actions={actions(r)}>{priced(r) ? <Badge variant="secondary">{t("providers.models.priced")}</Badge> : null}</ModelSummaryCard>} /><Pagination page={visiblePage} pageSize={pageSize} total={list.data?.total ?? 0} onPage={setPage} onPageSize={setPageSize} /></QueryState>
     {editing ? <QueryState isPending={behavior.isPending} error={behavior.error}>{behavior.data ? <ProviderModelDialog key={editing.id} model={editing.row} channel={provider.channel} variants={readVariants(object(editing.row?.metadata), behavior.data)} onClose={() => setEditing(null)} onSave={value => save.mutate(value)} pending={save.isPending} error={save.error} /> : null}</QueryState> : null}
     {importing ? <ModelImportDialog mode={importing} providerId={provider.id} onClose={() => setImporting(null)} onSaved={refresh} /> : null}
-    {pricing ? <ModelPricingDialog providerId={provider.id} model={pricing.upstreamName} onClose={() => setPricing(null)} /> : null}
+    {pricing ? <ModelPricingDialog providerId={provider.id} model={pricing.upstreamName} matchingRules={(list.data?.items.find(row => row.id === pricing.id) ?? pricing).priceRules ?? []} onClose={() => setPricing(null)} /> : null}
   </div>
 }

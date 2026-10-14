@@ -60,7 +60,10 @@ GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模
 | `GPROXY_UPDATE_RESTART` | `--update-restart` | `re-exec` | 更新后 `none`、`supervisor`（退出码 42）或 `re-exec` |
 | `GPROXY_UPDATE_CHECK_INTERVAL` | `--update-check-interval` | `21600` | 检查间隔秒数，`0` 关闭定时检查 |
 | `GPROXY_UPDATE_AUTOMATIC` | `--update-automatic` | `false` | 自动安装检查到的更新 |
+| `GPROXY_UPDATE_VERIFY_SIGNATURE` | `--update-verify-signature` | `true` | 校验更新清单签名；设为 `false` 跳过签名校验，仍校验安装包大小和 SHA-256 |
 | `GPROXY_AUTOSTART` | `service install --autostart` | 见命令帮助 | 安装服务时的启动选项 |
+
+Console → 系统更新 → 校验更新签名会立即保存实例设置，重启后保留。通过设置 API 将 `instance.updateVerifySignature` 设为 `null`，可恢复跟随命令行/环境变量默认值。
 
 `GPROXY_ENV_FILE` 刻意没有 flag：flag 得由它所喂养的那一步来解析，因此它影响不了解析器
 自己读到的值。
@@ -215,7 +218,7 @@ CLI 在 users 表为空时创建 0 号管理员和网关 API Key。已有实例�
 
 空库初始化时，`GPROXY_ADMIN_PASSWORD` 和 `GPROXY_BOOTSTRAP_ADMIN_API_KEY` 可指定初始值；省略时自动生成。程序只显示生成的凭据，输出到标准输出。服务管理器和容器可能收集标准输出，因此首次启动日志同样需要保管。
 
-Application 使用[首次设置向导](/zh-cn/getting-started/installation/#application在界面中设置)，不使用浏览器初始化页。
+Application 使用[首次设置向导](/zh-cn/download/#setup)，不使用浏览器初始化页。
 
 ## 搬运一份配置
 

@@ -384,4 +384,7 @@ impl GeminiViaChat {
     }
 }
 
-mod synthesis;
+super::prepared::prepared_generation!(ChatViaGemini, h::GenerateContentRequestBody => g::GenerateContentRequestBody);
+super::prepared::stream_synthesis!(ChatViaGemini, h::GenerateContentRequestBody, function_names: &std::collections::BTreeMap<String, String>);
+super::prepared::prepared_generation!(GeminiViaChat, g::GenerateContentRequestBody => h::GenerateContentRequestBody);
+super::prepared::stream_synthesis!(GeminiViaChat, g::GenerateContentRequestBody);

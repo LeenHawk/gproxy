@@ -16,23 +16,26 @@ CLI（`gproxy-*`）和 Application（`gproxy-tauri-*`）是两类独立程序，
 | 平台 | CLI | Application |
 | --- | --- | --- |
 | Linux GNU（x86_64、aarch64、riscv64） | ZIP、DEB | ZIP、DEB |
-| Linux musl（x86_64、aarch64、riscv64） | ZIP、DEB | — |
+| Linux musl（x86_64、aarch64、riscv64） | ZIP、Alpine APK | ZIP、Alpine APK |
 | Windows（x86_64、aarch64） | ZIP、MSIX | ZIP、MSIX |
 | macOS（x86_64、aarch64） | ZIP、DMG | ZIP、DMG |
 | Android（x86_64、aarch64） | ZIP、Termux DEB | 仅 APK |
-| OpenHarmony / HarmonyOS NEXT | ARM64 / x86_64 ZIP | ARM64 实验性未签名 HAP |
+| OpenHarmony / HarmonyOS NEXT | ARM64 / x86_64 ZIP | ARM64 未签名 HAP |
 
 Linux CLI DEB 将 `gproxy` 安装到 `/usr/bin`；Termux DEB 安装到
-`/data/data/com.termux/files/usr`，并在私有目录携带 C++ 运行库。
-Android CLI ZIP 同时包含启动脚本、二进制和运行库。Windows CLI MSIX 使用独立的
+`/data/data/com.termux/files/usr`。Android CLI 使用 `distribution/termux/` 中的源码配方
+和固定版本的 Termux 官方构建器。DEB 和 ZIP 都依赖 Termux 的 `libc++`、OpenSSL 和
+CA 证书；ZIP 包含启动脚本、二进制及安装更新说明 `TERMUX.txt`。
+这些构建禁用程序自更新，通过 APT 安装新版 DEB；启用的软件仓库收录后可使用
+`pkg upgrade gproxy`。Windows CLI MSIX 使用独立的
 `.CLI` 包身份和控制台命令别名；macOS CLI DMG 包含二进制及终端安装说明。
 Application ZIP 保留桌面资源，macOS ZIP 包含完整 `.app`。
 
 鸿蒙构建使用缓存工具链镜像和固定版本的实验性 Tauri 分支，其他平台继续使用稳定版。
-HAP 安装前需要签名，尚未做真机验证；暂不提供后台服务。
+HAP 已完成模拟器验证，发布包未签名，安装前需要自行签名。已实现持续后台运行支持，但可用性取决于设备、系统版本及授权；应用进程退出后代理会停止。
 
-nightly 附件使用固定名称，提交 SHA 记录在更新清单中。Linux x86_64 在 Ubuntu 22.04 构建，
-ARM64 在 Ubuntu 24.04 构建，安装时需要发行版提供 WebKitGTK 4.1。
+nightly 附件使用固定名称，提交 SHA 记录在更新清单中。GNU Linux 应用依赖发行版的
+GTK 3 和 WebKitGTK 4.1；musl 构建面向 Alpine，只提供 APK，不提供 DEB。
 macOS 使用 ad-hoc 签名，尚未接入 Developer ID 签名和公证。
 
 Windows 使用 Microsoft Store 的包身份。`release` 环境需配置四个变量：
@@ -81,10 +84,44 @@ CLI 默认启用全部渠道、内存缓存、本地文件存储和内置词表�
 
 ```sh
 cargo build -p gproxy --release --no-default-features \
-  --features memory,fs,codex,claudecode,openai,custom
+  --features embedded-console,memory,fs,codex,claudecode,openai,custom
 ```
 
 PostgreSQL、MySQL、Redis 和 S3 分别需要 `postgres`、`mysql`、`redis`、`s3` feature。SQLite 始终可用。
+
+### CI 无前端版
+
+Release 工作流独立构建以下无前端包，无需等待前端构建：
+
+| 平台 | 架构 | 下载包 |
+| --- | --- | --- |
+| Linux GNU | x86_64、aarch64、riscv64 | `gproxy-headless-linux-<arch>.zip` |
+| Linux musl | x86_64、aarch64、riscv64 | `gproxy-headless-linux-<arch>-musl.zip`, `gproxy-headless-linux-<arch>-musl.apk` |
+| Windows | x86_64、aarch64 | `gproxy-headless-windows-<arch>.zip` |
+| macOS | x86_64、aarch64 | `gproxy-headless-macos-<arch>.zip` |
+| Android（Termux） | x86_64、aarch64 | `gproxy-headless-android-<arch>.zip`, `gproxy-headless-android-<arch>.deb` |
+
+在 [Releases](https://github.com/LeenHawk/gproxy/releases) 下载：开发版选 `nightly`，
+beta 选 `staging`，稳定版选正式版本。自更新也会选择对应的无前端包。
+Android 可在 Termux 执行 `pkg install ./gproxy-headless-android-<arch>.deb`，
+再运行 `gproxy serve --console=false`；它与完整版 `gproxy` 包提供同一个命令，
+安装时会替换后者。使用 ZIP 时，先执行 `pkg install libc++ openssl ca-certificates`，
+将 ZIP 解压到 Termux 主目录，再运行 `./gproxy serve --console=false`。
+Windows 使用 `gproxy.exe`。
+
+此版本不打包 Web 控制台，保留代理、管理 API、全部渠道、SQLite、内存缓存、
+本地文件存储和内置词表，通过 CLI 或管理 API 配置。源码构建不需要 Node.js、
+pnpm 或桌面库：
+
+```sh
+cargo build --locked --release -p gproxy --bin gproxy \
+  --no-default-features --features channels,memory,fs,bundled-vocabulary
+./target/release/gproxy serve --console=false
+```
+
+不启用 `embedded-console` 时，即使工作目录已有前端产物，也不会嵌入二进制。
+`--console=false` 同时关闭外部控制台目录的服务。自定义 feature 构建若需要
+内嵌控制台，添加 `embedded-console`。
 
 ## 构建 Application
 
@@ -155,6 +192,16 @@ bash scripts/check-docs.sh
 修改 Rust DTO 后，用 `pnpm --dir console types` 更新生成的 TypeScript 类型。
 
 ## 发布
+
+在工作区干净、当前提交已进入 `main` 后执行 `bash scripts/release.sh`。
+正式版推送标签前，会用 `pnpm update --latest` 更新前端和文档站的 npm 依赖，
+用 `cargo upgrade` 更新 Rust 注册表依赖约束（包括大版本和固定版本），
+再用 `cargo update` 刷新 `Cargo.lock`。需先安装辅助工具：
+`cargo install cargo-edit --locked`。
+如果更新改变了已跟踪文件，脚本会在创建或推送标签前停止。
+先处理兼容性变更、执行上面的检查，再提交并推送到 `main`，然后重新运行脚本。
+预发布标签不执行这项依赖刷新。
+RSA/getrandom、JNI/Tauri、Codex reqwest 和 WebSocket 配置的兼容桥接依赖保留上游要求的版本线，仍通过 `cargo update` 更新兼容版本。
 
 版本 tag 必须与 workspace 版本一致，并提供 `docs/release-notes/v<版本>.md`。发布流程构建包、生成签名更新清单并上传附件；构建或签名要求未满足时，不能视为发布完成。
 

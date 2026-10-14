@@ -75,6 +75,7 @@ pub struct Desktop {
     admin_created: bool,
     /// Stops the embedded HTTP server. Cloned into [`Desktop::shutdown`].
     stop: Arc<tokio::sync::Notify>,
+    running: tokio::sync::watch::Receiver<bool>,
 }
 
 /// Where the data plane is listening and what it demands.
@@ -174,7 +175,7 @@ impl Desktop {
         };
 
         let stop = Arc::new(tokio::sync::Notify::new());
-        let address =
+        let (address, running) =
             crate::dataplane::serve(instance.app.clone(), &settings.config, Arc::clone(&stop))
                 .await?;
 
@@ -204,6 +205,7 @@ impl Desktop {
                 gateway_key: gateway_placement,
             },
             stop,
+            running,
         })
     }
 
@@ -239,6 +241,11 @@ impl Desktop {
 
     pub fn data_dir(&self) -> &std::path::Path {
         &self.data_dir
+    }
+
+    /// Watch the listener's lifetime, including unexpected server termination.
+    pub fn running(&self) -> tokio::sync::watch::Receiver<bool> {
+        self.running.clone()
     }
 
     /// Stop the data plane and the background sync, in that order: the sync

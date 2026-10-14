@@ -1,0 +1,10 @@
+Run your own AI API gateway on your device. Connect the providers you choose behind one endpoint and manage credentials, model routing, load balancing, failover, access keys, quotas and usage in the built-in console. Supported routes offer OpenAI-, Claude- and Gemini-compatible API formats.
+
+The first-run wizard helps you configure storage, the listener and a local administrator account. The listener defaults to the local device. Provider accounts, model subscriptions, network access and service charges are separate; GPROXY does not include AI accounts, model access or a hosted gateway service.
+
+You choose which providers receive your requests and which database stores your instance. Review those providers' terms and privacy policies before sending data. Store-installed copies are updated by the store.
+
+GPROXY is free and open source under AGPL-3.0-or-later. Source: https://github.com/LeenHawk/gproxy
+Documentation: https://gproxy.leenhawk.com/
+
+On Android, a foreground notification keeps a configured gateway visible while it runs and lets you stop it. Startup and battery settings are under your control. Requires Android 9 or later and a compatible system WebView.

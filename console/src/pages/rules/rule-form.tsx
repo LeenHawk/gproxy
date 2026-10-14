@@ -1,3 +1,5 @@
+import { BodyConditionFields, ConditionFields } from "./condition-fields"
+import { conditionDraft, bodyConditionDraft, bodyCondition, headerCondition } from "./conditions"
 import { FilterFields } from "./filter-fields"
 import { useQuery } from "@tanstack/react-query"
 import { ruleSets } from "@/api/routing-rules"
@@ -30,8 +32,8 @@ export function RuleSetSelect({ value, choices, remote, onChange, disabled }: { 
   const options = choices.map(set => ({ value: set.id, label: set.name }))
   if (selected.data && !known) options.push({ value, label: selected.data.name })
   return <Field><FieldLabel htmlFor={id}>{t("fields.ruleSetId")}</FieldLabel>
-    <SearchableSelect id={id} label={t("fields.ruleSetId")} value={value} options={options} source={remote ? optionSource(ruleSets, row => ({ value: row.id, label: row.name })) : undefined} onChange={onChange} disabled={disabled} />
-    {known?.shared || (selected.data?.providerCount ?? 0) > 0 ? <FieldDescription>{t("rules.sharedWarning")}</FieldDescription> : null}
+    <SearchableSelect aria-describedby={`${id}-description-0`} id={id} label={t("fields.ruleSetId")} value={value} options={options} source={remote ? optionSource(ruleSets, row => ({ value: row.id, label: row.name })) : undefined} onChange={onChange} disabled={disabled} />
+    {known?.shared || (selected.data?.providerCount ?? 0) > 0 ? <FieldDescription id={`${id}-description-0`}>{t("rules.sharedWarning")}</FieldDescription> : null}
     {selected.error ? <ErrorNotice error={selected.error} /> : null}
   </Field>
 }
@@ -58,6 +60,8 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
   const [ttl, setTtl] = useState<string>(config.ttl ?? "default")
   const [modelFilter, setModelFilter] = useState(original?.filterModelPattern ?? "")
   const [headerFilter, setHeaderFilter] = useState(original?.filterHeaderPattern ?? "")
+  const [bodyPredicate, setBodyPredicate] = useState(() => bodyConditionDraft(original?.filterBody))
+  const [headerPredicate, setHeaderPredicate] = useState(() => conditionDraft(original?.filterHeader))
   const [eventFilter, setEventFilter] = useState(original?.filterEventPattern ?? "")
   const [operations, setOperations] = useState(original?.filterOperationKeys ? JSON.stringify(original.filterOperationKeys, null, 2) : "")
   const [enabled, setEnabled] = useState(original?.enabled ?? true)
@@ -90,6 +94,8 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
       pattern: kind === "transform" ? pattern : "",
       replacement: kind === "system_text" ? JSON.stringify({ ...config, dialect, text, position }) : kind === "cache_breakpoint" ? JSON.stringify({ ...config, dialect, target: cacheTarget, index, ttl: ttl === "default" ? null : ttl }) : kind === "rewrite" && action === "delete" ? "" : replacement,
       filterModelPattern: modelFilter || null, filterHeaderPattern: headerFilter || null,
+      filterBody: kind !== "header" && (semantic || kind === "rewrite" || target === "body") ? bodyCondition(bodyPredicate) : null,
+      filterHeader: headerCondition(headerPredicate),
       filterEventPattern: !semantic && kind !== "header" && target === "body" ? eventFilter || null : null,
       filterOperationKeys: operationKeys as RewriteRuleWrite["filterOperationKeys"],
       sortOrder: original?.sortOrder ?? null, enabled,
@@ -120,6 +126,7 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
         setDialect(content.dialect ?? "openai"); setText(content.text ?? ""); setPosition(content.position ?? "prepend")
         setCacheTarget(content.target ?? "message"); setCacheIndex(content.index?.toString() ?? ""); setTtl(content.ttl ?? "default")
         setModelFilter(write.filterModelPattern ?? ""); setHeaderFilter(write.filterHeaderPattern ?? ""); setEventFilter(write.filterEventPattern ?? "")
+        setBodyPredicate(bodyConditionDraft(write.filterBody)); setHeaderPredicate(conditionDraft(write.filterHeader))
         setOperations(write.filterOperationKeys ? JSON.stringify(write.filterOperationKeys, null, 2) : ""); setEnabled(write.enabled ?? true)
       }
       setMode(next)
@@ -142,7 +149,6 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
         </ToggleGroup>
         {mode === "json" ? <Field className="sm:col-span-2">
           <FieldLabel htmlFor={jsonId}>{t("rules.ruleJson")}</FieldLabel>
-          <FieldDescription>{t("rules.jsonHelp")}</FieldDescription>
           <Textarea id={jsonId} value={jsonText} onChange={event => { setJsonText(event.target.value); setValidation(null) }} rows={18} className="font-mono" spellCheck={false} autoComplete="off" aria-invalid={!!validation} />
           <Button type="button" variant="outline" size="sm" className="self-start" onClick={formatJson}>{t("rules.formatJson")}</Button>
         </Field> : <>
@@ -165,6 +171,8 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
         {!semantic && !(kind === "transform" && target === "query") ? select(t("fields.phase"), phase, ["request", "response", "both"], setPhase) : null}
         <details data-field-span="full"><summary className="cursor-pointer text-sm">{t("rules.filters")}</summary><FieldGroup className="mt-3">
           <FilterFields providerId={providerId} ruleSetId={setId} model={modelFilter} onModel={setModelFilter} operations={operations} onOperations={setOperations} headers={headerFilter} onHeaders={setHeaderFilter} />
+          <ConditionFields kind="header" value={headerPredicate} onChange={setHeaderPredicate} />
+          {kind !== "header" && (semantic || kind === "rewrite" || target === "body") ? <BodyConditionFields value={bodyPredicate} onChange={setBodyPredicate} /> : null}
           {!semantic && kind !== "header" && target === "body" ? input(t("fields.filterEventPattern"), eventFilter, setEventFilter) : null}
         </FieldGroup></details>
         <Field orientation="horizontal"><FieldLabel htmlFor="rule-enabled">{t("fields.enabled")}</FieldLabel><Switch id="rule-enabled" checked={enabled} onCheckedChange={setEnabled} /></Field>

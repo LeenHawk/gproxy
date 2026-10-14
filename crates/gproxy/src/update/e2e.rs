@@ -194,6 +194,7 @@ impl Release {
             restart: Restart::None,
             interval_secs: None,
             automatic: false,
+            verify_signature: true,
             manifest_url: None,
         })
     }
@@ -334,6 +335,7 @@ async fn a_build_with_no_signing_key_refuses_every_manifest() {
             restart: Restart::None,
             interval_secs: None,
             automatic: false,
+            verify_signature: true,
             manifest_url: Some(format!("{}/manifest.json", release.base)),
         },
     );
@@ -553,6 +555,7 @@ async fn the_restart_a_report_promises_is_the_one_configured() {
             restart: mode,
             interval_secs: None,
             automatic: false,
+            verify_signature: true,
             manifest_url: None,
         });
         let report = updater.check_now(None, None).await.expect("check");
@@ -628,5 +631,33 @@ async fn the_app_stages_only_a_verified_tauri_apk_and_leaves_the_executable_alon
                 .exists()
         );
         assert_eq!(release.on_disk(), OLD_BINARY);
+    }
+}
+
+#[tokio::test]
+async fn signature_verification_can_be_disabled_and_reenabled_without_skipping_integrity() {
+    for wrong_hash in [false, true] {
+        let release = Release::publish(Broken {
+            wrong_key: true,
+            wrong_hash,
+            ..Broken::default()
+        })
+        .await;
+        let updater = release.default_updater();
+        updater.configure(None, None, false, Some(false)).unwrap();
+        assert!(updater.check_now(None, None).await.unwrap().available);
+        let applied = updater.apply_now(None, None, false).await;
+        if wrong_hash {
+            assert!(matches!(applied, Err(UpdateError::Integrity)));
+            assert_eq!(release.on_disk(), OLD_BINARY);
+        } else {
+            assert!(applied.unwrap().changed);
+            assert_eq!(release.on_disk(), NEW_BINARY);
+        }
+        updater.configure(None, None, false, Some(true)).unwrap();
+        assert!(matches!(
+            updater.check_now(None, None).await,
+            Err(UpdateError::Signature)
+        ));
     }
 }

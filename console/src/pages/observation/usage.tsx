@@ -1,11 +1,13 @@
 import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import * as history from "@/api/observation"
 import { UsagePage } from "@/pages/self/usage"
 import { type HistoryFilter } from "./filters"
+import { useHistoryBatch } from "./history-batch"
 import { PageSection } from "@/components/page"
 import { DataTable, Pagination, IdCell } from "@/components/data-table"
+import { UsageProviderCell, UsageCredentialCell } from "@/components/usage-upstream"
 import { InstantCell } from "@/components/cells"
 import { EmptyNotice, QueryState } from "@/components/state"
 import { usePagination } from "@/lib/use-pagination"
@@ -27,13 +29,22 @@ function UsageRecords({ filter }: { filter: HistoryFilter }) {
   const { page, pageSize, setPage, setPageSize } = usePagination("usage-records")
   const [selected, setSelected] = useState<UsageRecordDto | null>(null)
   const records = useQuery({ queryKey: ["admin", "usage-records", filter, requestId, page, pageSize], queryFn: () => history.records({ ...filter, requestId, page, pageSize }) })
+  const client = useQueryClient()
+  const batch = useHistoryBatch({ context: JSON.stringify([filter, requestId, page, pageSize]), rows: records.data?.items ?? [], remove: history.deleteRecords, clear: history.clearRecords, onDeleted: () => Promise.all([
+    client.invalidateQueries({ queryKey: ["admin", "usage-records"] }),
+    client.invalidateQueries({ queryKey: ["admin", "usage"] }),
+  ]) })
   return <div className="flex flex-col gap-6">
-    <PageSection title={t("observation.records")}>
+    <PageSection title={t("observation.records")} actions={batch.actions}>
       <Field className="max-w-sm"><FieldLabel htmlFor="usage-record-request">{t("observation.requestId")}</FieldLabel><Input id="usage-record-request" value={requestId} onChange={event => { setRequestId(event.target.value); setPage(1) }} /></Field>
+      {batch.toolbar}
       <QueryState isPending={records.isPending} error={records.error}><DataTable rows={records.data?.items ?? []} rowKey={row => row.requestId} empty={<EmptyNotice title={t("usage.emptyTitle")} />} columns={[
+        ...batch.column,
         { key: "startedAtMs", cell: row => <InstantCell value={row.startedAtMs} /> },
         { key: "requestId", cell: row => <IdCell value={row.requestId} /> },
         { key: "userId", cell: row => <IdCell value={row.userId ?? "—"} /> },
+        { key: "providerId", cell: row => <UsageProviderCell id={row.exchanges[0]?.providerId ?? null} /> },
+        { key: "credentialId", cell: row => <UsageCredentialCell id={row.exchanges[0]?.credentialId ?? null} /> },
         { key: "model", cell: row => row.model },
         { key: "inputTokens", cell: row => row.tokens.inputTokens === null ? "—" : formatCount(row.tokens.inputTokens, i18n.language) },
         { key: "outputTokens", cell: row => row.tokens.outputTokens === null ? "—" : formatCount(row.tokens.outputTokens, i18n.language) },

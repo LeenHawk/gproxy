@@ -171,6 +171,10 @@ pub struct Model {
     /// Indexed for retention, which deletes the oldest-ended rows first.
     #[sea_orm(indexed)]
     pub ended_at_ms: Option<i64>,
+    /// Metered native call duration, including first-token wait.
+    pub duration_ms: Option<i64>,
+    /// First generated content latency; absent for historical or buffered calls.
+    pub ttft_ms: Option<i64>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

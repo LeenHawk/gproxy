@@ -13,6 +13,9 @@ const PATH_SEGMENT: &AsciiSet = &CONTROLS
     .add(b':')
     .add(b'%');
 
+// Model names may contain namespace/path separators; file ids remain segments.
+const MODEL_PATH: &AsciiSet = &PATH_SEGMENT.remove(b'/');
+
 /// The generation endpoint for `dialect`. Gemini carries the model in the
 /// path and selects streaming by method; the others use a body flag.
 pub fn generate_endpoint(
@@ -25,7 +28,7 @@ pub fn generate_endpoint(
         Dialect::OpenAiChat => Endpoint::new("/v1/chat/completions"),
         Dialect::Claude => Endpoint::new("/v1/messages"),
         Dialect::Gemini => {
-            let model = utf8_percent_encode(model, PATH_SEGMENT);
+            let model = utf8_percent_encode(model, MODEL_PATH);
             let method = if stream {
                 "streamGenerateContent"
             } else {
@@ -50,7 +53,7 @@ pub fn count_tokens_endpoint(dialect: Dialect, model: &str) -> Result<Endpoint, 
     match dialect {
         Dialect::Claude => Endpoint::new("/v1/messages/count_tokens"),
         Dialect::Gemini => {
-            let model = utf8_percent_encode(model, PATH_SEGMENT);
+            let model = utf8_percent_encode(model, MODEL_PATH);
             Endpoint::new(format!("/v1beta/models/{model}:countTokens"))
         }
         other => Err(TransformError::unsupported(
@@ -76,7 +79,7 @@ pub fn list_models_path(dialect: Dialect) -> Result<&'static str, TransformError
 /// Gemini `models/` resource prefix.
 pub fn get_model_path(dialect: Dialect, id: &str) -> Result<String, TransformError> {
     let base = list_models_path(dialect)?;
-    Ok(format!("{base}/{}", utf8_percent_encode(id, PATH_SEGMENT)))
+    Ok(format!("{base}/{}", utf8_percent_encode(id, MODEL_PATH)))
 }
 
 /// The embeddings endpoint for `dialect` as a body-less request template.
@@ -90,7 +93,7 @@ pub fn embedding_template(
     let path = match dialect {
         Dialect::OpenAi | Dialect::OpenAiChat => "/v1/embeddings".to_owned(),
         Dialect::Gemini => {
-            let model = utf8_percent_encode(model, PATH_SEGMENT);
+            let model = utf8_percent_encode(model, MODEL_PATH);
             let method = if batch {
                 "batchEmbedContents"
             } else {

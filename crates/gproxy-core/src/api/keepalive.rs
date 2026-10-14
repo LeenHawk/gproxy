@@ -1,4 +1,4 @@
-//! SSE comments while a buffered upstream has not produced its response yet.
+//! SDK-compatible heartbeats while a buffered upstream result is pending.
 //! The pending execution retains its own retries, cancellation and settlement.
 use super::{CoreError, HttpExecution, Settled, UsageCompletion};
 use futures_util::StreamExt;
@@ -12,7 +12,8 @@ use std::{fmt::Display, time::Duration};
 use tokio::sync::oneshot;
 
 const INTERVAL: Duration = Duration::from_secs(15);
-const HEARTBEAT: &[u8] = b": keep-alive\n\n";
+const SSE_COMMENT: &[u8] = b":\n\n";
+const CLAUDE_PING: &[u8] = b"event: ping\ndata: {\"type\":\"ping\"}\n\n";
 
 type Pending<E> = CapabilityFuture<'static, Result<HttpExecution, E>>;
 
@@ -31,6 +32,12 @@ impl HttpExecution {
         mut pending: Pending<E>,
         dialect: Dialect,
     ) -> Result<Self, E> {
+        let heartbeat = match dialect {
+            Dialect::OpenAi | Dialect::OpenAiChat => SSE_COMMENT,
+            Dialect::Claude => CLAUDE_PING,
+            Dialect::Gemini => b"\n\n",
+            _ => return pending.await,
+        };
         if let Some(result) = crate::rt::timeout(INTERVAL, &mut pending).await {
             return result;
         }
@@ -45,7 +52,7 @@ impl HttpExecution {
                             let Some(result) = crate::rt::timeout(INTERVAL, &mut pending).await
                             else {
                                 return Some((
-                                    Ok(Bytes::from_static(HEARTBEAT)),
+                                    Ok(Bytes::from_static(heartbeat)),
                                     Some(State::Waiting(pending, send_usage)),
                                 ));
                             };
@@ -98,8 +105,8 @@ impl HttpExecution {
                 }
             },
         );
-        let body =
-            futures_util::stream::once(async { Ok(Bytes::from_static(HEARTBEAT)) }).chain(waiting);
+        let body = futures_util::stream::once(async move { Ok(Bytes::from_static(heartbeat)) })
+            .chain(waiting);
         let mut headers = HeaderMap::new();
         headers.insert(
             header::CONTENT_TYPE,
@@ -179,8 +186,8 @@ mod tests {
         let (response, usage) = result.into_parts();
         assert_eq!(response.headers[header::CONTENT_TYPE], "text/event-stream");
         let mut body = byte_stream(response.body);
-        assert_eq!(body.next().await.unwrap().unwrap(), HEARTBEAT);
-        assert_eq!(body.next().await.unwrap().unwrap(), HEARTBEAT);
+        assert_eq!(body.next().await.unwrap().unwrap(), SSE_COMMENT);
+        assert_eq!(body.next().await.unwrap().unwrap(), SSE_COMMENT);
         assert_eq!(
             body.next().await.unwrap().unwrap(),
             b"data: answer\n\n".as_slice()
@@ -215,7 +222,7 @@ mod tests {
         .unwrap();
         let (response, usage) = late.into_parts();
         let mut body = byte_stream(response.body);
-        body.next().await.unwrap().unwrap();
+        assert_eq!(body.next().await.unwrap().unwrap(), CLAUDE_PING);
         let event = body.next().await.unwrap().unwrap();
         let text = std::str::from_utf8(&event).unwrap();
         assert!(text.starts_with("event: error\n"));

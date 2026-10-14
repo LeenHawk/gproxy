@@ -50,10 +50,12 @@ function cargoHome() {
 }
 
 function archives() {
+  const target = env.CARGO_TARGET_DIR || path.join(env.GITHUB_WORKSPACE, 'target');
   return [
-    { name: 'target', root: env.GITHUB_WORKSPACE, entries: ['target'] },
+    { name: 'target', root: path.dirname(target), entries: [path.basename(target)] },
     // Do not restore cargo/bin: container images and rustup own the toolchain.
     { name: 'cargo', root: cargoHome(), entries: ['registry', 'git'] },
+    ...(env.GRADLE_USER_HOME ? [{ name: 'gradle', root: env.GRADLE_USER_HOME, entries: ['caches', 'wrapper'] }] : []),
   ];
 }
 

@@ -2,7 +2,7 @@
 //!
 //! # Why this is not a rename table
 //!
-//! v3 had 27 channels and v4 has 29, and the overlap is not the whole of
+//! v3 had 27 channels and v4 has 32, and the overlap is not the whole of
 //! either. Reading production's twelve providers turned up two distinct
 //! problems:
 //!
@@ -36,7 +36,7 @@ use super::{Error, Result};
 /// feature set must still translate a full document: a provider whose channel
 /// this binary was not compiled with is a runtime concern the operator can fix
 /// by rebuilding, not a reason to refuse their configuration.
-pub const V4_CHANNELS: [&str; 29] = [
+pub const V4_CHANNELS: [&str; 32] = [
     "aistudio",
     "antigravity",
     "aws_bedrock",
@@ -53,9 +53,12 @@ pub const V4_CHANNELS: [&str; 29] = [
     "deepseek",
     "devin",
     "geminicli",
+    "glm",
+    "glmcode",
     "grokbuild",
     "kimi",
     "kiro",
+    "minimax",
     "nvidia",
     "openai",
     "opencodego",

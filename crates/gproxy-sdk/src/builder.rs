@@ -104,7 +104,10 @@ impl GproxyBuilder<sea_orm::DatabaseConnection> {
     /// larger than one turns a serialized write into a `database is locked`
     /// race without making any read faster.
     pub async fn sqlite(path: impl AsRef<str>) -> SdkResult<Self> {
-        Self::open(&format!("sqlite://{}?mode=rwc", path.as_ref())).await
+        let path = path.as_ref().to_owned();
+        let mut options = sea_orm::ConnectOptions::new("sqlite:?mode=rwc");
+        options.map_sqlx_sqlite_opts(move |options| options.filename(&path));
+        Self::open(options).await
     }
 
     /// A private in-memory SQLite database that lives as long as the handle.
@@ -122,8 +125,8 @@ impl GproxyBuilder<sea_orm::DatabaseConnection> {
         Ok(Self::connection(sea_orm::Database::connect(options).await?))
     }
 
-    async fn open(url: &str) -> SdkResult<Self> {
-        let mut options = sea_orm::ConnectOptions::new(url.to_owned());
+    async fn open(options: impl Into<sea_orm::ConnectOptions>) -> SdkResult<Self> {
+        let mut options = options.into();
         // min = max = 1 is not only SQLite's single writer: it is what keeps a
         // `sqlite::memory:` database alive, because the database exists only
         // as long as its connection does.

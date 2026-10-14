@@ -1,0 +1,30 @@
+{
+  "name": "GPROXY",
+  "description": "Self-hosted LLM API gateway with a web console and PostgreSQL persistence.",
+  "repository": "https://github.com/LeenHawk/gproxy",
+  "website": "https://gproxy.leenhawk.com",
+  "stack": "container",
+  "success_url": "/console/",
+  "env": {
+    "GPROXY_ADMIN_PASSWORD": {
+      "description": "Administrator login password. Save the generated value from Settings > Config Vars.",
+      "generator": "secret"
+    },
+    "GPROXY_MASTER_KEY": {
+      "description": "32-byte encryption key: run openssl rand -hex 32 and paste the 64 hex characters. Keep this key across redeploys.",
+      "required": true
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0",
+      "as": "DATABASE"
+    }
+  ]
+}

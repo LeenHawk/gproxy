@@ -34,10 +34,10 @@
 //! - **`is_admin` on a user** becomes the instance role `admin`; v4's
 //!   organization and team *memberships* carry their own roles, and v3 had no
 //!   such thing, so every migrated membership is a plain `member`.
-//! - **A permission or rate limit on an organization or a team.** v4 addresses
-//!   exactly one subject, a user or a key, because a rule with both or neither
-//!   is a rule nobody can reason about. An org-wide v3 rule has no v4 row and
-//!   is reported.
+//! - **A permission on an organization or a team.** Expand it into one user
+//!   rule per imported member, using the source membership at migration time.
+//!   Future membership changes do not update these rules. Scope-wide rate
+//!   limits still have no equivalent v4 row and are reported.
 //! - **`operation_group`.** v3 grouped operations behind a name; v4's
 //!   permission names one `gproxy_protocol::Operation` or every one of them.
 //!   A grouped rule becomes one rule per operation of its group (see
@@ -542,14 +542,33 @@ where
             );
             continue;
         }
-        let Some(subject) = subject(&row.subject_kind, row.subject_id, users, keys) else {
+        let grouped = matches!(row.subject_kind.as_str(), "team" | "organization");
+        let subjects: Vec<Subject> = if grouped {
+            data.users
+                .iter()
+                .filter(|user| match row.subject_kind.as_str() {
+                    "team" => user.team_id == Some(row.subject_id),
+                    _ => user.organization_id == Some(row.subject_id),
+                })
+                .filter_map(|user| subject("user", user.id, users, keys))
+                .collect()
+        } else {
+            subject(&row.subject_kind, row.subject_id, users, keys)
+                .into_iter()
+                .collect()
+        };
+        if subjects.is_empty() {
             report.drop_row(
                 "permissions",
                 named_row,
-                unmappable_subject(&row.subject_kind),
+                if grouped {
+                    "the source group has no members that survived the import".to_owned()
+                } else {
+                    unmappable_subject(&row.subject_kind)
+                },
             );
             continue;
-        };
+        }
         // v3's group, as the v4 operations it covered; no group is every one.
         let operations: Vec<Option<&str>> = match row.operation_group.as_deref().map(str::trim) {
             None | Some("") => vec![None],
@@ -574,41 +593,58 @@ where
             .unwrap_or("*")
             .to_owned();
         let action = if row.allowed { "allow" } else { "deny" }.to_owned();
+        // v3 refused a request if any matching rule denied it. Preserve that
+        // precedence when group rules and direct rules now share user subjects.
+        let priority = i32::from(!row.allowed);
         let app_data = app.data();
         let ops = Operations::new(app.gproxy(), &app_data, app.config());
-        for operation in operations {
-            let id = match operation {
-                None => ids::id("permissions", row.id),
-                Some(operation) => ids::part("permissions", row.id, operation),
-            };
-            if present.contains(&id) {
-                ops.permissions()
-                    .update(
-                        &id,
-                        crate::dto::PermissionPatch {
-                            action: Some(action.clone()),
+        for subject in subjects {
+            for &operation in &operations {
+                let id = match operation {
+                    None => ids::id("permissions", row.id),
+                    Some(operation) => ids::part("permissions", row.id, operation),
+                };
+                let id = if grouped {
+                    format!("{id}-{}", subject.user_id.as_deref().expect("group member"))
+                } else {
+                    id
+                };
+                if present.contains(&id) {
+                    ops.permissions()
+                        .update(
+                            &id,
+                            crate::dto::PermissionPatch {
+                                action: Some(action.clone()),
+                                priority: Some(priority),
+                                model_pattern: Some(model_pattern.clone()),
+                                ..Default::default()
+                            },
+                        )
+                        .await
+                        .map_err(|error| named("permission", row.id, error))?;
+                } else {
+                    ops.permissions()
+                        .create(PermissionWrite {
+                            id: Some(id.clone()),
+                            user_id: subject.user_id.clone(),
+                            api_key_id: subject.api_key_id.clone(),
+                            provider_id: row.provider_id.map(|id| ids::id("providers", id)),
                             model_pattern: Some(model_pattern.clone()),
-                            ..Default::default()
-                        },
-                    )
-                    .await
-                    .map_err(|error| named("permission", row.id, error))?;
-            } else {
-                ops.permissions()
-                    .create(PermissionWrite {
-                        id: Some(id),
-                        user_id: subject.user_id.clone(),
-                        api_key_id: subject.api_key_id.clone(),
-                        provider_id: row.provider_id.map(|id| ids::id("providers", id)),
-                        model_pattern: Some(model_pattern.clone()),
-                        operation: operation.map(str::to_owned),
-                        action: action.clone(),
-                        priority: None,
-                    })
-                    .await
-                    .map_err(|error| named("permission", row.id, error))?;
+                            operation: operation.map(str::to_owned),
+                            action: action.clone(),
+                            priority: Some(priority),
+                        })
+                        .await
+                        .map_err(|error| named("permission", row.id, error))?;
+                }
+                if grouped {
+                    report.warn(format!(
+                        "{named_row}: expanded to {id} for user {}",
+                        subject.user_id.as_deref().expect("group member")
+                    ));
+                }
+                written += 1;
             }
-            written += 1;
         }
     }
     report.count("permissions", written);

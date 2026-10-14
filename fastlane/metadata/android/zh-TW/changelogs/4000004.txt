@@ -1,0 +1,1 @@
+新增 GLM/Z.ai API 與 Coding Plan、MiniMax API 與訂閱支援，以及 Devin OAuth 與原生工具支援。改進模型批次選取與用量統計，縮小 Android 安裝包並按需快取字型。修復 OAuth 回呼與 Responses 歷史相容性。

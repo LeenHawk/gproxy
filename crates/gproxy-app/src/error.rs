@@ -152,6 +152,7 @@ fn core_status(error: &CoreError) -> u16 {
     use http::StatusCode as S;
     let status = match error {
         CoreError::Forbidden(_) => S::FORBIDDEN,
+        CoreError::ResourceNotFound { .. } => S::NOT_FOUND,
         CoreError::InvalidTarget(_) | CoreError::OperationMismatch { .. } => S::BAD_REQUEST,
         CoreError::NoUsableCredential | CoreError::CredentialDead { .. } => S::SERVICE_UNAVAILABLE,
         CoreError::BudgetExhausted { .. } => S::TOO_MANY_REQUESTS,
@@ -179,6 +180,7 @@ fn core_status(error: &CoreError) -> u16 {
 fn core_code(error: &CoreError) -> &'static str {
     match error {
         CoreError::Forbidden(_) => "forbidden",
+        CoreError::ResourceNotFound { .. } => "not_found",
         CoreError::InvalidTarget(_) | CoreError::OperationMismatch { .. } => "invalid_request",
         CoreError::NoUsableCredential => "no_usable_credential",
         CoreError::CredentialDead { .. } => "credential_dead",

@@ -82,7 +82,7 @@ export function StringList({
               value={row}
               onValueChange={(next) => change(rows.map((v, i) => (i === index ? next : v)))}
             >
-              <SelectTrigger className="flex-1">
+              <SelectTrigger aria-label={t("providerForm.item", { index: index + 1 })} className="flex-1">
                 <SelectValue placeholder={t("form.choose")} />
               </SelectTrigger>
               <SelectContent>
@@ -272,8 +272,8 @@ export function RoutingFields({
       </Field>
       {["preferred_min_throughput", "preferred_max_latency"].map((name) => (
         <Field key={name} className="sm:col-span-2">
-          <FieldLabel>{t(`providerRouting.${name}`)}</FieldLabel>
-          <Cutoff value={value[name]} onChange={(v) => set(name, v)} />
+          <FieldLabel htmlFor={`${id}-${name}`}>{t(`providerRouting.${name}`)}</FieldLabel>
+          <Cutoff id={`${id}-${name}`} value={value[name]} onChange={(v) => set(name, v)} />
         </Field>
       ))}
       <fieldset className="grid gap-3 sm:col-span-2 sm:grid-cols-3">
@@ -448,9 +448,8 @@ function DialectList({
   return <StringList value={value} onChange={onChange} options={dialects} />
 }
 
-function Cutoff({ value, onChange }: { value: unknown; onChange: (value: unknown) => void }) {
+function Cutoff({ id, value, onChange }: { id: string; value: unknown; onChange: (value: unknown) => void }) {
   const { t } = useTranslation()
-  const id = useId()
   const percentile = typeof value === "object" && value !== null
   return (
     <div className="flex flex-col gap-3">

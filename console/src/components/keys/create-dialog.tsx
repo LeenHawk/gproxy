@@ -24,7 +24,7 @@ function KeyCreateForm(props: Props) {
   }} extra={<div className="flex flex-col gap-4" data-field-span="full">
     <Separator />
     {props.canSetBudget ? <>
-      <Field orientation="horizontal"><FieldContent><FieldLabel htmlFor="key-budget-enabled">{t("limits.budget")}</FieldLabel><FieldDescription>{t(limited ? "keyBudget.activeHelp" : "keyBudget.inherit")}</FieldDescription></FieldContent><Switch aria-label={t("keyBudget.enable")} id="key-budget-enabled" checked={limited} onCheckedChange={setLimited} disabled={props.pending} /></Field>
+      <Field orientation="horizontal"><FieldContent><FieldLabel htmlFor="key-budget-enabled">{t("limits.budget")}</FieldLabel><FieldDescription id="key-budget-enabled-description-0">{t(limited ? "keyBudget.activeHelp" : "keyBudget.inherit")}</FieldDescription></FieldContent><Switch aria-describedby="key-budget-enabled-description-0" aria-label={t("keyBudget.enable")} id="key-budget-enabled" checked={limited} onCheckedChange={setLimited} disabled={props.pending} /></Field>
       {limited ? <FieldGroup className="sm:grid-cols-1">
         <Field><FieldLabel htmlFor="key-budget-amount">{t("limits.costLimit")}</FieldLabel><Input id="key-budget-amount" inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} /></Field>
         <Field><FieldLabel htmlFor="key-budget-period">{t("fields.period")}</FieldLabel><Select value={period} onValueChange={setPeriod}><SelectTrigger id="key-budget-period"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{["5h", "1d", "7d", "1m", "total", "custom"].map(value => <SelectItem key={value} value={value}>{t(`userQuota.periods.${value}`)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>

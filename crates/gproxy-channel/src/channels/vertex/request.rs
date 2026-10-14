@@ -1,13 +1,15 @@
 //! The `BaseChannel` implementation: which dialects Vertex serves natively,
-//! and how one request is built. Every operation uses the default HTTP flow.
+//! and how one request is built. Model listing aggregates publisher pages;
+//! the remaining operations use the default HTTP flow.
 
 use super::config::VertexConfig;
-use super::endpoint::{self, model_from_path, validate_model};
+use super::endpoint;
+use crate::channels::shared::google_model;
 use super::{ID, Vertex, auth};
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, PrepareContext, ProviderView,
-    forwardable,
+    CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, OperationContext, OperationFuture,
+    PrepareContext, ProviderView, forwardable,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
 use http::{HeaderValue, header};
@@ -30,10 +32,25 @@ impl BaseChannel for Vertex {
         ID
     }
 
+    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), ChannelError> {
+        auth::validate_secret(secret)
+    }
+
+    fn initial_credential_expiry(&self, secret: &serde_json::Value) -> Option<i64> {
+        if auth::access_token(secret).is_err() {
+            Some(0)
+        } else {
+            secret
+                .get("expires_at_ms")
+                .and_then(serde_json::Value::as_i64)
+        }
+    }
+
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
             display_name: "Google Vertex AI",
+            credential_kinds: vec!["service_account"],
             login_modes: Vec::new(),
             capabilities: ChannelCapabilities {
                 refresh: true,
@@ -48,7 +65,7 @@ impl BaseChannel for Vertex {
                 ConfigKey::optional(
                     "location",
                     ConfigKeyKind::String,
-                    "Vertex region, for example us-central1, europe-west4 or global. Decides both the origin host and the method path; defaults to us-central1.",
+                    "Vertex region, for example us-central1, europe-west4 or global. Decides both the origin host and the method path; credential location overrides this default; defaults to us-central1.",
                 ).with_placeholder(super::config::DEFAULT_LOCATION),
                 ConfigKey::optional(
                     "base_url",
@@ -61,6 +78,20 @@ impl BaseChannel for Vertex {
             .chain(HOST_CONFIG_KEYS)
             .collect(),
         }
+    }
+
+    fn list_models<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, gproxy_protocol::WireResponse<HttpBody>> {
+        Box::pin(super::models::list(self, context))
+    }
+
+    fn get_model<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, gproxy_protocol::WireResponse<HttpBody>> {
+        Box::pin(super::models::get(self, context))
     }
 
     /// Vertex resells each publisher's own wire. Google's models speak Gemini,
@@ -79,6 +110,37 @@ impl BaseChannel for Vertex {
             | Operation::CreateEmbedding
             | Operation::BatchCreateEmbedding => vec![Dialect::Gemini],
             _ => Vec::new(),
+        }
+    }
+
+    fn native_dialects_for_model(
+        &self,
+        provider: ProviderView<'_>,
+        operation: Operation,
+        model: Option<&str>,
+    ) -> Vec<Dialect> {
+        // Only an explicit publisher selects a model-specific wire. A bare
+        // or unknown name is not evidence for guessing its publisher.
+        let Some(publisher) = model.and_then(google_model::publisher) else {
+            return self.native_dialects(provider, operation);
+        };
+        match operation {
+            Operation::GenerateContent | Operation::StreamGenerateContent => match publisher {
+                "anthropic" => vec![Dialect::Claude],
+                "google" => vec![Dialect::Gemini, Dialect::OpenAiChat],
+                _ => self.native_dialects(provider, operation),
+            },
+            Operation::CountTokens => match publisher {
+                "anthropic" => vec![Dialect::Claude],
+                "google" => vec![Dialect::Gemini],
+                _ => self.native_dialects(provider, operation),
+            },
+            Operation::CreateEmbedding | Operation::BatchCreateEmbedding
+                if publisher == "anthropic" =>
+            {
+                Vec::new()
+            }
+            _ => self.native_dialects(provider, operation),
         }
     }
 
@@ -154,16 +216,15 @@ fn model_for(
                         "a Claude request to Vertex must name its model in the body".into(),
                     )
                 })?;
-            validate_model(model)?;
             Ok(Some(model.to_owned()))
         }
-        _ => Ok(model_from_path(&request.path).map(str::to_owned)),
+        _ => google_model::from_path(&request.path),
     }
 }
 
-/// The publisher's own body, with the one difference Vertex insists on: an
-/// Anthropic generation carries `anthropic_version` and must not carry
-/// `model`, which the URL already names. Token counting keeps its `model`.
+/// OpenAPI Chat's model is passed through unchanged, for buffered and streamed
+/// bodies alike. Anthropic generation names its model in the URL instead, and
+/// token counting keeps the publisher-local id in the body.
 fn body(body: HttpBody, operation: OperationKey) -> Result<HttpBody, ChannelError> {
     if operation.dialect != Dialect::Claude {
         return Ok(body);
@@ -179,6 +240,9 @@ fn body(body: HttpBody, operation: OperationKey) -> Result<HttpBody, ChannelErro
         .or_insert_with(|| Value::String(VERTEX_ANTHROPIC_VERSION.into()));
     if operation.operation != Operation::CountTokens {
         object.remove("model");
+    } else if let Some(model) = object.get("model").and_then(Value::as_str) {
+        let id = google_model::anthropic_id(model)?;
+        object.insert("model".into(), Value::String(id));
     }
     let encoded = serde_json::to_vec(&value)
         .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;

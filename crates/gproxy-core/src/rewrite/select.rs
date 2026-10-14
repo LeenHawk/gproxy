@@ -96,6 +96,13 @@ fn applies(rule: &RewriteRuleData, phase: Phase, context: &RewriteContext<'_>) -
             return false;
         }
     }
+    if rule
+        .header_condition
+        .as_ref()
+        .is_some_and(|condition| !condition.matches(context.request_headers))
+    {
+        return false;
+    }
     if let Some(matcher) = &rule.header_matcher {
         let hit = context.request_headers.iter().any(|(name, value)| {
             value

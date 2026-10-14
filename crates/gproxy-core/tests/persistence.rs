@@ -56,13 +56,19 @@ async fn settings(h: &Harness, settlement: bool, usage: bool, log: bool, body: b
         .unwrap();
     h.core.reload_data().await.unwrap();
 }
-async fn captures(h: &Harness) -> Vec<capture::Model> {
-    h.core
+async fn captures(h: &Harness) -> Vec<gproxy_store::entity::usage::capture_record::Model> {
+    let rows = h
+        .core
         .store()
         .upstream_records()
         .query(capture::Entity::find())
         .await
-        .unwrap()
+        .unwrap();
+    let mut hydrated = Vec::new();
+    for row in rows {
+        hydrated.push(h.core.store().hydrate_capture(row.into()).await.unwrap());
+    }
+    hydrated
 }
 async fn usages(h: &Harness) -> Vec<usage_record::Model> {
     h.core
@@ -72,11 +78,17 @@ async fn usages(h: &Harness) -> Vec<usage_record::Model> {
         .await
         .unwrap()
 }
-async fn events(h: &Harness) -> Vec<event::Model> {
-    h.core
+async fn events(h: &Harness) -> Vec<gproxy_store::entity::usage::capture_event::Model> {
+    let rows = h
+        .core
         .store()
         .upstream_events()
         .query(event::Entity::find())
+        .await
+        .unwrap();
+    h.core
+        .store()
+        .hydrate_capture_events(rows.into_iter().map(Into::into).collect())
         .await
         .unwrap()
 }
@@ -946,6 +958,8 @@ async fn structured_usage_preserves_cache_media_tools_and_unknowns_without_logs(
                 request_id: request.request_id.clone(),
                 downstream_usage: Some(downstream),
                 exchanges: vec![ExchangeUsage {
+                    duration_ms: Some(2000),
+                    ttft_ms: Some(500),
                     capture_id: "structured-up".into(),
                     attempt_id: "attempt".into(),
                     attempt_ordinal: 1,
@@ -980,6 +994,8 @@ async fn structured_usage_preserves_cache_media_tools_and_unknowns_without_logs(
     );
     let up = rows[1].as_ref().unwrap();
     assert_eq!(up.cost.unwrap().to_string(), "0.125");
+    assert_eq!(up.duration_ms, Some(2000));
+    assert_eq!(up.ttft_ms, Some(500));
     assert!(
         h.core
             .store()
@@ -1009,4 +1025,39 @@ async fn structured_usage_preserves_cache_media_tools_and_unknowns_without_logs(
     assert!(up.metrics.get("tokens").is_none());
     assert!(up.metrics["metrics"].get("audio_seconds").is_none());
     assert!(up.metrics.get("exchanges").is_none());
+}
+
+#[tokio::test]
+async fn stream_timing_is_persisted_without_capture() {
+    let h = persistent().await;
+    settings(&h, true, true, false, false).await;
+    h.script(vec![(StatusCode::OK, vec![("content-type", "text/event-stream")], vec![
+        Bytes::from_static(b"event: response.created\ndata: {\"type\":\"response.created\"}\n\n"),
+        Bytes::from_static(b"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n"),
+        Bytes::from_static(b"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r\",\"usage\":{\"input_tokens\":5,\"output_tokens\":10}}}\n\n"),
+    ])]);
+    let execution = h
+        .core
+        .stream_generate_content(h.context("timing", 1, None), request("{}"))
+        .await
+        .unwrap();
+    let (response, completion) = execution.into_parts();
+    let HttpBody::Stream(mut body) = response.body else {
+        panic!("stream")
+    };
+    body.next().await.unwrap().unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    body.next().await.unwrap().unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    while let Some(chunk) = body.next().await {
+        chunk.unwrap();
+    }
+    let report = completion.await.unwrap();
+    let timing = &report.exchanges[0];
+    assert!(timing.ttft_ms.unwrap() >= 20);
+    assert!(timing.duration_ms.unwrap() - timing.ttft_ms.unwrap() >= 20);
+    let rows = usages(&h).await;
+    assert_eq!(rows[0].ttft_ms, timing.ttft_ms);
+    assert_eq!(rows[0].duration_ms, timing.duration_ms);
+    assert!(captures(&h).await.is_empty());
 }

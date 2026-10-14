@@ -1,6 +1,6 @@
 import { type ListFilter, type Family } from "@/api/admin"
 import { configFamily as family } from "@/api/config-family"
-import { api, json, query } from "@/api/client"
+import { api, json } from "@/api/client"
 import type { ApplyDefaultPricesReportDto, DefaultModelCatalogDto, DiscoveredModelDto, ModelTestResultDto, PriceRuleDto, PriceRuleWrite, PriceRulePatch, PriceRateDto, PriceRateWrite, PriceRatePatch, PriceTierDto, PriceTierWrite, PriceTierPatch, ModelDto, ModelWrite, ModelPatch } from "@/generated/sdk"
 export async function directory<D, W, P>(resource: Family<D, W, P>, filter: ListFilter = {}) {
   const rows: D[] = []
@@ -16,5 +16,3 @@ export const applyDefaultPrices = (providerId: string | null, modelIds: string[]
 
 export const models = family<ModelDto, Partial<ModelWrite>, Partial<ModelPatch>>("/models")
 export const openrouterModels = () => api<DiscoveredModelDto[]>("/admin/api/models/openrouter")
-
-export const modelCatalogPage = (filter: ListFilter) => api<import("@/generated/sdk").Page<import("@/generated/sdk").CatalogModelDto>>(`/admin/api/model-catalog${query({ ...filter })}`)

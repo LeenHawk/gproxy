@@ -113,8 +113,8 @@ pub struct ProviderPatch {
     pub enabled: Option<bool>,
 }
 
-/// A credential without its secret. `has_secret` is the only thing said about
-/// the sealed bytes; reading them back is `Credentials::reveal_secret`.
+/// A credential without its secret. Only presence and expiry timestamps are
+/// exposed; reading the material itself requires `Credentials::reveal_secret`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
@@ -143,6 +143,9 @@ pub struct CredentialDto {
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub metadata: Value,
     pub expires_at_ms: Option<i64>,
+    /// Read-only refresh-token expiry, projected from the sealed secret on management reads.
+    /// None means no expiry was reported or the secret could not be read.
+    pub refresh_expires_at_ms: Option<i64>,
     /// `active` or `dead`.
     pub status: String,
     pub status_reason: Option<String>,
@@ -165,6 +168,7 @@ impl From<credential::Model> for CredentialDto {
             proxy: row.proxy,
             metadata: row.metadata,
             expires_at_ms: row.expires_at_ms,
+            refresh_expires_at_ms: None,
             status: status_name(row.status).to_owned(),
             status_reason: row.status_reason,
             enabled: row.enabled,
@@ -305,6 +309,12 @@ impl From<gproxy_core::CredentialSummary> for CredentialSummaryDto {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ModelDto {
+    /// Saved, enabled rules matching this model, in billing precedence order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub price_rules: Option<Vec<super::PriceRuleDto>>,
+    #[serde(default)]
+    pub providers: Vec<super::CatalogProviderDto>,
     pub id: String,
     pub name: String,
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
@@ -315,6 +325,8 @@ pub struct ModelDto {
 impl From<model::Model> for ModelDto {
     fn from(row: model::Model) -> Self {
         Self {
+            price_rules: None,
+            providers: Vec::new(),
             id: row.id,
             name: row.name,
             metadata: row.metadata,
@@ -357,6 +369,10 @@ pub struct ModelPatch {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ProviderModelDto {
+    /// Saved, enabled rules matching this model, in billing precedence order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub price_rules: Option<Vec<super::PriceRuleDto>>,
     pub id: String,
     pub provider_id: String,
     /// The name this provider's upstream answers to, not the public one.
@@ -365,7 +381,7 @@ pub struct ProviderModelDto {
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub metadata: Value,
     pub enabled: bool,
-    /// Exact enabled provider price rule exists; populated by list.
+    /// A saved enabled provider or global price rule matches; populated by reads.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts", ts(optional))]
     pub has_price: Option<bool>,
@@ -381,6 +397,7 @@ impl From<provider_model::Model> for ProviderModelDto {
             metadata: row.metadata,
             enabled: row.enabled,
             has_price: None,
+            price_rules: None,
         }
     }
 }

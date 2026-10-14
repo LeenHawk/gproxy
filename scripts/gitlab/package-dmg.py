@@ -63,15 +63,14 @@ for row in rows:
         subprocess.run(["codesign", "--force", "--sign", "-", str(app)], check=True)
         subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
         archive_path = output / f"{artifact}.zip"
-        subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app), str(archive_path)], check=True)
+        subprocess.run([sys.executable, "scripts/reproducible-archive.py", "--root", str(image_root), "--output", str(archive_path), app.name], check=True)
         with archive_path.open("rb") as stream:
             zip_digest = hashlib.file_digest(stream, "sha256").hexdigest()
         Path(str(archive_path) + ".sha256").write_text(f"{zip_digest}  {archive_path.name}\n")
         (image_root / "Applications").symlink_to("/Applications")
         package = output / f"{artifact}.dmg"
-        subprocess.run(["hdiutil", "create", "-ov", "-format", "UDZO", "-fs", "HFS+",
-                        "-volname", config["productName"], "-srcfolder", str(image_root), str(package)], check=True)
-        subprocess.run(["hdiutil", "verify", str(package)], check=True)
+        subprocess.run([sys.executable, "scripts/reproducible-dmg.py", "--source", str(image_root),
+                        "--output", str(package), "--volume-name", config["productName"]], check=True)
         digest = hashlib.sha256()
         with package.open("rb") as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):

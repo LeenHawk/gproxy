@@ -23,9 +23,21 @@ use serde_json::Value;
 /// The session id the ladder reads. The channel only declares it so a
 /// provider allow-list cannot strip it.
 pub(super) const SESSION_HEADER: &str = "x-grok-session-id";
-/// The CLI's own version banner (v3 `auth.rs`).
-pub const CLI_VERSION: &str = "1.0.0";
-pub const CLI_USER_AGENT: &str = "grok-shell/1.0.0";
+/// The CLI version in `samples/grok-build` (`xai-grok-version`).
+pub const CLI_VERSION: &str = "1.0.45";
+pub const CLI_USER_AGENT: &str = "grok-shell/1.0.45";
+
+pub(super) fn user_agent(media: bool) -> String {
+    if media {
+        format!("xai-grok-build/{CLI_VERSION}")
+    } else {
+        format!(
+            "{CLI_USER_AGENT} ({}; {})",
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        )
+    }
+}
 
 /// What the CLI sends on every call, regardless of the account.
 const STATIC_HEADERS: &[(&str, &str)] = &[
@@ -127,7 +139,8 @@ pub(super) fn apply(
     }
     headers.insert(
         header::USER_AGENT,
-        HeaderValue::from_static(CLI_USER_AGENT),
+        HeaderValue::from_str(&user_agent(false))
+            .map_err(|_| ChannelError::InvalidConfig("invalid CLI user agent".into()))?,
     );
     if let Some(conversation) = conversation.map(str::trim).filter(|id| !id.is_empty()) {
         insert(headers, "x-grok-conv-id", conversation)?;

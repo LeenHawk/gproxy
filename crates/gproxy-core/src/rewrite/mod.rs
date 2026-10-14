@@ -10,6 +10,8 @@ mod content;
 mod json_edit;
 pub use action::RuleAction;
 mod compile;
+mod condition;
+pub use condition::{BodyCondition, HeaderCondition};
 pub(crate) mod json_path;
 mod select;
 mod stream;
@@ -19,6 +21,7 @@ pub(crate) use compile::glob_to_regex;
 pub use compile::{RewriteCompileError, compile_rule};
 pub use select::{Phase, RewriteContext, SelectedRules, select_rules};
 pub use stream::StreamRewriter;
+pub(crate) use stream::event_type_for;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RewriteError {

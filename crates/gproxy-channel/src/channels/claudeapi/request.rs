@@ -80,6 +80,26 @@ fn route(operation: Operation, dialect: Dialect, path: &str) -> Result<String, C
                 .ok_or_else(|| unsupported(operation, dialect))?;
             format!("/v1/models/{model}")
         }
+        Operation::CreateFile | Operation::ListFiles => "/v1/files".into(),
+        Operation::RetrieveFile | Operation::DeleteFile | Operation::RetrieveFileContent => {
+            let path = path.trim_end_matches('/');
+            let path = if operation == Operation::RetrieveFileContent {
+                path.strip_suffix("/content").unwrap_or(path)
+            } else {
+                path
+            };
+            let id = path
+                .rsplit('/')
+                .next()
+                .filter(|segment| !segment.is_empty())
+                .ok_or_else(|| unsupported(operation, dialect))?;
+            let suffix = if operation == Operation::RetrieveFileContent {
+                "/content"
+            } else {
+                ""
+            };
+            format!("/v1/files/{id}{suffix}")
+        }
         Operation::CountTokens => "/v1/messages/count_tokens".into(),
         Operation::GenerateContent | Operation::StreamGenerateContent => "/v1/messages".into(),
         other => return Err(unsupported(other, dialect)),
@@ -110,6 +130,7 @@ impl BaseChannel for Claudeapi {
         ChannelDescriptor {
             id: ID,
             display_name: "Claude API (Anthropic)",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
                 refresh: false,
@@ -163,7 +184,14 @@ impl BaseChannel for Claudeapi {
             Operation::GenerateContent | Operation::StreamGenerateContent => {
                 vec![Dialect::Claude, Dialect::OpenAiChat]
             }
-            Operation::ListModels | Operation::GetModel | Operation::CountTokens => {
+            Operation::ListModels
+            | Operation::GetModel
+            | Operation::CountTokens
+            | Operation::CreateFile
+            | Operation::ListFiles
+            | Operation::RetrieveFile
+            | Operation::DeleteFile
+            | Operation::RetrieveFileContent => {
                 vec![Dialect::Claude]
             }
             _ => Vec::new(),
@@ -260,6 +288,15 @@ impl BaseChannel for Claudeapi {
                     .map_err(|_| invalid_config(format!("header `{name}`")))?,
                 HeaderValue::from_str(value)
                     .map_err(|_| invalid_config(format!("header `{name}`")))?,
+            );
+        }
+        // A key that is not scoped to one workspace must name it on every
+        // request. The workspace belongs to the key, so it outranks the
+        // provider-wide header.
+        if let Some(workspace) = api_key(ctx.credential.secret, "workspace_id") {
+            headers.insert(
+                HeaderName::from_static("anthropic-workspace-id"),
+                HeaderValue::from_str(workspace).map_err(|_| ChannelError::InvalidCredential)?,
             );
         }
         let mut builder = http::Request::builder().method(method).uri(uri);

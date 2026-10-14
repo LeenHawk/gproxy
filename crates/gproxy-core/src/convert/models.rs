@@ -226,21 +226,19 @@ async fn list<C: BatchConnectionTrait + Send + Sync>(
     }
 }
 
-/// The bare model id from the client's own path: the segment after the last
-/// `/models/`, percent-decoded, without a Gemini `models/` resource prefix.
+/// The bare model id from the client's own path: the remainder after the first
+/// `/models/`, percent-decoded. The remainder is the id, not another wrapper.
 fn requested_id(path: &str) -> Result<String, TransformError> {
     let (_, tail) = path
-        .trim_end_matches('/')
-        .rsplit_once("/models/")
+        .split_once("/models/")
         .ok_or_else(|| TransformError::shape("request.path", "expected a `/models/{id}` path"))?;
     let id = percent_encoding::percent_decode_str(tail)
         .decode_utf8()
         .map_err(|_| TransformError::shape("request.path", "model id is not UTF-8"))?;
-    let id = id.strip_prefix("models/").unwrap_or(&id);
     if id.is_empty() {
         return Err(TransformError::shape("request.path", "empty model id"));
     }
-    Ok(id.to_owned())
+    Ok(id.into_owned())
 }
 
 fn supplement<'m, T>(
@@ -371,7 +369,7 @@ fn supplement_metadata(
     }
 }
 
-pub(super) fn local_metadata(
+pub fn local_metadata(
     metadata: &serde_json::Value,
     dialect: Dialect,
     provider: &str,
@@ -386,11 +384,14 @@ pub(super) fn local_metadata(
     let object = value.as_object_mut().expect("object");
     let fields: &[(&str, &str)] = match dialect {
         Dialect::Claude => &[
+            ("created_at", "created_at"),
             ("display_name", "display_name"),
             ("context_window", "max_input_tokens"),
             ("max_output_tokens", "max_tokens"),
         ],
         Dialect::Gemini => &[
+            ("base_model_id", "baseModelId"),
+            ("version", "version"),
             ("display_name", "displayName"),
             ("description", "description"),
             ("context_window", "inputTokenLimit"),
@@ -399,6 +400,8 @@ pub(super) fn local_metadata(
             ("thinking_supported", "thinking"),
         ],
         _ => &[
+            ("created", "created"),
+            ("owned_by", "owned_by"),
             ("display_name", "display_name"),
             ("description", "description"),
             ("context_window", "context_window"),

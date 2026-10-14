@@ -38,23 +38,20 @@ android_platform_jar() {
 }
 
 android_build_tool() {
-  local sdk="$1" name="$2" path
-  path="$(find "$sdk/build-tools" -maxdepth 2 -name "$name" -type f | sort -V | tail -1)"
-  if [ -z "$path" ]; then
-    echo "could not locate Android build tool $name" >&2
+  local sdk="$1" name="$2" version=36.1.0 path
+  # F-Droid documents signature-copy incompatibilities with apksigner >= 35.
+  # Keep compilation/alignment on the pinned current tools and sign with 34.
+  if [ "$name" = apksigner ]; then version=34.0.0; fi
+  path="$sdk/build-tools/$version/$name"
+  if [ ! -f "$path" ]; then
+    echo "missing pinned Android tool: $path (install build-tools;$version)" >&2
     exit 1
   fi
   printf '%s\n' "$path"
 }
 
 android_d8() {
-  local sdk="$1" path
-  path="$(find "$sdk" -name d8 -type f | sort -V | tail -1)"
-  if [ -z "$path" ]; then
-    echo "could not locate Android build tool d8" >&2
-    exit 1
-  fi
-  printf '%s\n' "$path"
+  android_build_tool "$1" d8
 }
 
 android_abi() {

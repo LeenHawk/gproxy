@@ -55,6 +55,7 @@ impl BaseChannel for Kimi {
         ChannelDescriptor {
             id: ID,
             display_name: "Moonshot (Kimi)",
+            credential_kinds: vec!["api_key", "oauth"],
             login_modes: vec![LoginMode::ApiKey, LoginMode::DeviceCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

@@ -202,6 +202,8 @@ impl Exchange {
         };
         let attempt = &self.context.attempt;
         self.funnel.record_exchange_usage(ExchangeUsage {
+            duration_ms: None,
+            ttft_ms: None,
             capture_id: self.context.capture_id.clone(),
             attempt_id: attempt.attempt_id.clone(),
             attempt_ordinal: attempt.ordinal,

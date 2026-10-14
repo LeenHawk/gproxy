@@ -26,6 +26,9 @@ Cargo feature：
 | `custom` | `custom` | 任何原生讲 OpenAI／Claude／Gemini 的 API-key 端点 | `{"api_key"}` |
 | `dashscope` | `dashscope` | 阿里云百炼 DashScope：同一 origin 上的 OpenAI 兼容面、Anthropic 兼容面、独立的 rerank 前缀，以及原生的多模态生成图像 API | `{"api_key"}` |
 | `deepseek` | `deepseek` | DeepSeek：`/v1` 下的 Chat Completions、根路径上的 Responses、`/anthropic` 下的 Claude Messages、`prompt_cache_hit_tokens`、`/user/balance` | `{"api_key"}` |
+| `glm` | `glm` | GLM 按量 API；ZCode 官方动态模型目录 | `{"api_key"}` |
+| `glm` | `glmcode` | GLM Coding Plan；独立模型目录、Chat／Messages／Responses、订阅额度查询 | `{"api_key"}` |
+| `minimax` | `minimax` | MiniMax 文本 API／Token Plan，以及 H3 视频创建、查询、列表、取消／删除、下载 | `{"api_key"}` |
 | `devin` | `devin` | `server.codeium.com` 上的 Devin（Windsurf）：传输是 Connect-RPC + protobuf 而非 JSON，`GetChatMessage` 的多帧流翻译成 Chat Completions SSE，`GetUserStatus` 给日／周两个窗口 | 会话 token |
 | `geminicli` | `geminicli` | 经 Gemini CLI 所用的 Code Assist 端点使用的 Google 账号：PKCE 登录并在登录时发现 Cloud project 与档位、刷新、Code Assist 请求信封、`retrieveUserQuota` 目录与逐模型额度 | `OAuthCredential` |
 | `grokbuild` | `grokbuild` | 经 Grok Build CLI 使用的 xAI 账号：`auth.x.ai` 的设备登录与刷新、打在 `cli-chat-proxy.grok.com` 上的收窄版 Responses body、留在 `api.x.ai` 的 xAI 自有媒体路径、`/billing?format=credits` | `OAuthCredential` |
@@ -35,7 +38,7 @@ Cargo feature：
 | `opencode` | `opencode` | OpenCode Zen 与 Go：每档一个 origin，上面同时挂 Chat Completions、Responses 与 Claude Messages 三个面，CLI 的 `x-opencode-session` 会话头、Console 设备登录，Go 档的 `/usage` 窗口 | `{"api_key"}` 或 `OAuthCredential` |
 | `openrouter` | `openrouter` | OpenRouter：把 provider 选路偏好填进 body、`HTTP-Referer`／`X-Title` 归属头、响应里自报的价格、`/v1/auth/key` | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI：按项目与地区寻址 google／anthropic／OpenAI 兼容三个发布者；服务账号密钥经 `CredentialRefresh` 换取访问令牌 | Google 服务账号密钥 |
-| `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：单一全局 origin 上的 Gemini 面，key 走 query，无项目无地区 | `{"api_key"}` |
+| `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：默认全局、可配置区域 origin 的 Gemini 面，key 走 query，无项目 | `{"api_key"}` |
 | `workbuddy` | `workbuddy` | 经编辑器插件使用的腾讯 Copilot：设备登录与刷新、`/v2` 下带插件身份头与账号头的 OpenAI Chat、`/v3/config` 目录、企业与个人两套计费表 | `OAuthCredential` |
 | `xai` | `xai` | xAI（Grok）：OpenAI Chat 与 Responses，外加 xAI 自己的 `/v1/tts`、`/v1/stt`、`/v1/videos/generations`，`cost_in_usd_ticks` 计量，管理面的账单探测 | `{"api_key"}` |
 
@@ -97,6 +100,12 @@ chat proxy 拒收的那批 Responses 字段。三者都读客户端自己发的 
 `design/session-identity.md` 点名了 WorkBuddy 的 `x-conversation-id` 与 Grok Build 的
 `x-grok-session-id`，也点名了它们旁边那些按请求／按轮次生成的 id **不是** session。
 Kiro 在那张阶梯表里没有条目，它的客户端也不发。
+
+Grok Build 的 Responses 默认设置 `store: false`，
+并请求加密推理内容以供后续轮次重放。带推理强度的请求会查询账号模型目录，并在账号隔离的
+渠道状态中缓存五分钟；目录不可用时保留调用方的强度。额度查询读取 `/billing?format=credits`
+和可选的 `/settings`，展示预付余额、按量费用、历史用量、套餐标签及共享额度状态，金额以
+美元计。按量和历史数据仅供观察，不独立阻止账号选择。
 
 ## 不需要渠道的厂商
 

@@ -60,6 +60,7 @@ pub const UPDATE_CHANNEL: &str = "GPROXY_UPDATE_CHANNEL";
 pub const UPDATE_MANIFEST_URL: &str = "GPROXY_UPDATE_MANIFEST_URL";
 pub const UPDATE_RESTART: &str = "GPROXY_UPDATE_RESTART";
 pub const UPDATE_CHECK_INTERVAL: &str = "GPROXY_UPDATE_CHECK_INTERVAL";
+pub const UPDATE_VERIFY_SIGNATURE: &str = "GPROXY_UPDATE_VERIFY_SIGNATURE";
 pub const UPDATE_AUTOMATIC: &str = "GPROXY_UPDATE_AUTOMATIC";
 
 /// The `.env` file, read before `clap` parses. Only the real environment can
@@ -243,11 +244,16 @@ pub struct Options {
     #[arg(long, global = true, env = UPDATE_SOURCE, value_name = "SOURCE")]
     pub update_source: Option<String>,
 
+    /// Verify the update manifest signature. Set false to skip signature verification.
+    /// Artifact size and SHA-256 checks remain enabled. [default: true]
+    #[arg(long, global = true, env = UPDATE_VERIFY_SIGNATURE, value_name = "BOOL")]
+    pub update_verify_signature: Option<String>,
+
     /// The signed update manifest to read, for a private mirror or an
     /// air-gapped release host. [default: the selected source and channel's URL]
     ///
     /// This does **not** weaken the signature: a manifest from anywhere is
-    /// still verified against the ed25519 key compiled into this binary.
+    /// verified against the compiled-in ed25519 key unless verification is disabled.
     #[arg(long, global = true, env = UPDATE_MANIFEST_URL, value_name = "URL")]
     pub update_manifest_url: Option<String>,
 

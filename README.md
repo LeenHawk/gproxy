@@ -18,13 +18,12 @@
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D)
-[![Deploy to Deno](https://img.shields.io/badge/Deploy_to-Deno-000000?style=for-the-badge&logo=deno)](https://console.deno.com/new?clone=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&path=deploy%2Fserverless)
 
 </div>
 
 GPROXY is a self-hosted LLM API gateway written in Rust. Add your upstream accounts, configure model routes in the console, and call different services through the same endpoint and gateway API key. Provider changes, credential updates, usage, and costs are managed in one place.
 
-v4 runs as a desktop or mobile application with a setup wizard, a CLI service, a container, or on Cloudflare, Netlify, Vercel, and Deno. Use the [latest stable release](https://github.com/LeenHawk/gproxy/releases/latest) for regular deployments; development snapshots are available under [nightly](https://github.com/LeenHawk/gproxy/releases/tag/nightly).
+v4 runs as a desktop or mobile application with a setup wizard, a CLI service, a container, or on Cloudflare, Netlify, and Vercel. Use the [latest stable release](https://github.com/LeenHawk/gproxy/releases/latest) for regular deployments; development snapshots are available under [nightly](https://github.com/LeenHawk/gproxy/releases/tag/nightly).
 
 ## Features
 
@@ -56,12 +55,12 @@ v4 runs as a desktop or mobile application with a setup wizard, a CLI service, a
 </td>
 <td valign="top">
 <h3>Local and server deployments</h3>
-<p>Use the application on a personal device, run the CLI or container on a server, or deploy to Cloudflare, Netlify, Vercel, and Deno. Rust projects can embed the gateway through its SDK.</p>
+<p>Use the application on a personal device, run the CLI or container on a server, or deploy to Cloudflare, Netlify, and Vercel. Rust projects can embed the gateway through its SDK.</p>
 </td>
 </tr>
 </table>
 
-Built-in channels include OpenAI, Claude API / Code / Web, Codex, Gemini CLI, Google AI Studio, Copilot, DeepSeek, Kimi, OpenRouter, AWS Bedrock, Azure, Vertex, and xAI. Other services that speak OpenAI, Claude, or Gemini protocols can use the `custom` channel.
+Built-in channels include OpenAI, Claude API / Code / Web, Codex, Gemini CLI, Google AI Studio, Copilot, DeepSeek, GLM, MiniMax, Kimi, OpenRouter, AWS Bedrock, Azure, Vertex, and xAI. Other services that speak OpenAI, Claude, or Gemini protocols can use the `custom` channel.
 
 Support for images, audio, files, WebSocket / Realtime, and other operations depends on the channel and upstream. See [Providers and credentials](https://gproxy.leenhawk.com/guides/providers/) and the [client guides](https://gproxy.leenhawk.com/guides/cli-clients/).
 
@@ -124,20 +123,51 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
 
 ### Hosted deployments
 
-Templates for Cloudflare, Netlify, Vercel, and Deno use prebuilt **v4.0.1** bundles without compiling Rust. Cloudflare supports D1 or libSQL/Turso; the other three use PostgreSQL. Configure the database, administrator password, and master key, then deploy and sign in at `/console/`.
+Templates for Cloudflare, Netlify, and Vercel use prebuilt **latest stable release** bundles without compiling Rust. Cloudflare supports D1 or libSQL/Turso; the other two use PostgreSQL. Configure the database, administrator password, and master key, then deploy and sign in at `/console/`.
 
 See the [hosted deployment guide](https://gproxy.leenhawk.com/deployment/edge/) for deploy buttons, platform or external databases, and differences such as WebSocket support.
+
+These three templates package the **latest stable release** PostgreSQL executable in a lightweight container. Review the paid service and database plans before deploying.
+
+<table>
+<tr>
+<td width="33%" valign="top">
+<h3>Render</h3>
+<p>Starter service + Basic PostgreSQL. Database connection and secrets are set up automatically.</p>
+<p><a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>Deploy to Render →</strong></a></p>
+</td>
+<td width="33%" valign="top">
+<h3>Heroku</h3>
+<p>Basic dyno + Essential PostgreSQL. Bring your encryption key; the database is created for you.</p>
+<p><a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>Deploy to Heroku →</strong></a></p>
+</td>
+<td width="33%" valign="top">
+<h3>Northflank</h3>
+<p>Import the template to create a project, PostgreSQL database, and service. A public share link is not yet available.</p>
+<p><a href="https://gproxy.leenhawk.com/deployment/containers/#northflank"><strong>Import template →</strong></a></p>
+</td>
+</tr>
+</table>
+
+[Setup and operating instructions](https://gproxy.leenhawk.com/deployment/containers/)
 
 ### Other deployment options
 
 | Option | Use case | Guide |
 | --- | --- | --- |
-| Application | Desktop or mobile, managed in the app | [Platform installation](https://gproxy.leenhawk.com/getting-started/installation/) |
-| CLI / container | Persistent server with a browser console | [Installation and containers](https://gproxy.leenhawk.com/getting-started/installation/) |
-| Cloudflare / Netlify / Vercel / Deno | Hosted service without your own server | [Deployment guide](https://gproxy.leenhawk.com/deployment/edge/) |
+| Application | Desktop or mobile, managed in the app | [Download & install](https://gproxy.leenhawk.com/download/) |
+| CLI / container | Persistent server with a browser console | [Download & install](https://gproxy.leenhawk.com/download/) |
+| Cloudflare / Netlify / Vercel | Hosted service without your own server | [Deployment guide](https://gproxy.leenhawk.com/deployment/edge/) |
+| Northflank / Render / Heroku | Native container with managed PostgreSQL | [Deployment guide](https://gproxy.leenhawk.com/deployment/containers/) |
 | Rust SDK | Embed in your own program | [gproxy-sdk](crates/gproxy-sdk/README.md) |
 
-Windows MSIX files are unsigned Store submission packages; use ZIP for a regular installation. macOS apps are not notarized. The HarmonyOS HAP is experimental and requires your own signature. See the installation guide for platform requirements.
+On Windows, both editions are available from Microsoft Store:
+
+| GPROXY Desktop | GPROXY CLI |
+| :---: | :---: |
+| <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY CLI" height="48"></a> |
+
+MSIX release attachments are Store submission packages; use ZIP for a direct installation. macOS apps are not notarized. The HarmonyOS HAP has been verified on an emulator and requires your own signature. See the installation guide for platform requirements.
 
 ## Performance
 
@@ -164,6 +194,40 @@ Stop v3, back up the database, master key, and startup configuration, then start
 
 See [Migrating v3 to v4](https://gproxy.leenhawk.com/deployment/v3-to-v4/) for migration scope, backups, and failure handling.
 
+## Headless CLI for CI
+
+The Release workflow builds headless ZIP packages independently of the frontend:
+
+| Platform | Architectures | Package |
+| --- | --- | --- |
+| Linux GNU | x86_64, aarch64, riscv64 | `gproxy-headless-linux-<arch>.zip` |
+| Linux musl | x86_64, aarch64, riscv64 | `gproxy-headless-linux-<arch>-musl.zip` |
+| Windows | x86_64, aarch64 | `gproxy-headless-windows-<arch>.zip` |
+| macOS | x86_64, aarch64 | `gproxy-headless-macos-<arch>.zip` |
+| Android (Termux) | x86_64, aarch64 | `gproxy-headless-android-<arch>.zip` |
+
+Download from [Releases](https://github.com/LeenHawk/gproxy/releases): `nightly`
+for dev, `staging` for beta, or a stable version. Self-update selects the matching
+headless package. On Android, run `pkg install libc++ openssl ca-certificates`,
+extract the ZIP under Termux's home directory, then run `./gproxy serve --console=false`.
+On Windows, use `gproxy.exe` in place of `gproxy`.
+
+This variant excludes the bundled Web console and retains proxy routes,
+management APIs, all channels, SQLite, memory cache, local file storage and
+bundled vocabulary. Configure it through the CLI or management API. It needs no
+Node.js, pnpm or desktop libraries to build:
+
+```sh
+cargo build --locked --release -p gproxy --bin gproxy \
+  --no-default-features --features channels,memory,fs,bundled-vocabulary
+./target/release/gproxy serve --console=false
+```
+
+Omitting `embedded-console` excludes frontend assets even when the checkout
+already contains a built console. `--console=false` also disables serving an
+external console directory. To build a console-enabled variant with a custom
+feature set, add `embedded-console`.
+
 ## Development
 
 Native builds require stable Rust, Go, and Clang. The console and docs require Node.js 22.12+ (24 LTS recommended) and pnpm. Linux desktop builds also require the WebKitGTK 4.1, GTK 3, and libsoup 3 development packages.
@@ -189,7 +253,7 @@ pnpm --dir docs build
 
 See [Building from source](https://gproxy.leenhawk.com/deployment/release-build/) for desktop and WASM checks, [Architecture](https://gproxy.leenhawk.com/introduction/architecture/) for the workspace layout, and [Adding a channel](https://gproxy.leenhawk.com/guides/adding-a-channel/) for extensions.
 
-Report bugs through [Issues](https://github.com/LeenHawk/gproxy/issues). Report vulnerabilities privately through [Security](https://github.com/LeenHawk/gproxy/security).
+Report bugs through [Issues](https://github.com/LeenHawk/gproxy/issues), or email [leenhawk@leenhawk.com](mailto:leenhawk@leenhawk.com) for anything you prefer not to post publicly. Report vulnerabilities privately through [Security](https://github.com/LeenHawk/gproxy/security) or by email; see [SECURITY.md](SECURITY.md).
 
 ## License
 

@@ -30,6 +30,9 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `custom` | `custom` | Any API-key endpoint speaking OpenAI, Claude or Gemini natively | `{"api_key"}` |
 | `dashscope` | `dashscope` | Alibaba DashScope: the OpenAI-compatible mode, the Anthropic-compatible mode, a rerank prefix of its own and the native multimodal-generation image API, all on one origin | `{"api_key"}` |
 | `deepseek` | `deepseek` | DeepSeek: Chat Completions under `/v1`, Responses at the origin root, Claude Messages under `/anthropic`, `prompt_cache_hit_tokens`, `/user/balance` | `{"api_key"}` |
+| `glm` | `glm` | GLM pay-as-you-go API; live official ZCode model catalogue | `{"api_key"}` |
+| `glm` | `glmcode` | GLM Coding Plan; separate catalogue, Chat / Messages / Responses and subscription quota | `{"api_key"}` |
+| `minimax` | `minimax` | MiniMax text API / Token Plan and H3 video creation, query, list, cancellation/deletion and download | `{"api_key"}` |
 | `devin` | `devin` | Devin (Windsurf) at `server.codeium.com`: Connect-RPC over protobuf rather than JSON, `GetChatMessage` frames translated into Chat Completions SSE, `GetUserStatus` daily and weekly windows | session token |
 | `geminicli` | `geminicli` | A Google account through the Code Assist endpoints the Gemini CLI talks to: PKCE login that discovers the Cloud project and tier, refresh, the Code Assist request envelope, `retrieveUserQuota` catalogue and per-model quota | `OAuthCredential` |
 | `grokbuild` | `grokbuild` | An xAI account through the Grok Build CLI: device login at `auth.x.ai`, refresh, a narrowed Responses body on `cli-chat-proxy.grok.com`, xAI's own media paths on `api.x.ai`, `/billing?format=credits` | `OAuthCredential` |
@@ -42,7 +45,7 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `openrouter` | `openrouter` | OpenRouter: provider routing preferences filled into the body, `HTTP-Referer`/`X-Title` attribution, the price the reply says it charged, `/v1/auth/key` | `{"api_key"}` |
 | `vercel` | `vercel` | Vercel AI Gateway: Chat, Responses, Claude Messages and embeddings, dual key headers, the team's `/v1/credits` balance | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
-| `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface on one global origin, key in the query, no project and no region | `{"api_key"}` |
+| `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface with a global default and optional regional origin, key in the query, no project | `{"api_key"}` |
 | `workbuddy` | `workbuddy` | Tencent Copilot through its editor plugin: device login, refresh, OpenAI Chat under `/v2` with the plugin's identity and account headers, the `/v3/config` catalogue, the enterprise and personal billing meters | `OAuthCredential` |
 | `xai` | `xai` | xAI (Grok): OpenAI Chat and Responses plus xAI's own `/v1/tts`, `/v1/stt` and `/v1/videos/generations`, `cost_in_usd_ticks` metering, the management billing probe | `{"api_key"}` |
 
@@ -131,6 +134,15 @@ All three read the session id their client sent rather than minting one:
 Build's `x-grok-session-id`, and names the per-request and per-turn ids
 beside them as explicitly not sessions. Kiro has no entry in that ladder and
 its client sends none.
+
+Grok Build Responses default to
+`store: false` and request encrypted reasoning for replay. Requests with a
+reasoning effort consult the account's model catalogue, cached in scoped
+channel state for five minutes; an unavailable catalogue leaves the caller's
+effort intact. Billing reads both `/billing?format=credits` and optional
+`/settings`, exposing prepaid and on-demand USD amounts, historical usage,
+subscription labels and shared-credit status. On-demand and history readings
+are observations and do not independently block account selection.
 
 ## Vendors That Need No Channel
 

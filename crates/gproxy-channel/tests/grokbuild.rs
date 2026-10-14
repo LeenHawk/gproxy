@@ -176,10 +176,17 @@ fn generation_stays_on_the_chat_proxy_and_carries_the_cli_identity() {
     assert_eq!(headers["authorization"], "Bearer grok-access");
     assert_eq!(headers["x-xai-token-auth"], "xai-grok-cli");
     assert_eq!(headers["x-authenticateresponse"], "authenticate-response");
-    assert_eq!(headers["x-grok-client-version"], "1.0.0");
+    assert_eq!(headers["x-grok-client-version"], "1.0.45");
     assert_eq!(headers["x-grok-client-identifier"], "grok-shell");
     assert_eq!(headers["x-grok-client-mode"], "headless");
-    assert_eq!(headers["user-agent"], CLI_USER_AGENT);
+    assert_eq!(
+        headers["user-agent"],
+        format!(
+            "{CLI_USER_AGENT} ({}; {})",
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        )
+    );
     assert_eq!(
         headers["x-grok-user-id"], "user-1",
         "the subject the login read out of the id token"
@@ -347,8 +354,8 @@ fn the_responses_body_is_narrowed_to_what_the_proxy_accepts() {
     assert!(body.get("previous_response_id").is_none());
     assert!(body.get("metadata").is_none());
     assert!(body.get("top_p").is_none());
-    assert!(body.get("include").is_none());
-    assert!(body.get("reasoning").is_none(), "grok-4 takes no effort");
+    assert_eq!(body["include"], json!(["reasoning.encrypted_content"]));
+    assert_eq!(body["reasoning"]["effort"], "high");
     assert_eq!(body["temperature"], 0.3);
     let tools = body["tools"].as_array().unwrap();
     assert_eq!(tools.len(), 1);
@@ -683,16 +690,19 @@ const OBSERVE_ONLY: &[&str] = &["usage", "weekly_limit", "product:*"];
 
 #[tokio::test]
 async fn the_billing_probe_reads_the_chat_proxys_credit_window() {
-    let client = ScriptClient::new(vec![reply(
-        StatusCode::OK,
-        json!({"config": {
-            "currentPeriod": {"type": "USAGE_PERIOD_TYPE_WEEKLY",
-                              "start": "2026-07-08T18:30:33+00:00",
-                              "end": "2026-07-15T18:30:33+00:00"},
-            "creditUsagePercent": 2.0,
-            "productUsage": [{"product": "Api", "usagePercent": 2.0}],
-        }}),
-    )]);
+    let client = ScriptClient::new(vec![
+        reply(
+            StatusCode::OK,
+            json!({"config": {
+                "currentPeriod": {"type": "USAGE_PERIOD_TYPE_WEEKLY",
+                                  "start": "2026-07-08T18:30:33+00:00",
+                                  "end": "2026-07-15T18:30:33+00:00"},
+                "creditUsagePercent": 2.0,
+                "productUsage": [{"product": "Api", "usagePercent": 2.0}],
+            }}),
+        ),
+        reply(StatusCode::SERVICE_UNAVAILABLE, json!({})),
+    ]);
     let config = json!({});
     let secret = secret();
     let metadata = metadata();
@@ -767,11 +777,14 @@ async fn a_billing_reply_with_nothing_in_it_is_an_error() {
 
 #[tokio::test]
 async fn a_bare_billing_payload_is_read_the_same_way() {
-    let client = ScriptClient::new(vec![reply(
-        StatusCode::OK,
-        json!({"monthlyLimit": {"val": 2000}, "used": {"val": "500"},
+    let client = ScriptClient::new(vec![
+        reply(
+            StatusCode::OK,
+            json!({"monthlyLimit": {"val": 2000}, "used": {"val": "500"},
                "billingPeriodEnd": "2026-09-01T00:00:00+00:00"}),
-    )]);
+        ),
+        reply(StatusCode::SERVICE_UNAVAILABLE, json!({})),
+    ]);
     let config = json!({"usage_base_url": "https://billing.invalid/v1"});
     let secret = secret();
     let metadata = metadata();

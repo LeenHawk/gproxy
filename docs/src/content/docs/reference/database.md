@@ -28,7 +28,7 @@ feature that would provide it, rather than at the first request.
 gproxy serve --dsn 'postgres://gproxy:…@db.internal:5432/gproxy'
 ```
 
-libSQL is the option for a host that has no D1 — Deno, Netlify — because the
+libSQL is the option for a host that has no D1 — for example, Netlify — because the
 HTTP half is provided by the caller's own transport and it therefore works on
 every target.
 

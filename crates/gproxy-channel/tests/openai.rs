@@ -111,6 +111,10 @@ fn request(path: &str, query: Option<&str>, body: &[u8]) -> WireRequest<HttpBody
     headers.insert("host", HeaderValue::from_static("gproxy.local"));
     headers.insert("content-length", HeaderValue::from_static("2"));
     headers.insert("openai-beta", HeaderValue::from_static("feature=v1"));
+    headers.insert(
+        "openai-organization",
+        HeaderValue::from_static("org_client"),
+    );
     headers.insert("openai-project", HeaderValue::from_static("proj_1"));
     headers.insert("x-vendor", HeaderValue::from_static("kept"));
     WireRequest {
@@ -198,7 +202,10 @@ fn forwards_the_native_path_and_replaces_the_credential() {
     let headers = prepared.headers();
     assert_eq!(headers["authorization"], "Bearer sk-upstream", "trimmed");
     assert_eq!(headers["openai-beta"], "feature=v1");
-    assert_eq!(headers["openai-project"], "proj_1");
+    assert!(
+        headers.get("openai-organization").is_none() && headers.get("openai-project").is_none(),
+        "a caller cannot pick the organization or project the shared key bills to"
+    );
     assert!(headers.get("x-vendor").is_none());
     assert_eq!(headers["x-static"], "yes");
     assert!(headers.get("host").is_none());
@@ -225,6 +232,35 @@ fn forwards_the_native_path_and_replaces_the_credential() {
         "a provider allow-list never strips the vendor's own headers"
     );
     assert_eq!(narrowed.headers()["x-vendor"], "kept");
+
+    // The operator decides the organization and project: static headers
+    // overwrite whatever a client sent, and `allowed_headers` is the only way
+    // to let callers choose.
+    let pinned = prepare(
+        &json!({"headers": {"openai-project": "proj_operator"}}),
+        None,
+        &secret,
+        Operation::CreateEmbedding,
+        Dialect::OpenAi,
+        request("/v1/embeddings", None, b"{}"),
+        None,
+    )
+    .unwrap();
+    assert_eq!(pinned.headers()["openai-project"], "proj_operator");
+    assert_eq!(pinned.headers().get_all("openai-project").iter().count(), 1);
+    assert!(pinned.headers().get("openai-organization").is_none());
+    let opted_in = prepare(
+        &json!({"allowed_headers": ["openai-organization", "openai-project"]}),
+        None,
+        &secret,
+        Operation::CreateEmbedding,
+        Dialect::OpenAi,
+        request("/v1/embeddings", None, b"{}"),
+        None,
+    )
+    .unwrap();
+    assert_eq!(opted_in.headers()["openai-organization"], "org_client");
+    assert_eq!(opted_in.headers()["openai-project"], "proj_1");
 
     let overridden = prepare(
         &json!({}),

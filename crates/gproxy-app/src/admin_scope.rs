@@ -536,11 +536,14 @@ impl AdminScope {
     /// Whether the credential behind `id` is inside this scope, as
     /// `NotFound` when it is not.
     ///
-    /// The snapshot answers first — [`CredentialOwnership`] already holds
-    /// exactly this mapping, so the common case costs no query at all. A miss
-    /// falls back to a read for the same reason authentication does: a
-    /// credential created by the request before this one is a revision newer
-    /// than the snapshot, and refusing it would be a race, not a decision.
+    /// The owner is always read from the live row, never from the snapshot's
+    /// [`CredentialOwnership`]. The snapshot can be a revision behind in both
+    /// directions: a miss would refuse a credential created by the request
+    /// before this one, and a hit may name the owner a credential had *before*
+    /// it was transferred — which would let the old tenant's administrator
+    /// reveal, rotate, edit or delete a credential that now belongs to someone
+    /// else. Management calls are rare, and one primary-key read is the price
+    /// of deciding on the owner the row has now.
     ///
     /// [`CredentialOwnership`]: crate::snapshot::CredentialOwnership
     pub async fn admit_credential<C>(
@@ -572,35 +575,27 @@ impl AdminScope {
         if self.is_instance() {
             return Ok(true);
         }
-        use crate::snapshot::Owner;
-        let owner = match data.credential_ownership.owner(id) {
-            Some(Owner::Shared) => ScopeOwner::Instance,
-            Some(Owner::User(user)) => ScopeOwner::User(user),
-            Some(Owner::Team(team)) => ScopeOwner::Team(team),
-            Some(Owner::Org(organization)) => ScopeOwner::Organization(organization),
-            None => {
-                let Some(row) = gproxy
-                    .store()
-                    .credentials()
-                    .get_many(&[id.to_owned()])
-                    .await?
-                    .into_iter()
-                    .next()
-                    .flatten()
-                else {
-                    return Ok(false);
-                };
-                return Ok(self.admits(
-                    ScopeOwner::from_columns(
-                        row.user_id.as_deref(),
-                        row.team_id.as_deref(),
-                        row.organization_id.as_deref(),
-                    ),
-                    data,
-                ));
-            }
+        // Live row only; see `admit_credential` for why the snapshot's
+        // ownership index is not consulted for this decision.
+        let Some(row) = gproxy
+            .store()
+            .credentials()
+            .get_many(&[id.to_owned()])
+            .await?
+            .into_iter()
+            .next()
+            .flatten()
+        else {
+            return Ok(false);
         };
-        Ok(self.admits(owner, data))
+        Ok(self.admits(
+            ScopeOwner::from_columns(
+                row.user_id.as_deref(),
+                row.team_id.as_deref(),
+                row.organization_id.as_deref(),
+            ),
+            data,
+        ))
     }
 
     /// Whether a `quotas` row owned by `(owner_kind, owner_id)` is inside this

@@ -1,0 +1,78 @@
+---
+title: Docker、Northflank、Render 和 Heroku
+description: 使用原生 GPROXY 容器与托管 PostgreSQL 部署网关。
+---
+
+import { Card, CardGrid, LinkButton } from "@astrojs/starlight/components";
+
+这些模板将 **latest 稳定版** PostgreSQL 预编译程序打包进轻量 Node.js 容器，运行一个应用实例并连接 PostgreSQL 数据库。它们复用现有 HTTP/SSE/WebSocket 转发入口，并校验发布包的 SHA-256，无需编译 Rust。普通 CLI 容器只包含 SQLite 驱动，不能直接替代此镜像。应用和数据库可能产生费用，部署前请核对所选套餐。
+
+<CardGrid>
+  <Card title="Render" icon="rocket">
+    <p>免费 Web 服务，连接自备的外置 PostgreSQL，自动生成密码与主密钥。</p>
+    <LinkButton href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev" variant="secondary" icon="external">部署到 Render</LinkButton>
+  </Card>
+  <Card title="Heroku" icon="rocket">
+    <p>Basic dyno + Essential PostgreSQL，填写主密钥后自动创建应用和数据库。</p>
+    <LinkButton href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev" variant="secondary" icon="external">部署到 Heroku</LinkButton>
+  </Card>
+  <Card title="Northflank" icon="rocket">
+    <p>导入模板即可创建项目、PostgreSQL 和服务；目前需手动导入，尚无公开分享链接。</p>
+    <LinkButton href="https://app.northflank.com/s/account/templates/new" variant="secondary" icon="external">打开模板编辑器</LinkButton>
+  </Card>
+</CardGrid>
+
+## Docker
+
+镜像发布到 `ghcr.io/leenhawk/gproxy` 和 Docker Hub 的 `leenhawk/gproxy`，支持 amd64、arm64、riscv64。稳定版使用 `vX.Y.Z` 标签，beta 为 `staging`，开发快照为 `nightly`；musl 镜像在标签后加 `-musl`。旧的 v3 标签无法运行 v4。
+
+```sh
+export GPROXY_IMAGE='leenhawk/gproxy:<tag>'
+# 把 GPROXY_MASTER_KEY 设为保存好的 32 字节密钥（64 位十六进制或 base64）。
+docker run -d --name gproxy --restart unless-stopped \
+  -p 127.0.0.1:8787:8787 \
+  -v gproxy-data:/app/data \
+  -e GPROXY_MASTER_KEY \
+  "$GPROXY_IMAGE"
+docker logs gproxy
+```
+
+从首次启动日志中保存管理员凭据，然后打开 `/console/`。镜像以 `65532:65532` 运行，绑定挂载的目录需要对该用户可写。替换容器时保留 `/app/data` 卷。
+
+## Render
+
+1. 点击上方 Render 卡片中的部署按钮，检查仓库根目录 `render.yaml` Blueprint：免费 Web 服务，使用外置 PostgreSQL 数据库。
+2. 将 `GPROXY_DATABASE_URL` 填为自备的外置 PostgreSQL 连接地址，然后部署服务。数据库需允许 Render 连接，连接地址应保留数据库提供商要求的 SSL 参数。管理员密码和加密主密钥由 Render 生成。
+3. 在服务的 **Environment** 设置中查看并保存 `GPROXY_ADMIN_PASSWORD` 和 `GPROXY_MASTER_KEY`。打开服务地址的 `/console/`，使用 `admin` 登录。
+
+模板不创建数据库。Render Web 服务默认使用免费套餐，外置数据库的费用与限制取决于所选提供商。免费 Web 服务空闲时会休眠，再次请求可能需要等待唤醒。健康检查使用 `8787` 端口的 `/healthz`。
+
+## Heroku
+
+1. 用 `openssl rand -hex 32` 生成并保存主密钥。
+2. 点击上方 Heroku 卡片中的部署按钮，选择应用名和区域，将主密钥填入 `GPROXY_MASTER_KEY`。
+3. 核对 Basic Web dyno 和 `heroku-postgresql:essential-0` 数据库插件，然后部署。
+4. 在 **Settings → Reveal Config Vars** 中查看 `GPROXY_ADMIN_PASSWORD`，打开 `/console/` 并使用 `admin` 登录。
+
+仓库根目录的 `app.json` 和 `heroku.yml` 使用 `deploy/serverless/Dockerfile`。Node.js 入口监听 Heroku 动态分配的 `PORT`，共享网关读取 `DATABASE_URL`，并支持 Heroku 分配的运行用户。本地文件是临时的；配置、凭证、用量和缓存状态保存在 PostgreSQL 中。
+
+## Northflank
+
+1. 在 Northflank 账户或团队中创建模板，切换到 JSON 编辑器，粘贴[模板 JSON](https://github.com/LeenHawk/gproxy/blob/dev/deploy/northflank/template.json)。
+2. 将模板命名为 GPROXY；按需调整模板参数 `PROJECT_NAME` 和 Project 节点的 `region`（默认 `europe-west`），保存并运行。
+3. 工作流会创建项目、私有 PostgreSQL 数据库、密钥组和公开的 GPROXY 服务。应用与数据库均使用 `nf-compute-20`，数据库申请 4 GiB 存储；运行前请核对套餐。
+4. 在项目的 `gproxy-secrets` 密钥组中查看并保存自动生成的 `GPROXY_ADMIN_PASSWORD` 和 `GPROXY_MASTER_KEY`。打开服务的公开 HTTPS 地址，在 `/console/` 使用 `admin` 登录。
+
+Northflank 的[模板分享链接](https://northflank.com/docs/v1/application/infrastructure-as-code/share-a-template)需要在账户中保存模板后生成。仓库目前提供可导入模板，尚未发布 Northflank 分享链接。要提供直接部署按钮，请先保存模板并生成公开分享链接，分享前检查访问范围和有效期。
+
+密钥组自动将数据库的 `POSTGRES_URI` 绑定为 `GPROXY_DATABASE_URL`。服务从仓库 `dev` 分支构建 `deploy/serverless/Dockerfile`，构建上下文为 `deploy/serverless`。重复运行模板时，Northflank 会保留已生成的密钥。就绪检查使用 `8787` 端口的 `/healthz`。
+
+## 运行与更新
+
+- 更新时保留数据库和 `GPROXY_MASTER_KEY`，并备份两者。这些模板读取 `GPROXY_DATABASE_URL` 或平台提供的 `DATABASE_URL`。
+- 构建时默认下载最新稳定版（`GPROXY_RELEASE_VERSION=latest`），并校验 SHA-256。升级时清除平台构建缓存后重新部署，无需修改版本号。需要固定版本时，将这个 Docker 构建参数设为发布标签；所选版本需包含两种架构的 serverless Linux 压缩包和 `SHA256SUMS`。
+- 模板默认运行一个应用实例，复用现有 serverless host，将共享缓存保存在 PostgreSQL 中。
+- 使用 OAuth 或公开文件链接时，将 `GPROXY_PUBLIC_BASE_URL` 设为服务的公开 HTTPS 地址。这些模板不启用文件存储，需要文件系统或对象存储时请选择自定义原生 CLI 构建。客户端 IP 取自连接对端，可能是平台路由器地址；不信任转发头中的客户端 IP。
+- 原生服务支持 HTTP、SSE 和 WebSocket，但仍受平台路由超时、空闲连接限制和实例重启影响。
+
+Workers 和函数部署见 [Cloudflare、Netlify 与 Vercel 部署指南](/zh-cn/deployment/edge/)。

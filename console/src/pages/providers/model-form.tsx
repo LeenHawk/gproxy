@@ -21,6 +21,10 @@ export function ProviderModelDialog({ model, channel, variants, onClose, onSave,
     event.preventDefault()
     const names = state.variants.map(v => v.name.trim())
     if (names.some(n => !n || /[?*]/.test(n)) || new Set([name.trim(), ...names]).size !== names.length + 1) { setValidation(new Error(t("modelUI.invalidVariants"))); return }
+    const policy = state.metadata.truncation_policy
+    if (policy && ((policy.mode !== "bytes" && policy.mode !== "tokens") || policy.limit == null)) {
+      setValidation(new Error(`${t("providers.models.truncation")}: ${t("form.required")}`)); return
+    }
     setValidation(null)
     onSave({ upstreamName: name.trim(), enabled, metadata: modelMetadata(state, model?.metadata), variants: state.variants })
   }

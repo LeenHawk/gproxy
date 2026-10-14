@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/reproducible-env.sh"
 
 target="${TARGET_TRIPLE:?missing TARGET_TRIPLE}"
 artifact="${ARTIFACT_NAME:?missing ARTIFACT_NAME}"

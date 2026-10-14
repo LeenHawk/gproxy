@@ -25,6 +25,7 @@ aistudio = []
 antigravity = [
     "dep:futures-util",
     "dep:getrandom",
+    "dep:percent-encoding",
     "dep:sha2",
     "dep:time",
     "dep:web-time",
@@ -62,6 +63,7 @@ claudeapi = ["dep:futures-util", "dep:time", "dep:web-time"]
 # refresh, Messages over HTTP with the CLI's request hygiene, unified
 # rate-limit headers and /api/oauth/usage.
 claudecode = [
+    "dep:xxhash-rust",
     "dep:base64",
     "dep:futures-util",
     "dep:getrandom",
@@ -103,6 +105,10 @@ dashscope = ["dep:futures-util"]
 # DeepSeek: OpenAI Chat, Responses off /responses and Claude Messages off
 # /anthropic, with prompt_cache_hit_tokens and the /user/balance probe.
 deepseek = ["dep:futures-util"]
+# GLM platform API and Coding Plan (glm / glmcode), dynamic ZCode catalogue.
+glm = ["dep:futures-util", "dep:percent-encoding"]
+# MiniMax text API / Token Plan and H3 video tasks.
+minimax = ["dep:futures-util"]
 # Devin (Windsurf) cloud upstream at server.codeium.com: Connect-RPC over
 # protobuf rather than HTTP+JSON, so the channel hand-writes the envelope and
 # the few messages it needs; GetChatMessage frames become OpenAI Chat
@@ -116,6 +122,7 @@ devin = [
     "dep:sha2",
     "dep:time",
     "dep:web-time",
+    "dep:url",
 ]
 # Gemini CLI (Google account through Code Assist): PKCE login that discovers
 # the Cloud project and tier, refresh, the Code Assist request envelope, and
@@ -123,6 +130,7 @@ devin = [
 geminicli = [
     "dep:futures-util",
     "dep:getrandom",
+    "dep:percent-encoding",
     "dep:time",
     "dep:web-time",
 ]
@@ -181,12 +189,14 @@ vertex = [
     "dep:base64",
     "dep:futures-util",
     "dep:getrandom_v02",
+    "dep:percent-encoding",
     "dep:rsa",
+    "dep:url",
     "dep:web-time",
 ]
 # Google Vertex AI Express mode: the Gemini surface with an API key in the
 # query, no project and no region.
-vertexexpress = []
+vertexexpress = ["dep:percent-encoding"]
 # WorkBuddy (Tencent Copilot, `copilot.tencent.com`): a device login through
 # the editor plugin's auth endpoints, OpenAI Chat under /v2 carrying the CLI's
 # identity headers, a /v3/config model catalogue and the two billing-meter
@@ -218,6 +228,7 @@ rust_decimal.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2 = { workspace = true, optional = true }
+xxhash-rust = { workspace = true, optional = true }
 thiserror.workspace = true
 time = { workspace = true, optional = true }
 ts-rs = { workspace = true, optional = true }

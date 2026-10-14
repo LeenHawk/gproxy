@@ -1,9 +1,24 @@
-# Native musl toolchain for x86_64, ARM64 and RISC-V runners. Alpine's Rust
-# package also covers RISC-V musl host tools, which rustup does not distribute.
-FROM alpine:edge
+# Alpine's Rust keeps host build scripts dynamically linked for bindgen/libclang.
+# Pin the image and Rust patch version; edge replaces Alpine package revisions.
+FROM public.ecr.aws/docker/library/alpine:edge@sha256:020dfcbaaf4cc1078bf2d9c7ba31a8466e334061dcd2f248001d68f79e52c000
 
-RUN apk add --no-cache build-base cargo clang22 clang22-dev cmake git go \
-        linux-headers perl pkgconf \
-    && ln -s /usr/bin/clang-22 /usr/local/bin/clang
+RUN set -eu; \
+    case "$(apk --print-arch)" in \
+      x86_64|aarch64|riscv64) rust_version=1.99.0 ;; \
+      *) echo "unsupported musl build architecture" >&2; exit 1 ;; \
+    esac; \
+    apk add --no-cache build-base "rust~$rust_version" "cargo~$rust_version" \
+        python3 ca-certificates clang22 clang22-dev cmake git go linux-headers perl pkgconf; \
+    ln -s /usr/bin/clang-22 /usr/local/bin/clang; \
+    rustc --version; \
+    printf 'fn main() { println!("musl std OK"); }\n' | rustc -o /tmp/musl-toolchain-check -; \
+    /tmp/musl-toolchain-check; \
+    rm /tmp/musl-toolchain-check
+
+ARG APPLICATION=false
+RUN if [ "$APPLICATION" = true ]; then \
+      apk add --no-cache bash nodejs gtk+3.0-dev webkit2gtk-4.1-dev \
+        libayatana-appindicator-dev librsvg-dev pax-utils upx zip fakeroot openssl; \
+    fi
 
 WORKDIR /workspace

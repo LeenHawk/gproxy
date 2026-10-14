@@ -362,6 +362,7 @@ fn resources<'a>(access: &'a Resources, scope: &'a String) -> GenerationResource
         limits: codec_limits(),
         max_references: 8,
         now: std::time::UNIX_EPOCH,
+        target: Dialect::Gemini,
     }
 }
 
@@ -378,6 +379,8 @@ mod signed;
 mod orphan;
 #[path = "adapt_generate/parity.rs"]
 mod parity;
+#[path = "adapt_generate/references.rs"]
+mod references;
 #[path = "adapt_generate/resources.rs"]
 mod resources;
 

@@ -174,12 +174,13 @@ pub(crate) fn apply_model(
     {
         let suffix = tail.find(':').map(|at| &tail[at..]).unwrap_or("");
         let model = model.strip_prefix("models/").unwrap_or(model);
-        const SEGMENT: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+        const MODEL_PATH: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
             .remove(b'-')
             .remove(b'_')
             .remove(b'.')
-            .remove(b'~');
-        let encoded = percent_encoding::utf8_percent_encode(model, SEGMENT);
+            .remove(b'~')
+            .remove(b'/');
+        let encoded = percent_encoding::utf8_percent_encode(model, MODEL_PATH);
         request.path = format!("{prefix}/models/{encoded}{suffix}");
     }
 }

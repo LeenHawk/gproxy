@@ -506,3 +506,48 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for PriceTiers<'_
         Ok(row)
     }
 }
+
+/// A management read of saved rules, using the billing engine's validation,
+/// glob matching and ordering rather than SQL equality or bundled defaults.
+pub(super) struct ModelPriceRules(gproxy_core::pricing::PriceBook);
+
+impl ModelPriceRules {
+    pub(super) async fn load<C: BatchConnectionTrait + Send + Sync + 'static>(
+        writer: Writer<'_, C>,
+    ) -> SdkResult<Self> {
+        let rules = writer
+            .store()
+            .price_rules()
+            .query(price_rule::Entity::find())
+            .await?;
+        Ok(Self(gproxy_core::pricing::PriceBook::compile(
+            &rules,
+            &[],
+            &[],
+        )))
+    }
+
+    pub(super) fn has_price(&self, provider: Option<&str>, model: &str) -> bool {
+        self.0
+            .rules()
+            .iter()
+            .any(|rule| rule.matches(provider, model))
+    }
+
+    pub(super) fn for_model(&self, provider: Option<&str>, model: &str) -> Vec<PriceRuleDto> {
+        self.0
+            .rules()
+            .iter()
+            .filter(|rule| rule.matches(provider, model))
+            .map(|rule| PriceRuleDto {
+                id: rule.id.clone(),
+                provider_id: rule.provider_id.clone(),
+                model_pattern: rule.model_pattern.clone(),
+                operation: rule.operation.map(|op| op.id().to_owned()),
+                priority: rule.priority,
+                currency: rule.currency.clone(),
+                enabled: true,
+            })
+            .collect()
+    }
+}

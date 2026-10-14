@@ -30,7 +30,7 @@ for row in json.loads(Path("scripts/release-targets.json").read_text())["include
                 "NDK_TARGET": row.get("ndk_target", "")},
         "stages": stages,
     }
-    if row["builder"] == "cargo-alpine":
+    if row["builder"] in ("cargo-alpine", "termux"):
         pipeline["services"] = ["docker"]
     pipelines.append(pipeline)
 pipelines.append({

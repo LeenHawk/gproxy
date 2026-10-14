@@ -23,26 +23,30 @@ each has its own portable archives and installers. Applications embed the Consol
 | Platform | CLI | Application |
 | --- | --- | --- |
 | Linux GNU (x86_64, aarch64, riscv64) | ZIP, DEB | ZIP, DEB |
-| Linux musl (x86_64, aarch64, riscv64) | ZIP, DEB | — |
+| Linux musl (x86_64, aarch64, riscv64) | ZIP, Alpine APK | ZIP, Alpine APK |
 | Windows (x86_64, aarch64) | ZIP, MSIX | ZIP, MSIX |
 | macOS (x86_64, aarch64) | ZIP, DMG | ZIP, DMG |
 | Android (x86_64, aarch64) | ZIP, Termux DEB | APK only |
-| OpenHarmony / HarmonyOS NEXT | ARM64 / x86_64 ZIP | ARM64 experimental unsigned HAP |
+| OpenHarmony / HarmonyOS NEXT | ARM64 / x86_64 ZIP | ARM64 unsigned HAP |
 
 The Linux CLI DEB installs `gproxy` under `/usr/bin`; the Termux DEB installs
-under `/data/data/com.termux/files/usr` and carries its C++ runtime privately.
-Android CLI ZIPs include the launcher, executable and C++ runtime. Windows CLI
+under `/data/data/com.termux/files/usr`. Android CLI builds use the source
+recipe in `distribution/termux/` and a pinned official Termux builder.
+Both DEB and ZIP use Termux's `libc++`, OpenSSL and CA certificates; ZIPs include
+the launcher, executable and `TERMUX.txt` with installation/update instructions.
+Self-update is disabled in these builds: install a newer DEB with APT, or use
+`pkg upgrade gproxy` once an enabled repository provides it. Windows CLI
 MSIX uses a distinct `.CLI` identity and a console execution alias. macOS CLI
 DMGs include the executable and Terminal installation instructions.
 Application ZIPs retain desktop resources and, on macOS, the complete `.app`.
 
 OHOS builds use a cached toolchain image and a pinned experimental Tauri branch;
 other platforms retain stable Tauri. HAP files require signing before installation.
-Device execution has not been verified; background services are not implemented.
+The HAP has been verified on an emulator. Continuous background execution is implemented, but availability depends on the device, OS version and granted permissions; the proxy stops when the application process exits.
 
-Nightly filenames stay fixed; the manifest records the commit SHA. Linux x86_64 builds on Ubuntu
-22.04 and ARM64 on Ubuntu 24.04; installation requires the distribution's
-WebKitGTK 4.1 packages. macOS uses ad-hoc signing; Developer ID signing and
+Nightly filenames stay fixed; the manifest records the commit SHA. GNU Linux
+Applications require the distribution's GTK 3 and WebKitGTK 4.1 packages. musl builds
+target Alpine and ship as APKs, not DEBs. macOS uses ad-hoc signing; Developer ID signing and
 notarization are not configured.
 
 Windows uses the Microsoft Store package identity. Configure four variables in
@@ -96,10 +100,47 @@ CLI defaults include all channels, memory cache, local file storage, and bundled
 
 ```sh
 cargo build -p gproxy --release --no-default-features \
-  --features memory,fs,codex,claudecode,openai,custom
+  --features embedded-console,memory,fs,codex,claudecode,openai,custom
 ```
 
 PostgreSQL, MySQL, Redis, and S3 require `postgres`, `mysql`, `redis`, and `s3` respectively. SQLite is always available.
+
+### Headless CLI for CI
+
+The Release workflow builds headless packages independently of the frontend:
+
+| Platform | Architectures | Package |
+| --- | --- | --- |
+| Linux GNU | x86_64, aarch64, riscv64 | `gproxy-headless-linux-<arch>.zip` |
+| Linux musl | x86_64, aarch64, riscv64 | `gproxy-headless-linux-<arch>-musl.zip`, `gproxy-headless-linux-<arch>-musl.apk` |
+| Windows | x86_64, aarch64 | `gproxy-headless-windows-<arch>.zip` |
+| macOS | x86_64, aarch64 | `gproxy-headless-macos-<arch>.zip` |
+| Android (Termux) | x86_64, aarch64 | `gproxy-headless-android-<arch>.zip`, `gproxy-headless-android-<arch>.deb` |
+
+Download from [Releases](https://github.com/LeenHawk/gproxy/releases): `nightly`
+for dev, `staging` for beta, or a stable version. Self-update selects the matching
+headless package. On Android, install the Termux package with
+`pkg install ./gproxy-headless-android-<arch>.deb` and run `gproxy serve --console=false`.
+It replaces the full `gproxy` package, as both provide the `gproxy` command. To use
+the ZIP instead, run `pkg install libc++ openssl ca-certificates`, extract it under
+Termux's home directory, then run `./gproxy serve --console=false`.
+On Windows, use `gproxy.exe` in place of `gproxy`.
+
+This variant excludes the bundled Web console and retains proxy routes,
+management APIs, all channels, SQLite, memory cache, local file storage and
+bundled vocabulary. Configure it through the CLI or management API. It needs no
+Node.js, pnpm or desktop libraries to build:
+
+```sh
+cargo build --locked --release -p gproxy --bin gproxy \
+  --no-default-features --features channels,memory,fs,bundled-vocabulary
+./target/release/gproxy serve --console=false
+```
+
+Omitting `embedded-console` excludes frontend assets even when the checkout
+already contains a built console. `--console=false` also disables serving an
+external console directory. To build a console-enabled variant with a custom
+feature set, add `embedded-console`.
 
 ## Build Application
 
@@ -170,6 +211,18 @@ bash scripts/check-docs.sh
 After changing Rust DTOs, run `pnpm --dir console types` to regenerate the TypeScript types.
 
 ## Publish
+
+Run `bash scripts/release.sh` from a clean checkout included in `main`. Before
+pushing a stable tag, it updates Console and docs npm dependencies with
+`pnpm update --latest`, upgrades Rust registry requirements with `cargo upgrade`
+(including major and pinned versions), and refreshes `Cargo.lock` with `cargo update`.
+Compatibility bridges for RSA/getrandom, JNI/Tauri, Codex reqwest and WebSocket
+configs retain their upstream-required version lines; compatible updates still
+refresh through `cargo update`.
+Install the Rust helper with `cargo install cargo-edit --locked` first.
+If these commands change tracked files, the script stops before creating or
+pushing the tag. Resolve compatibility changes, run the checks above, commit and
+push to `main`, then rerun the script. Prerelease tags skip this dependency refresh.
 
 A version tag must match the workspace version and have a `docs/release-notes/v<version>.md` file. The workflow builds packages, creates a signed update manifest, and uploads assets. A build or signing failure means publication is incomplete.
 

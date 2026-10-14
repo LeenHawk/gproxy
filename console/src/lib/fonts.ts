@@ -1,13 +1,16 @@
-import { convertFileSrc, isTauri } from "@tauri-apps/api/core"
+import { convertFileSrc } from "@tauri-apps/api/core"
+import { inShell } from "@/lib/transport"
 
-/** The native host caches font files; Edge points this metadata at the CDN. */
+/** The stylesheet is empty until the host has installed a user-requested pack. */
 export function loadFonts() {
   const source = document.querySelector<HTMLMetaElement>('meta[name="gproxy-fonts"]')?.content
   if (!source) return
+  document.getElementById("gproxy-font-stylesheet")?.remove()
   const link = document.createElement("link")
+  link.id = "gproxy-font-stylesheet"
   link.rel = "stylesheet"
-  // convertFileSrc encodes a whole filesystem path; use only its platform
-  // origin so relative URLs inside the stylesheet keep their directory.
-  link.href = isTauri() ? new URL(source, convertFileSrc("", "gproxy-fonts")).href : source
+  const url = new URL(source, inShell ? convertFileSrc("", "gproxy-fonts") : location.origin)
+  url.searchParams.set("revision", String(Date.now()))
+  link.href = url.href
   document.head.append(link)
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/reproducible-env.sh"
 
 target="${TARGET_TRIPLE:?missing TARGET_TRIPLE}"
 case "$target" in
@@ -13,7 +14,14 @@ mkdir -p "$output"
 output="$(cd "$output" && pwd)"
 archive="gproxy-serverless-linux-$arch-musl.zip"
 test -f "$binary"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+install -m755 "$binary" "$work/gproxy-serverless"
+upx --best --lzma "$work/gproxy-serverless"
+upx --test "$work/gproxy-serverless"
+"$work/gproxy-serverless" --version
 rm -f "$output/$archive"
-# Keep the executable's mode. No UPX: function sandboxes need an ordinary ELF.
-zip -9 -q -j "$output/$archive" "$binary" LICENSE
+# Compress the staged executable without changing Cargo's cached output.
+install -m644 LICENSE "$work/LICENSE"
+python3 scripts/reproducible-archive.py --root "$work" --output "$output/$archive"
 (cd "$output" && sha256sum "$archive" > "$archive.sha256")

@@ -54,6 +54,8 @@ channels! {
     "custom" => custom, custom::Custom;
     "dashscope" => dashscope, dashscope::DashScope;
     "deepseek" => deepseek, deepseek::DeepSeek;
+    "glm" => glm, glm::Glm::API, glm::Glm::CODING;
+    "minimax" => minimax, minimax::MiniMax;
     "devin" => devin, devin::Devin;
     "geminicli" => geminicli, geminicli::GeminiCli;
     "grokbuild" => grokbuild, grokbuild::GrokBuild;
@@ -90,6 +92,8 @@ channels! {
     feature = "grokbuild",
     feature = "dashscope",
     feature = "deepseek",
+    feature = "glm",
+    feature = "minimax",
     feature = "kimi",
     feature = "kiro",
     feature = "nvidia",

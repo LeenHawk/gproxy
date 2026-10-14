@@ -114,7 +114,8 @@ pub mod websocket;
 pub use error::{ErrorResponse, OAuthEnvelope};
 pub use mount::Mount;
 pub use update::{
-    AppliedUpdate, UpdateFailure, UpdateProgress, UpdateReport, UpdateSchedule, UpdateService,
+    Announcement, AnnouncementContent, AnnouncementSeverity, AppliedUpdate, UpdateFailure,
+    UpdateProgress, UpdateReport, UpdateSchedule, UpdateService,
 };
 
 use std::sync::Arc;

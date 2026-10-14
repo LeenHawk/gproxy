@@ -98,6 +98,7 @@ impl BaseChannel for CloudflareAiGateway {
         ChannelDescriptor {
             id: ID,
             display_name: "Cloudflare AI Gateway",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
                 quota_query: true,

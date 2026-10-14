@@ -364,3 +364,22 @@ fn native_call_identity_is_preserved_and_empty_identity_is_rejected() {
     result.tool_call_id.clear();
     assert!(claude_chat::openai_to_claude(&input, "target").is_err());
 }
+
+#[test]
+fn image_file_data_becomes_a_claude_image_not_a_dropped_document() {
+    let png = "iVBORw0KGgo=";
+    let input: chat::GenerateContentRequestBody = serde_json::from_value(json!({
+        "model":"gpt", "max_completion_tokens":32,
+        "messages":[{"role":"user","content":[
+            {"type":"text","text":"look"},
+            {"type":"file","file":{"file_data":format!("data:image/png;base64,{png}"),"filename":"a.png"}}
+        ]}]
+    }))
+    .unwrap();
+    let converted = claude_chat::openai_to_claude(&input, "claude").unwrap();
+    let wire = serde_json::to_value(converted.value).unwrap();
+    assert_eq!(
+        wire["messages"][0]["content"][1],
+        json!({"type":"image","source":{"type":"base64","media_type":"image/png","data":png}})
+    );
+}

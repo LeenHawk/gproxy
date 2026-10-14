@@ -123,7 +123,12 @@ impl ConfigKey {
 /// Read from the `config` JSON for every channel, by the host rather than by
 /// the channel itself: `credential_strategy` selects among the provider's
 /// credentials, `allowed_headers` adds to the global and channel header sets.
-pub const HOST_CONFIG_KEYS: [ConfigKey; 3] = [
+pub const HOST_CONFIG_KEYS: [ConfigKey; 4] = [
+    ConfigKey::optional(
+        "forward_thinking",
+        ConfigKeyKind::Bool,
+        "Forward thinking blocks from request history. Defaults to true; disabling removes reasoning content and signatures without disabling model thinking.",
+    ),
     ConfigKey::optional(
         "credential_strategy",
         ConfigKeyKind::String,
@@ -152,6 +157,8 @@ pub struct ChannelDescriptor {
     pub display_name: &'static str,
     /// Empty means no login flow is offered for this channel.
     pub login_modes: Vec<LoginMode>,
+    /// Stored credential types accepted on manual creation, distinct from login flows.
+    pub credential_kinds: Vec<&'static str>,
     pub capabilities: ChannelCapabilities,
     pub config_keys: Vec<ConfigKey>,
 }

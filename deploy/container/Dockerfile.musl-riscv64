@@ -1,0 +1,33 @@
+# Host-native Rust/Clang with an Alpine RISC-V sysroot. Only smoke probes use QEMU.
+FROM gproxy-musl-application-builder
+
+RUN apk add --no-cache lld22 llvm22 qemu-riscv64
+RUN set -eu; mkdir -p /opt/riscv64-alpine/etc/apk/keys; \
+    cp /etc/apk/repositories /opt/riscv64-alpine/etc/apk/; \
+    cp /usr/share/apk/keys/riscv64/*.pub /opt/riscv64-alpine/etc/apk/keys/; \
+    rust_version="$(rustc --version | cut -d' ' -f2)"; \
+    apk --root /opt/riscv64-alpine --arch riscv64 --initdb --no-scripts \
+      add --no-cache build-base "rust~$rust_version" gtk+3.0-dev webkit2gtk-4.1-dev \
+        libayatana-appindicator-dev librsvg-dev; \
+    cp -a /opt/riscv64-alpine/usr/lib/rustlib/riscv64-alpine-linux-musl /usr/lib/rustlib/
+
+COPY scripts/cmake/riscv64-linux-musl-cc /usr/local/bin/riscv64-linux-musl-cc
+RUN set -eu; chmod 755 /usr/local/bin/riscv64-linux-musl-cc; \
+    ln -s riscv64-linux-musl-cc /usr/local/bin/riscv64-linux-musl-c++
+ENV GPROXY_CARGO_TARGET=riscv64-alpine-linux-musl \
+    ALPINE_SYSROOT=/opt/riscv64-alpine \
+    CARGO_TARGET_RISCV64_ALPINE_LINUX_MUSL_LINKER=riscv64-linux-musl-cc \
+    CC_riscv64_alpine_linux_musl=riscv64-linux-musl-cc \
+    CXX_riscv64_alpine_linux_musl=riscv64-linux-musl-c++ \
+    AR_riscv64_alpine_linux_musl=/usr/lib/llvm22/bin/llvm-ar \
+    RANLIB_riscv64_alpine_linux_musl=/usr/lib/llvm22/bin/llvm-ranlib \
+    PKG_CONFIG_ALLOW_CROSS=1 \
+    PKG_CONFIG_SYSROOT_DIR=/opt/riscv64-alpine \
+    PKG_CONFIG_LIBDIR=/opt/riscv64-alpine/usr/lib/pkgconfig:/opt/riscv64-alpine/usr/share/pkgconfig \
+    BINDGEN_EXTRA_CLANG_ARGS_riscv64_alpine_linux_musl="--target=riscv64-alpine-linux-musl --sysroot=/opt/riscv64-alpine" \
+    CMAKE_TOOLCHAIN_FILE_riscv64_alpine_linux_musl=/workspace/scripts/cmake/linux-riscv64-musl.cmake
+RUN set -eu; printf 'fn main() { println!("RISC-V musl std OK"); }\n' | \
+      rustc --target riscv64-alpine-linux-musl -C target-feature=-crt-static \
+        -C linker=riscv64-linux-musl-cc -o /tmp/riscv-check -; \
+    qemu-riscv64 -L /opt/riscv64-alpine /tmp/riscv-check; \
+    rm /tmp/riscv-check

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/reproducible-env.sh"
 
 target="${TARGET_TRIPLE:?missing TARGET_TRIPLE}"
 target_os="${TARGET_OS:?missing TARGET_OS}"
 artifact="${ARTIFACT_NAME:?missing ARTIFACT_NAME}"
 output_dir="${OUTPUT_DIR:-$PWD/dist/release}"
 binary="target/$target/release/gproxy"
-source scripts/android/sdk.sh
 
 checksum() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -33,10 +33,16 @@ package="$work/$artifact"
 mkdir -p "$package" "$output_dir"
 output_dir="$(cd "$output_dir" && pwd)"
 install -m 0644 README.md LICENSE "$package/"
+if [[ "$target" == *-linux-musl ]]; then
+  install -m 0644 distribution/alpine/gproxy-alpine.rsa.pub "$package/"
+  install -m 0644 distribution/alpine/README.txt "$package/ALPINE.txt"
+fi
 
 if [ "$target_os" = "android" ]; then
   install -m 0755 "$binary" "$package/gproxy.bin"
-  install -m 0644 "$(android_libcxx "$target")" "$package/libc++_shared.so"
+  install -m 0644 distribution/termux/ZIP-README.txt "$package/TERMUX.txt"
+  install -m 0644 crates/gproxy-tokenizer/THIRD_PARTY_NOTICES.md "$package/tokenizer-notices.md"
+  install -m 0644 crates/gproxy-tokenizer/assets/tokenizers/LICENSE "$package/tokenizer-LICENSE"
   write_android_launcher "$package/gproxy"
 else
   install -m 0755 "$binary" "$package/gproxy"
@@ -44,11 +50,19 @@ fi
 
 archive="$output_dir/$artifact.zip"
 rm -f "$archive" "$archive.sha256"
-(cd "$package" && zip -9 -q -r "$archive" .)
+python3 scripts/reproducible-archive.py --root "$package" --output "$archive"
 (cd "$output_dir" && checksum "$artifact.zip" > "$artifact.zip.sha256")
 
+if [ "${PACKAGE_INSTALLERS:-true}" = false ]; then exit 0; fi
+
 case "$target_os" in
-  linux | android) OUTPUT_DIR="$output_dir" bash scripts/package-cli-deb.sh ;;
+  # musl builds are for Alpine, which installs the APK instead.
+  linux | android)
+    case "$target" in
+      *-linux-musl) ;;
+      *) OUTPUT_DIR="$output_dir" bash scripts/package-cli-deb.sh ;;
+    esac
+    ;;
   macos)
     # Cross builds seal the DMG later on the macOS packaging runner.
     if [ "$(uname -s)" = Darwin ]; then

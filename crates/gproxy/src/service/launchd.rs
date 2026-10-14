@@ -24,14 +24,28 @@
 //! restarted, and `print` is the only thing that answers what launchd
 //! actually believes.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::{LABEL, Plan, Report, Result, home, remove, run_tool, uid, write_private};
 
+const LEGACY_LABEL: &str = "io.github.leenhawk.gproxy";
+
+fn registration_in(directory: &Path) -> (PathBuf, &'static str) {
+    let current = directory.join(format!("{LABEL}.plist"));
+    let legacy = directory.join(format!("{LEGACY_LABEL}.plist"));
+    if !current.exists() && legacy.is_file() {
+        (legacy, LEGACY_LABEL)
+    } else {
+        (current, LABEL)
+    }
+}
+
+fn registration() -> Result<(PathBuf, &'static str)> {
+    Ok(registration_in(&home()?.join("Library/LaunchAgents")))
+}
+
 pub fn plist_path() -> Result<PathBuf> {
-    Ok(home()?
-        .join("Library/LaunchAgents")
-        .join(format!("{LABEL}.plist")))
+    Ok(registration()?.0)
 }
 
 /// `gui/501`, the domain a login session's agents live in.
@@ -39,8 +53,8 @@ fn domain() -> Result<String> {
     Ok(format!("gui/{}", uid()?))
 }
 
-fn service_target(domain: &str) -> String {
-    format!("{domain}/{LABEL}")
+fn service_target(domain: &str, label: &str) -> String {
+    format!("{domain}/{label}")
 }
 
 // ------------------------------------------------------------- the plist --
@@ -52,6 +66,10 @@ fn service_target(domain: &str) -> String {
 /// other three platforms pay for in compile time and nobody audits. The test
 /// below parses what comes out, so "by hand" does not mean "unverified".
 pub fn plist(plan: &Plan) -> String {
+    plist_with_label(plan, LABEL)
+}
+
+fn plist_with_label(plan: &Plan, label: &str) -> String {
     let arguments = plan
         .command()
         .iter()
@@ -96,7 +114,7 @@ pub fn plist(plan: &Plan) -> String {
          \t<string>{log}</string>\n\
          </dict>\n\
          </plist>\n",
-        label = LABEL,
+        label = label,
         working_dir = escape(&plan.working_dir.to_string_lossy()),
         env_file = escape(&plan.env_file.to_string_lossy()),
         log = escape(&log.to_string_lossy()),
@@ -118,13 +136,13 @@ fn escape(value: &str) -> String {
 // ---------------------------------------------------------------- verbs --
 
 pub fn install(plan: &Plan) -> Result<Report> {
-    let path = plist_path()?;
+    let (path, label) = registration()?;
     let domain = domain()?;
-    let target = service_target(&domain);
+    let target = service_target(&domain, label);
     std::fs::create_dir_all(&plan.data_dir).map_err(|error| {
         crate::Error::io(format!("creating {}", plan.data_dir.display()), error)
     })?;
-    write_private(&path, plist(plan).as_bytes())?;
+    write_private(&path, plist_with_label(plan, label).as_bytes())?;
 
     // Boot it out first, ignoring the failure that means it was not loaded:
     // `bootstrap` over an already-loaded label fails with "service already
@@ -139,7 +157,7 @@ pub fn install(plan: &Plan) -> Result<Report> {
 
     let mut report = Report::new("gproxy is now a launchd user agent.")
         .row("plist", path.display())
-        .row("label", LABEL)
+        .row("label", label)
         .row("command", plan.command().join(" "))
         .row("data", plan.data_dir.display())
         .row("listen", format!("{}:{}", plan.host, plan.port))
@@ -159,8 +177,8 @@ pub fn install(plan: &Plan) -> Result<Report> {
 }
 
 pub fn uninstall() -> Result<Report> {
-    let path = plist_path()?;
-    let target = service_target(&domain()?);
+    let (path, label) = registration()?;
+    let target = service_target(&domain()?, label);
     // Before the file is removed: `bootout` resolves the label through the
     // domain rather than through the file, but a plist that is gone makes the
     // failure message unhelpful.
@@ -183,13 +201,13 @@ pub fn uninstall() -> Result<Report> {
 }
 
 pub fn status() -> Result<Report> {
-    let path = plist_path()?;
-    let target = service_target(&domain()?);
+    let (path, label) = registration()?;
+    let target = service_target(&domain()?, label);
     let printed = run_tool("launchctl", &["print", &target])?;
     if !printed.ok {
         return Ok(Report::new("launchd has no gproxy agent loaded.")
             .row("looked in", path.display())
-            .row("label", LABEL)
+            .row("label", label)
             .maybe(
                 "plist",
                 path.exists()
@@ -206,7 +224,7 @@ pub fn status() -> Result<Report> {
     };
     Ok(Report::new("gproxy, as launchd sees it.")
         .row("plist", path.display())
-        .row("label", LABEL)
+        .row("label", label)
         .maybe("state", field("state"))
         .maybe("pid", field("pid"))
         .maybe("runs", field("runs"))
@@ -324,7 +342,28 @@ mod tests {
         let domain = domain().unwrap();
         assert!(domain.starts_with("gui/"), "{domain}");
         assert!(domain["gui/".len()..].chars().all(|c| c.is_ascii_digit()));
-        assert_eq!(service_target(&domain), format!("{domain}/{LABEL}"));
+        assert_eq!(service_target(&domain, LABEL), format!("{domain}/{LABEL}"));
+    }
+    #[test]
+    fn existing_legacy_agents_keep_their_path_and_label() {
+        let directory = tempfile::tempdir().unwrap();
+        let current = directory.path().join(format!("{LABEL}.plist"));
+        let legacy = directory.path().join(format!("{LEGACY_LABEL}.plist"));
+        assert_eq!(registration_in(directory.path()), (current.clone(), LABEL));
+
+        std::fs::write(&legacy, plist_with_label(&plan(), LEGACY_LABEL)).unwrap();
+        let (path, label) = registration_in(directory.path());
+        assert_eq!(path, legacy);
+        assert_eq!(
+            service_target("gui/501", label),
+            format!("gui/501/{LEGACY_LABEL}")
+        );
+        assert!(
+            plist_with_label(&plan(), label).contains(&format!("<string>{LEGACY_LABEL}</string>"))
+        );
+
+        std::fs::write(&current, plist(&plan())).unwrap();
+        assert_eq!(registration_in(directory.path()), (current, LABEL));
     }
     #[test]
     fn print_output_is_read_as_flat_key_value_pairs() {

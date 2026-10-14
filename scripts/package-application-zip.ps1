@@ -13,7 +13,8 @@ try {
     Copy-Item README.md, LICENSE $work
     'Run gproxy-desktop.exe. Microsoft Edge WebView2 Runtime is required (https://developer.microsoft.com/microsoft-edge/webview2/).' | Set-Content -Encoding utf8 "$work/RUN.txt"
     $archive = Join-Path $OutputDir "$Artifact.zip"
-    Compress-Archive -Path "$work/*" -DestinationPath $archive -Force
+    & python "$PSScriptRoot/reproducible-archive.py" --root $work --output $archive
+    if ($LASTEXITCODE -ne 0) { throw "ZIP packaging failed: $LASTEXITCODE" }
     $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
     "$hash  $Artifact.zip" | Set-Content -Encoding ascii "$archive.sha256"
 } finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }

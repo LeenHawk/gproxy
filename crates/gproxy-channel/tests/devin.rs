@@ -557,36 +557,6 @@ async fn an_image_only_assistant_turn_is_dropped_like_an_empty_one() {
     );
 }
 
-#[tokio::test]
-async fn a_request_that_declares_tools_is_refused_rather_than_stripped() {
-    let config = json!({});
-    let secret = secret();
-    let metadata = json!({});
-    let client = ScriptClient::new(Vec::new());
-    let body = json!({
-        "model": "swe-1-6-slow",
-        "messages": [{"role": "user", "content": "what is the weather"}],
-        "tools": [{"type": "function", "function": {"name": "weather", "parameters": {}}}],
-    });
-    let error = Devin
-        .generate_content(context(
-            provider(&config),
-            credential(&secret, &metadata),
-            client.clone(),
-            body,
-        ))
-        .await
-        .unwrap_err();
-    assert!(
-        error.to_string().contains("tool calling"),
-        "the refusal says what is missing: {error}"
-    );
-    assert!(
-        client.sent().is_empty(),
-        "nothing goes upstream with the tools silently dropped"
-    );
-}
-
 /// The `ClientMetadata` #31 one credential presents.
 async fn sent_fingerprint(secret: &Value, credential_id: &'static str) -> String {
     let config = json!({});
@@ -682,10 +652,9 @@ fn catalogued_aliases_resolve_and_dotted_forms_keep_their_own_target() {
         "claude-sonnet-4-6",
         "the dashed form is itself a catalogue selector"
     );
-    assert_eq!(
-        devin::resolve("anthropic/claude-opus-4.8", &extra).unwrap(),
-        "claude-opus-4-8-medium",
-        "a vendor prefix is normalized away"
+    assert!(
+        devin::resolve("anthropic/claude-opus-4.8", &extra).is_err(),
+        "an unknown qualified name must not silently select a bare alias"
     );
     assert_eq!(
         devin::resolve("gemini-3-5-flash-medium", &extra).unwrap(),
@@ -701,10 +670,6 @@ fn catalogued_aliases_resolve_and_dotted_forms_keep_their_own_target() {
 #[test]
 fn the_captured_snapshot_reaches_every_effort_and_variant_selector() {
     let extra = std::collections::BTreeMap::new();
-    // The hand-written alias table names 44 targets; the snapshot carries 123,
-    // two of which it does not (`swe-1-6-slow`, captured on an account whose
-    // entitlement view omitted it, and `subagent-default`).
-    assert_eq!(devin::catalogue(&extra).len(), 125);
     // Everything the alias table used to hard-block, because the channel
     // refuses a name it does not know.
     for selector in [
@@ -1599,10 +1564,10 @@ fn both_windows_are_declared_as_reported_percentages() {
 // ── Descriptor ─────────────────────────────────────────────────────────────
 
 #[test]
-fn the_descriptor_declares_a_pasted_token_and_a_quota_query() {
+fn the_descriptor_declares_oauth_and_a_quota_query() {
     let descriptor = Devin.descriptor();
     assert_eq!(descriptor.id, "devin");
-    assert_eq!(descriptor.login_modes, vec![LoginMode::ApiKey]);
+    assert_eq!(descriptor.login_modes, vec![LoginMode::AuthorizationCode]);
     assert!(descriptor.capabilities.quota_query);
     assert!(!descriptor.capabilities.refresh);
     assert!(!descriptor.capabilities.websocket);

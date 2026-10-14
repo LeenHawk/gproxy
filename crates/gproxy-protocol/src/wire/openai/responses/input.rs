@@ -281,12 +281,24 @@ pub enum InputItem {
     MultiAgentCallOutput(super::multi_agent::MultiAgentCallOutput),
     AgentMessage(super::multi_agent::AgentMessage),
     ConfigurationUpdate(ConfigurationUpdate),
-    OutputMessage(#[serde(deserialize_with = "output_message_history")] ResponseOutputMessage),
+    OutputMessage(
+        #[serde(
+            deserialize_with = "output_message_history",
+            serialize_with = "serialize_history_item"
+        )]
+        ResponseOutputMessage,
+    ),
     Message(InputMessage),
     Easy(EasyInputMessage),
     FunctionCall(FunctionCall),
     FunctionCallOutput(FunctionCallOutput),
-    Reasoning(ReasoningItem),
+    Reasoning(
+        #[serde(
+            deserialize_with = "history_item",
+            serialize_with = "serialize_history_item"
+        )]
+        ReasoningItem,
+    ),
     ItemReference(ItemReference),
     Compaction(Compaction),
     ComputerCall(ComputerCall),
@@ -300,7 +312,13 @@ pub enum InputItem {
     ToolSearchCall(ToolSearchCall),
     ToolSearchOutput(ToolSearchOutput),
     AdditionalTools(AdditionalTools),
-    LocalShellCall(LocalShellCall),
+    LocalShellCall(
+        #[serde(
+            deserialize_with = "history_item",
+            serialize_with = "serialize_history_item"
+        )]
+        LocalShellCall,
+    ),
     LocalShellCallOutput(LocalShellCallOutput),
     ShellCall(ShellCall),
     ShellCallOutput(ShellCallOutput),
@@ -315,7 +333,33 @@ pub enum InputItem {
     ProgramOutput(ProgramOutput),
 }
 
-/// Codex replays assistant history without output-only status/annotation
+// Missing history IDs use an internal empty sentinel, omitted again on the wire.
+// Live output items still deserialize through their strict native types.
+fn history_item<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::de::DeserializeOwned,
+{
+    let mut value = serde_json::Value::deserialize(deserializer)?;
+    if let Some(object) = value.as_object_mut() {
+        object.entry("id").or_insert_with(|| "".into());
+    }
+    serde_json::from_value(value).map_err(serde::de::Error::custom)
+}
+
+fn serialize_history_item<S, T>(item: &T, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+    T: Serialize,
+{
+    let mut value = serde_json::to_value(item).map_err(serde::ser::Error::custom)?;
+    if value.get("id").and_then(serde_json::Value::as_str) == Some("") {
+        value.as_object_mut().expect("history object").remove("id");
+    }
+    value.serialize(serializer)
+}
+
+/// Codex replays assistant history without output-only ID/status/annotation
 /// bookkeeping. Accept that compact request form without relaxing live
 /// response parsing or dropping its output_text content.
 fn output_message_history<'de, D>(deserializer: D) -> Result<ResponseOutputMessage, D::Error>
@@ -324,9 +368,12 @@ where
 {
     let mut value = serde_json::Value::deserialize(deserializer)?;
     if value.get("role").and_then(serde_json::Value::as_str) == Some("assistant")
-        && value.get("type").and_then(serde_json::Value::as_str) == Some("message")
+        && (value.get("type").is_none()
+            || value.get("type").and_then(serde_json::Value::as_str) == Some("message"))
     {
         let object = value.as_object_mut().expect("message object");
+        object.entry("type").or_insert_with(|| "message".into());
+        object.entry("id").or_insert_with(|| "".into());
         object.entry("status").or_insert_with(|| "completed".into());
         if let Some(parts) = object
             .get_mut("content")

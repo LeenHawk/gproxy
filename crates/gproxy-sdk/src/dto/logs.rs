@@ -275,6 +275,24 @@ pub struct LogQuery {
     pub limit: Option<u64>,
 }
 
+/// Request history rows to delete, by the ids a listing returned.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct HistoryDelete {
+    pub ids: Vec<String>,
+}
+
+/// How many history rows a deletion removed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct HistoryDeleted {
+    pub deleted: u64,
+}
+
 /// One physical capture, readable even when the downstream log is disabled.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]

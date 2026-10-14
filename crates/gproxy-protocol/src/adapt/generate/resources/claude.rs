@@ -10,7 +10,7 @@ impl<R: ResourceAccess> GenerationResources<'_, R> {
         input: cg::GenerateContentRequestBody,
     ) -> Result<cg::GenerateContentRequestBody, TransformError> {
         let mut input = input.into_declared();
-        let mut budget = self.budget();
+        let mut budget = self.budget(crate::Dialect::Claude);
         for message in &mut input.messages {
             if let c::MessageContent::Blocks(blocks) = &mut message.content {
                 for block in blocks {
@@ -49,7 +49,9 @@ impl<R: ResourceAccess> Budget<'_, '_, R> {
             c::ImageSource::File(source) => ResourceReference::Id(source.file_id.clone()),
             c::ImageSource::Base64(_) => return Ok(()),
         };
-        let media = self.read(reference, true).await?;
+        let Some(media) = self.read(reference, true).await? else {
+            return Ok(());
+        };
         let mime = match media.mime.as_str() {
             "image/png" => c::ImageMediaType::Png,
             "image/jpeg" => c::ImageMediaType::Jpeg,
@@ -83,7 +85,9 @@ impl<R: ResourceAccess> Budget<'_, '_, R> {
             }
             _ => return Ok(()),
         };
-        let media = self.read(reference, false).await?;
+        let Some(media) = self.read(reference, false).await? else {
+            return Ok(());
+        };
         doc.source = match media.mime.as_str() {
             "application/pdf" => {
                 if !media.bytes.starts_with(b"%PDF-") {

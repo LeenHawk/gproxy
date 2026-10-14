@@ -70,6 +70,7 @@ fn resources(host: &Resources) -> GenerationResources<'_, Resources> {
         limits: limits(),
         max_references: 8,
         now: UNIX_EPOCH,
+        target: Dialect::OpenAi,
     }
 }
 fn ids(client: Dialect, native: Dialect) -> GenerationIdentity {

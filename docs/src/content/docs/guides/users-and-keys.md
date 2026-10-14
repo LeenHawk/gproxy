@@ -56,6 +56,10 @@ Management API operations:
 - `GET /admin/api/api-keys/{id}/secret`: reveal a retained secret.
 - Personal API equivalents are `/portal/api/keys/{id}/rotate` and `/portal/api/keys/{id}/secret`.
 
+Revocation takes effect immediately on the instance that wrote it. Other instances of a multi-instance deployment answer authentication from their in-memory snapshot and stop accepting the key when they reload: within milliseconds through the shared-cache invalidation, and at the latest after the 30-second revision poll if that message is lost. See [Architecture](/introduction/architecture/).
+
+Removing a member from an organization or team disables that user's keys bound to it, including OAuth internal keys, in the same transaction.
+
 ## Send a key
 
 ```text

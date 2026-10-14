@@ -7,7 +7,7 @@ impl<R: ResourceAccess> GenerationResources<'_, R> {
         input: g::GenerateContentRequestBody,
     ) -> Result<g::GenerateContentRequestBody, TransformError> {
         let mut input = input.into_declared();
-        let mut budget = self.budget();
+        let mut budget = self.budget(crate::Dialect::Gemini);
         for content in input
             .contents
             .iter_mut()
@@ -21,9 +21,16 @@ impl<R: ResourceAccess> GenerationResources<'_, R> {
                             "ambiguous file and inline data",
                         ));
                     }
-                    let media = budget
-                        .read(ResourceReference::Url(file.file_uri.clone()), false)
-                        .await?;
+                    let image = file
+                        .mime_type
+                        .as_deref()
+                        .is_some_and(|mime| mime.starts_with("image/"));
+                    let Some(media) = budget
+                        .read(ResourceReference::Url(file.file_uri.clone()), image)
+                        .await?
+                    else {
+                        continue;
+                    };
                     if file
                         .mime_type
                         .as_ref()

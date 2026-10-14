@@ -38,6 +38,8 @@ pub enum RewriteCompileError {
     InvalidHeaderPattern(String),
     #[error("invalid filter_event_pattern: {0}")]
     InvalidEventPattern(String),
+    #[error("invalid rule condition: {0}")]
+    InvalidCondition(String),
 }
 
 /// Compile one enabled rule. Disabled rows are the caller's concern.
@@ -88,6 +90,21 @@ pub fn compile_rule(
             }
         }
     };
+    if entity.filter_body.is_some() && !matches!(target, RewriteTarget::Body { .. }) {
+        return Err(RewriteCompileError::InvalidCondition(
+            "filter_body requires a body target".into(),
+        ));
+    }
+    let body_condition = entity
+        .filter_body
+        .as_ref()
+        .map(super::BodyCondition::compile)
+        .transpose()?;
+    let header_condition = entity
+        .filter_header
+        .as_ref()
+        .map(super::HeaderCondition::compile)
+        .transpose()?;
     let action = super::action::compile(
         &entity.action,
         &entity.replacement,
@@ -133,11 +150,15 @@ pub fn compile_rule(
         model_matcher,
         header_matcher,
         event_matcher,
+        body_condition,
+        header_condition,
     })
 }
 
 /// `tools.*.name` → keys, numeric indexes and wildcards. Not JSONPath.
-fn parse_paths(value: &serde_json::Value) -> Result<Vec<Vec<PathSegment>>, RewriteCompileError> {
+pub(super) fn parse_paths(
+    value: &serde_json::Value,
+) -> Result<Vec<Vec<PathSegment>>, RewriteCompileError> {
     let paths: Vec<String> = serde_json::from_value(value.clone())
         .map_err(|error| RewriteCompileError::InvalidPaths(error.to_string()))?;
     if paths.is_empty() {

@@ -9,6 +9,9 @@ pub struct Model {
     pub direction: CaptureDirection,
     pub kind: CaptureEventKind,
     pub payload: Vec<u8>,
+    pub encoding: String,
+    pub chunk_offsets: Option<Vec<u8>>,
+    pub body_id: Option<String>,
     pub observed_at_ms: i64,
 }
 
@@ -50,6 +53,9 @@ impl From<super::upstream_event::Model> for Model {
             direction: row.direction,
             kind: row.kind,
             payload: row.payload,
+            encoding: row.encoding,
+            chunk_offsets: row.chunk_offsets,
+            body_id: row.body_id,
             observed_at_ms: row.observed_at_ms,
         }
     }
@@ -64,6 +70,9 @@ impl From<super::downstream_event::Model> for Model {
             direction: row.direction,
             kind: row.kind,
             payload: row.payload,
+            encoding: row.encoding,
+            chunk_offsets: row.chunk_offsets,
+            body_id: row.body_id,
             observed_at_ms: row.observed_at_ms,
         }
     }

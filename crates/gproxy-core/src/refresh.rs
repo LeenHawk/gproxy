@@ -20,6 +20,7 @@ use gproxy_store::{
         credentials::{CredentialRefresh as RefreshRow, CredentialStatusUpdate},
     },
 };
+use sea_orm::{Condition, EntityTrait, QueryFilter};
 use std::{sync::Arc, time::Duration};
 
 /// A refresh that runs longer than this lost its lease; peers may start one.
@@ -27,8 +28,10 @@ const LEASE_TTL: Duration = Duration::from_secs(30);
 /// Waiting for a peer's refresh: poll interval and total patience.
 const LEASE_POLL: Duration = Duration::from_millis(100);
 const LEASE_WAIT: Duration = Duration::from_secs(10);
-/// `IfNeeded` refreshes when the material expires within this margin.
-pub const REFRESH_MARGIN_MS: i64 = 60_000;
+/// `IfNeeded` refreshes when the access token expires within five minutes.
+pub const REFRESH_MARGIN_MS: i64 = 300_000;
+/// Also refresh when the OAuth refresh token expires within one day.
+const REFRESH_TOKEN_MARGIN_MS: i64 = 86_400_000;
 
 pub(crate) fn can_refresh(
     provider: &crate::ProviderData,
@@ -50,6 +53,11 @@ pub(crate) fn needs_refresh(version: &CredentialVersion, now_ms: i64) -> bool {
     version
         .expires_at_ms
         .is_some_and(|expires| expires <= now_ms + REFRESH_MARGIN_MS)
+        || version
+            .secret
+            .get("refresh_expires_at_ms")
+            .and_then(serde_json::Value::as_i64)
+            .is_some_and(|expires| expires <= now_ms + REFRESH_TOKEN_MARGIN_MS)
 }
 
 fn summary(credential_id: &str, version: &CredentialVersion) -> CredentialSummary {
@@ -76,6 +84,18 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         credential_id: &str,
         mode: RefreshMode,
     ) -> CoreResult<CredentialSummary> {
+        self.refresh_credential_with_filter(provider_id, credential_id, mode, None)
+            .await
+    }
+
+    /// Refresh under an optional durable credential-row authorization predicate.
+    pub async fn refresh_credential_with_filter(
+        &self,
+        provider_id: &str,
+        credential_id: &str,
+        mode: RefreshMode,
+        filter: Option<&Condition>,
+    ) -> CoreResult<CredentialSummary> {
         let snapshot = self.snapshot();
         let credential = snapshot
             .credentials
@@ -94,7 +114,13 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             .ok_or_else(|| {
                 CoreError::InvalidTarget(format!("provider `{provider_id}` is not loaded"))
             })?;
-        let current = credential.state.load();
+        let current = match filter {
+            Some(filter) => {
+                self.authorized_credential_version(&credential, filter)
+                    .await?
+            }
+            None => credential.state.load(),
+        };
         if current.status == CredentialStatus::Dead {
             return Err(dead(credential_id, &current));
         }
@@ -114,7 +140,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             if let Some(lease) = self.cache().acquire_lease(&lease_key, LEASE_TTL).await? {
                 break lease;
             }
-            if let Some(row) = self.read_row(credential_id).await?
+            if let Some(row) = self.read_row(credential_id, filter).await?
                 && row.version > current.version
             {
                 let published = self.publish_row(&credential, &row)?;
@@ -128,7 +154,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             crate::rt::sleep(LEASE_POLL).await;
         };
         let result = self
-            .refresh_under_lease(&provider, &credential, &current, mode, refresher)
+            .refresh_under_lease(&provider, &credential, &current, mode, refresher, filter)
             .await;
         let _ = self.cache().release_permit(&lease_key, lease).await;
         result
@@ -141,10 +167,11 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         current: &Arc<CredentialVersion>,
         mode: RefreshMode,
         refresher: &dyn gproxy_channel::channel::CredentialRefresh,
+        filter: Option<&Condition>,
     ) -> CoreResult<CredentialSummary> {
         let credential_id = credential.id.as_str();
         // Authoritative material: a peer may have rotated since our snapshot.
-        let Some(row) = self.read_row(credential_id).await? else {
+        let Some(row) = self.read_row(credential_id, filter).await? else {
             credential.state.retire();
             return Err(CoreError::InvalidTarget(format!(
                 "credential `{credential_id}` no longer exists"
@@ -200,7 +227,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             Ok(update) => update,
             Err(ChannelError::RefreshRejected(reason)) => {
                 return Err(self
-                    .mark_dead(credential, &row_version, reason)
+                    .mark_dead(credential, &row_version, reason, filter)
                     .await
                     .unwrap_or_else(|error| error));
             }
@@ -214,12 +241,15 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         let outcome = self
             .store()
             .credentials()
-            .refresh_many(vec![RefreshRow {
-                id: credential_id.to_owned(),
-                expected_version: row.version,
-                secret: sealed,
-                expires_at_ms: update.expires_at_ms,
-            }])
+            .refresh_many_where(
+                vec![RefreshRow {
+                    id: credential_id.to_owned(),
+                    expected_version: row.version,
+                    secret: sealed,
+                    expires_at_ms: update.expires_at_ms,
+                }],
+                filter.cloned().unwrap_or_else(Condition::all),
+            )
             .await?;
         match outcome.first() {
             Some(CasOutcome::Applied) => {
@@ -236,7 +266,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             }
             _ => {
                 // Lost the race after all: the durable row wins.
-                match self.read_row(credential_id).await? {
+                match self.read_row(credential_id, filter).await? {
                     Some(row) => {
                         let published = self.publish_row(credential, &row)?;
                         finish_peer(credential_id, &published)
@@ -259,17 +289,21 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         credential: &Arc<CredentialData>,
         current: &CredentialVersion,
         reason: String,
+        filter: Option<&Condition>,
     ) -> CoreResult<CoreError> {
         let credential_id = credential.id.as_str();
         let outcome = self
             .store()
             .credentials()
-            .set_status_many(vec![CredentialStatusUpdate {
-                id: credential_id.to_owned(),
-                expected_version: current.version,
-                status: CredentialStatus::Dead,
-                reason: Some(reason.clone()),
-            }])
+            .set_status_many_where(
+                vec![CredentialStatusUpdate {
+                    id: credential_id.to_owned(),
+                    expected_version: current.version,
+                    status: CredentialStatus::Dead,
+                    reason: Some(reason.clone()),
+                }],
+                filter.cloned().unwrap_or_else(Condition::all),
+            )
             .await?;
         match outcome.first() {
             Some(CasOutcome::Applied) => {
@@ -284,7 +318,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                 self.notify_changed(credential_id, next.version).await;
                 Ok(dead(credential_id, &next))
             }
-            _ => match self.read_row(credential_id).await? {
+            _ => match self.read_row(credential_id, filter).await? {
                 Some(row) => {
                     let published = self.publish_row(credential, &row)?;
                     Ok(match finish_peer(credential_id, &published) {
@@ -302,15 +336,43 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         }
     }
 
-    async fn read_row(&self, credential_id: &str) -> CoreResult<Option<credential::Model>> {
-        Ok(self
+    async fn read_row(
+        &self,
+        credential_id: &str,
+        filter: Option<&Condition>,
+    ) -> CoreResult<Option<credential::Model>> {
+        let row = self
             .store()
             .credentials()
-            .get_many(&[credential_id.to_owned()])
+            .query(
+                credential::Entity::find_by_id(credential_id.to_owned())
+                    .filter(filter.cloned().unwrap_or_else(Condition::all)),
+            )
             .await?
             .into_iter()
-            .next()
-            .flatten())
+            .next();
+        if row.is_none() && filter.is_some() {
+            return Err(CoreError::ResourceNotFound {
+                kind: "credential",
+                id: credential_id.to_owned(),
+            });
+        }
+        Ok(row)
+    }
+
+    pub(crate) async fn authorized_credential_version(
+        &self,
+        credential: &CredentialData,
+        filter: &Condition,
+    ) -> CoreResult<Arc<CredentialVersion>> {
+        let row = self
+            .read_row(&credential.id, Some(filter))
+            .await?
+            .ok_or_else(|| CoreError::ResourceNotFound {
+                kind: "credential",
+                id: credential.id.clone(),
+            })?;
+        self.publish_row(credential, &row)
     }
 
     /// Open a Store row and publish it into the live slot if newer.
@@ -331,7 +393,9 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             status_reason: row.status_reason.clone(),
         });
         credential.state.publish_if_newer(version.clone());
-        Ok(credential.state.load())
+        // Return the material from this authorized row, not a newer slot a
+        // concurrent ownership transfer may have published in the meantime.
+        Ok(version)
     }
 
     async fn notify_changed(&self, credential_id: &str, version: i64) {

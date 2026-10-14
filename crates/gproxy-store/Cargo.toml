@@ -18,6 +18,14 @@ serde_json = { workspace = true }
 rust_decimal = { workspace = true }
 thiserror = { workspace = true }
 getrandom = { workspace = true }
+blake3 = { workspace = true }
+fastcdc = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+zstd = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+ruzstd = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }

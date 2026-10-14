@@ -432,6 +432,9 @@ ipc_table! {
         manage credentials set_status => manage_credentials_set_status;
         // A slice argument.
         manage quotas budget_status => manage_quotas_budget_status;
+        // Optional slices select records; `None` clears settled history.
+        manage history delete_logs => manage_history_delete_logs;
+        manage history delete_usage => manage_history_delete_usage;
         // `Option<&str>`.
         manage connectivity discover_models => manage_connectivity_discover_models;
         // Synchronous, and the only `Portal` method that is.
@@ -446,6 +449,14 @@ ipc_table! {
         // is the only thing here that is not an operation on the instance:
         // where the socket is listening and which store the secrets went to
         // are facts about this process.
+        desktop preferences status => desktop_preferences_status;
+        desktop preferences save => desktop_preferences_save;
+        desktop preferences language => desktop_preferences_language;
+        desktop background set => desktop_background_set;
+        desktop application action => desktop_application_action;
+        desktop fonts status => desktop_fonts_status;
+        desktop fonts download => desktop_fonts_download;
+        desktop fonts remove => desktop_fonts_remove;
         desktop setup status => desktop_setup_status;
         desktop setup complete => desktop_setup_complete;
         desktop setup pick_directory => desktop_setup_pick_directory;
@@ -603,6 +614,31 @@ pub async fn manage_quotas_budget_status(
     }
     .await;
     super::audit(&desktop, "manage.quotas.budget_status", &answer).await;
+    answer
+}
+
+/// Delete settled captures on one side, optionally limited to selected ids.
+#[tauri::command]
+pub async fn manage_history_delete_logs(
+    desktop: tauri::State<'_, Desktop>,
+    side: gproxy_sdk::manage::LogSide,
+    ids: Option<Vec<String>>,
+) -> IpcResult<serde_json::Value> {
+    let desktop = &*desktop;
+    let answer = ipc_call!(manage, desktop, [.history()], delete_logs, (side, ids.as_deref(),));
+    super::audit(desktop, "manage.history.delete_logs", &answer).await;
+    answer
+}
+
+/// Delete usage records, optionally limited to selected request ids.
+#[tauri::command]
+pub async fn manage_history_delete_usage(
+    desktop: tauri::State<'_, Desktop>,
+    ids: Option<Vec<String>>,
+) -> IpcResult<serde_json::Value> {
+    let desktop = &*desktop;
+    let answer = ipc_call!(manage, desktop, [.history()], delete_usage, (ids.as_deref(),));
+    super::audit(desktop, "manage.history.delete_usage", &answer).await;
     answer
 }
 
@@ -855,4 +891,122 @@ pub async fn desktop_setup_pick_directory<R: tauri::Runtime>(
         let _ = app;
         Ok(None)
     }
+}
+
+#[tauri::command]
+pub async fn desktop_preferences_status<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    setup: tauri::State<'_, crate::setup::Setup>,
+) -> IpcResult<serde_json::Value> {
+    json(crate::preferences::status(&app, &setup).await)
+}
+
+#[tauri::command]
+pub async fn desktop_preferences_save<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    setup: tauri::State<'_, crate::setup::Setup>,
+    preferences: crate::preferences::Preferences,
+) -> IpcResult<serde_json::Value> {
+    json(crate::preferences::save(&app, &setup, preferences).await)
+}
+
+#[tauri::command]
+pub async fn desktop_preferences_language<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    setup: tauri::State<'_, crate::setup::Setup>,
+    language: String,
+) -> IpcResult<()> {
+    let _gate = setup.gate.lock().await;
+    let mut choices = setup.choices().map_err(crate::IpcError::internal)?;
+    if !choices.completed || choices.preferences.language == language {
+        return Ok(());
+    }
+    choices.preferences.language = language;
+    #[cfg(desktop)]
+    if app.tray_by_id("gproxy").is_some() {
+        crate::tray::install(&app, &choices.preferences.language)
+            .map_err(crate::IpcError::internal)?;
+    }
+    #[cfg(not(desktop))]
+    let _ = app;
+    crate::setup::write_choices(&setup.root, &choices).map_err(crate::IpcError::internal)?;
+    #[cfg(target_env = "ohos")]
+    crate::ohos::request("refresh-tray").await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn desktop_background_set(enabled: bool) -> IpcResult<serde_json::Value> {
+    #[cfg(target_env = "ohos")]
+    {
+        json(crate::ohos::request(if enabled { "enable" } else { "disable" }).await)
+    }
+    #[cfg(not(target_env = "ohos"))]
+    {
+        let _ = enabled;
+        Err(
+            gproxy_app::AppError::invalid("this host does not use OpenHarmony background tasks")
+                .into(),
+        )
+    }
+}
+
+#[tauri::command]
+pub async fn desktop_application_action(action: String) -> IpcResult<serde_json::Value> {
+    #[cfg(target_env = "ohos")]
+    {
+        if !matches!(
+            action.as_str(),
+            "startup-settings"
+                | "minimize-on"
+                | "minimize-off"
+                | "tray-on"
+                | "tray-off"
+                | "close-hide"
+                | "close-quit"
+        ) {
+            return Err(gproxy_app::AppError::invalid("unknown application action").into());
+        }
+        json(crate::ohos::request(&action).await)
+    }
+    #[cfg(not(target_env = "ohos"))]
+    {
+        let _ = action;
+        Err(gproxy_app::AppError::invalid(
+            "this host does not use OpenHarmony application settings",
+        )
+        .into())
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn desktop_fonts_status(
+    fonts: tauri::State<'_, crate::fonts::FontConsole>,
+) -> IpcResult<serde_json::Value> {
+    serde_json::to_value(fonts.0.fonts().status().await).map_err(crate::IpcError::internal)
+}
+
+#[tauri::command]
+pub(crate) async fn desktop_fonts_download(
+    fonts: tauri::State<'_, crate::fonts::FontConsole>,
+) -> IpcResult<serde_json::Value> {
+    let status = fonts
+        .0
+        .download_fonts()
+        .await
+        .map_err(crate::IpcError::internal)?;
+    serde_json::to_value(status).map_err(crate::IpcError::internal)
+}
+
+#[tauri::command]
+pub(crate) async fn desktop_fonts_remove(
+    fonts: tauri::State<'_, crate::fonts::FontConsole>,
+) -> IpcResult<serde_json::Value> {
+    let status = fonts
+        .0
+        .fonts()
+        .remove()
+        .await
+        .map_err(crate::IpcError::internal)?;
+    serde_json::to_value(status).map_err(crate::IpcError::internal)
 }

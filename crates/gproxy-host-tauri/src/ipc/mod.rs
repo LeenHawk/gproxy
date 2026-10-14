@@ -21,10 +21,8 @@
 //! are siblings over one product layer, not one wrapping the other, so this
 //! table is keyed on **families and methods** — `admin_users_list` is
 //! `Operations::users().list(..)` — and never on a URL. `tests/table.rs`
-//! checks the coverage against the families `Operations`, `Portal`, `Manage`
-//! and `Query` expose, for the same reason: a route list is one host's
-//! decision, and keying on it would make the desktop shell break whenever the
-//! server's paths moved.
+//! checks command uniqueness, naming and required entry points;
+//! `tests/assembly.rs` exercises dispatch through the IPC handler.
 //!
 //! # Authentication
 //!

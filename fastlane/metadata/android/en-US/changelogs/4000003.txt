@@ -1,0 +1,1 @@
+Smaller Android downloads. Interface fonts download on demand and are cached locally; license notices remain available offline. Store-managed updates and an offline privacy notice.

@@ -304,20 +304,9 @@ fn authorization_kind(validated: &Validated) -> &'static str {
     }
 }
 
-/// The registered redirect URI equal to `presented`, or `invalid_request`.
-///
-/// **Exact string equality, and nothing else.** Not a prefix, not a
-/// same-origin test, not a normalization pass. Every looser rule has the same
-/// failure: a client registered for `https://app.example/cb` would also accept
-/// `https://app.example/cb.attacker.example`, `https://app.example/cb/../../x`
-/// or `https://app.example/cb?next=//evil`, and each of those is a URL an
-/// attacker controls that receives the authorization code. RFC 6749 §3.1.2.3
-/// asks for exactly this, and the registry refuses to store a `*` so that a
-/// registration cannot ask for anything else.
-///
-/// Returning the *registered* string rather than the presented one means the
-/// row and the redirect carry the value the operator wrote, byte for byte,
-/// even if the two differed in some way the comparison would have to allow.
+/// Match exactly, except for HTTP loopback ports (RFC 8252 §7.3).
+/// Return the presented URI so consent, code storage and exchange bind the
+/// actual callback port. All other URI bytes must still match.
 pub(super) fn registered_redirect(client: &client::Model, presented: &str) -> Result<String> {
     let presented = presented.trim();
     if presented.is_empty() {
@@ -329,14 +318,38 @@ pub(super) fn registered_redirect(client: &client::Model, presented: &str) -> Re
         .into_iter()
         .flatten()
         .filter_map(Value::as_str)
-        .find(|registered| *registered == presented)
-        .map(str::to_owned)
+        .find(|registered| {
+            *registered == presented
+                || loopback_redirect(registered)
+                    .is_some_and(|value| Some(value) == loopback_redirect(presented))
+        })
+        .map(|_| presented.to_owned())
         .ok_or_else(|| {
             IssuerError::invalid_request(format!(
                 "`{presented}` is not a registered redirect URI for `{}`",
                 client.id
             ))
         })
+}
+
+// Compare raw spelling to avoid normalizing paths, queries or host aliases.
+fn loopback_redirect(uri: &str) -> Option<(&str, &str)> {
+    for host in ["http://127.0.0.1", "http://[::1]"] {
+        if let Some(rest) = uri.strip_prefix(host) {
+            let (port, path) = rest.split_once('/')?;
+            if !port.is_empty() {
+                let port = port.strip_prefix(':')?;
+                if port.is_empty()
+                    || !port.bytes().all(|byte| byte.is_ascii_digit())
+                    || port.parse::<u16>().is_err()
+                {
+                    return None;
+                }
+            }
+            return Some((host, path));
+        }
+    }
+    None
 }
 
 /// The S256 challenge of `verifier`, for comparison against a stored one.
@@ -392,7 +405,6 @@ mod tests {
             "http://127.0.0.1:1455/callback?x=1",
             "http://127.0.0.1:1455/callback.attacker.example",
             "http://127.0.0.1:1455/callback/../../elsewhere",
-            "http://127.0.0.1:1456/callback",
             "https://127.0.0.1:1455/callback",
             "HTTP://127.0.0.1:1455/callback",
             "https://app.example/cb#frag",

@@ -31,3 +31,5 @@ pub use route::{
 };
 pub(crate) mod local;
 pub use spec::{is_websocket, response_framing, spec_for};
+
+pub use models::local_metadata as local_model_metadata;

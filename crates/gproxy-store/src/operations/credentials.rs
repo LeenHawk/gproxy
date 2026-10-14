@@ -30,6 +30,15 @@ pub struct CredentialStatusUpdate {
 impl<C: BatchConnectionTrait> Repository<'_, C, credential::Entity> {
     /// A successful refresh also returns the credential to Active.
     pub async fn refresh_many(&self, updates: Vec<CredentialRefresh>) -> Result<Vec<CasOutcome>> {
+        self.refresh_many_where(updates, sea_orm::Condition::all())
+            .await
+    }
+
+    pub async fn refresh_many_where(
+        &self,
+        updates: Vec<CredentialRefresh>,
+        condition: sea_orm::Condition,
+    ) -> Result<Vec<CasOutcome>> {
         let statements = updates
             .into_iter()
             .map(|update| {
@@ -51,6 +60,7 @@ impl<C: BatchConnectionTrait> Repository<'_, C, credential::Entity> {
                     .col_expr(credential::Column::Version, Expr::val(next))
                     .filter(credential::Column::Id.eq(update.id))
                     .filter(credential::Column::Version.eq(update.expected_version))
+                    .filter(condition.clone())
                     .build(self.db.get_database_backend()))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -66,6 +76,15 @@ impl<C: BatchConnectionTrait> Repository<'_, C, credential::Entity> {
     pub async fn set_status_many(
         &self,
         updates: Vec<CredentialStatusUpdate>,
+    ) -> Result<Vec<CasOutcome>> {
+        self.set_status_many_where(updates, sea_orm::Condition::all())
+            .await
+    }
+
+    pub async fn set_status_many_where(
+        &self,
+        updates: Vec<CredentialStatusUpdate>,
+        condition: sea_orm::Condition,
     ) -> Result<Vec<CasOutcome>> {
         let statements = updates
             .into_iter()
@@ -84,6 +103,7 @@ impl<C: BatchConnectionTrait> Repository<'_, C, credential::Entity> {
                     .col_expr(credential::Column::Version, Expr::val(next))
                     .filter(credential::Column::Id.eq(update.id))
                     .filter(credential::Column::Version.eq(update.expected_version))
+                    .filter(condition.clone())
                     .build(self.db.get_database_backend()))
             })
             .collect::<Result<Vec<_>>>()?;

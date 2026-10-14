@@ -1,7 +1,14 @@
 {
+  "credentialKinds": {
+    "api_key": "API Key",
+    "oauth": "OAuth",
+    "cookie": "Cookie",
+    "service_account": "Service account",
+    "aws_access_key": "AWS access key pair"
+  },
   "overview": {
     "title": "Hello, {{name}}",
-    "usage": "The last seven days",
+    "usage": "Usage",
     "quota": "Cost budgets"
   },
   "keys": {
@@ -62,7 +69,6 @@
       "displayName": "Display name",
       "thinkingAdaptiveSupported": "Adaptive thinking supported",
       "thinkingEnabledSupported": "Enabled thinking supported",
-      "thinkingHint": "Switch on capabilities this upstream explicitly supports. Undeclared values stay unknown until changed.",
       "advancedMetadata": "Advanced model metadata",
       "metadataDescription": "Model description",
       "maxContextWindow": "Maximum configurable context",
@@ -99,7 +105,7 @@
       "unknownMetadata": "Unknown; a later catalog pull may fill this value.",
       "knownEmpty": "Known to be empty.",
       "variants": "Variants",
-      "variantsHint": "Variants expose additional model names that route to this base model. Each can force tools, reasoning, service tier, verbosity, or an upstream.",
+      "variantsHint": "Use different model names to call presets of this model.",
       "variantsEmpty": "No variants.",
       "variantName": "Variant name",
       "variantRemove": "Remove variant",
@@ -127,6 +133,7 @@
     "select": "Select a provider"
   },
   "providerConfig": {
+    "forward_thinking": "Forward thinking blocks",
     "account_type": "Account type",
     "agent_intent": "Agent intent",
     "allowed_headers": "Allowed headers",
@@ -162,6 +169,7 @@
     "ide_version": "Ide version",
     "issuer": "Issuer",
     "locale": "Locale",
+    "low_priority": "Low priority mode",
     "location": "Location",
     "login_provider": "Login provider",
     "management_base_url": "Management base url",
@@ -257,7 +265,7 @@
   },
   "providerForm": {
     "autoRefreshModels": "Refresh model suggestions from upstream",
-    "autoRefreshModelsHelp": "When configuring route members, fetch current upstream models. Turn off to use only saved models.",
+    "autoRefreshModelsHelp": "On each client model list or detail request, refresh upstream models and merge them into the local catalog before returning the configured models. Turn off to use only saved models.",
     "dynamicAddress": "Chosen automatically from channel settings or credentials",
     "displayName": "Display name",
     "routeName": "Route name",
@@ -270,7 +278,7 @@
   },
   "setting": {
     "allowedHeaders": "Global request header allow-list",
-    "allowedHeadersHelp": "Combined with each provider’s allowed headers and the channel defaults. An empty list adds no global headers; credentials and hop-by-hop headers are still removed.",
+    "allowedHeadersHelp": "Additional request headers allowed alongside channel and provider defaults.",
     "instanceName": "Instance name",
     "oauthClientAllowlist": "Allowed OAuth clients",
     "connectionProfileId": "Default HTTP client configuration",
@@ -293,6 +301,8 @@
     "defaultVocabularyFileId": "Default vocabulary",
     "tokenizerAuthToken": "Vocabulary download token",
     "retentionDays": "Request history retention (days)",
+    "capturePayloadRetentionDays": "Capture payload retention (days)",
+    "capturePayloadMaxMb": "Capture payload size limit (MiB)",
     "maxDatabaseSizeMb": "SQLite database size limit (MiB)",
     "updateSource": "Update source",
     "updateChannel": "Update channel",
@@ -377,7 +387,6 @@
     "formMode": "Form",
     "jsonMode": "Advanced JSON",
     "ruleJson": "Rule JSON",
-    "jsonHelp": "Paste one v4 rule object. The selected rule set and rule order stay outside the JSON. Saving validates the rule on the server.",
     "formatJson": "Format JSON",
     "invalidJsonField": "Invalid or unsupported rule field: {{field}}.",
     "allModels": "All models",
@@ -468,14 +477,31 @@
     },
     "selectSet": "Select a rule set to view its rules.",
     "providerCount": "{{count}} providers",
-    "orderHint": "Rules follow rule set binding order, then the order within each set. Move up/down changes the order within a set."
+    "conditions": {
+      "body": "Body condition path",
+      "header": "Header condition name",
+      "bodyHelp": "Optional. Match the current JSON body after earlier rules. Use dot paths and array indexes; no wildcards. Values are typed JSON. Missing differs from null.",
+      "headerHelp": "Optional. Match original inbound request headers. Names ignore case; values are exact text. Equality matches any repeated value; inequality requires the header and no equal value.",
+      "operator": "Comparison",
+      "value": "Comparison value",
+      "eq": "Equals",
+      "ne": "Does not equal",
+      "exists": "Exists",
+      "not_exists": "Does not exist",
+      "bodyMode": "Body condition mode",
+      "fieldCondition": "Field comparison",
+      "expression": "JMESPath body condition",
+      "expressionHelp": "Optional. Return boolean true to run the rule. Supports negative indexes, filters and contains(). Evaluates the current body after earlier rules. Evaluation errors and non-boolean results do not match."
+    }
   },
   "update": {
+    "verifySignature": "Verify update signatures",
+    "verifySignatureHelp": "Disabling skips publisher signature verification.",
     "source": "Update source",
     "current": "Running version",
     "unsupported": "This host does not support self-update",
     "channel": "Update channel",
-    "channelHelp": "Save to use this source and channel for future update checks. Unsaved changes apply only to checks and installations on this page.",
+    "channelHelp": "Save to use these settings for future update checks.",
     "schedule": "Check every {{seconds}} seconds",
     "noSchedule": "Scheduled checks disabled",
     "autoInstall": "Automatic installation enabled",
@@ -494,7 +520,17 @@
     "available": "Update available: {{version}}",
     "latest": "No newer version found",
     "notes": "Release notes",
-    "notChecked": "No check result for this channel yet."
+    "notChecked": "No check result for this channel yet.",
+    "announcements": {
+      "title": "Announcements",
+      "empty": "No announcements for this build.",
+      "severity": {
+        "info": "Notice",
+        "warning": "Warning",
+        "critical": "Critical"
+      }
+    },
+    "selfUpdate": "Self-update"
   },
   "operation": {
     "list_models": "List Models",
@@ -550,6 +586,11 @@
     "noPresets": "No matching presets"
   },
   "modelUI": {
+    "configuredPrice": "Configured input / output price",
+    "pricingByOperation": "Operation-specific pricing",
+    "hasDefaultPrice": "Default reference price available",
+    "inheritedPrice": "Inherited global pricing: {{pattern}}. Create a provider rule to override it.",
+    "matchedPrice": "Matched pricing rule: {{pattern}}. Create an exact model rule to override it.",
     "invalidVariants": "Variant names must be unique, nonempty, and contain no wildcards.",
     "defaultMetadata": "Import default metadata",
     "testOk": "Test succeeded",
@@ -681,8 +722,8 @@
     "referencePrice": "Input / output USD/1M",
     "details": "Details",
     "applyPrice": "Apply default price",
-    "reset": "Remove local entry",
     "applied": "Created {{created}}, kept {{skipped}}, unmatched {{unmatched}}",
+    "applyPriceCount": "Apply default price ({{count}})",
     "tierFields": {
       "inputPrice": "Input",
       "outputPrice": "Output",
@@ -699,15 +740,23 @@
     "tierCount": "Tiered · {{count}}",
     "searchPlaceholder": "Search models or provider instances",
     "providerInstances": "Provider instances",
+    "loadDefaults": "Load default models",
+    "loadDefaultsHelp": "Import selected built-in models into the model list. Existing models and pricing are unchanged.",
+    "deleteCount": "Delete models ({{count}})",
+    "deleteSelected": "Delete {{count}} selected models?",
     "importRemote": "Import from OpenRouter",
     "importRemoteHelp": "Select model metadata to import. Existing custom values are kept; pricing is unchanged.",
     "metadataImported": "Imported metadata for {{count}} models."
   },
   "management": {
+    "accessTokenExpiry": "Credential / access token expires",
+    "refreshTokenExpiry": "Refresh token expires",
+    "pendingInitialRefresh": "Pending initial refresh",
+    "credentialRegionHint": "Overrides the provider region. Leave empty to inherit the provider setting (or the location in the credential secret).",
     "allowPaidUsage": "Allow credit balance usage",
-    "paidUsageHint": "Allow continued use after known subscription limits are reached, using extra credits or paid usage available on the upstream account. Off by default. This does not enable upstream billing or change the requested model.",
-    "codexPaidUsageHint": "Allow this credential to use available credits after subscription limits are reached. Off by default; stops at known exhausted subscription limits when off.",
-    "claudePaidUsageHint": "Allow this credential to use extra usage after subscription limits are reached. Extra usage must already be enabled on the Claude account. Off by default; stops at known exhausted subscription limits when off.",
+    "paidUsageHint": "Allow existing credits or paid usage after subscription limits are reached. This does not enable billing.",
+    "codexPaidUsageHint": "Allow existing credits after subscription limits are reached.",
+    "claudePaidUsageHint": "Allow extra usage after subscription limits are reached. Enable it in your Claude account first.",
     "select": "Select",
     "selectPage": "Batch select",
     "selected": "{{count}} selected",
@@ -729,6 +778,8 @@
     "startLogin": "Start sign-in",
     "authorizationUrl": "Authorization URL",
     "openAuthorization": "Open in new tab",
+    "authorizationCodeHelp": "After authorization, paste the authorization code shown by the provider.",
+    "authorizationCode": "Authorization code",
     "callbackHelp": "After authorization, copy the full callback URL from the address bar, including code and state. A local callback page may fail to load; its address still contains the result.",
     "callbackUrl": "Full callback URL",
     "completeLogin": "Complete sign-in",
@@ -801,7 +852,7 @@
     "cycleCost": "Spent",
     "cycleSpent": "Spent this cycle",
     "estimatedAllowance": "Estimated allowance",
-    "estimateHint": "Spending and estimates count only traffic through gproxy; use elsewhere on the same account (such as the official client) makes the estimate read low. Windows overlap, so their amounts do not add up.",
+    "estimateHint": "Only usage through gproxy is counted. Usage in other clients is excluded. Amounts across windows cannot be added.",
     "recentCycles": "Recent cycles ({{count}})",
     "cyclePeriod": "Period",
     "cycleFinalPercent": "Final",
@@ -905,7 +956,6 @@
     "quotaUsedPercent": "Quota used",
     "quotaTrendEmpty": "No usage-rate observations in this time range.",
     "quotaTrendOlder": "Load older observations",
-    "quotaTrendHint": "Dots are upstream observations; lines only connect readings in the same cycle. No observations are added during idle periods. Load older observations when available to see more history.",
     "currentCycle": "Current cycle",
     "noCurrentCycle": "No current cycle yet. Select a time range to view past observations.",
     "showQuotaTrend": "Show usage trend",
@@ -923,6 +973,16 @@
     "reasons": {
       "refusal": "Model refusal",
       "content_filter": "Content policy block",
+      "safety": "Safety policy block",
+      "blocklist": "Forbidden terms block",
+      "prohibited_content": "Prohibited content",
+      "sensitive_personal_information": "Sensitive personal information",
+      "recitation": "Recitation restriction",
+      "cyber": "Cyber risk refusal",
+      "bio": "Biological risk refusal",
+      "frontier_llm": "Competing model development restriction",
+      "reasoning_extraction": "Internal reasoning extraction restriction",
+      "general_harms": "General harms refusal",
       "authentication_failed": "Authentication failed",
       "permission_denied": "Permission denied",
       "rate_limited": "Rate limited",
@@ -968,7 +1028,10 @@
     "events": "Stream events",
     "requestQuery": "Request query",
     "clientIp": "Client IP",
-    "metrics": "Upstream usage data"
+    "metrics": "Upstream usage data",
+    "deleteAll": "Delete all",
+    "deleteAllConfirm": "Delete every record here? This cannot be undone. Requests still in progress are kept.",
+    "deleted": "Deleted {{count}} records"
   },
   "modelRoutes": {
     "modelsFallback": "Could not refresh upstream models. Showing saved models; you can still enter any model ID.",
@@ -992,7 +1055,6 @@
     "chooseDirectory": "Choose data directory",
     "autoStart": "Launch when I sign in",
     "androidAutoStart": "Start after device reboot",
-    "tray": "Keep running in the system tray when the window closes",
     "adminUser": "Administrator username",
     "password": "Administrator password",
     "passwordHelp": "Use at least 8 characters.",
@@ -1057,7 +1119,7 @@
     "invalidLabel": "Label must be text",
     "defaultLabel": "Imported credential {{index}}",
     "preview": "Preview credential names",
-    "policy": "Duplicates are removed within this input only; existing credentials are not compared. Correct all format errors before importing. The batch is saved together; if validation fails, none are saved.",
+    "policy": "Duplicates are removed within this input only. Format errors prevent the entire batch from being saved.",
     "submit": "Import {{count}} credentials",
     "imported": "Imported {{count}} credentials"
   },
@@ -1081,5 +1143,45 @@
       "action": "Sponsor LeenHawk"
     },
     "documentation": "Documentation"
+  },
+  "shellPreferences": {
+    "privacyNotice": "Privacy notice",
+    "title": "Application",
+    "tray": "Show system tray icon",
+    "trayHelp": "Background running requires the tray. Without it, closing the window exits the application.",
+    "close": "When closing the window",
+    "background": "Keep running in the background",
+    "quit": "Exit the application",
+    "hidden": "Hide the window at automatic startup",
+    "hiddenHelp": "Requires automatic startup and the system tray. Opening GPROXY manually always shows the window.",
+    "trayFailed": "The system tray could not be created. The window will stay accessible: {{error}}",
+    "ohosBackground": "Keep the proxy running in the background",
+    "ohosActive": "Background task is active",
+    "ohosInactive": "Background task is not active",
+    "ohosUnsupported": "This system does not expose the continuous background task API.",
+    "ohosStartup": "Add GPROXY in Settings → Apps and meta services → App startup management. If this system cannot open the page directly, follow that path manually.",
+    "ohosHelp": "Enabling starts a system background task. The system checks your signing profile and permissions; any failure is shown below. Removing the task notification may stop background running.",
+    "ohosCancelled": "The system or user stopped the background task. Enable it again to resume.",
+    "ohosAutoStart": "Start at boot",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "unknown": "Unknown",
+    "openStartupSettings": "Open startup management",
+    "startupUnknown": "This system could not report startup status. Check it in system settings.",
+    "ohosMinimized": "Start in the background at boot",
+    "ohosMinimizedHelp": "Requires continuous background running. Hide to the status bar when enabled, or minimize the window otherwise. Opening the app manually shows its window.",
+    "ohosClose": "Keep running when closing the window",
+    "ohosCloseHelp": "Requires the status bar and an active continuous background task."
+  },
+  "fonts": {
+    "title": "Interface fonts",
+    "description": "Optional: download Noto fonts (about 9.2 MiB) from gproxy.leenhawk.com. The server receives the IP address of the device running GPROXY. GPROXY saves the fonts in its local data directory for offline use. You can skip this and download them later in Settings.",
+    "system": "Using system fonts. No font downloads are enabled.",
+    "installed": "Downloaded fonts are in use.",
+    "loading": "Checking local fonts…",
+    "downloading": "Downloading fonts",
+    "progress": "Downloading fonts… {{progress}}%",
+    "download": "Download interface fonts",
+    "remove": "Delete fonts and use system fonts"
   }
 }

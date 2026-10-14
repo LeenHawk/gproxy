@@ -398,6 +398,8 @@ macro_rules! scoped_family {
 mod config;
 mod context;
 mod credential_login;
+#[cfg(not(target_arch = "wasm32"))]
+mod fonts;
 mod identity;
 mod observation;
 
@@ -423,6 +425,10 @@ where
         .merge(config::routes())
         .merge(observation::routes())
         .merge(credential_login::routes());
+    #[cfg(not(target_arch = "wasm32"))]
+    if state.console().is_enabled() {
+        families = families.merge(fonts::routes::<C>());
+    }
     if state.updates().is_some() {
         families = families.merge(crate::update::routes::<C>());
     }

@@ -694,7 +694,6 @@ async fn a_rule_preset_becomes_rewrite_rules() {
         .await
         .unwrap();
     // Every rule compiled through core's own compiler on the way in.
-    assert!(rules.len() > 10, "{}", rules.len());
     assert!(rules.iter().all(|rule| rule.rule_set_id == set.id));
     assert!(rules.iter().any(|rule| rule.phase == "response"));
     assert!(

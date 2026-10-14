@@ -69,6 +69,7 @@ impl BaseChannel for Nvidia {
         ChannelDescriptor {
             id: ID,
             display_name: "NVIDIA NIM",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: Default::default(),
             config_keys: [

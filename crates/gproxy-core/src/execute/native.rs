@@ -59,8 +59,14 @@ impl NativeCall {
 
     pub async fn send_once(
         &self,
-        wire: WireRequest<HttpBody>,
+        mut wire: WireRequest<HttpBody>,
     ) -> Result<WireResponse<HttpBody>, ChannelError> {
+        if super::thinking::enabled(
+            &self.attempt.request.target.provider.entity.config,
+            self.operation,
+        ) {
+            super::thinking::strip_request(self.operation.dialect, &mut wire);
+        }
         let mut attempt = self.attempt.clone();
         // Channel preparation may move model out of the body into a signed
         // URL. Pin attribution before that happens, including converted calls.

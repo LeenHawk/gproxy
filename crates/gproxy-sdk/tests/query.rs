@@ -984,6 +984,39 @@ async fn a_trend_keeps_its_empty_buckets() {
 }
 
 #[tokio::test]
+async fn an_open_start_trend_begins_at_the_first_record() {
+    let gproxy = support::sdk().await;
+    let open = |bucket_ms| UsageTrendQuery {
+        filter: UsageQuery {
+            to_ms: Some(4_000),
+            ..Default::default()
+        },
+        bucket_ms,
+    };
+    let empty = gproxy.query().usage().trend(open(1_000)).await.unwrap();
+    assert!(empty.is_empty(), "nothing recorded, nothing to draw");
+
+    usage(
+        &gproxy,
+        Seed {
+            request_id: "r-1",
+            started_at_ms: 1_500,
+            ..Default::default()
+        },
+    )
+    .await;
+    let points = gproxy.query().usage().trend(open(1_000)).await.unwrap();
+    assert_eq!(
+        points
+            .iter()
+            .map(|point| (point.start_ms, point.summary.requests))
+            .collect::<Vec<_>>(),
+        [(1_000, 1), (2_000, 0), (3_000, 0)],
+        "floored to the bucket width"
+    );
+}
+
+#[tokio::test]
 async fn a_trend_refuses_a_range_it_cannot_draw() {
     let gproxy = support::sdk().await;
     let query = gproxy.query();
@@ -1015,7 +1048,7 @@ async fn a_trend_refuses_a_range_it_cannot_draw() {
                 ..Default::default()
             },
         ),
-        // No range at all.
+        // No end.
         (1_000, UsageQuery::default()),
     ] {
         let error = usage
@@ -1957,4 +1990,65 @@ async fn shared_upstream_is_linked_to_each_downstream_without_duplicating_usage(
             .cost,
         "0.3"
     );
+}
+
+#[tokio::test]
+async fn generation_tps_excludes_ttft_and_unmeasured_records() {
+    let gproxy = support::sdk().await;
+    for (id, tokens, duration, ttft) in [
+        ("fast", 100, Some(2000), Some(1000)),
+        ("slow", 100, Some(4000), Some(1000)),
+        ("historical", 9000, None, None),
+        ("buffered", 9000, Some(1000), None),
+        ("zero-time", 9000, Some(1000), Some(1000)),
+        ("invalid", 9000, Some(1000), Some(2000)),
+    ] {
+        usage(
+            &gproxy,
+            Seed {
+                request_id: id,
+                tokens: (0, tokens, 0, 0),
+                ..Default::default()
+            },
+        )
+        .await;
+        gproxy
+            .store()
+            .usage_records()
+            .update_many(vec![usage_record::ActiveModel {
+                request_id: Set(id.into()),
+                duration_ms: Set(duration),
+                ttft_ms: Set(ttft),
+                ..Default::default()
+            }])
+            .await
+            .unwrap();
+    }
+    let (summary, groups, trend) = gproxy
+        .query()
+        .usage()
+        .aggregate(
+            UsageQuery {
+                from_ms: Some(0),
+                to_ms: Some(1000),
+                ..Default::default()
+            },
+            Some(UsageGroupBy::Model),
+            Some(1000),
+        )
+        .await
+        .unwrap();
+    assert_eq!(summary.average_output_tps, Some(50.0));
+    assert_eq!(groups[0].summary.average_output_tps, Some(50.0));
+    assert_eq!(trend[0].summary.average_output_tps, Some(50.0));
+    let empty = gproxy
+        .query()
+        .usage()
+        .summary(UsageQuery {
+            model: Some("absent".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(empty.average_output_tps, None);
 }

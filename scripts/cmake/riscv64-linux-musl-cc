@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+case "${0##*/}" in
+  *c++) compiler=clang++-22 ;;
+  *) compiler=clang-22 ;;
+esac
+link=true
+for argument do
+  case "$argument" in
+    -c|-E|-S|-M|-MM|-fsyntax-only) link=false ;;
+  esac
+done
+if "$link"; then set -- -fuse-ld=lld "$@"; fi
+exec "$compiler" --target=riscv64-alpine-linux-musl \
+  --sysroot=/opt/riscv64-alpine --gcc-toolchain=/opt/riscv64-alpine/usr \
+  -march=rv64gc -mabi=lp64d "$@"

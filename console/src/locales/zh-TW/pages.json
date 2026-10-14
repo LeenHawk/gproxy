@@ -1,7 +1,14 @@
 {
+  "credentialKinds": {
+    "api_key": "API Key",
+    "oauth": "OAuth",
+    "cookie": "Cookie",
+    "service_account": "服務帳戶",
+    "aws_access_key": "AWS 存取金鑰對"
+  },
   "overview": {
     "title": "你好，{{name}}",
-    "usage": "最近七天",
+    "usage": "用量",
     "quota": "費用預算"
   },
   "keys": {
@@ -62,7 +69,6 @@
       "displayName": "顯示名稱",
       "thinkingAdaptiveSupported": "支援自適應思考",
       "thinkingEnabledSupported": "支援啟用思考",
-      "thinkingHint": "開啟上游明確支援的能力；未宣告的值在修改前會繼續保持未知。",
       "advancedMetadata": "進階模型中繼資料",
       "metadataDescription": "模型說明",
       "maxContextWindow": "最大可設定上下文",
@@ -99,7 +105,7 @@
       "unknownMetadata": "目前未知；後續拉取模型目錄時可以補全。",
       "knownEmpty": "已確認是空集合。",
       "variants": "變體",
-      "variantsHint": "變體會額外公開模型名並路由到這個基礎模型；每個變體可強制工具、推理、服務檔位、詳細程度或指定上游。",
+      "variantsHint": "透過不同模型名呼叫此模型的預設設定。",
       "variantsEmpty": "暫無變體。",
       "variantName": "變體名",
       "variantRemove": "刪除變體",
@@ -127,6 +133,7 @@
     "select": "選擇供應商"
   },
   "providerConfig": {
+    "forward_thinking": "傳遞思考區塊",
     "account_type": "帳號類型",
     "agent_intent": "Agent 用途",
     "allowed_headers": "允許轉送的請求標頭",
@@ -162,6 +169,7 @@
     "ide_version": "IDE 版本",
     "issuer": "身分驗證位址",
     "locale": "語言區域",
+    "low_priority": "低優先級模式",
     "location": "部署位置",
     "login_provider": "登入服務",
     "management_base_url": "管理 API 位址",
@@ -257,7 +265,7 @@
   },
   "providerForm": {
     "autoRefreshModels": "從上游重新整理模型候選",
-    "autoRefreshModelsHelp": "設定路由成員時取得最新上游模型；關閉後僅使用已儲存的模型。",
+    "autoRefreshModelsHelp": "每次用戶端查詢模型清單或詳情時，從上游重新整理並合併到本機，再依本機設定回傳；關閉後僅使用已儲存的模型。",
     "dynamicAddress": "依渠道設定或憑證自動選擇",
     "displayName": "顯示名稱",
     "routeName": "路由名稱",
@@ -270,7 +278,7 @@
   },
   "setting": {
     "allowedHeaders": "全域請求標頭白名單",
-    "allowedHeadersHelp": "與供應商白名單、渠道內建必要標頭取聯集。空清單不增加全域允許項；原始驗證標頭和逐跳標頭仍會移除。",
+    "allowedHeadersHelp": "在渠道和供應商白名單之外額外允許的請求標頭。",
     "instanceName": "執行個體名稱",
     "oauthClientAllowlist": "允許的 OAuth 用戶端",
     "connectionProfileId": "預設 HTTP 用戶端設定",
@@ -293,6 +301,8 @@
     "defaultVocabularyFileId": "預設詞表",
     "tokenizerAuthToken": "詞表下載權杖",
     "retentionDays": "請求歷史保留天數",
+    "capturePayloadRetentionDays": "擷取本文保留天數",
+    "capturePayloadMaxMb": "擷取本文大小上限（MiB）",
     "maxDatabaseSizeMb": "SQLite 資料庫大小上限（MiB）",
     "updateSource": "更新來源",
     "updateChannel": "更新管道",
@@ -377,7 +387,6 @@
     "formMode": "表單",
     "jsonMode": "進階 JSON",
     "ruleJson": "規則 JSON",
-    "jsonHelp": "貼上一個 v4 規則物件。所屬規則集和規則順序由頁面管理，儲存時會驗證規則是否有效。",
     "formatJson": "格式化 JSON",
     "invalidJsonField": "規則欄位無效或不支援：{{field}}。",
     "allModels": "所有模型",
@@ -468,14 +477,31 @@
     },
     "selectSet": "選擇規則集，查看其中的規則。",
     "providerCount": "{{count}} 個供應商",
-    "orderHint": "規則依規則集關聯順序、組內順序排列；上移/下移僅調整組內順序。"
+    "conditions": {
+      "body": "本文條件路徑",
+      "header": "請求標頭條件名稱",
+      "bodyHelp": "選填。判斷前面規則修改後的目前 JSON 本文。支援點路徑和陣列索引，不支援萬用字元；值使用 JSON 型別，缺少欄位與 null 不同。",
+      "headerHelp": "選填。判斷原始傳入請求標頭。名稱不區分大小寫，值精確比較；同名標頭任一值相等即符合，不等於要求標頭存在且所有值均不相等。",
+      "operator": "比較方式",
+      "value": "比較值",
+      "eq": "等於",
+      "ne": "不等於",
+      "exists": "存在",
+      "not_exists": "不存在",
+      "bodyMode": "本文條件方式",
+      "fieldCondition": "欄位比較",
+      "expression": "JMESPath 本文條件",
+      "expressionHelp": "選填。運算式回傳布林值 true 才執行規則。支援負索引、篩選和 contains()；讀取前面規則修改後的目前本文。缺少所需資料導致的求值錯誤或非布林結果均不觸發。"
+    }
   },
   "update": {
+    "verifySignature": "驗證更新簽章",
+    "verifySignatureHelp": "關閉後不驗證發布者簽章。",
     "source": "更新來源",
     "current": "目前版本",
     "unsupported": "目前宿主不支援線上更新",
     "channel": "更新通道",
-    "channelHelp": "儲存後，後續更新檢查將使用此更新來源與通道。未儲存的選擇僅用於本頁的檢查和安裝。",
+    "channelHelp": "儲存後用於後續更新檢查。",
     "schedule": "每 {{seconds}} 秒檢查一次",
     "noSchedule": "自動檢查已關閉",
     "autoInstall": "自動安裝已開啟",
@@ -494,7 +520,17 @@
     "available": "可用更新：{{version}}",
     "latest": "暫無更新版本",
     "notes": "版本說明",
-    "notChecked": "尚未檢查此通道。"
+    "notChecked": "尚未檢查此通道。",
+    "announcements": {
+      "title": "公告",
+      "empty": "目前版本暫無公告。",
+      "severity": {
+        "info": "提示",
+        "warning": "警告",
+        "critical": "緊急"
+      }
+    },
+    "selfUpdate": "線上更新"
   },
   "operation": {
     "list_models": "列出模型",
@@ -550,6 +586,11 @@
     "noPresets": "沒有符合的預設"
   },
   "modelUI": {
+    "configuredPrice": "已設定輸入 / 輸出單價",
+    "pricingByOperation": "按操作定價",
+    "hasDefaultPrice": "有預設參考價",
+    "inheritedPrice": "繼承全域定價：{{pattern}}。如需覆寫，請新增供應商規則。",
+    "matchedPrice": "符合定價規則：{{pattern}}。如需覆寫，請新增目前模型規則。",
     "invalidVariants": "變體名稱不能重複或為空，也不能包含萬用字元。",
     "defaultMetadata": "匯入預設中繼資料",
     "testOk": "測試成功",
@@ -681,8 +722,8 @@
     "referencePrice": "輸入 / 輸出 USD/百萬",
     "details": "詳情",
     "applyPrice": "套用預設價格",
-    "reset": "移除本機項目",
     "applied": "新增 {{created}}，保留 {{skipped}}，未匹配 {{unmatched}}",
+    "applyPriceCount": "套用預設價格（{{count}}）",
     "tierFields": {
       "inputPrice": "輸入",
       "outputPrice": "輸出",
@@ -699,15 +740,23 @@
     "tierCount": "分段價 · {{count}}",
     "searchPlaceholder": "搜尋模型或供應商實例",
     "providerInstances": "供應商實例",
+    "loadDefaults": "載入預設模型",
+    "loadDefaultsHelp": "將選取的內建模型寫入模型清單，保留現有模型與價格設定。",
+    "deleteCount": "刪除模型（{{count}}）",
+    "deleteSelected": "刪除選取的 {{count}} 個模型？",
     "importRemote": "從 OpenRouter 匯入",
     "importRemoteHelp": "選擇要匯入的模型中繼資料，保留既有自訂值，不修改價格。",
     "metadataImported": "已匯入 {{count}} 個模型的中繼資料。"
   },
   "management": {
+    "accessTokenExpiry": "憑證 / 存取權杖到期時間",
+    "refreshTokenExpiry": "更新權杖到期時間",
+    "pendingInitialRefresh": "待首次更新",
+    "credentialRegionHint": "覆蓋供應商預設區域。留空時繼承供應商設定（或憑證密鑰中的 location）。",
     "allowPaidUsage": "允許使用積分餘額",
-    "paidUsageHint": "已知訂閱額度耗盡後，允許繼續使用上游帳號已有的額外積分或付費用量。預設關閉；此開關不會開通上游計費，也不會更換請求的模型。",
-    "codexPaidUsageHint": "開啟後，此憑證可在訂閱額度耗盡後使用已有積分。預設關閉；關閉時，在已知訂閱額度耗盡後停止使用。",
-    "claudePaidUsageHint": "開啟後，此憑證可在訂閱額度耗盡後使用額外用量，Claude 帳號需已開通額外用量。預設關閉；關閉時，在已知訂閱額度耗盡後停止使用。",
+    "paidUsageHint": "訂閱額度耗盡後，允許使用已有積分或付費用量，不會自動開通計費。",
+    "codexPaidUsageHint": "訂閱額度耗盡後，允許使用已有積分。",
+    "claudePaidUsageHint": "訂閱額度耗盡後，允許使用額外用量。需在 Claude 帳號中開通。",
     "select": "選擇",
     "selectPage": "批次選取",
     "selected": "已選 {{count}} 項",
@@ -729,6 +778,8 @@
     "startLogin": "開始登入",
     "authorizationUrl": "授權網址",
     "openAuthorization": "在新分頁開啟",
+    "authorizationCodeHelp": "完成授權後，貼上授權頁面顯示的授權碼。",
+    "authorizationCode": "授權碼",
     "callbackHelp": "授權後從網址列複製完整回呼 URL，包含 code 和 state。本機回呼頁面可能無法開啟，但網址中仍包含授權結果。",
     "callbackUrl": "完整回呼 URL",
     "completeLogin": "完成登入",
@@ -801,7 +852,7 @@
     "cycleCost": "花費",
     "cycleSpent": "本週期花費",
     "estimatedAllowance": "估算額度",
-    "estimateHint": "花費與估算只統計經過 gproxy 的請求；同一帳號在其他地方的用量（例如官方用戶端）會讓估算偏低。各視窗互相重疊，金額不能相加。",
+    "estimateHint": "僅統計經過 gproxy 的用量，其他用戶端的用量不計入。各視窗金額不能相加。",
     "recentCycles": "最近週期（{{count}}）",
     "cyclePeriod": "週期",
     "cycleFinalPercent": "結束時",
@@ -905,7 +956,6 @@
     "quotaUsedPercent": "額度使用率",
     "quotaTrendEmpty": "此時間範圍內暫無使用率觀測記錄。",
     "quotaTrendOlder": "載入更早的觀測",
-    "quotaTrendHint": "圓點為上游實際觀測值，連線僅連接同一週期內的觀測。無觀測時不補點；如有更多記錄，可載入更早的觀測。",
     "currentCycle": "目前週期",
     "noCurrentCycle": "目前週期尚未開始，可切換時間範圍查看歷史觀測。",
     "showQuotaTrend": "展開使用率趨勢",
@@ -923,6 +973,16 @@
     "reasons": {
       "refusal": "模型拒答",
       "content_filter": "內容政策攔截",
+      "safety": "安全政策攔截",
+      "blocklist": "禁用詞攔截",
+      "prohibited_content": "禁止內容攔截",
+      "sensitive_personal_information": "敏感個人資訊攔截",
+      "recitation": "內容重現限制",
+      "cyber": "網路安全風險拒答",
+      "bio": "生物安全風險拒答",
+      "frontier_llm": "競爭模型開發限制",
+      "reasoning_extraction": "內部推理擷取限制",
+      "general_harms": "一般危害拒答",
       "authentication_failed": "驗證失敗",
       "permission_denied": "權限不足",
       "rate_limited": "請求限流",
@@ -968,7 +1028,10 @@
     "events": "串流事件",
     "requestQuery": "請求查詢參數",
     "clientIp": "用戶端 IP",
-    "metrics": "上游用量資料"
+    "metrics": "上游用量資料",
+    "deleteAll": "刪除全部",
+    "deleteAllConfirm": "刪除這裡的全部記錄？此操作無法復原，進行中的請求會保留。",
+    "deleted": "已刪除 {{count}} 筆記錄"
   },
   "modelRoutes": {
     "modelsFallback": "上游模型重新整理失敗，已退回儲存的模型；仍可手動輸入任意模型 ID。",
@@ -992,7 +1055,6 @@
     "chooseDirectory": "選擇資料目錄",
     "autoStart": "登入系統時自動啟動",
     "androidAutoStart": "裝置重新啟動後自動啟動",
-    "tray": "關閉視窗後在系統匣中繼續執行",
     "adminUser": "管理員使用者名稱",
     "password": "管理員密碼",
     "passwordHelp": "至少 8 個字元。",
@@ -1057,7 +1119,7 @@
     "invalidLabel": "名稱必須是文字",
     "defaultLabel": "匯入憑證 {{index}}",
     "preview": "預覽憑證名稱",
-    "policy": "僅對本次輸入去重，不與現有憑證比較。請修正全部格式錯誤後再匯入。整批一起儲存，驗證失敗時不會儲存任何項目。",
+    "policy": "僅對本次輸入去重。格式錯誤時整批不儲存。",
     "submit": "匯入 {{count}} 筆憑證",
     "imported": "已匯入 {{count}} 筆憑證"
   },
@@ -1081,5 +1143,45 @@
       "action": "贊助 LeenHawk"
     },
     "documentation": "使用文件"
+  },
+  "shellPreferences": {
+    "privacyNotice": "隱私說明",
+    "title": "應用程式",
+    "tray": "顯示系統匣圖示",
+    "trayHelp": "背景執行需要系統匣。關閉系統匣後，關閉視窗會結束應用程式。",
+    "close": "關閉視窗時",
+    "background": "繼續在背景執行",
+    "quit": "結束應用程式",
+    "hidden": "自動啟動時隱藏主視窗",
+    "hiddenHelp": "需要同時開啟自動啟動和系統匣。手動開啟 GPROXY 時一律顯示視窗。",
+    "trayFailed": "系統匣建立失敗，視窗將保持可存取：{{error}}",
+    "ohosBackground": "允許代理持續在背景執行",
+    "ohosActive": "持續背景工作已啟用",
+    "ohosInactive": "持續背景工作未啟用",
+    "ohosUnsupported": "目前系統未提供持續背景任務 API。",
+    "ohosStartup": "請在「設定 → 應用程式和元服務 → 應用程式啟動管理」中新增 GPROXY。如果目前系統無法直接開啟頁面，可依此路徑手動進入。",
+    "ohosHelp": "開啟後會啟動系統背景任務，由系統檢查簽名和權限；失敗原因會顯示於下方。移除任務通知可能停止背景執行。",
+    "ohosCancelled": "系統或使用者已停止持續背景工作，可重新開啟。",
+    "ohosAutoStart": "開機自動啟動",
+    "enabled": "已開啟",
+    "disabled": "未開啟",
+    "unknown": "未知",
+    "openStartupSettings": "前往應用程式啟動管理",
+    "startupUnknown": "目前系統無法傳回自動啟動狀態，請到系統設定中確認。",
+    "ohosMinimized": "開機自動啟動後進入背景",
+    "ohosMinimizedHelp": "需要開啟持續背景執行。開啟系統匣時隱藏至狀態列，否則最小化視窗；手動開啟應用程式時顯示視窗。",
+    "ohosClose": "關閉視窗後繼續執行",
+    "ohosCloseHelp": "需要開啟狀態列圖示和持續背景執行。"
+  },
+  "fonts": {
+    "title": "介面字型",
+    "description": "可選：從 gproxy.leenhawk.com 下載 Noto 字型（約 9.2 MiB）。伺服器會收到執行 GPROXY 的裝置 IP 位址。GPROXY 將字型儲存到本地資料目錄，供離線使用。可以略過，之後在設定中下載。",
+    "system": "正在使用系統字型，尚未啟用字型下載。",
+    "installed": "正在使用已下載的字型。",
+    "loading": "正在檢查本地字型…",
+    "downloading": "正在下載字型",
+    "progress": "正在下載字型… {{progress}}%",
+    "download": "下載介面字型",
+    "remove": "刪除字型並使用系統字型"
   }
 }

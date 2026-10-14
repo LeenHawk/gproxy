@@ -44,7 +44,7 @@ by feature rather than by platform crate:
 
 | Feature | Transport | Bodies | WebSocket |
 |---|---|---|---|
-| `fetch` | The JS host's global `fetch` through web-sys (Cloudflare Workers, Deno, Netlify Edge, browsers) | Streams both ways (`duplex: half`) | Needs `workers` or a host client |
+| `fetch` | The JS host's global `fetch` through web-sys (Cloudflare Workers, Netlify Edge, browsers) | Streams both ways (`duplex: half`) | Needs `workers` or a host client |
 | `workers` (implies `fetch`) | Same, plus Cloudflare Workers upgrades: `fetch` with `Upgrade: websocket`, then `response.webSocket` is accepted and exposed as the protocol socket | Streams | Yes, with upstream authentication headers |
 | `reqwest` (default) | reqwest's own Fetch fallback | Request bodies are buffered | No |
 
@@ -53,8 +53,7 @@ custom fingerprint headers are applied where the host accepts them. Native
 proxy, TLS and socket settings are skipped. Fetch maps zero redirect hops to
 manual redirects and positive values to host-managed following; the host sets
 the actual hop limit. A host with its own transport (Workers
-`Fetch` with service bindings and `cf` options, Deno `createHttpClient` with
-proxies or CAs, or a `wasi:http` shim on other targets) implements
+`Fetch` with service bindings and `cf` options, or a `wasi:http` shim on other targets) implements
 `OutboundClient` and installs it with `ClientPool::with_client` or a per-profile
 `ClientPool::with_factory`; core then never touches the built-in transports.
 `wasm32-wasip2` has no JS `fetch` and is not covered by these features.

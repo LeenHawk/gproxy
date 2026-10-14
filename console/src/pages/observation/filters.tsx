@@ -33,7 +33,7 @@ export function HistoryFilters({ onApply, logs = false, summary = false, reasons
     operation: operationChoices.map(row => ({ value: row.value, label: t(`operation.${row.value}`, { defaultValue: row.value }) })),
     status: STATUS_OPTIONS,
   }
-  const fields = logs ? [...COMMON, ...UPSTREAM] : summary ? COMMON.filter(name => name !== "requestId") : COMMON
+  const fields = logs ? [...COMMON, ...UPSTREAM] : summary ? [...COMMON.filter(name => name !== "requestId"), ...UPSTREAM] : COMMON
   function apply(event: React.FormEvent) {
     event.preventDefault()
     const result: HistoryFilter = {}

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../reproducible-env.sh"
 source scripts/ohos/env.sh
 : "${ARTIFACT_NAME:?}"
 binary="target/$TARGET_TRIPLE/release/gproxy"
@@ -14,12 +15,16 @@ esac
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 install -m755 "$binary" "$work/gproxy"
+"$OHOS_NATIVE_HOME/llvm/bin/llvm-strip" --strip-unneeded "$work/gproxy"
+upx --best --lzma "$work/gproxy"
+upx --test "$work/gproxy"
 install -m644 README.md LICENSE "$work/"
 # The SDK's system libraries are import stubs; ship only its actual C++ runtime.
 if "$reader" -d "$binary" | grep -Fq 'libc++_shared.so'; then
   runtime="$(find "$OHOS_NATIVE_HOME/llvm" -path "*/$ohos_arch-linux-ohos/libc++_shared.so" -type f -print -quit)"
   test -n "$runtime"
   install -m644 "$runtime" "$work/libc++_shared.so"
+  "$OHOS_NATIVE_HOME/llvm/bin/llvm-strip" --strip-unneeded "$work/libc++_shared.so"
 fi
 cat > "$work/run-gproxy.sh" <<'LAUNCHER'
 #!/bin/sh
@@ -40,5 +45,5 @@ the separate HAP is the application. Device execution requires an OHOS device.
 INSTALL
 output="$PWD/dist/release"
 mkdir -p "$output"
-(cd "$work" && zip -9 -qr "$output/$ARTIFACT_NAME.zip" .)
+python3 scripts/reproducible-archive.py --root "$work" --output "$output/$ARTIFACT_NAME.zip"
 (cd "$output" && sha256sum "$ARTIFACT_NAME.zip" > "$ARTIFACT_NAME.zip.sha256")

@@ -41,11 +41,12 @@ export function ResizableColumns({ storageKey, initialWidth, minWidth, maxWidth,
   }
   return <div ref={container} className={cn("lg:grid lg:grid-cols-[var(--leading-width)_4px_minmax(0,1fr)]", className)} style={{ "--leading-width": `${actualWidth}px` } as CSSProperties}>
     {children[0]}
+    <div role="region" aria-label={t("shell.resizePanel", { name: label })} className="hidden lg:block">
     <div
       role="separator" aria-orientation="vertical" aria-label={label}
       aria-valuemin={minWidth} aria-valuemax={limit} aria-valuenow={actualWidth}
       title={t("shell.resizeHint")} tabIndex={0}
-      className={cn("relative hidden touch-none select-none bg-border/50 outline-none hover:bg-primary/50 focus-visible:bg-primary active:bg-primary lg:block lg:cursor-col-resize before:absolute before:inset-y-0 before:-inset-x-1", handleClassName)}
+      className={cn("relative h-full touch-none select-none bg-border/50 outline-none hover:bg-primary/50 focus-visible:bg-primary active:bg-primary lg:cursor-col-resize before:absolute before:inset-y-0 before:-inset-x-1", handleClassName)}
       onPointerDown={event => {
         if (event.button !== 0) return
         event.preventDefault()
@@ -66,6 +67,7 @@ export function ResizableColumns({ storageKey, initialWidth, minWidth, maxWidth,
         if (next !== null) { event.preventDefault(); resize(next) }
       }}
     />
+    </div>
     {children[1]}
   </div>
 }

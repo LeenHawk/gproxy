@@ -64,6 +64,7 @@ impl BaseChannel for Vercel {
         ChannelDescriptor {
             id: ID,
             display_name: "Vercel AI Gateway",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
                 quota_query: true,

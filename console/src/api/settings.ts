@@ -4,7 +4,7 @@ import type { InstanceSettingsPatch, LoggingSettingsPatch, SettingsDto, Vocabula
 export const SETTINGS_ACCESS = "configuration.settings"
 export const SETTINGS_KEY = ["admin", "settings"] as const
 export const INFO_KEY = ["instance-info"] as const
-export type InstanceInfo = { instanceName: string; version: string; hash: string }
+export type InstanceInfo = { instanceName: string; version: string; hash: string; fontManagement?: boolean }
 export type SettingsWrite = {
   instance?: Partial<InstanceSettingsPatch>
   logging?: Partial<LoggingSettingsPatch>

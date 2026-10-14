@@ -148,8 +148,8 @@ toolchains:
   timeout: 3h
   variables:
     CARGO_BUILD_JOBS: "12"
-    CARGO_PROFILE_RELEASE_LTO: thin
-    CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "8"
+    CARGO_PROFILE_RELEASE_LTO: fat
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
     GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
     FF_USE_FASTZIP: "true"
@@ -240,7 +240,7 @@ ohos:
       - TARGET_TRIPLE: [aarch64-unknown-linux-ohos]
         PACKAGE_MODE: [cli, application]
       - TARGET_TRIPLE: [x86_64-unknown-linux-ohos]
-        PACKAGE_MODE: [cli]
+        PACKAGE_MODE: [cli, application]
 
 desktop:
   extends: .cross-package
@@ -260,8 +260,13 @@ desktop:
 
 android:
   extends: .cross-package
+  services:
+    - name: docker:28-dind
+      alias: docker
   variables:
     TOOLCHAIN: android
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   needs:
     - console
     - job: toolchains
@@ -332,6 +337,9 @@ macos-dmg:
             PACKAGE_MODE: [cli, application]
   timeout: 30m
   script:
+    - source scripts/gitlab/env.sh
+    - bash scripts/install-xorriso.sh
+    - release_tool_paths
     - python3 scripts/gitlab/package-dmg.py
   artifacts:
     expire_in: 3 days

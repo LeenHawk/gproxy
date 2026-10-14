@@ -89,6 +89,10 @@ repositories! {
     downstream_records => crate::entity::usage::downstream_record::Entity,
     upstream_events => crate::entity::usage::upstream_event::Entity,
     downstream_events => crate::entity::usage::downstream_event::Entity,
+    header_sets => crate::entity::usage::header_set::Entity,
+    capture_blobs => crate::entity::usage::capture_blob::Entity,
+    capture_bodies => crate::entity::usage::capture_body::Entity,
+    capture_body_blobs => crate::entity::usage::capture_body_blob::Entity,
     capture_links => crate::entity::usage::capture_link::Entity,
     usage_records => crate::entity::usage::usage_record::Entity,
 }

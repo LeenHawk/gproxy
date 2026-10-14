@@ -2,7 +2,9 @@ import { useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Check, CircleX, LoaderCircle, Play, RefreshCw } from "lucide-react"
-import { discoverWithCredential, testWithCredential } from "@/api/credentials"
+import { testWithCredential } from "@/api/credentials"
+import { providerModels } from "@/api/configuration"
+import { directory } from "@/api/models"
 import type { CredentialDto } from "@/generated/sdk"
 import { ManagementDialog } from "@/components/management-dialog"
 import { SearchableSelect } from "@/components/searchable-select"
@@ -15,8 +17,8 @@ export function CredentialTest({ credential, onClose }: { credential: Credential
   const { t } = useTranslation()
   const [model, setModel] = useState("")
   const models = useQuery({
-    queryKey: ["credential-test-models", credential.id],
-    queryFn: () => discoverWithCredential(credential.id),
+    queryKey: ["admin", "/provider-models", "credential-test", credential.providerId],
+    queryFn: () => directory(providerModels, { providerId: credential.providerId }),
     retry: false,
     refetchOnWindowFocus: false,
     staleTime: 60_000,
@@ -28,7 +30,7 @@ export function CredentialTest({ credential, onClose }: { credential: Credential
     <Field>
       <div className="flex items-center justify-between gap-2">
         <FieldLabel htmlFor="credential-test-model">{t("fields.upstreamName")}</FieldLabel>
-        <Button variant="ghost" size="icon-sm" disabled={models.isFetching || test.isPending} title={t("management.discover")} aria-label={t("management.discover")} onClick={() => void models.refetch()}>
+        <Button variant="ghost" size="icon-sm" disabled={models.isFetching || test.isPending} title={t("actions.refresh")} aria-label={t("actions.refresh")} onClick={() => void models.refetch()}>
           {models.isFetching ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
         </Button>
       </div>

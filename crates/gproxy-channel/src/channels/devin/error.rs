@@ -307,6 +307,16 @@ pub fn classify(message: &str, code: Option<&str>, status: Option<StatusCode>) -
             None,
         );
     }
+    // A valid session can trigger this with a particular tool description.
+    // Treat it as a request error, not an authentication failure that benches
+    // the credential (verified by changing only that description).
+    if lowercased.contains("unable to process request due to an mcp configuration issue") {
+        return build(
+            ErrorClass::ClientRequest,
+            "devin: incompatible tool configuration",
+            None,
+        );
+    }
     // "an internal error occurred (trace ID: …)": a transient *backend* fault
     // even inside a 401/403 shell. Observed 3/3 on a live free account whose
     // `GetUserStatus` kept answering, which is what proves the token was alive.

@@ -69,6 +69,65 @@ JSON 改写需要填写路径，例如 `temperature` 或 `messages.*.content`。
 
 正文重写以完整事件为单位执行，例如 SSE 事件或 JSON 数组元素，不以网络数据块为单位。单个事件超过 `settings.maxStreamEventBytes` 时会报错。可以用事件过滤器只修改特定类型的事件。
 
+## 正文与请求头条件
+
+在过滤条件中填写正文路径或请求头名称，即可让规则按字段值触发。两者与现有模型、操作、请求头正则及事件条件同时满足时才执行：
+
+```json
+{
+  "action": "set",
+  "phase": "request",
+  "target": "body",
+  "paths": [
+    "service_tier"
+  ],
+  "pattern": "",
+  "replacement": "\"priority\"",
+  "filterBody": {
+    "path": "reasoning.effort",
+    "op": "eq",
+    "value": "high"
+  },
+  "filterHeader": {
+    "name": "x-client-mode",
+    "op": "eq",
+    "value": "fast"
+  }
+}
+```
+
+`filterBody` 判断当前 JSON 正文，能看到前面规则的修改；仅支持正文目标。路径支持 `reasoning.effort`、`messages.0.role`，不支持 `*`。值按 JSON 类型比较，`"1"` 不等于 `1`。
+
+`filterHeader` 判断**原始入站请求头**，可用于正文、请求头和查询参数规则。名称不区分大小写，值区分大小写且不自动分割逗号列表。同名头有多个值时，`eq` 任一值相等即命中；`ne` 要求头存在且所有值均不相等。
+
+比较方式为 `eq`、`ne`、`exists`、`not_exists`。前两者必须提供 `value`；后两者不填写 `value`。缺字段不满足 `ne`；JSON `null` 是存在的值。非 JSON 正文不满足任何正文条件，包括 `not_exists`。
+
+SSE、NDJSON、JSON 数组流和 WebSocket 按单个事件/元素/消息判断，不跨事件累积。普通 HTTP 正文按整份判断。清空表单路径/名称，或将 API 字段设为 `null`，即可移除对应条件；PATCH 省略字段则保留原值。
+
+
+### JMESPath 表达式
+
+`filterBody` 也接受 JMESPath 表达式字符串。表达式针对当前正文求值，仅返回布尔值 `true` 时执行动作；类型错误、未知函数、其他求值错误或非布尔结果都不触发。表达式语法在保存时校验。原有 `{ "path", "op", "value" }` 对象格式继续可用。
+
+例如，只在最后一条消息的任意文本块包含 keepalive marker 时将 `max_tokens` 设为 0，历史消息中的 marker 不会命中：
+
+```json
+{
+  "action": "set",
+  "phase": "request",
+  "target": "body",
+  "paths": [
+    "max_tokens"
+  ],
+  "replacement": "0",
+  "filterBody": "length(messages[-1].content[?type(text) == 'string' && contains(text, '[cache-keepalive]')]) > `0`"
+}
+```
+
+负索引 `[-1]`、多值筛选、`contains()`、比较和逻辑组合均遵循 [JMESPath 规范](https://jmespath.org/specification.html)。缺失字段按 JMESPath 规则产生 `null`，可显式用表达式判断；非 JSON 正文不参与条件求值。`paths` 修改目标仍沿用原有点路径语法，与表达式独立。
+
+表达式预先编译；正文不变时，共用已转换的 JMESPath 数据。前面规则实际修改正文后再重新转换，避免使用过期值。不使用表达式的规则不会创建 JMESPath 数据副本。每个流式事件独立判断。复杂全量查询的成本仍随正文大小增加。
+
 ## 通过 API 管理
 
 下面创建一条正则替换规则，把指定路径中的 `widget` 替换为 `gadget`。将规则集 ID 替换为你的实际值。

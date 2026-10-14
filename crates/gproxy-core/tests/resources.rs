@@ -570,6 +570,14 @@ async fn body_limit_failure_tombstones_the_publication() {
 #[tokio::test]
 async fn upstream_ids_resolve_and_read_through_the_scope_provider() {
     let h = harness(full(), "round_robin").await;
+    // Uploaded by this scope through the gateway: `file-1` on the pool's
+    // second credential, so every read must go out as `kb`.
+    h.own("p", "b", gproxy_core::owned::FILE_KIND, "file-1")
+        .await;
+    h.own("p", "a", gproxy_core::owned::FILE_KIND, "file-2")
+        .await;
+    h.own("claude", "cl1", gproxy_core::owned::FILE_KIND, "file_abc")
+        .await;
     let r = resources(&h);
     let s = scope(&h, "tenant", "p");
     h.script(vec![json_reply(
@@ -588,7 +596,7 @@ async fn upstream_ids_resolve_and_read_through_the_scope_provider() {
     let seen = h.client.seen.lines();
     assert_eq!(seen.len(), 1);
     assert!(
-        seen[0].starts_with("GET https://up.example/v1/files/file-1 auth=Bearer "),
+        seen[0].starts_with("GET https://up.example/v1/files/file-1 auth=Bearer kb "),
         "{}",
         seen[0]
     );
@@ -614,7 +622,7 @@ async fn upstream_ids_resolve_and_read_through_the_scope_provider() {
     assert_eq!(read.metadata.filename.as_deref(), Some("a.txt"));
     assert_eq!(support::read(read.body).await, "abc");
     let seen = h.client.seen.lines();
-    assert!(seen[2].starts_with("GET https://up.example/v1/files/file-1/content "));
+    assert!(seen[2].starts_with("GET https://up.example/v1/files/file-1/content auth=Bearer kb "));
 
     // Claude-native providers use their own metadata shape.
     let claude = scope(&h, "tenant", "claude");
@@ -643,6 +651,27 @@ async fn upstream_ids_resolve_and_read_through_the_scope_provider() {
         .await
         .unwrap_err();
     assert_eq!(err.kind(), CapabilityErrorKind::NotFound);
+}
+
+#[tokio::test]
+async fn an_upstream_id_the_scope_did_not_upload_is_not_read() {
+    let h = harness(full(), "round_robin").await;
+    h.own("p", "a", gproxy_core::owned::FILE_KIND, "file-1")
+        .await;
+    let r = resources(&h);
+    // Another caller on the same provider and credentials, and an id nobody
+    // uploaded through the gateway: both not found, the upstream never asked.
+    for (caller, id) in [("intruder", "file-1"), ("tenant", "file-unknown")] {
+        let s = scope(&h, caller, "p");
+        let reference = ResourceReference::Id(id.into());
+        let err = r.resolve(&s, &reference).await.unwrap_err();
+        assert_eq!(err.kind(), CapabilityErrorKind::NotFound, "{caller}/{id}");
+        let Err(err) = r.read(&s, &reference).await else {
+            panic!("{caller}/{id} must not be read")
+        };
+        assert_eq!(err.kind(), CapabilityErrorKind::NotFound, "{caller}/{id}");
+    }
+    assert!(h.client.seen.lines().is_empty());
 }
 
 // ---- URL reads under the fetch policy ----------------------------------
@@ -944,6 +973,51 @@ async fn allow_all_policy_reads_a_url_with_its_metadata() {
         .await
         .unwrap_err();
     assert_eq!(err.kind(), CapabilityErrorKind::Invalid);
+}
+
+#[tokio::test]
+async fn proxy_dns_requires_an_explicit_hostname_policy() {
+    // Use localhost only for deterministic local DNS. This address-based
+    // policy permits the vetted answer, but never delegates resolution.
+    struct VettedLocal;
+    impl FetchPolicy for VettedLocal {
+        fn decide(&self, _: &url::Url, resolved: &[IpAddr]) -> FetchDecision {
+            assert!(!resolved.is_empty());
+            FetchDecision::Allow
+        }
+    }
+    let proxy = LocalServer::start(vec![ok("text/plain", b"proxied")]).await;
+    let h = with_policy(harness(full(), "round_robin").await, Arc::new(VettedLocal));
+    h.core
+        .store()
+        .settings()
+        .update(gproxy_store::entity::config::setting::ActiveModel {
+            proxy: sea_orm::Set(Some(
+                serde_json::to_value(gproxy_client::ProxyConfig::Explicit { url: proxy.url("") })
+                    .unwrap(),
+            )),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let reference = ResourceReference::Url("http://localhost/resource".into());
+    let error = resources(&h)
+        .read(&scope(&h, "tenant", "p"), &reference)
+        .await
+        .unwrap_err();
+    assert_eq!(error.kind(), CapabilityErrorKind::Unsupported);
+    assert!(
+        proxy.hits().is_empty(),
+        "proxy must not receive an unbound hostname"
+    );
+
+    let h = with_policy(h, Arc::new(AllowlistFetchPolicy::new(["localhost"])));
+    let read = resources(&h)
+        .read(&scope(&h, "tenant", "p"), &reference)
+        .await
+        .unwrap();
+    assert_eq!(read.metadata.mime.as_deref(), Some("text/plain"));
+    assert_eq!(proxy.hits().len(), 1);
 }
 
 #[tokio::test]

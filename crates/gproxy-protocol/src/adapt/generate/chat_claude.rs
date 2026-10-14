@@ -376,4 +376,7 @@ impl ClaudeViaChat {
     }
 }
 
-mod synthesis;
+super::prepared::prepared_generation!(ChatViaClaude, h::GenerateContentRequestBody => c::GenerateContentRequestBody);
+super::prepared::stream_synthesis!(ChatViaClaude, h::GenerateContentRequestBody);
+super::prepared::prepared_generation!(ClaudeViaChat, c::GenerateContentRequestBody => h::GenerateContentRequestBody);
+super::prepared::stream_synthesis!(ClaudeViaChat, c::GenerateContentRequestBody);

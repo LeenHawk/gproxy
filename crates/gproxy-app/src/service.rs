@@ -5,9 +5,16 @@
 //! the caller's role, picks the credential, refreshes material about to
 //! expire, and gives the channel the facts a synthesized answer is rendered
 //! from. What it deliberately does *not* know is who is an admin of what — it
-//! says so itself — so this module answers exactly two questions and hands the
-//! rest over:
+//! says so itself — so this module answers exactly three questions and hands
+//! the rest over:
 //!
+//! 0. **whether the caller may reach this provider at all**: the permission
+//!    engine a model request goes through, including the OAuth operation
+//!    baseline, applied by
+//!    [`admission::permission::allow_service`](crate::admission::permission::allow_service).
+//!    Credential visibility is not a substitute: a key whose rules refuse a
+//!    provider can still *see* a shared credential of it, and without this
+//!    gate it could read that provider's account endpoints through it;
 //! 1. **which credentials are in the target**: the caller's visible
 //!    credentials of that provider, the same set a model call would be allowed
 //!    to spend. `Pool` therefore aggregates what this caller may already
@@ -52,7 +59,7 @@ use gproxy_seaorm::BatchConnectionTrait;
 
 use crate::{
     App, AppData, AppError, Caller,
-    admission::{attribution, budgets, credential, scope},
+    admission::{attribution, budgets, credential, permission, scope},
     snapshot::Owner,
 };
 
@@ -168,6 +175,12 @@ pub(crate) fn decide(
 /// this caller administers; a set with one credential they do not administer,
 /// and an empty set, are both `Member`.
 fn role(snapshot: &AppData, caller: &Caller, credentials: &BTreeSet<String>) -> CallerRole {
+    // Account roles do not widen the authority of a delegated credential.
+    // Ordinary keys and OAuth grants can use the caller view, but must not
+    // acquire raw account access or see the provider's pooled resources.
+    if !caller.may_manage() {
+        return CallerRole::Member;
+    }
     if caller.is_instance_admin() {
         return CallerRole::Admin;
     }
@@ -195,9 +208,10 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
     /// Call a vendor HTTP service. The channel's answer comes back as it is,
     /// streaming bodies and non-2xx included.
     ///
-    /// `Forbidden` when a member asked for an administrator's view,
-    /// `NotFound` when the provider or the named credential is not one this
-    /// caller can reach.
+    /// `Forbidden` when the caller's permissions (or the OAuth baseline) do
+    /// not reach this provider, or a member asked for an administrator's
+    /// view; `NotFound` when the provider or the named credential is not one
+    /// this caller can reach.
     pub async fn call_service(
         &self,
         caller: &Caller,
@@ -208,7 +222,7 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
         let wire = WireRequest {
             method: request.parts.method.clone(),
             path: request.parts.uri.path().to_owned(),
-            query: request.parts.uri.query().map(str::to_owned),
+            query: crate::auth::upstream_query(request.parts.uri.query()),
             headers: request.parts.headers,
             body: HttpBody::Bytes(request.body),
         };
@@ -231,7 +245,7 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
         let wire = WireRequest {
             method: request.parts.method.clone(),
             path: request.parts.uri.path().to_owned(),
-            query: request.parts.uri.query().map(str::to_owned),
+            query: crate::auth::upstream_query(request.parts.uri.query()),
             headers: request.parts.headers,
             body: (),
         };
@@ -247,6 +261,10 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
     }
 
     /// The decision and the target, from one pinned engine snapshot.
+    ///
+    /// The permission gate runs before a credential is planned, against the
+    /// same `AppData` snapshot the plan is then decided from, so a request is
+    /// never judged by rules from one revision and visibility from another.
     fn prepare_service(
         &self,
         core: &CoreData,
@@ -258,8 +276,15 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
             .get(&request.provider_id)
             .ok_or_else(|| AppError::not_found("provider", &request.provider_id))?
             .clone();
+        let data = self.data();
+        permission::allow_service(
+            &data,
+            caller,
+            &request.provider_id,
+            &self.config().oauth.cli_client_ids,
+        )?;
         let live: BTreeSet<String> = provider.credential_ids.iter().cloned().collect();
-        let plan = decide(&self.data(), caller, &request.view, &live)?;
+        let plan = decide(&data, caller, &request.view, &live)?;
         let credentials = provider
             .credential_ids
             .iter()
@@ -410,6 +435,7 @@ mod tests {
     #[test]
     fn an_organization_admin_administers_that_organizations_credentials() {
         let mut boss = caller("boss", "user");
+        boss.management = true;
         boss.organization_id = Some("acme".into());
         let plan = decide(&snapshot(), &boss, &RequestedView::Pool, &set(&["c-acme"])).unwrap();
         assert_eq!(plan.role, CallerRole::Admin);
@@ -418,6 +444,7 @@ mod tests {
         // A team admin is not an organization admin, and the reverse holds
         // too: the roles are scoped to the row that grants them.
         let mut lead = caller("lead", "user");
+        lead.management = true;
         lead.team_id = Some("core".into());
         let plan = decide(&snapshot(), &lead, &RequestedView::Pool, &set(&["c-core"])).unwrap();
         assert_eq!(plan.role, CallerRole::Admin);
@@ -426,6 +453,7 @@ mod tests {
     #[test]
     fn one_unadministered_credential_in_the_target_is_enough_to_be_a_member() {
         let mut boss = caller("boss", "user");
+        boss.management = true;
         boss.organization_id = Some("acme".into());
         // The shared credential is visible to everyone and administered by
         // nobody, so the pool it would render is not this admin's to see.
@@ -466,7 +494,8 @@ mod tests {
 
     #[test]
     fn an_instance_admin_administers_everything() {
-        let root = caller("root", "admin");
+        let mut root = caller("root", "admin");
+        root.management = true;
         let plan = decide(
             &snapshot(),
             &root,
@@ -480,7 +509,8 @@ mod tests {
 
     #[test]
     fn a_credential_view_can_only_name_one_of_the_targets_own() {
-        let root = caller("root", "admin");
+        let mut root = caller("root", "admin");
+        root.management = true;
         let missing = decide(
             &snapshot(),
             &root,

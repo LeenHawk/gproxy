@@ -269,9 +269,7 @@ fn the_descriptor_declares_an_api_key_and_no_project_keys() {
     let descriptor = VertexExpress.descriptor();
     assert_eq!(descriptor.id, "vertexexpress");
     assert!(descriptor.config_key("base_url").is_some());
-    // The whole point of express mode: no project, no region.
     assert!(descriptor.config_key("project").is_none());
-    assert!(descriptor.config_key("location").is_none());
     assert!(!descriptor.capabilities.refresh);
     assert!(VertexExpress.default_connection().is_none());
 }

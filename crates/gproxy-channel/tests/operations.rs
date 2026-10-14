@@ -132,6 +132,7 @@ impl BaseChannel for Overrides {
         generate_content => GenerateContent, stream_generate_content => StreamGenerateContent,
         guardian_review => GuardianReview, guardian_classify => GuardianClassify,
         create_moderation => CreateModeration,
+        create_decision => CreateDecision,
         compact_content => CompactContent, summarize_memory => SummarizeMemory,
         create_conversation => CreateConversation, create_embedding => CreateEmbedding,
         batch_create_embedding => BatchCreateEmbedding, rerank => Rerank, web_search => WebSearch,

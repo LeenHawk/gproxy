@@ -85,8 +85,10 @@ pub async fn read(path: &Path) -> Result<Document> {
 pub(super) async fn open(path: &Path) -> Result<DatabaseConnection> {
     // `mode=ro`: the driver refuses a write, rather than this module promising
     // not to attempt one.
-    let url = format!("sqlite://{}?mode=ro", path.to_string_lossy());
-    Database::connect(&url).await.map_err(|error| {
+    let path_buf = path.to_owned();
+    let mut options = sea_orm::ConnectOptions::new("sqlite:?mode=ro");
+    options.map_sqlx_sqlite_opts(move |options| options.filename(&path_buf));
+    Database::connect(options).await.map_err(|error| {
         Error::other(format!(
             "could not open {} read-only: {error}",
             path.display()

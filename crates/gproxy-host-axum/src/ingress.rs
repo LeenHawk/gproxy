@@ -127,7 +127,7 @@ where
     }
 
     if let Some(response) = data_plane(
-        state, &mount, &core, &index, &remainder, &mut parts, body, &client_ip,
+        state, &mount, &core, &index, &remainder, &mut parts, body, &client_ip, scheme,
     )
     .await
     {
@@ -221,9 +221,14 @@ fn service_route<'a>(
 ///
 /// Only on a mount that names a provider or a namespace, because matching a
 /// route needs a channel and the aggregated mount names none. A namespace
-/// narrows to the providers its exposed names reach; the first that declares a
-/// matching route serves it, which is deterministic because `CoreData` orders
-/// providers by id.
+/// narrows to the providers its exposed names reach
+/// ([`MountIndex::namespace_providers`]) — never to the instance's whole
+/// provider list, or `/acme/…` would serve a service from a provider `acme`
+/// does not contain. Exactly one of those members may declare the route: two
+/// is refused with `409` rather than settled by provider id order, because
+/// id order is an accident of how rows were minted and a vendor service is an
+/// account surface, not a balanced model call. The client can name the
+/// provider mount it meant.
 ///
 /// A route the channel declares `WebSocket` — the Codex remote-control server
 /// is the one in the tree — is upgraded instead of called. See
@@ -244,24 +249,31 @@ async fn service_call<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
+    // Model operations use admission, routing and settlement, even when a
+    // vendor's catch-all service declaration also matches their native URL.
+    if surface::is_surface(&parts.method, remainder) {
+        return None;
+    }
     let provider_id = match mount {
         Mount::Aggregated => return None,
         Mount::Provider(name) => index.provider_id(name)?.to_owned(),
-        // A namespace can reach several providers; the one that declares this
-        // route serves it.
-        Mount::Namespace(_) => core
-            .providers
-            .iter()
-            .find(|(_, provider)| service_route(provider, &parts.method, remainder).is_some())
-            .map(|(id, _)| id.clone())?,
+        Mount::Namespace(name) => {
+            match namespace_service_provider(core, index, name, parts, remainder) {
+                Ok(id) => id?.to_owned(),
+                // Who is asking is settled first, so an anonymous probe learns
+                // no more about the namespace's membership than a 401.
+                Err(refusal) => {
+                    let error = match authenticate(state.app(), parts).await {
+                        Ok(_) => refusal,
+                        Err(error) => error,
+                    };
+                    return Some(ErrorResponse(error).into_response());
+                }
+            }
+        }
     };
     let provider = core.providers.get(&provider_id)?;
-    // Model operations use admission, routing and settlement, even when a
-    // vendor's catch-all service declaration also matches their native URL.
-    if surface::is_surface(&parts.method, remainder)
-        || (provider.channel.id() == "codex"
-            && surface::match_codex_path(&parts.method, remainder, &parts.headers, None).is_some())
-    {
+    if is_codex_model_path(provider, parts, remainder) {
         return None;
     }
     let route = service_route(provider, &parts.method, remainder)?;
@@ -344,6 +356,46 @@ where
     })
 }
 
+/// A Codex model path that Codex's catch-all service declaration would also
+/// match. It belongs to the data plane.
+fn is_codex_model_path(
+    provider: &gproxy_core::ProviderData,
+    parts: &http::request::Parts,
+    remainder: &str,
+) -> bool {
+    provider.channel.id() == "codex"
+        && surface::match_codex_path(&parts.method, remainder, &parts.headers, None).is_some()
+}
+
+/// The one member of namespace `name` whose channel serves this service path.
+///
+/// `Ok(None)` when no member declares it — the path then falls through like
+/// a provider mount whose channel lacks the route. `Err` (`409`) when more
+/// than one does: see [`service_call`] for why that is refused rather than
+/// broken by id order.
+fn namespace_service_provider<'a>(
+    core: &gproxy_core::CoreData,
+    index: &'a MountIndex,
+    name: &str,
+    parts: &http::request::Parts,
+    remainder: &str,
+) -> Result<Option<&'a str>, AppError> {
+    let mut serving = index.namespace_providers(name).filter(|id| {
+        core.providers.get(*id).is_some_and(|provider| {
+            service_route(provider, &parts.method, remainder).is_some()
+                && !is_codex_model_path(provider, parts, remainder)
+        })
+    });
+    let first = serving.next();
+    if first.is_some() && serving.next().is_some() {
+        return Err(AppError::Conflict(format!(
+            "more than one provider in namespace `{name}` serves this route; \
+             call it on the provider's own mount instead"
+        )));
+    }
+    Ok(first)
+}
+
 /// Step 5: the model API.
 ///
 /// `None` when the path is not one of the declared surfaces, which is what
@@ -358,6 +410,7 @@ async fn data_plane<C>(
     parts: &mut http::request::Parts,
     body: Bytes,
     client_ip: &str,
+    scheme: &str,
 ) -> Option<Response>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
@@ -395,15 +448,20 @@ where
         Err(error) => return Some(ErrorResponse(error).into_response()),
     };
 
-    if matched.operation.operation == gproxy_protocol::Operation::ListModels
-        && !matches!(mount, Mount::Provider(_))
-    {
-        return Some(model_catalog(
-            state,
-            &caller,
-            mount,
-            matched.operation.dialect,
-        ));
+    if matches!(
+        matched.operation.operation,
+        gproxy_protocol::Operation::ListModels | gproxy_protocol::Operation::GetModel
+    ) {
+        return Some(
+            model_catalog(
+                state,
+                &caller,
+                mount,
+                matched.operation,
+                matched.model.as_deref(),
+            )
+            .await,
+        );
     }
 
     // The handshake is taken out of the request once there is a caller and
@@ -462,6 +520,12 @@ where
         .and_then(|name| index.provider_id(name))
         .map(str::to_owned);
 
+    // Where a Gemini resumable follow-up must come back to: this origin and
+    // this mount (`gproxy_core::owned::upload`).
+    let upload_base = (matched.operation.operation == gproxy_protocol::Operation::CreateFile
+        && matched.operation.dialect == gproxy_protocol::Dialect::Gemini)
+        .then(|| upload_base(state, mount, scheme, &request.parts.headers))
+        .flatten();
     let app = Arc::clone(state.app());
     if let Some(upgrade) = upgrade {
         if matched.operation.dialect == gproxy_protocol::Dialect::OpenAiResponsesWebSocket {
@@ -493,13 +557,11 @@ where
     }
     let outcome = app.call(&caller, request).await;
     Some(match outcome {
-        Ok(outcome)
-            if matched.operation.operation == gproxy_protocol::Operation::ListModels
-                && matched.operation.dialect == gproxy_protocol::Dialect::OpenAi =>
-        {
-            models::response(app, outcome, cancel, core.limits.codec())
+        Ok(outcome) => {
+            let mut response = streamed(app, outcome, cancel);
+            absolutize_upload_url(&mut response, upload_base.as_deref());
+            response
         }
-        Ok(outcome) => streamed(app, outcome, cancel),
         Err(error) => {
             // Nothing is left running: `App::call` gave every charge back and
             // closed the capture before it returned this. Cancelling now would
@@ -510,12 +572,59 @@ where
     })
 }
 
+/// The external origin plus mount prefix this request reached, as the OAuth
+/// issuer derives it: `public_base_url` when configured, otherwise the `Host`
+/// header under the scheme [`policy::client_scheme`] trusted. `None` when
+/// neither names an authority.
+fn upload_base<C>(
+    state: &HostState<C>,
+    mount: &Mount,
+    scheme: &str,
+    headers: &HeaderMap,
+) -> Option<String> {
+    let origin = match state.app().config().public_base_url.as_deref() {
+        Some(base) if !base.trim().is_empty() => base.trim().trim_end_matches('/').to_owned(),
+        _ => {
+            let authority = headers
+                .get(http::header::HOST)
+                .and_then(|value| value.to_str().ok())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())?;
+            format!("{scheme}://{authority}")
+        }
+    };
+    Some(format!("{origin}{}", mount.prefix()))
+}
+
+/// Core hands a Gemini resumable start back with a mount-relative gateway
+/// session URL; a client needs it absolute. Without a known origin the
+/// relative form is left, which a client resolves against the request URL.
+fn absolutize_upload_url(response: &mut Response, base: Option<&str>) {
+    let name = gproxy_core::owned::upload::UPLOAD_URL;
+    let Some(base) = base else { return };
+    let Some(relative) = response
+        .headers()
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| value.starts_with('/'))
+        .map(str::to_owned)
+    else {
+        return;
+    };
+    if let Ok(value) = http::HeaderValue::from_str(&format!("{base}{relative}")) {
+        response
+            .headers_mut()
+            .insert(http::HeaderName::from_static(name), value);
+    }
+}
+
 /// Return names that can be used unchanged at this base URL.
-fn model_catalog<C>(
+async fn model_catalog<C>(
     state: &HostState<C>,
     caller: &Caller,
     mount: &Mount,
-    dialect: gproxy_protocol::Dialect,
+    operation: gproxy_protocol::OperationKey,
+    requested: Option<&str>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
@@ -523,6 +632,55 @@ where
     use gproxy_protocol::Dialect;
     use serde_json::json;
 
+    let dialect = operation.dialect;
+    let core = state.app().gproxy().core().snapshot();
+    let routing = state.app().gproxy().routing();
+    let requested_name = requested.map(|name| mounted_model(mount, name));
+    let providers = core
+        .providers
+        .iter()
+        .filter(|(id, provider)| {
+            requested_name.as_ref().is_none_or(|name| {
+                if let Some((_, route)) = routing.route_for(name) {
+                    route
+                        .members
+                        .iter()
+                        .any(|member| member.provider_id == **id)
+                } else {
+                    name.strip_prefix(&format!("{}/", provider.entity.name))
+                        .is_some()
+                }
+            })
+        })
+        .filter(|(id, provider)| match mount {
+            Mount::Aggregated => true,
+            Mount::Provider(name) => provider.entity.name == *name,
+            Mount::Namespace(name) => routing
+                .names
+                .iter()
+                .filter(|(model, _)| model.starts_with(&format!("{name}/")))
+                .filter_map(|(_, route)| routing.routes.get(route))
+                .any(|route| {
+                    route
+                        .members
+                        .iter()
+                        .any(|member| member.provider_id == **id)
+                }),
+        })
+        .map(|(id, _)| id.clone())
+        .collect();
+    if let Err(error) = state
+        .app()
+        .refresh_model_catalog(
+            caller,
+            &providers,
+            operation.operation,
+            requested_name.as_deref(),
+        )
+        .await
+    {
+        return ErrorResponse(error).into_response();
+    }
     let data = state.app().data();
     let operations = gproxy_app::Operations::new(state.app().gproxy(), &data, state.app().config());
     let models = match operations.portal(caller).models() {
@@ -538,24 +696,99 @@ where
         .filter(|model| model.permitted)
         .filter_map(|model| {
             let name = match mount {
-                Mount::Namespace(_) => model.name.strip_prefix(&prefix)?.to_owned(),
+                Mount::Namespace(_) | Mount::Provider(_) => {
+                    model.name.strip_prefix(&prefix)?.to_owned()
+                }
                 _ => model.name.clone(),
             };
+            if requested_name
+                .as_ref()
+                .is_some_and(|requested| requested != &model.name)
+            {
+                return None;
+            }
+            let backing = if let Some((_, route)) = routing.route_for(&model.name) {
+                route
+                    .members
+                    .iter()
+                    .map(|member| member.provider_id.clone())
+                    .collect()
+            } else {
+                core.providers
+                    .values()
+                    .filter(|provider| {
+                        model
+                            .name
+                            .starts_with(&format!("{}/", provider.entity.name))
+                    })
+                    .map(|provider| provider.entity.id.clone())
+                    .collect()
+            };
+            if gproxy_app::admission::permission::allowed_providers(
+                &data,
+                caller,
+                Some(&model.name),
+                operation.operation,
+                &backing,
+                &state.app().config().oauth.cli_client_ids,
+            )
+            .is_err()
+            {
+                return None;
+            }
+            let metadata = models::metadata(&core, &routing, &model.name);
             if dialect == Dialect::OpenAi {
-                let metadata = models::metadata(&core, &routing, &model.name);
                 codex_models.push(models::project(&name, &metadata));
             }
-            Some(name)
-        })
-        .map(|name| match dialect {
-            Dialect::Claude => json!({
-                "id": name, "type": "model", "display_name": name,
-                "created_at": "1970-01-01T00:00:00Z"
-            }),
-            Dialect::Gemini => json!({"name": format!("models/{name}"), "displayName": name}),
-            _ => json!({"id": name, "object": "model", "created": 0, "owned_by": "gproxy"}),
+            let owner = match mount {
+                Mount::Provider(name) => name.as_str(),
+                _ => "gproxy",
+            };
+            let mut value = gproxy_core::convert::local_model_metadata(&metadata, dialect, owner);
+            let object = value.as_object_mut().expect("local model metadata");
+            match dialect {
+                Dialect::Claude => {
+                    object.insert("id".into(), json!(name));
+                    object.insert("type".into(), json!("model"));
+                    object.entry("display_name").or_insert(json!(name));
+                    object
+                        .entry("created_at")
+                        .or_insert(json!("1970-01-01T00:00:00Z"));
+                }
+                Dialect::Gemini => {
+                    object.insert("name".into(), json!(format!("models/{name}")));
+                    object.entry("displayName").or_insert(json!(name));
+                }
+                _ => {
+                    object.insert("id".into(), json!(name));
+                    object.insert("object".into(), json!("model"));
+                    object.entry("created").or_insert(json!(0));
+                }
+            }
+            Some(value)
         })
         .collect();
+    let codex_models = match codex_models.into_iter().collect::<Result<Vec<_>, _>>() {
+        Ok(models) => models,
+        Err(error) => {
+            return ErrorResponse(
+                gproxy_sdk::SdkError::invalid(format!("model metadata: {error}")).into(),
+            )
+            .into_response();
+        }
+    };
+    if operation.operation == gproxy_protocol::Operation::GetModel {
+        return match models.into_iter().next() {
+            Some(model) => axum::Json(model).into_response(),
+            None => (
+                StatusCode::NOT_FOUND,
+                axum::Json(json!({"error": {
+                    "type": "not_found_error", "message": "model is not in the local catalog"
+                }})),
+            )
+                .into_response(),
+        };
+    }
     let body = match dialect {
         Dialect::Claude => json!({
             "first_id": models.first().and_then(|m| m.get("id")),
@@ -570,13 +803,15 @@ where
 
 /// The model name as the mount asked for it.
 ///
-/// `acme` + `fast` is `acme/fast`; `acme` + `acme/fast` is unchanged, so a
-/// client may spell the name either way and a console that renders the exposed
-/// name verbatim still works against a namespaced base URL.
+/// A namespace accepts an already qualified exposed name. A provider mount
+/// treats the entire supplied model as an upstream name, even if it begins
+/// with the provider's name; add the routing prefix separately so resolution
+/// removes only that prefix, never part of the actual model name.
 fn mounted_model(mount: &Mount, model: &str) -> String {
     match mount {
         Mount::Aggregated => model.to_owned(),
-        Mount::Namespace(name) | Mount::Provider(name) => {
+        Mount::Provider(name) => format!("{name}/{model}"),
+        Mount::Namespace(name) => {
             if model
                 .strip_prefix(name.as_str())
                 .is_some_and(|rest| rest.starts_with('/'))
@@ -774,7 +1009,7 @@ mod tests {
     }
 
     #[test]
-    fn a_mount_prefixes_the_model_once() {
+    fn mounts_preserve_slashes_in_upstream_models() {
         let namespace = Mount::Namespace("acme".into());
         assert_eq!(mounted_model(&namespace, "fast"), "acme/fast");
         assert_eq!(mounted_model(&namespace, "acme/fast"), "acme/fast");
@@ -783,6 +1018,18 @@ mod tests {
         assert_eq!(mounted_model(&namespace, "acmex/fast"), "acme/acmex/fast");
         assert_eq!(mounted_model(&Mount::Aggregated, "fast"), "fast");
         assert_eq!(mounted_model(&Mount::Provider("p1".into()), "m1"), "p1/m1");
+        assert_eq!(
+            mounted_model(&Mount::Aggregated, "p1/org/model"),
+            "p1/org/model"
+        );
+        assert_eq!(
+            mounted_model(&Mount::Provider("p1".into()), "org/model"),
+            "p1/org/model"
+        );
+        assert_eq!(
+            mounted_model(&Mount::Provider("p1".into()), "p1/org/model"),
+            "p1/p1/org/model"
+        );
     }
 
     #[test]

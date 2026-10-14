@@ -15,7 +15,10 @@
 //!   or `https://aiplatform.googleapis.com` when the location is `global`.
 //! - Google's own models live at `/v1beta1/projects/{project}/locations/
 //!   {location}/publishers/google/models/{model}:{verb}`. The model directory
-//!   is project-free: `/v1beta1/publishers/google/models`.
+//!   is project-free: `/v1beta1/publishers/{publisher}/models`. Listing drains
+//!   Google and Anthropic pages and returns a normalized Gemini directory,
+//!   retaining `google/{id}` / `anthropic/{id}` as upstream identities.
+//!   The model publisher also selects the native request dialect.
 //! - Anthropic's models live at `/v1/projects/{project}/locations/{location}/
 //!   publishers/anthropic/models/{model}:rawPredict`, `:streamRawPredict` for
 //!   a stream, and the token counter is the literal model `count-tokens`.
@@ -37,6 +40,7 @@
 mod auth;
 mod config;
 mod endpoint;
+mod models;
 mod request;
 
 pub use config::VertexConfig;

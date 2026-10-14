@@ -120,8 +120,8 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
         <Field data-field-span="full"><FieldLabel htmlFor={`${id}-proxy`}>{t("proxy.provider")}</FieldLabel><ProxyControl id={`${id}-proxy`} value={proxy} onChange={setProxy} scope={provider ? { scope: "provider", provider_id: provider.id } : { scope: "global", parent: true }} /></Field>
         <Field>
           <FieldLabel htmlFor={`${id}-auto-refresh-models`}>{t("providerForm.autoRefreshModels")}</FieldLabel>
-          <Switch id={`${id}-auto-refresh-models`} checked={config.auto_refresh_models !== false} onCheckedChange={value => change("auto_refresh_models", value)} />
-          <FieldDescription>{t("providerForm.autoRefreshModelsHelp")}</FieldDescription>
+          <Switch aria-describedby={`${id}-auto-refresh-models-description-0`} id={`${id}-auto-refresh-models`} checked={config.auto_refresh_models !== false} onCheckedChange={value => change("auto_refresh_models", value)} />
+          <FieldDescription id={`${id}-auto-refresh-models-description-0`}>{t("providerForm.autoRefreshModelsHelp")}</FieldDescription>
         </Field>
         <Field>
           <FieldLabel htmlFor={`${id}-enabled`}>{t("fields.enabled")}</FieldLabel>

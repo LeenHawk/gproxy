@@ -1,0 +1,5 @@
+# PackageVersion is supplied from the verified stable release by prepare-winget.py.
+PackageIdentifier: LeenHawk.GPROXY.Headless
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.12.0

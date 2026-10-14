@@ -303,6 +303,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                 return Err(CoreError::Cancelled);
             }
             Some(Err(error)) => {
+                let client_fault = matches!(error, gproxy_channel::ChannelError::InvalidConfig(_));
                 let outcome = AttemptOutcome::Failed(error);
                 funnel.trace(TraceEvent::AttemptFinished {
                     attempt: &attempt,
@@ -313,8 +314,22 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     .finish(UsageStreamEnd::Interrupted, None, finished_at)
                     .await;
                 if let Some(handle) = assignment.take() {
-                    core.settle_assignment(&handle, failed(true, "transport"), finished_at)
-                        .await?;
+                    core.settle_assignment(
+                        &handle,
+                        failed(
+                            !client_fault,
+                            if client_fault { "client" } else { "transport" },
+                        ),
+                        finished_at,
+                    )
+                    .await?;
+                }
+                if client_fault {
+                    let AttemptOutcome::Failed(error) = outcome else {
+                        unreachable!()
+                    };
+                    funnel.finish(UsageState::Failed).await;
+                    return Err(CoreError::Channel(error));
                 }
                 if core
                     .record_failure(
@@ -390,6 +405,16 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     &request_rules,
                     limits.max_ws_frame_bytes,
                     session,
+                );
+                // Client messages naming uploaded files must name the
+                // caller's own, on this socket's credential.
+                let socket = crate::owned::socket::guard(
+                    core.store().clone(),
+                    request.scope.clone(),
+                    provider.entity.id.clone(),
+                    credential.id.clone(),
+                    operation.dialect,
+                    socket,
                 );
                 let settled = funnel.arm();
                 return Ok(Execution::new(
@@ -528,9 +553,7 @@ pub(crate) fn rewrite_text(
 ) -> Result<WsFrame, TransportError> {
     match frame {
         WsFrame::Text(text) if !rules.is_empty() => {
-            let event = serde_json::from_str::<serde_json::Value>(&text)
-                .ok()
-                .and_then(|v| v.get("type")?.as_str().map(str::to_owned));
+            let event = crate::rewrite::event_type_for(rules, &text);
             match apply_unit(rules, event.as_deref(), &text) {
                 Ok(Some(rewritten)) => Ok(WsFrame::Text(rewritten)),
                 Ok(None) => Ok(WsFrame::Text(text)),
@@ -753,6 +776,25 @@ impl Sink<WsFrame> for ObservedSink {
         {
             value["model"] = serde_json::Value::String(model.into());
             *text = value.to_string();
+        }
+        if super::thinking::enabled(
+            &self
+                .exchange
+                .context
+                .attempt
+                .request
+                .target
+                .provider
+                .entity
+                .config,
+            self.exchange.context.operation,
+        ) && let WsFrame::Text(text) = &mut frame
+            && let Some(body) = super::thinking::strip_bytes(
+                self.exchange.context.operation.dialect,
+                text.as_bytes(),
+            )
+        {
+            *text = String::from_utf8(body).expect("serialized JSON");
         }
         if frame_len(&frame) as u64 > self.max {
             return Err(transport_error("rewritten frame exceeds the frame limit"));

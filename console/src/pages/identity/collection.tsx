@@ -154,6 +154,7 @@ export function CollectionPage<D, W, P>({
             empty={<EmptyNotice title={t("state.emptyTitle")} />}
             actions={(row) => (
               <>
+                {onOpen ? <Button variant="ghost" size="sm" onClick={() => onOpen(row)}>{t("actions.details")}<span className="sr-only">: {rowLabel(row)}</span></Button> : null}
                 {rowActions?.(row)}
                 <Button variant="ghost" size="sm" onClick={() => onEdit ? onEdit(row) : setEditing(row)}><Pencil data-icon="inline-start" />{t("actions.edit")}</Button>
                 {rowDeletable ? (

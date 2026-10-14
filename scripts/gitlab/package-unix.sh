@@ -1,18 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../reproducible-env.sh"
 source scripts/gitlab/env.sh
 mkdir -p dist/release
 case "${1:?cli|application|edge}" in
   cli)
     echo "Building CLI / server: $ARTIFACT_NAME"
     case "$BUILDER" in
-      cargo) cargo build --locked --release --bin gproxy --target "$TARGET_TRIPLE" ;;
+      cargo) python3 scripts/reproducible-run.py cargo build --locked --release --bin gproxy --target "$TARGET_TRIPLE" ;;
       cargo-alpine) scripts/build-musl.sh "$TARGET_TRIPLE" ;;
-      cargo-ndk)
-        sysroot="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-        env "BINDGEN_EXTRA_CLANG_ARGS_${TARGET_TRIPLE}=--target=${TARGET_TRIPLE}28 --sysroot=$sysroot -I$sysroot/usr/include/$TARGET_TRIPLE" \
-          cargo ndk --platform 28 -t "$NDK_TARGET" build --locked --release --bin gproxy
-        ;;
+      termux) bash scripts/build-termux.sh "$TARGET_TRIPLE" ;;
     esac
     binary="target/$TARGET_TRIPLE/release/gproxy"
     if [ "$TARGET_OS" = linux ]; then
@@ -43,7 +40,7 @@ case "${1:?cli|application|edge}" in
     ;;
   edge)
     export TARGET_TRIPLE=wasm32-unknown-unknown ARTIFACT_NAME=gproxy-edge BUILDER=worker-build
-    cargo install worker-build --locked
+    cargo install worker-build --version 0.8.7
     scripts/package-edge-release.sh
     scripts/build-provenance.sh
     mkdir -p "$RUNNER_TEMP/edge"

@@ -113,6 +113,8 @@ Everything the application layer decided — the allowed providers and
 credentials, the budget chain, the session — is **passed in**. Nothing here
 authenticates anybody.
 
+Resource URLs use `DefaultFetchPolicy`: native direct connections pin vetted public IP addresses. Domain URLs are refused when a proxy would resolve them independently. An embedding host can explicitly configure `AllowlistFetchPolicy` through `.fetch_policy(...)` for hostnames it controls; this delegates destination enforcement to its proxy. On wasm, hostname destinations still depend on the platform's egress controls.
+
 ## What Is Not Here
 
 - **Identity.** Users, API keys, organizations, teams, permissions,

@@ -45,6 +45,7 @@ impl BaseChannel for Xai {
         ChannelDescriptor {
             id: ID,
             display_name: "xAI (Grok)",
+            credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
                 refresh: false,

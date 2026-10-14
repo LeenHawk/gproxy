@@ -178,6 +178,16 @@ pub(super) async fn load<S: StateStore>(
             "invalid schema, binding or child count",
         ));
     }
+    if state
+        .children
+        .iter()
+        .any(|child| child.source.instances.len() != 1)
+    {
+        return Err(TransformError::invalid_result(
+            "video.state",
+            "each child must retain exactly one source instance",
+        ));
+    }
     if state.expires_at <= SystemTime::now() {
         return Err(TransformError::missing_metadata(
             "video.state.unexpired_publications",

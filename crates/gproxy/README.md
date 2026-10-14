@@ -134,9 +134,13 @@ runs with a working directory the init system chose.
 | Platform | What is written | Started by |
 |---|---|---|
 | Linux + systemd | `~/.config/systemd/user/gproxy.service` | `systemctl --user enable --now`, plus `loginctl enable-linger` with `--autostart` |
-| macOS | `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist` | `launchctl bootstrap gui/<uid>` |
+| macOS | `~/Library/LaunchAgents/com.leenhawk.gproxy.cli.plist` | `launchctl bootstrap gui/<uid>` |
 | Windows | a logon-triggered task named `gproxy` | `schtasks /create /xml` |
 | Termux | `~/.termux/boot/gproxy.sh` | the **Termux:Boot** add-on, which must be installed separately |
+
+The CLI identity is `com.leenhawk.gproxy.cli`. Existing macOS agents using
+`io.github.leenhawk.gproxy` keep their registered identity for install, status
+and uninstall; new installations use the new label.
 
 A machine with none of those — a container, a chroot, a distribution on runit
 or s6, an Android app that is not Termux — is told so, with the reason, instead
@@ -438,8 +442,23 @@ already in place for the console to land in.
 
 ## Cargo features
 
+For a CI binary without bundled frontend assets, skip the console build and run:
+
+```sh
+cargo build --locked --release -p gproxy --bin gproxy \
+  --no-default-features --features channels,memory,fs,bundled-vocabulary
+./target/release/gproxy serve --console=false
+```
+
+This excludes embedded assets even if `assets/web` already contains a console
+build. Proxy routes, management APIs, bootstrap and configuration import remain
+available. A console directory can still be served with `--console-path`.
+Use CLI commands or the management API to configure providers and credentials.
+For a smaller set of upstreams, replace `channels` with names such as `openai,codex`.
+
 | Feature | Default | What it adds |
 |---|---|---|
+| `embedded-console` | ✓ | the bundled Web console |
 | `channels` | ✓ | every channel this repository implements. Name channels one by one (`codex`, `kiro`, `openai`, …) for a binary that carries only the upstreams a deployment uses |
 | `memory` | ✓ | the in-process cache |
 | `fs` | ✓ | local file storage |
@@ -465,3 +484,26 @@ Three things change:
 2. **`gproxy migrate` as its own step**, with one writer, before any instance
    starts.
 3. **Rotate with one instance running**, as above.
+
+## Capture payload retention
+
+The existing runtime maintenance loop prunes full capture payloads every minute
+and when its settings change. Configure **Settings → Maintenance → Capture
+payload retention / size limit** in the Console, or PATCH the instance settings:
+
+```json
+{
+  "instance": {
+    "capturePayloadRetentionDays": 7,
+    "capturePayloadMaxMb": 2048
+  }
+}
+```
+
+These are database settings, like `retentionDays`, rather than startup environment
+variables. `null` disables one limit; zero expires completed payloads immediately
+or gives them a zero-byte budget. Metadata/usage history follows the independent
+`retentionDays` policy. Active captures are retained. The cap counts encoded
+payload bytes and manifests, not SQLite pages or indexes; SQLite reuses freed
+pages, while its separate `maxDatabaseSizeMb` policy governs physical cleanup.
+Embedders/edge schedulers can call `Store::prune_capture_payloads` explicitly.

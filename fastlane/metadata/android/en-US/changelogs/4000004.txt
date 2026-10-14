@@ -1,0 +1,1 @@
+Add GLM/Z.ai API and Coding Plan, MiniMax API and subscription support, and Devin OAuth and native tools. Improve model selection and usage totals. Smaller Android packages with cached on-demand fonts. Fix OAuth callbacks and Responses history compatibility.

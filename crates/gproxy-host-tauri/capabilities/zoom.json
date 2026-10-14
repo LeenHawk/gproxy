@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window-zoom",
+  "description": "Allow the built-in accessibility zoom shortcuts in the main window.",
+  "windows": ["main"],
+  "permissions": ["core:webview:allow-set-webview-zoom"]
+}

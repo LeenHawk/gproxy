@@ -25,7 +25,7 @@ updates:
         update-types:
           - version-update:semver-major
 
-  # Keeps action version tags current.
+  # Keeps pinned action commits current. Dependency updates require human review.
   - package-ecosystem: github-actions
     directories:
       - "/"

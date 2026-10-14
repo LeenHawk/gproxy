@@ -1,7 +1,22 @@
 {
-  "tauri": {"repository": "tauri-apps/tauri", "revision": "e3bf6eb168bacc7bb5c8c32d923bb8beaf77c92b"},
-  "wry": {"repository": "tauri-apps/wry", "revision": "6aaf4b84b6e420015c6a14f264f1c7399f150392"},
-  "tao": {"repository": "tauri-apps/tao", "revision": "813572fbe582005e2fb513458bc212842745ceab"},
-  "cargo-mobile2": {"repository": "tauri-apps/cargo-mobile2", "revision": "5060cae66c5b7cfdcf8be1eeb012bee401c53778"},
-  "ability": {"repository": "harmony-contrib/openharmony-ability", "revision": "295a276a699ba2352addc69b8cacb6acd3be6ab1"}
+  "tauri": {
+    "repository": "LeenHawk/tauri",
+    "revision": "44ae4230ab7ce2f7361a957f50e4fb1df580ce49"
+  },
+  "wry": {
+    "repository": "LeenHawk/wry",
+    "revision": "9feaf086c3bd02ca14a8a1492f87e7a7714ea2fb"
+  },
+  "tao": {
+    "repository": "tauri-apps/tao",
+    "revision": "813572fbe582005e2fb513458bc212842745ceab"
+  },
+  "cargo-mobile2": {
+    "repository": "LeenHawk/cargo-mobile2",
+    "revision": "1b752a8a9e10a9881835e88f4996ba4872e4ac66"
+  },
+  "ability": {
+    "repository": "LeenHawk/openharmony-ability",
+    "revision": "c5f0a450f7bbfedc52160f2fbeaa04886e0eb34b"
+  }
 }

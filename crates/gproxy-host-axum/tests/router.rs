@@ -305,6 +305,82 @@ async fn a_view_an_ordinary_member_may_not_ask_for_is_refused() {
     assert_eq!(answer.json()["error"]["code"], "invalid_request");
 }
 
+/// Two providers whose channel both declare the usage service, and an
+/// instance administrator, so the pool view's identity names which provider
+/// answered.
+async fn two_service_providers() -> Host {
+    let host = Host::new().await;
+    let handle = host.handle();
+    support::person(&handle, "root", "admin").await;
+    support::api_key(&handle, "k-root", "root", None, None).await;
+    support::provider(&handle, "p1", &["m1"]).await;
+    support::provider(&handle, "p2", &["m1"]).await;
+    support::credential(&handle, "c1", "p1", None, None, None).await;
+    support::credential(&handle, "c2", "p2", None, None, None).await;
+    host
+}
+
+#[tokio::test]
+async fn a_namespace_service_is_served_by_a_provider_of_that_namespace() {
+    let host = two_service_providers().await;
+    // `acme` reaches `p2` only. `p1` sorts first and declares the same route,
+    // which is exactly the provider a global scan would have picked.
+    support::exposed(&host.handle(), "acme/fast", "p2", "m1").await;
+    host.publish().await;
+
+    let answer = host
+        .send(with(
+            keyed(get("/acme/backend-api/wham/usage"), "k-root"),
+            "x-gproxy-view",
+            "pool",
+        ))
+        .await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text());
+    assert_eq!(answer.json()["identity"], "p2:c2");
+}
+
+#[tokio::test]
+async fn a_namespace_whose_members_all_declare_a_service_refuses_to_guess() {
+    let host = two_service_providers().await;
+    support::exposed(&host.handle(), "acme/fast", "p1", "m1").await;
+    support::exposed(&host.handle(), "acme/slow", "p2", "m1").await;
+    host.publish().await;
+
+    let answer = host
+        .send(keyed(get("/acme/backend-api/wham/usage"), "k-root"))
+        .await;
+    assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.text());
+    // Anonymous callers learn nothing about the namespace's membership.
+    let answer = host.send(get("/acme/backend-api/wham/usage")).await;
+    assert_eq!(answer.status, StatusCode::UNAUTHORIZED);
+    // The provider mount is still unambiguous.
+    let answer = host
+        .send(keyed(get("/p1/backend-api/wham/usage"), "k-root"))
+        .await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text());
+}
+
+#[tokio::test]
+async fn a_service_needs_a_permission_for_its_provider() {
+    let host = Host::new().await;
+    let handle = host.handle();
+    support::person(&handle, "bob", "user").await;
+    support::api_key(&handle, "k-bob", "bob", None, None).await;
+    support::provider(&handle, "p1", &["m1"]).await;
+    support::provider(&handle, "p2", &["m1"]).await;
+    // `bob` sees the shared credential of `p1`, but his only rule is `p2`'s.
+    support::allow(&handle, "perm-bob", "bob", Some("p2")).await;
+    support::credential(&handle, "c1", "p1", None, None, None).await;
+    host.publish().await;
+
+    let answer = host
+        .send(keyed(get("/p1/backend-api/wham/usage"), "k-bob"))
+        .await;
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text());
+    assert_eq!(answer.json()["error"]["code"], "forbidden");
+    assert!(host.client.urls().is_empty());
+}
+
 #[tokio::test]
 async fn a_service_route_still_needs_a_credential() {
     let host = instance().await;

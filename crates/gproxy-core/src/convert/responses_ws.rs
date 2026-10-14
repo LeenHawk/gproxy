@@ -85,6 +85,8 @@ pub(crate) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'stat
     let limits = call.limits;
     // Identities and continuation state are Responses'; the socket is transport.
     let state = &call.generation_state_for(Dialect::OpenAi)?;
+    let (media, media_scope) = call.resources();
+    let resources = &call.generation_resources(&media, &media_scope);
     let endpoint = super::generate_endpoint(Dialect::OpenAi, &state.target.model, true)?;
     let identities = GenerationIdentity::new(namespace(), namespace(), client, Dialect::OpenAi)?;
     let stream_target = StreamTarget {
@@ -95,12 +97,16 @@ pub(crate) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'stat
     macro_rules! run {
         ($pair:ty, $input:ty) => {{
             let input: $input = decode(body, limits)?;
-            run!(@drive <$pair>::prepare_stream(input, stream_target, settings, state))
+            run!(@drive <$pair>::prepare_stream_with_capabilities(
+                input, stream_target, settings, state, resources
+            ))
         }};
         ($pair:ty, $input:ty, $ctx:expr) => {{
             let input: $input = decode(body, limits)?;
             let context = $ctx;
-            run!(@drive <$pair>::prepare_stream(input, stream_target, context, settings, state))
+            run!(@drive <$pair>::prepare_stream_with_capabilities(
+                input, stream_target, context, settings, state, resources
+            ))
         }};
         (@drive $prepare:expr) => {{
             Box::pin(async move {

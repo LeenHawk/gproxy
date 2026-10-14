@@ -25,13 +25,15 @@
 use axum::response::{IntoResponse, Response};
 use gproxy_app::config::ConsoleConfig;
 use http::{HeaderValue, Method, StatusCode, header};
+#[cfg(feature = "embedded-console")]
 use rust_embed::RustEmbed;
 
-mod fonts;
+pub mod fonts;
 
 /// Where the console is served from, `/console` and below.
 pub const CONSOLE_PATH: &str = "/console";
 
+#[cfg(feature = "embedded-console")]
 #[derive(RustEmbed)]
 #[folder = "assets/web"]
 #[exclude = ".gitkeep"]
@@ -49,6 +51,7 @@ enum Source {
     /// The switch is off, or nothing was embedded and no directory was named.
     Disabled,
     /// The bundle compiled into this binary.
+    #[cfg(feature = "embedded-console")]
     Embedded,
     /// A directory on disk, for development.
     Directory(std::path::PathBuf),
@@ -62,6 +65,7 @@ impl Console {
             // `index.html` is the one file whose presence proves a bundle was
             // built into this binary; `Embedded::iter()` would be true for a
             // stray asset.
+            #[cfg(feature = "embedded-console")]
             _ if Embedded::get("index.html").is_some() => Source::Embedded,
             _ => Source::Disabled,
         };
@@ -71,11 +75,27 @@ impl Console {
         }
     }
 
-    /// The CLI uses its instance data directory; the app can use this before
-    /// the first-run wizard has created an instance or opened a database.
     pub fn with_font_cache(mut self, path: impl Into<std::path::PathBuf>) -> Self {
         self.fonts = fonts::FontCache::new(path.into());
         self
+    }
+
+    pub fn fonts(&self) -> &fonts::FontCache {
+        &self.fonts
+    }
+
+    pub async fn download_fonts(&self) -> std::io::Result<fonts::FontStatus> {
+        let manifest = self
+            .read("fonts/manifest.json")
+            .await
+            .ok_or_else(|| std::io::Error::other("Console font manifest is unavailable"))?;
+        let package: fonts::FontPackage =
+            serde_json::from_slice(&manifest).map_err(std::io::Error::other)?;
+        let css = self
+            .read(&format!("fonts/{}", package.stylesheet))
+            .await
+            .ok_or_else(|| std::io::Error::other("Console font stylesheet is unavailable"))?;
+        self.fonts.download(&package, &css).await
     }
 
     pub fn is_enabled(&self) -> bool {
@@ -91,18 +111,22 @@ impl Console {
             return Some(not_found("the console is not enabled on this instance"));
         }
         let head = method == Method::HEAD;
+        if asset == "fonts/active.css" {
+            let bytes = self.fonts.stylesheet().await.unwrap_or_default();
+            let mut response = asset_response(&asset, bytes, head);
+            response
+                .headers_mut()
+                .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+            return Some(response);
+        }
+        if let Some(filename) = fonts::filename(&asset) {
+            return Some(match self.fonts.read(filename).await {
+                Some(bytes) => asset_response(&asset, bytes, head),
+                None => not_found("font has not been downloaded"),
+            });
+        }
         match self.read(&asset).await {
             Some(bytes) => Some(asset_response(&asset, bytes, head)),
-            None if fonts::filename(&asset).is_some() => {
-                let filename = fonts::filename(&asset).unwrap();
-                Some(match self.fonts.read(filename).await {
-                    Ok(bytes) => asset_response(&asset, bytes, head),
-                    Err(error) => {
-                        tracing::warn!(%error, filename, "could not cache console font");
-                        (StatusCode::BAD_GATEWAY, "font download unavailable").into_response()
-                    }
-                })
-            }
             // The SPA fallback: a document request for a route the bundle
             // owns. An asset request that missed stays a 404.
             None if is_document(&asset) => match self.read("index.html").await {
@@ -116,6 +140,7 @@ impl Console {
     async fn read(&self, asset: &str) -> Option<Vec<u8>> {
         match &self.source {
             Source::Disabled => None,
+            #[cfg(feature = "embedded-console")]
             Source::Embedded => Embedded::get(asset).map(|file| file.data.into_owned()),
             Source::Directory(root) => {
                 // `asset_name` has already rejected `..` and absolute paths, so
@@ -289,9 +314,13 @@ mod tests {
             enabled: true,
             path: None,
         });
+        #[cfg(feature = "embedded-console")]
+        let has_bundle = Embedded::get("index.html").is_some();
+        #[cfg(not(feature = "embedded-console"))]
+        let has_bundle = false;
         assert_eq!(
             console.is_enabled(),
-            Embedded::get("index.html").is_some(),
+            has_bundle,
             "the console is enabled if and only if a bundle is embedded"
         );
 

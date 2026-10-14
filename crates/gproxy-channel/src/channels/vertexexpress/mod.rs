@@ -3,18 +3,19 @@
 //!
 //! Express mode is a separate channel rather than an authentication mode of
 //! [`super::vertex`] on purpose. The two share a Gemini request body and a
-//! host name, and nothing else: express mode has no project and no region, so
+//! host name, and nothing else: express mode has no project-scoped paths, so
 //! its methods sit outside the `projects/{p}/locations/{l}` hierarchy
 //! entirely; it serves only Google's own publisher, so there is no Anthropic
-//! or OpenAI-compatible surface; and its provider form has no keys at all
-//! where `vertex` has two required ones. See `design/channels.md`.
+//! or OpenAI-compatible surface; and its provider form needs no project. See `design/channels.md`.
 //!
 //! Wire facts, from Google's Vertex AI Express mode reference and from the v3
 //! channel this replaces (`crates/gproxy-channels/src/vertexexpress/` on
 //! `main`):
 //!
-//! - One global origin, `https://aiplatform.googleapis.com`; there is no
-//!   regional host because an express key is not bound to a region.
+//! - Default origin `https://aiplatform.googleapis.com`; an optional `location`
+//!   selects `https://{location}-aiplatform.googleapis.com` unless it is `global`.
+//!   Credential metadata overrides secret location, then provider config.
+//!   Explicit base URLs and endpoint overrides retain their precedence.
 //! - Methods are `/v1/publishers/google/models/{model}:{verb}` for
 //!   `generateContent`, `streamGenerateContent` and `countTokens`.
 //! - The key travels as the `key` query parameter. It is never put in a

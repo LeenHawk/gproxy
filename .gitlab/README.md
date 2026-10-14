@@ -35,7 +35,7 @@ instructions. Application ZIPs contain the Linux desktop payload, Windows
 executable plus emitted DLLs, or the signed macOS `.app`. Linux ZIPs require
 GTK/WebKitGTK and Windows ZIPs require WebView2 on the host.
 
-Android Application identity remains `dev.gproxy.desktop`; its signed update
+Android Application identity is `com.leenhawk.gproxy.desktop`; its signed update
 key remains `<triple>-tauri-apk`. CLI updates still use ZIPs and bare triples.
 The desktop host does not acquire CLI-style executable replacement.
 
@@ -62,7 +62,9 @@ GitLab Rust release compilation runs on 16-core AMD64 Linux runners. Six
 registry-cached images provide GNU/musl cross tools and separate GTK development libraries for each Linux architecture,
 Windows/macOS SDKs, and Android's NDK. CLI and Application use separate jobs and
 caches. Linux ARM64 and RISC-V GNU use GCC and QEMU checks; musl (including RISC-V) and macOS use cargo-zigbuild;
-Windows uses cargo-xwin; Android uses cargo-ndk/Tauri's Android build.
+Windows uses cargo-xwin. Android CLI uses the pinned official Termux builder
+and the shared `distribution/termux/` recipe; Android Application uses Tauri's
+Android build. CLI ZIPs and DEBs depend on Termux libraries and use package-manager updates.
 
 Both CLI and desktop Application have ZIP and platform installer packages.
 Windows SDK and macOS hdiutil jobs only seal already-cross-built
@@ -81,7 +83,7 @@ x64 CLI runs under Wine; the packed Wine check is informational because Wine
 can reject UPX loaders. The Windows packaging job requires both uncompressed
 and compressed x64 CLI executables to start successfully on Windows before
 publication.
-Windows ARM64 retains the patched UPX entry stub with fast NRV2E compression.
+Windows ARM64 uses an upstream UPX development revision with ARM64 PE LZMA support.
 macOS Mach-O is left uncompressed. Windows ARM64 execution and desktop GUI
 behavior are not exercised by these packaging checks.
 

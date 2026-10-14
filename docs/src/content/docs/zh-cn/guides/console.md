@@ -11,7 +11,7 @@ API Key、组织或团队上设置，个人概览只读。
 
 ## 首次启动
 
-Application 全新实例先显示三步设置向导，完成后进入应用内控制台。CLI / 容器在首次启动时创建管理员，通过浏览器 `/console/` 登录，不显示应用内向导。详细步骤见[安装](/zh-cn/getting-started/installation/)。
+Application 全新实例先显示三步设置向导，完成后进入应用内控制台。CLI / 容器在首次启动时创建管理员，通过浏览器 `/console/` 登录，不显示应用内向导。详细步骤见[下载与安装](/zh-cn/download/#setup)。
 
 ## 管理范围
 
@@ -105,10 +105,7 @@ Application 全新实例先显示三步设置向导，完成后进入应用内�
 
 ## 字体
 
-控制台使用 Noto Sans、Noto Sans SC/TC 和 Noto Sans Mono。CLI 和 Application
-在首次使用时从 `https://gproxy.leenhawk.com/fonts/` 下载页面需要的字体分片，缓存在
-数据目录的 `fonts/` 下，重启后和离线时都可复用。Edge 由浏览器直接从同一个
-Cloudflare CDN 加载并缓存字体。下载期间或下载失败时，页面使用系统字体显示。
+CLI 和 Application 默认使用系统字体。可以在应用首次设置或设置页中主动下载 Noto Sans、Noto Sans SC/TC 和 Noto Sans Mono。GPROXY 从 `https://gproxy.leenhawk.com/fonts/` 下载约 9.2 MiB 字体，校验后保存到本地数据目录供离线使用；未选择下载时不会请求字体服务器。在设置中删除字体即可恢复系统字体。Edge 将字体作为同源静态资源部署，headless 包不包含控制台和字体。
 
 ## 构建控制台
 

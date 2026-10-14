@@ -1,12 +1,12 @@
-import { readFile, writeFile } from "node:fs/promises"
+// Edge serves fonts as same-origin static assets, outside native packages.
+import { cp, readFile } from "node:fs/promises"
+import path from "node:path"
 import process from "node:process"
+import { fileURLToPath, URL } from "node:url"
 
-const filename = process.argv[2]
-if (!filename) throw new Error("usage: node prepare-edge-fonts.mjs <index.html>")
-const html = await readFile(filename, "utf8")
-const rewritten = html.replace(
-  /(<meta name="gproxy-fonts" content=")\/console\/fonts\//,
-  "$1https://gproxy.leenhawk.com/fonts/",
-)
-if (html === rewritten) throw new Error("missing native font metadata in console document")
-await writeFile(filename, rewritten)
+const target = process.argv[2]
+if (!target) throw new Error("usage: node prepare-edge-fonts.mjs <console-directory>")
+const source = fileURLToPath(new URL("../../docs/public/fonts/", import.meta.url))
+const manifest = JSON.parse(await readFile(path.join(target, "fonts/manifest.json"), "utf8"))
+for (const file of manifest.files) await cp(path.join(source, file), path.join(target, "fonts", file))
+await cp(path.join(target, "fonts", manifest.stylesheet), path.join(target, "fonts/active.css"))

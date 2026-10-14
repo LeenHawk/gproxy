@@ -13,7 +13,7 @@ corresponding user, API key, organization or team.
 
 ## First startup
 
-A new Application instance opens a three-step wizard before the in-app console. CLI / container instances create an administrator on first startup and use the browser console at `/console/`, without the app wizard. See [Installation](/getting-started/installation/).
+A new Application instance opens a three-step wizard before the in-app console. CLI / container instances create an administrator on first startup and use the browser console at `/console/`, without the app wizard. See [Download & Install](/download/#setup).
 
 ## Management Scope
 
@@ -143,12 +143,7 @@ back import.
 
 ## Fonts
 
-The Console uses Noto Sans, Noto Sans SC/TC and Noto Sans Mono. CLI and
-Application download the required font subsets from
-`https://gproxy.leenhawk.com/fonts/` on first use and cache them in `fonts/`
-under their data directory. Cached fonts work offline and survive restarts.
-Edge loads fonts directly from the same Cloudflare CDN into the browser cache.
-System fonts render the page while a download is pending or unavailable.
+The Console uses system fonts by default in CLI and Application builds. You can choose to download Noto Sans, Noto Sans SC/TC and Noto Sans Mono during application setup or in Settings. GPROXY downloads about 9.2 MiB from `https://gproxy.leenhawk.com/fonts/`, verifies the files and stores them in its local data directory for offline use. No font requests are made to the CDN until you choose to download. Deleting the fonts in Settings restores system fonts. Edge serves bundled same-origin static fonts; headless packages contain no Console or fonts.
 
 ## Building the Console
 

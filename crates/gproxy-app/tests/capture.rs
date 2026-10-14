@@ -171,7 +171,11 @@ async fn records(app: &TestApp) -> Vec<capture_record::Model> {
             .into_iter()
             .map(capture_record::Model::from),
     );
-    rows
+    let mut hydrated = Vec::new();
+    for row in rows {
+        hydrated.push(store.hydrate_capture(row).await.unwrap());
+    }
+    hydrated
 }
 async fn downstream(app: &TestApp) -> Vec<capture_record::Model> {
     records(app)

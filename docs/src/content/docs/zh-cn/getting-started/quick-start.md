@@ -4,7 +4,7 @@ description: "在控制台添加供应商和凭证，配置模型路由并发送
 ---
 
 
-先按[安装说明](/zh-cn/getting-started/installation/)启动 GPROXY。Application 用户完成首次设置后进入应用内控制台；CLI 和容器用户在浏览器打开 `http://127.0.0.1:8787/console/`，使用首次启动的管理员账户登录。
+先按[下载与安装](/zh-cn/download/#setup)安装并启动 GPROXY。Application 用户完成首次设置后进入应用内控制台；CLI 和容器用户在浏览器打开 `http://127.0.0.1:8787/console/`，使用首次启动的管理员账户登录。
 
 下面以 OpenAI 兼容服务为例。你需要一份可用的上游 API Key，以及该服务支持的模型名称。
 

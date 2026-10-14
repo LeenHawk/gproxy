@@ -122,21 +122,11 @@ impl<'a, C: BatchConnectionTrait + Send + Sync + 'static> CredentialLogin<'a, C>
 
     pub async fn authcode_complete(&self, request: AuthCodeComplete) -> Result<CredentialCreated> {
         self.resume(&request.login_session_id).await?;
-        // This HTTP-facing flow only accepts a full callback with state. The
-        // SDK still supports its existing bare-code contract for other hosts.
-        let callback = request
-            .callback_url
-            .as_deref()
-            .ok_or_else(|| AppError::invalid("callbackUrl is required"))?;
-        let query = callback
-            .split_once('?')
-            .map(|(_, q)| q.split('#').next().unwrap_or_default())
-            .unwrap_or_default();
-        if request.code.is_some()
-            || !form_urlencoded::parse(query.as_bytes())
-                .any(|(key, value)| key == "state" && !value.is_empty())
-        {
-            return Err(AppError::invalid("a callback URL with state is required"));
+        // The SDK checks the submitted state against the saved session.
+        if !authorization_has_state(&request) {
+            return Err(AppError::invalid(
+                "a callback URL or authorization code with state is required",
+            ));
         }
         let id = request.login_session_id.clone();
         let result = self.gproxy.login().authcode_complete(request).await?;
@@ -176,5 +166,27 @@ impl<'a, C: BatchConnectionTrait + Send + Sync + 'static> CredentialLogin<'a, C>
     pub async fn cookie_exchange(&self, request: CookieExchange) -> Result<CredentialCreated> {
         self.admit(&request.provider_id, &request.owner)?;
         Ok(self.gproxy.login().cookie_exchange(request).await?)
+    }
+}
+
+/// Both browser callbacks and manually pasted PKCE codes must carry state.
+fn authorization_has_state(request: &AuthCodeComplete) -> bool {
+    if let Some(callback) = request.callback_url.as_deref() {
+        let query = callback
+            .split_once('?')
+            .map(|(_, q)| q.split('#').next().unwrap_or_default())
+            .unwrap_or_default();
+        request.code.is_none()
+            && form_urlencoded::parse(query.as_bytes())
+                .any(|(key, value)| key == "state" && !value.trim().is_empty())
+    } else {
+        request
+            .code
+            .as_deref()
+            .is_some_and(|code| !code.trim().is_empty())
+            && request
+                .state
+                .as_deref()
+                .is_some_and(|state| !state.trim().is_empty())
     }
 }

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "GPROXY",
-  "version": "4.0.1",
-  "identifier": "dev.gproxy.desktop",
+  "version": "4.1.6",
+  "identifier": "com.leenhawk.gproxy.desktop",
   "build": {
     "frontendDist": "ui",
     "windows": {
@@ -16,7 +16,8 @@
         "width": 1280,
         "height": 800,
         "minWidth": 960,
-        "minHeight": 600
+        "minHeight": 600,
+        "zoomHotkeysEnabled": true
       }
     ],
     "security": {

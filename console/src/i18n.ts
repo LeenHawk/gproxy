@@ -1,3 +1,4 @@
+import { invoke, isTauri } from "@tauri-apps/api/core"
 import i18n from "i18next"
 import { initReactI18next } from "react-i18next"
 
@@ -43,7 +44,13 @@ void i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false },
 })
 
+function syncShellLanguage(language: string) {
+  if (isTauri()) void invoke("desktop_preferences_language", { language }).catch(error => console.warn("Could not update the application language", error))
+}
+
+syncShellLanguage(i18n.language)
 i18n.on("languageChanged", (language) => {
+  syncShellLanguage(language)
   if (typeof document !== "undefined") document.documentElement.lang = language
 })
 

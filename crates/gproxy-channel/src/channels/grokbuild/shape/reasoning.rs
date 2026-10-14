@@ -7,8 +7,8 @@
 //! carrying one of those keeps its summary and loses the blob; a *compaction*
 //! item, which is nothing but the blob, is dropped whole. Consecutive
 //! summary-only reasoning items are merged, because the proxy rejects a run
-//! of them, and `reasoning.effort` is removed for the models that do not
-//! take it.
+//! of them. Encrypted reasoning is requested for subsequent turns; model
+//! effort support is resolved from the upstream catalogue during execution.
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD_NO_PAD;
@@ -17,13 +17,18 @@ use serde_json::{Map, Value};
 /// Shorter than this is not a reasoning payload (v3 `reasoning.rs`).
 const MIN_ENCRYPTED_BYTES: usize = 50;
 
-/// The model families that accept a reasoning effort.
-const EFFORT_PREFIXES: &[&str] = &["grok-3-mini", "grok-4.20-multi-agent", "grok-4.3"];
-
 pub(super) fn sanitize(object: &mut Map<String, Value>) {
     sanitize_input(object);
-    remove_encrypted_include(object);
-    strip_unsupported_effort(object);
+    let include = object
+        .entry("include")
+        .or_insert_with(|| Value::Array(Vec::new()));
+    if let Some(include) = include.as_array_mut()
+        && !include
+            .iter()
+            .any(|value| value == "reasoning.encrypted_content")
+    {
+        include.push(Value::String("reasoning.encrypted_content".into()));
+    }
 }
 
 fn sanitize_input(object: &mut Map<String, Value>) {
@@ -88,50 +93,6 @@ fn mergeable(previous: &Value, current: &Value) -> bool {
                 .keys()
                 .all(|key| matches!(key.as_str(), "type" | "summary"))
         })
-}
-
-fn remove_encrypted_include(object: &mut Map<String, Value>) {
-    let Some(include) = object.get("include").and_then(Value::as_array) else {
-        return;
-    };
-    let kept = include
-        .iter()
-        .filter(|value| value.as_str() != Some("reasoning.encrypted_content"))
-        .cloned()
-        .collect::<Vec<_>>();
-    if kept.is_empty() {
-        object.remove("include");
-    } else if kept.len() != include.len() {
-        object.insert("include".into(), Value::Array(kept));
-    }
-}
-
-fn strip_unsupported_effort(object: &mut Map<String, Value>) {
-    let model = object
-        .get("model")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    if supports_effort(model) {
-        return;
-    }
-    let Some(reasoning) = object.get_mut("reasoning").and_then(Value::as_object_mut) else {
-        return;
-    };
-    reasoning.remove("effort");
-    if reasoning.is_empty() {
-        object.remove("reasoning");
-    }
-}
-
-fn supports_effort(model: &str) -> bool {
-    let name = model
-        .trim()
-        .rsplit_once('/')
-        .map_or(model.trim(), |(_, name)| name)
-        .to_ascii_lowercase();
-    EFFORT_PREFIXES
-        .iter()
-        .any(|prefix| name.starts_with(prefix))
 }
 
 fn valid_encrypted(value: &Value) -> bool {
@@ -203,26 +164,5 @@ mod tests {
             input[1]["id"], "rs_1",
             "an item with state is not merged away"
         );
-    }
-
-    #[test]
-    fn only_the_families_that_take_an_effort_keep_one() {
-        let out = sanitized(json!({"model": "grok-4", "reasoning": {"effort": "high"}}));
-        assert!(out.get("reasoning").is_none());
-        let out = sanitized(json!({"model": "xai/grok-3-mini", "reasoning": {"effort": "high"}}));
-        assert_eq!(out["reasoning"]["effort"], "high");
-        let out = sanitized(
-            json!({"model": "grok-4", "reasoning": {"effort": "high", "summary": "auto"}}),
-        );
-        assert_eq!(out["reasoning"], json!({"summary": "auto"}));
-    }
-
-    #[test]
-    fn asking_for_encrypted_reasoning_back_is_dropped() {
-        let out = sanitized(json!({"model": "grok-4",
-                                   "include": ["reasoning.encrypted_content", "web_search_call.results"]}));
-        assert_eq!(out["include"], json!(["web_search_call.results"]));
-        let out = sanitized(json!({"model": "grok-4", "include": ["reasoning.encrypted_content"]}));
-        assert!(out.get("include").is_none());
     }
 }

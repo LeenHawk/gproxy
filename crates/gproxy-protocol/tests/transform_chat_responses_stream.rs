@@ -118,6 +118,11 @@ fn responses_text_delta_reaches_chat_before_responses_terminal() {
     let mut saw_text = false;
     let mut saw_terminal = false;
     for event in events {
+        let heartbeat = serde_json::from_value(json!({
+            "type": "keepalive", "sequence_number": 999
+        }))
+        .unwrap();
+        assert!(adapter.push(heartbeat).unwrap().value.is_empty());
         let converted = adapter.push(event).unwrap();
         saw_terminal |= converted
             .value

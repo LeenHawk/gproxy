@@ -57,6 +57,7 @@ where
             limits,
             max_references,
             now: self.resources.now,
+            target: self.resources.target,
         };
         child
             .next_with_image_resources(state, &resources, &mut self.progress[index])

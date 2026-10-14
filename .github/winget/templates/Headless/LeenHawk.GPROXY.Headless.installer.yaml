@@ -1,0 +1,11 @@
+# Versions, package families, URLs and hashes come from verified release MSIX files.
+PackageIdentifier: LeenHawk.GPROXY.Headless
+InstallerType: msix
+Scope: user
+MinimumOSVersion: 10.0.17763.0
+UpgradeBehavior: install
+Commands:
+- gproxy-headless
+Installers: []
+ManifestType: installer
+ManifestVersion: 1.12.0

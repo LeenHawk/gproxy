@@ -79,6 +79,7 @@ class Github:
 
     def finish(self, release, notes, prerelease, latest=False):
         self.api("PATCH", f"/releases/{release['id']}", {
+            "name": f"gproxy {release['tag_name']}",
             "draft": False, "body": notes, "prerelease": prerelease,
             "make_latest": "true" if latest else "false",
         })
@@ -120,9 +121,8 @@ class Gitlab:
         return release or {"tag_name": tag, "pending": True, "assets": {"links": []}}
 
     def upload(self, release, path):
-        # The pipeline id makes manifests immutable in the package registry,
-        # including a rerun of the same source commit.
-        version = os.environ["CI_PIPELINE_ID"]
+        # Release and beta manifests differ even within the same pipeline.
+        version = f"{os.environ['CI_PIPELINE_ID']}-{release['tag_name']}"
         url = f"{self.root}/packages/generic/gproxy/{version}/{urllib.parse.quote(path.name)}"
         with path.open("rb") as stream:
             req = urllib.request.Request(url, method="PUT", data=stream, headers={
@@ -147,7 +147,9 @@ class Gitlab:
                 "assets": release["assets"],
             })
         else:
-            self.api("PUT", f"/releases/{release['tag_name']}", {"description": notes})
+            self.api("PUT", f"/releases/{release['tag_name']}", {
+                "name": f"gproxy {release['tag_name']}", "description": notes,
+            })
 
     def prune(self, release, keep):
         tag = urllib.parse.quote(release["tag_name"], safe="")
@@ -181,6 +183,7 @@ class Cnb:
 
     def finish(self, release, notes, prerelease, latest=False):
         self.client.request("PATCH", f"/releases/{release['id']}", {
+            "name": f"gproxy {release['tag_name']}",
             "draft": False, "body": notes, "prerelease": prerelease,
             "make_latest": "true" if latest else "false",
         })
@@ -203,19 +206,42 @@ def verify_packages():
             with zipfile.ZipFile(directory / (name + ".zip")) as archive:
                 if "gproxy-serverless" not in archive.namelist():
                     raise ValueError(f"Missing serverless executable: {name}")
+        for row in matrix:
+            if not (name := row.get("headless_artifact")):
+                continue
+            expected += [name + ".zip", name + ".provenance.json"]
+            if row["os"] == "windows":
+                expected.append(name + ".msix")
+            if row["target"].endswith("-linux-musl"):
+                expected.append(name + ".apk")
+            with zipfile.ZipFile(directory / (name + ".zip")) as archive:
+                executable = "gproxy.exe" if row["os"] == "windows" else "gproxy"
+                if executable not in archive.namelist():
+                    raise ValueError(f"Missing headless executable: {name}")
+                if row["os"] == "android" and "gproxy.bin" not in archive.namelist():
+                    raise ValueError(f"Missing headless Android binary: {name}")
+    if os.environ.get("GITHUB_ACTIONS") == "true" and os.environ.get("GPROXY_BUILD_CHANNEL") in {"release", "dev"}:
+        expected.extend(["gproxy-fdroid-universal.apk", "gproxy-google-play-universal.aab"])
     extensions = {"linux": ".deb", "macos": ".dmg", "windows": ".msix", "android": ".apk", "ohos": ".hap"}
     for row in matrix:
         cli = row["artifact"]
+        if os.environ.get("GITHUB_ACTIONS") == "true" and row["target"].endswith("-linux-musl"):
+            expected.append(cli + ".apk")
         expected += [cli + ".zip", cli + ".provenance.json"]
         with zipfile.ZipFile(directory / (cli + ".zip")) as archive:
             executable = "gproxy.exe" if row["os"] == "windows" else "gproxy"
             if executable not in archive.namelist() or any("gproxy-desktop" in n for n in archive.namelist()):
                 raise ValueError(f"Wrong executable in CLI archive: {cli}")
-        if row["os"] != "ohos":
+        # musl CLIs ship as Alpine APKs (checked above), not DEBs.
+        if row["os"] != "ohos" and not row["target"].endswith("-linux-musl"):
             cli_extension = ".deb" if row["os"] == "android" else extensions[row["os"]]
             expected.append(cli + cli_extension)
         if app := row.get("application_artifact"):
-            expected += [app + extensions[row["os"]], app + ".provenance.json"]
+            # Alpine Applications use the GitHub Alpine build jobs; the optional
+            # GitLab cross-build pipeline does not build these targets.
+            if row.get("application_builder", row["builder"]) == "cargo-alpine" and os.environ.get("GITHUB_ACTIONS") != "true":
+                continue
+            expected += [app + row.get("application_extension", extensions[row["os"]]), app + ".provenance.json"]
             if row["os"] not in ("android", "ohos"):
                 expected.append(app + ".zip")
                 with zipfile.ZipFile(directory / (app + ".zip")) as archive:
@@ -248,7 +274,7 @@ def upload_assets(host, release, assets):
 
 
 def release_assets(directory):
-    extensions = {".zip", ".deb", ".dmg", ".msix", ".apk", ".hap", ".wasm"}
+    extensions = {".zip", ".deb", ".dmg", ".msix", ".apk", ".aab", ".hap", ".wasm"}
     assets = sorted(path for path in directory.iterdir()
                     if path.is_file() and path.suffix in extensions)
     checksums = directory / "SHA256SUMS"
@@ -312,13 +338,6 @@ def main():
             host.upload(staging, beta_manifest)
             host.finish(staging, notes, True)
             host.prune(staging, {path.name for path in assets} | {"manifest.json"})
-        # v4.0.0 clients used the old beta URL; keep it as a manifest-only alias.
-        if channel in ("beta", "release"):
-            beta_manifest = manifest if channel == "beta" else manifest.parent / "beta" / "manifest.json"
-            pointer = host.release("beta", "Compatibility alias for the staging update channel.", True)
-            host.move_tag("beta")
-            host.upload(pointer, beta_manifest)
-            host.finish(pointer, "Compatibility alias for the staging update channel.", True)
         print(f"{host.name}: published {tag}", flush=True)
 
 

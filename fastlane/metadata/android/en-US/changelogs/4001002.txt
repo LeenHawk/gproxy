@@ -1,0 +1,1 @@
+Fix model catalog refresh and v3 permission migration. Update Claude Code and Codex compatibility, add Files and MCP support, improve usage statistics, bundle fonts, and simplify privacy notices. Preserve reproducible F-Droid builds and the existing APK signing certificate.

@@ -3,7 +3,8 @@
     "navigation": "导航",
     "resizeHint": "拖动调整宽度，双击恢复默认；也可使用方向键调整。",
     "skipToContent": "跳到主内容",
-    "mainContent": "主内容"
+    "mainContent": "主内容",
+    "resizePanel": "调整{{name}}宽度"
   },
   "signIn": {
     "title": "登录"
@@ -40,12 +41,22 @@
     "loading": "正在加载…"
   },
   "form": {
+    "vertexSecretHint": "粘贴完整的 Google 服务账号 JSON，包含 client_email、private_key；供应商未配置项目时还需 project_id。首次请求会自动换取访问令牌。",
+    "awsSecretHint": "API Key：粘贴 Bedrock API 密钥。访问密钥对：粘贴包含 access_key_id、secret_access_key 的 JSON，可选 session_token。",
     "all": "全部",
     "useCustom": "使用“{{value}}”",
     "choose": "请选择…",
     "invalidJson": "JSON 格式不正确，请检查后重试。",
     "credentialSecretHint": "API Key 认证可直接粘贴单个密钥，也可填写 JSON；其他认证方式请填写 JSON。",
-    "unset": "继承"
+    "unset": "继承",
+    "required": "请填写此必填项。",
+    "supported": "是否支持",
+    "defaultValue": "默认值",
+    "mode": "模式",
+    "limit": "上限",
+    "description": "说明",
+    "priceRule": "计价规则",
+    "priceProfile": "计价方案"
   },
   "pagination": {
     "position": "第 {{page}} / {{pages}} 页 · 共 {{total}} 行",
@@ -68,7 +79,8 @@
     "removed": "已移除",
     "retired": "已停用",
     "revoked": "已吊销",
-    "saved": "已保存"
+    "saved": "已保存",
+    "notifications": "通知"
   },
   "language": {
     "en": "English",
@@ -76,6 +88,8 @@
     "zh-TW": "繁體中文"
   },
   "theme": {
+    "label": "主题",
+    "system": "跟随系统",
     "light": "浅色主题",
     "dark": "深色主题"
   },
@@ -96,9 +110,10 @@
     "observation": "用量与日志"
   },
   "range": {
-    "day": "24 小时",
-    "week": "7 天",
-    "month": "30 天"
+    "day": "1d",
+    "week": "7d",
+    "month": "30d",
+    "sum": "sum"
   },
   "values": {
     "yes": "是",
@@ -250,6 +265,7 @@
     "cacheCreation5mTokens": "缓存写入（5 分钟）",
     "cacheCreation30mTokens": "缓存写入（30 分钟）",
     "cacheCreation1hTokens": "缓存写入（1 小时）",
+    "averageOutputTps": "平均输出 TPS",
     "cacheHitRate": "缓存命中率"
   },
   "oauthConsent": {
@@ -267,5 +283,8 @@
     "deviceApproved": "已批准设备",
     "deviceDenied": "已拒绝设备",
     "returnToDevice": "现在可以回到设备上继续了。"
+  },
+  "table": {
+    "scroll": "可滚动的数据表格"
   }
 }

@@ -15,8 +15,9 @@ use super::config::{GrokBuildConfig, ID};
 use super::unix_now_ms;
 use crate::channel::{
     ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior,
-    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+    QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
+    QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
+    QuotaWindow,
 };
 use crate::channels::shared::compatible::ability::{decimal, require_success, send};
 use crate::channels::shared::compatible::http::invalid_response;
@@ -90,6 +91,10 @@ impl QuotaModel for super::GrokBuild {
 struct BillingResponse {
     #[serde(default)]
     config: Option<BillingConfig>,
+    #[serde(default)]
+    subscription_tier: Option<String>,
+    #[serde(default)]
+    on_demand_enabled: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -103,6 +108,17 @@ struct BillingConfig {
     monthly_limit: Option<Money>,
     #[serde(default)]
     used: Option<Money>,
+    /// Purchased credits, reported in USD cents by the CLI billing API.
+    #[serde(default)]
+    prepaid_balance: Option<Money>,
+    #[serde(default)]
+    on_demand_cap: Option<Money>,
+    #[serde(default)]
+    on_demand_used: Option<Money>,
+    #[serde(default)]
+    is_unified_billing_user: Option<bool>,
+    #[serde(default)]
+    history: Vec<BillingHistory>,
     #[serde(default)]
     product_usage: Option<Vec<ProductUsage>>,
     #[serde(default)]
@@ -123,6 +139,25 @@ struct BillingPeriod {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct BillingHistory {
+    #[serde(default)]
+    billing_cycle: Option<BillingCycle>,
+    #[serde(default)]
+    included_used: Option<Money>,
+    #[serde(default)]
+    on_demand_used: Option<Money>,
+    #[serde(default)]
+    total_used: Option<Money>,
+}
+
+#[derive(Deserialize)]
+struct BillingCycle {
+    year: i32,
+    month: u8,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ProductUsage {
     #[serde(default)]
     product: Option<String>,
@@ -138,7 +173,8 @@ struct Money {
 
 impl Money {
     fn number(&self) -> Option<Decimal> {
-        self.val.as_ref().and_then(decimal)
+        // proto3 JSON omits zero-valued cents, encoding them as `{}`.
+        self.val.as_ref().map_or(Some(Decimal::ZERO), decimal)
     }
 }
 
@@ -200,10 +236,32 @@ fn window(id: String, label: Option<String>, allowance: QuotaAllowance) -> Quota
 }
 
 pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
+    entries_with_settings(body, &Value::Null)
+}
+
+fn entries_with_settings(body: &[u8], settings: &Value) -> Result<Vec<QuotaEntry>, ChannelError> {
     let raw: Value = serde_json::from_slice(body)
         .map_err(|error| invalid_response(format!("{ID} billing: {error}")))?;
-    let config = serde_json::from_value::<BillingResponse>(raw.clone())
-        .ok()
+    let payload = serde_json::from_value::<BillingResponse>(raw.clone()).ok();
+    let tier = settings
+        .get("subscription_tier_display")
+        .or_else(|| settings.get("subscription_tier"))
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .or_else(|| {
+            payload
+                .as_ref()
+                .and_then(|payload| payload.subscription_tier.clone())
+        });
+    let on_demand_enabled = settings
+        .get("on_demand_enabled")
+        .and_then(Value::as_bool)
+        .or_else(|| {
+            payload
+                .as_ref()
+                .and_then(|payload| payload.on_demand_enabled)
+        });
+    let config = payload
         .and_then(|payload| payload.config)
         .or_else(|| serde_json::from_value::<BillingConfig>(raw).ok());
     let Some(config) = config else {
@@ -234,11 +292,24 @@ pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
             .and_then(|period| period.period_type.as_deref())
             .map(period_window_key)
             .unwrap_or(USAGE_DIMENSION);
-        let used = config.used.as_ref().and_then(Money::number);
-        let limit = config.monthly_limit.as_ref().and_then(Money::number);
+        let used = config
+            .used
+            .as_ref()
+            .and_then(Money::number)
+            .map(|cents| cents / Decimal::ONE_HUNDRED);
+        let limit = config
+            .monthly_limit
+            .as_ref()
+            .and_then(Money::number)
+            .map(|cents| cents / Decimal::ONE_HUNDRED);
         entries.push(window(
             id.to_owned(),
-            None,
+            match (tier, config.is_unified_billing_user) {
+                (Some(tier), Some(true)) => Some(format!("{tier} · Shared credits")),
+                (Some(tier), _) => Some(tier),
+                (None, Some(true)) => Some("Shared credits".into()),
+                _ => None,
+            },
             QuotaAllowance {
                 used,
                 limit,
@@ -247,12 +318,90 @@ pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
                     .map(|(limit, used)| limit.saturating_sub(used)),
                 used_percent: used_percent(&config),
                 unlimited: None,
-                unit: None,
+                unit: (used.is_some() || limit.is_some()).then(|| "USD".into()),
                 period_start_ms,
                 period_end_ms,
                 reset_behavior: QuotaResetBehavior::Periodic,
             },
         ));
+    }
+    let dollars = |money: Option<&Money>| {
+        money
+            .and_then(Money::number)
+            .map(|cents| cents / Decimal::ONE_HUNDRED)
+    };
+    if config.on_demand_cap.is_some() || config.on_demand_used.is_some() {
+        let limit = dollars(config.on_demand_cap.as_ref());
+        let used = dollars(config.on_demand_used.as_ref());
+        entries.push(window(
+            "on_demand".into(),
+            Some(
+                match on_demand_enabled {
+                    Some(false) => "On-demand credits (disabled)",
+                    _ => "On-demand credits",
+                }
+                .into(),
+            ),
+            QuotaAllowance {
+                used,
+                limit,
+                remaining: limit
+                    .zip(used)
+                    .map(|(limit, used)| (limit - used).max(Decimal::ZERO)),
+                used_percent: used
+                    .zip(limit)
+                    .and_then(|(used, limit)| used.checked_div(limit))
+                    .map(|ratio| ratio * Decimal::ONE_HUNDRED),
+                unit: Some("USD".into()),
+                period_start_ms,
+                period_end_ms,
+                reset_behavior: QuotaResetBehavior::Periodic,
+                ..Default::default()
+            },
+        ));
+    }
+    for history in &config.history {
+        let Some(cycle) = &history.billing_cycle else {
+            continue;
+        };
+        for (kind, label, money) in [
+            (
+                "included",
+                "Included credits",
+                history.included_used.as_ref(),
+            ),
+            (
+                "on_demand",
+                "On-demand credits",
+                history.on_demand_used.as_ref(),
+            ),
+            ("total", "Total credits", history.total_used.as_ref()),
+        ] {
+            if let Some(used) = dollars(money) {
+                entries.push(window(
+                    format!("history:{}-{:02}:{kind}", cycle.year, cycle.month),
+                    Some(format!("{}-{:02} · {label}", cycle.year, cycle.month)),
+                    QuotaAllowance {
+                        used: Some(used),
+                        unit: Some("USD".into()),
+                        ..Default::default()
+                    },
+                ));
+            }
+        }
+    }
+    if let Some(balance) = config.prepaid_balance.as_ref().and_then(Money::number) {
+        entries.push(QuotaEntry {
+            id: "prepaid_balance".into(),
+            source_id: "prepaid_balance".into(),
+            label: Some("Prepaid credits".into()),
+            subject: QuotaSubject::Account,
+            model_scope: QuotaScope::Unknown,
+            value: QuotaValue::Balance(QuotaBalance {
+                remaining: Some(balance / Decimal::ONE_HUNDRED),
+                unit: Some("USD".into()),
+            }),
+        });
     }
     for product in config.product_usage.iter().flatten() {
         let Some(percent) = product
@@ -309,11 +458,22 @@ impl QuotaQuery for super::GrokBuild {
                 "{}/billing?format=credits",
                 config.usage_base_url(context.provider)
             );
-            let (status, _, body) = send(context.client, Method::GET, &url, headers, None).await?;
+            let (status, _, body) =
+                send(context.client, Method::GET, &url, headers.clone(), None).await?;
             let body = require_success(status, body)?;
-            let entries = entries(&body)?;
+            let mut entries = entries(&body)?;
             if entries.is_empty() {
                 return Err(invalid_response(format!("{ID} billing: no readings")));
+            }
+            super::auth::apply_catalog_identity(&mut headers, &context.credential)?;
+            let url = format!("{}/settings", config.usage_base_url(context.provider));
+            // The CLI displays settings when available, but billing still works if settings are unavailable.
+            if let Ok((status, _, settings)) =
+                send(context.client, Method::GET, &url, headers, None).await
+                && status.is_success()
+                && let Ok(settings) = serde_json::from_slice::<Value>(&settings)
+            {
+                entries = entries_with_settings(&body, &settings)?;
             }
             Ok(QuotaSnapshot {
                 observed_at_ms: unix_now_ms(),
@@ -363,7 +523,8 @@ mod tests {
             panic!("a window");
         };
         assert_eq!(window.used_percent, Some(Decimal::from(25)));
-        assert_eq!(window.remaining, Some(Decimal::from(1500)));
+        assert_eq!(window.remaining, Some(Decimal::from(15)));
+        assert_eq!(window.unit.as_deref(), Some("USD"));
         assert_eq!(window.period_start_ms, None);
         assert!(entries(b"{}").unwrap().is_empty());
     }

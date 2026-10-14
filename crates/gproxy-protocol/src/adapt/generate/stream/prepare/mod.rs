@@ -9,11 +9,14 @@ mod claude_responses;
 mod gemini_responses;
 mod limits;
 
-use crate::wire::{
-    DeclaredFields,
-    claude::generate_content as c,
-    gemini as g,
-    openai::{chat as h, responses as r},
+use super::{StreamInvocation, StreamSettings, StreamTarget, bridge::StreamBridge};
+use crate::{
+    adapt::generate::{
+        GenerationStateAccess,
+        prepared::{PreparedGeneration, RequestMode},
+    },
+    capability::StateStore,
+    transform::TransformError,
 };
 
 pub use chat_gemini::ChatViaGeminiStreamFacts;
@@ -21,70 +24,34 @@ pub use claude_gemini::{ClaudeViaGeminiStreamFacts, GeminiViaClaudeStreamFacts};
 pub use claude_responses::ResponsesViaClaudeStreamFacts;
 pub use gemini_responses::ResponsesViaGeminiStreamFacts;
 
-trait RequestMode: DeclaredFields + Clone {
-    fn buffered(self) -> Self;
-    fn streaming(self) -> Self;
-    fn emit_usage(&self) -> bool {
-        true
-    }
-}
-
-impl RequestMode for h::GenerateContentRequestBody {
-    fn buffered(mut self) -> Self {
-        self.stream = Some(Some(false));
-        self
-    }
-    fn streaming(mut self) -> Self {
-        self.stream = Some(Some(true));
-        let mut options = self
-            .stream_options
-            .take()
-            .flatten()
-            .unwrap_or_else(|| h::StreamOptions::builder().build())
-            .into_declared();
-        options.include_usage = Some(true);
-        self.stream_options = Some(Some(options));
-        self
-    }
-    fn emit_usage(&self) -> bool {
-        if self.stream.flatten() != Some(true) {
-            return true;
-        }
-        self.stream_options
-            .as_ref()
-            .and_then(Option::as_ref)
-            .and_then(|v| v.include_usage)
-            == Some(true)
-    }
-}
-
-impl RequestMode for c::GenerateContentRequestBody {
-    fn buffered(mut self) -> Self {
-        self.stream = Some(false);
-        self
-    }
-    fn streaming(mut self) -> Self {
-        self.stream = Some(true);
-        self
-    }
-}
-
-impl RequestMode for r::GenerateContentRequestBody {
-    fn buffered(mut self) -> Self {
-        self.stream = Some(Some(false));
-        self
-    }
-    fn streaming(mut self) -> Self {
-        self.stream = Some(Some(true));
-        self
-    }
-}
-
-impl RequestMode for g::GenerateContentRequestBody {
-    fn buffered(self) -> Self {
-        self
-    }
-    fn streaming(self) -> Self {
-        self
-    }
+/// The tail every pair shares: adopt the prepared identities, let the pair
+/// build its bridge, and start the invocation on the streaming target request.
+async fn start<P, B, S>(
+    original: P::Source,
+    prepared: P,
+    mut target: StreamTarget,
+    settings: StreamSettings,
+    state: &GenerationStateAccess<'_, S>,
+    bridge: impl FnOnce(&P, &mut StreamTarget, &StreamSettings) -> Result<B, TransformError>,
+) -> Result<StreamInvocation<B>, TransformError>
+where
+    P: PreparedGeneration,
+    B: StreamBridge<ClientRequest = P::Source, NativeRequest = P::Target>,
+    S: StateStore,
+{
+    target.identities = prepared.identities().clone();
+    let bridge = bridge(&prepared, &mut target, &settings)?;
+    let emit_usage = original.emit_usage();
+    let mut invocation = StreamInvocation::new(
+        original,
+        prepared.target_request().clone().streaming(),
+        target,
+        settings,
+        bridge,
+        prepared.report().clone(),
+        state,
+    )
+    .await?;
+    invocation.emit_usage = emit_usage;
+    Ok(invocation)
 }

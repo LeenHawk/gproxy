@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Store updates must not download or install the direct-distribution APK. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" tools:node="remove" />
+    <application>
+        <service android:name=".GproxyService" android:foregroundServiceType="specialUse"
+            tools:replace="android:foregroundServiceType" />
+        <activity android:name=".GproxyPrivacyActivity" android:exported="false" />
+        <activity android:name=".GproxyUpdateActivity" tools:node="remove" />
+        <provider android:name=".GproxyUpdateProvider" tools:node="remove" />
+    </application>
+</manifest>

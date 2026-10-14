@@ -132,6 +132,7 @@ pub fn default_connection() -> ConnectionConfig {
         backend: Backend::Wreq,
         emulation: Some(EmulationConfig::Custom(Fingerprint {
             alpn: Vec::<Alpn>::new(),
+            disable_alpn: None,
             min_tls: Some(TlsVersion::Tls12),
             max_tls: Some(TlsVersion::Tls13),
             cipher_list: Some(
@@ -150,6 +151,8 @@ pub fn default_connection() -> ConnectionConfig {
             extension_permutation: None,
             ocsp_stapling: None,
             signed_cert_timestamps: None,
+            session_ticket: None,
+            psk_dhe_ke: None,
             http2: None,
             headers: None,
         })),
@@ -412,6 +415,7 @@ impl BaseChannel for GeminiCli {
         ChannelDescriptor {
             id: ID,
             display_name: "Gemini CLI (Code Assist)",
+            credential_kinds: vec!["oauth"],
             login_modes: vec![LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

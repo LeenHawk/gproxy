@@ -9,7 +9,9 @@ Permissions control access, rate limits control request frequency, and cost budg
 
 A permission rule belongs to a user or API key and may filter by provider, model pattern, and operation. Model patterns support `*` and `?`, so model restrictions do not require separate providers.
 
-Rules are ordered by descending priority, then ID. The first matching rule supplies the `allow` or `deny` decision. Ordinary users need an applicable allow rule. Instance administrators bypass ordinary permission rules, while OAuth operation scopes are still checked separately.
+Rules are ordered by descending priority, then ID. The first matching rule supplies the `allow` or `deny` decision. Ordinary users need an applicable allow rule. Instance administrators bypass ordinary permission rules, while OAuth access tokens are still limited to a fixed operation baseline (model catalogue, token counting, generation, streaming, compaction) unless the client is listed in `oauth.cli_client_ids`.
+
+Every operation also requires its exact `gproxy:<operation>` scope, using snake_case operation IDs (for example `gproxy:list_models`, `gproxy:generate_content`, and `gproxy:stream_generate_content`). Vendor services require `gproxy:services` and a configured CLI client. Neither an administrator nor a CLI allowlist entry bypasses scope checks. Empty scopes, `openid`, and `profile` grant no resource access; existing clients must request the required scopes and authorize again. Scopes never override the baseline or ordinary permission rules.
 
 | API field | Meaning |
 | --- | --- |
@@ -25,6 +27,8 @@ The model catalog's `permitted` field reports caller access. An inaccessible mod
 ## Credential visibility
 
 Permission alone is not enough: the caller also needs an available credential. Credential ownership and the API key's user, organization, and team bindings determine visibility. Management scope, model permission, and credential ownership are separate settings.
+
+Vendor service routes (account, usage, and other non-model endpoints a channel declares) have no model or operation, so only a rule covering the whole provider — any model, no operation — allows or denies them. They are outside the OAuth operation baseline.
 
 ## Rate limits
 
@@ -49,7 +53,7 @@ Local limits differ from upstream account allowance. Resetting a local rule does
 ## Diagnose a rejection
 
 - `401`: check key and user validity.
-- `403`: check permissions, credential visibility, and OAuth operation scopes.
+- `403`: check permissions, credential visibility, OAuth scopes, and the OAuth operation baseline.
 - `429`: check caller rate limits, budgets, local credential limits, and upstream allowance.
 
 Inspect the relevant user, key, and credential in the console, then use the specific logged error to identify the limiting rule.

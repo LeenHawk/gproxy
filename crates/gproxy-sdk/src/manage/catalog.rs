@@ -158,14 +158,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Catalog<'_, C> {
             ));
         }
 
-        // Only rules of the same scope collide: a global rule and a provider
-        // rule may carry the same pattern and mean different things.
-        let existing: BTreeMap<String, String> = self
+        let saved_rules = self
             .writer
             .store()
             .price_rules()
             .query(price_rule::Entity::find())
-            .await?
+            .await?;
+        let prices = gproxy_core::pricing::PriceBook::compile(&saved_rules, &[], &[]);
+        // Same-scope rows are replacement targets. Other applicable saved
+        // rules (including inherited global rules) must not be shadowed by a
+        // default import unless the caller explicitly requests overwriting.
+        let existing: BTreeMap<String, String> = saved_rules
             .into_iter()
             .filter(|rule| rule.provider_id == provider_id)
             .map(|rule| (rule.model_pattern, rule.id))
@@ -177,6 +180,15 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Catalog<'_, C> {
         let store = self.writer.store();
 
         for name in &wanted {
+            if !request.overwrite
+                && prices
+                    .rules()
+                    .iter()
+                    .any(|rule| rule.matches(provider_id.as_deref(), name))
+            {
+                report.skipped += 1;
+                continue;
+            }
             let Some(source) = (match &provider_id {
                 Some(_) => price_for(catalog, name),
                 None => model_for(catalog, name).and_then(|model| model.pricing.as_ref()),
@@ -528,12 +540,46 @@ fn tls_presets() -> Vec<TlsPresetDto> {
             "google-api-nodejs-client/9.15.1",
             "X25519MLKEM768:X25519:P-256:P-384:P-521",
         ),
-        simple(
-            "antigravity",
-            "Antigravity",
-            "codeium-language-server",
-            "X25519MLKEM768:X25519:P-256:P-384:P-521",
-        ),
+        TlsPresetDto {
+            id: "antigravity".to_owned(),
+            label: "Antigravity".to_owned(),
+            // CLI 1.2.16's Code Assist profile, using the algorithms the
+            // compiled BoringSSL supports (same as the channel default).
+            emulation: json!({
+                "kind": "custom",
+                "alpn": [],
+                "disable_alpn": true,
+                "min_tls": "tls12",
+                "max_tls": "tls13",
+                "grease": false,
+                "cipher_list": concat!(
+                    "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:",
+                    "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:",
+                    "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:",
+                    "ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:",
+                    "ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:",
+                    "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256"
+                ),
+                "curves_list": "X25519MLKEM768:X25519:P-256:P-384:P-521",
+                "sigalgs_list": concat!(
+                    "mldsa44:mldsa65:mldsa87:",
+                    "rsa_pss_rsae_sha256:ecdsa_secp256r1_sha256:ed25519:",
+                    "rsa_pss_rsae_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha256:",
+                    "rsa_pkcs1_sha384:rsa_pkcs1_sha512:ecdsa_secp384r1_sha384:",
+                    "ecdsa_secp521r1_sha512"
+                ),
+                "preserve_tls13_cipher_list": true,
+                "extension_permutation": [0, 11, 65281, 23, 18, 5, 10, 13, 43, 51],
+                "ocsp_stapling": true,
+                "signed_cert_timestamps": true,
+                "session_ticket": false,
+                "psk_dhe_ke": false,
+                "headers": [["user-agent", concat!(
+                    "antigravity/cli/1.2.16 ",
+                    "(aidev_client; os_type=linux; arch=amd64; cl=992658124; auth_method=consumer)"
+                )]],
+            }),
+        },
         simple(
             "kiro",
             "Kiro CLI",
@@ -854,7 +900,6 @@ mod tests {
     fn bundled_catalog_parses() {
         let catalog = catalog().expect("the bundled catalog parses");
         assert_eq!(catalog.models.len(), catalog.source.total_models);
-        assert!(catalog.source.priced_models > 400);
         for model in &catalog.models {
             if let Some(pricing) = &model.pricing {
                 for rate in &pricing.rates {

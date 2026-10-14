@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "fflate": "^0.8.2",
-    "wrangler": "4.145.0"
+    "wrangler": "4.149.0"
   },
   "cloudflare": {
     "bindings": {

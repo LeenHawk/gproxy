@@ -39,6 +39,10 @@ pub(super) fn access_token(secret: &Value) -> Result<&str, ChannelError> {
     field(secret, "access_token").ok_or(ChannelError::InvalidCredential)
 }
 
+pub(super) fn validate_secret(secret: &Value) -> Result<(), ChannelError> {
+    ServiceAccount::parse(secret).map(|_| ())
+}
+
 impl CredentialRefresh for Vertex {
     fn refresh<'a>(
         &'a self,

@@ -396,4 +396,7 @@ impl ResponsesViaClaude {
     }
 }
 
-mod synthesis;
+super::prepared::prepared_generation!(ClaudeViaResponses, c::GenerateContentRequestBody => r::GenerateContentRequestBody);
+super::prepared::stream_synthesis!(ClaudeViaResponses, c::GenerateContentRequestBody);
+super::prepared::prepared_generation!(ResponsesViaClaude, r::GenerateContentRequestBody => c::GenerateContentRequestBody);
+super::prepared::stream_synthesis!(ResponsesViaClaude, r::GenerateContentRequestBody, context: p::ClaudeRequestContext);

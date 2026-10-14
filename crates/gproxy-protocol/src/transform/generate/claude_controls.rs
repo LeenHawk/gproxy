@@ -1,5 +1,6 @@
 //! Project Claude's conversation-scoped controls onto a single target request.
 use crate::{
+    Rest,
     transform::Report,
     wire::claude::{content as c, count_tokens as cc, generate_content as g, tools as t},
 };
@@ -145,7 +146,7 @@ fn project_blocks(
     });
 }
 
-/// Newer models reject manual thinking and forced tool choice. Sonnet 5.5
+/// Newer models reject disabled thinking and forced tool choice. Sonnet 5.5
 /// replaces disabled thinking with between-tools thinking.
 /// Apply only to cross-protocol output; native Claude requests stay untouched.
 pub(crate) fn target(
@@ -155,6 +156,25 @@ pub(crate) fn target(
     report: &mut Report,
 ) {
     let model = model.to_ascii_lowercase();
+    // Haiku 5.5 keeps disabled thinking and forced tools, but removes budgets.
+    if crate::transform::instructions::family(&model, "claude-haiku-5-5") {
+        if let Some(cc::ThinkingConfig::Enabled(config)) = thinking.as_ref() {
+            *thinking = Some(cc::ThinkingConfig::Adaptive(cc::ThinkingAdaptive {
+                block_binding: config.block_binding.clone(),
+                display: config.display,
+                rest: Rest::new(),
+            }));
+            report.changed(
+                "thinking.type",
+                "Haiku 5.5 uses adaptive thinking instead of manual budgets",
+            );
+            report.omitted(
+                "thinking.budget_tokens",
+                "Haiku 5.5 does not accept a thinking token budget",
+            );
+        }
+        return;
+    }
     let sonnet = crate::transform::instructions::family(&model, "claude-sonnet-5-5");
     if !sonnet
         && !["claude-opus-5-5", "claude-fable-5-1", "claude-mythos-5-1"]
@@ -173,17 +193,6 @@ pub(crate) fn target(
         }
         Some(cc::ThinkingConfig::Disabled(_)) => {
             report.omitted("thinking", "target model always uses adaptive thinking");
-        }
-        Some(cc::ThinkingConfig::Enabled(v)) => {
-            *thinking = Some(cc::ThinkingConfig::Adaptive(cc::ThinkingAdaptive {
-                display: v.display,
-                block_binding: v.block_binding,
-                rest: Default::default(),
-            }));
-            report.omitted(
-                "thinking.budget_tokens",
-                "target model uses adaptive thinking without a manual budget",
-            );
         }
         other => *thinking = other,
     }

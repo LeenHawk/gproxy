@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../reproducible-env.sh"
 source scripts/gitlab/env.sh
 export RUSTFLAGS='-C target-feature=+crt-static'
 export WINEDEBUG=-all
@@ -13,11 +14,7 @@ else
 fi
 
 pack_executable() {
-  if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
-    upx --fast --nrv2e "$1"
-  else
-    upx --best --lzma "$1"
-  fi
+  upx --best --lzma "$1"
   upx --test "$1"
 }
 
@@ -48,7 +45,7 @@ case "${1:?cli|application}" in
     work="$(mktemp -d)"
     trap 'rm -rf "$work"' EXIT
     cp "$binary" README.md LICENSE "$work/"
-    (cd "$work" && zip -9 -qr "$OLDPWD/dist/release/$ARTIFACT_NAME.zip" .)
+    python3 scripts/reproducible-archive.py --root "$work" --output "dist/release/$ARTIFACT_NAME.zip"
     (cd dist/release && sha256sum "$ARTIFACT_NAME.zip" > "$ARTIFACT_NAME.zip.sha256")
     ;;
   application)

@@ -256,16 +256,25 @@ impl ResponsesStreamCollector {
         if actual != kind || item.argument_done {
             return Err(invalid("argument event type/phase mismatch"));
         }
-        item.argument_streamed = true;
+        let mut completed_bytes = 0;
         if done {
-            if item.arguments()? != text {
-                return Err(invalid("argument done contradicts deltas"));
+            if item.argument_streamed {
+                if item.arguments()? != text {
+                    return Err(invalid("argument done contradicts deltas"));
+                }
+            } else {
+                let suffix = text
+                    .strip_prefix(item.arguments()?)
+                    .ok_or_else(|| invalid("argument done contradicts initial arguments"))?;
+                completed_bytes = suffix.len();
+                item.arguments_mut()?.push_str(suffix);
             }
             item.argument_done = true;
         } else {
             item.arguments_mut()?.push_str(text);
         }
-        Ok(())
+        item.argument_streamed = true;
+        self.charge(completed_bytes, true)
     }
     pub(super) fn charge(&mut self, n: usize, json: bool) -> Result<(), TransformError> {
         let (used, cap) = if json {

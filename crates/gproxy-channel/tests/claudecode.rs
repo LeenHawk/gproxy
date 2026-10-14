@@ -160,6 +160,17 @@ fn default_connections_separate_api_requests_and_cookie_login() {
     ));
 }
 
+// Billing assertions compare attribution separately from the final-body checksum.
+fn normalize_cch(text: &str) -> String {
+    let pos = text.find("cch=").unwrap() + 4;
+    let checksum = &text[pos..pos + 5];
+    assert!(checksum.bytes().all(|b| b.is_ascii_hexdigit()));
+    assert_ne!(checksum, "00000");
+    let mut normalized = text.to_owned();
+    normalized.replace_range(pos..pos + 5, "00000");
+    normalized
+}
+
 #[test]
 fn prepares_messages_with_cli_identity_and_request_hygiene() {
     let config = json!({});
@@ -177,7 +188,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     );
     headers.insert(
         "user-agent",
-        HeaderValue::from_static("claude-cli/2.1.284 (external, sdk-cli)"),
+        HeaderValue::from_static("claude-cli/2.1.296 (external, sdk-cli)"),
     );
     headers.insert("x-request-id", HeaderValue::from_static("req-1"));
     let body = json!({
@@ -187,7 +198,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
         "top_p": 0.9,
         "top_k": 40,
         "system": [
-            {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.284.abc; cc_entrypoint=sdk-cli;"},
+            {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.296.abc; cc_entrypoint=sdk-cli;"},
             {"type":"text", "text":" policy "},
             {"type":"text", "text":" ", "cache_control":{"type":"ephemeral"}}
         ],
@@ -217,9 +228,9 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
         "oauth beta first, client betas kept, context-1m stripped, fast mode derived"
     );
     assert_eq!(h["x-app"], "cli");
-    assert_eq!(h["user-agent"], "claude-cli/2.1.284 (external, sdk-cli)");
+    assert_eq!(h["user-agent"], "claude-cli/2.1.296 (external, sdk-cli)");
     assert_eq!(h["x-claude-code-session-id"], "session-1");
-    assert_eq!(h["x-stainless-package-version"], "0.112.1");
+    assert_eq!(h["x-stainless-package-version"], "0.128.0");
     assert_eq!(h["anthropic-dangerous-direct-browser-access"], "true");
     assert!(
         h.get("x-request-id").is_none(),
@@ -235,11 +246,12 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     assert_eq!(shaped["messages"][1]["role"], "user", "prefill coerced");
     assert_eq!(shaped["system"][1]["text"], "policy");
     assert_eq!(shaped["system"][1]["cache_control"]["type"], "ephemeral");
-    let billing = shaped["system"][0]["text"].as_str().unwrap();
+    let billing = normalize_cch(shaped["system"][0]["text"].as_str().unwrap());
+    let billing = billing.as_str();
     let (fixed, prompt) = billing.split_once(" cc_prompt_id=").unwrap();
     assert_eq!(
         fixed,
-        "x-anthropic-billing-header: cc_version=2.1.284.a49; cc_entrypoint=sdk-cli; cch=00000;"
+        "x-anthropic-billing-header: cc_version=2.1.296.a12; cc_entrypoint=sdk-cli; cch=00000;"
     );
     assert_eq!(prompt.len(), 37, "a derived prompt UUID: {prompt}");
     assert!(prompt.ends_with(';'));
@@ -362,7 +374,7 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
             panic!("buffered");
         };
         let shaped: Value = serde_json::from_slice(&bytes).unwrap();
-        shaped["system"][0]["text"].as_str().unwrap().to_owned()
+        normalize_cch(shaped["system"][0]["text"].as_str().unwrap())
     };
 
     // Every fragment present, out of order, with one that fails the CLI's
@@ -374,7 +386,7 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
             "cc_workload=agent_run; cc_entrypoint=sdk-ts; cc_secret=leak; cch=11111; cc_turn_origin=user;"
         )),
         concat!(
-            "x-anthropic-billing-header: cc_version=2.1.284.a49; cc_entrypoint=sdk-ts; cch=00000; ",
+            "x-anthropic-billing-header: cc_version=2.1.296.a12; cc_entrypoint=sdk-ts; cch=00000; ",
             "cc_workload=agent_run; cc_is_subagent=true; cc_prev_req=req_0123abc-XYZ_; ",
             "cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D; cc_turn_origin=user;"
         )
@@ -390,7 +402,7 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
     let (fixed, prompt) = derived.split_once(" cc_prompt_id=").unwrap();
     assert_eq!(
         fixed,
-        "x-anthropic-billing-header: cc_version=2.1.284.a49; cc_entrypoint=cli; cch=00000;"
+        "x-anthropic-billing-header: cc_version=2.1.296.a12; cc_entrypoint=cli; cch=00000;"
     );
     assert_eq!(prompt.len(), 37);
     for invalid in [
@@ -1445,7 +1457,7 @@ fn service_request(method: Method, path: &str, query: Option<&str>, body: &str) 
     headers.insert("x-organization-uuid", HeaderValue::from_static("org-1"));
     headers.insert(
         "user-agent",
-        HeaderValue::from_static("claude-cli/2.1.284 (external, sdk-cli)"),
+        HeaderValue::from_static("claude-cli/2.1.296 (external, sdk-cli)"),
     );
     WireRequest {
         method,
@@ -1528,7 +1540,7 @@ async fn catalog_routes_forward_under_every_view_with_the_cli_identity() {
     assert_eq!(h["authorization"], "Bearer at");
     assert_eq!(h["anthropic-beta"], "oauth-2025-04-20");
     assert_eq!(h["anthropic-version"], "2023-06-01");
-    assert_eq!(h["user-agent"], "claude-cli/2.1.284 (external, sdk-cli)");
+    assert_eq!(h["user-agent"], "claude-cli/2.1.296 (external, sdk-cli)");
     assert_eq!(h["x-app"], "cli");
     assert_eq!(h["cache-control"], "no-cache");
     assert_eq!(h["x-organization-uuid"], "org-1");
@@ -2360,5 +2372,97 @@ fn configured_fallbacks_shape_messages_and_preserve_credit_replays() {
                 assert_eq!(shaped, original);
             }
         }
+    }
+}
+
+#[tokio::test]
+async fn mcp_discovery_preserves_account_data_only_in_credential_view() {
+    let config = json!({});
+    let s = secret("at");
+    let data = json!({"data": [{"id": "mcp_1", "name": "Private connector", "extra": {"kept": true}}], "has_more": false});
+    let client = ScriptClient::new(vec![reply(StatusCode::OK, data.clone())]);
+    let accounts = [account(&config, &s, &client)];
+    let member = ScriptCaller::member("m");
+    let services = Claudecode.services().unwrap();
+    assert!(services.route(&Method::GET, "/v1/mcp_servers").is_some());
+    assert!(services.route(&Method::POST, "/v1/mcp_servers").is_none());
+    assert!(services.route(&Method::GET, "/v1/messages").is_none());
+    for view in [ServiceView::Caller, ServiceView::Pool] {
+        let response = services
+            .call(context(
+                &accounts,
+                &member,
+                view,
+                service_request(Method::GET, "/v1/mcp_servers", None, ""),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status, StatusCode::FORBIDDEN);
+    }
+    assert!(client.sent().is_empty());
+    let admin = ScriptCaller::admin("a");
+    let response = services
+        .call(context(
+            &accounts,
+            &admin,
+            ServiceView::Credential("c".into()),
+            service_request(
+                Method::GET,
+                "/v1/mcp_servers",
+                Some("limit=1000&include_additional_installs=true"),
+                "",
+            ),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(body_json(response).await, data);
+    let sent = client.sent();
+    assert_eq!(
+        sent[0].1,
+        "https://api.anthropic.com/v1/mcp_servers?limit=1000&include_additional_installs=true"
+    );
+    assert_eq!(sent[0].2["authorization"], "Bearer at");
+    assert_eq!(
+        sent[0].2["anthropic-beta"],
+        "oauth-2025-04-20,mcp-servers-2025-12-04"
+    );
+}
+
+#[tokio::test]
+async fn public_mcp_directories_forward_without_account_credentials() {
+    let config = json!({"headers": {"authorization": "Bearer static-secret", "x-api-key": "static-key", "cookie": "sessionKey=static-cookie"}});
+    let s = secret("at");
+    let data = json!({"servers": [{"name": "public"}], "metadata": {"nextCursor": "next"}});
+    let client = ScriptClient::new(vec![
+        reply(StatusCode::OK, data.clone()),
+        reply(StatusCode::OK, data.clone()),
+    ]);
+    let accounts = [account(&config, &s, &client)];
+    let member = ScriptCaller::member("m");
+    let services = Claudecode.services().unwrap();
+    for path in ["/mcp-registry/v0/servers", "/api/directory/servers"] {
+        assert!(services.route(&Method::GET, path).is_some());
+        let response = services
+            .call(context(
+                &accounts,
+                &member,
+                ServiceView::Caller,
+                service_request(
+                    Method::GET,
+                    path,
+                    Some("version=latest&cursor=page2&visibility=commercial"),
+                    "",
+                ),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(body_json(response).await, data);
+    }
+    for (_, uri, headers, _) in client.sent() {
+        assert!(uri.ends_with("?version=latest&cursor=page2&visibility=commercial"));
+        assert!(headers.get("authorization").is_none());
+        assert!(headers.get("x-api-key").is_none());
+        assert!(headers.get("cookie").is_none());
+        assert!(headers.get("x-organization-uuid").is_none());
     }
 }

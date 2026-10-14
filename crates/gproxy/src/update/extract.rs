@@ -30,6 +30,10 @@ use super::config::UpdateError;
 /// The names an artifact's executable can have. Windows first only in the
 /// `.exe` sense — the search is by exact file name, so the order only decides
 /// which wins in an archive that somehow carries both.
+// Android ZIPs carry a shell launcher named `gproxy`; replace the ELF it runs.
+#[cfg(target_os = "android")]
+const EXECUTABLE_NAMES: &[&str] = &["gproxy.bin", "gproxy"];
+#[cfg(not(target_os = "android"))]
 const EXECUTABLE_NAMES: &[&str] = &["gproxy", "gproxy.exe"];
 
 /// Unpack the executable into `directory`, returning the staged path.
@@ -93,7 +97,7 @@ pub(super) mod fixture {
     /// executable and not the README.
     pub(crate) fn archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
         let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-        let options: zip::write::FileOptions<'_, ()> =
+        let options: zip::write::SimpleFileOptions =
             zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         for (name, contents) in entries {
             writer.start_file(*name, options).unwrap();

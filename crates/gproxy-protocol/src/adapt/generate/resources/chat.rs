@@ -7,7 +7,7 @@ impl<R: ResourceAccess> GenerationResources<'_, R> {
         input: h::GenerateContentRequestBody,
     ) -> Result<h::GenerateContentRequestBody, TransformError> {
         let mut input = input.into_declared();
-        let mut budget = self.budget();
+        let mut budget = self.budget(crate::Dialect::OpenAiChat);
         for message in &mut input.messages {
             if let h::ChatMessage::User(message) = message
                 && let h::UserContent::Parts(parts) = &mut message.content
@@ -17,9 +17,12 @@ impl<R: ResourceAccess> GenerationResources<'_, R> {
                         h::UserContentPart::Image(part)
                             if !part.image_url.url.starts_with("data:") =>
                         {
-                            let media = budget
+                            let Some(media) = budget
                                 .read(ResourceReference::Url(part.image_url.url.clone()), true)
-                                .await?;
+                                .await?
+                            else {
+                                continue;
+                            };
                             part.image_url.url = media.data_uri();
                         }
                         h::UserContentPart::File(part) if part.file.file_id.is_some() => {
@@ -29,14 +32,17 @@ impl<R: ResourceAccess> GenerationResources<'_, R> {
                                     "ambiguous inline data and native ID",
                                 ));
                             }
-                            let media = budget
+                            let Some(media) = budget
                                 .read(
                                     ResourceReference::Id(
                                         part.file.file_id.clone().expect("matched"),
                                     ),
                                     false,
                                 )
-                                .await?;
+                                .await?
+                            else {
+                                continue;
+                            };
                             part.file.file_data = Some(media.data_uri());
                             part.file.file_id = None;
                             if part.file.filename.is_none() {

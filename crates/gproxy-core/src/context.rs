@@ -124,6 +124,10 @@ pub struct UsageReport {
 }
 #[derive(Clone, Debug)]
 pub struct ExchangeUsage {
+    /// Metered native call duration, including first-token wait.
+    pub duration_ms: Option<i64>,
+    /// Time to first generated content; unknown for buffered replies and sessions.
+    pub ttft_ms: Option<i64>,
     pub capture_id: String,
     pub attempt_id: String,
     pub attempt_ordinal: u32,

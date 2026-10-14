@@ -1,7 +1,14 @@
 {
+  "credentialKinds": {
+    "api_key": "API Key",
+    "oauth": "OAuth",
+    "cookie": "Cookie",
+    "service_account": "服务账号",
+    "aws_access_key": "AWS 访问密钥对"
+  },
   "overview": {
     "title": "你好，{{name}}",
-    "usage": "最近七天",
+    "usage": "用量",
     "quota": "费用预算"
   },
   "keys": {
@@ -62,7 +69,6 @@
       "displayName": "显示名称",
       "thinkingAdaptiveSupported": "支持自适应思考",
       "thinkingEnabledSupported": "支持启用思考",
-      "thinkingHint": "打开上游明确支持的能力；未声明的值在修改前会继续保持未知。",
       "advancedMetadata": "高级模型元数据",
       "metadataDescription": "模型说明",
       "maxContextWindow": "最大可配置上下文",
@@ -99,7 +105,7 @@
       "unknownMetadata": "当前未知；后续拉取模型目录时可以补全。",
       "knownEmpty": "已确认是空集合。",
       "variants": "变体",
-      "variantsHint": "变体会额外暴露模型名并路由到这个基础模型；每个变体可强制工具、推理、服务档位、详细程度或指定上游。",
+      "variantsHint": "通过不同模型名调用此模型的预设配置。",
       "variantsEmpty": "暂无变体。",
       "variantName": "变体名",
       "variantRemove": "删除变体",
@@ -127,6 +133,7 @@
     "select": "选择供应商"
   },
   "providerConfig": {
+    "forward_thinking": "传递思考块",
     "account_type": "账号类型",
     "agent_intent": "Agent 用途",
     "allowed_headers": "允许转发的请求头",
@@ -162,6 +169,7 @@
     "ide_version": "IDE 版本",
     "issuer": "身份认证地址",
     "locale": "语言区域",
+    "low_priority": "低优先级模式",
     "location": "部署位置",
     "login_provider": "登录服务",
     "management_base_url": "管理 API 地址",
@@ -257,7 +265,7 @@
   },
   "providerForm": {
     "autoRefreshModels": "从上游刷新模型候选",
-    "autoRefreshModelsHelp": "配置路由成员时拉取最新上游模型；关闭后仅使用已保存的模型。",
+    "autoRefreshModelsHelp": "每次客户端查询模型列表或详情时，从上游刷新并合并到本地，再按本地配置返回；关闭后仅使用已保存的模型。",
     "dynamicAddress": "根据渠道设置或凭证自动选择",
     "displayName": "显示名",
     "routeName": "路由名",
@@ -270,7 +278,7 @@
   },
   "setting": {
     "allowedHeaders": "全局请求头白名单",
-    "allowedHeadersHelp": "与供应商白名单、渠道内置必要头取并集。空列表不增加全局允许项；原始鉴权头和逐跳头仍会移除。",
+    "allowedHeadersHelp": "在渠道和供应商白名单之外额外允许的请求头。",
     "instanceName": "实例名称",
     "oauthClientAllowlist": "允许的 OAuth 客户端",
     "connectionProfileId": "默认 HTTP 客户端配置",
@@ -293,6 +301,8 @@
     "defaultVocabularyFileId": "默认词表",
     "tokenizerAuthToken": "词表下载令牌",
     "retentionDays": "请求历史保留天数",
+    "capturePayloadRetentionDays": "捕获正文保留天数",
+    "capturePayloadMaxMb": "捕获正文大小上限（MiB）",
     "maxDatabaseSizeMb": "SQLite 数据库大小上限（MiB）",
     "updateSource": "更新源",
     "updateChannel": "更新通道",
@@ -377,7 +387,6 @@
     "formMode": "表单",
     "jsonMode": "高级 JSON",
     "ruleJson": "规则 JSON",
-    "jsonHelp": "粘贴一个 v4 规则对象。所属规则集和规则顺序由页面管理，保存时会校验规则是否有效。",
     "formatJson": "格式化 JSON",
     "invalidJsonField": "规则字段无效或不支持：{{field}}。",
     "allModels": "所有模型",
@@ -468,14 +477,31 @@
     },
     "selectSet": "选择规则集，查看其中的规则。",
     "providerCount": "{{count}} 个供应商",
-    "orderHint": "规则按规则集关联顺序、组内顺序排列；上移/下移仅调整组内顺序。"
+    "conditions": {
+      "body": "正文条件路径",
+      "header": "请求头条件名称",
+      "bodyHelp": "选填。判断前面规则修改后的当前 JSON 正文。支持点路径和数组索引，不支持通配符；值使用 JSON 类型，缺字段与 null 不同。",
+      "headerHelp": "选填。判断原始入站请求头。名称不区分大小写，值精确比较；同名头任一值相等即命中，不等于要求头存在且所有值均不相等。",
+      "operator": "比较方式",
+      "value": "比较值",
+      "eq": "等于",
+      "ne": "不等于",
+      "exists": "存在",
+      "not_exists": "不存在",
+      "bodyMode": "正文条件方式",
+      "fieldCondition": "字段比较",
+      "expression": "JMESPath 正文条件",
+      "expressionHelp": "选填。表达式返回布尔值 true 才执行规则。支持负索引、筛选和 contains()；读取前面规则修改后的当前正文。缺少所需数据导致的求值错误或非布尔结果均不触发。"
+    }
   },
   "update": {
+    "verifySignature": "校验更新签名",
+    "verifySignatureHelp": "关闭后不校验发布者签名。",
     "source": "更新源",
     "current": "当前版本",
     "unsupported": "当前宿主不支持在线更新",
     "channel": "更新通道",
-    "channelHelp": "保存后，后续更新检查将使用此更新源和通道。未保存的选择仅用于本页的检查和安装。",
+    "channelHelp": "保存后用于后续更新检查。",
     "schedule": "每 {{seconds}} 秒检查一次",
     "noSchedule": "自动检查已关闭",
     "autoInstall": "自动安装已开启",
@@ -494,7 +520,17 @@
     "available": "可用更新：{{version}}",
     "latest": "暂无更新版本",
     "notes": "版本说明",
-    "notChecked": "尚未检查此通道。"
+    "notChecked": "尚未检查此通道。",
+    "announcements": {
+      "title": "公告",
+      "empty": "当前版本暂无公告。",
+      "severity": {
+        "info": "提示",
+        "warning": "警告",
+        "critical": "紧急"
+      }
+    },
+    "selfUpdate": "在线更新"
   },
   "operation": {
     "list_models": "列出模型",
@@ -550,6 +586,11 @@
     "noPresets": "没有匹配的预设"
   },
   "modelUI": {
+    "configuredPrice": "已配置输入 / 输出单价",
+    "pricingByOperation": "按操作定价",
+    "hasDefaultPrice": "有默认参考价",
+    "inheritedPrice": "继承全局定价：{{pattern}}。如需覆盖，请新建供应商规则。",
+    "matchedPrice": "匹配定价规则：{{pattern}}。如需覆盖，请新建当前模型规则。",
     "invalidVariants": "变体名称不能重复或为空，也不能包含通配符。",
     "defaultMetadata": "导入默认元数据",
     "testOk": "测试成功",
@@ -681,8 +722,8 @@
     "referencePrice": "输入 / 输出 USD/百万",
     "details": "详情",
     "applyPrice": "应用默认价格",
-    "reset": "移除本地条目",
     "applied": "新增 {{created}}，保留 {{skipped}}，未匹配 {{unmatched}}",
+    "applyPriceCount": "应用默认价格（{{count}}）",
     "tierFields": {
       "inputPrice": "输入",
       "outputPrice": "输出",
@@ -699,15 +740,23 @@
     "tierCount": "分段价 · {{count}}",
     "searchPlaceholder": "搜索模型或供应商实例",
     "providerInstances": "供应商实例",
+    "loadDefaults": "加载默认模型",
+    "loadDefaultsHelp": "将选中的内置模型写入模型列表，保留已有模型和价格配置。",
+    "deleteCount": "删除模型（{{count}}）",
+    "deleteSelected": "删除选中的 {{count}} 个模型？",
     "importRemote": "从 OpenRouter 导入",
     "importRemoteHelp": "选择要导入的模型元数据，保留已有自定义值，不修改价格。",
     "metadataImported": "已导入 {{count}} 个模型的元数据。"
   },
   "management": {
+    "accessTokenExpiry": "凭证 / 访问令牌过期时间",
+    "refreshTokenExpiry": "刷新令牌过期时间",
+    "pendingInitialRefresh": "待首次刷新",
+    "credentialRegionHint": "覆盖供应商默认区域。留空时继承供应商设置（或凭证密钥中的 location）。",
     "allowPaidUsage": "允许使用积分余额",
-    "paidUsageHint": "已知订阅额度耗尽后，允许继续使用上游账号已有的额外积分或付费用量。默认关闭；此开关不会开通上游计费，也不会更换请求的模型。",
-    "codexPaidUsageHint": "开启后，此凭证可在订阅额度耗尽后使用已有积分。默认关闭；关闭时，在已知订阅额度耗尽后停止使用。",
-    "claudePaidUsageHint": "开启后，此凭证可在订阅额度耗尽后使用额外用量，Claude 账号需已开通额外用量。默认关闭；关闭时，在已知订阅额度耗尽后停止使用。",
+    "paidUsageHint": "订阅额度耗尽后，允许使用已有积分或付费用量，不会自动开通计费。",
+    "codexPaidUsageHint": "订阅额度耗尽后，允许使用已有积分。",
+    "claudePaidUsageHint": "订阅额度耗尽后，允许使用额外用量。需在 Claude 账号中开通。",
     "select": "选择",
     "selectPage": "批量选择",
     "selected": "已选 {{count}} 项",
@@ -729,6 +778,8 @@
     "startLogin": "开始登录",
     "authorizationUrl": "授权地址",
     "openAuthorization": "在新标签页打开",
+    "authorizationCodeHelp": "完成授权后，粘贴授权页面显示的授权码。",
+    "authorizationCode": "授权码",
     "callbackHelp": "授权后从地址栏复制完整回调 URL，包含 code 和 state。本机回调页面可能无法打开，但地址中仍包含授权结果。",
     "callbackUrl": "完整回调 URL",
     "completeLogin": "完成登录",
@@ -801,7 +852,7 @@
     "cycleCost": "花费",
     "cycleSpent": "本周期花费",
     "estimatedAllowance": "估算额度",
-    "estimateHint": "花费和估算只统计经过 gproxy 的请求；同一账号在别处的用量（例如官方客户端）会让估算偏低。各窗口相互重叠，金额不能相加。",
+    "estimateHint": "仅统计经过 gproxy 的用量，其他客户端的用量不计入。各窗口金额不能相加。",
     "recentCycles": "最近周期（{{count}}）",
     "cyclePeriod": "周期",
     "cycleFinalPercent": "结束时",
@@ -905,7 +956,6 @@
     "quotaUsedPercent": "额度使用率",
     "quotaTrendEmpty": "此时间范围内暂无使用率观测记录。",
     "quotaTrendOlder": "加载更早的观测",
-    "quotaTrendHint": "圆点为上游实际观测值，连线仅连接同一周期内的观测。无观测时不补点；如有更多记录，可加载更早的观测。",
     "currentCycle": "当前周期",
     "noCurrentCycle": "当前周期尚未开始，可切换时间范围查看历史观测。",
     "showQuotaTrend": "展开使用率趋势",
@@ -923,6 +973,16 @@
     "reasons": {
       "refusal": "模型拒答",
       "content_filter": "内容策略拦截",
+      "safety": "安全策略拦截",
+      "blocklist": "禁用词拦截",
+      "prohibited_content": "禁止内容拦截",
+      "sensitive_personal_information": "敏感个人信息拦截",
+      "recitation": "内容复现限制",
+      "cyber": "网络安全风险拒答",
+      "bio": "生物安全风险拒答",
+      "frontier_llm": "竞争模型开发限制",
+      "reasoning_extraction": "内部推理提取限制",
+      "general_harms": "一般危害拒答",
       "authentication_failed": "认证失败",
       "permission_denied": "权限不足",
       "rate_limited": "请求限流",
@@ -968,7 +1028,10 @@
     "events": "流式事件",
     "requestQuery": "请求查询参数",
     "clientIp": "客户端 IP",
-    "metrics": "上游用量数据"
+    "metrics": "上游用量数据",
+    "deleteAll": "删除全部",
+    "deleteAllConfirm": "删除这里的全部记录？此操作无法撤销，进行中的请求会保留。",
+    "deleted": "已删除 {{count}} 条记录"
   },
   "modelRoutes": {
     "modelsFallback": "上游模型刷新失败，已回退到保存的模型；仍可手动输入任意模型 ID。",
@@ -992,7 +1055,6 @@
     "chooseDirectory": "选择数据目录",
     "autoStart": "登录系统时自动启动",
     "androidAutoStart": "设备重启后自动启动",
-    "tray": "关闭窗口后在系统托盘中继续运行",
     "adminUser": "管理员用户名",
     "password": "管理员密码",
     "passwordHelp": "至少 8 个字符。",
@@ -1057,7 +1119,7 @@
     "invalidLabel": "名称必须是文本",
     "defaultLabel": "导入凭据 {{index}}",
     "preview": "预览凭据名称",
-    "policy": "仅对本次输入去重，不与已有凭据比较。请修正全部格式错误后再导入。整批一起保存，校验失败时不会保存任何条目。",
+    "policy": "仅对本次输入去重。格式错误时整批不保存。",
     "submit": "导入 {{count}} 条凭据",
     "imported": "已导入 {{count}} 条凭据"
   },
@@ -1081,5 +1143,45 @@
       "action": "赞助 LeenHawk"
     },
     "documentation": "使用文档"
+  },
+  "shellPreferences": {
+    "privacyNotice": "隐私说明",
+    "title": "应用",
+    "tray": "显示系统托盘图标",
+    "trayHelp": "后台运行需要系统托盘。关闭托盘后，关闭窗口会退出应用。",
+    "close": "关闭窗口时",
+    "background": "继续后台运行",
+    "quit": "退出应用",
+    "hidden": "自动启动时隐藏主窗口",
+    "hiddenHelp": "需要同时开启自启和系统托盘。手动打开 GPROXY 时始终显示窗口。",
+    "trayFailed": "系统托盘创建失败，窗口将保持可访问：{{error}}",
+    "ohosBackground": "允许代理持续后台运行",
+    "ohosActive": "持续后台任务已启用",
+    "ohosInactive": "持续后台任务未启用",
+    "ohosUnsupported": "当前系统未提供持续后台任务 API。",
+    "ohosStartup": "请在“设置 → 应用和元服务 → 应用启动管理”中添加 GPROXY。如果当前系统无法直接打开页面，可按此路径手动进入。",
+    "ohosHelp": "开启后会启动系统后台任务，由系统检查签名和权限；失败原因会显示在下方。移除任务通知可能停止后台运行。",
+    "ohosCancelled": "系统或用户已停止持续后台任务，可重新开启。",
+    "ohosAutoStart": "开机自启",
+    "enabled": "已开启",
+    "disabled": "未开启",
+    "unknown": "未知",
+    "openStartupSettings": "前往应用启动管理",
+    "startupUnknown": "当前系统无法返回自启状态，请到系统设置中确认。",
+    "ohosMinimized": "开机自启后进入后台",
+    "ohosMinimizedHelp": "需要开启持续后台运行。开启托盘时隐藏到状态栏，否则最小化窗口；手动打开应用时显示窗口。",
+    "ohosClose": "关闭窗口后继续运行",
+    "ohosCloseHelp": "需要开启状态栏图标和持续后台运行。"
+  },
+  "fonts": {
+    "title": "界面字体",
+    "description": "可选：从 gproxy.leenhawk.com 下载 Noto 字体（约 9.2 MiB）。服务器会收到运行 GPROXY 的设备 IP 地址。GPROXY 将字体保存到本地数据目录，供离线使用。可以跳过，之后在设置中下载。",
+    "system": "正在使用系统字体，尚未开启字体下载。",
+    "installed": "正在使用已下载的字体。",
+    "loading": "正在检查本地字体…",
+    "downloading": "正在下载字体",
+    "progress": "正在下载字体… {{progress}}%",
+    "download": "下载界面字体",
+    "remove": "删除字体并使用系统字体"
   }
 }

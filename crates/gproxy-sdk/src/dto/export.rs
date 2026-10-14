@@ -42,7 +42,6 @@ exported!(
     ConfigKey,
     ConfigKeyKind,
     LoginMode,
-    CatalogModelDto,
     CatalogProviderDto,
     // catalog
     ApplyDefaultPricesReportDto,
@@ -109,6 +108,8 @@ exported!(
     // logs
     CaptureDetailDto, CaptureEventDto,
     CaptureRecordDto,
+    HistoryDelete,
+    HistoryDeleted,
     LogBodyDto,
     LogBodyEncoding,
     LogDetailDto,

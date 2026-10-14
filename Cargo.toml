@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-exclude = ["vendor/sqlx-sqlite"]
+exclude = ["vendor/sqlx-sqlite", "vendor/glib"]
 members = [
     "crates/gproxy-protocol",
     "crates/gproxy-protocol-macros",
@@ -55,7 +55,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "4.0.1"
+version = "4.1.6"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/LeenHawk/gproxy"
@@ -71,24 +71,26 @@ async-trait = "0.1"
 axum = { version = "0.8", default-features = false }
 base64 = "0.23"
 blake3 = "1"
+fastcdc = "5"
+zstd = "0.14"
 clap = { version = "4", features = ["derive", "env"] }
 chacha20poly1305 = "0.11"
-gproxy-app = { path = "crates/gproxy-app", version = "=4.0.1", default-features = false }
-gproxy = { path = "crates/gproxy", version = "=4.0.1", default-features = false }
-gproxy-core = { path = "crates/gproxy-core", version = "=4.0.1", default-features = false }
-gproxy-channel = { path = "crates/gproxy-channel", version = "=4.0.1", default-features = false }
-gproxy-client = { path = "crates/gproxy-client", version = "=4.0.1", default-features = false }
-gproxy-cache = { path = "crates/gproxy-cache", version = "=4.0.1", default-features = false }
-gproxy-file = { path = "crates/gproxy-file", version = "=4.0.1", default-features = false }
-gproxy-host-axum = { path = "crates/gproxy-host-axum", version = "=4.0.1" }
-gproxy-host-edge = { path = "crates/gproxy-host-edge", version = "=4.0.1" }
-gproxy-host-tauri = { path = "crates/gproxy-host-tauri", version = "=4.0.1" }
-gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.1", features = ["exhaustive"] }
-gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.1" }
-gproxy-sdk = { path = "crates/gproxy-sdk", version = "=4.0.1", default-features = false }
-gproxy-seaorm = { path = "crates/gproxy-seaorm", version = "=4.0.1" }
-gproxy-store = { path = "crates/gproxy-store", version = "=4.0.1" }
-gproxy-tokenizer = { path = "crates/gproxy-tokenizer", version = "=4.0.1", default-features = false }
+gproxy-app = { path = "crates/gproxy-app", version = "=4.1.6", default-features = false }
+gproxy = { path = "crates/gproxy", version = "=4.1.6", default-features = false }
+gproxy-core = { path = "crates/gproxy-core", version = "=4.1.6", default-features = false }
+gproxy-channel = { path = "crates/gproxy-channel", version = "=4.1.6", default-features = false }
+gproxy-client = { path = "crates/gproxy-client", version = "=4.1.6", default-features = false }
+gproxy-cache = { path = "crates/gproxy-cache", version = "=4.1.6", default-features = false }
+gproxy-file = { path = "crates/gproxy-file", version = "=4.1.6", default-features = false }
+gproxy-host-axum = { path = "crates/gproxy-host-axum", version = "=4.1.6", default-features = false }
+gproxy-host-edge = { path = "crates/gproxy-host-edge", version = "=4.1.6" }
+gproxy-host-tauri = { path = "crates/gproxy-host-tauri", version = "=4.1.6" }
+gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.1.6", features = ["exhaustive"] }
+gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.1.6" }
+gproxy-sdk = { path = "crates/gproxy-sdk", version = "=4.1.6", default-features = false }
+gproxy-seaorm = { path = "crates/gproxy-seaorm", version = "=4.1.6" }
+gproxy-store = { path = "crates/gproxy-store", version = "=4.1.6" }
+gproxy-tokenizer = { path = "crates/gproxy-tokenizer", version = "=4.1.6", default-features = false }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 dashmap = { version = "6" }
 dotenvy = "0.15"
@@ -130,7 +132,7 @@ percent-encoding = "2"
 paste = "1"
 proc-macro2 = "1"
 quote = "1"
-redis = { version = "1.6", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
+redis = { version = "1.7", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
 rsa = { version = "0.9", features = ["sha2"] }
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "http2", "stream", "socks", "cookies"] }
@@ -150,6 +152,7 @@ sea-orm = { version = "2", default-features = false, features = ["macros", "with
 sea-orm-migration = { version = "2", default-features = false, features = ["with-time"] }
 send_wrapper = { version = "0.6", features = ["futures"] }
 serde = { version = "1", features = ["derive"] }
+jmespath = { version = "0.5", features = ["sync"] }
 serde_json = "1"
 serde-wasm-bindgen = "0.6"
 syn = { version = "3", features = ["full", "visit-mut"] }
@@ -159,6 +162,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
 serde_urlencoded = "0.7"
 sha2 = "0.11"
+xxhash-rust = { version = "0.8", features = ["xxh64"] }
 strum = { version = "0.28", features = ["derive"] }
 tempfile = "3"
 thiserror = "2"
@@ -174,7 +178,7 @@ tokio-postgres = "0.7"
 tower = { version = "0.5", default-features = false }
 hyper-util = { version = "0.1", default-features = false }
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
-tokio-rusqlite = { version = "0.7", features = ["bundled"] }
+tokio-rusqlite = { version = "0.8", features = ["bundled"] }
 toml = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
@@ -190,7 +194,7 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage
 worker = { version = "0.8", default-features = false }
 wreq = { version = "0.16", features = ["stream", "ws", "gzip", "brotli", "zstd", "deflate", "socks"] }
 wreq-util = { version = "0.2", features = ["emulation"] }
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 zeroize = "1"
 
 [profile.release]
@@ -200,8 +204,13 @@ codegen-units = 1
 panic = "abort"
 strip = "symbols"
 
-# Preserve individual statement caches while sending one SQLite worker command per batch.
 [patch.crates-io]
+# Temporary glib 0.18 backport for GHSA-wrw7-89jp-8q8g (Dependabot #81).
+# Upstream fix: https://github.com/gtk-rs/gtk-rs-core/pull/1343
+# Remove this entry, vendor/glib and its workspace exclusion, then regenerate
+# Cargo.lock once Tauri/GTK resolves to a fixed upstream glib (0.20+ or backport).
+glib = { path = "vendor/glib" }
+# Preserve individual statement caches while sending one SQLite worker command per batch.
 sqlx-sqlite = { path = "vendor/sqlx-sqlite" }
 # Native BoringSSL prefixing fixes macOS/Windows and cross-compiled archive layouts.
 btls-sys = { git = "https://github.com/0x676e67/btls", rev = "609f955e6de4df4a215ee9b273d327af1c0771db" }

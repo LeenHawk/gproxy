@@ -968,7 +968,7 @@ async fn startup_imports_usage_in_batches_without_resettling_or_duplicate_reques
     assert_eq!(row.provider_id.as_deref(), Some("v3-providers-1"));
     assert_eq!(row.started_at_ms, 1700000000750);
     assert_eq!(row.ended_at_ms, Some(1700000001000));
-    assert_eq!(row.input_tokens, Some(12));
+    assert_eq!(row.input_tokens, Some(9));
     assert_eq!(row.output_tokens, Some(5));
     assert_eq!(row.cached_input_tokens, Some(3));
     assert_eq!(row.reasoning_tokens, Some(2));

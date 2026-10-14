@@ -13,7 +13,8 @@
 //! by message, without holding more of it than the event it is decoding:
 //! the stream is framed with this crate's own [`SseDecoder`] and
 //! [`JsonArrayDecoder`], events are filtered by name or by a substring before
-//! anything is parsed, and only the events that carry usage are deserialized
+//! anything is parsed. Until first output, content is also inspected for TTFT.
+//! Otherwise only the events that carry usage are deserialized
 //! — into small envelopes that skip the content around the usage object.
 //!
 //! A reading is `None` when the response reported no usage, which is not the
@@ -41,6 +42,7 @@ mod common;
 mod gemini;
 mod media;
 mod openai;
+mod timing;
 mod types;
 
 pub use types::{
@@ -82,6 +84,7 @@ fn reader(operation: Operation, dialect: Dialect) -> Option<Reader> {
         Operation::GenerateContent
         | Operation::StreamGenerateContent
         | Operation::CompactContent => generate,
+        Operation::CreateDecision if dialect == Dialect::OpenAi => Reader::Responses,
         Operation::CountTokens => Reader::CountTokens(match generate {
             Reader::Claude => &Reader::Claude,
             Reader::Chat => &Reader::Chat,
@@ -209,6 +212,7 @@ pub struct UsageReader {
     /// [`UsageReader::keep_usage_event`].
     keep: bool,
     kept: Option<Kept>,
+    output_started: bool,
 }
 
 /// The latest event that carried usage, as it arrived.
@@ -265,6 +269,7 @@ impl UsageReader {
             watch,
             keep: false,
             kept: None,
+            output_started: false,
         })
     }
 
@@ -297,11 +302,14 @@ impl UsageReader {
             Framing::Sse(decoder) => match decoder.push(chunk) {
                 Ok(frames) => {
                     for frame in frames {
-                        if let SseFrame::Event(event) = frame
-                            && self.watch.event(event.event.as_deref(), &event.data)
-                            && self.keep
-                        {
-                            self.kept = Some(Kept::Text(event.data));
+                        if let SseFrame::Event(event) = frame {
+                            if !self.output_started {
+                                self.output_started =
+                                    timing::has_output(event.event.as_deref(), &event.data);
+                            }
+                            if self.watch.event(event.event.as_deref(), &event.data) && self.keep {
+                                self.kept = Some(Kept::Text(event.data));
+                            }
                         }
                     }
                 }
@@ -311,6 +319,9 @@ impl UsageReader {
                 Ok(records) => {
                     if let Watch::Gemini(stream) = &mut self.watch {
                         for record in records {
+                            if !self.output_started {
+                                self.output_started = timing::value_has_output(None, &record);
+                            }
                             if stream.record(&record) && self.keep {
                                 self.kept = Some(Kept::Value(record));
                             }
@@ -328,6 +339,12 @@ impl UsageReader {
         if matches!(self.framing, Framing::Messages) && self.watch.event(None, text) && self.keep {
             self.kept = Some(Kept::Text(text.to_owned()));
         }
+    }
+
+    /// Whether a nonempty text, reasoning or tool argument delta has arrived.
+    /// Response headers, keepalives and usage-only events do not count.
+    pub fn output_started(&self) -> bool {
+        self.output_started
     }
 
     /// The reading so far. It is `Partial` until the event that settles it

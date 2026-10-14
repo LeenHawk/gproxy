@@ -94,7 +94,7 @@ class Cnb:
                 names.append(row["artifact"] + ".apk")
             if app := row.get("application_artifact"):
                 extension = {"linux": ".deb", "windows": ".exe", "macos": ".app.zip", "android": ".apk"}[row["os"]]
-                names.append(app + extension)
+                names.append(app + row.get("application_extension", extension))
             for name in names:
                 package = Path("dist/release") / name
                 expected = Path(str(package) + ".sha256").read_text().split()[0]

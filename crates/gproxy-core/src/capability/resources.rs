@@ -7,7 +7,7 @@ use gproxy_store::entity::resource::{file_object, resource_binding};
 use sea_orm::ActiveValue::Set;
 
 /// `resource_bindings.kind` for bodies core published itself.
-const PUBLICATION_KIND: &str = "publication";
+pub(crate) const PUBLICATION_KIND: &str = "publication";
 /// `file_objects.storage_name` for the configured file backend.
 const STORAGE_NAME: &str = "core";
 
@@ -299,15 +299,19 @@ fn file_content_path(
 ///   host serves the bytes back through `Core::read_publication`. Without a
 ///   file backend every publish is `Unsupported` before side effects.
 /// * `ResourceReference::Id` first resolves to a publication in the same scope;
-///   any other id is read from the scope's provider through its channel with
-///   the first usable credential of the scope target.
+///   any other id must be an upstream file the caller scope uploaded through
+///   the gateway (`crate::owned`) and is read from the scope's provider on
+///   the credential holding it; an id the scope does not own is `NotFound`.
 /// * `ResourceReference::Url` is fetched under the host's `FetchPolicy`
 ///   (`CoreBuilder::fetch_policy`, `DefaultFetchPolicy` unless set): `resolve`
 ///   is the policy check alone, `read` is the GET. The fetch goes through a
 ///   plain client of the core pool's default profile, never the scope's
 ///   credential client, so no provider auth leaks to an arbitrary origin;
 ///   redirects are followed up to `MAX_REDIRECT_HOPS` with the policy asked
-///   again for every hop, and the body is bounded by the read limit.
+///   again for every hop, and the body is bounded by the read limit. Only a
+///   direct native fetch is pinned to the addresses the policy vetted;
+///   through the global proxy, and on wasm32 (no resolver), the egress must
+///   enforce the destination policy itself (see `crate::fetch_policy`).
 pub struct Resources<'a, C> {
     core: &'a Core<C>,
     limits: CapabilityLimits,
@@ -449,6 +453,52 @@ impl<C: BatchConnectionTrait + Send + Sync> Resources<'_, C> {
                 "publication has no stored body",
             )),
         }
+    }
+
+    /// The scope to read upstream file `id` under. A provider-native file id
+    /// is only read when the request's caller scope uploaded it through the
+    /// gateway (`crate::owned`), and then only on the credential holding it:
+    /// the shared upstream account would otherwise serve any caller's file to
+    /// anyone who names its id. Anything else — someone else's file, a file
+    /// created before the registry, a credential the caller may no longer
+    /// spend — is `NotFound`, before the upstream is asked.
+    async fn owned_scope(
+        &self,
+        scope: &ResourceScope,
+        id: &str,
+    ) -> Result<ResourceScope, CapabilityError> {
+        let not_found = || {
+            let not_owned = crate::owned::NotOwned {
+                kind: "file",
+                id: id.to_owned(),
+            };
+            CapabilityError::with_source(
+                CapabilityErrorKind::NotFound,
+                CapabilityErrorStage::Start,
+                not_owned.to_string(),
+                not_owned,
+            )
+        };
+        let credential_id = self
+            .core
+            .owned_file_credential(&scope.scope, &scope.target.provider.entity.id, id)
+            .await
+            .map_err(|e| resource_error(CapabilityErrorKind::Storage, e.to_string()))?
+            .ok_or_else(not_found)?;
+        let credential = scope
+            .target
+            .credentials
+            .iter()
+            .find(|credential| credential.id == credential_id)
+            .cloned()
+            .ok_or_else(not_found)?;
+        Ok(ResourceScope {
+            scope: scope.scope.clone(),
+            target: ExecutionTarget {
+                credentials: vec![credential],
+                ..scope.target.clone()
+            },
+        })
     }
 
     fn upstream<'s>(&'s self, scope: &'s ResourceScope) -> ScopeUpstream<'s, C> {
@@ -655,7 +705,9 @@ fn transport(message: impl Into<String>) -> CapabilityError {
 
 /// The addresses the runtime resolver returns for the URL's host name; empty
 /// for a literal IP host (the policy reads that from the URL itself) and on
-/// wasm32, which has no resolver. Natively a name that resolves to nothing
+/// wasm32, which has no resolver (so there the policy judges a name without
+/// its addresses and the platform egress must keep fetches off internal
+/// networks). Natively a name that resolves to nothing
 /// is a transport failure before any policy decision: there is nothing to
 /// connect to.
 #[cfg(not(target_arch = "wasm32"))]
@@ -683,7 +735,11 @@ async fn resolve_host(_: &url::Url) -> Result<Vec<std::net::IpAddr>, CapabilityE
 /// The host name a fetch's connection must be pinned to, when there is one to
 /// pin: a name (a literal IP is its own address), vetted addresses to pin it
 /// to, and a direct connection. Through a proxy the proxy resolves the name,
-/// so there is no connection of this process's to pin.
+/// so there is no connection of this process's to pin: the name was still
+/// resolved and vetted here (and refused if that failed), but the proxy may
+/// connect somewhere else, so the destination policy for proxied fetches is
+/// the proxy's to enforce. Proxy users keep working; they do not get the
+/// rebinding guarantee a direct fetch has. See `crate::fetch_policy`.
 fn pin_target<'u>(
     url: &'u url::Url,
     config: &gproxy_client::ConnectionConfig,
@@ -810,6 +866,15 @@ impl<C: BatchConnectionTrait + Send + Sync> Resources<'_, C> {
                 proxy,
                 ..Default::default()
             };
+            if matches!(url.host(), Some(url::Host::Domain(_)))
+                && config.proxy != gproxy_client::ProxyConfig::Direct
+                && !self.core.fetch_policy().allows_proxy_resolution()
+            {
+                return Err(resource_error(
+                    CapabilityErrorKind::Unsupported,
+                    "URL resource host cannot be bound to vetted addresses through a proxy; use direct transport or an operator-approved host allow-list",
+                ));
+            }
             let client = match pin_target(&url, &config, &vetted) {
                 // Connect only where the policy looked. Resolving the name
                 // again at connect time would let a name that answers
@@ -925,7 +990,8 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
             if let Some((_, metadata)) = self.local_metadata(scope, id).await? {
                 return Ok(metadata);
             }
-            self.upstream_metadata(scope, id).await
+            let owned = self.owned_scope(scope, id).await?;
+            self.upstream_metadata(&owned, id).await
         })
     }
 
@@ -960,7 +1026,8 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
                     body: HttpBody::Bytes(bytes),
                 });
             }
-            self.upstream_read(scope, id).await
+            let owned = self.owned_scope(scope, id).await?;
+            self.upstream_read(&owned, id).await
         })
     }
 

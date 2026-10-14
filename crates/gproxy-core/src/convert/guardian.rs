@@ -46,7 +46,7 @@ fn codec(error: gproxy_protocol::codec::CodecError) -> TransformError {
 
 fn fresh_id(prefix: &str) -> String {
     let mut bytes = [0u8; 12];
-    let _ = getrandom::fill(&mut bytes);
+    crate::ids::fill_random(&mut bytes);
     let mut id = String::with_capacity(prefix.len() + 1 + bytes.len() * 2);
     id.push_str(prefix);
     id.push('_');

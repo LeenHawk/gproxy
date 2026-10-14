@@ -5,9 +5,9 @@
 //! counterpart for, and encrypted reasoning it did not produce. v3 narrowed
 //! the body in `grokbuild/shape/responses/`; this is the same narrowing.
 //!
-//! One field is added rather than removed: a `grok-composer-*` model needs a
-//! `prompt_cache_key`, which also becomes the `x-grok-conv-id` header, so one
-//! is minted when the caller sent none.
+//! Defaults follow the CLI: `store: false` and encrypted reasoning for replay.
+//! A `grok-composer-*` model also needs a `prompt_cache_key`, which becomes the
+//! `x-grok-conv-id` header, so one is minted when the caller sent none.
 
 mod reasoning;
 mod tools;
@@ -37,6 +37,7 @@ pub(super) fn request(body: &[u8]) -> Result<Bytes, ChannelError> {
     for name in DROPPED {
         object.remove(*name);
     }
+    object.entry("store").or_insert(Value::Bool(false));
     // The proxy reads a zero or negative `top_p` as "sample nothing".
     if object
         .get("top_p")
@@ -80,7 +81,7 @@ fn ensure_cache_key(object: &mut Map<String, Value>) -> Result<(), ChannelError>
 }
 
 /// A version-4 UUID, the shape the CLI's cache keys have.
-fn uuid() -> Result<String, ChannelError> {
+pub(super) fn uuid() -> Result<String, ChannelError> {
     use std::fmt::Write as _;
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|error| {

@@ -72,6 +72,8 @@ pub struct UsageRecordDto {
     pub metrics: Value,
     pub started_at_ms: i64,
     pub ended_at_ms: Option<i64>,
+    pub duration_ms: Option<i64>,
+    pub ttft_ms: Option<i64>,
 }
 
 impl From<gproxy_core::usage_scan::UsageRecord> for UsageRecordDto {
@@ -94,6 +96,8 @@ impl From<gproxy_core::usage_scan::UsageRecord> for UsageRecordDto {
             metrics: row.metrics,
             started_at_ms: row.started_at_ms,
             ended_at_ms: row.ended_at_ms,
+            duration_ms: row.duration_ms,
+            ttft_ms: row.ttft_ms,
         }
     }
 }
@@ -154,6 +158,9 @@ pub struct UsageSummaryDto {
     pub requests: u64,
     pub input_tokens: u64,
     pub output_tokens: u64,
+    /// Output tokens per second of generation time, excluding first-token wait.
+    /// Only records with reported output tokens, TTFT and positive generation time contribute.
+    pub average_output_tps: Option<f64>,
     pub cached_input_tokens: u64,
     /// Total cache writes across all three retention periods.
     pub cache_creation_tokens: u64,
@@ -238,7 +245,7 @@ pub struct UsageRecordPage {
     pub truncated: bool,
 }
 
-/// Filters for bounded aggregates over physical upstream usage. All filters
+/// Filters for aggregates over physical upstream usage. All filters
 /// run against usage columns; requests and the scan budget count upstream calls,
 /// never downstream associations. A shared call contributes once.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -257,9 +264,8 @@ pub struct UsageQuery {
     /// Only what this credential's attempts account for. See the type note.
     pub credential_id: Option<String>,
     /// How many matching records the aggregation may read before it stops and
-    /// says so. Absent means `query::MAX_SCAN_ROWS`; the value is clamped to
-    /// it, so a caller cannot ask the process to read a year of traffic into
-    /// memory.
+    /// says so. Absent means the full matching range, read in batches.
+    /// An explicit value is clamped to `1..=query::MAX_SCAN_ROWS`.
     pub max_scan_rows: Option<u64>,
 }
 
@@ -295,8 +301,9 @@ pub struct UsageGroupQuery {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageTrendQuery {
-    /// `from_ms` and `to_ms` are required here: buckets are aligned to
-    /// `from_ms` and counted up to `to_ms`, and neither has a sane default.
+    /// `to_ms` is required: buckets are counted up to it. Buckets are aligned
+    /// to `from_ms`; without it they start at the first matching record,
+    /// floored to `bucket_ms`, and there are none if nothing matches.
     pub filter: UsageQuery,
     /// Bucket width in milliseconds. Zero is refused, and so is a range that
     /// would produce more than `query::MAX_TREND_BUCKETS` buckets.

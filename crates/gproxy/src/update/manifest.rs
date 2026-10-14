@@ -57,20 +57,25 @@ pub(super) struct Manifest {
     /// [`super::version::DATA_VERSION`] before anything is downloaded.
     pub min_compatible_data_version: u32,
     pub artifacts: Vec<Artifact>,
+    #[serde(default)]
     pub signature: String,
 }
 
 impl Manifest {
-    /// Parse and verify, in that order and never only the first.
-    ///
-    /// There is no `parse` without the verification, deliberately: a
-    /// `Manifest` value in this module is by construction one whose signature
-    /// checked out, so no call site can forget. `key` is `None` for a build
-    /// compiled without `GPROXY_UPDATE_PUBKEY`, which then refuses every
-    /// manifest rather than accepting an unsigned one.
-    pub(super) fn parse_verified(bytes: &[u8], key: Option<&str>) -> Result<Self, UpdateError> {
+    /// Parse using the operator's signature verification setting.
+    pub(super) fn parse(
+        bytes: &[u8],
+        key: Option<&str>,
+        verify_signature: bool,
+    ) -> Result<Self, UpdateError> {
         let manifest: Self = serde_json::from_slice(bytes).map_err(|_| UpdateError::Manifest)?;
-        signature::verify_detached_with_key(&manifest.signing_payload(), &manifest.signature, key)?;
+        if verify_signature {
+            signature::verify_detached_with_key(
+                &manifest.signing_payload(),
+                &manifest.signature,
+                key,
+            )?;
+        }
         Ok(manifest)
     }
 
@@ -188,7 +193,7 @@ mod tests {
         let public = fixture::public_key(&key);
         let json = fixture::manifest(&key, "release", "4.1.0", None, 4, &[entry()]);
 
-        let manifest = Manifest::parse_verified(json.as_bytes(), Some(&public)).unwrap();
+        let manifest = Manifest::parse(json.as_bytes(), Some(&public), true).unwrap();
         assert_eq!(manifest.version, "4.1.0");
         assert_eq!(manifest.min_compatible_data_version, 4);
 
@@ -206,7 +211,7 @@ mod tests {
         ] {
             let tampered = json.replace(from, to);
             assert_ne!(tampered, json, "the test's own replacement did nothing");
-            let error = Manifest::parse_verified(tampered.as_bytes(), Some(&public))
+            let error = Manifest::parse(tampered.as_bytes(), Some(&public), true)
                 .expect_err(&format!("accepted a manifest with {from} changed to {to}"));
             assert!(matches!(error, UpdateError::Signature), "{error}");
         }
@@ -227,14 +232,14 @@ mod tests {
             4,
             &[entry()],
         );
-        assert!(Manifest::parse_verified(json.as_bytes(), Some(&public)).is_ok());
+        assert!(Manifest::parse(json.as_bytes(), Some(&public), true).is_ok());
         let tampered = json.replace("https://example.test/notes", "https://evil.test/notes");
-        assert!(Manifest::parse_verified(tampered.as_bytes(), Some(&public)).is_err());
+        assert!(Manifest::parse(tampered.as_bytes(), Some(&public), true).is_err());
     }
 
     #[test]
     fn an_unparseable_document_is_a_manifest_failure_not_a_signature_one() {
-        let error = Manifest::parse_verified(b"{}", Some("AA==")).unwrap_err();
+        let error = Manifest::parse(b"{}", Some("AA=="), true).unwrap_err();
         assert!(matches!(error, UpdateError::Manifest), "{error}");
     }
 
@@ -243,7 +248,7 @@ mod tests {
         let key = fixture::signing_key(4);
         let public = fixture::public_key(&key);
         let json = fixture::manifest(&key, "release", "4.1.0", None, 4, &[entry()]);
-        let manifest = Manifest::parse_verified(json.as_bytes(), Some(&public)).unwrap();
+        let manifest = Manifest::parse(json.as_bytes(), Some(&public), true).unwrap();
         assert!(manifest.artifact("x86_64-unknown-linux-gnu").is_ok());
         let error = manifest.artifact("sparc64-unknown-netbsd").unwrap_err();
         assert!(
