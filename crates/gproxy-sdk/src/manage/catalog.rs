@@ -158,14 +158,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Catalog<'_, C> {
             ));
         }
 
-        // Only rules of the same scope collide: a global rule and a provider
-        // rule may carry the same pattern and mean different things.
-        let existing: BTreeMap<String, String> = self
+        let saved_rules = self
             .writer
             .store()
             .price_rules()
             .query(price_rule::Entity::find())
-            .await?
+            .await?;
+        let prices = gproxy_core::pricing::PriceBook::compile(&saved_rules, &[], &[]);
+        // Same-scope rows are replacement targets. Other applicable saved
+        // rules (including inherited global rules) must not be shadowed by a
+        // default import unless the caller explicitly requests overwriting.
+        let existing: BTreeMap<String, String> = saved_rules
             .into_iter()
             .filter(|rule| rule.provider_id == provider_id)
             .map(|rule| (rule.model_pattern, rule.id))
@@ -177,6 +180,15 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Catalog<'_, C> {
         let store = self.writer.store();
 
         for name in &wanted {
+            if !request.overwrite
+                && prices
+                    .rules()
+                    .iter()
+                    .any(|rule| rule.matches(provider_id.as_deref(), name))
+            {
+                report.skipped += 1;
+                continue;
+            }
             let Some(source) = (match &provider_id {
                 Some(_) => price_for(catalog, name),
                 None => model_for(catalog, name).and_then(|model| model.pricing.as_ref()),

@@ -3,13 +3,17 @@
 /**
  * One model an upstream says it offers.
  */
-export type DiscoveredModelDto = { upstreamName: string, 
+export type DiscoveredModelDto = { upstreamName: string,
 /**
  * Whether this provider already has a `provider_models` row for it.
  */
-known: boolean, 
+known: boolean,
 /**
  * Whether the bundled catalog can price it without an operator writing a
  * rule by hand.
  */
-hasDefaultPrice: boolean, metadata: Record<string, unknown>, };
+hasDefaultPrice: boolean,
+/**
+ * A saved provider or global rule matches this upstream model.
+ */
+hasPrice?: boolean, metadata: Record<string, unknown>, };

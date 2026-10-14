@@ -320,9 +320,8 @@ impl PriceBook {
     /// The rule that prices `model` for `operation` on `provider_id`.
     pub fn find(&self, provider_id: &str, model: &str, operation: Operation) -> Option<&PriceRule> {
         self.rules.iter().find(|rule| {
-            rule.provider_id.as_deref().is_none_or(|p| p == provider_id)
+            rule.matches(Some(provider_id), model)
                 && rule.operation.is_none_or(|op| op == operation)
-                && rule.model.is_match(model)
         })
     }
 
@@ -376,6 +375,15 @@ impl PriceBook {
 }
 
 impl PriceRule {
+    /// Match the same scope and model glob used for settlement. No provider
+    /// means the global catalog, where provider-specific rules do not apply.
+    pub fn matches(&self, provider_id: Option<&str>, model: &str) -> bool {
+        self.provider_id
+            .as_deref()
+            .is_none_or(|id| Some(id) == provider_id)
+            && self.model.is_match(model)
+    }
+
     /// The rate row for `metric`: the first conditional row whose conditions
     /// all match the usage dimensions, else the first unconditional row.
     fn rate(&self, metric: &str, usage: &NormalizedUsage) -> Option<Decimal> {

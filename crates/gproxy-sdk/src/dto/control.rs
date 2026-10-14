@@ -309,6 +309,10 @@ impl From<gproxy_core::CredentialSummary> for CredentialSummaryDto {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ModelDto {
+    /// Saved, enabled rules matching this model, in billing precedence order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub price_rules: Option<Vec<super::PriceRuleDto>>,
     #[serde(default)]
     pub providers: Vec<super::CatalogProviderDto>,
     pub id: String,
@@ -321,6 +325,7 @@ pub struct ModelDto {
 impl From<model::Model> for ModelDto {
     fn from(row: model::Model) -> Self {
         Self {
+            price_rules: None,
             providers: Vec::new(),
             id: row.id,
             name: row.name,
@@ -364,6 +369,10 @@ pub struct ModelPatch {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ProviderModelDto {
+    /// Saved, enabled rules matching this model, in billing precedence order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub price_rules: Option<Vec<super::PriceRuleDto>>,
     pub id: String,
     pub provider_id: String,
     /// The name this provider's upstream answers to, not the public one.
@@ -372,7 +381,7 @@ pub struct ProviderModelDto {
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub metadata: Value,
     pub enabled: bool,
-    /// Exact enabled provider price rule exists; populated by list.
+    /// A saved enabled provider or global price rule matches; populated by reads.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts", ts(optional))]
     pub has_price: Option<bool>,
@@ -388,6 +397,7 @@ impl From<provider_model::Model> for ProviderModelDto {
             metadata: row.metadata,
             enabled: row.enabled,
             has_price: None,
+            price_rules: None,
         }
     }
 }

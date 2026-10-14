@@ -5,11 +5,12 @@ import { BadgeDollarSign, Info, ListChecks, Pencil, Plus, Search, Trash2 } from 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { applyDefaultPrices, defaultModels, models, priceRules } from "@/api/models"
+import { applyDefaultPrices, defaultModels, models, priceRules, priceRates, priceTiers, directory } from "@/api/models"
+import { baseRateFor, priceRuleFor } from "@/lib/model-pricing"
 import { matchingModel } from "@/lib/model-catalog"
 import { providerPath } from "@/api/configuration"
 import { Link } from "@/components/link"
-import type { CatalogProviderDto, DefaultModelDto } from "@/generated/sdk"
+import type { CatalogProviderDto, DefaultModelDto, PriceRateDto, PriceRuleDto } from "@/generated/sdk"
 import { object } from "@/components/providers/provider-model-state"
 import { Page, PageHeader } from "@/components/page"
 import { DataTable, Pagination } from "@/components/data-table"
@@ -25,13 +26,19 @@ import { ModelCapabilities, ModelIdentity, ModelLimits, ModelSummaryCard } from 
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ModelPricingDialog } from "@/pages/providers/model-pricing"
 
-type Row = { id?: string; name: string; metadata: Record<string, unknown>; providers?: CatalogProviderDto[]; defaults?: DefaultModelDto | null }
+type Row = { priceRules?: PriceRuleDto[]; id?: string; name: string; metadata: Record<string, unknown>; providers?: CatalogProviderDto[]; defaults?: DefaultModelDto | null }
 const metadataFields = ["display_name", "description", "context_window", "max_output_tokens", "input_modalities", "output_modalities", "supported_parameters"] as const
 const strings = (value: unknown) => Array.isArray(value) ? value.join(", ") : "—"
 
-function ReferencePrice({ model }: { model?: DefaultModelDto | null }) {
+function ConfiguredPrice({ rules, rates }: { rules: readonly PriceRuleDto[]; rates: readonly PriceRateDto[] }) {
   const { t } = useTranslation()
-  return <div className="flex flex-col gap-1 text-sm"><dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1">{["input_tokens", "output_tokens"].map((metric, index) => <div key={metric} className="contents"><dt className="text-muted-foreground">{t(index ? "catalog.tierFields.outputPrice" : "catalog.tierFields.inputPrice")}</dt><dd className="text-right font-mono tabular-nums">{model?.pricing?.rates.find(rate => rate.metric === metric)?.price ?? "—"}</dd></div>)}</dl>{model?.pricing?.tiers?.length ? <Badge variant="outline">{t("catalog.tierCount", { count: model.pricing.tiers.length })}</Badge> : null}</div>
+  const rule = priceRuleFor(rules)
+  if (!rule) return rules.length ? <Badge variant="outline">{t("modelUI.pricingByOperation")}</Badge> : <span className="text-muted-foreground">—</span>
+  if (!["input_tokens", "output_tokens"].some(metric => baseRateFor(rates, rule.id, metric))) return <Badge variant="secondary">{t("providers.models.priced")}</Badge>
+  return <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-sm">{["input_tokens", "output_tokens"].map((metric, index) => {
+    const rate = baseRateFor(rates, rule.id, metric)
+    return <div key={metric} className="contents"><dt className="text-muted-foreground">{t(index ? "catalog.tierFields.outputPrice" : "catalog.tierFields.inputPrice")}</dt><dd className="text-right font-mono tabular-nums">{rate ? `${rate.value} ${rule.currency} / ${rate.unitQuantity} ${t(`modelUI.units.${rate.unit}`)}` : "—"}</dd></div>
+  })}</dl>
 }
 
 function ModelProviders({ providers }: { providers: readonly CatalogProviderDto[] }) {
@@ -47,7 +54,13 @@ export function ModelCatalogPage() {
   const request = { page, pageSize, search: search.trim() || undefined }
   const list = useQuery({ queryKey: ["admin", "/models", request], queryFn: () => models.list(request) })
   const defaults = useQuery({ queryKey: ["default-model-catalog"], queryFn: defaultModels })
+  const savedRates = useQuery({ queryKey: ["admin", "/price-rates", "catalog"], queryFn: () => directory(priceRates) })
+  const savedTiers = useQuery({ queryKey: ["admin", "/price-tiers", "catalog"], queryFn: () => directory(priceTiers), enabled: !!detail })
   const rows: Row[] = (list.data?.items ?? []).map(row => ({ ...row, metadata: object(row.metadata), defaults: matchingModel(defaults.data?.models ?? [], row.name, model => model.modelId) }))
+  const detailRules = (rows.find(row => row.id === detail?.id)?.priceRules ?? detail?.priceRules) ?? []
+  const detailRuleIds = new Set(detailRules.map(rule => rule.id))
+  const detailRates = (savedRates.data ?? []).filter(rate => detailRuleIds.has(rate.priceRuleId))
+  const detailTiers = (savedTiers.data ?? []).filter(tier => detailRuleIds.has(tier.priceRuleId))
   const refresh = () => Promise.all([client.invalidateQueries({ queryKey: ["admin", "/models"] }), client.invalidateQueries({ queryKey: ["discover-models"] })])
   const save = useMutation({ mutationFn: async (body: Record<string, unknown>) => {
     const metadata = { ...object(editing?.metadata) }
@@ -81,7 +94,7 @@ export function ModelCatalogPage() {
   if (list.data && visiblePage !== page) setPage(visiblePage)
   const openPricing = useMutation({ mutationFn: async (row: Row) => {
     const exact = await priceRules.list({ globalOnly: true, modelPattern: row.name, pageSize: 1 })
-    return exact.total ? row.name : row.defaults?.pricing?.modelPattern ?? row.name
+    return exact.total ? row.name : row.priceRules?.[0]?.modelPattern ?? row.defaults?.pricing?.modelPattern ?? row.name
   }, onSuccess: setPricing })
   const actions = (row: Row) => <>
     <Button variant="ghost" size="icon-sm" aria-label={`${t("catalog.details")}: ${row.name}`} title={t("catalog.details")} onClick={() => setDetail(row)}><Info /></Button>
@@ -105,15 +118,15 @@ export function ModelCatalogPage() {
       </div> : null}
     </div>
     {save.error || remove.error || apply.error || bulk.error || openPricing.error ? <ErrorNotice error={save.error || remove.error || apply.error || bulk.error || openPricing.error} /> : null}
-    <QueryState isPending={list.isPending} error={list.error}>
+    <QueryState isPending={list.isPending || savedRates.isPending} error={list.error ?? savedRates.error}>
       <DataTable paginate={false} rows={rows} rowKey={r => r.name} empty={<EmptyNotice title={t("state.emptyTitle")} />} columns={[
         ...(batchMode ? [{ key: "selection", header: t("management.select"), cell: (r: Row) => checkbox(r) }] : []),
         { key: "name", cell: r => <ModelIdentity name={r.name} /> },
         { key: "providers", header: t("catalog.providerInstances"), cell: r => <ModelProviders providers={r.providers ?? []} /> },
         { key: "limits", header: t("catalog.limits"), cell: r => <ModelLimits metadata={r.metadata} /> },
         { key: "capabilities", header: t("catalog.capabilities"), cell: r => <ModelCapabilities metadata={r.metadata} /> },
-        { key: "price", header: t("catalog.referencePrice"), cell: r => <ReferencePrice model={r.defaults} /> },
-      ]} actions={actions} renderCard={r => <ModelSummaryCard name={r.name} metadata={r.metadata} control={checkbox(r)} actions={actions(r)}><div className="flex flex-col gap-1"><span className="text-sm text-muted-foreground">{t("catalog.providerInstances")}</span><ModelProviders providers={r.providers ?? []} /></div><div className="flex items-start justify-between gap-3 border-t pt-3"><span className="text-sm text-muted-foreground">{t("catalog.referencePrice")}</span><ReferencePrice model={r.defaults} /></div></ModelSummaryCard>} />
+        { key: "price", header: t("modelUI.configuredPrice"), cell: r => <ConfiguredPrice rules={r.priceRules ?? []} rates={savedRates.data ?? []} /> },
+      ]} actions={actions} renderCard={r => <ModelSummaryCard name={r.name} metadata={r.metadata} control={checkbox(r)} actions={actions(r)}><div className="flex flex-col gap-1"><span className="text-sm text-muted-foreground">{t("catalog.providerInstances")}</span><ModelProviders providers={r.providers ?? []} /></div><div className="flex items-start justify-between gap-3 border-t pt-3"><span className="text-sm text-muted-foreground">{t("modelUI.configuredPrice")}</span><ConfiguredPrice rules={r.priceRules ?? []} rates={savedRates.data ?? []} /></div></ModelSummaryCard>} />
       <Pagination page={visiblePage} pageSize={pageSize} total={list.data?.total ?? 0} onPage={setPage} onPageSize={setPageSize} />
     </QueryState>
     {editing ? <RecordDialog open mode={editing.name ? "edit" : "create"} onOpenChange={open => { if (!open && !save.isPending) setEditing(null) }} title={t("actions.edit")} fields={fields} original={{ name: editing.name, ...editing.metadata }} pending={save.isPending} error={save.error} onSubmit={body => save.mutate(body)} /> : null}
@@ -123,17 +136,17 @@ export function ModelCatalogPage() {
       <div className="mb-3 flex flex-wrap gap-2">{detail.defaults?.pricing ? <Button disabled={apply.isPending} onClick={() => apply.mutate(detail)}>{t("catalog.applyPrice")}</Button> : null}{detail.id ? <ConfirmButton title={t("confirm.deleteTitle", { name: detail.name })} disabled={remove.isPending} onConfirm={() => remove.mutate(detail.id!, { onSuccess: () => setDetail(null) })}>{t("actions.delete")}</ConfirmButton> : null}</div>
       {apply.error || remove.error ? <ErrorNotice error={apply.error || remove.error} /> : null}
       <p className="mb-3 whitespace-pre-wrap text-sm">{String(detail.metadata.description ?? "")}</p>
-      <DataTable rows={detail.defaults?.pricing?.rates ?? []} rowKey={r => r.metric} empty={<EmptyNotice title={t("state.emptyTitle")} />} columns={[
+      <DataTable rows={detailRates} rowKey={r => r.id} empty={<EmptyNotice title={t("state.emptyTitle")} />} columns={[
         { key: "metric", header: t("modelUI.priceFields.metric"), cell: r => t(`modelUI.metrics.${r.metric}`, { defaultValue: r.metric }) },
-        { key: "value", header: t("modelUI.priceFields.value"), cell: r => `${r.price} USD / ${r.unitSize}` },
+        { key: "value", header: t("modelUI.priceFields.value"), cell: r => `${r.value} ${detailRules.find(rule => rule.id === r.priceRuleId)?.currency ?? "USD"} / ${r.unitQuantity} ${t(`modelUI.units.${r.unit}`)}` },
       ]} />
       <dl className="my-4 flex flex-col gap-2 text-sm">{["input_modalities", "output_modalities", "supported_parameters"].map(key => <div key={key}><dt className="text-muted-foreground">{t(`catalog.${key}`)}</dt><dd className="break-words">{strings(detail.metadata[key])}</dd></div>)}</dl>
       <h3 className="my-3 text-sm font-medium">{t("modelUI.tiers")}</h3>
-      <DataTable rows={(detail.defaults?.pricing?.tiers ?? []).map((tier, index) => ({ ...tier, id: String(index) }))} rowKey={r => r.id} empty={<EmptyNotice title={t("state.emptyTitle")} />} columns={[
+      <QueryState isPending={savedTiers.isPending} error={savedTiers.error}><DataTable rows={detailTiers} rowKey={r => r.id} empty={<EmptyNotice title={t("state.emptyTitle")} />} columns={[
         { key: "threshold", header: t("modelUI.priceFields.minPromptTokens"), cell: r => r.minPromptTokens ?? 0 },
         { key: "service", header: t("modelUI.priceFields.serviceTier"), cell: r => r.serviceTier ?? "—" },
-        { key: "rates", header: t("modelUI.rates"), cell: r => <div className="whitespace-normal">{Object.entries(r).filter(([key, value]) => key.endsWith("Price") && value != null).map(([key, value]) => <div key={key}>{t(`catalog.tierFields.${key}`, { defaultValue: key })}: {String(value)}</div>)}</div> },
-      ]} />
+        { key: "rates", header: t("modelUI.rates"), cell: r => <div className="whitespace-normal">{Object.entries(r).filter(([key, value]) => key.endsWith("PerMillion") && value != null).map(([key, value]) => <div key={key}>{t(`modelUI.priceFields.${key}`, { defaultValue: key })}: {String(value)}</div>)}</div> },
+      ]} /></QueryState>
     </DialogBody></DialogContent></Dialog> : null}
   </Page>
 }

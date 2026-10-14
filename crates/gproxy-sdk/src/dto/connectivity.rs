@@ -124,6 +124,10 @@ pub struct DiscoveredModelDto {
     /// Whether the bundled catalog can price it without an operator writing a
     /// rule by hand.
     pub has_default_price: bool,
+    /// A saved provider or global rule matches this upstream model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub has_price: Option<bool>,
     #[cfg_attr(feature = "ts", ts(type = "Record<string, unknown>"))]
     pub metadata: serde_json::Value,
 }

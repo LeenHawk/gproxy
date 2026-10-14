@@ -586,6 +586,11 @@
     "noPresets": "沒有符合的預設"
   },
   "modelUI": {
+    "configuredPrice": "已設定輸入 / 輸出單價",
+    "pricingByOperation": "按操作定價",
+    "hasDefaultPrice": "有預設參考價",
+    "inheritedPrice": "繼承全域定價：{{pattern}}。如需覆寫，請新增供應商規則。",
+    "matchedPrice": "符合定價規則：{{pattern}}。如需覆寫，請新增目前模型規則。",
     "invalidVariants": "變體名稱不能重複或為空，也不能包含萬用字元。",
     "defaultMetadata": "匯入預設中繼資料",
     "testOk": "測試成功",

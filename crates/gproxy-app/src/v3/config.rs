@@ -803,6 +803,7 @@ fn provider_model(row: &document::ProviderModel) -> ProviderModelDto {
     }
     ProviderModelDto {
         has_price: None,
+        price_rules: None,
         id: ids::id("provider_models", row.id),
         provider_id: ids::id("providers", row.provider_id),
         // v3's `model_id` was the upstream's own name for the model.

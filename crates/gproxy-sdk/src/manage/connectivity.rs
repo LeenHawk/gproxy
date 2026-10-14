@@ -302,11 +302,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             .models()
             .query(model::Entity::find())
             .await?;
+        let prices = super::pricing::ModelPriceRules::load(self.writer).await?;
         model_names(dialect, &document)
             .into_iter()
             .map(|upstream_name| {
                 Ok(DiscoveredModelDto {
                     known: known.contains(upstream_name.as_str()),
+                    has_price: Some(prices.has_price(Some(provider_id), &upstream_name)),
                     has_default_price: catalog::has_default_price(&upstream_name),
                     metadata: import_metadata(
                         &upstream_name,
@@ -478,6 +480,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
                         metadata: model_metadata(Some(row))?,
                         known: false,
                         has_default_price: false,
+                        has_price: None,
                     })
                 })
                 .collect::<SdkResult<Vec<_>>>()

@@ -586,6 +586,11 @@
     "noPresets": "没有匹配的预设"
   },
   "modelUI": {
+    "configuredPrice": "已配置输入 / 输出单价",
+    "pricingByOperation": "按操作定价",
+    "hasDefaultPrice": "有默认参考价",
+    "inheritedPrice": "继承全局定价：{{pattern}}。如需覆盖，请新建供应商规则。",
+    "matchedPrice": "匹配定价规则：{{pattern}}。如需覆盖，请新建当前模型规则。",
     "invalidVariants": "变体名称不能重复或为空，也不能包含通配符。",
     "defaultMetadata": "导入默认元数据",
     "testOk": "测试成功",

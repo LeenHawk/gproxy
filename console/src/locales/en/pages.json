@@ -586,6 +586,11 @@
     "noPresets": "No matching presets"
   },
   "modelUI": {
+    "configuredPrice": "Configured input / output price",
+    "pricingByOperation": "Operation-specific pricing",
+    "hasDefaultPrice": "Default reference price available",
+    "inheritedPrice": "Inherited global pricing: {{pattern}}. Create a provider rule to override it.",
+    "matchedPrice": "Matched pricing rule: {{pattern}}. Create an exact model rule to override it.",
     "invalidVariants": "Variant names must be unique, nonempty, and contain no wildcards.",
     "defaultMetadata": "Import default metadata",
     "testOk": "Test succeeded",
