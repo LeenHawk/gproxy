@@ -269,8 +269,9 @@ revision 提交**，因此任何一處被拒絕的文件什麼也不會留下。
 - 原生 `gproxy serve` 跟隨資料庫更新程序日誌級別／格式、更新通道和自動檢查開關。
 - `enableTokenizerVocabs=false` 停用自定義詞表並回退內建計數；不刪除詞表檔案。
 - `enableTokenizerDownload=false` 拒絕新下載；已有詞表是否使用由前一個開關控制。
-- `retentionDays` 清理超過保留期的已結束請求歷史、抓包及其事件；未設定時不按時間清理。
-- `maxDatabaseSizeMb` 以 MiB 限制 SQLite 歷史資料佔用，從最舊的已完成記錄開始清理並回收空頁。
+- `retentionDays` 清理超過保留期的已結束請求歷史、抓包及其事件；未設定時不按時間清理。用量記錄不屬於請求歷史，不會被清理。
+- `usageRetentionDays` 清理超過保留期的用量記錄。用量統計和總金額都由用量記錄計算，預設不設定，即永久保留。
+- `maxDatabaseSizeMb` 以 MiB 限制 SQLite 歷史資料佔用，從最舊的已完成請求記錄開始清理並回收空頁；不會為控制大小刪除用量記錄。
   未設定或 0 不啟用此限制。配置和進行中的請求不刪除，因此該值不是整個資料庫的硬配額。
   自動清理由原生服務每分鐘執行；已結算賬目、配額計數、配置及審計記錄保持不變。
 - `defaultFileStorageName`、`maxInFlight`、`fileUploadMaxInFlight` 已移除，不是可設定項。
@@ -302,7 +303,7 @@ curl -s -X PATCH http://127.0.0.1:8787/admin/api/settings \
 | `enableSettlement`、`enableUsage` | `true` | 定價與用量行 |
 | `enableTokenizerVocabs` | `true` | 用真實詞表計數 |
 | `enableTokenizerDownload` | `false` | 抓取未快取的詞表 |
-| `retentionDays`、`maxDatabaseSizeMb` | 未設 | |
+| `retentionDays`、`usageRetentionDays`、`maxDatabaseSizeMb` | 未設 | |
 | `portalRecentRequestsEnabled` | `true` | 使用者面是否展示近期請求 |
 | `corsOrigins`、`trustedProxies`、`connectionProfileId`、`oauthClientAllowlist` | | 同一批策略在資料庫裡的那一份 |
 | `configRevision` | | 只讀：每個實例據以同步的 revision |

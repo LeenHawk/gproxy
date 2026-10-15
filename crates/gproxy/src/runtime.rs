@@ -52,6 +52,7 @@ pub fn start(app: &Arc<App<DatabaseConnection>>, updater: Arc<Updater>) -> Runti
                     settings.max_database_size_mb,
                     settings.capture_payload_retention_days,
                     settings.capture_payload_max_mb,
+                    settings.usage_retention_days,
                 );
                 if cleanup_policy != Some(policy)
                     || last_cleanup.elapsed() >= Duration::from_secs(60)
@@ -60,6 +61,7 @@ pub fn start(app: &Arc<App<DatabaseConnection>>, updater: Arc<Updater>) -> Runti
                     if let Err(error) = maintenance::clean(
                         db,
                         policy.0,
+                        policy.5,
                         policy.1,
                         policy.2,
                         std::time::SystemTime::now()

@@ -279,8 +279,9 @@ instance name, binary version and full Git commit hash.
 - Native `gproxy serve` follows database changes to the process log level/format, update channel and scheduled-check switch.
 - `enableTokenizerVocabs=false` drops custom vocabularies from estimation and uses the built-in fallback without deleting files.
 - `enableTokenizerDownload=false` refuses new downloads independently of using existing vocabularies.
-- `retentionDays` prunes completed request history, captures and capture events older than the selected age. Unset disables age cleanup.
-- `maxDatabaseSizeMb` limits SQLite history occupancy in MiB, deleting oldest completed records and reclaiming freed pages. Unset or zero disables the limit. Configuration and active work are retained, so this is not a hard quota on the whole database.
+- `retentionDays` prunes completed request history, captures and capture events older than the selected age. Unset disables age cleanup. Usage records are not request history and are kept.
+- `usageRetentionDays` prunes usage records older than the selected age. Usage statistics and totals are computed from them, so unset, the default, keeps every record.
+- `maxDatabaseSizeMb` limits SQLite history occupancy in MiB, deleting oldest completed request records and reclaiming freed pages. Usage records are never deleted for size. Unset or zero disables the limit. Configuration and active work are retained, so this is not a hard quota on the whole database.
 - The native service runs cleanup every minute. Settled balances, quota counters, configuration and audit records are retained.
 - `defaultFileStorageName`, `maxInFlight` and `fileUploadMaxInFlight` have been removed.
 
@@ -311,7 +312,7 @@ One row, two groups. The instance group:
 | `enableSettlement`, `enableUsage` | `true` | pricing and the usage row |
 | `enableTokenizerVocabs` | `true` | count with a real vocabulary |
 | `enableTokenizerDownload` | `false` | fetch an uncached vocabulary |
-| `retentionDays`, `maxDatabaseSizeMb` | unset | |
+| `retentionDays`, `usageRetentionDays`, `maxDatabaseSizeMb` | unset | |
 | `portalRecentRequestsEnabled` | `true` | whether the portal shows recent requests |
 | `corsOrigins`, `trustedProxies`, `connectionProfileId`, `oauthClientAllowlist` | | the database's copy of the same policies |
 | `configRevision` | | read-only: the revision every instance synchronizes on |

@@ -502,8 +502,9 @@ payload retention / size limit** in the Console, or PATCH the instance settings:
 
 These are database settings, like `retentionDays`, rather than startup environment
 variables. `null` disables one limit; zero expires completed payloads immediately
-or gives them a zero-byte budget. Metadata/usage history follows the independent
-`retentionDays` policy. Active captures are retained. The cap counts encoded
+or gives them a zero-byte budget. Request metadata follows the independent
+`retentionDays` policy and usage records `usageRetentionDays`, which by default
+keeps them all. Active captures are retained. The cap counts encoded
 payload bytes and manifests, not SQLite pages or indexes; SQLite reuses freed
 pages, while its separate `maxDatabaseSizeMb` policy governs physical cleanup.
 Embedders/edge schedulers can call `Store::prune_capture_payloads` explicitly.

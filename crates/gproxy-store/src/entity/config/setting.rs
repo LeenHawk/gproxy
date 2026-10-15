@@ -127,8 +127,12 @@ pub struct Model {
     pub query_parameter_blacklist: Json,
 
     // Files and maintenance
-    /// Completed request history retention; None disables age-based cleanup.
+    /// Completed request capture retention (downstream and upstream records);
+    /// None disables age-based cleanup. Usage is kept on its own clock.
     pub retention_days: Option<u32>,
+    /// Usage record retention. None, the default, keeps every record: usage
+    /// is the only source of usage statistics and totals, and a row is small.
+    pub usage_retention_days: Option<u32>,
     /// Full capture payload TTL, independent of metadata history. None disables it.
     #[sea_orm(default_value = 7)]
     pub capture_payload_retention_days: Option<u32>,

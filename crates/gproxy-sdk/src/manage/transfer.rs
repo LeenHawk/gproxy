@@ -1306,6 +1306,7 @@ mod rows {
             enable_tokenizer_download: Set(instance.enable_tokenizer_download),
             default_vocabulary_file_id: Set(vocabulary),
             retention_days: Set(instance.retention_days),
+            usage_retention_days: Set(instance.usage_retention_days),
             capture_payload_retention_days: Set(instance.capture_payload_retention_days),
             capture_payload_max_mb: Set(instance.capture_payload_max_mb),
             quota_observation_retention_days: Set(instance.quota_observation_retention_days),

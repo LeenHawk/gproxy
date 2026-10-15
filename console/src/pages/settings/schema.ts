@@ -82,6 +82,7 @@ export const groups = [
     id: "maintenance",
     fields: [
       instance("retentionDays", "number", { nullable: true, min: 1 }),
+      instance("usageRetentionDays", "number", { nullable: true, min: 1 }),
       instance("capturePayloadRetentionDays", "number", { nullable: true, min: 0 }),
       instance("capturePayloadMaxMb", "number", { nullable: true, min: 0 }),
       instance("maxDatabaseSizeMb", "number", { nullable: true, min: 0 }),

@@ -1,6 +1,6 @@
-//! Retain configuration and settled balances; prune completed request history
-//! and, on its own clock, the upstream quota observation log; drop rows whose
-//! expiry has passed.
+//! Retain configuration and settled balances; prune completed request
+//! captures and, each on its own clock, usage records and the upstream quota
+//! observation log; drop rows whose expiry has passed.
 use crate::Result;
 use gproxy_store::{
     Store,
@@ -31,6 +31,7 @@ const OAUTH_REPLAY_WINDOW_MS: i64 = 7 * 86_400_000;
 pub async fn clean(
     db: &DatabaseConnection,
     days: Option<u32>,
+    usage_days: Option<u32>,
     observation_days: Option<u32>,
     max_mb: Option<i64>,
     now: i64,
@@ -67,6 +68,19 @@ pub async fn clean(
         let cutoff = now.saturating_sub(i64::from(days) * 86_400_000);
         loop {
             let count = prune(db, cutoff).await?;
+            removed += count;
+            if count == 0 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    }
+    // Usage is what every usage statistic and total is summed from, so it
+    // never goes with the captures: only its own retention removes it.
+    if let Some(days) = usage_days {
+        let cutoff = now.saturating_sub(i64::from(days) * 86_400_000);
+        loop {
+            let count = prune_usage(db, cutoff).await?;
             removed += count;
             if count == 0 {
                 break;
@@ -152,6 +166,8 @@ async fn page_counts(db: &DatabaseConnection) -> Result<(i64, i64, i64)> {
     Ok((values[0], values[1], values[2]))
 }
 
+/// One batch of completed downstream and upstream captures older than
+/// `cutoff`, oldest first. Usage records are not captures; see [`prune_usage`].
 async fn prune(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
     let store = Store::new(db.clone());
     let downstream: Vec<String> = downstream_record::Entity::find()
@@ -174,6 +190,18 @@ async fn prune(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
         .into_tuple()
         .all(db)
         .await?;
+    // Capture events have cascading foreign keys.
+    store.downstream_records().delete_many(&downstream).await?;
+    store.upstream_records().delete_many(&upstream).await?;
+    let links = prune_links(&store).await?;
+    Ok((downstream.len() + upstream.len() + links) as u64)
+}
+
+/// One batch of usage records older than `cutoff`, oldest first. Usage is
+/// history, not the settled quota counters, billing entries or subscription
+/// windows, which stay correct without it.
+async fn prune_usage(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
+    let store = Store::new(db.clone());
     let usage: Vec<String> = usage_record::Entity::find()
         .select_only()
         .column(usage_record::Column::RequestId)
@@ -183,13 +211,14 @@ async fn prune(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
         .into_tuple()
         .all(db)
         .await?;
-    // Capture events have cascading foreign keys. Usage is history,
-    // not the settled quota counters, billing entries or subscription windows.
-    store.downstream_records().delete_many(&downstream).await?;
-    store.upstream_records().delete_many(&upstream).await?;
     store.usage_records().delete_many(&usage).await?;
-    // Keep an association while either capture or its upstream usage survives.
-    // Bound this sweep just like the record sweeps; a shared call remains linked.
+    let links = prune_links(&store).await?;
+    Ok((usage.len() + links) as u64)
+}
+
+/// Keep an association while either capture or its upstream usage survives.
+/// Bound this sweep just like the record sweeps; a shared call remains linked.
+async fn prune_links(store: &Store<DatabaseConnection>) -> Result<usize> {
     let live_upstream = upstream_record::Entity::find()
         .select_only()
         .column(upstream_record::Column::Id)
@@ -221,7 +250,7 @@ async fn prune(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
                 .collect::<Vec<_>>(),
         )
         .await?;
-    Ok((downstream.len() + upstream.len() + usage.len() + links.len()) as u64)
+    Ok(links.len())
 }
 
 /// Quota observations older than `cutoff`, oldest first. Only the raw log:
@@ -356,7 +385,9 @@ mod tests {
     async fn retention_keeps_active_work_and_configuration() {
         let db = fixture().await;
         assert_eq!(
-            clean(&db, Some(1), None, None, 200_000_000).await.unwrap(),
+            clean(&db, Some(1), None, None, None, 200_000_000)
+                .await
+                .unwrap(),
             1
         );
         assert!(
@@ -455,7 +486,7 @@ mod tests {
             .unwrap();
         }
         // Retention is off: expiry is not history and is pruned regardless.
-        assert_eq!(clean(&db, None, None, None, now).await.unwrap(), 2);
+        assert_eq!(clean(&db, None, None, None, None, now).await.unwrap(), 2);
         let sessions: Vec<String> = user_session::Entity::find()
             .all(&db)
             .await
@@ -482,7 +513,12 @@ mod tests {
     async fn sqlite_budget_reclaims_completed_history() {
         let db = fixture().await;
         assert!(occupied_bytes(&db).await.unwrap() > 1024 * 1024);
-        assert!(clean(&db, None, None, Some(1), 300_000_000).await.unwrap() > 0);
+        assert!(
+            clean(&db, None, None, None, Some(1), 300_000_000)
+                .await
+                .unwrap()
+                > 0
+        );
         assert!(occupied_bytes(&db).await.unwrap() <= 1024 * 1024);
         assert!(
             downstream_record::Entity::find_by_id("active")
@@ -535,7 +571,10 @@ mod tests {
             .await
             .unwrap();
         // Request history is off; the observation clock runs on its own.
-        assert_eq!(clean(&db, None, Some(90), None, now).await.unwrap(), 1);
+        assert_eq!(
+            clean(&db, None, None, Some(90), None, now).await.unwrap(),
+            1
+        );
         let left: Vec<String> = credential_quota_cycle::Entity::find()
             .all(&db)
             .await
@@ -552,7 +591,10 @@ mod tests {
                 .is_some()
         );
         // None keeps every observation.
-        assert_eq!(clean(&db, None, None, None, now * 2).await.unwrap(), 0);
+        assert_eq!(
+            clean(&db, None, None, None, None, now * 2).await.unwrap(),
+            0
+        );
     }
 
     #[tokio::test]
@@ -575,7 +617,7 @@ mod tests {
             .await
             .unwrap();
         }
-        assert_eq!(clean(&db, None, None, None, now).await.unwrap(), 1);
+        assert_eq!(clean(&db, None, None, None, None, now).await.unwrap(), 1);
         let mut left: Vec<String> = protocol_state::Entity::find()
             .all(&db)
             .await

@@ -217,6 +217,9 @@ function SettingsForm({ original }: { original: SettingsDto }) {
                 <FieldLabel htmlFor={`${id}-${field.name}`}>{t(`setting.${field.name}`)}</FieldLabel>
                 {control(field)}
                 {field.name === "allowedHeaders" ? <FieldDescription>{t("setting.allowedHeadersHelp")}</FieldDescription> : null}
+                {field.name === "retentionDays" ? <FieldDescription>{t("setting.retentionDaysHelp")}</FieldDescription> : null}
+                {field.name === "usageRetentionDays" ? <FieldDescription>{t("setting.usageRetentionDaysHelp")}</FieldDescription> : null}
+                {field.name === "maxDatabaseSizeMb" ? <FieldDescription>{t("setting.maxDatabaseSizeMbHelp")}</FieldDescription> : null}
               </Field>
             ))}
             {group.id === "tokenizer" ? (

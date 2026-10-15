@@ -301,9 +301,13 @@
     "defaultVocabularyFileId": "預設詞表",
     "tokenizerAuthToken": "詞表下載權杖",
     "retentionDays": "請求歷史保留天數",
+    "retentionDaysHelp": "刪除超過該天數的已結束請求記錄與封包擷取，不刪除用量記錄。",
+    "usageRetentionDays": "用量保留天數",
+    "usageRetentionDaysHelp": "刪除超過該天數的用量記錄。用量統計和總金額都由用量記錄計算，留空則永久保留。",
     "capturePayloadRetentionDays": "擷取本文保留天數",
     "capturePayloadMaxMb": "擷取本文大小上限（MiB）",
     "maxDatabaseSizeMb": "SQLite 資料庫大小上限（MiB）",
+    "maxDatabaseSizeMbHelp": "超出上限時，從最舊的已結束請求記錄開始刪除，不刪除用量記錄。",
     "updateSource": "更新來源",
     "updateChannel": "更新管道",
     "enableAutoUpdateCheck": "自動檢查更新",
@@ -337,7 +341,7 @@
     "configured": "已設定",
     "notConfigured": "未設定",
     "clearToken": "移除權杖",
-    "cleanupScope": "清理僅刪除已結束的請求歷史和封包擷取，不影響設定與已結算額度。留空不啟用對應策略；大小填 0 表示不限制。"
+    "cleanupScope": "清理不影響設定與已結算額度。留空不啟用對應策略；大小填 0 表示不限制。"
   },
   "settingsOption": {
     "github": "GitHub",

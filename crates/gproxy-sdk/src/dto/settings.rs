@@ -60,6 +60,7 @@ impl From<setting::Model> for SettingsDto {
                     .tokenizer_auth_token
                     .is_some_and(|token| !token.is_empty()),
                 retention_days: row.retention_days,
+                usage_retention_days: row.usage_retention_days,
                 capture_payload_retention_days: row.capture_payload_retention_days,
                 capture_payload_max_mb: row.capture_payload_max_mb,
                 quota_observation_retention_days: row.quota_observation_retention_days,
@@ -131,7 +132,13 @@ pub struct InstanceSettingsDto {
     /// The vocabulary source token is sealed like a credential secret; only
     /// its presence is reported.
     pub has_tokenizer_auth_token: bool,
+    /// Days of completed request captures to keep; None keeps them all.
     pub retention_days: Option<u32>,
+    /// Days of usage records to keep; None keeps them all. Usage statistics
+    /// and totals are computed from these. Absent in an older export, which
+    /// reads as keeping everything.
+    #[serde(default)]
+    pub usage_retention_days: Option<u32>,
     #[serde(default = "default_capture_retention")]
     pub capture_payload_retention_days: Option<u32>,
     #[serde(default = "default_capture_max_mb")]
@@ -248,6 +255,9 @@ pub struct InstanceSettingsPatch {
     pub tokenizer_auth_token: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub retention_days: Option<Option<u32>>,
+    /// `null` keeps every usage record.
+    #[serde(default, deserialize_with = "double_option")]
+    pub usage_retention_days: Option<Option<u32>>,
     #[serde(default, deserialize_with = "double_option")]
     pub capture_payload_retention_days: Option<Option<u32>>,
     #[serde(default, deserialize_with = "double_option")]

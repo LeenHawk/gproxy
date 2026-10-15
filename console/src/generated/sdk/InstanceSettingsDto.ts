@@ -13,7 +13,17 @@ alwaysSecureCookie: boolean, maxAttempts: number, enableSettlement: boolean, ena
  * The vocabulary source token is sealed like a credential secret; only
  * its presence is reported.
  */
-hasTokenizerAuthToken: boolean, retentionDays: number | null, capturePayloadRetentionDays: number | null, capturePayloadMaxMb: number | null, 
+hasTokenizerAuthToken: boolean, 
+/**
+ * Days of completed request captures to keep; None keeps them all.
+ */
+retentionDays: number | null, 
+/**
+ * Days of usage records to keep; None keeps them all. Usage statistics
+ * and totals are computed from these. Absent in an older export, which
+ * reads as keeping everything.
+ */
+usageRetentionDays: number | null, capturePayloadRetentionDays: number | null, capturePayloadMaxMb: number | null, 
 /**
  * Days of upstream quota observations to keep; None keeps them all.
  * Cycles are never pruned. Absent in an older export, which reads as

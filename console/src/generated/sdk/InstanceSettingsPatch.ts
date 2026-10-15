@@ -5,7 +5,11 @@ export type InstanceSettingsPatch = { instanceName: string | null, allowedHeader
  * Plaintext on the way in, sealed before it reaches the row. `null`
  * removes it and downloads anonymously again.
  */
-tokenizerAuthToken: string | null | null, retentionDays: number | null | null, capturePayloadRetentionDays: number | null | null, capturePayloadMaxMb: number | null | null, 
+tokenizerAuthToken: string | null | null, retentionDays: number | null | null, 
+/**
+ * `null` keeps every usage record.
+ */
+usageRetentionDays: number | null | null, capturePayloadRetentionDays: number | null | null, capturePayloadMaxMb: number | null | null, 
 /**
  * `null` keeps every observation.
  */

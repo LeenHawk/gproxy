@@ -301,9 +301,13 @@
     "defaultVocabularyFileId": "默认词表",
     "tokenizerAuthToken": "词表下载令牌",
     "retentionDays": "请求历史保留天数",
+    "retentionDaysHelp": "删除超过该天数的已结束请求记录与抓包，不删除用量记录。",
+    "usageRetentionDays": "用量保留天数",
+    "usageRetentionDaysHelp": "删除超过该天数的用量记录。用量统计和总金额都由用量记录计算，留空则永久保留。",
     "capturePayloadRetentionDays": "捕获正文保留天数",
     "capturePayloadMaxMb": "捕获正文大小上限（MiB）",
     "maxDatabaseSizeMb": "SQLite 数据库大小上限（MiB）",
+    "maxDatabaseSizeMbHelp": "超出上限时，从最旧的已结束请求记录开始删除，不删除用量记录。",
     "updateSource": "更新源",
     "updateChannel": "更新通道",
     "enableAutoUpdateCheck": "自动检查更新",
@@ -337,7 +341,7 @@
     "configured": "已设置",
     "notConfigured": "未设置",
     "clearToken": "移除令牌",
-    "cleanupScope": "清理仅删除已结束的请求历史和抓包，不影响配置与已结算额度。留空不启用对应策略；大小填 0 表示不限制。"
+    "cleanupScope": "清理不影响配置与已结算额度。留空不启用对应策略；大小填 0 表示不限制。"
   },
   "settingsOption": {
     "github": "GitHub",

@@ -301,9 +301,13 @@
     "defaultVocabularyFileId": "Default vocabulary",
     "tokenizerAuthToken": "Vocabulary download token",
     "retentionDays": "Request history retention (days)",
+    "retentionDaysHelp": "Deletes completed request records and captures older than this. Usage records are kept.",
+    "usageRetentionDays": "Usage retention (days)",
+    "usageRetentionDaysHelp": "Deletes usage records older than this. Usage statistics and totals are computed from them; leave blank to keep them all.",
     "capturePayloadRetentionDays": "Capture payload retention (days)",
     "capturePayloadMaxMb": "Capture payload size limit (MiB)",
     "maxDatabaseSizeMb": "SQLite database size limit (MiB)",
+    "maxDatabaseSizeMbHelp": "When exceeded, the oldest completed request records are deleted first. Usage records are kept.",
     "updateSource": "Update source",
     "updateChannel": "Update channel",
     "enableAutoUpdateCheck": "Check for updates automatically",
@@ -337,7 +341,7 @@
     "configured": "Configured",
     "notConfigured": "Not configured",
     "clearToken": "Remove token",
-    "cleanupScope": "Cleanup removes completed request history and captures, not configuration or settled balances. Blank disables the policy; a size of 0 disables the size limit."
+    "cleanupScope": "Cleanup never removes configuration or settled balances. Blank disables the policy; a size of 0 disables the size limit."
   },
   "settingsOption": {
     "github": "GitHub",
