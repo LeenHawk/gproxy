@@ -59,7 +59,7 @@ fn response_text_refusal_reasoning_and_functions_are_live_and_canonical() {
     );
 }
 #[test]
-fn summary_waits_until_content_preference_is_known_and_empty_shape_survives() {
+fn declared_reasoning_content_takes_precedence_and_empty_shape_survives() {
     let body = response(
         json!([{"type":"reasoning","id":"rs-source","summary":[{"type":"summary_text","text":"not final text"}],"content":[{"type":"reasoning_text","text":"actual thinking"}],"status":"completed"},message(json!([text("")]))]),
         "completed",
@@ -431,4 +431,74 @@ fn unsigned_empty_reasoning_is_omitted_and_reasoning_never_gains_a_signature() {
         .unwrap()[0];
     assert_eq!(part.text.as_deref(), Some("actual thinking"));
     assert_eq!(part.thought_signature, None);
+}
+
+#[test]
+fn summary_deltas_stream_before_item_done_without_replay_or_late_content() {
+    for late_content in [false, true] {
+        let mut reasoning = json!({
+            "type":"reasoning","id":"rs-live","status":"completed",
+            "summary":[
+                {"type":"summary_text","text":"边界AB"},
+                {"type":"summary_text","text":""},
+                {"type":"summary_text","text":"tail"}
+            ]
+        });
+        if late_content {
+            reasoning["content"] = json!([{"type":"reasoning_text","text":"late raw content"}]);
+        }
+        let mut native = Vec::new();
+        for mut event in r_events(response(json!([reasoning]), "completed", None)) {
+            if late_content && let s::StreamEvent::OutputItemAdded(v) = &mut event
+                && let r::ResponseOutputItem::Reasoning(item) = &mut v.item
+            {
+                item.content = None;
+            }
+            match event {
+                s::StreamEvent::ReasoningSummaryTextDelta(mut v) if v.delta == "边界AB" => {
+                    v.delta = "边界".into();
+                    native.push(s::StreamEvent::ReasoningSummaryTextDelta(v.clone()));
+                    v.delta = "AB".into();
+                    native.push(s::StreamEvent::ReasoningSummaryTextDelta(v));
+                }
+                other => native.push(other),
+            }
+        }
+        let mut stream = ResponsesToGeminiStream::new(
+            Default::default(),
+            flow(),
+            StreamLimits { max_pending: 8, ..Default::default() },
+        ).unwrap();
+        let mut chunks = Vec::new();
+        let mut observed = String::new();
+        for event in renumber(native) {
+            let expected_delta = match &event {
+                s::StreamEvent::ReasoningSummaryTextDelta(v) => Some(v.delta.clone()),
+                _ => None,
+            };
+            let before = observed.len();
+            for chunk in stream.push(event).unwrap().value {
+                for part in chunk.candidates.iter().flatten()
+                    .filter_map(|c| c.content.as_ref())
+                    .flat_map(|c| c.parts.iter().flatten())
+                {
+                    assert_eq!(part.thought, Some(true));
+                    observed.push_str(part.text.as_deref().unwrap_or_default());
+                }
+                chunks.push(chunk);
+            }
+            assert_eq!(&observed[before..], expected_delta.as_deref().unwrap_or_default());
+        }
+        let end = stream.finish().unwrap();
+        assert_eq!(end.report.diagnostics.iter().any(|d| d.field == "output[0].content"), late_content);
+        chunks.extend(end.chunks);
+        assert_eq!(observed, "边界ABtail");
+        let actual = collect_g(chunks);
+        let text: String = actual.candidates.iter().flatten()
+            .filter_map(|c| c.content.as_ref())
+            .flat_map(|c| c.parts.iter().flatten())
+            .filter_map(|p| p.text.as_deref()).collect();
+        assert_eq!(text, observed);
+        assert_eq!(actual.usage_metadata.unwrap().total_token_count, Some(14));
+    }
 }

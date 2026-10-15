@@ -1,4 +1,5 @@
 mod content;
+mod reasoning;
 use super::common::{Budget, StreamEnd, StreamLimits, declared, invalid, unsupported};
 use crate::{
     Dialect,
@@ -38,7 +39,7 @@ pub(super) enum ItemKind {
         argument_bytes: usize,
         sent: bool,
     },
-    Reasoning,
+    Reasoning(reasoning::ReasoningState),
 }
 
 pub(super) struct ItemState {
@@ -60,6 +61,10 @@ pub struct ResponsesToChatStream {
     pub(super) items: BTreeMap<i64, ItemState>,
     pub(super) content_cursor: i64,
     pub(super) tools: usize,
+    reasoning_cursor: i64,
+    reasoning_parts: usize,
+    reasoning_text: String,
+    reasoning_details: usize,
     pub(super) report: Report,
     pub(super) expected: Option<c::GenerateContentResponseBody>,
     pub(super) terminal: bool,
@@ -115,6 +120,10 @@ impl ResponsesToChatStream {
             items: BTreeMap::new(),
             content_cursor: 0,
             tools: 0,
+            reasoning_cursor: 0,
+            reasoning_parts: 0,
+            reasoning_text: String::new(),
+            reasoning_details: 0,
             report: Report::default(),
             expected: None,
             terminal: false,
@@ -213,6 +222,14 @@ impl ResponsesToChatStream {
             }
             rs::StreamEvent::OutputItemDone(v) => {
                 self.bind_item(v.output_index, item_id(&v.item))?;
+                if let r::ResponseOutputItem::Reasoning(item) = &v.item
+                    && let Some(state) = self.reasoning_mut(v.output_index, &item.id)?
+                {
+                    for part in state.summary.values_mut() {
+                        part.done = true;
+                    }
+                    state.final_item = Some(item.clone());
+                }
                 if let Some(ItemState {
                     kind: ItemKind::Message { parts, done, .. },
                     ..
@@ -252,12 +269,39 @@ impl ResponsesToChatStream {
                 "response.annotations",
                 "Chat stream Delta has no annotation field",
             ),
+            rs::StreamEvent::ReasoningSummaryPartAdded(v) => {
+                if let Some(state) = self.reasoning_mut(v.output_index, &v.item_id)? {
+                    state.summary.insert(v.summary_index, TextPart {
+                        pending: v.part.text,
+                        refusal: false,
+                        done: false,
+                        emitted: false,
+                    });
+                }
+            }
+            rs::StreamEvent::ReasoningSummaryTextDelta(v) => {
+                if let Some(state) = self.reasoning_mut(v.output_index, &v.item_id)? {
+                    state
+                        .summary
+                        .get_mut(&v.summary_index)
+                        .ok_or_else(|| invalid("reasoning delta without summary part"))?
+                        .pending.push_str(&v.delta);
+                }
+            }
+            rs::StreamEvent::ReasoningSummaryPartDone(v) => {
+                if let Some(state) = self.reasoning_mut(v.output_index, &v.item_id)? {
+                    state
+                        .summary
+                        .get_mut(&v.summary_index)
+                        .ok_or_else(|| invalid("reasoning done without summary part"))?
+                        .done = true;
+                }
+            }
+            // Raw content follows all summaries in the canonical Chat view.
+            // Until item completion, a later summary could still precede it.
             rs::StreamEvent::ReasoningTextDelta(_)
-            | rs::StreamEvent::ReasoningSummaryTextDelta(_) => {}
-            rs::StreamEvent::ReasoningTextDone(_)
-            | rs::StreamEvent::ReasoningSummaryTextDone(_)
-            | rs::StreamEvent::ReasoningSummaryPartAdded(_)
-            | rs::StreamEvent::ReasoningSummaryPartDone(_) => {}
+            | rs::StreamEvent::ReasoningTextDone(_)
+            | rs::StreamEvent::ReasoningSummaryTextDone(_) => {}
             rs::StreamEvent::Failed(_) | rs::StreamEvent::Error(_) => {
                 return Err(invalid("Responses stream failed"));
             }
@@ -285,6 +329,7 @@ impl ResponsesToChatStream {
         }
         if !self.terminal {
             self.flush_text(&mut out)?;
+            self.flush_reasoning(&mut out)?;
         }
         Ok(Converted {
             value: out,
@@ -317,9 +362,25 @@ impl ResponsesToChatStream {
         let message = &expected.choices[0].message;
         if message.reasoning_details.is_some() || message.reasoning_content.is_some() {
             let mut delta = cs::Delta::builder().build();
-            delta.reasoning_details = message.reasoning_details.clone();
-            delta.reasoning_content = message.reasoning_content.clone();
-            self.emit_delta(delta, out)?;
+            if let Some(Some(details)) = &message.reasoning_details {
+                let remaining = details
+                    .get(self.reasoning_details..)
+                    .ok_or_else(|| invalid("reasoning details exceed final result"))?;
+                if !remaining.is_empty() {
+                    delta.reasoning_details = Some(Some(remaining.to_vec()));
+                }
+            }
+            if let Some(Some(text)) = &message.reasoning_content {
+                let suffix = text
+                    .strip_prefix(&self.reasoning_text)
+                    .ok_or_else(|| invalid("streamed reasoning differs from final result"))?;
+                if !suffix.is_empty() || self.reasoning_parts == 0 {
+                    delta.reasoning_content = Some(Some(suffix.to_owned()));
+                }
+            }
+            if delta.reasoning_details.is_some() || delta.reasoning_content.is_some() {
+                self.emit_delta(delta, out)?;
+            }
         }
         if expected.choices[0].message.annotations.take().is_some() {
             self.report.omitted(

@@ -738,3 +738,124 @@ fn chat_reasoning_deltas_have_complete_responses_lifecycle() {
     adapter.push_done().unwrap();
     adapter.finish().unwrap();
 }
+
+#[test]
+fn responses_reasoning_streams_summary_and_finishes_details_at_item_done_without_replay() {
+    let source = response(json!([
+        {"type":"reasoning","id":"rs-a","summary":[
+            {"type":"summary_text","text":"思考AB"},
+            {"type":"summary_text","text":""},
+            {"type":"summary_text","text":"second"}
+        ],"content":[{"type":"reasoning_text","text":"raw"}],"encrypted_content":"opaque","status":"completed"},
+        text_item("msg", "answer"),
+        {"type":"reasoning","id":"rs-b","summary":[{"type":"summary_text","text":"last"}],"status":"completed"}
+    ]));
+    let mut native = Vec::new();
+    for event in events(source.clone()) {
+        match event {
+            rs::StreamEvent::ReasoningSummaryTextDelta(mut v) if v.delta == "思考AB" => {
+                v.delta = "思考".into();
+                native.push(rs::StreamEvent::ReasoningSummaryTextDelta(v.clone()));
+                v.delta = "AB".into();
+                native.push(rs::StreamEvent::ReasoningSummaryTextDelta(v));
+            }
+            other => native.push(other),
+        }
+    }
+    let mut adapter = ResponsesToChatStream::new(ids(), StreamLimits::default());
+    let mut target = ChatStreamCollector::new(ids(), TargetIdPolicy::new(Dialect::OpenAiChat));
+    let mut text = String::new();
+    let mut saw_details_before_response_end = false;
+    for (seq, event) in native.into_iter().enumerate() {
+        let mut value = serde_json::to_value(event).unwrap();
+        value["sequence_number"] = json!(seq);
+        let event: rs::StreamEvent = serde_json::from_value(value).unwrap();
+        let expected_delta = match &event {
+            rs::StreamEvent::ReasoningSummaryTextDelta(v) => Some(v.delta.clone()),
+            _ => None,
+        };
+        let item_done = matches!(&event, rs::StreamEvent::OutputItemDone(v) if v.output_index == 0);
+        let terminal = matches!(&event, rs::StreamEvent::Completed(_));
+        let before = text.len();
+        for chunk in adapter.push(event).unwrap().value {
+            for choice in &chunk.choices {
+                if let Some(Some(part)) = &choice.delta.reasoning_content {
+                    text.push_str(part);
+                }
+                if choice.delta.reasoning_details.is_some() {
+                    assert!(!terminal, "details should not wait for response completion");
+                    saw_details_before_response_end = true;
+                }
+            }
+            target.push(chunk).unwrap();
+        }
+        if let Some(delta) = expected_delta {
+            assert_eq!(&text[before..], delta);
+        }
+        if item_done {
+            assert_eq!(text, "思考AB\n\nsecond\nraw");
+            assert!(saw_details_before_response_end);
+        }
+        if terminal {
+            assert_eq!(text.len(), before, "terminal must not replay reasoning");
+        }
+    }
+    adapter.finish().unwrap();
+    target.push_done().unwrap();
+    let expected = gproxy_protocol::transform::generate::chat_responses::responses_to_chat_response(
+        source,
+        &mut ids(),
+        &TargetIdPolicy::new(Dialect::OpenAiChat),
+    ).unwrap().value;
+    assert_eq!(target.finish().unwrap().value, expected);
+}
+
+#[test]
+fn responses_reasoning_preserves_item_order_and_summary_before_content() {
+    let source = response(json!([
+        {"type":"reasoning","id":"rs-a","summary":[{"type":"summary_text","text":"summary"}],
+         "content":[{"type":"reasoning_text","text":"raw"}],"status":"completed"},
+        {"type":"reasoning","id":"rs-b","summary":[{"type":"summary_text","text":"later"}],"status":"completed"}
+    ]));
+    let native = events(source.clone());
+    let mut ordered = vec![native[0].clone()];
+    let mut first_summary = Vec::new();
+    let mut first_content = Vec::new();
+    let mut first_done = Vec::new();
+    let mut second = Vec::new();
+    for event in native.iter().skip(1) {
+        let wire = serde_json::to_value(event).unwrap();
+        match wire.get("output_index").and_then(|v| v.as_i64()) {
+            Some(0) => match event {
+                rs::StreamEvent::OutputItemAdded(_) => ordered.push(event.clone()),
+                rs::StreamEvent::OutputItemDone(_) => first_done.push(event.clone()),
+                rs::StreamEvent::ReasoningSummaryPartAdded(_)
+                | rs::StreamEvent::ReasoningSummaryTextDelta(_)
+                | rs::StreamEvent::ReasoningSummaryTextDone(_)
+                | rs::StreamEvent::ReasoningSummaryPartDone(_) => first_summary.push(event.clone()),
+                _ => first_content.push(event.clone()),
+            },
+            Some(1) => second.push(event.clone()),
+            _ => {}
+        }
+    }
+    // A later item may finish first; content may precede its item's summaries.
+    ordered.extend(second);
+    ordered.extend(first_content);
+    ordered.extend(first_summary);
+    ordered.extend(first_done);
+    ordered.push(native.last().unwrap().clone());
+    let reordered = ordered.into_iter().enumerate().map(|(index, event)| {
+        let mut value = serde_json::to_value(event).unwrap();
+        value["sequence_number"] = json!(index);
+        serde_json::from_value(value).unwrap()
+    }).collect();
+    let actual = finish_rc(reordered);
+    assert_eq!(actual.choices[0].message.reasoning_content.as_ref().unwrap().as_deref(), Some("summary\nraw\nlater"));
+    let expected = gproxy_protocol::transform::generate::chat_responses::responses_to_chat_response(
+        source,
+        &mut ids(),
+        &TargetIdPolicy::new(Dialect::OpenAiChat),
+    ).unwrap().value;
+    assert_eq!(actual, expected);
+}

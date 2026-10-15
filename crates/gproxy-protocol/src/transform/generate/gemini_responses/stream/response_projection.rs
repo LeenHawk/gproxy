@@ -65,26 +65,18 @@ impl ResponsesToGeminiStream {
                     parts,
                     next,
                     has_content,
-                    final_item,
-                    projected,
+                    summaries,
+                    summary_next,
+                    summary_emitted,
                 } => {
-                    if !*has_content {
-                        if let Some(reasoning) = final_item.take() {
-                            let text = super::super::identity::reasoning_text(&reasoning);
-                            if !text.is_empty() {
-                                self.emit_part(
-                                    g::Part::builder().thought(true).text(text).build(),
-                                    out,
-                                )?;
-                            }
-                            self.release(item.held);
-                            item.held = 0;
-                            *projected = true;
-                        }
-                        item.done && *projected
-                    } else {
+                    if *has_content {
                         self.flush_parts(parts, next, true, &mut item.held, out)?;
                         item.done && *next == parts.len() as i64
+                    } else {
+                        let before = out.len();
+                        self.flush_parts(summaries, summary_next, true, &mut item.held, out)?;
+                        *summary_emitted |= out.len() != before;
+                        item.done && *summary_next == summaries.len() as i64
                     }
                 }
                 Kind::Function {
@@ -138,8 +130,8 @@ impl ResponsesToGeminiStream {
                 let text = std::mem::take(&mut part.pending);
                 let bytes = text.len();
                 // The buffered pair omits unsigned empty reasoning. Empty
-                // message text remains a real native part; reasoning without
-                // content is projected from its summary at completion.
+                // message text remains a real native part; reasoning summaries
+                // and raw content both omit empty thought fragments.
                 if !thought || !text.is_empty() {
                     let mut value = g::Part::builder().text(text).build();
                     if thought {

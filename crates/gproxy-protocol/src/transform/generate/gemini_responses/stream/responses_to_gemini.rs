@@ -189,10 +189,16 @@ impl ResponsesToGeminiStream {
             s::StreamEvent::OutputItemDone(v) => self.item_done(v.output_index, v.item)?,
             s::StreamEvent::ReasoningSummaryPartAdded(v) => {
                 self.count_part()?;
-                self.summary(v.output_index, v.part.text.len())?;
+                self.bind(v.output_index, &v.item_id)?;
+                self.summary(v.output_index, v.summary_index, v.part.text, true)?;
             }
             s::StreamEvent::ReasoningSummaryTextDelta(v) => {
-                self.summary(v.output_index, v.delta.len())?
+                self.bind(v.output_index, &v.item_id)?;
+                self.summary(v.output_index, v.summary_index, v.delta, false)?;
+            }
+            s::StreamEvent::ReasoningSummaryPartDone(v) => {
+                self.bind(v.output_index, &v.item_id)?;
+                self.summary_done(v.output_index, v.summary_index)?;
             }
             s::StreamEvent::Completed(v) => {
                 self.observe(&v.response)?;
@@ -206,8 +212,7 @@ impl ResponsesToGeminiStream {
             | s::StreamEvent::RefusalDone(_)
             | s::StreamEvent::ReasoningTextDone(_)
             | s::StreamEvent::OutputTextAnnotationAdded(_)
-            | s::StreamEvent::ReasoningSummaryTextDone(_)
-            | s::StreamEvent::ReasoningSummaryPartDone(_) => {}
+            | s::StreamEvent::ReasoningSummaryTextDone(_) => {}
             s::StreamEvent::ImageCall(_)
             | s::StreamEvent::ImageGenerating(_)
             | s::StreamEvent::ImageCompleted(_)
@@ -296,18 +301,36 @@ impl ResponsesToGeminiStream {
         if self.failed || !self.terminal {
             return Err(invalid("failed stream or premature EOF"));
         }
-        let source = self
+        let mut source = self
             .source
             .take()
             .ok_or_else(|| invalid("source consumed"))?
             .finish()?
             .value;
+        // Once visible summaries have been streamed, keep that representation
+        // for this item rather than switching to later raw content or replaying
+        // both. Validate against the same selected view at completion.
+        let mut summary_report = Report::default();
+        for (index, item) in source.output.iter_mut().enumerate() {
+            if self.items.get(&(index as i64)).is_some_and(|state| matches!(
+                state.kind,
+                super::response_items::Kind::Reasoning { summary_emitted: true, .. }
+            )) && let r::ResponseOutputItem::Reasoning(reasoning) = item
+                && reasoning.content.take().is_some()
+            {
+                summary_report.omitted(
+                    format!("output[{index}].content"),
+                    "visible reasoning summary was already streamed; late raw content is not replayed",
+                );
+            }
+        }
         let only_image = [g::Modality::Image];
         let mut converted = super::super::responses_to_gemini_response_with_modalities(
             source.clone(),
             Default::default(),
             self.image_only.then_some(only_image.as_slice()),
         )?;
+        converted.report.diagnostics.extend(summary_report.diagnostics);
         if self.image_progress {
             converted.report.omitted("image.progress", "Gemini inline images expose the final image; preview/progress events are not additional generated images");
         }

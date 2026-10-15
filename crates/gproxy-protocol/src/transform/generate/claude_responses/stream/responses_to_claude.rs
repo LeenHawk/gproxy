@@ -268,11 +268,15 @@ impl ResponsesToClaudeStream {
         if self.started {
             return Ok(());
         }
-        let (Some(id), Some(model), Some(usage)) =
-            (&self.response_id, &self.model, &mut self.usage)
-        else {
+        let (Some(id), Some(model)) = (&self.response_id, &self.model) else {
             return Ok(());
         };
+        // Responses may only report usage at completion. Do not hold content
+        // until then: message_delta replaces these provisional counters with
+        // the actual final usage, which finish() still requires from the source.
+        let usage = self
+            .usage
+            .get_or_insert_with(|| c::Usage::builder(0, 0).build());
         if let Some(tier) = self.tier {
             if usage
                 .service_tier

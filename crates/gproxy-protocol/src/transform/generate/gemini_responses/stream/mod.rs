@@ -18,8 +18,10 @@
 //! Responses message parts retain source order because Gemini has no indexed
 //! text deltas. Later parts/items wait boundedly for earlier content to close;
 //! a complete function argument object may be emitted before output_item.done.
-//! Reasoning content takes precedence over summaries, so summaries wait until
-//! item completion. Final canonical comparison coalesces only adjacent plain
+//! Declared reasoning content takes precedence over summaries. Otherwise summary
+//! deltas stream immediately; once a visible summary is emitted, that item's
+//! representation stays summary-only even if raw content arrives later.
+//! Final canonical comparison uses that selected view and coalesces only adjacent plain
 //! text fragments with the same thought flag; signatures/media/functions stay
 //! exact. Unsigned empty reasoning is omitted like the buffered pair.
 //!

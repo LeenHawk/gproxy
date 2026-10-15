@@ -28,8 +28,9 @@ pub(super) enum Kind {
         parts: BTreeMap<i64, Part>,
         next: i64,
         has_content: bool,
-        final_item: Option<i::ReasoningItem>,
-        projected: bool,
+        summaries: BTreeMap<i64, Part>,
+        summary_next: i64,
+        summary_emitted: bool,
     },
     Function {
         value: Box<i::FunctionCall>,
@@ -100,9 +101,17 @@ impl ResponsesToGeminiStream {
                 let has_content = v.content.is_some();
                 let mut parts = BTreeMap::new();
                 let mut bytes = 0usize;
-                for part in &v.summary {
-                    self.count_part()?;
-                    bytes = bytes.checked_add(part.text.len()).ok_or_else(limit)?;
+                let mut summaries = BTreeMap::new();
+                if !has_content {
+                    for (n, part) in v.summary.into_iter().enumerate() {
+                        self.count_part()?;
+                        bytes = bytes.checked_add(part.text.len()).ok_or_else(limit)?;
+                        summaries.insert(n as i64, Part {
+                            pending: part.text,
+                            emitted: false,
+                            done: true,
+                        });
+                    }
                 }
                 for (n, part) in v.content.into_iter().flatten().enumerate() {
                     self.count_part()?;
@@ -122,8 +131,9 @@ impl ResponsesToGeminiStream {
                         parts,
                         next: 0,
                         has_content,
-                        final_item: None,
-                        projected: false,
+                        summaries,
+                        summary_next: 0,
+                        summary_emitted: false,
                     },
                     bytes,
                 )
@@ -217,6 +227,9 @@ impl ResponsesToGeminiStream {
             s::OutputContentPart::Refusal(v) => (v.refusal, false),
             s::OutputContentPart::Reasoning(v) => (v.text, true),
         };
+        if reasoning && self.summary_selected(index) {
+            return Ok(());
+        }
         self.reserve(text.len())?;
         let item = self
             .items
@@ -262,6 +275,9 @@ impl ResponsesToGeminiStream {
         {
             return Ok(());
         }
+        if reasoning && self.summary_selected(index) {
+            return Ok(());
+        }
         self.reserve(text.len())?;
         let item = self
             .items
@@ -280,6 +296,9 @@ impl ResponsesToGeminiStream {
         Ok(())
     }
     pub(super) fn part_done(&mut self, index: i64, n: i64) -> Result<(), TransformError> {
+        if self.summary_selected(index) {
+            return Ok(());
+        }
         if self
             .items
             .get(&index)
@@ -358,24 +377,50 @@ impl ResponsesToGeminiStream {
         self.items.insert(index, item);
         Ok(())
     }
-    pub(super) fn summary(&mut self, index: i64, bytes: usize) -> Result<(), TransformError> {
-        if self
-            .items
-            .get(&index)
-            .is_some_and(|item| matches!(item.kind, Kind::Excluded))
-        {
+    fn summary_selected(&self, index: i64) -> bool {
+        self.items.get(&index).is_some_and(|item| matches!(
+            item.kind, Kind::Reasoning { summary_emitted: true, .. }
+        ))
+    }
+    pub(super) fn summary(
+        &mut self,
+        index: i64,
+        n: i64,
+        text: String,
+        added: bool,
+    ) -> Result<(), TransformError> {
+        if self.items.get(&index).is_some_and(|item| matches!(
+            item.kind, Kind::Excluded | Kind::Reasoning { has_content: true, .. }
+        )) {
             return Ok(());
         }
-        self.reserve(bytes)?;
-        let item = self
-            .items
-            .get_mut(&index)
+        self.reserve(text.len())?;
+        let item = self.items.get_mut(&index)
             .ok_or_else(|| invalid("summary without item"))?;
-        if !matches!(item.kind, Kind::Reasoning { .. }) {
+        let Kind::Reasoning { summaries, .. } = &mut item.kind else {
             return Err(invalid("summary on non-reasoning item"));
+        };
+        item.held += text.len();
+        if added {
+            summaries.insert(n, Part { pending: text, emitted: false, done: false });
+        } else {
+            summaries.get_mut(&n)
+                .ok_or_else(|| invalid("summary delta without part"))?
+                .pending.push_str(&text);
         }
-        item.held += bytes;
         Ok(())
+    }
+    pub(super) fn summary_done(&mut self, index: i64, n: i64) -> Result<(), TransformError> {
+        match self.items.get_mut(&index).map(|item| &mut item.kind) {
+            Some(Kind::Excluded | Kind::Reasoning { has_content: true, .. }) => Ok(()),
+            Some(Kind::Reasoning { summaries, .. }) => {
+                summaries.get_mut(&n)
+                    .ok_or_else(|| invalid("summary done without part"))?
+                    .done = true;
+                Ok(())
+            }
+            _ => Err(invalid("summary done without reasoning item")),
+        }
     }
     pub(super) fn item_done(
         &mut self,
@@ -407,23 +452,11 @@ impl ResponsesToGeminiStream {
                 }
             }
             (
-                Kind::Reasoning {
-                    parts,
-                    has_content,
-                    final_item,
-                    ..
-                },
-                r::ResponseOutputItem::Reasoning(v),
+                Kind::Reasoning { parts, summaries, .. },
+                r::ResponseOutputItem::Reasoning(_),
             ) => {
-                for part in parts.values_mut() {
+                for part in parts.values_mut().chain(summaries.values_mut()) {
                     part.done = true;
-                }
-                if !*has_content {
-                    self.release(item.held);
-                    parts.clear();
-                    item.held = measure(&v, self.limits.max_pending)?;
-                    self.reserve(item.held)?;
-                    *final_item = Some(v);
                 }
             }
             (Kind::Function { .. }, r::ResponseOutputItem::FunctionCall(_)) => {}

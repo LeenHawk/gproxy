@@ -86,7 +86,29 @@ impl ResponsesToChatStream {
                 self.emit_tool(index, args, out)?;
                 return Ok(());
             }
-            r::ResponseOutputItem::Reasoning(v) => (Some(v.id), ItemKind::Reasoning),
+            r::ResponseOutputItem::Reasoning(v) => {
+                let summary = v
+                    .summary
+                    .iter()
+                    .enumerate()
+                    .map(|(index, part)| {
+                        (index as i64, TextPart {
+                            pending: part.text.clone(),
+                            refusal: false,
+                            done: true,
+                            emitted: false,
+                        })
+                    })
+                    .collect();
+                (
+                    Some(v.id),
+                    ItemKind::Reasoning(reasoning::ReasoningState {
+                        summary,
+                        cursor: 0,
+                        final_item: None,
+                    }),
+                )
+            }
             _ => {
                 return Err(unsupported(
                     "response.output",
