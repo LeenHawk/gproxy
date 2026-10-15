@@ -414,13 +414,15 @@ pub async fn provider(handle: &Handle, id: &str, models: &[&str]) {
 
 /// An enabled API-key credential whose key is `k-{id}`, owned by whichever of
 /// the three columns is set.
-/// A route exposed as `name` whose members are `providers`, each serving `m1`.
+/// A failover route exposed as `name` whose members are `providers`, in that
+/// order, each serving `m1`.
 pub async fn route(handle: &Handle, name: &str, providers: &[&str]) {
     let manage = handle.manage();
     let route = manage
         .routes()
         .create(gproxy_sdk::dto::RouteWrite {
             name: name.into(),
+            strategy: Some("failover".into()),
             ..Default::default()
         })
         .await
@@ -429,6 +431,7 @@ pub async fn route(handle: &Handle, name: &str, providers: &[&str]) {
         manage
             .route_members()
             .create(gproxy_sdk::dto::RouteMemberWrite {
+                id: Some(format!("{name}-{provider}")),
                 route_id: route.id.clone(),
                 provider_id: (*provider).into(),
                 upstream_model: "m1".into(),
