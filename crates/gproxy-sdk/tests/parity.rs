@@ -845,12 +845,9 @@ async fn discovery_reads_both_directory_shapes() {
         .collect();
     assert_eq!(names, vec!["anthropic/claude-sonnet-4.6", "gpt-5.6-sol"]);
     assert!(found.iter().all(|model| !model.known));
-    assert!(
-        found
-            .iter()
-            .any(|model| model.upstream_name == "anthropic/claude-sonnet-4.6"
-                && model.has_default_price)
-    );
+    assert!(found.iter().any(
+        |model| model.upstream_name == "anthropic/claude-sonnet-4.6" && model.has_default_price
+    ));
 
     gproxy.client.script(vec![json_reply(json!({
         "data": [
