@@ -802,11 +802,14 @@ fn responses_reasoning_streams_summary_and_finishes_details_at_item_done_without
     }
     adapter.finish().unwrap();
     target.push_done().unwrap();
-    let expected = gproxy_protocol::transform::generate::chat_responses::responses_to_chat_response(
-        source,
-        &mut ids(),
-        &TargetIdPolicy::new(Dialect::OpenAiChat),
-    ).unwrap().value;
+    let expected =
+        gproxy_protocol::transform::generate::chat_responses::responses_to_chat_response(
+            source,
+            &mut ids(),
+            &TargetIdPolicy::new(Dialect::OpenAiChat),
+        )
+        .unwrap()
+        .value;
     assert_eq!(target.finish().unwrap().value, expected);
 }
 
@@ -845,17 +848,32 @@ fn responses_reasoning_preserves_item_order_and_summary_before_content() {
     ordered.extend(first_summary);
     ordered.extend(first_done);
     ordered.push(native.last().unwrap().clone());
-    let reordered = ordered.into_iter().enumerate().map(|(index, event)| {
-        let mut value = serde_json::to_value(event).unwrap();
-        value["sequence_number"] = json!(index);
-        serde_json::from_value(value).unwrap()
-    }).collect();
+    let reordered = ordered
+        .into_iter()
+        .enumerate()
+        .map(|(index, event)| {
+            let mut value = serde_json::to_value(event).unwrap();
+            value["sequence_number"] = json!(index);
+            serde_json::from_value(value).unwrap()
+        })
+        .collect();
     let actual = finish_rc(reordered);
-    assert_eq!(actual.choices[0].message.reasoning_content.as_ref().unwrap().as_deref(), Some("summary\nraw\nlater"));
-    let expected = gproxy_protocol::transform::generate::chat_responses::responses_to_chat_response(
-        source,
-        &mut ids(),
-        &TargetIdPolicy::new(Dialect::OpenAiChat),
-    ).unwrap().value;
+    assert_eq!(
+        actual.choices[0]
+            .message
+            .reasoning_content
+            .as_ref()
+            .unwrap()
+            .as_deref(),
+        Some("summary\nraw\nlater")
+    );
+    let expected =
+        gproxy_protocol::transform::generate::chat_responses::responses_to_chat_response(
+            source,
+            &mut ids(),
+            &TargetIdPolicy::new(Dialect::OpenAiChat),
+        )
+        .unwrap()
+        .value;
     assert_eq!(actual, expected);
 }

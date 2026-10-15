@@ -449,7 +449,8 @@ fn summary_deltas_stream_before_item_done_without_replay_or_late_content() {
         }
         let mut native = Vec::new();
         for mut event in r_events(response(json!([reasoning]), "completed", None)) {
-            if late_content && let s::StreamEvent::OutputItemAdded(v) = &mut event
+            if late_content
+                && let s::StreamEvent::OutputItemAdded(v) = &mut event
                 && let r::ResponseOutputItem::Reasoning(item) = &mut v.item
             {
                 item.content = None;
@@ -467,8 +468,12 @@ fn summary_deltas_stream_before_item_done_without_replay_or_late_content() {
         let mut stream = ResponsesToGeminiStream::new(
             Default::default(),
             flow(),
-            StreamLimits { max_pending: 8, ..Default::default() },
-        ).unwrap();
+            StreamLimits {
+                max_pending: 8,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let mut chunks = Vec::new();
         let mut observed = String::new();
         for event in renumber(native) {
@@ -478,7 +483,10 @@ fn summary_deltas_stream_before_item_done_without_replay_or_late_content() {
             };
             let before = observed.len();
             for chunk in stream.push(event).unwrap().value {
-                for part in chunk.candidates.iter().flatten()
+                for part in chunk
+                    .candidates
+                    .iter()
+                    .flatten()
                     .filter_map(|c| c.content.as_ref())
                     .flat_map(|c| c.parts.iter().flatten())
                 {
@@ -487,17 +495,30 @@ fn summary_deltas_stream_before_item_done_without_replay_or_late_content() {
                 }
                 chunks.push(chunk);
             }
-            assert_eq!(&observed[before..], expected_delta.as_deref().unwrap_or_default());
+            assert_eq!(
+                &observed[before..],
+                expected_delta.as_deref().unwrap_or_default()
+            );
         }
         let end = stream.finish().unwrap();
-        assert_eq!(end.report.diagnostics.iter().any(|d| d.field == "output[0].content"), late_content);
+        assert_eq!(
+            end.report
+                .diagnostics
+                .iter()
+                .any(|d| d.field == "output[0].content"),
+            late_content
+        );
         chunks.extend(end.chunks);
         assert_eq!(observed, "边界ABtail");
         let actual = collect_g(chunks);
-        let text: String = actual.candidates.iter().flatten()
+        let text: String = actual
+            .candidates
+            .iter()
+            .flatten()
             .filter_map(|c| c.content.as_ref())
             .flat_map(|c| c.parts.iter().flatten())
-            .filter_map(|p| p.text.as_deref()).collect();
+            .filter_map(|p| p.text.as_deref())
+            .collect();
         assert_eq!(text, observed);
         assert_eq!(actual.usage_metadata.unwrap().total_token_count, Some(14));
     }

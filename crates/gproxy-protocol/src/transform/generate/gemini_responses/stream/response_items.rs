@@ -106,11 +106,14 @@ impl ResponsesToGeminiStream {
                     for (n, part) in v.summary.into_iter().enumerate() {
                         self.count_part()?;
                         bytes = bytes.checked_add(part.text.len()).ok_or_else(limit)?;
-                        summaries.insert(n as i64, Part {
-                            pending: part.text,
-                            emitted: false,
-                            done: true,
-                        });
+                        summaries.insert(
+                            n as i64,
+                            Part {
+                                pending: part.text,
+                                emitted: false,
+                                done: true,
+                            },
+                        );
                     }
                 }
                 for (n, part) in v.content.into_iter().flatten().enumerate() {
@@ -378,9 +381,15 @@ impl ResponsesToGeminiStream {
         Ok(())
     }
     fn summary_selected(&self, index: i64) -> bool {
-        self.items.get(&index).is_some_and(|item| matches!(
-            item.kind, Kind::Reasoning { summary_emitted: true, .. }
-        ))
+        self.items.get(&index).is_some_and(|item| {
+            matches!(
+                item.kind,
+                Kind::Reasoning {
+                    summary_emitted: true,
+                    ..
+                }
+            )
+        })
     }
     pub(super) fn summary(
         &mut self,
@@ -389,32 +398,56 @@ impl ResponsesToGeminiStream {
         text: String,
         added: bool,
     ) -> Result<(), TransformError> {
-        if self.items.get(&index).is_some_and(|item| matches!(
-            item.kind, Kind::Excluded | Kind::Reasoning { has_content: true, .. }
-        )) {
+        if self.items.get(&index).is_some_and(|item| {
+            matches!(
+                item.kind,
+                Kind::Excluded
+                    | Kind::Reasoning {
+                        has_content: true,
+                        ..
+                    }
+            )
+        }) {
             return Ok(());
         }
         self.reserve(text.len())?;
-        let item = self.items.get_mut(&index)
+        let item = self
+            .items
+            .get_mut(&index)
             .ok_or_else(|| invalid("summary without item"))?;
         let Kind::Reasoning { summaries, .. } = &mut item.kind else {
             return Err(invalid("summary on non-reasoning item"));
         };
         item.held += text.len();
         if added {
-            summaries.insert(n, Part { pending: text, emitted: false, done: false });
+            summaries.insert(
+                n,
+                Part {
+                    pending: text,
+                    emitted: false,
+                    done: false,
+                },
+            );
         } else {
-            summaries.get_mut(&n)
+            summaries
+                .get_mut(&n)
                 .ok_or_else(|| invalid("summary delta without part"))?
-                .pending.push_str(&text);
+                .pending
+                .push_str(&text);
         }
         Ok(())
     }
     pub(super) fn summary_done(&mut self, index: i64, n: i64) -> Result<(), TransformError> {
         match self.items.get_mut(&index).map(|item| &mut item.kind) {
-            Some(Kind::Excluded | Kind::Reasoning { has_content: true, .. }) => Ok(()),
+            Some(
+                Kind::Excluded
+                | Kind::Reasoning {
+                    has_content: true, ..
+                },
+            ) => Ok(()),
             Some(Kind::Reasoning { summaries, .. }) => {
-                summaries.get_mut(&n)
+                summaries
+                    .get_mut(&n)
                     .ok_or_else(|| invalid("summary done without part"))?
                     .done = true;
                 Ok(())
@@ -452,7 +485,9 @@ impl ResponsesToGeminiStream {
                 }
             }
             (
-                Kind::Reasoning { parts, summaries, .. },
+                Kind::Reasoning {
+                    parts, summaries, ..
+                },
                 r::ResponseOutputItem::Reasoning(_),
             ) => {
                 for part in parts.values_mut().chain(summaries.values_mut()) {

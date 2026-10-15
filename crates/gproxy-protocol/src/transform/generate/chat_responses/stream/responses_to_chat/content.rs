@@ -92,12 +92,15 @@ impl ResponsesToChatStream {
                     .iter()
                     .enumerate()
                     .map(|(index, part)| {
-                        (index as i64, TextPart {
-                            pending: part.text.clone(),
-                            refusal: false,
-                            done: true,
-                            emitted: false,
-                        })
+                        (
+                            index as i64,
+                            TextPart {
+                                pending: part.text.clone(),
+                                refusal: false,
+                                done: true,
+                                emitted: false,
+                            },
+                        )
                     })
                     .collect();
                 (

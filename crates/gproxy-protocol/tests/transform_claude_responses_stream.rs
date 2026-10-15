@@ -631,7 +631,8 @@ fn missing_initial_usage_does_not_delay_content_and_final_usage_is_preserved() {
             let created = matches!(event, rs::StreamEvent::Created(_));
             let content_delta = matches!(
                 event,
-                rs::StreamEvent::OutputTextDelta(_) | rs::StreamEvent::FunctionCallArgumentsDelta(_)
+                rs::StreamEvent::OutputTextDelta(_)
+                    | rs::StreamEvent::FunctionCallArgumentsDelta(_)
             );
             if matches!(event, rs::StreamEvent::Completed(_)) {
                 assert!(saw_delta, "content must be emitted before completion");
@@ -645,9 +646,12 @@ fn missing_initial_usage_does_not_delay_content_and_final_usage_is_preserved() {
                 assert_eq!(start.message.usage.output_tokens, 0);
             }
             if content_delta {
-                assert!(result.value.iter().any(|event| {
-                    matches!(event, cs::StreamEvent::ContentBlockDelta(_))
-                }));
+                assert!(
+                    result
+                        .value
+                        .iter()
+                        .any(|event| { matches!(event, cs::StreamEvent::ContentBlockDelta(_)) })
+                );
                 saw_delta = true;
             }
             output.extend(result.value);

@@ -312,10 +312,15 @@ impl ResponsesToGeminiStream {
         // both. Validate against the same selected view at completion.
         let mut summary_report = Report::default();
         for (index, item) in source.output.iter_mut().enumerate() {
-            if self.items.get(&(index as i64)).is_some_and(|state| matches!(
-                state.kind,
-                super::response_items::Kind::Reasoning { summary_emitted: true, .. }
-            )) && let r::ResponseOutputItem::Reasoning(reasoning) = item
+            if self.items.get(&(index as i64)).is_some_and(|state| {
+                matches!(
+                    state.kind,
+                    super::response_items::Kind::Reasoning {
+                        summary_emitted: true,
+                        ..
+                    }
+                )
+            }) && let r::ResponseOutputItem::Reasoning(reasoning) = item
                 && reasoning.content.take().is_some()
             {
                 summary_report.omitted(
@@ -330,7 +335,10 @@ impl ResponsesToGeminiStream {
             Default::default(),
             self.image_only.then_some(only_image.as_slice()),
         )?;
-        converted.report.diagnostics.extend(summary_report.diagnostics);
+        converted
+            .report
+            .diagnostics
+            .extend(summary_report.diagnostics);
         if self.image_progress {
             converted.report.omitted("image.progress", "Gemini inline images expose the final image; preview/progress events are not additional generated images");
         }

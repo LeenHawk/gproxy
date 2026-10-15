@@ -271,12 +271,15 @@ impl ResponsesToChatStream {
             ),
             rs::StreamEvent::ReasoningSummaryPartAdded(v) => {
                 if let Some(state) = self.reasoning_mut(v.output_index, &v.item_id)? {
-                    state.summary.insert(v.summary_index, TextPart {
-                        pending: v.part.text,
-                        refusal: false,
-                        done: false,
-                        emitted: false,
-                    });
+                    state.summary.insert(
+                        v.summary_index,
+                        TextPart {
+                            pending: v.part.text,
+                            refusal: false,
+                            done: false,
+                            emitted: false,
+                        },
+                    );
                 }
             }
             rs::StreamEvent::ReasoningSummaryTextDelta(v) => {
@@ -285,7 +288,8 @@ impl ResponsesToChatStream {
                         .summary
                         .get_mut(&v.summary_index)
                         .ok_or_else(|| invalid("reasoning delta without summary part"))?
-                        .pending.push_str(&v.delta);
+                        .pending
+                        .push_str(&v.delta);
                 }
             }
             rs::StreamEvent::ReasoningSummaryPartDone(v) => {
