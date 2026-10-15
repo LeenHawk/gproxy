@@ -55,6 +55,7 @@ async fn two_providers() -> (TestApp, std::sync::Arc<support::ScriptClient>) {
     support::allow(&handle, "p-alice", "alice", None).await;
     support::provider(&handle, "p1", &["m1"]).await;
     support::provider(&handle, "p2", &["m1"]).await;
+    support::route(&handle, "pair", &["p1", "p2"]).await;
     support::credential(&handle, "c-1", "p1", None, None, None).await;
     support::credential(&handle, "c-2", "p2", None, None, None).await;
     log_exchanges(&app).await;
@@ -120,7 +121,7 @@ fn request(id: &str, body: Value) -> DataPlaneRequest {
 }
 
 fn call_body() -> Value {
-    json!({"model": "test/m1", "input": "hello"})
+    json!({"model": "p1/m1", "input": "hello"})
 }
 
 /// Drain the response into the capture and settle it, which is what writes the
@@ -241,7 +242,7 @@ async fn the_switch_being_off_means_no_capture_at_all() {
     client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
     let caller = support::caller_for(&app, "k-alice").await;
 
-    let body = json!({"model": "test/m1", "input": oversized()});
+    let body = json!({"model": "p1/m1", "input": oversized()});
     let outcome = app.call(&caller, request("req-off", body)).await.unwrap();
     assert!(
         outcome.capture.is_none(),
@@ -270,7 +271,7 @@ async fn the_body_switch_off_records_the_exchange_but_not_what_was_in_it() {
     client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
     let caller = support::caller_for(&app, "k-alice").await;
 
-    let body = json!({"model": "test/m1", "input": oversized()});
+    let body = json!({"model": "p1/m1", "input": oversized()});
     let outcome = app.call(&caller, request("req-1", body)).await.unwrap();
     settle(&app, outcome, CaptureOutcome::Complete).await;
 
@@ -288,7 +289,7 @@ async fn the_body_switch_off_records_the_exchange_but_not_what_was_in_it() {
     assert_eq!(row.api_key_id.as_deref(), Some("k-alice"));
     assert_eq!(
         row.model.as_deref(),
-        Some("test/m1"),
+        Some("p1/m1"),
         "the name the client asked for"
     );
     assert_eq!(row.operation.as_deref(), Some("generate_content"));
@@ -364,7 +365,7 @@ async fn large_request_and_chunked_response_are_retained_in_full() {
     )]);
     let caller = support::caller_for(&app, "k-alice").await;
 
-    let body = json!({"model": "test/m1", "input": oversized()});
+    let body = json!({"model": "p1/m1", "input": oversized()});
     let outcome = app
         .call(&caller, request("req-1", body.clone()))
         .await
@@ -401,7 +402,7 @@ async fn redaction_hides_the_credential_in_a_header_a_query_and_a_body() {
     )]);
     let caller = support::caller_for(&app, "k-alice").await;
 
-    let body = json!({"model": "test/m1", "api_key": "sk-in-the-body"});
+    let body = json!({"model": "p1/m1", "api_key": "sk-in-the-body"});
     let outcome = app.call(&caller, request("req-1", body)).await.unwrap();
     settle(&app, outcome, CaptureOutcome::Complete).await;
 
@@ -418,7 +419,7 @@ async fn redaction_hides_the_credential_in_a_header_a_query_and_a_body() {
     );
     assert_eq!(
         serde_json::from_slice::<Value>(&row.request_body.unwrap()).unwrap(),
-        json!({"model": "test/m1", "api_key": "[redacted]"})
+        json!({"model": "p1/m1", "api_key": "[redacted]"})
     );
     assert_eq!(
         serde_json::from_slice::<Value>(&row.response_body.unwrap()).unwrap(),
@@ -434,7 +435,7 @@ async fn disable_log_redaction_stores_the_exchange_as_it_was() {
     client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
     let caller = support::caller_for(&app, "k-alice").await;
 
-    let body = json!({"model": "test/m1", "api_key": "sk-in-the-body"});
+    let body = json!({"model": "p1/m1", "api_key": "sk-in-the-body"});
     let outcome = app.call(&caller, request("req-1", body)).await.unwrap();
     settle(&app, outcome, CaptureOutcome::Complete).await;
 
@@ -493,7 +494,10 @@ async fn a_retried_call_is_linked_to_every_provider_it_tried() {
     let caller = support::caller_for(&app, "k-alice").await;
 
     let outcome = app
-        .call(&caller, request("req-1", call_body()))
+        .call(
+            &caller,
+            request("req-1", json!({"model": "pair", "input": "hello"})),
+        )
         .await
         .unwrap();
     assert_eq!(outcome.execution.response().status, StatusCode::OK);
@@ -652,7 +656,7 @@ fn handmade(app: &TestApp, id: &str) -> DownstreamCapture {
         attribution: UsageAttribution {
             user_id: Some("alice".into()),
             api_key_id: Some("k-alice".into()),
-            model: Some("test/m1".into()),
+            model: Some("p1/m1".into()),
         },
         budgets: Vec::new(),
         providers: Default::default(),

@@ -2,8 +2,7 @@
 //!
 //! Core does not route: it executes against a provider and a credential set a
 //! caller already named. This module owns the other half — exposed model
-//! names, the routes they select, the `channel/model` and `provider/model`
-//! prefixes, the narrowing an application layer applies, and the order the
+//! names, the routes they select, the `provider/model` prefix, the narrowing an application layer applies, and the order the
 //! resulting targets are tried in. The rows live here rather than in
 //! `CoreData` because nothing in the engine reads them.
 //!
@@ -15,16 +14,13 @@
 //! |---|---|
 //! | absent | every enabled provider, with no upstream model |
 //! | an exposed model name | that route's enabled members |
-//! | `channel/model` | the providers of that channel, preferring the ones whose catalog lists `model` |
 //! | `provider/model` | that one provider |
 //! | anything else | [`SdkError::UnknownModel`] |
 //!
-//! Exact exposed names are matched before the prefix forms, so an operator can
-//! expose the literal name `openai/gpt-5` and have it mean their route. Within
-//! the prefix forms **a channel id wins over a provider of the same name**: a
-//! channel id is a fixed part of this build and cannot be renamed out of the
-//! way, while a provider can always be renamed, so the collision is resolved
-//! in favour of the name the operator cannot change.
+//! Exact exposed names are matched before the prefix form, so an operator can
+//! expose the literal name `openai/gpt-5` and have it mean their route. The
+//! prefix is always a provider name, never a channel id: a provider named
+//! `openai` on the `codex` channel is reached as `openai/…`.
 
 mod balance;
 mod table;
@@ -92,7 +88,7 @@ impl<'a> ResolveRequest<'a> {
 #[derive(Debug)]
 pub struct Plan {
     /// What the name resolved to: the route name, the part
-    /// after the prefix for `channel/model` and `provider/model`, `None` when
+    /// after the prefix for `provider/model`, `None` when
     /// no model was named. It is not a per-target upstream model — a route's
     /// members may each name their own.
     pub resolved_model: Option<String>,
@@ -321,54 +317,6 @@ impl<C> Gproxy<C> {
             .split_once('/')
             .filter(|(head, tail)| !head.is_empty() && !tail.is_empty())
             .ok_or_else(|| SdkError::UnknownModel(model.to_owned()))?;
-
-        // A channel id before a provider name: channel ids are fixed by this
-        // build and an operator cannot rename one out of the way.
-        if self.0.core.channels().get(head).is_some() {
-            let of_channel: Vec<&Arc<ProviderData>> = snapshot
-                .providers
-                .values()
-                .filter(|provider| provider.entity.channel == head)
-                .collect();
-            // Prefer the providers that say they serve this model. When none
-            // of them has a catalog entry for it, the catalog is simply not
-            // maintained and every provider of the channel is a candidate.
-            let listed: Vec<&Arc<ProviderData>> = of_channel
-                .iter()
-                .copied()
-                .filter(|provider| {
-                    provider.models.iter().any(|model| {
-                        model.enabled
-                            && (model.upstream_name == tail
-                                || model.variant_names().contains(&tail))
-                    })
-                })
-                .collect();
-            let chosen = if listed.is_empty() {
-                of_channel
-            } else {
-                listed
-            };
-            let mut candidates: Vec<Candidate> = chosen
-                .into_iter()
-                .map(|provider| Candidate {
-                    provider: provider.clone(),
-                    upstream_model: Some(tail.to_owned()),
-                    tier: 0,
-                    weight: 100,
-                    member_id: None,
-                })
-                .collect();
-            candidates.sort_by(|a, b| a.provider.entity.id.cmp(&b.provider.entity.id));
-            return Ok(Matched {
-                candidates,
-                strategy: RouteStrategy::RoundRobin,
-                balance_key: format!("@channel:{head}"),
-                session_affinity: false,
-                max_attempts: routing.default_max_attempts,
-                resolved_model: Some(tail.to_owned()),
-            });
-        }
 
         let provider = snapshot
             .providers

@@ -62,9 +62,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Routes<'_, C> {
             let reserved = crud::reserved_prefixes(self.writer).await?;
             if reserved.contains(&prefix.to_ascii_lowercase()) {
                 return Err(SdkError::invalid(format!(
-                    "`{prefix}/` is reserved: a first segment naming a channel or a provider \
-                     already means `channel/model` or `provider/model` narrowing; \
-                     choose a distinct model route name"
+                    "`{prefix}/` is reserved: a first segment naming a provider already means \
+                     `provider/model` narrowing; choose a distinct model route name"
                 )));
             }
         }

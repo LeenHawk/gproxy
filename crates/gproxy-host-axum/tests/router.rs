@@ -45,7 +45,7 @@ async fn healthz_answers_without_a_credential_and_names_the_revision() {
 async fn a_data_plane_request_with_no_key_is_401_in_the_product_envelope() {
     let host = instance().await;
     let answer = host
-        .send(post("/v1/messages", json!({"model": "test/m1"})))
+        .send(post("/v1/messages", json!({"model": "p1/m1"})))
         .await;
     assert_eq!(answer.status, StatusCode::UNAUTHORIZED);
     assert_eq!(answer.json()["error"]["code"], "unauthorized");
@@ -71,7 +71,7 @@ async fn a_caller_with_no_permission_is_403_and_costs_no_upstream_call() {
 
     let answer = host
         .send(keyed(
-            post("/v1/messages", json!({"model": "test/m1"})),
+            post("/v1/messages", json!({"model": "p1/m1"})),
             "k-bob",
         ))
         .await;
@@ -91,7 +91,7 @@ async fn a_permitted_call_reaches_the_upstream_and_writes_a_usage_row() {
 
     let answer = host
         .send(keyed(
-            post("/v1/messages", json!({"model": "test/m1"})),
+            post("/v1/messages", json!({"model": "p1/m1"})),
             "k-alice",
         ))
         .await;
@@ -238,7 +238,7 @@ async fn an_unknown_first_segment_stays_on_the_aggregated_mount() {
     // — and `/nope/v1/messages` is not a declared surface.
     let answer = host
         .send(keyed(
-            post("/nope/v1/messages", json!({"model": "test/m1"})),
+            post("/nope/v1/messages", json!({"model": "p1/m1"})),
             "k-alice",
         ))
         .await;
@@ -510,7 +510,7 @@ async fn a_zstd_body_is_decoded_before_the_model_is_read() {
     host.client
         .script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
 
-    let body = serde_json::to_vec(&json!({"model": "test/m1"})).unwrap();
+    let body = serde_json::to_vec(&json!({"model": "p1/m1"})).unwrap();
     let compressed = compress_to_vec(body.as_slice(), CompressionLevel::Fastest);
     let request = http::Request::builder()
         .method(Method::POST)
@@ -617,7 +617,7 @@ async fn a_buffered_answer_over_a_socket_settles_as_completed() {
         .script(vec![Reply::Http(StatusCode::OK, json!({ "ok": true }))]);
     let bound = host.bind().await;
     let mut socket = tokio::net::TcpStream::connect(bound.address).await.unwrap();
-    let body = json!({ "model": "test/m1" }).to_string();
+    let body = json!({ "model": "p1/m1" }).to_string();
     socket
         .write_all(
             format!(

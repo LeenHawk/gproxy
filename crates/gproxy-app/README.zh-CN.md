@@ -843,7 +843,6 @@ portal.password().change(change).await?;
 的：暴露名和 `Provider名/模型` 形式是实例配置，就是运营者发布出去的那些字符串。被扣下的是它们
 背后的 Provider id；DTO 只报一个数量和一个渠道，这说明了一个名字有多冗余，却没点名任何机器。
 
-`渠道/模型` 仍可用于调用，但不再自动加入清单。
 `Provider名/模型` 与使用 Provider 专属 API 地址并填写原模型名等价。
 Provider 改名后，模型前缀和专属 API 地址也随之改变。
 

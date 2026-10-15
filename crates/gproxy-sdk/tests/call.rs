@@ -351,7 +351,7 @@ async fn an_explicit_model_overrides_the_body() {
     let execution = gproxy
         .call(generate(), request(json!({"model": "nonsense"})))
         .scope("user:u1")
-        .model("test/m1")
+        .model("p1/m1")
         .request_id("req-9")
         .send()
         .await
@@ -578,7 +578,7 @@ async fn managed_reset_strategy_and_affinity_reach_core_for_http_and_websocket()
             .call(
                 generate(),
                 with_headers(
-                    json!({"model":"alt/m1", "input":"hello"}),
+                    json!({"model":"p/m1", "input":"hello"}),
                     &[("x-opencode-session", "s")],
                 ),
             )
@@ -607,7 +607,7 @@ async fn managed_reset_strategy_and_affinity_reach_core_for_http_and_websocket()
             },
         )
         .scope("user:u1")
-        .model("alt/m1")
+        .model("p/m1")
         .session(gproxy_core::SessionIdentity {
             id: "s".into(),
             source: SessionSource::OpenCode,

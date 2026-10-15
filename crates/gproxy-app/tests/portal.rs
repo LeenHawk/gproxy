@@ -516,7 +516,7 @@ async fn recent_requests_are_gated_scoped_and_reduced() {
     let row = &rows[0];
     assert_eq!(row.request_id, "cap-alice");
     assert_eq!(row.api_key_id.as_deref(), Some("ka"));
-    assert_eq!(row.model.as_deref(), Some("test/m1"));
+    assert_eq!(row.model.as_deref(), Some("p1/m1"));
     // The provider is a display name, and the id never travels.
     assert_eq!(row.provider.as_deref(), Some("p1"));
     assert_eq!(row.duration_ms, Some(120));
@@ -954,7 +954,7 @@ async fn seed_capture(
             api_key_id: Set(api_key_id.map(Into::into)),
             provider_id: Set(provider_id.map(Into::into)),
             credential_id: Set(Some("cred-1".into())),
-            model: Set(Some("test/m1".into())),
+            model: Set(Some("p1/m1".into())),
             operation: Set(Some("generate_content".into())),
             request_method: Set(Some("POST".into())),
             request_url: Set(Some("/v1/responses".into())),

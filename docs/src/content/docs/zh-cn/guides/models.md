@@ -1,13 +1,13 @@
 ---
 title: "模型与路由"
-description: 客户端的模型名如何解析到一个 Provider 和一把凭证：四种形式、路由与成员、namespace 与模型目录。
+description: 客户端的模型名如何解析到一个 Provider 和一把凭证：三种形式、路由与成员、namespace 与模型目录。
 ---
 
 客户端的模型名很少就是上游模型 id。v4 在**进引擎之前**解析它，因此引擎只见已选定的目标。
 
 ```text
 请求里的 model
-  → 第一条命中的形式：路由名 · 渠道/模型 · Provider 名/模型
+  → 第一条命中的形式：路由名 · Provider 名/模型
   → 候选按渠道、允许的 Provider、允许的凭证收窄
   → 按 (tier, 健康度, 权重倒序, 稳定 id) 排序
   → 首段按路由策略均衡
@@ -16,7 +16,7 @@ description: 客户端的模型名如何解析到一个 Provider 和一把凭证
 
 直接使用路由名称作为客户端模型名。需要修改请求参数时，使用[重写规则](/zh-cn/guides/rules/)。
 
-## 四种形式
+## 三种形式
 
 按第一条命中的规则解析。
 
@@ -24,15 +24,13 @@ description: 客户端的模型名如何解析到一个 Provider 和一把凭证
 | --- | --- | --- |
 | 没有模型 | 全部启用的 Provider，无上游模型 | `settings.max_attempts` |
 | **模型路由名称** | 该路由启用的成员 | 路由自己的 |
-| `渠道/模型` | 该渠道的 Provider，优先目录里列了该模型的 | `settings.max_attempts` |
 | `Provider 名/模型` | 那一个 Provider | `settings.max_attempts` |
 | 其他 | `404 unknown_model` | — |
 
-路由名**精确匹配且先于**前缀形式。管理接口会拒绝首段与已注册渠道或 Provider 前缀冲突的名称。
+路由名**精确匹配且先于**前缀形式。管理接口会拒绝首段是现有 Provider 名的名称。
 
-前缀形式内部，**渠道 id 胜过同名 Provider**。渠道 id 由构建固定、改不掉；Provider 名随时
-可以改。反过来更糟：把某个 Provider 命名为 `codex`，全部 `codex/*` 流量就再也到不了
-`codex` 渠道，而且没有任何绕开的办法。
+前缀永远是 **Provider 名**，不是渠道 id。名为 `openai`、渠道为 `codex` 的 Provider 用
+`openai/…` 调用，与它的专属入口 `/openai/v1` 一致。
 
 ## 路由
 
@@ -116,12 +114,12 @@ namespace 是一个**名字索引**，不是被存储的分组，也不是归属
 
 ### 被保留的第一段
 
-为了避免 namespace 与前缀路由歧义，首段是已注册渠道 id 或现有 Provider 名的路由名会在写入时被拒绝：
+为了避免 namespace 与前缀路由歧义，首段是现有 Provider 名的路由名会在写入时被拒绝：
 
 ```json
 {"error":{"code":"invalid_request","message":"invalid request: `codex/` is reserved:
- a first segment naming a channel or a provider already means `channel/model` or
- `provider/model` narrowing, so `codex/fast` could never reach its route"}}
+ a first segment naming a provider already means `provider/model` narrowing;
+ choose a distinct model route name"}}
 ```
 
 其他都行。`coding/fast` 是个完全好用的公开名。
@@ -143,7 +141,7 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/provider-models \
  "upstreamName":"gpt-4o-mini","modelId":null,"metadata":{},"enabled":true}
 ```
 
-`渠道/模型` 形式在该渠道的多个 Provider 中做选择时会优先它，模型发现也写在这里。
+模型发现写在这里。
 **`models`** 是一行 `provider_models` 可以指向的全局目录：一个名字、它的元数据，以及
 token 估算该用的词表。
 
@@ -183,7 +181,6 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/default-model-catalog/apply-pric
 `GET /v1/models` 返回已配置的模型清单，包括路由名和
 `Provider 名/模型`，只列出调用方有权使用的名字，不会轮流返回某一家上游的目录。
 新增或导入供应商模型后，它会出现在这份清单中，前缀使用配置的供应商路由名。
-`渠道/模型` 仍可用于调用，但不会再自动添加为另一条记录。
 
 两种调用方式等价：API 地址用 `/供应商A/v1`、模型填 `gpt-5`；
 或者地址用 `/v1`、模型填 `供应商A/gpt-5`。

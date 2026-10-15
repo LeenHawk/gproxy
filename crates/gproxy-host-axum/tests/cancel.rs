@@ -296,7 +296,7 @@ async fn a_socket_closed_cleanly_still_settles_as_completed() {
 /// response has already read everything before the test can hang up, and
 /// `oneshot` never opens a socket to hang up on.
 async fn call(bound: &Bound) -> TcpStream {
-    let body = json!({"model": "test/m1", "stream": true}).to_string();
+    let body = json!({"model": "p1/m1", "stream": true}).to_string();
     let request = format!(
         "POST /v1/messages HTTP/1.1\r\n\
          host: {host}\r\n\
@@ -384,7 +384,7 @@ async fn assert_admitted_again(host: &Host) {
     for attempt in 0..100 {
         let answer = host
             .send(keyed(
-                post("/v1/messages", json!({"model": "test/m1"})),
+                post("/v1/messages", json!({"model": "p1/m1"})),
                 "k-alice",
             ))
             .await;

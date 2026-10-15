@@ -55,7 +55,7 @@ async fn instance() -> Host {
 
 fn call() -> http::Request<axum::body::Body> {
     keyed(
-        post("/v1/messages", json!({"model": "test/m1", "stream": true})),
+        post("/v1/messages", json!({"model": "p1/m1", "stream": true})),
         "k-alice",
     )
 }

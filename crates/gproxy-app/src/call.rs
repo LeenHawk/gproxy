@@ -441,9 +441,9 @@ mod tests {
 
     #[test]
     fn the_model_is_read_from_the_body_when_the_host_names_none() {
-        let body = Bytes::from(serde_json::to_vec(&json!({"model": "test/m1"})).unwrap());
+        let body = Bytes::from(serde_json::to_vec(&json!({"model": "p1/m1"})).unwrap());
         let json = json_body(&body);
-        assert_eq!(body_model(json.as_ref()), Some("test/m1"));
+        assert_eq!(body_model(json.as_ref()), Some("p1/m1"));
     }
 
     #[test]

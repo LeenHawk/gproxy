@@ -115,13 +115,11 @@ Responses 的 `connect().send()` 使用会话驱动，逐轮准入生成和 stee
 |---|---|---|
 | 没有模型 | 全部启用的 Provider，无上游模型 | `settings.max_attempts` |
 | 暴露的模型名 | 该路由启用的成员 | 路由自己的 |
-| `渠道/模型` | 该渠道的 Provider，优先目录里列了该模型的 | `settings.max_attempts` |
 | `Provider 名/模型` | 那一个 Provider | `settings.max_attempts` |
 | 其他 | `SdkError::UnknownModel` | — |
 
 暴露名精确匹配，且先于前缀形式，所以运营者可以把字面量 `openai/gpt-5` 暴露出来。
-前缀形式内部**渠道 id 优先于同名 Provider**：渠道 id 由构建固定、改不掉，而 Provider
-名随时可以改。
+前缀永远是 Provider 名，不是渠道 id。
 
 候选随后按渠道、允许的 Provider id、允许的凭证 id 收窄——最后一项正是应用层把某个
 组织的凭证挡在别人请求之外的手段。禁用、已退役、`Dead` 的凭证直接去掉。被临时封禁的

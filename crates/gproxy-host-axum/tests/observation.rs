@@ -173,7 +173,7 @@ async fn channel_requests_and_services_are_logs_while_management_reads_are_audit
         .script(vec![Reply::Http(StatusCode::OK, json!({"ok":true}))]);
     assert_eq!(
         host.send(keyed(
-            post("/v1/messages", json!({"model":"test/m1"})),
+            post("/v1/messages", json!({"model":"p1/m1"})),
             "k-alice"
         ))
         .await

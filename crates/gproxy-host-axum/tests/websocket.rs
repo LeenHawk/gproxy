@@ -1168,7 +1168,7 @@ async fn a_socket_holds_its_concurrency_permit_until_it_closes() {
         .push(support::Reply::Http(StatusCode::OK, json!({"ok": true})));
     let refused = host
         .send(keyed(
-            support::post("/v1/messages", json!({"model": "test/m1"})),
+            support::post("/v1/messages", json!({"model": "p1/m1"})),
             "k-alice",
         ))
         .await;
@@ -1189,7 +1189,7 @@ async fn a_socket_holds_its_concurrency_permit_until_it_closes() {
     // Freed. The scripted HTTP reply from above is still queued.
     let after = host
         .send(keyed(
-            support::post("/v1/messages", json!({"model": "test/m1"})),
+            support::post("/v1/messages", json!({"model": "p1/m1"})),
             "k-alice",
         ))
         .await;

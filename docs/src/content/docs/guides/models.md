@@ -1,6 +1,6 @@
 ---
 title: "Models & Routes"
-description: "How a client model name resolves to a provider and a credential: the four forms, routes and their members, namespaces and the model catalogue."
+description: "How a client model name resolves to a provider and a credential: the three forms, routes and their members, namespaces and the model catalogue."
 ---
 
 A client model name is rarely an upstream model id. v4 resolves it **before**
@@ -8,7 +8,7 @@ the engine runs, so the engine only ever sees an already-chosen target.
 
 ```text
 request model
-  → the first matching form: route name · channel/model · provider/model
+  → the first matching form: route name · provider/model
   → candidates, narrowed by channel, allowed providers, allowed credentials
   → ordered by (tier, health, descending weight, stable id)
   → the leading run balanced by the route's strategy
@@ -17,7 +17,7 @@ request model
 
 Use a route name as the client-facing model name. To change request parameters, use [rewrite rules](/guides/rules/).
 
-## The Four Forms
+## The Three Forms
 
 A name matches the first rule that applies.
 
@@ -25,18 +25,15 @@ A name matches the first rule that applies.
 | --- | --- | --- |
 | absent | every enabled provider, no upstream model | `settings.max_attempts` |
 | a **model route name** | that route's enabled members | the route's own |
-| `channel/model` | the providers of that channel, preferring the ones whose catalogue lists `model` | `settings.max_attempts` |
 | `provider/model` | that one provider | `settings.max_attempts` |
 | anything else | `404 unknown_model` | — |
 
 Route names are matched **exactly and first**. Management rejects names whose
-first segment conflicts with a registered channel or provider prefix.
+first segment is an existing provider name.
 
-Inside the prefix forms, **a channel id beats a provider of the same name**. A
-channel id is fixed by the build and cannot be renamed out of the way; a
-provider always can. The alternative is worse: name a provider `codex` and all
-`codex/*` traffic could never reach the `codex` channel again, with no way
-around it.
+The prefix is always a **provider name**, never a channel id. A provider named
+`openai` on the `codex` channel is reached as `openai/…`, exactly as its mount
+`/openai/v1` reaches it.
 
 ## Routes
 
@@ -127,13 +124,12 @@ scope. Nothing is created and nothing is owned by it.
 
 ### Reserved first segments
 
-A route name whose first segment is a registered channel id or an existing
-provider name is refused to avoid ambiguous namespace/prefix routing:
+A route name whose first segment is an existing provider name is refused to avoid ambiguous namespace/prefix routing:
 
 ```json
 {"error":{"code":"invalid_request","message":"invalid request: `codex/` is reserved:
- a first segment naming a channel or a provider already means `channel/model` or
- `provider/model` narrowing, so `codex/fast` could never reach its route"}}
+ a first segment naming a provider already means `provider/model` narrowing;
+ choose a distinct model route name"}}
 ```
 
 Anything else is fine. `coding/fast` is a perfectly good public name.
@@ -155,8 +151,7 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/provider-models \
  "upstreamName":"gpt-4o-mini","modelId":null,"metadata":{},"enabled":true}
 ```
 
-It is what the `channel/model` form prefers when it chooses among a channel's
-providers, and it is where discovery writes. **`models`** is the global
+It is where discovery writes. **`models`** is the global
 catalogue a `provider_models` row may point at: one name, its metadata, and the
 tokenizer vocabulary token estimation should use for it.
 
@@ -201,8 +196,7 @@ keeps its edit and is reported as skipped.
 `GET /v1/models` returns the configured catalogue: route names and
 `provider/model`, filtered to names the caller may use. It does not rotate
 between upstream directories. Add or import provider models to publish them here.
-The prefix is the configured provider route name; `channel/model` remains callable
-but is not automatically added as a second listing.
+The prefix is the configured provider route name.
 
 The two forms are equivalent: base URL `/provider-A/v1` with model `gpt-5`, or
 base URL `/v1` with model `provider-A/gpt-5`. `GET /provider-A/v1/models` queries

@@ -77,7 +77,7 @@ async fn a_key_minted_through_the_admin_api_authenticates_without_a_restart() {
         .script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
     let answer = host
         .send(keyed(
-            post("/v1/messages", json!({"model": "test/m1"})),
+            post("/v1/messages", json!({"model": "p1/m1"})),
             &token,
         ))
         .await;
@@ -103,7 +103,7 @@ async fn a_permission_withdrawn_through_the_admin_api_stops_the_next_call() {
         .script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
     let answer = host
         .send(keyed(
-            post("/v1/messages", json!({"model": "test/m1"})),
+            post("/v1/messages", json!({"model": "p1/m1"})),
             "k-alice",
         ))
         .await;
@@ -119,7 +119,7 @@ async fn a_permission_withdrawn_through_the_admin_api_stops_the_next_call() {
 
     let answer = host
         .send(keyed(
-            post("/v1/messages", json!({"model": "test/m1"})),
+            post("/v1/messages", json!({"model": "p1/m1"})),
             "k-alice",
         ))
         .await;
@@ -160,7 +160,7 @@ async fn a_portal_key_works_for_the_account_that_just_created_it() {
         .script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
     let answer = host
         .send(keyed(
-            post("/v1/messages", json!({"model": "test/m1"})),
+            post("/v1/messages", json!({"model": "p1/m1"})),
             &token,
         ))
         .await;

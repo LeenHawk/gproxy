@@ -878,7 +878,7 @@ pub async fn usage_row(handle: &Handle, request_id: &str, user_id: &str, input_t
         .create_many(vec![usage_record::ActiveModel {
             request_id: Set(request_id.into()),
             user_id: Set(Some(user_id.into())),
-            model: Set("test/m1".into()),
+            model: Set("p1/m1".into()),
             operation: Set("generate_content".into()),
             input_tokens: Set(Some(input_tokens as i64)),
             metrics: Set(json!({})),

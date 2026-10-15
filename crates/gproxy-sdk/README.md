@@ -127,14 +127,12 @@ A model name is resolved by the first rule that matches:
 |---|---|---|
 | absent | every enabled provider, no upstream model | `settings.max_attempts` |
 | a model route name | that route's enabled members | the route's own |
-| `channel/model` | the providers of that channel, preferring the ones whose catalog lists `model` | `settings.max_attempts` |
 | `provider/model` | that one provider | `settings.max_attempts` |
 | anything else | `SdkError::UnknownModel` | — |
 
-Route names are matched exactly and before the prefix forms, so an operator
-can expose the literal name `openai/gpt-5`. Within the prefix forms **a channel
-id beats a provider of the same name**: a channel id is fixed by the build and
-cannot be renamed out of the way, while a provider always can.
+Route names are matched exactly and before the prefix form, so an operator
+can expose the literal name `openai/gpt-5`. The prefix is always a provider
+name, never a channel id.
 
 Candidates are then narrowed by channel, by allowed provider ids and by allowed
 credential ids — the last is how an application layer keeps one organization's

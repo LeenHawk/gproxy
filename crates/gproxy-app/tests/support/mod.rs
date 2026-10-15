@@ -414,6 +414,31 @@ pub async fn provider(handle: &Handle, id: &str, models: &[&str]) {
 
 /// An enabled API-key credential whose key is `k-{id}`, owned by whichever of
 /// the three columns is set.
+/// A route exposed as `name` whose members are `providers`, each serving `m1`.
+pub async fn route(handle: &Handle, name: &str, providers: &[&str]) {
+    let manage = handle.manage();
+    let route = manage
+        .routes()
+        .create(gproxy_sdk::dto::RouteWrite {
+            name: name.into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    for provider in providers {
+        manage
+            .route_members()
+            .create(gproxy_sdk::dto::RouteMemberWrite {
+                route_id: route.id.clone(),
+                provider_id: (*provider).into(),
+                upstream_model: "m1".into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+}
+
 pub async fn credential(
     handle: &Handle,
     id: &str,
@@ -491,7 +516,7 @@ pub async fn usage_row(handle: &Handle, request_id: &str, user_id: &str, input_t
         .create_many(vec![usage_record::ActiveModel {
             request_id: Set(request_id.into()),
             user_id: Set(Some(user_id.into())),
-            model: Set("test/m1".into()),
+            model: Set("p1/m1".into()),
             operation: Set("generate_content".into()),
             input_tokens: Set(Some(input_tokens as i64)),
             metrics: Set(json!({})),

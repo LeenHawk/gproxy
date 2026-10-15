@@ -74,16 +74,13 @@ router 或 UI。
 | --- | --- | --- |
 | 没有模型 | 全部启用的 Provider，无上游模型 | `settings.max_attempts` |
 | 公开模型名 | 该路由启用的成员 | 路由自己的 |
-| `渠道/模型` | 该渠道的 Provider，优先目录里列了该模型的 | `settings.max_attempts` |
 | `Provider 名/模型` | 那一个 Provider | `settings.max_attempts` |
 | 其他 | unknown model 错误 | — |
 
 公开名精确匹配，并且**先于**前缀形式，因此运维者可以把字面量 `openai/gpt-5` 作为自己的
 公开名暴露出来。
 
-前缀形式内部，**渠道 id 胜过同名 Provider**。渠道 id 由构建固定、改不掉；Provider 名随时
-可以改。反过来更糟：有人把 Provider 命名为 `codex`，全部 `codex/*` 流量就再也到不了
-`codex` 渠道，而且没有任何绕开的办法。
+前缀永远是 Provider 名，不是渠道 id。
 
 候选随后按渠道、允许的 Provider id、允许的凭证 id 收窄——最后一项是产品层做组织间隔离的
 手段。排序是 `(tier, 健康度, 权重倒序, 稳定 id)`；只有首段按路由策略做均衡。

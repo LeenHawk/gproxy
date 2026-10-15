@@ -483,15 +483,6 @@ async fn a_rejected_write_costs_nothing() {
     assert!(matches!(duplicate, SdkError::Conflict(_)), "{duplicate}");
     assert_eq!(duplicate.status_code(), 409);
 
-    let reserved = manage
-        .routes()
-        .create(RouteWrite {
-            name: "test/foo".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .expect_err("`test` is a registered channel id, so `test/…` already means narrowing");
-    assert!(matches!(reserved, SdkError::Invalid(_)), "{reserved}");
     let provider_prefixed = manage
         .routes()
         .create(RouteWrite {
@@ -499,7 +490,7 @@ async fn a_rejected_write_costs_nothing() {
             ..Default::default()
         })
         .await
-        .expect_err("a provider name is reserved the same way");
+        .expect_err("`upstream` is a provider name, so `upstream/…` already means narrowing");
     assert!(matches!(provider_prefixed, SdkError::Invalid(_)));
 
     let zero_weight = manage

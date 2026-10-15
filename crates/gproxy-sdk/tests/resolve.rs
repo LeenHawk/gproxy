@@ -201,7 +201,7 @@ async fn a_blocked_credential_is_dropped_while_a_healthy_one_remains() {
     seed::publish(&gproxy).await;
 
     seed::block(&gproxy, "p1", "c-a").await;
-    let plan = gproxy.resolve(request("test/m1")).await.unwrap();
+    let plan = gproxy.resolve(request("p1/m1")).await.unwrap();
     assert_eq!(
         plan.targets[0]
             .credentials
@@ -221,7 +221,7 @@ async fn dead_and_disabled_credentials_never_appear() {
     seed::disabled_credential(&gproxy, "c-off", "p1").await;
     seed::publish(&gproxy).await;
 
-    let plan = gproxy.resolve(request("test/m1")).await.unwrap();
+    let plan = gproxy.resolve(request("p1/m1")).await.unwrap();
     assert_eq!(
         plan.targets[0]
             .credentials
@@ -241,80 +241,10 @@ async fn a_provider_without_a_usable_credential_is_not_a_target() {
     seed::publish(&gproxy).await;
 
     let error = gproxy
-        .resolve(request("test/m1"))
+        .resolve(request("p1/m1"))
         .await
         .expect_err("nothing is left to send to");
-    assert!(matches!(error, SdkError::NoTarget(name) if name == "test/m1"));
-}
-
-#[tokio::test]
-async fn a_channel_prefix_selects_that_channel_and_prefers_its_catalog() {
-    let (gproxy, _, _) = seed::handle().await;
-    // Two providers on `test`, only one of which lists the model.
-    seed::provider(&gproxy, "p1", "test", &["m1"]).await;
-    seed::provider(&gproxy, "p2", "test", &["other"]).await;
-    seed::provider(&gproxy, "p3", "alt", &["m1"]).await;
-    for (credential, provider) in [("c1", "p1"), ("c2", "p2"), ("c3", "p3")] {
-        seed::credential(&gproxy, credential, provider).await;
-    }
-    seed::publish(&gproxy).await;
-
-    let plan = gproxy.resolve(request("test/m1")).await.unwrap();
-    assert_eq!(plan.provider_ids(), ["p1"], "the catalog decides");
-    assert_eq!(plan.resolved_model.as_deref(), Some("m1"));
-    assert_eq!(plan.targets[0].upstream_model.as_deref(), Some("m1"));
-    assert_eq!(plan.targets[0].member_id, None);
-
-    // No provider of the channel lists this one, so the catalog says nothing
-    // and every provider of the channel is a candidate.
-    let mut ids = gproxy
-        .resolve(request("test/unlisted"))
-        .await
-        .unwrap()
-        .provider_ids()
-        .iter()
-        .map(|id| id.to_string())
-        .collect::<Vec<_>>();
-    ids.sort();
-    assert_eq!(ids, ["p1", "p2"]);
-}
-
-#[tokio::test]
-async fn a_channel_id_wins_over_a_provider_of_the_same_name() {
-    let (gproxy, _, _) = seed::handle().await;
-    // A provider literally named `test`, which is also a channel id.
-    seed::provider_named(
-        &gproxy,
-        "impostor",
-        "test",
-        "alt",
-        &["m1"],
-        serde_json::json!({}),
-    )
-    .await;
-    seed::provider(&gproxy, "real", "test", &["m1"]).await;
-    seed::credential(&gproxy, "c1", "impostor").await;
-    seed::credential(&gproxy, "c2", "real").await;
-    seed::publish(&gproxy).await;
-
-    assert_eq!(
-        gproxy
-            .resolve(request("test/m1"))
-            .await
-            .unwrap()
-            .provider_ids(),
-        ["real"],
-        "a channel id cannot be renamed out of the way, so it wins"
-    );
-    // The provider is still reachable under its own channel prefix.
-    assert_eq!(
-        gproxy
-            .resolve(request("alt/m1"))
-            .await
-            .unwrap()
-            .provider_ids(),
-        ["impostor"]
-    );
+    assert!(matches!(error, SdkError::NoTarget(name) if name == "p1/m1"));
 }
 
 #[tokio::test]
@@ -347,7 +277,7 @@ async fn an_exposed_name_is_matched_before_any_prefix() {
     seed::provider(&gproxy, "p2", "alt", &[]).await;
     seed::credential(&gproxy, "c1", "p1").await;
     seed::credential(&gproxy, "c2", "p2").await;
-    // An exposed name that looks exactly like a channel prefix.
+    // An exposed name that looks exactly like a provider prefix.
     seed::route(
         &gproxy,
         "r",
@@ -375,7 +305,7 @@ async fn an_unrecognized_name_and_an_unusable_one_are_different_errors() {
     seed::credential(&gproxy, "c1", "p1").await;
     seed::publish(&gproxy).await;
 
-    // Neither an exposed name, nor a channel, nor a provider.
+    // Neither an exposed name nor a provider prefix.
     for name in ["gpt-5", "nosuch/m1", "/m1", "test/"] {
         let error = gproxy
             .resolve(request(name))
@@ -392,7 +322,7 @@ async fn an_unrecognized_name_and_an_unusable_one_are_different_errors() {
     let error = gproxy
         .resolve(ResolveRequest {
             allowed_providers: Some(&BTreeSet::new()),
-            ..request("test/m1")
+            ..request("p1/m1")
         })
         .await
         .expect_err("an empty allowance reaches nothing");
@@ -491,7 +421,7 @@ async fn a_sticky_provider_offers_a_session_the_same_credential() {
         gproxy
             .resolve(ResolveRequest {
                 affinity_key: Some(key),
-                ..request("test/m1")
+                ..request("p1/m1")
             })
             .await
             .unwrap()

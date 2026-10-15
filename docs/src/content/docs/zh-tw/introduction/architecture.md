@@ -74,16 +74,13 @@ router 或 UI。
 | --- | --- | --- |
 | 沒有模型 | 全部啟用的 Provider，無上游模型 | `settings.max_attempts` |
 | 公開模型名 | 該路由啟用的成員 | 路由自己的 |
-| `渠道/模型` | 該渠道的 Provider，優先目錄裡列了該模型的 | `settings.max_attempts` |
 | `Provider 名/模型` | 那一個 Provider | `settings.max_attempts` |
 | 其他 | unknown model 錯誤 | — |
 
 公開名精確匹配，並且**先於**字首形式，因此運維者可以把字面量 `openai/gpt-5` 作為自己的
 公開名暴露出來。
 
-字首形式內部，**渠道 id 勝過同名 Provider**。渠道 id 由構建固定、改不掉；Provider 名隨時
-可以改。反過來更糟：有人把 Provider 命名為 `codex`，全部 `codex/*` 流量就再也到不了
-`codex` 渠道，而且沒有任何繞開的辦法。
+字首永遠是 Provider 名，不是渠道 id。
 
 候選隨後按渠道、允許的 Provider id、允許的憑證 id 收窄——最後一項是產品層做組織間隔離的
 手段。排序是 `(tier, 健康度, 权重倒序, 稳定 id)`；只有首段按路由策略做均衡。

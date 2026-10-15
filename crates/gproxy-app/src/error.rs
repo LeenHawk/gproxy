@@ -271,10 +271,10 @@ mod tests {
         assert_eq!(error.status_code(), 429);
         assert_eq!(error.code(), "upstream_error");
 
-        let error = AppError::from(SdkError::NoTarget("test/m1".into()));
+        let error = AppError::from(SdkError::NoTarget("p1/m1".into()));
         assert_eq!(error.status_code(), 503);
         assert_eq!(error.code(), "no_usable_target");
-        assert!(error.to_string().contains("test/m1"), "{error}");
+        assert!(error.to_string().contains("p1/m1"), "{error}");
 
         let error = AppError::from(SdkError::UnknownModel("nope".into()));
         assert_eq!(error.status_code(), 404);
