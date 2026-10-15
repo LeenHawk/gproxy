@@ -486,7 +486,7 @@ async fn the_catalogues_are_readable_and_the_prices_are_idempotent() {
 
     let request = ApplyDefaultPricesRequest {
         provider_id: None,
-        model_ids: vec!["anthropic/claude-sonnet-4".to_owned()],
+        model_ids: vec!["anthropic/claude-sonnet-4.5".to_owned()],
         overwrite: false,
     };
     let first = catalog.apply_default_prices(request.clone()).await.unwrap();
@@ -502,7 +502,7 @@ async fn the_catalogues_are_readable_and_the_prices_are_idempotent() {
         .unwrap();
     assert_eq!(rules.items.len(), 1);
     let rule = &rules.items[0];
-    assert!(rule.model_pattern.contains("claude-sonnet-4"));
+    assert!(rule.model_pattern.contains("claude-sonnet-4.5"));
     assert_eq!(rule.currency, "USD");
     let rates = gproxy
         .manage()
@@ -624,8 +624,8 @@ async fn default_prices_match_qualified_models_without_renaming_provider_rules()
         .apply_default_prices(ApplyDefaultPricesRequest {
             provider_id: None,
             model_ids: vec![
-                "claude-sonnet-4".to_owned(),
-                "anthropic/claude-sonnet-4".to_owned(),
+                "claude-sonnet-4.6".to_owned(),
+                "anthropic/claude-sonnet-4.6".to_owned(),
             ],
             overwrite: false,
         })
@@ -830,7 +830,7 @@ async fn discovery_reads_both_directory_shapes() {
         "object": "list",
         "data": [
             { "id": "gpt-5.6-sol", "object": "model" },
-            { "id": "anthropic/claude-sonnet-4", "object": "model" },
+            { "id": "anthropic/claude-sonnet-4.6", "object": "model" },
         ],
     }))]);
     let found = gproxy
@@ -843,12 +843,12 @@ async fn discovery_reads_both_directory_shapes() {
         .iter()
         .map(|model| model.upstream_name.as_str())
         .collect();
-    assert_eq!(names, vec!["anthropic/claude-sonnet-4", "gpt-5.6-sol"]);
+    assert_eq!(names, vec!["anthropic/claude-sonnet-4.6", "gpt-5.6-sol"]);
     assert!(found.iter().all(|model| !model.known));
     assert!(
         found
             .iter()
-            .any(|model| model.upstream_name == "anthropic/claude-sonnet-4"
+            .any(|model| model.upstream_name == "anthropic/claude-sonnet-4.6"
                 && model.has_default_price)
     );
 
@@ -895,14 +895,14 @@ async fn discovery_applies_catalog_and_local_overrides_without_replacing_provide
         .manage()
         .models()
         .create(gproxy_sdk::dto::ModelWrite {
-            name: "anthropic/claude-sonnet-4".to_owned(),
+            name: "anthropic/claude-sonnet-4.6".to_owned(),
             metadata: Some(json!({"context_window": 123456, "display_name": "Local Sonnet"})),
             ..Default::default()
         })
         .await
         .unwrap();
     gproxy.client.script(vec![json_reply(json!({"data": [
-        {"id": "claude-sonnet-4", "context_window": 999, "max_output_tokens": 1234},
+        {"id": "claude-sonnet-4.6", "context_window": 999, "max_output_tokens": 1234},
         {"id": "unknown-model"},
         {"id": "upstream-only", "name": "Upstream only", "context_length": 4096,
          "architecture": {"input_modalities": ["audio"], "output_modalities": ["text"]},
@@ -924,7 +924,7 @@ async fn discovery_applies_catalog_and_local_overrides_without_replacing_provide
     assert_eq!(upstream.metadata["input_modalities"], json!(["audio"]));
     let sonnet = found
         .iter()
-        .find(|row| row.upstream_name == "claude-sonnet-4")
+        .find(|row| row.upstream_name == "claude-sonnet-4.6")
         .unwrap();
     assert_eq!(sonnet.metadata["context_window"], 123456);
     assert_eq!(sonnet.metadata["max_output_tokens"], 1234);
@@ -946,7 +946,7 @@ async fn discovery_applies_catalog_and_local_overrides_without_replacing_provide
     gproxy
         .manage()
         .connectivity()
-        .apply_discovered(&provider.id, vec!["claude-sonnet-4".to_owned()])
+        .apply_discovered(&provider.id, vec!["claude-sonnet-4.6".to_owned()])
         .await
         .unwrap();
     let rows = gproxy
@@ -975,7 +975,7 @@ async fn discovery_applies_catalog_and_local_overrides_without_replacing_provide
     gproxy
         .manage()
         .connectivity()
-        .apply_discovered(&provider.id, vec!["claude-sonnet-4".to_owned()])
+        .apply_discovered(&provider.id, vec!["claude-sonnet-4.6".to_owned()])
         .await
         .unwrap();
     assert_eq!(

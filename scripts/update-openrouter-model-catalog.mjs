@@ -271,6 +271,36 @@ export function applyCodexCatalog(catalog, payload, revision = "unknown") {
   return normalizeCatalogNames(catalog)
 }
 
+/**
+ * Keep entries curated from another source, such as the Claude documentation,
+ * which neither OpenRouter nor Codex would recreate. A curated entry replaces
+ * a generated one of the same name.
+ */
+export function carryCuratedEntries(catalog, previous) {
+  const curated = (previous?.models ?? []).filter((model) =>
+    model.metadata_source?.catalog && model.metadata_source.catalog !== "openrouter")
+  if (curated.length === 0) return catalog
+  const names = new Set(curated.map((model) => model.model_id.toLowerCase()))
+  catalog.models = [
+    ...catalog.models.filter((model) => !names.has(model.model_id.toLowerCase())),
+    ...curated,
+  ]
+  for (const [key, value] of Object.entries(previous.source ?? {})) {
+    if (key.endsWith("_updated_at")) catalog.source[key] = value
+  }
+  const priced = catalog.models.filter((model) => model.pricing != null)
+  catalog.source = {
+    ...catalog.source,
+    total_models: catalog.models.length,
+    context_models: catalog.models.filter((model) => model.context_window != null).length,
+    output_limit_models: catalog.models.filter((model) => model.max_output_tokens != null).length,
+    priced_models: priced.length,
+    image_output_priced_models: priced.filter((model) =>
+      model.pricing.rates.some((rate) => rate.metric === "image_output_tokens")).length,
+  }
+  return normalizeCatalogNames(catalog)
+}
+
 function modelPricing(model, outputModalities, dynamic) {
   if (!outputModalities.some((modality) => SUPPORTED_OUTPUT_MODALITIES.has(modality))) return null
   const pricing = model.pricing
@@ -337,7 +367,11 @@ async function main() {
   try {
     revision = execFileSync("git", ["-C", path.join(root, "samples", "codex"), "rev-parse", "HEAD"], { encoding: "utf8" }).trim()
   } catch {}
-  const catalog = applyCodexCatalog(buildCatalog(await loadPayload(inputPath)), codex, revision)
+  const previous = JSON.parse(await readFile(outputPath, "utf8"))
+  const catalog = carryCuratedEntries(
+    applyCodexCatalog(buildCatalog(await loadPayload(inputPath)), codex, revision),
+    previous,
+  )
   await writeFile(outputPath, `${JSON.stringify(catalog)}\n`, "utf8")
   console.log(`Updated ${outputPath} with ${catalog.models.length} models.`)
 }

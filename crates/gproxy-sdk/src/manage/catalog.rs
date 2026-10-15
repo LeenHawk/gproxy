@@ -909,10 +909,10 @@ mod tests {
                 }
             }
         }
-        let found = model_for(catalog, "claude-sonnet-4").expect("a bare name resolves");
-        assert_eq!(found.model_id, "claude-sonnet-4");
-        let pricing = price_for(catalog, "anthropic/claude-sonnet-4").expect("a glob covers it");
-        assert!(pricing.model_pattern.contains("claude-sonnet-4"));
+        let found = model_for(catalog, "claude-sonnet-4.5").expect("a bare name resolves");
+        assert_eq!(found.model_id, "claude-sonnet-4.5");
+        let pricing = price_for(catalog, "anthropic/claude-sonnet-4.5").expect("a glob covers it");
+        assert!(pricing.model_pattern.contains("claude-sonnet-4.5"));
         assert!(
             pricing
                 .rates
@@ -947,13 +947,13 @@ mod tests {
                 .all(|model| !model.model_id.contains('/'))
         );
         for name in [
-            "claude-sonnet-4",
-            "anthropic/claude-sonnet-4",
-            " ANTHROPIC/CLAUDE-SONNET-4 ",
+            "claude-sonnet-4.5",
+            "anthropic/claude-sonnet-4.5",
+            " ANTHROPIC/CLAUDE-SONNET-4.5 ",
         ] {
             assert_eq!(
                 model_for(catalog, name).unwrap().model_id,
-                "claude-sonnet-4"
+                "claude-sonnet-4.5"
             );
         }
         assert_eq!(
@@ -968,7 +968,7 @@ mod tests {
                 .model_pattern,
             "*claude-sonnet-4.5*"
         );
-        assert!(price_for(catalog, "claude-sonnet-4/no-such-model").is_none());
+        assert!(price_for(catalog, "claude-sonnet-4.5/no-such-model").is_none());
     }
 
     #[test]
