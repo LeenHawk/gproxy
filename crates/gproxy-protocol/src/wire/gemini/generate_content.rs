@@ -16,6 +16,9 @@ use serde::{Deserialize, Serialize};
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GenerateContentRequestBody {
     pub contents: Vec<Content>,
+    /// Opaque token from a previous hop; contents must match the original request.
+    #[serde(alias = "continuation_token", skip_serializing_if = "Option::is_none")]
+    pub continuation_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -197,6 +200,8 @@ pub struct Candidate {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "finish_reason")]
     pub finish_reason: Option<FinishReason>,
+    #[serde(alias = "continuation_token", skip_serializing_if = "Option::is_none")]
+    pub continuation_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "safety_ratings")]
     pub safety_ratings: Option<Vec<SafetyRating>>,
@@ -240,6 +245,9 @@ pub enum FinishReason {
     Stop,
     #[serde(rename = "MAX_TOKENS")]
     MaxTokens,
+    /// This hop ended, but generation requires another request with its token.
+    #[serde(rename = "CONTINUATION")]
+    Continuation,
     #[serde(rename = "SAFETY")]
     Safety,
     #[serde(rename = "RECITATION")]

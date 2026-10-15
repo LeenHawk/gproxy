@@ -118,6 +118,9 @@ pub(super) fn to_claude(
     out: &mut c::GenerateContentRequestBody,
     report: &mut Report,
 ) -> Result<(), TransformError> {
+    if input.continuation_token.is_some() {
+        return Err(super::super::gemini_controls::continuation_error());
+    }
     if input.cached_content.is_some() {
         report.omitted(
             "cached_content resolved history",

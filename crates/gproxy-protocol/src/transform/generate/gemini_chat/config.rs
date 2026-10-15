@@ -8,6 +8,9 @@ pub(super) fn to_chat(
     out: &mut c::GenerateContentRequestBody,
     report: &mut Report,
 ) -> Result<(), TransformError> {
+    if input.continuation_token.is_some() {
+        return Err(super::super::gemini_controls::continuation_error());
+    }
     for (present, field) in [
         (input.cached_content.is_some(), "cached_content"),
         (input.labels.is_some(), "labels"),

@@ -147,6 +147,9 @@ pub fn gemini_to_openai_response(
                     c::FinishReason::ToolCalls
                 }
             }
+            g::FinishReason::Continuation => {
+                return Err(crate::transform::generate::gemini_controls::continuation_error());
+            }
             g::FinishReason::MaxTokens => c::FinishReason::Length,
             g::FinishReason::Safety
             | g::FinishReason::Recitation

@@ -45,6 +45,9 @@ pub fn gemini_to_responses_response(
         .ok_or_else(|| TransformError::missing_metadata("finish_reason"))?
     {
         g::FinishReason::Stop => None,
+        g::FinishReason::Continuation => {
+            return Err(crate::transform::generate::gemini_controls::continuation_error());
+        }
         g::FinishReason::MaxTokens => Some(r::ResponseIncompleteReason::MaxOutputTokens),
         g::FinishReason::Safety
         | g::FinishReason::Recitation

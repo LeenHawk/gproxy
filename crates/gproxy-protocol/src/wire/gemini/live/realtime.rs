@@ -80,6 +80,9 @@ pub struct RealtimeInputConfig {
     #[serde(alias = "turn_coverage")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn_coverage: Option<TurnCoverage>,
+    #[serde(alias = "interim_transcript_timestamp_enabled")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interim_transcript_timestamp_enabled: Option<bool>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }

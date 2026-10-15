@@ -193,6 +193,9 @@ pub fn gemini_to_claude_response(
         .ok_or_else(|| TransformError::missing_metadata("finish_reason"))?
     {
         g::FinishReason::Stop => c::StopReason::EndTurn,
+        g::FinishReason::Continuation => {
+            return Err(crate::transform::generate::gemini_controls::continuation_error());
+        }
         g::FinishReason::MaxTokens => c::StopReason::MaxTokens,
         g::FinishReason::Safety
         | g::FinishReason::Recitation

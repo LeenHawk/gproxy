@@ -89,6 +89,9 @@ pub(super) fn chat_finish(
                 c::FinishReason::Stop
             }
         }
+        g::FinishReason::Continuation => {
+            return Err(crate::transform::generate::gemini_controls::continuation_error());
+        }
         g::FinishReason::MaxTokens => c::FinishReason::Length,
         g::FinishReason::Safety
         | g::FinishReason::Recitation

@@ -75,6 +75,9 @@ pub(super) fn candidate(old: &mut g::Candidate, new: g::Candidate) -> Result<(),
             "candidate terminal reason changed",
         ));
     }
+    if new.continuation_token.is_some() {
+        old.continuation_token = new.continuation_token;
+    }
     if new.finish_reason.is_some() {
         old.finish_reason = new.finish_reason;
     }
