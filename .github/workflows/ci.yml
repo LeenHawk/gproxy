@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    # A tag points at a commit main's push already tested.
+    branches: ['**']
   pull_request:
 
 # Read-only unless a job says otherwise; the repository default may be write.
@@ -13,6 +15,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    name: Not yet tested on main
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          # A branch push of a commit main already contains, such as dev pushed
+          # right after main, was tested by main's own push.
+          run=true
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$SHA...main" --jq .status)"
+            if [ "$status" = ahead ] || [ "$status" = identical ]; then run=false; fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
   dev-base:
     name: Dev includes latest main
     if: github.ref == 'refs/heads/dev' || github.base_ref == 'dev'
@@ -128,8 +150,8 @@ jobs:
   backend:
     # Preserve main's protected-branch check name while running checks in parallel.
     name: Backend (fmt · clippy · test · wasm)
-    needs: rust
-    if: always()
+    needs: [scope, rust]
+    if: always() && needs.scope.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - run: test "$RESULT" = success
@@ -138,6 +160,8 @@ jobs:
 
   console:
     name: Console (typecheck · test · build · i18n)
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-latest
     outputs:
       windows_matrix: ${{ steps.windows-matrix.outputs.matrix }}
@@ -300,6 +324,8 @@ jobs:
 
   docs:
     name: Docs (build)
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:

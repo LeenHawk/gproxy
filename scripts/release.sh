@@ -15,10 +15,16 @@ fi
 
 head="$(git rev-parse HEAD)"
 git fetch origin main
-git merge-base --is-ancestor "$head" origin/main || {
-  echo "version releases must come from main; merge and push main first" >&2
+git merge-base --is-ancestor origin/main "$head" || {
+  echo "version releases must build on the latest main; rebase first" >&2
   exit 1
 }
+# Main and the tag are pushed together below, so the only commits this may add
+# to main are release preparations. Everything else reaches main first.
+if git log --format=%s origin/main..HEAD | grep -qv '^chore(release): '; then
+  echo "version releases must come from main; merge and push other changes first" >&2
+  exit 1
+fi
 if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
   tagged="$(git rev-parse "$tag^{commit}")"
   if [ "$tagged" != "$head" ]; then
@@ -53,5 +59,8 @@ if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
   git tag -a "$tag" -m "gproxy $tag"
 fi
 
-git push origin "refs/tags/$tag"
+# One atomic push, so the tag exists before main's release run starts: the
+# tag's run publishes release and beta, and main's run of a tagged commit
+# publishes nothing. Push dev afterwards with scripts/push-dev.sh.
+git push --atomic origin "$head:refs/heads/main" "refs/tags/$tag"
 printf 'release workflow triggered for %s at %s\n' "$tag" "$head"

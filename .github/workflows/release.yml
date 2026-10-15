@@ -16,8 +16,33 @@ permissions:
   packages: write
 
 jobs:
+  gate:
+    name: Not published by a stable tag
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - id: gate
+        env:
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          # A stable tag's run publishes release and beta for its commit, and
+          # scripts/release.sh pushes main and the tag atomically, so main's
+          # run for a tagged commit would only publish beta a second time.
+          run=true
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ] &&
+            git ls-remote "https://github.com/$REPOSITORY.git" 'refs/tags/v*' |
+              awk -v sha="$SHA" '$1 == sha { print $2 }' |
+              grep -Eq '^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(\^\{\})?$'; then
+            run=false
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
   prepare:
     name: Release metadata
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.metadata.outputs.matrix }}
@@ -396,6 +421,8 @@ jobs:
 
   riscv-toolchain:
     name: RISC-V cross toolchain
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -423,6 +450,8 @@ jobs:
     concurrency:
       group: gproxy-ohos-toolchain
       cancel-in-progress: false
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -1280,7 +1309,7 @@ jobs:
           retention-days: 1
 
   publish:
-    if: ${{ always() && !failure() && !cancelled() }}
+    if: ${{ always() && !failure() && !cancelled() && needs.prepare.result == 'success' }}
     name: Publish GitHub, GitLab and CNB releases
     env:
       GPROXY_CONTAINER_SOURCE: ${{ needs.container-manifest.outputs.source }}
@@ -1409,8 +1438,8 @@ jobs:
 
   cache-cleanup:
     name: Clean old GHCR build caches
-    needs: [native, riscv, ohos-cli, ohos-application, headless, headless-riscv, serverless, edge, android-build, android-packages]
-    if: ${{ always() && !cancelled() && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') }}
+    needs: [gate, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, serverless, edge, android-build, android-packages]
+    if: ${{ always() && !cancelled() && needs.gate.outputs.run == 'true' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
