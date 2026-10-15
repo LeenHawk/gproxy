@@ -41,7 +41,7 @@ const copy = {
     sums: 'SHA256SUMS',
     manifest: 'manifest.json',
     container: 'Containers',
-    containerBody: 'Images on GitHub Container Registry and Docker Hub for amd64, arm64 and riscv64. Stable versions use vX.Y.Z tags; beta is staging and development snapshots are nightly.',
+    containerBody: 'Images on Docker Hub (gproxy2/gproxy), GitHub, GitLab and CNB registries for amd64, arm64 and riscv64. Stable versions use vX.Y.Z tags; beta is staging and development snapshots are nightly.',
     containerGuide: 'Container guide',
     hosted: 'Hosted platforms',
     hostedBody: 'Deploy to Cloudflare Workers, Netlify or Vercel without a local toolchain, with D1, libSQL or PostgreSQL behind it.',
@@ -106,7 +106,7 @@ const copy = {
     sums: 'SHA256SUMS',
     manifest: 'manifest.json',
     container: '容器',
-    containerBody: '镜像发布在 GitHub Container Registry 与 Docker Hub，支持 amd64、arm64、riscv64。稳定版使用 vX.Y.Z 标签，beta 为 staging，开发快照为 nightly。',
+    containerBody: '镜像发布在 Docker Hub（gproxy2/gproxy）、GitHub、GitLab 与 CNB 镜像仓库，支持 amd64、arm64、riscv64。稳定版使用 vX.Y.Z 标签，beta 为 staging，开发快照为 nightly。',
     containerGuide: '容器部署指南',
     hosted: '托管平台',
     hostedBody: '无需本地工具链即可部署到 Cloudflare Workers、Netlify 或 Vercel，后端可选 D1、libSQL 或 PostgreSQL。',
@@ -171,7 +171,7 @@ const copy = {
     sums: 'SHA256SUMS',
     manifest: 'manifest.json',
     container: '容器',
-    containerBody: '映像發布在 GitHub Container Registry 與 Docker Hub，支援 amd64、arm64、riscv64。穩定版使用 vX.Y.Z 標籤，beta 為 staging，開發快照為 nightly。',
+    containerBody: '映像發布在 Docker Hub（gproxy2/gproxy）、GitHub、GitLab 與 CNB 映像倉庫，支援 amd64、arm64、riscv64。穩定版使用 vX.Y.Z 標籤，beta 為 staging，開發快照為 nightly。',
     containerGuide: '容器部署指南',
     hosted: '託管平台',
     hostedBody: '無需本機工具鏈即可部署到 Cloudflare Workers、Netlify 或 Vercel，後端可選 D1、libSQL 或 PostgreSQL。',
@@ -383,7 +383,7 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
     <article class="dl-card">
       <h3>{copy.container}</h3>
       <p>{copy.containerBody}</p>
-      <pre class="dl-code"><code>docker run -d --name gproxy -p 127.0.0.1:8787:8787 -v gproxy-data:/app/data leenhawk/gproxy:<span data-release-tag>latest</span></code></pre>
+      <pre class="dl-code"><code>docker run -d --name gproxy -p 127.0.0.1:8787:8787 -v gproxy-data:/app/data gproxy2/gproxy:<span data-release-tag>latest</span></code></pre>
       <a class="dl-link" href={`${prefix}/deployment/containers/`}>{copy.containerGuide} →</a>
     </article>
     <article class="dl-card">

@@ -24,10 +24,19 @@ import { Card, CardGrid, LinkButton } from "@astrojs/starlight/components";
 
 ## Docker
 
-镜像发布到 `ghcr.io/leenhawk/gproxy` 和 Docker Hub 的 `leenhawk/gproxy`，支持 amd64、arm64、riscv64。稳定版使用 `vX.Y.Z` 标签，beta 为 `staging`，开发快照为 `nightly`；musl 镜像在标签后加 `-musl`。旧的 v3 标签无法运行 v4。
+同一份镜像发布到四个镜像仓库，支持 amd64、arm64、riscv64，选离你最近的即可：
+
+| 仓库 | 镜像 |
+| --- | --- |
+| Docker Hub | `gproxy2/gproxy` |
+| GitHub | `ghcr.io/leenhawk/gproxy` |
+| GitLab | `registry.gitlab.com/leenhawk1/gproxy` |
+| CNB | `docker.cnb.cool/leenhawk/gproxy` |
+
+稳定版使用 `vX.Y.Z` 标签，beta 为 `staging`，开发快照为 `nightly`；musl 镜像在标签后加 `-musl`。旧的 v3 标签无法运行 v4。
 
 ```sh
-export GPROXY_IMAGE='leenhawk/gproxy:<tag>'
+export GPROXY_IMAGE='gproxy2/gproxy:<tag>'
 # 把 GPROXY_MASTER_KEY 设为保存好的 32 字节密钥（64 位十六进制或 base64）。
 docker run -d --name gproxy --restart unless-stopped \
   -p 127.0.0.1:8787:8787 \
