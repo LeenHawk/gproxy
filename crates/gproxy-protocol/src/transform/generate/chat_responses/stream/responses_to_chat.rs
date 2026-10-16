@@ -172,7 +172,7 @@ impl ResponsesToChatStream {
             .push(event.clone())?;
         let mut out = Vec::new();
         match event {
-            rs::StreamEvent::Keepalive => {}
+            rs::StreamEvent::Keepalive | rs::StreamEvent::Metadata(_) => {}
             rs::StreamEvent::Created(v) => {
                 let id = self
                     .flow

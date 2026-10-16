@@ -91,12 +91,15 @@ impl ResponsesStreamCollector {
         }
         self.sequence = Some(seq);
         if self.response.is_none()
-            && !matches!(event, s::StreamEvent::Created(_) | s::StreamEvent::Error(_))
+            && !matches!(
+                event,
+                s::StreamEvent::Created(_) | s::StreamEvent::Error(_) | s::StreamEvent::Metadata(_)
+            )
         {
             return Err(invalid("response.created required before other events"));
         }
         match event {
-            s::StreamEvent::Keepalive => {}
+            s::StreamEvent::Keepalive | s::StreamEvent::Metadata(_) => {}
             s::StreamEvent::Created(v) => {
                 if self.response.is_some() {
                     return Err(invalid("duplicate/nonempty response.created"));

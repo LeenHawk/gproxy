@@ -304,6 +304,7 @@ fn encoding(error: crate::codec::CodecError) -> TransformError {
 fn event_name(event: &s::StreamEvent) -> &'static str {
     match event {
         s::StreamEvent::Keepalive => "keepalive",
+        s::StreamEvent::Metadata(_) => "response.metadata",
         s::StreamEvent::Created(_) => "response.created",
         s::StreamEvent::Queued(_) => "response.queued",
         s::StreamEvent::InProgress(_) => "response.in_progress",

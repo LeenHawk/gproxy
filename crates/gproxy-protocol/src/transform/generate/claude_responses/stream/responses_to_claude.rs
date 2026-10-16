@@ -141,6 +141,7 @@ impl ResponsesToClaudeStream {
             .push(event.clone())?;
         let mut out = Vec::new();
         match event {
+            s::StreamEvent::Metadata(_) => {}
             s::StreamEvent::Keepalive => out.push(cs::StreamEvent::Ping(cs::PingEvent {
                 rest: Default::default(),
             })),

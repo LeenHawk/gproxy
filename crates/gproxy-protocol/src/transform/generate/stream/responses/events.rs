@@ -3,6 +3,7 @@ use super::*;
 pub(super) fn sequence(event: &s::StreamEvent) -> Option<i64> {
     Some(match event {
         s::StreamEvent::Keepalive => return None,
+        s::StreamEvent::Metadata(v) => return v.sequence_number,
         s::StreamEvent::Created(v) => v.sequence_number,
         s::StreamEvent::Queued(v) => v.sequence_number,
         s::StreamEvent::InProgress(v) => v.sequence_number,

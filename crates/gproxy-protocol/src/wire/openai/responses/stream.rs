@@ -15,6 +15,9 @@ pub enum StreamEvent {
     /// Undocumented upstream heartbeat; converted to Claude ping or otherwise ignored.
     #[serde(rename = "keepalive")]
     Keepalive,
+    /// Out-of-band response metadata emitted by the Codex Responses backend.
+    #[serde(rename = "response.metadata")]
+    Metadata(ResponseMetadata),
     #[serde(rename = "response.created")]
     Created(ResponseCreated),
     #[serde(rename = "response.queued")]
@@ -122,6 +125,38 @@ pub enum StreamEvent {
     #[serde(rename = "error")]
     Error(ResponseErrorEvent),
 }
+/// Codex turn headers and opaque moderation/verification or buffering metadata.
+/// These are stream notifications, distinct from user-supplied Response.metadata.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
+pub struct ResponseMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequence_number: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_id: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub metadata: Option<serde_json::Value>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub headers: Option<serde_json::Value>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub safety_buffering: Option<serde_json::Value>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
 macro_rules! event_struct { ($name:ident { $($field:ident : $ty:ty),* $(,)? }) => { #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)] #[serde(rename_all="snake_case")] #[cfg_attr(not(feature="exhaustive"), non_exhaustive)] #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct $name { pub sequence_number: i64, $(pub $field: $ty,)* #[serde(default, flatten, skip_serializing_if="serde_json::Map::is_empty")] pub rest: Rest } }; }
 macro_rules! agent_event_struct { ($name:ident { $($field:ident : $ty:ty),* $(,)? }) => { #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)] #[serde(rename_all="snake_case")] #[cfg_attr(not(feature="exhaustive"), non_exhaustive)] #[derive(gproxy_protocol_macros::DeclaredFields)]

@@ -134,7 +134,7 @@ impl ResponsesToGeminiStream {
             .push(event.clone())?;
         let mut out = Vec::new();
         match event {
-            s::StreamEvent::Keepalive => {}
+            s::StreamEvent::Keepalive | s::StreamEvent::Metadata(_) => {}
             s::StreamEvent::Created(v) => {
                 self.model = Some(v.response.model.clone());
                 let id = identity::response_id(
