@@ -112,6 +112,12 @@ impl ResponsesToGeminiStream {
         &mut self,
         event: s::StreamEvent,
     ) -> Result<Converted<Vec<g::GenerateContentResponseBody>>, TransformError> {
+        if matches!(event, s::StreamEvent::Unknown) {
+            return Ok(Converted {
+                value: Vec::new(),
+                report: Report::default(),
+            });
+        }
         if self.failed || self.terminal {
             self.failed = true;
             return Err(invalid("event after terminal or failure"));
@@ -134,7 +140,7 @@ impl ResponsesToGeminiStream {
             .push(event.clone())?;
         let mut out = Vec::new();
         match event {
-            s::StreamEvent::Keepalive | s::StreamEvent::Metadata(_) => {}
+            s::StreamEvent::Keepalive | s::StreamEvent::Metadata(_) | s::StreamEvent::Unknown => {}
             s::StreamEvent::Created(v) => {
                 self.model = Some(v.response.model.clone());
                 let id = identity::response_id(

@@ -59,7 +59,7 @@ fn fixtures() -> Vec<Value> {
 }
 fn rest(e: &StreamEvent) -> &gproxy_protocol::Rest {
     match e {
-        StreamEvent::Keepalive => unreachable!("keepalive is not a JSON payload fixture"),
+        StreamEvent::Keepalive | StreamEvent::Unknown => unreachable!("unit events have no rest"),
         StreamEvent::Metadata(x) => &x.rest,
         StreamEvent::Created(x) => &x.rest,
         StreamEvent::Queued(x) => &x.rest,
@@ -821,12 +821,13 @@ fn audio_minimal_shapes_and_builders_emit_native_wire_tags() {
         serde_json::to_value(err).unwrap(),
         json!({"type":"error","sequence_number":4,"code":null,"message":"m","param":null})
     );
-    assert!(
+    assert!(matches!(
         serde_json::from_value::<StreamEvent>(
             json!({"type":"response.future","sequence_number":1})
         )
-        .is_err()
-    );
+        .unwrap(),
+        StreamEvent::Unknown
+    ));
     let wire = json!({"type":"response.audio.done","sequence_number":1,"itemId":"extension"});
     let e: StreamEvent = serde_json::from_value(wire.clone()).unwrap();
     assert_eq!(rest(&e)["itemId"], "extension");

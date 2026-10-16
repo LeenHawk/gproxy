@@ -119,6 +119,12 @@ impl ResponsesToClaudeStream {
         &mut self,
         event: s::StreamEvent,
     ) -> Result<Converted<Vec<cs::StreamEvent>>, TransformError> {
+        if matches!(event, s::StreamEvent::Unknown) {
+            return Ok(Converted {
+                value: Vec::new(),
+                report: Report::default(),
+            });
+        }
         if self.failed || self.terminal {
             self.failed = true;
             return Err(invalid("event after terminal or failure"));
@@ -141,7 +147,7 @@ impl ResponsesToClaudeStream {
             .push(event.clone())?;
         let mut out = Vec::new();
         match event {
-            s::StreamEvent::Metadata(_) => {}
+            s::StreamEvent::Metadata(_) | s::StreamEvent::Unknown => {}
             s::StreamEvent::Keepalive => out.push(cs::StreamEvent::Ping(cs::PingEvent {
                 rest: Default::default(),
             })),

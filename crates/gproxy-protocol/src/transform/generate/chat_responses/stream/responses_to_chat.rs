@@ -150,6 +150,12 @@ impl ResponsesToChatStream {
         &mut self,
         event: rs::StreamEvent,
     ) -> Result<Converted<Vec<cs::ChatCompletionChunk>>, TransformError> {
+        if matches!(event, rs::StreamEvent::Unknown) {
+            return Ok(Converted {
+                value: Vec::new(),
+                report: Report::default(),
+            });
+        }
         if self.failed || self.terminal {
             self.failed = true;
             return Err(invalid("event after terminal or failed stream"));
@@ -172,7 +178,9 @@ impl ResponsesToChatStream {
             .push(event.clone())?;
         let mut out = Vec::new();
         match event {
-            rs::StreamEvent::Keepalive | rs::StreamEvent::Metadata(_) => {}
+            rs::StreamEvent::Keepalive
+            | rs::StreamEvent::Metadata(_)
+            | rs::StreamEvent::Unknown => {}
             rs::StreamEvent::Created(v) => {
                 let id = self
                     .flow

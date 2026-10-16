@@ -124,6 +124,10 @@ pub enum StreamEvent {
     McpListToolsFailed(McpListToolsEvent),
     #[serde(rename = "error")]
     Error(ResponseErrorEvent),
+    /// A future event type is ignored by converters. Known event payloads remain strict.
+    /// Native passthrough retains the original bytes rather than this marker.
+    #[serde(other, rename = "unknown")]
+    Unknown,
 }
 /// Codex turn headers and opaque moderation/verification or buffering metadata.
 /// These are stream notifications, distinct from user-supplied Response.metadata.

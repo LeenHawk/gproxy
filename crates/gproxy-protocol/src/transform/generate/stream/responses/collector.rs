@@ -57,6 +57,9 @@ impl ResponsesStreamCollector {
         }
     }
     pub fn push(&mut self, event: s::StreamEvent) -> Result<(), TransformError> {
+        if matches!(event, s::StreamEvent::Unknown) {
+            return Ok(());
+        }
         if self.done || self.failed {
             self.failed = true;
             return Err(invalid("event after terminal/failed stream"));
@@ -99,7 +102,7 @@ impl ResponsesStreamCollector {
             return Err(invalid("response.created required before other events"));
         }
         match event {
-            s::StreamEvent::Keepalive | s::StreamEvent::Metadata(_) => {}
+            s::StreamEvent::Keepalive | s::StreamEvent::Metadata(_) | s::StreamEvent::Unknown => {}
             s::StreamEvent::Created(v) => {
                 if self.response.is_some() {
                     return Err(invalid("duplicate/nonempty response.created"));

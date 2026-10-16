@@ -202,9 +202,12 @@ fn build(
     let mut encoder = SseEncoder::new(limits.codec);
     let mut chunks = Vec::new();
     for event in synthesized.value {
+        let Some(name) = event_name(&event) else {
+            continue;
+        };
         let data = codec::encode_json(&event, limits.codec).map_err(encoding)?;
         let frame = SseEvent {
-            event: Some(event_name(&event).into()),
+            event: Some(name.into()),
             id: None,
             data: String::from_utf8(data.to_vec())
                 .map_err(|e| TransformError::invalid_result("guardian.sse", e.to_string()))?,
@@ -301,8 +304,9 @@ fn encoding(error: crate::codec::CodecError) -> TransformError {
     )
 }
 
-fn event_name(event: &s::StreamEvent) -> &'static str {
-    match event {
+fn event_name(event: &s::StreamEvent) -> Option<&'static str> {
+    Some(match event {
+        s::StreamEvent::Unknown => return None,
         s::StreamEvent::Keepalive => "keepalive",
         s::StreamEvent::Metadata(_) => "response.metadata",
         s::StreamEvent::Created(_) => "response.created",
@@ -362,5 +366,5 @@ fn event_name(event: &s::StreamEvent) -> &'static str {
         s::StreamEvent::McpListToolsCompleted(_) => "response.mcp_list_tools.completed",
         s::StreamEvent::McpListToolsFailed(_) => "response.mcp_list_tools.failed",
         s::StreamEvent::Error(_) => "error",
-    }
+    })
 }
