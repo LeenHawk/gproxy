@@ -1,15 +1,24 @@
-# Alpine's Rust keeps host build scripts dynamically linked for bindgen/libclang.
-# Pin the image and Rust minor version; edge replaces older patch releases.
-FROM docker.io/library/alpine:edge@sha256:020dfcbaaf4cc1078bf2d9c7ba31a8466e334061dcd2f248001d68f79e52c000
+# Stable Alpine supplies the C libraries; edge rebuilds each architecture at a
+# different time. Rust comes from rustup at the version used by other releases.
+FROM docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 
+ARG RUST_VERSION=1.99.0
+ENV RUSTUP_HOME=/opt/rustup RUSTC=/usr/local/bin/rustc
+COPY scripts/musl-host-rustc /usr/local/bin/rustc
 RUN set -eu; \
     case "$(apk --print-arch)" in \
-      x86_64|aarch64|riscv64) rust_version=1.99 ;; \
+      x86_64|aarch64) host="$(apk --print-arch)-unknown-linux-musl" ;; \
+      riscv64) host=riscv64gc-unknown-linux-musl ;; \
       *) echo "unsupported musl build architecture" >&2; exit 1 ;; \
     esac; \
-    apk add --no-cache build-base "rust~$rust_version" "cargo~$rust_version" \
-        python3 ca-certificates clang22 clang22-dev cmake git go linux-headers perl pkgconf; \
+    apk add --no-cache build-base rustup python3 ca-certificates clang22 clang22-dev \
+        cmake git go linux-headers perl pkgconf; \
     ln -s /usr/bin/clang-22 /usr/local/bin/clang; \
+    CARGO_HOME=/opt/cargo rustup-init -y --no-modify-path --profile minimal \
+      --default-host "$host" --default-toolchain "$RUST_VERSION"; \
+    ln -s "$RUSTUP_HOME/toolchains/$RUST_VERSION-$host" /opt/rust; \
+    ln -s /opt/rust/bin/cargo /usr/local/bin/cargo; \
+    chmod 755 /usr/local/bin/rustc; \
     rustc --version; \
     printf 'fn main() { println!("musl std OK"); }\n' | rustc -o /tmp/musl-toolchain-check -; \
     /tmp/musl-toolchain-check; \

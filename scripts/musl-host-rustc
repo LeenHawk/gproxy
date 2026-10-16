@@ -1,0 +1,9 @@
+#!/bin/sh
+# Cargo omits --target for build scripts and proc macros. Upstream musl hosts
+# default to static executables, which cannot dlopen libclang for bindgen.
+for argument do
+  case "$argument" in
+    --target|--target=*) exec /opt/rust/bin/rustc "$@" ;;
+  esac
+done
+exec /opt/rust/bin/rustc "$@" -C target-feature=-crt-static
