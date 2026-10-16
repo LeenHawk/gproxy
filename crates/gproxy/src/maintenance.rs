@@ -93,13 +93,18 @@ pub async fn clean(
     {
         let limit = max_mb.saturating_mul(1024 * 1024);
         reclaim = physical_bytes(db).await? > limit;
+        // Recover garbage left by earlier capture deletions before evicting
+        // any more history to satisfy the database budget.
+        if occupied_bytes(db).await? > limit {
+            Store::new(db.clone()).collect_capture_garbage().await?;
+        }
         while occupied_bytes(db).await? > limit {
             let count = prune(db, now).await?;
             removed += count;
             if count == 0 {
                 tracing::warn!(
                     max_mb,
-                    "database exceeds its history budget; remaining data is configuration or active work"
+                    "database exceeds its history budget; no more completed captures can be pruned"
                 );
                 break;
             }
@@ -193,6 +198,9 @@ async fn prune(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
     // Capture events have cascading foreign keys.
     store.downstream_records().delete_many(&downstream).await?;
     store.upstream_records().delete_many(&upstream).await?;
+    if !downstream.is_empty() || !upstream.is_empty() {
+        store.collect_capture_garbage().await?;
+    }
     let links = prune_links(&store).await?;
     Ok((downstream.len() + upstream.len() + links) as u64)
 }

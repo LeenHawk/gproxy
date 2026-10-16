@@ -27,14 +27,15 @@ const BUDGET_ROUNDS: u32 = 3;
 
 impl<C: BatchConnectionTrait> Store<C> {
     /// Capture deletion cascades through manifests and links. This sweep also
-    /// handles event-only deletion, and frees blobs only after their last link.
-    /// Blob FKs protect concurrent writers: a conflicting sweep fails atomically
-    /// and the periodic caller retries on its next pass.
+    /// handles event-only deletion, and frees blobs and header sets only after
+    /// their last reference. FKs protect concurrent writers: a conflicting sweep
+    /// fails atomically and the periodic caller retries on its next pass.
     pub async fn collect_capture_garbage(&self) -> Result<()> {
         let backend = self.db.get_database_backend();
         self.db.atomic_batch_owned(vec![
             Statement::from_string(backend, "DELETE FROM capture_bodies WHERE NOT EXISTS (SELECT 1 FROM upstream_records r WHERE r.request_body_id = capture_bodies.id) AND NOT EXISTS (SELECT 1 FROM downstream_records r WHERE r.request_body_id = capture_bodies.id) AND NOT EXISTS (SELECT 1 FROM upstream_events e WHERE e.body_id = capture_bodies.id) AND NOT EXISTS (SELECT 1 FROM downstream_events e WHERE e.body_id = capture_bodies.id)"),
             Statement::from_string(backend, "DELETE FROM capture_blobs WHERE NOT EXISTS (SELECT 1 FROM capture_body_blobs l WHERE l.blob_id = capture_blobs.id)"),
+            Statement::from_string(backend, "DELETE FROM header_sets WHERE NOT EXISTS (SELECT 1 FROM upstream_records r WHERE r.request_headers_hash = header_sets.hash) AND NOT EXISTS (SELECT 1 FROM upstream_records r WHERE r.response_headers_hash = header_sets.hash) AND NOT EXISTS (SELECT 1 FROM downstream_records r WHERE r.request_headers_hash = header_sets.hash) AND NOT EXISTS (SELECT 1 FROM downstream_records r WHERE r.response_headers_hash = header_sets.hash)"),
         ]).await?;
         Ok(())
     }
