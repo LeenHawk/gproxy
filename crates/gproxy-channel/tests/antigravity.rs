@@ -432,14 +432,14 @@ fn claude_keeps_its_output_limit_and_takes_one_thinking_budget() {
         claude_config(json!({"maxOutputTokens": 32_000, "temperature": 0.2})),
         json!({"maxOutputTokens": 32_000, "temperature": 0.2})
     );
-    // The snake spelling, clamped to the catalogue's ceiling.
+    // The snake spelling preserves limits above the default budget.
     assert_eq!(
         claude_config(json!({"max_output_tokens": 200_000})),
-        json!({"maxOutputTokens": 64_000})
+        json!({"maxOutputTokens": 200_000})
     );
     // No limit and no thinking: the body stays as the caller left it.
     assert_eq!(claude_config(json!({})), Value::Null);
-    // Thinking without a limit gets the model maximum, so the budget fits.
+    // Thinking without a limit gets the default output budget.
     assert_eq!(
         claude_config(json!({"thinkingConfig": {"thinkingBudget": 20_000}})),
         json!({"maxOutputTokens": 64_000,

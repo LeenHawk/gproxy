@@ -21,7 +21,7 @@
 //! reply at 8192 tokens (a budget of 8191 passes, 8192 is refused with
 //! "`max_tokens` must be greater than `thinking.budget_tokens`"), so the
 //! caller's limit is kept rather than stripped as it is for Gemini models,
-//! and filled in at the model maximum when thinking is on. Thinking only
+//! and filled in with a default when thinking is on. Thinking only
 //! happens for a positive `thinkingBudget` of at least 1024 (below that is
 //! refused); a `thinkingLevel` or the dynamic `-1` budget is silently
 //! ignored, so both become an explicit budget. `includeThoughts` changes
@@ -43,10 +43,8 @@ pub(super) fn is_claude(model: &str) -> bool {
     crate::channels::shared::code_assist::model_id(model).starts_with("claude-")
 }
 
-/// The output ceiling the catalogue reports for every Claude model it
-/// lists; Anthropic's own ceiling is higher for some, but the catalogue is
-/// what the account is entitled to.
-const MAX_OUTPUT_TOKENS: u64 = 64_000;
+/// Default output budget when thinking is enabled without an explicit limit.
+const DEFAULT_OUTPUT_TOKENS: u64 = 64_000;
 /// Anthropic's smallest thinking budget.
 const MIN_THINKING_BUDGET: u64 = 1024;
 /// The budget a dynamic (`-1`) or unleveled request gets.
@@ -105,9 +103,9 @@ pub(super) fn apply_limits(request: &mut Value, requested: Option<u64>) {
         .get("thinkingConfig")
         .and_then(Value::as_object)
         .and_then(thinking_budget);
-    let limit = requested.map(|limit| limit.clamp(1, MAX_OUTPUT_TOKENS));
+    let limit = requested.map(|limit| limit.max(1));
     let budget = budget.and_then(|budget| {
-        let ceiling = limit.unwrap_or(MAX_OUTPUT_TOKENS) - 1;
+        let ceiling = limit.unwrap_or(DEFAULT_OUTPUT_TOKENS) - 1;
         let budget = budget.clamp(MIN_THINKING_BUDGET, ceiling.max(MIN_THINKING_BUDGET));
         // A limit too small for the smallest budget leaves no room to think.
         (budget <= ceiling).then_some(budget)
@@ -120,7 +118,7 @@ pub(super) fn apply_limits(request: &mut Value, requested: Option<u64>) {
             );
             config.insert(
                 "maxOutputTokens".into(),
-                Value::from(limit.unwrap_or(MAX_OUTPUT_TOKENS)),
+                Value::from(limit.unwrap_or(DEFAULT_OUTPUT_TOKENS)),
             );
         }
         None => {
