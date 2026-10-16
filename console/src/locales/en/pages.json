@@ -748,8 +748,6 @@
     "loadDefaultsHelp": "Import selected built-in models into the model list. Existing models and pricing are unchanged.",
     "deleteCount": "Delete models ({{count}})",
     "deleteSelected": "Delete {{count}} selected models?",
-    "importRemote": "Import from OpenRouter",
-    "importRemoteHelp": "Select model metadata to import. Existing custom values are kept; pricing is unchanged.",
     "metadataImported": "Imported metadata for {{count}} models."
   },
   "management": {

@@ -276,7 +276,6 @@ where
         .route("/default-model-catalog", get(default_models::<C>))
         .route("/model-names", get(model_names::<C>))
         .route("/operation-keys", get(operation_keys::<C>))
-        .route("/models/openrouter", get(openrouter_models::<C>))
         .route(
             "/default-model-catalog/apply-prices",
             post(apply_default_prices::<C>),
@@ -912,28 +911,6 @@ where
     crate::send(async move {
         gate!("catalog", scope);
         reply_sdk(state.app().gproxy().manage().catalog().default_models())
-    })
-    .await
-}
-
-async fn openrouter_models<C>(
-    State(state): State<HostState<C>>,
-    Extension(scope): Extension<AdminScope>,
-) -> Response
-where
-    C: BatchConnectionTrait + Send + Sync + 'static,
-{
-    crate::send(async move {
-        gate!("models", scope);
-        reply_sdk(
-            state
-                .app()
-                .gproxy()
-                .manage()
-                .connectivity()
-                .openrouter_models()
-                .await,
-        )
     })
     .await
 }

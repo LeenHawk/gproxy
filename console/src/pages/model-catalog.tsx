@@ -47,7 +47,7 @@ function ModelProviders({ providers }: { providers: readonly CatalogProviderDto[
 
 export function ModelCatalogPage() {
   const { t } = useTranslation(), client = useQueryClient()
-  const [importing, setImporting] = useState<"default" | "remote" | null>(null)
+  const [importing, setImporting] = useState(false)
   const [search, setSearch] = useState("")
   const { page, pageSize, setPage, setPageSize } = usePagination("model-catalog", search)
   const [editing, setEditing] = useState<Row | null>(null), [detail, setDetail] = useState<Row | null>(null), [pricing, setPricing] = useState<string | null>(null)
@@ -102,8 +102,8 @@ export function ModelCatalogPage() {
     <Button variant="ghost" size="icon-sm" aria-label={`${t("providers.models.pricing")}: ${row.name}`} title={t("providers.models.pricing")} disabled={openPricing.isPending} onClick={() => openPricing.mutate(row)}><BadgeDollarSign /></Button>
   </>
   return <Page>
-    {importing ? <ModelMetadataImport source={importing} onClose={() => setImporting(null)} /> : null}
-    <PageHeader title={t("nav.model-catalog")} actions={<><Button variant={batchMode ? "secondary" : "outline"} aria-pressed={batchMode} disabled={bulk.isPending} onClick={() => { setBatchMode(!batchMode); select([]) }}><ListChecks data-icon="inline-start" />{t("management.selectPage")}</Button><Button variant="outline" onClick={() => setImporting("default")}>{t("catalog.loadDefaults")}</Button><Button variant="outline" onClick={() => setImporting("remote")}>{t("catalog.importRemote")}</Button><Button onClick={() => { save.reset(); setEditing({ name: "", metadata: {} }) }}><Plus data-icon="inline-start" />{t("actions.new")}</Button></>} />
+    {importing ? <ModelMetadataImport onClose={() => setImporting(false)} /> : null}
+    <PageHeader title={t("nav.model-catalog")} actions={<><Button variant={batchMode ? "secondary" : "outline"} aria-pressed={batchMode} disabled={bulk.isPending} onClick={() => { setBatchMode(!batchMode); select([]) }}><ListChecks data-icon="inline-start" />{t("management.selectPage")}</Button><Button variant="outline" onClick={() => setImporting(true)}>{t("catalog.loadDefaults")}</Button><Button onClick={() => { save.reset(); setEditing({ name: "", metadata: {} }) }}><Plus data-icon="inline-start" />{t("actions.new")}</Button></>} />
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <InputGroup className="w-full sm:max-w-sm"><InputGroupAddon><Search /></InputGroupAddon><InputGroupInput aria-label={t("catalog.searchPlaceholder")} placeholder={t("catalog.searchPlaceholder")} value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></InputGroup>

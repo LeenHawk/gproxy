@@ -748,8 +748,6 @@
     "loadDefaultsHelp": "将选中的内置模型写入模型列表，保留已有模型和价格配置。",
     "deleteCount": "删除模型（{{count}}）",
     "deleteSelected": "删除选中的 {{count}} 个模型？",
-    "importRemote": "从 OpenRouter 导入",
-    "importRemoteHelp": "选择要导入的模型元数据，保留已有自定义值，不修改价格。",
     "metadataImported": "已导入 {{count}} 个模型的元数据。"
   },
   "management": {
