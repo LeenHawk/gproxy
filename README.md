@@ -261,8 +261,6 @@ The gateway application is **AGPL-3.0-or-later**; see [LICENSE](LICENSE). `gprox
 
 ## Powered by
 
-Tooling provided by JetBrains.
-
 [![JetBrains logo](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)](https://jb.gg/OpenSource)
 
 ## Star History

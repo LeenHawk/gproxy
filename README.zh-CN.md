@@ -259,8 +259,6 @@ pnpm --dir docs build
 
 ## 工具支持
 
-开发工具由 JetBrains 提供。
-
 [![JetBrains Logo](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)](https://jb.gg/OpenSource)
 
 ## Star History
