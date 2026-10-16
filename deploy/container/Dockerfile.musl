@@ -1,10 +1,10 @@
 # Alpine's Rust keeps host build scripts dynamically linked for bindgen/libclang.
-# Pin the image and Rust patch version; edge replaces Alpine package revisions.
+# Pin the image and Rust minor version; edge replaces older patch releases.
 FROM docker.io/library/alpine:edge@sha256:020dfcbaaf4cc1078bf2d9c7ba31a8466e334061dcd2f248001d68f79e52c000
 
 RUN set -eu; \
     case "$(apk --print-arch)" in \
-      x86_64|aarch64|riscv64) rust_version=1.99.0 ;; \
+      x86_64|aarch64|riscv64) rust_version=1.99 ;; \
       *) echo "unsupported musl build architecture" >&2; exit 1 ;; \
     esac; \
     apk add --no-cache build-base "rust~$rust_version" "cargo~$rust_version" \
