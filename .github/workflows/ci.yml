@@ -14,6 +14,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # dtolnay/rust-toolchain retries only checksum errors; rustup retries network ones.
+  RUSTUP_MAX_RETRIES: 10
+
 jobs:
   scope:
     name: Not yet tested on main

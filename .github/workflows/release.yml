@@ -15,6 +15,10 @@ permissions:
   contents: write
   packages: write
 
+env:
+  # dtolnay/rust-toolchain retries only checksum errors; rustup retries network ones.
+  RUSTUP_MAX_RETRIES: 10
+
 jobs:
   gate:
     name: Not published by a stable tag
@@ -172,7 +176,7 @@ jobs:
         with:
           go-version: "1.27.1"
           cache: false
-      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # 1.99.0
         if: matrix.builder != 'cargo-alpine' && (matrix.kind != 'cli' || matrix.os != 'android')
         with:
           toolchain: 1.99.0
@@ -802,7 +806,7 @@ jobs:
     environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # 1.99.0
         with:
           toolchain: 1.99.0
       - uses: ./.github/actions/ghcr-rust-cache
@@ -856,7 +860,7 @@ jobs:
         with:
           go-version: "1.27.1"
           cache: false
-      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # 1.99.0
         if: matrix.os != 'android' && matrix.builder != 'cargo-alpine'
         with:
           toolchain: 1.99.0
@@ -1071,7 +1075,7 @@ jobs:
         with:
           name: console-dist
           path: console/dist
-      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # 1.99.0
         with:
           toolchain: 1.99.0
           targets: wasm32-unknown-unknown

@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # dtolnay/rust-toolchain retries only checksum errors; rustup retries network ones.
+  RUSTUP_MAX_RETRIES: 10
+
 jobs:
   inventory:
     runs-on: ubuntu-24.04
