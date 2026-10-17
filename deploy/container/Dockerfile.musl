@@ -3,15 +3,17 @@
 FROM docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 
 ARG RUST_VERSION=1.99.0
-ENV RUSTUP_HOME=/opt/rustup RUSTC=/usr/local/bin/rustc RUSTUP_INIT_SKIP_PATH_CHECK=yes
+ENV RUSTUP_HOME=/opt/rustup RUSTC=/usr/local/bin/rustc RUSTUP_INIT_SKIP_PATH_CHECK=yes \
+    RUSTUP_MAX_RETRIES=10
 COPY scripts/musl-host-rustc /usr/local/bin/rustc
+COPY scripts/retry /usr/local/bin/retry
 RUN set -eu; \
     case "$(apk --print-arch)" in \
       x86_64|aarch64) host="$(apk --print-arch)-unknown-linux-musl" ;; \
       riscv64) host=riscv64gc-unknown-linux-musl ;; \
       *) echo "unsupported musl build architecture" >&2; exit 1 ;; \
     esac; \
-    apk add --no-cache build-base rustup python3 ca-certificates clang22 clang22-dev \
+    retry apk add --no-cache build-base rustup python3 ca-certificates clang22 clang22-dev \
         cmake git go linux-headers perl pkgconf; \
     ln -s /usr/bin/clang-22 /usr/local/bin/clang; \
     CARGO_HOME=/opt/cargo rustup-init -y --no-modify-path --profile minimal \
@@ -26,7 +28,7 @@ RUN set -eu; \
 
 ARG APPLICATION=false
 RUN if [ "$APPLICATION" = true ]; then \
-      apk add --no-cache bash nodejs gtk+3.0-dev webkit2gtk-4.1-dev \
+      retry apk add --no-cache bash nodejs gtk+3.0-dev webkit2gtk-4.1-dev \
         libayatana-appindicator-dev librsvg-dev pax-utils upx zip fakeroot openssl; \
     fi
 

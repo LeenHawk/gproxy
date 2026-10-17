@@ -2,12 +2,12 @@
 # std comes from the same rustup toolchain. Only smoke probes use QEMU.
 FROM gproxy-musl-application-builder
 
-RUN apk add --no-cache lld22 llvm22 qemu-riscv64
+RUN retry apk add --no-cache lld22 llvm22 qemu-riscv64
 RUN CARGO_HOME=/opt/cargo /opt/cargo/bin/rustup target add riscv64gc-unknown-linux-musl
 RUN set -eu; mkdir -p /opt/riscv64-alpine/etc/apk/keys; \
     cp /etc/apk/repositories /opt/riscv64-alpine/etc/apk/; \
     cp /usr/share/apk/keys/riscv64/*.pub /opt/riscv64-alpine/etc/apk/keys/; \
-    apk --root /opt/riscv64-alpine --arch riscv64 --initdb --no-scripts \
+    retry apk --root /opt/riscv64-alpine --arch riscv64 --initdb --no-scripts \
       add --no-cache build-base gtk+3.0-dev webkit2gtk-4.1-dev \
         libayatana-appindicator-dev librsvg-dev
 

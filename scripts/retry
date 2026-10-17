@@ -1,0 +1,9 @@
+#!/bin/sh
+# Alpine's CDN fails transiently (TLS errors on APKINDEX) and apk never retries.
+attempt=1
+until "$@"; do
+  [ "$attempt" -lt 5 ] || exit 1
+  echo "retrying in $((attempt * 15))s: $1" >&2
+  sleep $((attempt * 15))
+  attempt=$((attempt + 1))
+done
