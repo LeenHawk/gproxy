@@ -10,9 +10,8 @@ import { RecordDialog, RecordEditor, type FormField } from "@/components/record-
 import { ErrorNotice } from "@/components/state"
 import { ownerColumns, ownerValue, useOwnerChoices } from "./ownership"
 
-type FormProps = Parameters<NonNullable<CollectionProps<CredentialDto, unknown, unknown>["renderForm"]>>[0] & { providerId: string; channel: string; credentialKinds: string[]; inline?: boolean; secretActions?: ReactNode }
-const paidUsageChannels = new Set(["codex", "claudecode", "cline", "antigravity", "devin", "kiro", "copilotcli", "grokbuild"])
-export function CredentialForm({ providerId, channel, credentialKinds, inline = false, secretActions, ...props }: FormProps) {
+type FormProps = Parameters<NonNullable<CollectionProps<CredentialDto, unknown, unknown>["renderForm"]>>[0] & { providerId: string; channel: string; credentialKinds: string[]; paidUsage: boolean; inline?: boolean; secretActions?: ReactNode }
+export function CredentialForm({ providerId, channel, credentialKinds, paidUsage, inline = false, secretActions, ...props }: FormProps) {
   const { t } = useTranslation()
   const context = useConsoleContext()
   const ownership = useOwnerChoices()
@@ -20,7 +19,7 @@ export function CredentialForm({ providerId, channel, credentialKinds, inline = 
   const fixedKind = credentialKinds.length === 1 ? credentialKinds[0] : undefined
   const choicesForKinds = credentialKinds.map(value => ({ value, label: t(`credentialKinds.${value}`, { defaultValue: value }) }))
   const supportsRegion = channel === "vertex" || channel === "vertexexpress"
-  const supportsPaidUsage = paidUsageChannels.has(channel)
+  const supportsPaidUsage = paidUsage
   const metadata = (original?.metadata ?? {}) as Record<string, unknown>
   const allowPaidUsage = metadata.allow_paid_usage === true
   const formMetadata = { ...metadata }

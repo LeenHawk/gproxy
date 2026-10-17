@@ -7,7 +7,7 @@ import * as api from "@/api/credentials"
 import type { CredentialProviderDto } from "@/generated/app"
 vi.mock("./ownership", () => ({ useOwnerChoices: () => ({ defaultOwner: "org:o1", choices: [{ value: "org:o1", label: "Acme" }] }), ownerColumns: () => ({ organizationId: "o1", teamId: null, userId: null }) }))
 vi.mock("@/api/credentials", () => ({ startDevice: vi.fn(), pollDevice: vi.fn(), startAuthCode: vi.fn(), completeAuthCode: vi.fn(), exchangeCookie: vi.fn() }))
-const provider: CredentialProviderDto = { displayName: null, id: "p", name: "Provider", channel: "test", enabled: true, credentialKinds: ["oauth"], loginModes: ["device_code"], capabilities: { refresh: false, quotaQuery: false, quotaReset: false, services: false, websocket: false } }
+const provider: CredentialProviderDto = { displayName: null, id: "p", name: "Provider", channel: "test", enabled: true, credentialKinds: ["oauth"], loginModes: ["device_code"], capabilities: { refresh: false, quotaQuery: false, quotaReset: false, services: false, websocket: false, paidUsage: false } }
 afterEach(() => { vi.useRealTimers(); vi.resetAllMocks() })
 async function mount() {
   vi.useFakeTimers()

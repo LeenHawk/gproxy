@@ -5,7 +5,7 @@
 //! authentication, static config headers) are not subject to the list.
 
 use super::{ChannelError, ProviderView};
-use http::{HeaderMap, HeaderName};
+use http::{HeaderMap, HeaderName, HeaderValue};
 
 /// Headers a vendor's own client sends that its channel always lets through,
 /// alongside the global and provider allow-lists. Operator lists add headers
@@ -141,4 +141,33 @@ pub fn forwardable(
         out.append(name.clone(), value.clone());
     }
     out
+}
+
+/// A static header from provider configuration, named by the operator.
+pub fn insert_configured(
+    headers: &mut HeaderMap,
+    name: &str,
+    value: &str,
+) -> Result<(), ChannelError> {
+    headers.insert(
+        HeaderName::from_bytes(name.as_bytes())
+            .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+        HeaderValue::from_str(value)
+            .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+    );
+    Ok(())
+}
+
+/// Remove `key`, `access_token` and `api_key` parameters, keeping the rest
+/// byte for byte in their original order. Source authentication never
+/// reaches an upstream, in the query string any more than in a header.
+pub fn strip_query_auth(query: &str) -> String {
+    query
+        .split('&')
+        .filter(|segment| {
+            let name = segment.split('=').next().unwrap_or("");
+            !matches!(name, "key" | "access_token" | "api_key")
+        })
+        .collect::<Vec<_>>()
+        .join("&")
 }

@@ -319,9 +319,7 @@ impl BaseChannel for WorkBuddy {
             capabilities: ChannelCapabilities {
                 refresh: true,
                 quota_query: true,
-                quota_reset: false,
-                services: false,
-                websocket: false,
+                ..Default::default()
             },
             config_keys: [
                 ConfigKey::optional(

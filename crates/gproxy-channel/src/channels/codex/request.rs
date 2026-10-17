@@ -481,6 +481,7 @@ impl BaseChannel for Codex {
                 quota_reset: true,
                 services: true,
                 websocket: true,
+                paid_usage: true,
             },
             config_keys: [
                 ConfigKey::optional(

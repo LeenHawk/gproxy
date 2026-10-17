@@ -531,11 +531,9 @@ impl BaseChannel for Devin {
             credential_kinds: vec!["oauth"],
             login_modes: vec![LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
-                refresh: false,
                 quota_query: true,
-                quota_reset: false,
-                services: false,
-                websocket: false,
+                paid_usage: true,
+                ..Default::default()
             },
             config_keys: [
                 ConfigKey::optional(

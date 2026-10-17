@@ -52,6 +52,10 @@ pub struct ChannelCapabilities {
     /// derivable from an accessor; a channel that overrides a socket operation
     /// declares it.
     pub websocket: bool,
+    /// `QuotaModel::allows_paid_usage` reads the credential metadata flag
+    /// `allow_paid_usage`, so the console offers the switch. Not derivable
+    /// either: the method has a default, and overriding it is invisible here.
+    pub paid_usage: bool,
 }
 
 /// How a configuration value is written, for form rendering and validation.

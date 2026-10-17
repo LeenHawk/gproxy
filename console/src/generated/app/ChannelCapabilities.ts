@@ -26,4 +26,10 @@ services: boolean,
  * derivable from an accessor; a channel that overrides a socket operation
  * declares it.
  */
-websocket: boolean, };
+websocket: boolean,
+/**
+ * `QuotaModel::allows_paid_usage` reads the credential metadata flag
+ * `allow_paid_usage`, so the console offers the switch. Not derivable
+ * either: the method has a default, and overriding it is invisible here.
+ */
+paidUsage: boolean, };

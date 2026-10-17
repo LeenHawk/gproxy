@@ -101,7 +101,7 @@ impl BaseChannel for TestChannel {
                 quota_query: self.quota_query().is_some(),
                 quota_reset: self.quota_reset().is_some(),
                 services: self.services().is_some(),
-                websocket: false,
+                ..Default::default()
             },
             config_keys: Vec::new(),
         }

@@ -111,9 +111,7 @@ impl BaseChannel for OpenCode {
             capabilities: ChannelCapabilities {
                 refresh: zen,
                 quota_query: !zen,
-                quota_reset: false,
-                services: false,
-                websocket: false,
+                ..Default::default()
             },
             config_keys: [Some(base_url), console]
                 .into_iter()

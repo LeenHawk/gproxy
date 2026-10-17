@@ -21,7 +21,9 @@ pub use descriptor::{
     ChannelCapabilities, ChannelDescriptor, ConfigKey, ConfigKeyKind, HOST_CONFIG_KEYS, LoginMode,
 };
 pub use fallback::{CLAUDE_FALLBACK_KEYS, ClaudeFallback, claude_fallback_model};
-pub use headers::{ChannelHeaders, HeaderAllowlist, forwardable};
+pub use headers::{
+    ChannelHeaders, HeaderAllowlist, forwardable, insert_configured, strip_query_auth,
+};
 pub use oauth::{
     AcquiredCredential, AuthorizationCode, AuthorizationRequest, AuthorizationStart, CookieLogin,
     DeviceAuthorization, DevicePoll, LoginContext, OAuthAuthorizationCode, OAuthCredential,
@@ -200,8 +202,9 @@ pub trait BaseChannel: Send + Sync {
                 quota_query: self.quota_query().is_some(),
                 quota_reset: self.quota_reset().is_some(),
                 services: self.services().is_some(),
-                // No accessor describes transport; a socket channel says so itself.
-                websocket: false,
+                // `websocket` and `paid_usage`: no accessor describes them, so a
+                // channel that has them says so itself.
+                ..Default::default()
             },
             config_keys: Vec::new(),
         }

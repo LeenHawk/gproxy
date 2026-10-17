@@ -592,9 +592,8 @@ impl BaseChannel for Kiro {
             capabilities: ChannelCapabilities {
                 refresh: true,
                 quota_query: true,
-                quota_reset: false,
-                services: false,
-                websocket: false,
+                paid_usage: true,
+                ..Default::default()
             },
             config_keys: [
                 ConfigKey::optional(

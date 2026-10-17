@@ -200,11 +200,9 @@ impl BaseChannel for OpenAi {
             credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
-                refresh: false,
                 quota_query: true,
-                quota_reset: false,
-                services: false,
                 websocket: true,
+                ..Default::default()
             },
             config_keys: [
                 ConfigKey::optional(

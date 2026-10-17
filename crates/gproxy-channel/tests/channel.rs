@@ -389,6 +389,7 @@ fn codex_describes_both_oauth_flows_and_its_websocket() {
             quota_reset: true,
             services: true,
             websocket: true,
+            paid_usage: true,
         }
     );
     assert!(

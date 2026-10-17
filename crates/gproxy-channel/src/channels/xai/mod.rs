@@ -48,11 +48,8 @@ impl BaseChannel for Xai {
             credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
-                refresh: false,
                 quota_query: true,
-                quota_reset: false,
-                services: false,
-                websocket: false,
+                ..Default::default()
             },
             config_keys: [
                 ConfigKey::optional(

@@ -557,7 +557,8 @@ impl BaseChannel for Claudecode {
                 quota_query: true,
                 quota_reset: true,
                 services: true,
-                websocket: false,
+                paid_usage: true,
+                ..Default::default()
             },
             config_keys: [
                 ConfigKey::optional(
