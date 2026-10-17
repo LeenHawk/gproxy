@@ -48,6 +48,10 @@ termux_step_make() {
 	for flag_var in CFLAGS "CFLAGS_${CARGO_TARGET_NAME//-/_}"; do
 		export "$flag_var=$(printf '%s' "${!flag_var:-}" | sed -E 's/(^|[[:space:]])-O[[:alnum:]]+//g')"
 	done
+	# A dependency built from source rather than downloaded leaves OpenSSL's
+	# static archives in the prefix; with -L$TERMUX_PREFIX/lib first, rustc
+	# would bundle them in place of btls-sys's prefixed BoringSSL.
+	rm -f "$TERMUX_PREFIX/lib/libcrypto.a" "$TERMUX_PREFIX/lib/libssl.a"
 	local feature_args=()
 	if [ "${GPROXY_HEADLESS:-false}" = true ]; then
 		feature_args=(--no-default-features --features channels,memory,fs,bundled-vocabulary,postgres,mysql)
