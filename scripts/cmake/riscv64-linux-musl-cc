@@ -5,10 +5,17 @@ case "${0##*/}" in
   *) compiler=clang-22 ;;
 esac
 link=true
+skip=false
+# cc-rs adds the upstream Rust triple; only the Alpine triple finds the sysroot's GCC files.
 for argument do
+  shift
+  if "$skip"; then skip=false; continue; fi
   case "$argument" in
+    -target) skip=true; continue ;;
+    --target=*) continue ;;
     -c|-E|-S|-M|-MM|-fsyntax-only) link=false ;;
   esac
+  set -- "$@" "$argument"
 done
 if "$link"; then set -- -fuse-ld=lld "$@"; fi
 exec "$compiler" --target=riscv64-alpine-linux-musl \

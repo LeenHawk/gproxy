@@ -3,7 +3,7 @@
 FROM docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 
 ARG RUST_VERSION=1.99.0
-ENV RUSTUP_HOME=/opt/rustup RUSTC=/usr/local/bin/rustc
+ENV RUSTUP_HOME=/opt/rustup RUSTC=/usr/local/bin/rustc RUSTUP_INIT_SKIP_PATH_CHECK=yes
 COPY scripts/musl-host-rustc /usr/local/bin/rustc
 RUN set -eu; \
     case "$(apk --print-arch)" in \
