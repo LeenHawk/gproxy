@@ -39,6 +39,7 @@ Cargo feature：
 | `openrouter` | `openrouter` | OpenRouter：把 provider 选路偏好填进 body、`HTTP-Referer`／`X-Title` 归属头、响应里自报的价格、`/v1/auth/key` | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI：按项目与地区寻址 google／anthropic／OpenAI 兼容三个发布者；服务账号密钥经 `CredentialRefresh` 换取访问令牌 | Google 服务账号密钥 |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：默认全局、可配置区域 origin 的 Gemini 面，key 走 query，无项目 | `{"api_key"}` |
+| `trae` | `trae` | Trae 国内／国际版：浏览器 PKCE 登录、设备签名刷新、原生聊天转 OpenAI Chat、账号模型目录与额度查询 | `OAuthCredential` |
 | `workbuddy` | `workbuddy` | 经编辑器插件使用的腾讯 Copilot：设备登录与刷新、`/v2` 下带插件身份头与账号头的 OpenAI Chat、`/v3/config` 目录、企业与个人两套计费表 | `OAuthCredential` |
 | `xai` | `xai` | xAI（Grok）：OpenAI Chat 与 Responses，外加 xAI 自己的 `/v1/tts`、`/v1/stt`、`/v1/videos/generations`，`cost_in_usd_ticks` 计量，管理面的账单探测 | `{"api_key"}` |
 
@@ -90,6 +91,13 @@ user agent、主机和目录方法。
 `CredentialRefresh`——GitHub 令牌是 refresh token，Copilot 令牌是 access token——因为
 `prepare` 是同步且纯的，放在那里会每个请求都换一次。登录的最后一步先换一次，宿主落库的
 凭证因此立刻可用。
+
+Trae 使用单一 `trae` 渠道，默认国内版，`config.international: true` 选择国际版。
+浏览器授权完成后，将地址栏中的完整本地回调地址粘贴回控制台，即使回调页无法打开；
+无需安装 Trae 或启动本地回调监听，浏览器与网关可以分处不同机器。
+设备签名私钥随凭证加密保存；仅导入 token 而没有设备私钥的凭证不能自动刷新。
+模型来自账号的 `chat_v3` 目录，账号额度与每次请求的 token 用量分别处理。
+协议依据和验证边界见[分析报告](src/channels/trae/README.md)。
 
 `workbuddy` 的供应商配置设置 `{"international": true}` 后，使用国际版
 `https://www.workbuddy.ai` 和登录平台 `workbuddy-ai`。省略该选项仍使用内地版

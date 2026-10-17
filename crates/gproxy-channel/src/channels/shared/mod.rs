@@ -37,6 +37,7 @@ pub(crate) mod code_assist;
 #[cfg(any(
     feature = "cloudflare_ai_gateway",
     feature = "commandcode",
+    feature = "trae",
     feature = "nvidia",
     feature = "cline",
     feature = "copilotcli",

@@ -199,6 +199,8 @@ vertex = [
 # Google Vertex AI Express mode: the Gemini surface with an API key in the
 # query, no project and no region.
 vertexexpress = ["dep:percent-encoding"]
+# Trae desktop (China and international): PKCE/device-bound refresh, native chat and quota.
+trae = ["dep:base64", "dep:futures-util", "dep:getrandom", "dep:getrandom_v02", "dep:p256", "dep:url", "dep:web-time"]
 # WorkBuddy (Tencent Copilot, `copilot.tencent.com`): a device login through
 # the editor plugin's auth endpoints, OpenAI Chat under /v2 carrying the CLI's
 # identity headers, a /v3/config model catalogue and the two billing-meter
@@ -214,6 +216,7 @@ workbuddy = [
 xai = ["dep:futures-util"]
 
 [dependencies]
+p256 = { workspace = true, optional = true }
 percent-encoding = { workspace = true, optional = true }
 url = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
@@ -238,7 +241,7 @@ web-time = { workspace = true, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 send_wrapper = { workspace = true, optional = true }
-# Never imported. `rsa` reaches getrandom 0.2 through rand_core 0.6, and that
+# Never imported. `rsa` and `p256` reach getrandom 0.2 through rand_core 0.6; that
 # version refuses to build for wasm32-unknown-unknown unless its `js` backend
 # is selected; naming it here is how a dependent selects it.
 getrandom_v02 = { workspace = true, optional = true }

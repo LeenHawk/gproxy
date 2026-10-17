@@ -47,6 +47,7 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `vercel` | `vercel` | Vercel AI Gateway: Chat, Responses, Claude Messages and embeddings, dual key headers, the team's `/v1/credits` balance | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface with a global default and optional regional origin, key in the query, no project | `{"api_key"}` |
+| `trae` | `trae` | Trae China / international desktop: browser PKCE login, device-signed refresh, native raw chat translated to OpenAI Chat, account model catalogue and entitlement usage | `OAuthCredential` |
 | `workbuddy` | `workbuddy` | Tencent Copilot through its editor plugin: device login, refresh, OpenAI Chat under `/v2` with the plugin's identity and account headers, the `/v3/config` catalogue, the enterprise and personal billing meters | `OAuthCredential` |
 | `xai` | `xai` | xAI (Grok): OpenAI Chat and Responses plus xAI's own `/v1/tts`, `/v1/stt` and `/v1/videos/generations`, `cost_in_usd_ticks` metering, the management billing probe | `{"api_key"}` |
 
@@ -120,6 +121,16 @@ That mint is `CredentialRefresh` — the GitHub token is the refresh token and
 the Copilot token the access token — because `prepare` is synchronous and pure
 and would otherwise re-mint on every request. The login's final step performs
 the first mint, so the credential the host persists is usable at once.
+
+Trae uses one `trae` channel. Set `config.international` to `true` for the
+international edition; the default is mainland China. Browser login uses the
+host's existing authorization-result flow: after authorization, paste the full
+loopback callback address into the Console even if that page cannot open.
+No Trae installation or local callback listener is required. Each credential
+keeps its device signing key sealed; imported tokens without that key cannot
+use the device-bound refresh flow. Models come from the account's `chat_v3`
+catalogue. Quota observations are separate from per-request token usage.
+See [the protocol audit](src/channels/trae/README.md) for evidence and validation limits.
 
 For `workbuddy`, set provider config to `{"international": true}` to select
 WorkBuddy AI at `https://www.workbuddy.ai` with login platform `workbuddy-ai`.

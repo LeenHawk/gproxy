@@ -781,6 +781,7 @@
     "startLogin": "Start sign-in",
     "authorizationUrl": "Authorization URL",
     "openAuthorization": "Open in new tab",
+    "traeCallbackHelp": "Sign in on the Trae authorization page. When the browser reaches the local callback address, copy the complete address from its address bar and paste it below, even if the page cannot be opened. The browser and GProxy can be on different machines.",
     "authorizationCodeHelp": "After authorization, paste the authorization code shown by the provider.",
     "authorizationKey": "Sign-in key",
     "commandCodeKeyHelp": "Authorize on the official Command Code website, then copy the key from its “Copy your API key” page and paste it below. If prompted for local-network access, you can decline it. GProxy can run on a remote server; no CLI installation is needed.",

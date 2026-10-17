@@ -32,4 +32,22 @@ pub(crate) async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
     }
 }
 
-pub(crate) use crate::channel::{insert_configured, strip_query_auth};
+pub(crate) use crate::channel::insert_configured;
+#[cfg(any(
+    feature = "dashscope",
+    feature = "cline",
+    feature = "commandcode",
+    feature = "vercel",
+    feature = "minimax",
+    feature = "deepseek",
+    feature = "kimi",
+    feature = "nvidia",
+    feature = "opencode",
+    feature = "cloudflare_ai_gateway",
+    feature = "copilotcli",
+    feature = "openrouter",
+    feature = "xai",
+    feature = "glm",
+    feature = "grokbuild",
+))]
+pub(crate) use crate::channel::strip_query_auth;

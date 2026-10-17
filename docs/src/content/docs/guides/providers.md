@@ -53,6 +53,7 @@ provider form should render.
 | `vercel` | Vercel AI Gateway: Chat, Responses, Claude Messages, embeddings and team credit balance | `{"api_key"}` |
 | `vertex` | Google Vertex AI: the Google, Anthropic and OpenAI-compatible publishers | service-account key |
 | `vertexexpress` | Vertex AI Express: the Gemini surface on one global origin | `{"api_key"}` |
+| `trae` | Trae China / international: native raw chat, account models and entitlement usage | OAuth |
 | `workbuddy` | Tencent Copilot through its editor plugin | OAuth |
 | `xai` | xAI (Grok): OpenAI Chat and Responses plus xAI's own TTS, STT and video | `{"api_key"}` |
 

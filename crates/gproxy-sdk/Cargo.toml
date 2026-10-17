@@ -42,6 +42,7 @@ openrouter = ["gproxy-channel/openrouter"]
 vercel = ["gproxy-channel/vercel"]
 vertex = ["gproxy-channel/vertex"]
 vertexexpress = ["gproxy-channel/vertexexpress"]
+trae = ["gproxy-channel/trae"]
 workbuddy = ["gproxy-channel/workbuddy"]
 xai = ["gproxy-channel/xai"]
 # Every channel this workspace ships.
@@ -75,6 +76,7 @@ channels = [
     "vercel",
     "vertex",
     "vertexexpress",
+    "trae",
     "workbuddy",
     "xai",
 ]

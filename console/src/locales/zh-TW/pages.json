@@ -781,6 +781,7 @@
     "startLogin": "開始登入",
     "authorizationUrl": "授權網址",
     "openAuthorization": "在新分頁開啟",
+    "traeCallbackHelp": "在 Trae 官網完成授權後，瀏覽器會跳轉到本機回呼位址。即使頁面無法開啟，也請複製網址列中的完整位址並貼到下方。瀏覽器與 GProxy 可以位於不同機器。",
     "authorizationCodeHelp": "完成授權後，貼上授權頁面顯示的授權碼。",
     "authorizationKey": "登入金鑰",
     "commandCodeKeyHelp": "在 Command Code 官網授權後，從官網「複製 API key」頁面複製登入金鑰並貼到下方。如瀏覽器詢問本機網路權限，可以拒絕。GProxy 可以部署在遠端伺服器，無需安裝 CLI。",

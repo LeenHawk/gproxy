@@ -11,6 +11,7 @@
 #[cfg(any(
     feature = "cline",
     feature = "commandcode",
+    feature = "trae",
     feature = "cloudflare_ai_gateway",
     feature = "copilotcli",
     feature = "deepseek",

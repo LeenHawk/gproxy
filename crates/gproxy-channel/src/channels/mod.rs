@@ -69,6 +69,7 @@ channels! {
     "vercel" => vercel, vercel::Vercel;
     "vertex" => vertex, vertex::Vertex;
     "vertexexpress" => vertexexpress, vertexexpress::VertexExpress;
+    "trae" => trae, trae::Trae;
     "workbuddy" => workbuddy, workbuddy::WorkBuddy;
     "xai" => xai, xai::Xai;
 }
@@ -105,6 +106,7 @@ channels! {
     feature = "vercel",
     feature = "vertex",
     feature = "vertexexpress",
+    feature = "trae",
     feature = "workbuddy",
     feature = "xai"
 ))]

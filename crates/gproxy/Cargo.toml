@@ -65,6 +65,7 @@ openrouter = ["gproxy-sdk/openrouter"]
 vercel = ["gproxy-sdk/vercel"]
 vertex = ["gproxy-sdk/vertex"]
 vertexexpress = ["gproxy-sdk/vertexexpress"]
+trae = ["gproxy-sdk/trae"]
 workbuddy = ["gproxy-sdk/workbuddy"]
 xai = ["gproxy-sdk/xai"]
 

@@ -47,6 +47,7 @@ description: "選擇渠道、新增供應商與憑證，配置登入、額度查
 | `vercel` | Vercel AI Gateway：模型呼叫與團隊餘額查詢 | `{"api_key"}` |
 | `vertex` | Google Vertex AI：Google、Anthropic 與 OpenAI 相容釋出者 | 服務帳號金鑰 |
 | `vertexexpress` | Vertex AI Express：單一全球源上的 Gemini surface | `{"api_key"}` |
+| `trae` | Trae 國內／國際版：原生聊天、帳號模型目錄與額度查詢 | OAuth |
 | `workbuddy` | 經編輯器外掛使用騰訊 Copilot | OAuth |
 | `xai` | xAI（Grok）：OpenAI Chat 與 Responses，加上 xAI 自己的 TTS／STT／影片 | `{"api_key"}` |
 
