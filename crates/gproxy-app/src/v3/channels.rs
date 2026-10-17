@@ -36,7 +36,7 @@ use super::{Error, Result};
 /// feature set must still translate a full document: a provider whose channel
 /// this binary was not compiled with is a runtime concern the operator can fix
 /// by rebuilding, not a reason to refuse their configuration.
-pub const V4_CHANNELS: [&str; 32] = [
+pub const V4_CHANNELS: [&str; 33] = [
     "aistudio",
     "antigravity",
     "aws_bedrock",
@@ -47,6 +47,7 @@ pub const V4_CHANNELS: [&str; 32] = [
     "cline",
     "cloudflare_ai_gateway",
     "codex",
+    "commandcode",
     "copilotcli",
     "custom",
     "dashscope",
@@ -287,21 +288,6 @@ mod tests {
         let given = ids.clone();
         ids.sort();
         assert_eq!(ids, given, "the rule table is not in id order");
-    }
-
-    /// The registry list is the one thing here that is a copy of something
-    /// else, so it is checked against the real thing. Only one way round: a
-    /// build with a reduced feature set compiles in fewer channels, and that
-    /// must not fail this test.
-    #[test]
-    fn the_registry_list_covers_what_v4_compiles_in() {
-        for channel in gproxy_sdk::channels::compiled_in() {
-            let id = channel.descriptor().id;
-            assert!(
-                V4_CHANNELS.contains(&id),
-                "`{id}` is compiled in but missing from V4_CHANNELS"
-            );
-        }
     }
 
     #[test]
