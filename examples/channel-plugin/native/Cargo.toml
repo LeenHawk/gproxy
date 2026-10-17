@@ -1,0 +1,17 @@
+[package]
+name = "gproxy-example-native"
+description = "The gproxy binary, carrying the example channel beside the built-in ones"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "gproxy-with-acme"
+path = "src/main.rs"
+
+[dependencies]
+gproxy-example-channel = { path = "../channel" }
+# The binary, with every built-in channel, beside this one.
+gproxy = { workspace = true, features = ["channels", "memory", "fs", "embedded-console"] }

@@ -2950,6 +2950,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "gproxy-example-channel"
+version = "4.1.7"
+dependencies = [
+ "gproxy-channel",
+ "gproxy-protocol",
+ "http",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "gproxy-example-edge"
+version = "4.1.7"
+dependencies = [
+ "gproxy-example-channel",
+ "gproxy-host-edge",
+ "worker",
+]
+
+[[package]]
+name = "gproxy-example-native"
+version = "4.1.7"
+dependencies = [
+ "gproxy",
+ "gproxy-example-channel",
+]
+
+[[package]]
 name = "gproxy-file"
 version = "4.1.7"
 dependencies = [

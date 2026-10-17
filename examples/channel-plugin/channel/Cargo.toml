@@ -1,0 +1,27 @@
+[package]
+name = "gproxy-example-channel"
+description = "A channel implemented outside gproxy-channel, against its public contract only"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# The channel alone, with no host in its dependencies, so the native binary
+# (`../native`) and the Worker (`../edge`) can both carry it. Every dependency
+# here builds for `wasm32-unknown-unknown`; one that does not would keep the
+# channel off the edge.
+#
+# Workspace members so CI keeps them compiling against the current contract,
+# but not default members: nothing in the product depends on them. Outside this
+# repository, replace each `workspace = true` with a path dependency on a
+# gproxy checkout; see docs/src/content/docs/guides/adding-a-channel.md.
+
+[dependencies]
+# The contract: `BaseChannel`, its context types and errors.
+gproxy-channel = { workspace = true }
+# `Dialect`, `Operation`, `HttpBody`: the vocabulary the contract speaks.
+gproxy-protocol = { workspace = true }
+http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

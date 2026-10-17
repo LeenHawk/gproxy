@@ -1,0 +1,22 @@
+[package]
+name = "gproxy-example-edge"
+description = "The Cloudflare Worker, carrying the example channel beside the built-in ones"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# `cdylib` is what `worker-build` links into the Worker; `rlib` keeps the
+# native `cargo check` of the workspace from building a shared library it has
+# no use for.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# Everything is wasm-only: on the host target this crate is empty.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gproxy-example-channel = { path = "../channel" }
+# Without `entry`: this crate declares the Worker's `#[event(fetch)]` itself.
+gproxy-host-edge = { workspace = true, default-features = false, features = ["channels", "d1", "libsql"] }
+# `#[event(fetch)]` expands to code that names this crate.
+worker = { workspace = true, features = ["http"] }

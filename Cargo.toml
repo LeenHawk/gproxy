@@ -18,6 +18,9 @@ members = [
     "crates/gproxy-host-edge",
     "crates/gproxy",
     "crates/gproxy-host-tauri",
+    "examples/channel-plugin/channel",
+    "examples/channel-plugin/native",
+    "examples/channel-plugin/edge",
 ]
 
 # `cargo check`, `cargo test` and `cargo clippy` with no `-p` and no
@@ -36,6 +39,10 @@ members = [
 #
 # It is still a member, so `--workspace` builds it, CI builds it, and the
 # lockfile resolves with it in.
+#
+# `examples/channel-plugin` is left out for a smaller reason: it holds a second
+# copy of the `gproxy` binary and of the Worker, and linking them on every
+# `cargo test` buys nothing. CI checks them on their own.
 default-members = [
     "crates/gproxy-protocol",
     "crates/gproxy-protocol-macros",

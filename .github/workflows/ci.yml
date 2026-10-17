@@ -113,6 +113,11 @@ jobs:
       - name: Serverless PostgreSQL host
         if: matrix.check == 'backend'
         run: cargo clippy -p gproxy --bin gproxy-serverless --no-default-features --features channels,postgres,embedded-console -- -D warnings
+      # Not a default member, so the step above skips it. It is the one thing
+      # that notices when the public channel contract stops being enough.
+      - name: Out-of-tree channel example
+        if: matrix.check == 'backend'
+        run: cargo clippy -p gproxy-example-channel -p gproxy-example-native --all-targets -- -D warnings
       - run: cargo test
         if: matrix.check == 'backend'
       - run: bash scripts/with-tauri-desktop-lib.sh cargo clippy -p gproxy-host-tauri --all-targets -- -D warnings
@@ -150,6 +155,8 @@ jobs:
           cargo check --target wasm32-unknown-unknown -p gproxy-cache --all-features
           cargo check --target wasm32-unknown-unknown -p gproxy-file --no-default-features --features s3
           cargo check --target wasm32-unknown-unknown -p gproxy-channel --all-features --lib
+          # The out-of-tree example's Worker, without the stock entry point.
+          cargo check --target wasm32-unknown-unknown -p gproxy-example-edge --lib
 
   backend:
     # Preserve main's protected-branch check name while running checks in parallel.
