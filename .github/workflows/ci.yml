@@ -17,7 +17,7 @@ concurrency:
 jobs:
   scope:
     name: Not yet tested on main
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       run: ${{ steps.scope.outputs.run }}
     steps:
@@ -38,7 +38,7 @@ jobs:
   dev-base:
     name: Dev includes latest main
     if: github.ref == 'refs/heads/dev' || github.base_ref == 'dev'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -56,7 +56,7 @@ jobs:
       contents: read
       packages: write
     needs: console
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -90,9 +90,9 @@ jobs:
         with:
           go-version: "1.27.1"
           cache: false
-      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # 1.99.0
         with:
-          toolchain: stable
+          toolchain: 1.99.0
           components: clippy, rustfmt
           targets: wasm32-unknown-unknown
       - uses: ./.github/actions/ghcr-rust-cache
@@ -152,7 +152,7 @@ jobs:
     name: Backend (fmt · clippy · test · wasm)
     needs: [scope, rust]
     if: always() && needs.scope.outputs.run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - run: test "$RESULT" = success
         env:
@@ -162,7 +162,7 @@ jobs:
     name: Console (typecheck · test · build · i18n)
     needs: scope
     if: needs.scope.outputs.run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       windows_matrix: ${{ steps.windows-matrix.outputs.matrix }}
     defaults:
@@ -182,7 +182,7 @@ jobs:
           package_json_file: console/package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 'lts/*'
+          node-version: '24.21.0'
           cache: pnpm
           cache-dependency-path: console/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -226,7 +226,7 @@ jobs:
           package_json_file: console/package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 'lts/*'
+          node-version: '24.21.0'
           cache: pnpm
           cache-dependency-path: crates/gproxy-host-tauri/pnpm-lock.yaml
       - name: Prepare application assets and CLI
@@ -238,9 +238,9 @@ jobs:
         with:
           go-version: "1.27.1"
           cache: false
-      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # 1.99.0
         with:
-          toolchain: stable
+          toolchain: 1.99.0
           targets: ${{ matrix.target }}
       - uses: ./.github/actions/ghcr-rust-cache
         with:
@@ -326,7 +326,7 @@ jobs:
     name: Docs (build)
     needs: scope
     if: needs.scope.outputs.run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: docs
@@ -337,7 +337,7 @@ jobs:
           package_json_file: docs/package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 'lts/*'
+          node-version: '24.21.0'
           cache: pnpm
           cache-dependency-path: docs/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -358,7 +358,7 @@ jobs:
     name: Deploy docs
     needs: docs
     if: ${{ github.event_name == 'push' && (github.ref_name == github.event.repository.default_branch || github.ref_name == '3.0') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment:
       name: cloudflare
     steps:

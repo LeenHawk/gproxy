@@ -12,7 +12,7 @@ variables:
   GIT_DEPTH: "0"
   NODE_VERSION: "24.21.0"
   GO_VERSION: "1.27.1"
-  RUST_VERSION: "1.98.0"
+  RUST_VERSION: "1.99.0"
   GPROXY_BUILD_UPDATE_SOURCE: github
   GITHUB_REPOSITORY: LeenHawk/gproxy
   CARGO_PROFILE_DEV_DEBUG: "0"
@@ -24,7 +24,7 @@ default:
 
 console:
   stage: prepare
-  image: node:24-trixie
+  image: docker.io/library/node:24.21.0-trixie@sha256:1278a37eb510ec1606fba0e80f554bcc941ae0b44f35ae373c4822ae7717c64d
   tags: [saas-linux-medium-amd64]
   script:
     - npm install -g pnpm@9.15.9
@@ -42,7 +42,7 @@ console:
 
 docs:
   stage: verify
-  image: node:24-trixie
+  image: docker.io/library/node:24.21.0-trixie@sha256:1278a37eb510ec1606fba0e80f554bcc941ae0b44f35ae373c4822ae7717c64d
   tags: [saas-linux-medium-amd64]
   needs: []
   script:
@@ -116,7 +116,7 @@ wasm-verify:
 toolchains:
   extends: .release-rules
   stage: prepare
-  image: docker:28-cli
+  image: docker.io/library/docker:28.5.2-cli@sha256:625d9431a9f54c5a2bc90f24f0e1c3d55b1349fd857dd85035f98c2c9acbdd4d
   tags: [saas-linux-xlarge-amd64]
   needs: []
   services:
@@ -348,7 +348,7 @@ macos-dmg:
 publish:
   extends: .release-rules
   stage: publish
-  image: docker:28-cli
+  image: docker.io/library/docker:28.5.2-cli@sha256:625d9431a9f54c5a2bc90f24f0e1c3d55b1349fd857dd85035f98c2c9acbdd4d
   tags: [saas-linux-large-amd64]
   interruptible: false
   resource_group: gproxy-release

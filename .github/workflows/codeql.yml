@@ -15,7 +15,7 @@ permissions:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     concurrency:
       group: codeql-${{ github.ref }}-${{ matrix.language }}
       cancel-in-progress: true

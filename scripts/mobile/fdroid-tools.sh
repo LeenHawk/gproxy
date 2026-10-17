@@ -21,9 +21,9 @@ tar -xf "$tools_dir/go.tar.gz" -C "$tools_dir"
 download https://services.gradle.org/distributions/gradle-8.14.3-bin.zip \
   bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531 gradle.zip
 unzip -q -o "$tools_dir/gradle.zip" -d "$tools_dir"
-rustup toolchain install 1.98.0 \
+rustup toolchain install 1.99.0 \
   --profile minimal --target aarch64-linux-android,x86_64-linux-android
-rustup default 1.98.0
+rustup default 1.99.0
 export PATH="$tools_dir/node-v24.21.0-linux-x64/bin:$PATH"
 npm install --prefix "$tools_dir/pnpm" --global pnpm@9.15.9
 bash scripts/install-android-upx.sh "$tools_dir/gproxy-android-upx"

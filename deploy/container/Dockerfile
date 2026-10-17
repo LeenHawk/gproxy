@@ -1,4 +1,4 @@
-FROM docker.io/library/node:24.21.0-trixie-slim AS console
+FROM docker.io/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS console
 
 ARG GPROXY_BUILD_HASH=unknown
 WORKDIR /source
@@ -13,7 +13,7 @@ RUN GPROXY_BUILD_HASH="$GPROXY_BUILD_HASH" pnpm build
 FROM scratch AS console-dist
 COPY --from=console /source/console/dist/ /
 
-FROM docker.io/library/rust:1.99.0-trixie AS builder
+FROM docker.io/library/rust:1.99.0-trixie@sha256:81015672d6939b0265f09adf96d5de125482bb1330106076956b0518e74edc90 AS builder
 
 ARG CARGO_NET_OFFLINE=false
 ARG GPROXY_UPDATE_PUBKEY
@@ -34,7 +34,7 @@ RUN test -n "$GPROXY_UPDATE_PUBKEY" \
     GPROXY_BUILD_HASH="$GPROXY_BUILD_HASH" GPROXY_INSTALLATION_KIND="$GPROXY_INSTALLATION_KIND" \
     cargo build --locked --release --package gproxy-host-axum --bin gproxy
 
-FROM docker.io/library/debian:trixie-slim
+FROM docker.io/library/debian:trixie-20261005-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
 
 ARG GPROXY_VERSION
 ARG GPROXY_REVISION

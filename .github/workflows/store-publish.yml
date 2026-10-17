@@ -39,7 +39,7 @@ concurrency:
 jobs:
   submit:
     name: ${{ matrix.edition }} Microsoft Store
-    runs-on: windows-latest
+    runs-on: windows-2025
     environment: ${{ inputs.prepare_only && 'store-packaging' || 'release' }}
     timeout-minutes: 45
     strategy:
