@@ -327,7 +327,9 @@ is durable or none is.
 **Identity** families: `users`, `api-keys`, `organizations`, `teams`,
 `permissions`, `rate-limits`. Organization and team memberships have their own endpoints. `oauth-clients` has
 `POST …/{id}/retire` instead of a delete — the grants a client issued still
-name it — so its batch refuses a delete. A retired `client_id` can be
+name it. In its batch a delete retires, and a batch that retires carries only
+deletes: retirement is its own transaction, so it cannot share a commit with
+creates or patches. A retired `client_id` can be
 registered again; the new registration reuses the row, and the grants
 retirement revoked stay revoked. The `api-keys` batch refuses a create,
 because a mint answers with a plaintext a batch has nowhere to return. A

@@ -767,6 +767,7 @@
     "disable": "停用",
     "disabled": "已停用",
     "deleteSelected": "刪除選取的 {{count}} 筆記錄？",
+    "retireSelected": "註銷選取的 {{count}} 個用戶端？它們的授權和權杖會被撤銷。",
     "manage": "詳情",
     "owner": "歸屬",
     "shared": "執行個體共用",

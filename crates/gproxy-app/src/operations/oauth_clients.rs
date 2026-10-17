@@ -61,47 +61,85 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> OAuthClients<'_, C> {
         crud::update(self, id, patch).await
     }
 
-    /// Creates and updates in one revision commit. A delete is refused for the
-    /// reason the family has none: a client is retired, not deleted.
+    /// Creates and updates in one revision commit, or a list of deletes, each
+    /// of which retires its client.
+    ///
+    /// The two do not mix. A retirement is its own transaction (see
+    /// [`OAuthClients::retire`]), so a batch that also created or patched a
+    /// row could not be one commit; refusing the mix keeps every batch
+    /// all-or-nothing.
     pub async fn batch(
         &self,
         items: Vec<BatchItem<OAuthClientWrite, OAuthClientPatch>>,
     ) -> Result<Vec<Option<OAuthClientDto>>> {
-        if items
+        let ids: Vec<String> = items
             .iter()
-            .any(|item| matches!(item, BatchItem::Delete(_)))
-        {
-            return Err(AppError::invalid("oauth clients are retired, not deleted"));
+            .filter_map(|item| match item {
+                BatchItem::Delete(id) => Some(id.clone()),
+                _ => None,
+            })
+            .collect();
+        if ids.is_empty() {
+            return crud::batch(self, items).await;
         }
-        crud::batch(self, items).await
+        if ids.len() != items.len() {
+            return Err(AppError::invalid(
+                "a batch that retires oauth clients cannot also create or patch them",
+            ));
+        }
+        self.retire_all(&ids).await?;
+        Ok(ids.iter().map(|_| None).collect())
     }
 
     /// Soft-delete the client and revoke everything it holds.
+    pub async fn retire(&self, id: &str) -> Result<OAuthClientDto> {
+        self.retire_all(std::slice::from_ref(&id.to_owned()))
+            .await?;
+        crud::get(self, id).await
+    }
+
+    /// Retire every client in `ids`, or none of them.
+    ///
+    /// Each id is checked first, so an unknown or already retired one refuses
+    /// the whole list before anything is revoked.
     ///
     /// Two transactions, unavoidably and deliberately in this order. The first
     /// is `retire_many`, which is itself atomic and is where the revocation
     /// happens; the second is an empty revision commit whose only job is to
     /// move `config_revision` and notify the peers, because the client
-    /// allowlist is part of `AppData`. If the second fails, the client is
+    /// allowlist is part of `AppData`. If the second fails, the clients are
     /// still retired and the peers converge on the revision poll — a window
     /// in which a peer is *stricter* than the database, never looser.
-    pub async fn retire(&self, id: &str) -> Result<OAuthClientDto> {
-        crud::row::<C, Self>(self, id).await?;
+    async fn retire_all(&self, ids: &[String]) -> Result<()> {
+        for id in ids {
+            if crud::row::<C, Self>(self, id)
+                .await?
+                .deleted_at_ms
+                .is_some()
+            {
+                return Err(AppError::Conflict(format!(
+                    "oauth client `{id}` is already retired"
+                )));
+            }
+        }
         let retired = self
             .writer
             .store()
             .oauth_clients()
-            .retire_many(std::slice::from_ref(&id.to_owned()), crate::now_ms())
+            .retire_many(ids, crate::now_ms())
             .await?;
-        if !retired.first().copied().unwrap_or(false) {
+        // A peer retired one between the check and the write. The rest are
+        // retired regardless, so the peers still have to hear about it.
+        let raced = ids.iter().zip(&retired).find(|(_, done)| !**done);
+        self.writer
+            .commit(Vec::new(), &[Scope::OAuthClients, Scope::Keys])
+            .await?;
+        if let Some((id, _)) = raced {
             return Err(AppError::Conflict(format!(
                 "oauth client `{id}` is already retired"
             )));
         }
-        self.writer
-            .commit(Vec::new(), &[Scope::OAuthClients, Scope::Keys])
-            .await?;
-        crud::get(self, id).await
+        Ok(())
     }
 
     /// Registered redirect URIs.

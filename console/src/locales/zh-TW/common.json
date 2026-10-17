@@ -23,7 +23,7 @@
     "members": "成員",
     "new": "新建",
     "remove": "移除",
-    "retire": "停用",
+    "retire": "註銷",
     "reveal": "檢視",
     "revoke": "撤銷",
     "rotate": "輪換",
@@ -67,7 +67,7 @@
   "confirm": {
     "deleteTitle": "刪除 {{name}}？",
     "removeMemberTitle": "移除 {{name}}？",
-    "retireTitle": "停用 {{name}}？",
+    "retireTitle": "註銷 {{name}}？",
     "revokeTitle": "結束工作階段 {{name}}？",
     "revokeGrantTitle": "撤銷 {{name}}？",
     "rotateTitle": "輪換 {{name}} 並停用舊金鑰？"
@@ -77,7 +77,7 @@
     "created": "已建立",
     "deleted": "已刪除",
     "removed": "已移除",
-    "retired": "已停用",
+    "retired": "已註銷",
     "revoked": "已撤銷",
     "saved": "已儲存",
     "notifications": "通知"

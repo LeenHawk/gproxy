@@ -318,7 +318,9 @@ export function OAuthClientsPage() {
       family={admin.oauthClients}
       searchable
       // A client is retired, never deleted: the grants it issued still name it.
-      deletable={false}
+      // Its batch delete retires, so only the row action is withheld.
+      rowDeletable={false}
+      batchRemoval="retire"
       rowId={(row: OAuthClientDto) => row.id}
       rowLabel={(row) => row.name}
       columns={[

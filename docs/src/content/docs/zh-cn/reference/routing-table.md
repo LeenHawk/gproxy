@@ -276,8 +276,9 @@ POST   /admin/api/{family}/batch     批量
 
 **身份**家族：`users`、`api-keys`、`organizations`、`teams`、`permissions`、
 `rate-limits`。组织和团队成员通过各自的成员接口管理。
-`oauth-clients` 用 `POST …/{id}/retire` 取代删除——一个客户端签发过的授权还指着它——所以
-它的批量拒绝删除。已 retire 的 `client_id` 可以重新注册：新注册沿用原来那一行，retire 时撤销的
+`oauth-clients` 用 `POST …/{id}/retire` 取代删除——一个客户端签发过的授权还指着它。
+它的批量里 delete 项表示 retire；含 retire 的批量只能全是 delete，因为 retire 是单独的事务，
+不能和创建、修改放进同一个提交。已 retire 的 `client_id` 可以重新注册：新注册沿用原来那一行，retire 时撤销的
 授权仍然是撤销状态。`api-keys` 的批量拒绝创建，因为铸造会返回明文，而批量没有地方返回它。
 会让实例不再有启用中管理员的 `users` 批量整体被拒绝。
 

@@ -65,6 +65,8 @@ export type CollectionProps<D, W, P> = {
   /** Some families retire rather than delete; some cannot be deleted at all. */
   rowDeletable?: boolean
   deletable?: boolean
+  /** What the batch toolbar's removal does; see `useConfigBatch`. */
+  batchRemoval?: "delete" | "retire"
   creatable?: boolean
   /** A family whose create answers with more than the row — a minted key. */
   onCreated?: (created: unknown) => void
@@ -74,7 +76,7 @@ export type CollectionProps<D, W, P> = {
 
 export function CollectionPage<D, W, P>({
   id, family, columns, fields, rowId, rowLabel, searchable, groupByOwner, filter, embedded = false,
-  rowActions, onOpen, onEdit, deletable = true, rowDeletable = deletable, creatable = true, onCreated, create, renderForm, createLabel, paginate = true, batchEnabled = fields.some(field => field.name === "enabled"),
+  rowActions, onOpen, onEdit, deletable = true, batchRemoval, rowDeletable = deletable, creatable = true, onCreated, create, renderForm, createLabel, paginate = true, batchEnabled = fields.some(field => field.name === "enabled"),
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
   const client = useQueryClient()
@@ -133,7 +135,7 @@ export function CollectionPage<D, W, P>({
     onError: (error: Error) => toast.error(error.message),
   })
 
-  const batch = useConfigBatch({ family, context: selectionKey, rows: loadedRows.map(row => ({ id: rowId(row) })), enableToggle: batchEnabled, deletable })
+  const batch = useConfigBatch({ family, context: selectionKey, rows: loadedRows.map(row => ({ id: rowId(row) })), enableToggle: batchEnabled, deletable, removal: batchRemoval })
   const tableColumns = batch.active ? [{ key: "selection", header: t("management.select"), cell: (row: D) => batch.checkbox(rowId(row), rowLabel(row)) }, ...columns] : columns
 
   const add = (

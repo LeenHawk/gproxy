@@ -767,6 +767,7 @@
     "disable": "Disable",
     "disabled": "Disabled",
     "deleteSelected": "Delete the {{count}} selected records?",
+    "retireSelected": "Retire the {{count}} selected clients? Their grants and tokens are revoked.",
     "manage": "Details",
     "owner": "Ownership",
     "shared": "Instance shared",

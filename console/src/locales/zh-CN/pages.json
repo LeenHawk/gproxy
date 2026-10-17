@@ -767,6 +767,7 @@
     "disable": "停用",
     "disabled": "已停用",
     "deleteSelected": "删除选中的 {{count}} 条记录？",
+    "retireSelected": "注销选中的 {{count}} 个客户端？它们的授权和令牌会被撤销。",
     "manage": "详情",
     "owner": "归属",
     "shared": "实例共享",

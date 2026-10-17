@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { ListChecks, Power, PowerOff, Trash2 } from "lucide-react"
+import { Archive, ListChecks, Power, PowerOff, Trash2 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { invalidateConfiguration } from "@/api/invalidation"
 import type { Family } from "@/api/admin"
@@ -10,7 +10,11 @@ import type { ConfigFamily } from "@/api/config-family"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { ConfirmButton } from "@/components/confirm"
-export function useConfigBatch<D, W, P>({ family, context, rows, onSaved, afterDelete, enableToggle = true, deletable = true }: { family: Family<D, W, P> & Partial<Pick<ConfigFamily<D, W, P>, "batch">>; enableToggle?: boolean; deletable?: boolean; context: string; rows: { id: string }[]; onSaved?: () => Promise<unknown>; afterDelete?: (ids: string[]) => Promise<unknown> }) {
+/**
+ * `removal` names what a batch delete does: most families delete, an OAuth
+ * client family retires — the same `{ delete }` item, a different promise.
+ */
+export function useConfigBatch<D, W, P>({ family, context, rows, onSaved, afterDelete, enableToggle = true, deletable = true, removal = "delete" }: { family: Family<D, W, P> & Partial<Pick<ConfigFamily<D, W, P>, "batch">>; enableToggle?: boolean; deletable?: boolean; removal?: "delete" | "retire"; context: string; rows: { id: string }[]; onSaved?: () => Promise<unknown>; afterDelete?: (ids: string[]) => Promise<unknown> }) {
   const { t } = useTranslation()
   const client = useQueryClient()
   const [batchMode, setBatchMode] = useState(false)
@@ -56,7 +60,7 @@ export function useConfigBatch<D, W, P>({ family, context, rows, onSaved, afterD
         const Icon = kind === "enable" ? Power : PowerOff
         return <Button key={kind} size="icon-sm" variant="ghost" title={t(`management.${kind}`)} aria-label={t(`management.${kind}`)} disabled={!selected.length || action.isPending} onClick={() => action.mutate({ kind, ids: selected })}><Icon /></Button>
       }) : null}
-      {deletable ? <ConfirmButton iconOnly variant="destructive" disabled={!selected.length || action.isPending} title={t("management.deleteSelected", { count: selected.length })} onConfirm={() => action.mutate({ kind: "delete", ids: selected })}><Trash2 /></ConfirmButton> : null}
+      {deletable ? <ConfirmButton iconOnly variant="destructive" disabled={!selected.length || action.isPending} title={t(removal === "retire" ? "management.retireSelected" : "management.deleteSelected", { count: selected.length })} confirmLabel={removal === "retire" ? t("actions.retire") : undefined} onConfirm={() => action.mutate({ kind: "delete", ids: selected })}>{removal === "retire" ? <Archive /> : <Trash2 />}</ConfirmButton> : null}
     </div>
   ) : null
   return { trigger, toolbar, checkbox, active, pending: action.isPending }
