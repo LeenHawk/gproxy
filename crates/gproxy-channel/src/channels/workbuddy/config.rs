@@ -5,15 +5,17 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 
 pub const ID: &str = "workbuddy";
-/// Tencent Copilot's single origin; the plugin API, the auth endpoints and
-/// the billing meters all live under it (v3 `auth.rs`).
+/// Mainland origin; the plugin API, auth and billing share one origin.
 pub const DEFAULT_BASE_URL: &str = "https://copilot.tencent.com";
+pub const INTERNATIONAL_BASE_URL: &str = "https://www.workbuddy.ai";
 /// The plugin version the channel impersonates (v3 `identity.rs`).
 pub const CLI_VERSION: &str = "4.22.16";
 
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct WorkBuddyConfig {
+    /// Selects WorkBuddy AI's origin and login platform. Defaults to mainland.
+    pub international: bool,
     /// Replaces the plugin version in `x-ide-version` and in the user agent.
     pub ide_version: String,
     /// What the plugin says it is running inside. The CLI reports `CLI` for
@@ -29,6 +31,7 @@ pub struct WorkBuddyConfig {
 impl Default for WorkBuddyConfig {
     fn default() -> Self {
         Self {
+            international: false,
             ide_version: CLI_VERSION.into(),
             ide_name: "CLI".into(),
             ide_type: "CLI".into(),
@@ -44,6 +47,27 @@ impl WorkBuddyConfig {
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
 
+    pub(super) fn base_url(&self, provider: ProviderView<'_>) -> String {
+        provider
+            .base_url
+            .and_then(non_empty)
+            .unwrap_or(if self.international {
+                INTERNATIONAL_BASE_URL
+            } else {
+                DEFAULT_BASE_URL
+            })
+            .trim_end_matches('/')
+            .to_owned()
+    }
+
+    pub(super) fn login_platform(&self) -> &'static str {
+        if self.international {
+            "workbuddy-ai"
+        } else {
+            "workbuddy"
+        }
+    }
+
     pub(super) fn ide_version(&self) -> &str {
         non_empty(&self.ide_version).unwrap_or(CLI_VERSION)
     }
@@ -56,15 +80,4 @@ impl WorkBuddyConfig {
 fn non_empty(value: &str) -> Option<&str> {
     let value = value.trim();
     (!value.is_empty()).then_some(value)
-}
-
-/// The upstream origin: the provider's own column, then Tencent's.
-pub(super) fn base_url(provider: ProviderView<'_>) -> String {
-    provider
-        .base_url
-        .map(str::trim)
-        .filter(|base| !base.is_empty())
-        .unwrap_or(DEFAULT_BASE_URL)
-        .trim_end_matches('/')
-        .to_owned()
 }

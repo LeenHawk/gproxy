@@ -121,6 +121,13 @@ the Copilot token the access token — because `prepare` is synchronous and pure
 and would otherwise re-mint on every request. The login's final step performs
 the first mint, so the credential the host persists is usable at once.
 
+For `workbuddy`, set provider config to `{"international": true}` to select
+WorkBuddy AI at `https://www.workbuddy.ai` with login platform `workbuddy-ai`.
+Omitting the option keeps the mainland service at `https://copilot.tencent.com`
+and platform `workbuddy`. An explicit provider `base_url` overrides either
+default origin without changing the selected login platform. This option
+selects the region; it does not update the existing billing API integration.
+
 `kiro`, `workbuddy` and `grokbuild` are three more CLI impersonation
 channels, and share nothing but that shape: each is one vendor's coding tool,
 its account login, and the identity headers that tool sends. `kiro` is the

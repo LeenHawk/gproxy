@@ -167,6 +167,7 @@
     "ide_name": "IDE 名称",
     "ide_type": "IDE 类型",
     "ide_version": "IDE 版本",
+    "international": "国际版",
     "issuer": "身份认证地址",
     "locale": "语言区域",
     "low_priority": "低优先级模式",

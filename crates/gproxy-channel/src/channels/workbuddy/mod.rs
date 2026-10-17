@@ -2,7 +2,9 @@
 //!
 //! Wire facts follow the v3 channel (`crates/gproxy-channels/src/workbuddy` on
 //! `main`), which was written against a static investigation of plugin
-//! 4.22.16. Everything sits under one origin, `copilot.tencent.com`:
+//! 4.22.16. The `international` option selects `www.workbuddy.ai` and the
+//! `workbuddy-ai` login platform, as in WorkBuddy AI 5.8.4.41366630. Otherwise
+//! everything sits under the mainland origin, `copilot.tencent.com`:
 //!
 //! * **Generation** is OpenAI Chat Completions at `POST /v2/chat/completions`,
 //!   so the channel declares `Dialect::OpenAiChat` and the host converts
@@ -56,7 +58,6 @@ use crate::channel::{
     OAuthDeviceCode, OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaQuery,
     forwardable,
 };
-use config::base_url;
 use futures_util::StreamExt as _;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
@@ -222,7 +223,11 @@ impl WorkBuddy {
         } = ctx.request;
         let url = match ctx.endpoint_override {
             Some(url) => url.to_owned(),
-            None => format!("{}{}", base_url(ctx.provider), operation_path(operation)?),
+            None => format!(
+                "{}{}",
+                config.base_url(ctx.provider),
+                operation_path(operation)?
+            ),
         };
         // The client's own session id, read before the forwarding filter
         // drops it, so the channel can put it back under its own name.
@@ -320,10 +325,15 @@ impl BaseChannel for WorkBuddy {
             },
             config_keys: [
                 ConfigKey::optional(
+                    "international",
+                    ConfigKeyKind::Bool,
+                    "Use WorkBuddy AI's international service and login platform. Defaults to false (mainland).",
+                ),
+                ConfigKey::optional(
                     "base_url",
                     ConfigKeyKind::String,
-                    "Upstream origin; defaults to https://copilot.tencent.com. Provider column, not config JSON.",
-                ).with_placeholder(config::DEFAULT_BASE_URL),
+                    "Upstream origin override; defaults to https://copilot.tencent.com, or https://www.workbuddy.ai when international is true. Provider column, not config JSON.",
+                ),
                 ConfigKey::optional(
                     "ide_version",
                     ConfigKeyKind::String,

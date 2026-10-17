@@ -1,7 +1,8 @@
 //! How a WorkBuddy credential comes into existence and how it stays alive.
 //!
 //! The plugin's login is a device flow without a user code (v3 `login.rs`):
-//! `POST /v2/plugin/auth/state?platform=workbuddy` returns a `state` and the
+//! `POST /v2/plugin/auth/state?platform=workbuddy` (or `workbuddy-ai` for the
+//! international service) returns a `state` and the
 //! `authUrl` to open, `GET /v2/plugin/auth/token?state=…` answers envelope
 //! code 11217 until the browser is done and then the tokens, and
 //! `GET /v2/plugin/login/account?state=…` answers 12151 until the account is
@@ -18,7 +19,7 @@
 //! `provider_fields`, so `prepare` reads it back from the credential's
 //! metadata and never goes looking.
 
-use super::config::{ID, WorkBuddyConfig, base_url};
+use super::config::{ID, WorkBuddyConfig};
 use super::envelope::{self, ACCOUNT_PENDING, AUTH_PENDING};
 use super::{encode_component, json_headers, send, unix_now_ms};
 use crate::channel::{
@@ -111,11 +112,15 @@ fn login_headers() -> http::HeaderMap {
 impl OAuthDeviceCode for super::WorkBuddy {
     fn start<'a>(&'a self, context: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
-            let base = base_url(context.provider);
+            let config = WorkBuddyConfig::from_view(context.provider)?;
+            let base = config.base_url(context.provider);
             let (status, _, body) = send(
                 context.client,
                 Method::POST,
-                &format!("{base}/v2/plugin/auth/state?platform=workbuddy"),
+                &format!(
+                    "{base}/v2/plugin/auth/state?platform={}",
+                    config.login_platform()
+                ),
                 login_headers(),
                 Some(b"{}".to_vec()),
             )
@@ -146,7 +151,8 @@ impl OAuthDeviceCode for super::WorkBuddy {
         authorization: &'a DeviceAuthorization,
     ) -> OperationFuture<'a, DevicePoll> {
         Box::pin(async move {
-            let base = base_url(context.provider);
+            let config = WorkBuddyConfig::from_view(context.provider)?;
+            let base = config.base_url(context.provider);
             let state = encode_component(&authorization.device_code);
             let (status, _, body) = send(
                 context.client,
@@ -229,7 +235,7 @@ impl OAuthDeviceCode for super::WorkBuddy {
 impl CredentialRefresh for super::WorkBuddy {
     fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
         Box::pin(async move {
-            let _ = WorkBuddyConfig::from_view(context.provider)?;
+            let config = WorkBuddyConfig::from_view(context.provider)?;
             let secret = context.credential.secret;
             let refresh_token = secret
                 .get("refresh_token")
@@ -260,7 +266,7 @@ impl CredentialRefresh for super::WorkBuddy {
                 Method::POST,
                 &format!(
                     "{}/v2/plugin/auth/token/refresh",
-                    base_url(context.provider)
+                    config.base_url(context.provider)
                 ),
                 headers,
                 Some(b"{}".to_vec()),

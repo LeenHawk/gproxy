@@ -91,6 +91,11 @@ user agent、主机和目录方法。
 `prepare` 是同步且纯的，放在那里会每个请求都换一次。登录的最后一步先换一次，宿主落库的
 凭证因此立刻可用。
 
+`workbuddy` 的供应商配置设置 `{"international": true}` 后，使用国际版
+`https://www.workbuddy.ai` 和登录平台 `workbuddy-ai`。省略该选项仍使用内地版
+`https://copilot.tencent.com` 和平台 `workbuddy`。供应商显式填写的 `base_url`
+优先于地区默认地址，但不改变所选登录平台。此选项只切换地区，额度接口仍沿用现有实现。
+
 `kiro`、`workbuddy`、`grokbuild` 是另外三个 CLI 仿真面，彼此只共享这个形状：一家厂商
 的编码工具、它的账号登录、以及它发的身份头。`kiro` 离公开 API 最远——CodeWhisperer
 收的是 Smithy JSON 的会话信封，回的是 AWS event-stream 分帧，所以渠道把 Responses body

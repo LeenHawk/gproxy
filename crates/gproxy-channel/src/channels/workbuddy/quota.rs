@@ -15,7 +15,7 @@
 //! window — the same reading `geminicli` and `antigravity` take.
 
 use super::auth::{authorize, fact};
-use super::config::{ID, WorkBuddyConfig, base_url};
+use super::config::{ID, WorkBuddyConfig};
 use super::{json_headers, send, unix_now_ms};
 use crate::channel::{
     ChannelError, CredentialContext, CredentialView, OperationFuture, QuotaAllowance, QuotaEntry,
@@ -198,7 +198,7 @@ impl QuotaQuery for super::WorkBuddy {
             let (status, _, reply) = send(
                 context.client,
                 Method::POST,
-                &format!("{}{path}", base_url(context.provider)),
+                &format!("{}{path}", config.base_url(context.provider)),
                 headers,
                 Some(body),
             )
