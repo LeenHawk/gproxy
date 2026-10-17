@@ -52,7 +52,7 @@ use crate::{
     auth::{API_KEY_PREFIX, generate_api_key},
     dto::{
         ApiKeyBudgetWrite, ApiKeyCreated, ApiKeyDto, ApiKeyPatch, ApiKeySecretDto, ApiKeyWrite,
-        ListQuery, Page,
+        BatchItem, ListQuery, Page,
     },
 };
 
@@ -290,6 +290,23 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
         crud::delete(self, id).await
     }
 
+    /// Updates and deletes in one revision commit. A create is refused: a mint
+    /// answers with a plaintext, and a batch has nowhere to return one.
+    pub async fn batch(
+        &self,
+        items: Vec<BatchItem<ApiKeyWrite, ApiKeyPatch>>,
+    ) -> Result<Vec<Option<ApiKeyDto>>> {
+        if items
+            .iter()
+            .any(|item| matches!(item, BatchItem::Create(_)))
+        {
+            return Err(AppError::invalid(
+                "api keys are minted one at a time, not in a batch",
+            ));
+        }
+        crud::batch(self, items).await
+    }
+
     /// Seal `token` under the key's own id, so the blob cannot be moved to
     /// another row and opened there.
     fn seal(&self, id: &str, token: &str) -> Result<Vec<u8>> {
@@ -430,8 +447,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ApiKeys<'_, C
         select
     }
 
-    /// Unreachable: this family never calls `crud::create` or `crud::batch`,
-    /// because minting produces a plaintext a generic create has nowhere to
+    /// Unreachable: this family never calls `crud::create`, and its batch
+    /// refuses a create before `crud::batch` sees one, because minting produces a plaintext a generic create has nowhere to
     /// return. [`ApiKeys::create`] builds its own row and commits it through
     /// `crud::commit_one`. Implemented as a refusal rather than as a silent
     /// mint, which would write a key nobody could ever be told.

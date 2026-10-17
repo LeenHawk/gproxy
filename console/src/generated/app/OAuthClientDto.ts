@@ -6,7 +6,8 @@ export type OAuthClientDto = {
  */
 id: string, name: string, redirectUris: Array<string>, enabled: boolean, 
 /**
- * Set by `retire`. A retired client is kept so session history still
- * resolves; re-registering the same id must not un-revoke its grants.
+ * Set by `retire`, cleared when the same id is registered again. A
+ * retired client is kept so session history still resolves; a new
+ * registration does not un-revoke its grants.
  */
 deletedAtMs: number | null, };

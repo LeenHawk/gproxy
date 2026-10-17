@@ -1,7 +1,7 @@
 //! `/admin/api` — the instance operator's surface.
 //!
 //! `gproxy-host-axum/src/admin.rs` builds most of this surface from a
-//! `family!` macro: five routes with the same five shapes for every identity
+//! `family!` macro: six routes with the same six shapes for every identity
 //! family. This file is the same macro on the other side, as a factory — so a
 //! family that gains a route in Rust gains it here by being spelled out, and a
 //! family that does not is five lines.
@@ -21,6 +21,7 @@ import type {
   ApiKeyWrite,
   AuditEventDto,
   AuditQuery,
+  BatchItem,
   ListQuery,
   MemberPatch,
   MemberWrite,
@@ -54,7 +55,7 @@ const BASE = "/admin/api"
 export type ListFilter = Partial<ListQuery & import("@/generated/sdk").ListQuery>
 export type AuditFilter = Partial<AuditQuery>
 
-/** The five routes `family!` declares, for one family. */
+/** Five of the routes `family!` declares; [`batchFamily`] adds the sixth. */
 export type Family<D, W, P> = {
   path: string
   list: (filter: ListFilter) => Promise<Page<D>>
@@ -76,8 +77,16 @@ export function family<D, W, P>(path: string): Family<D, W, P> {
   }
 }
 
+/** The sixth route `family!` declares: one revision commit for many rows. */
+export function batchFamily<D, W, P>(path: string) {
+  return {
+    ...family<D, W, P>(path),
+    batch: (items: Array<BatchItem<W, P>>) => api<Array<D | null>>(`${BASE}${path}/batch`, json("POST", items)),
+  }
+}
+
 export const users = {
-  ...family<UserDto, UserWrite, UserPatch>("/users"),
+  ...batchFamily<UserDto, UserWrite, UserPatch>("/users"),
   setPassword: (id: string, password: string) =>
     api<UserDto>(`${BASE}/users/${encodeURIComponent(id)}/password`, json("POST", { password })),
   clearPassword: (id: string) =>
@@ -91,7 +100,7 @@ export const users = {
 }
 
 export const apiKeys = {
-  ...family<ApiKeyDto, ApiKeyWrite, ApiKeyPatch>("/api-keys"),
+  ...batchFamily<ApiKeyDto, ApiKeyWrite, ApiKeyPatch>("/api-keys"),
   rotate: (id: string) => api<ApiKeyCreated>(`${BASE}/api-keys/${encodeURIComponent(id)}/rotate`, { method: "POST" }),
   reveal: (id: string) => api<ApiKeySecretDto>(`${BASE}/api-keys/${encodeURIComponent(id)}/secret`),
 }
@@ -101,10 +110,10 @@ export function createApiKey(write: ApiKeyWrite) {
   return api<ApiKeyCreated>(`${BASE}/api-keys`, json("POST", write))
 }
 
-export const organizations = family<OrganizationDto, OrganizationWrite, OrganizationPatch>("/organizations")
-export const teams = family<TeamDto, TeamWrite, TeamPatch>("/teams")
-export const permissions = family<PermissionDto, PermissionWrite, PermissionPatch>("/permissions")
-export const rateLimits = family<RateLimitDto, RateLimitWrite, RateLimitPatch>("/rate-limits")
+export const organizations = batchFamily<OrganizationDto, OrganizationWrite, OrganizationPatch>("/organizations")
+export const teams = batchFamily<TeamDto, TeamWrite, TeamPatch>("/teams")
+export const permissions = batchFamily<PermissionDto, PermissionWrite, PermissionPatch>("/permissions")
+export const rateLimits = batchFamily<RateLimitDto, RateLimitWrite, RateLimitPatch>("/rate-limits")
 
 /**
  * An OAuth client is **retired**, not deleted: the grants it issued still name
@@ -113,7 +122,7 @@ export const rateLimits = family<RateLimitDto, RateLimitWrite, RateLimitPatch>("
  * that would come back 405.
  */
 export const oauthClients = {
-  ...family<OAuthClientDto, OAuthClientWrite, OAuthClientPatch>("/oauth-clients"),
+  ...batchFamily<OAuthClientDto, OAuthClientWrite, OAuthClientPatch>("/oauth-clients"),
   remove: (id: string): Promise<void> =>
     Promise.reject(new Error(`oauth client ${id} is retired, not deleted`)),
   retire: (id: string) =>

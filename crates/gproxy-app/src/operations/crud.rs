@@ -62,6 +62,14 @@ where
         current: &ModelOf<Self, C>,
         patch: Self::Patch,
     ) -> Result<ActiveOf<Self, C>>;
+    /// The statement that writes a row [`Shape::build`] produced. An insert,
+    /// except for a family whose key a new registration can take over — an
+    /// OAuth client, whose retired row is reused under the same `client_id`.
+    async fn insert(&self, model: ActiveOf<Self, C>, _id: &str) -> Result<BatchStatement> {
+        Ok(BatchStatement::Execute(
+            self.repository().insert_statement(model)?,
+        ))
+    }
     /// Statements that must run before the row itself is deleted.
     ///
     /// This exists for exactly one rule, and it is the reason it is on the
@@ -118,15 +126,9 @@ where
     S: Shape<C>,
 {
     let (model, id) = shape.build(write).await?;
-    let statement = shape.repository().insert_statement(model)?;
+    let statement = shape.insert(model, &id).await?;
     let scopes = shape.scopes();
-    commit_one::<C, S>(
-        shape,
-        vec![BatchStatement::Execute(statement)],
-        &id,
-        &scopes,
-    )
-    .await
+    commit_one::<C, S>(shape, vec![statement], &id, &scopes).await
 }
 
 pub(crate) async fn update<C, S>(shape: &S, id: &str, patch: S::Patch) -> Result<S::Dto>
@@ -185,7 +187,7 @@ where
         match item {
             BatchItem::Create(write) => {
                 let (model, id) = shape.build(write).await?;
-                statements.push(BatchStatement::Execute(repository.insert_statement(model)?));
+                statements.push(shape.insert(model, &id).await?);
                 reads.push(Some(id));
             }
             BatchItem::Update(step) => {

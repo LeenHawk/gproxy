@@ -14,8 +14,9 @@ pub struct OAuthClientDto {
     pub name: String,
     pub redirect_uris: Vec<String>,
     pub enabled: bool,
-    /// Set by `retire`. A retired client is kept so session history still
-    /// resolves; re-registering the same id must not un-revoke its grants.
+    /// Set by `retire`, cleared when the same id is registered again. A
+    /// retired client is kept so session history still resolves; a new
+    /// registration does not un-revoke its grants.
     pub deleted_at_ms: Option<i64>,
 }
 

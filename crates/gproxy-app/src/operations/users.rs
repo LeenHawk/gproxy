@@ -182,6 +182,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Users<'_, C> {
         &self,
         items: Vec<BatchItem<UserWrite, UserPatch>>,
     ) -> Result<Vec<Option<UserDto>>> {
+        self.guard_batch(&items).await?;
         crud::batch(self, items).await
     }
 
@@ -268,6 +269,58 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Users<'_, C> {
             )
             .await?;
         if admins.len() == 1 && admins[0].id == id {
+            return Err(AppError::Conflict(
+                "the last enabled administrator cannot be removed, disabled or demoted".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// [`Self::guard_last_admin`] for a whole batch: refuse when the items,
+    /// taken together, would leave no enabled administrator.
+    ///
+    /// Conservative about gains. A create of an enabled admin counts; an
+    /// update counts only when it names both the role and the enabled flag,
+    /// because otherwise the row it lands on would have to be read to know.
+    async fn guard_batch(&self, items: &[BatchItem<UserWrite, UserPatch>]) -> Result<()> {
+        let admin = |role: Option<&str>| role.map(|role| role.trim().eq_ignore_ascii_case(ADMIN));
+        let mut remaining: std::collections::HashSet<String> = self
+            .writer
+            .store()
+            .users()
+            .query(
+                user::Entity::find()
+                    .filter(user::Column::Role.eq(ADMIN))
+                    .filter(user::Column::Enabled.eq(true)),
+            )
+            .await?
+            .into_iter()
+            .map(|row| row.id)
+            .collect();
+        if remaining.is_empty() {
+            return Ok(());
+        }
+        let mut gained = false;
+        for item in items {
+            match item {
+                BatchItem::Create(write) => {
+                    gained |=
+                        admin(write.role.as_deref()) == Some(true) && write.enabled.unwrap_or(true);
+                }
+                BatchItem::Update(step) => {
+                    let role = admin(step.patch.role.as_deref());
+                    if role == Some(false) || step.patch.enabled == Some(false) {
+                        remaining.remove(&step.id);
+                    } else if role == Some(true) && step.patch.enabled == Some(true) {
+                        gained = true;
+                    }
+                }
+                BatchItem::Delete(id) => {
+                    remaining.remove(id);
+                }
+            }
+        }
+        if remaining.is_empty() && !gained {
             return Err(AppError::Conflict(
                 "the last enabled administrator cannot be removed, disabled or demoted".into(),
             ));

@@ -260,7 +260,7 @@ v3 把它们放在根路径。移到 `/v1` 之下让前缀规则与 `/v1/message
 
 ## 管理路由
 
-每个身份家族都有同样的五条路由，由一份声明生成，因此一个家族不可能不小心只有四条：
+每个家族都有同样的六条路由，由一份声明生成，因此一个家族不可能不小心只有五条：
 
 ```text
 GET    /admin/api/{family}           列表（分页与过滤在 query 里）
@@ -268,27 +268,27 @@ POST   /admin/api/{family}           创建
 GET    /admin/api/{family}/{id}      读取
 PATCH  /admin/api/{family}/{id}      更新
 DELETE /admin/api/{family}/{id}      删除    → 204
+POST   /admin/api/{family}/batch     批量
+       [{"create": …}, {"update": {"id": …, "patch": …}}, {"delete": "id"}]
 ```
+
+一次批量无论点名多少行都是一个 revision 提交：要么每一项都落盘，要么一项都不落。
 
 **身份**家族：`users`、`api-keys`、`organizations`、`teams`、`permissions`、
 `rate-limits`。组织和团队成员通过各自的成员接口管理。
-`oauth-clients` 有前四条，外加 `POST …/{id}/retire` 取代删除——一个客户端签发过的授权还
-指着它。
+`oauth-clients` 用 `POST …/{id}/retire` 取代删除——一个客户端签发过的授权还指着它——所以
+它的批量拒绝删除。已 retire 的 `client_id` 可以重新注册：新注册沿用原来那一行，retire 时撤销的
+授权仍然是撤销状态。`api-keys` 的批量拒绝创建，因为铸造会返回明文，而批量没有地方返回它。
+会让实例不再有启用中管理员的 `users` 批量整体被拒绝。
 
-**配置**家族在同样的五条之上**多一个批量**，因为它们每一个都接受批量，而一次批量无论
-点名多少行都是一个 revision 提交：
-
-```text
-POST /admin/api/{family}/batch
-     [{"create": …}, {"update": {"id": …, "patch": …}}, {"delete": "id"}]
-```
+**配置**家族：
 
 `providers`、`credentials`、`models`、`provider-models`、`routes`、`route-members`、
 `connection-profiles`、`rule-sets`、`rules`、`provider-rule-sets`、
 `operation-rules`、`operation-endpoints`、`quotas`、`price-rules`、`price-rates`、
 `price-tiers`。
 
-五条之外还有：`settings`、凭证操作（`reveal`、`status`、`refresh`、`quota`、
+六条之外还有：`settings`、凭证操作（`reveal`、`status`、`refresh`、`quota`、
 `quota-probe`、`quota-reset`、`health-reset`、`limits`）、
 `models/{discover,discover/apply,test}`、`rule-sets/{id}/rules`、
 `rule-sets/{id}/rule-presets/{preset}`、`providers/{id}/routing-defaults/reset`、

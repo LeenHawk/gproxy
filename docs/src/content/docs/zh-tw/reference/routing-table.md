@@ -260,7 +260,7 @@ v3 把它們放在根路徑。移到 `/v1` 之下讓字首規則與 `/v1/message
 
 ## 管理路由
 
-每個身份家族都有同樣的五條路由，由一份宣告生成，因此一個家族不可能不小心只有四條：
+每個家族都有同樣的六條路由，由一份宣告生成，因此一個家族不可能不小心只有五條：
 
 ```text
 GET    /admin/api/{family}           列表（分页与过滤在 query 里）
@@ -268,27 +268,27 @@ POST   /admin/api/{family}           创建
 GET    /admin/api/{family}/{id}      读取
 PATCH  /admin/api/{family}/{id}      更新
 DELETE /admin/api/{family}/{id}      删除    → 204
+POST   /admin/api/{family}/batch     批次
+       [{"create": …}, {"update": {"id": …, "patch": …}}, {"delete": "id"}]
 ```
+
+一次批次無論點名多少行都是一個 revision 提交：要麼每一項都落盤，要麼一項都不落。
 
 **身份**家族：`users`、`api-keys`、`organizations`、`teams`、`permissions`、
 `rate-limits`。組織和團隊成員透過各自的成員介面管理。
-`oauth-clients` 有前四條，外加 `POST …/{id}/retire` 取代刪除——一個用戶端簽發過的授權還
-指著它。
+`oauth-clients` 用 `POST …/{id}/retire` 取代刪除——一個用戶端簽發過的授權還指著它——所以
+它的批次拒絕刪除。已 retire 的 `client_id` 可以重新註冊：新註冊沿用原來那一行，retire 時撤銷的
+授權仍然是撤銷狀態。`api-keys` 的批次拒絕建立，因為鑄造會回傳明文，而批次沒有地方回傳它。
+會讓實例不再有啟用中管理員的 `users` 批次整體被拒絕。
 
-**配置**家族在同樣的五條之上**多一個批次**，因為它們每一個都接受批次，而一次批次無論
-點名多少行都是一個 revision 提交：
-
-```text
-POST /admin/api/{family}/batch
-     [{"create": …}, {"update": {"id": …, "patch": …}}, {"delete": "id"}]
-```
+**配置**家族：
 
 `providers`、`credentials`、`models`、`provider-models`、`routes`、`route-members`、
 `connection-profiles`、`rule-sets`、`rules`、`provider-rule-sets`、
 `operation-rules`、`operation-endpoints`、`quotas`、`price-rules`、`price-rates`、
 `price-tiers`。
 
-五條之外還有：`settings`、憑證操作（`reveal`、`status`、`refresh`、`quota`、
+六條之外還有：`settings`、憑證操作（`reveal`、`status`、`refresh`、`quota`、
 `quota-probe`、`quota-reset`、`health-reset`、`limits`）、
 `models/{discover,discover/apply,test}`、`rule-sets/{id}/rules`、
 `rule-sets/{id}/rule-presets/{preset}`、`providers/{id}/routing-defaults/reset`、

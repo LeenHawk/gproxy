@@ -23,7 +23,7 @@ use axum::{
 use gproxy_app::{
     AdminScope, Operations,
     dto::{
-        ApiKeyPatch, ApiKeyWrite, AuditQuery, ListQuery, MemberWrite, OAuthClientPatch,
+        ApiKeyPatch, ApiKeyWrite, AuditQuery, BatchItem, ListQuery, MemberWrite, OAuthClientPatch,
         OAuthClientWrite, OrganizationPatch, OrganizationWrite, PermissionPatch, PermissionWrite,
         RateLimitPatch, RateLimitWrite, TeamPatch, TeamWrite, UserPatch, UserWrite,
     },
@@ -100,6 +100,15 @@ where
         .route(
             "/oauth-clients",
             collection!(oauth_clients, OAuthClientWrite, "oauth-clients"),
+        )
+        .route(
+            "/oauth-clients/batch",
+            batch!(
+                oauth_clients,
+                OAuthClientWrite,
+                OAuthClientPatch,
+                "oauth-clients"
+            ),
         )
         .route(
             "/oauth-clients/{id}",

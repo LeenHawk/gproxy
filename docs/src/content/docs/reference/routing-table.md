@@ -308,8 +308,8 @@ address anyway.
 
 ## Management Routes
 
-Every identity family has the same five routes, generated from one declaration
-so a family cannot accidentally have four of them:
+Every family has the same six routes, generated from one declaration so a
+family cannot accidentally have five of them:
 
 ```text
 GET    /admin/api/{family}           list      (page and filters in the query)
@@ -317,28 +317,30 @@ POST   /admin/api/{family}           create
 GET    /admin/api/{family}/{id}      get
 PATCH  /admin/api/{family}/{id}      update
 DELETE /admin/api/{family}/{id}      delete    → 204
+POST   /admin/api/{family}/batch     batch
+       [{"create": …}, {"update": {"id": …, "patch": …}}, {"delete": "id"}]
 ```
+
+A batch is one revision commit however many rows it names: either every item
+is durable or none is.
 
 **Identity** families: `users`, `api-keys`, `organizations`, `teams`,
-`permissions`, `rate-limits`. Organization and team memberships have their own endpoints. `oauth-clients` has the first four plus
+`permissions`, `rate-limits`. Organization and team memberships have their own endpoints. `oauth-clients` has
 `POST …/{id}/retire` instead of a delete — the grants a client issued still
-name it.
+name it — so its batch refuses a delete. A retired `client_id` can be
+registered again; the new registration reuses the row, and the grants
+retirement revoked stay revoked. The `api-keys` batch refuses a create,
+because a mint answers with a plaintext a batch has nowhere to return. A
+`users` batch that would leave no enabled administrator is refused as a whole.
 
-**Configuration** families get the same five **plus a batch**, because every
-one of them takes a batch and a batch is one revision commit however many rows
-it names:
-
-```text
-POST /admin/api/{family}/batch
-     [{"create": …}, {"update": {"id": …, "patch": …}}, {"delete": "id"}]
-```
+**Configuration** families:
 
 `providers`, `credentials`, `models`, `provider-models`, `routes`,
 `route-members`, `connection-profiles`, `rule-sets`, `rules`,
 `provider-rule-sets`, `operation-rules`, `operation-endpoints`, `quotas`,
 `price-rules`, `price-rates`, `price-tiers`.
 
-Beyond the five: `settings`, the credential operations (`reveal`, `status`,
+Beyond the six: `settings`, the credential operations (`reveal`, `status`,
 `refresh`, `quota`, `quota-probe`, `quota-reset`, `health-reset`, `limits`),
 `models/{discover,discover/apply,test}`, `rule-sets/{id}/rules`,
 `rule-sets/{id}/rule-presets/{preset}`,

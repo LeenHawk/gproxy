@@ -579,6 +579,7 @@ impl<C: BatchConnectionTrait> Repository<'_, C, client::Entity> {
                     .col_expr(client::Column::Enabled, Expr::val(false))
                     .col_expr(client::Column::DeletedAtMs, Expr::val(now))
                     .filter(client::Column::Id.eq(id))
+                    .filter(client::Column::DeletedAtMs.is_null())
                     .build(backend),
             );
             statements.push(
