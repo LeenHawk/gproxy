@@ -13,3 +13,14 @@ future integrations use them.
 
 Remove the patch when upgrading to an upstream release containing the fix.
 Version-based dependency audits may continue to report 4.2.0 despite this patch.
+
+# starlight-llms-txt micromatch
+
+The `starlight-llms-txt>micromatch` override in `package.json` substitutes
+picomatch, removing braces and
+[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), which
+has no fixed release. The plugin only calls `micromatch.isMatch`, which
+picomatch provides with the same signature; our include/exclude globs use no
+brace expansion. The generated `llms*.txt` files are unchanged.
+
+Remove the override when the plugin drops micromatch or braces publishes a fix.
