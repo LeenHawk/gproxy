@@ -42,7 +42,8 @@
 //! # The shape of a request
 //!
 //! 1. [`instance::instance`] returns the isolate's assembly, building it on
-//!    the first request that needs one;
+//!    the first request that needs one, with any channels [`fetch_with`] was
+//!    given;
 //! 2. [`Assembled::tick`](instance::Assembled::tick) catches up on
 //!    configuration written by another instance — the whole of synchronization
 //!    at the edge, because nothing runs between requests;
@@ -74,36 +75,57 @@ compile_error!(
 #[cfg(target_arch = "wasm32")]
 pub mod instance;
 
+/// What a fetch handler returns, named here so a downstream entry point does
+/// not need `axum` for its signature.
 #[cfg(target_arch = "wasm32")]
-mod entry {
+pub type Response = http::Response<axum::body::Body>;
+
+/// Answer one request, with channels implemented outside this repository.
+///
+/// The whole of the Worker's fetch handler, and the plugin surface at the
+/// edge: a downstream `cdylib` turns off this crate's `entry` feature,
+/// declares its own `#[event(fetch)]` and calls this from it. `channels` is
+/// called once per isolate, when the first request assembles it, and a channel
+/// whose id matches a compiled-in one replaces it.
+///
+/// The request is handed to the router as it arrives — `worker::Body` is an
+/// `http_body::Body`, so no bytes are buffered on the way in and a streamed
+/// upload reaches an upstream as a stream.
+#[cfg(target_arch = "wasm32")]
+pub async fn fetch_with(
+    mut request: worker::HttpRequest,
+    env: worker::Env,
+    ctx: worker::Context,
+    channels: impl FnOnce() -> Vec<std::sync::Arc<dyn gproxy_sdk::BaseChannel>>,
+) -> worker::Result<Response> {
     use tower::Service;
+
+    let instance = instance::instance(&env, channels).await?;
+    instance.tick().await;
+    // The socket pump uses wait_until so settlement can finish after close.
+    request.extensions_mut().insert(std::sync::Arc::new(ctx));
+    let mut router = instance.router();
+    // Infallible: `Router`'s error type is `Infallible`, which is the
+    // whole reason every refusal in this gateway is a `Response` rather
+    // than an `Err`.
+    match router.call(request).await {
+        Ok(response) => Ok(response),
+        Err(infallible) => match infallible {},
+    }
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "entry"))]
+mod entry {
     use worker::{Context, Env, HttpRequest, event};
 
-    /// The Worker's entry point.
-    ///
-    /// Deliberately thin: everything it could decide is decided below it, and
-    /// the two things it does that the native host's `main` also does are to
-    /// assemble once and to answer. The request is handed to the router as it
-    /// arrives — `worker::Body` is an `http_body::Body`, so no bytes are
-    /// buffered on the way in and a streamed upload reaches an upstream as a
-    /// stream.
+    /// The Worker's entry point: [`crate::fetch_with`] with no channels of its
+    /// own.
     #[event(fetch)]
     async fn fetch(
-        mut request: HttpRequest,
+        request: HttpRequest,
         env: Env,
         ctx: Context,
-    ) -> worker::Result<http::Response<axum::body::Body>> {
-        let instance = crate::instance::instance(&env).await?;
-        instance.tick().await;
-        // The socket pump uses wait_until so settlement can finish after close.
-        request.extensions_mut().insert(std::sync::Arc::new(ctx));
-        let mut router = instance.router();
-        // Infallible: `Router`'s error type is `Infallible`, which is the
-        // whole reason every refusal in this gateway is a `Response` rather
-        // than an `Err`.
-        match router.call(request).await {
-            Ok(response) => Ok(response),
-            Err(infallible) => match infallible {},
-        }
+    ) -> worker::Result<crate::Response> {
+        crate::fetch_with(request, env, ctx, Vec::new).await
     }
 }

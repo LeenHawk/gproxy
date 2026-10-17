@@ -33,7 +33,7 @@ use tokio::sync::OnceCell;
 
 use axum::Router;
 use gproxy_app::{App, AppConfig, AppPublicationUrl, config::StoreBackendConfig};
-use gproxy_sdk::{Gproxy, GproxyBuilder, SyncMode};
+use gproxy_sdk::{BaseChannel, Gproxy, GproxyBuilder, SyncMode};
 use gproxy_seaorm::{BatchConnectionTrait, SchemaSyncConnectionTrait};
 use gproxy_store::{Store, StoreCache, entity::config::setting};
 use worker::Env;
@@ -122,11 +122,20 @@ impl Assembled {
 static INSTANCE: OnceCell<Assembled> = OnceCell::const_new();
 
 /// The isolate's instance, assembling it on the first request that needs one.
-pub async fn instance(env: &Env) -> Result<&'static Assembled, worker::Error> {
-    INSTANCE.get_or_try_init(|| assemble(env)).await
+///
+/// `channels` is only called then; every later request finds the assembly and
+/// never asks.
+pub async fn instance(
+    env: &Env,
+    channels: impl FnOnce() -> Vec<Arc<dyn BaseChannel>>,
+) -> Result<&'static Assembled, worker::Error> {
+    INSTANCE.get_or_try_init(|| assemble(env, channels())).await
 }
 
-async fn assemble(env: &Env) -> Result<Assembled, worker::Error> {
+async fn assemble(
+    env: &Env,
+    channels: Vec<Arc<dyn BaseChannel>>,
+) -> Result<Assembled, worker::Error> {
     let admin_user = binding(env, config::binding::ADMIN_USER).unwrap_or_else(|| "admin".into());
     // Password whitespace is significant. Never log or trim this secret.
     let admin_password = env
@@ -169,7 +178,14 @@ async fn assemble(env: &Env) -> Result<Assembled, worker::Error> {
             let connection = gproxy_seaorm::D1Connection::from_binding(value)
                 .map_err(|e| error(format!("the `{name}` binding is not a D1 database: {e}")))?;
             Ok(Assembled::D1(
-                build(connection, config, &admin_user, admin_password.as_deref()).await?,
+                build(
+                    connection,
+                    config,
+                    &admin_user,
+                    admin_password.as_deref(),
+                    channels,
+                )
+                .await?,
             ))
         }
         #[cfg(feature = "libsql")]
@@ -184,7 +200,14 @@ async fn assemble(env: &Env) -> Result<Assembled, worker::Error> {
             let connection = gproxy_seaorm::LibsqlConnection::new(transport, url, token.as_deref())
                 .map_err(|e| error(format!("libSQL: {e}")))?;
             Ok(Assembled::Libsql(
-                build(connection, config, &admin_user, admin_password.as_deref()).await?,
+                build(
+                    connection,
+                    config,
+                    &admin_user,
+                    admin_password.as_deref(),
+                    channels,
+                )
+                .await?,
             ))
         }
         other => Err(error(format!(
@@ -203,6 +226,7 @@ async fn build<C>(
     config: AppConfig,
     admin_user: &str,
     admin_password: Option<&str>,
+    channels: Vec<Arc<dyn BaseChannel>>,
 ) -> Result<Instance<C>, worker::Error>
 where
     C: BatchConnectionTrait + SchemaSyncConnectionTrait + Clone + Send + Sync + 'static,
@@ -235,6 +259,9 @@ where
         // every cold start, which a Worker pays for in wall clock.
         .initial_reload(false)
         .cache(cache);
+    for channel in channels {
+        builder = builder.channel(channel);
+    }
     builder = match config
         .master_key
         .resolve()

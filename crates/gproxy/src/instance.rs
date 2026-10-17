@@ -183,6 +183,9 @@ pub(crate) async fn assemble(
         // as well would read the configuration twice for no gain.
         .initial_reload(false)
         .cache(cache(config).await?);
+    for channel in crate::EXTRA_CHANNELS.get().into_iter().flatten() {
+        builder = builder.channel(channel.clone());
+    }
     builder = match secrets.active_key {
         Some(key) => builder.master_key(key),
         None => builder.plaintext_secrets(),

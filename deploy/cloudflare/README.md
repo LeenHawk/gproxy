@@ -36,6 +36,11 @@ pnpm run build      # the Worker into build/, the console into public/
 pnpm run deploy
 ```
 
+`GPROXY_EDGE_CRATE=/absolute/path pnpm run build` builds another Worker crate
+instead of `crates/gproxy-host-edge` — one that carries channels of its own,
+for instance. See
+[Adding a channel](https://gproxy.leenhawk.com/guides/adding-a-channel/#outside-this-repository).
+
 The console is served by Workers Assets from `public/console/` and never wakes
 the Worker; every other path, provider mounts included, goes to the Worker
 first. `_headers` gives the console the security headers the native host sends.

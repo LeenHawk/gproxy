@@ -179,6 +179,7 @@ Cloudflare 限的是压缩后的包体——免费 3 MB，付费 10 MB。`wasm-o
 | `s3` | S3/R2 对象存储，用于已发布内容与词表 |
 | `bundled-vocabulary` | DeepSeek 词表，给目录里没有词表文件的模型用 |
 | `channels`（默认） | 本仓库实现的全部渠道；想要小二进制就逐个点名 |
+| `entry`（默认） | Worker 的 `#[event(fetch)]`。在自己声明入口、用自带渠道调用 `fetch_with` 的 crate 里关掉它；见[新增渠道](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/#在本仓库之外) |
 
 ## 测了什么，没测什么
 

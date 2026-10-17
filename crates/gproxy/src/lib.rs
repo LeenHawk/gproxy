@@ -64,6 +64,68 @@ pub use cli::{Cli, Command};
 pub use config::Settings;
 pub use error::{Error, Result};
 
+/// Channels a downstream binary adds to the ones this build compiled in, set
+/// once by [`run_with`] and read by the one place that assembles an instance.
+///
+/// Process-wide rather than threaded through: every command that opens an
+/// instance, and the v3 upgrade that opens one of its own, has to see the same
+/// list, and none of them has any other reason to carry it.
+pub(crate) static EXTRA_CHANNELS: std::sync::OnceLock<
+    Vec<std::sync::Arc<dyn gproxy_sdk::BaseChannel>>,
+> = std::sync::OnceLock::new();
+
+/// [`run`], with channels implemented outside this repository.
+///
+/// This is the whole plugin surface: a binary crate that depends on `gproxy`
+/// and on its own channel crate calls this from `main` instead of [`run`].
+/// A channel whose id matches a compiled-in one replaces it.
+pub async fn run_with(
+    cli: Cli,
+    channels: Vec<std::sync::Arc<dyn gproxy_sdk::BaseChannel>>,
+) -> Result<()> {
+    if EXTRA_CHANNELS.set(channels).is_err() {
+        return Err(Error::other("run_with was called twice in one process"));
+    }
+    run(cli).await
+}
+
+/// The whole `gproxy` process, for `main` to return: `.env`, the arguments, the
+/// runtime, then [`run_with`]. The order is explained in `main.rs`.
+///
+/// A downstream binary carrying its own channels is this one call:
+/// `fn main() -> ExitCode { gproxy::main_with(vec![Arc::new(MyChannel)]) }`.
+pub fn main_with(
+    channels: Vec<std::sync::Arc<dyn gproxy_sdk::BaseChannel>>,
+) -> std::process::ExitCode {
+    // Before the runtime, before `clap`: see the module note.
+    if let Err(error) = env::load_default() {
+        eprintln!("gproxy: {error}");
+        return std::process::ExitCode::FAILURE;
+    }
+    let cli = <Cli as clap::Parser>::parse();
+
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("gproxy: cannot start the async runtime: {error}");
+            return std::process::ExitCode::FAILURE;
+        }
+    };
+    match runtime.block_on(run_with(cli, channels)) {
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(error) => {
+            // The log subscriber may or may not be installed by the time a
+            // failure happens — a bad `--log-filter` is itself one of the
+            // failures — so this goes straight to standard error.
+            eprintln!("gproxy: {error}");
+            std::process::ExitCode::FAILURE
+        }
+    }
+}
+
 /// Run one invocation, with the configuration layered exactly once.
 ///
 /// Returns to the caller rather than exiting, so the process's exit code is

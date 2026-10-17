@@ -209,6 +209,7 @@ because it is hundreds of kilobytes of tokenizer.
 | `s3` | S3/R2 object storage for published bodies and vocabularies |
 | `bundled-vocabulary` | DeepSeek's vocabulary, for models with no catalogue file |
 | `channels` *(default)* | every channel this repository implements; name them one by one for a smaller binary |
+| `entry` *(default)* | the Worker's `#[event(fetch)]`. Turn it off in a crate that declares its own and calls `fetch_with` with channels of its own; see [Adding a channel](https://gproxy.leenhawk.com/guides/adding-a-channel/#outside-this-repository) |
 
 ## What is tested, and what is not
 
