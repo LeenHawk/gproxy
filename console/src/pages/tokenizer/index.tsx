@@ -6,7 +6,6 @@ import { toast } from "sonner"
 import { SETTINGS_KEY, readSettings, saveSettings, vocabularies } from "@/api/settings"
 import {
   VOCABULARIES_KEY,
-  bindVocabulary,
   deleteVocabulary,
   downloadVocabulary,
   vocabularyProgress,
@@ -348,9 +347,8 @@ function ModelBindings({
   const saved = useMutation({
     mutationFn: async () => {
       const previous = new Set(vocabulary.models)
-      for (const id of new Set([...previous, ...selected])) {
-        if (previous.has(id) !== selected.has(id)) await bindVocabulary(id, selected.has(id) ? vocabulary.fileId : null)
-      }
+      const changed = [...new Set([...previous, ...selected])].filter(id => previous.has(id) !== selected.has(id))
+      if (changed.length) await models.batch(changed.map(id => ({ update: { id, patch: { vocabularyFileId: selected.has(id) ? vocabulary.fileId : null } } })))
     },
     onSuccess: onSaved,
   })

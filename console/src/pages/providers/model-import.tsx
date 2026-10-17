@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { applyDefaultPrices, defaultModels, discoverModels, directory } from "@/api/models"
 import { providerModels } from "@/api/configuration"
+import type { BatchItem, ProviderModelPatch, ProviderModelWrite } from "@/generated/sdk"
 import { object } from "@/components/providers/provider-model-state"
 import { ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
@@ -33,13 +34,14 @@ export function ModelImportDialog({ mode, providerId, onClose, onSaved }: { mode
   const all = visible.length > 0 && visible.every(r => selected.has(r.name))
   const apply = useMutation({ mutationFn: async () => {
     const picked = rows.filter(r => selected.has(r.name))
-    for (const item of picked) {
+    const writes = picked.flatMap((item): BatchItem<Partial<ProviderModelWrite>, Partial<ProviderModelPatch>>[] => {
       const existing = models.find(m => m.upstreamName === item.name)
       const metadata = { ...object(existing?.metadata) }
       for (const [key, value] of Object.entries(object(item.metadata))) if (metadata[key] == null && value != null) metadata[key] = value
-      if (existing) { if (JSON.stringify(metadata) !== JSON.stringify(existing.metadata)) await providerModels.update(existing.id, { metadata }) }
-      else await providerModels.create({ providerId, upstreamName: item.name, metadata, enabled: true })
-    }
+      if (!existing) return [{ create: { providerId, upstreamName: item.name, metadata, enabled: true } }]
+      return JSON.stringify(metadata) !== JSON.stringify(existing.metadata) ? [{ update: { id: existing.id, patch: { metadata } } }] : []
+    })
+    if (writes.length) await providerModels.batch(writes)
     const pricedNames = picked.filter(row => row.price && !row.configured).map(row => row.name)
     if ((mode === "metadata" || prices) && pricedNames.length) await applyDefaultPrices(providerId, pricedNames)
   }, onSuccess: async () => { await onSaved(); toast.success(t("toast.saved")); onClose() } })
