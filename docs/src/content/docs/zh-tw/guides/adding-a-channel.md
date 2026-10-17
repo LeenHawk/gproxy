@@ -1,6 +1,6 @@
 ---
 title: 新增渠道
-description: "一個 v4 渠道的結構：BaseChannel 契約、可選能力 trait、模組佈局，以及從一個 Cargo feature 到註冊完成的九步。"
+description: "一個 v4 渠道的結構：BaseChannel 契約、可選能力 trait、從一個 Cargo feature 到註冊完成的步驟，以及如何在本倉庫之外釋出一個渠道。"
 ---
 
 一個渠道只知道一族上游：它的 URL、憑證怎麼注入、它講哪些線方言、它的流怎麼報 usage，
@@ -9,8 +9,14 @@ description: "一個 v4 渠道的結構：BaseChannel 契約、可選能力 trai
 其餘都是別人的事。路由、憑證選擇、失敗轉移、協議轉換、結算和 capture 屬於引擎，而且
 **渠道里沒有任何東西讀資料庫或挑傳輸後端**。
 
-渠道是編譯進去的，不是插上去的：新渠道是 `gproxy-channel` 的一個模組，藏在它自己的 Cargo
-feature 後面，新增一個意味著向本倉庫提一個 PR。預設不編譯任何具體渠道。
+渠道是編譯進去的，從不在執行時載入，它可以放在兩個地方：
+
+- **放在本倉庫裡**：`gproxy-channel` 的一個模組，藏在它自己的 Cargo feature 後面，透過 PR
+  加入。它能到達每一個宿主，包括 Workers 宿主。見[九步](#九步)。
+- **放在你自己的 crate 裡**：一個對著公開契約實現 `BaseChannel` 的型別，加上一個"原版
+  + 這個型別"的原生二進位制或 Worker。本倉庫裡什麼都不用改。見[在本倉庫之外](#在本倉庫之外)。
+
+兩種方式實現的是同一個 trait，寫法也一樣；不同的只是註冊方式。預設不編譯任何具體渠道。
 
 ## 它需要一個渠道嗎
 
@@ -80,9 +86,18 @@ feature 後面，新增一個意味著向本倉庫提一個 PR。預設不編譯
 | `quota_query` | 從上游的用量端點讀一份配額快照 |
 | `quota_headers` | 把回應 header 變成配額條目；空表示什麼都沒報 |
 | `quota_reset` | 在賣重置額度的上游上兌換與手動重置 |
-| `usage_extractor` | 從緩衝的回應裡取歸一化用量。`None` 表示**未報告**，不是 0 |
-| `usage_stream` | 按回應的觀察者，餵給它原始 chunk 或幀。它絕不改寫交付出去的流 |
+| `usage_extras` | 廠商自己的用量欄位，在宿主已經從整形後的回應裡讀到的標準用量之外補充 |
+| `response_reason_observer` | 給原始上游回應分類（限流、過載、拒絕……）。預設實現解析標準 JSON 與 SSE；只有私有 wire 格式才需要覆寫 |
+| `websocket_response_reason` | 同上，針對一條完整的入站 WebSocket 訊息 |
 | `services` | 廠商控制面路由——見 [CLI 用戶端](/zh-tw/guides/cli-clients/) |
+
+用量本身不需要任何能力：宿主從渠道整形出的標準回應裡讀取它，一個什麼都沒報的渠道是
+**未報告**，不是 0。
+
+有兩項 descriptor 能力無法從訪問器推出，具備它們的渠道要在自己的 `descriptor` 裡寫明：
+`websocket`（它覆寫了某個 socket 操作）和 `paid_usage`（它的
+`QuotaModel::allows_paid_usage` 讀取憑證 metadata 標誌 `allow_paid_usage`，控制檯正是據此
+顯示那個開關）。
 
 跨請求記憶由宿主限定在一個 Provider 加一把憑證的範圍內，並以 CAS 寫入。binding 的預設實現
 拒絕一切寫入，因此想要狀態的渠道必須被明確授予。
@@ -163,9 +178,18 @@ feature 後面，新增一個意味著向本倉庫提一個 PR。預設不編譯
    header。把抓到的幀餵給用量觀察者；解析錄下來的配額 header 與用量 body。一個指令碼化的
    出站 client 用來演練多次呼叫覆寫。**不要從這裡測引擎。**
 
-9. **在宿主裡註冊它。** 引擎從不自己列渠道。想要全部編譯進去的宿主就取整份列表——
-   `gproxy-sdk` 正是這麼做的，所以在那邊開啟 feature 就是唯一一步——想要精確集合的則傳實例
-   進去。重複 id 會被拒絕，而點名了未註冊渠道的 Provider 是一個配置錯誤，不是一次回退。
+9. **把 feature 轉發到每一個宿主。** 引擎從不自己列渠道：`gproxy-sdk` 註冊
+   `compiled_in()` 返回的全部渠道，所以一個渠道能否被某個二進位制用到，恰好取決於那個二進位制的
+   feature 集合能否到達它的 feature。用同一個名字把 feature 加到：
+
+   | 檔案 | 要加的行 |
+   | --- | --- |
+   | `crates/gproxy-sdk/Cargo.toml` | `acme = ["gproxy-channel/acme"]`，並把 `"acme"` 加進它的 `channels` 列表 |
+   | `crates/gproxy/Cargo.toml` | `acme = ["gproxy-sdk/acme"]` |
+   | `crates/gproxy-host-edge/Cargo.toml` | `acme = ["gproxy-sdk/acme"]` |
+   | `crates/gproxy-app/src/v3/channels.rs` | 把 id 加進 `V4_CHANNELS`，讓 v3 匯入接受它 |
+
+   重複 id 會被拒絕，而點名了未註冊渠道的 Provider 是一個配置錯誤，不是一次回退。
 
 ## 收尾
 
@@ -181,3 +205,196 @@ cargo test   -p gproxy-channel --all-features
 
 進去之後就不需要別的了：新渠道上的 Provider 會帶著它的 descriptor 出現在
 `GET /admin/api/channels` 裡，管理 UI 從那份 descriptor 渲染它的表單。
+
+## 在本倉庫之外
+
+渠道可以放在自己的 crate 裡，不用 fork 就能釋出，兩個宿主都行：一個原生二進位制，它就是原版
+`gproxy`——同樣的命令、引數、控制檯和資料庫；或者一個 Worker，它就是原版 GPROXY Worker。
+兩者都只是在內建渠道旁邊多註冊了你的渠道。`examples/channel-plugin` 是一套完整、可執行的
+三個 crate：一個檔案實現的 OpenAI 相容 API key 渠道，以及每個宿主幾行程式碼的入口。
+
+### 目錄結構
+
+```text
+my-gproxy/
+  channel/    渠道：一個實現 BaseChannel 的單元結構體，不依賴任何宿主
+  native/     gproxy 二進位制，帶上它
+  edge/       Cloudflare Worker，帶上它（只在部署到那裡時需要）
+```
+
+渠道單獨成一個 crate，兩個宿主才能都依賴它。原生宿主不能是它的依賴：`gproxy` 編不了
+wasm，Worker 也就跟著編不了。
+
+```rust
+// native/src/main.rs
+use std::{process::ExitCode, sync::Arc};
+
+fn main() -> ExitCode {
+    gproxy::main_with(vec![Arc::new(my_channel::Acme)])
+}
+```
+
+`main_with` 就是原版 `main` 的全部：載入 `.env`、解析同樣的引數、建執行時、執行。自己有
+執行時的宿主改調 `gproxy::run_with(cli, channels)`。
+
+```rust
+// edge/src/lib.rs
+#[cfg(target_arch = "wasm32")]
+mod entry {
+    use std::sync::Arc;
+
+    use worker::{Context, Env, HttpRequest, event};
+
+    #[event(fetch)]
+    async fn fetch(
+        request: HttpRequest,
+        env: Env,
+        ctx: Context,
+    ) -> worker::Result<gproxy_host_edge::Response> {
+        gproxy_host_edge::fetch_with(request, env, ctx, || vec![Arc::new(my_channel::Acme)])
+            .await
+    }
+}
+```
+
+`fetch_with` 就是原版 fetch handler 的全部。一個 Worker 模組只能有一個 `#[event(fetch)]`，
+所以 edge crate 依賴 `gproxy-host-edge` 時要**關掉**它的 `entry` feature——原版 handler
+就是那個 feature 宣告的。閉包在每個 isolate 裡只執行一次，也就是第一個請求組裝例項的時候。
+
+兩個宿主裡，`id` 與某個內建渠道相同的渠道都會**替換**那個內建渠道——要釋出一個改過的現有
+渠道，就這麼做。
+
+### 依賴
+
+按路徑依賴一份 gproxy checkout，版本就是你要對著構建的那個：
+
+```toml
+# channel/Cargo.toml
+[dependencies]
+gproxy-channel = { path = "../../gproxy/crates/gproxy-channel" }
+gproxy-protocol = { path = "../../gproxy/crates/gproxy-protocol", features = ["exhaustive"] }
+http = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+```
+
+```toml
+# native/Cargo.toml
+[dependencies]
+my-channel = { path = "../channel" }
+gproxy = { path = "../../gproxy/crates/gproxy", features = ["channels", "memory", "fs", "embedded-console"] }
+```
+
+```toml
+# edge/Cargo.toml
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+my-channel = { path = "../channel" }
+gproxy-host-edge = { path = "../../gproxy/crates/gproxy-host-edge", default-features = false, features = ["channels", "d1", "libsql"] }
+worker = { version = "0.8", default-features = false, features = ["http"] }
+```
+
+```toml
+# Cargo.toml，workspace 根
+[workspace]
+resolver = "3"
+members = ["channel", "native", "edge"]
+
+# 從 checkout 根目錄的 Cargo.toml 複製：patch 只在宣告它的 workspace 裡生效，
+# 而構建依賴這些。
+[patch.crates-io]
+sqlx-sqlite = { path = "../gproxy/vendor/sqlx-sqlite" }
+btls-sys = { git = "https://github.com/0x676e67/btls", rev = "609f955e6de4df4a215ee9b273d327af1c0771db" }
+```
+
+第一次構建前把 checkout 裡的 `Cargo.lock` 複製到根 `Cargo.toml` 旁邊，這樣解析出來的依賴
+版本就是 gproxy 測試過的那些。
+
+用 checkout 而不是 git 依賴，只有一個原因：原生控制檯是從
+`crates/gproxy-host-axum/assets/web` 編進二進位制的，而那個目錄沒有提交。先在 checkout 的
+`console/` 裡跑 `pnpm install && pnpm build`；或者從 features 裡去掉 `embedded-console`，
+得到一個不帶控制檯的二進位制。下面的 Worker 構建也從 checkout 取控制檯。
+
+`gproxy` 和 `gproxy-host-edge` 自己的 feature 列表和原版構建一樣用：`channels` 是全部
+內建渠道，也可以只點名部署要用的那些。
+
+### 構建 Worker
+
+checkout 裡的 `deploy/cloudflare` 能構建任何一個 Worker crate，不只是原版那個。用絕對路徑
+指向你的 crate，然後照常部署：
+
+```sh
+cd ../gproxy/deploy/cloudflare
+pnpm install
+GPROXY_EDGE_CRATE=/absolute/path/to/my-gproxy/edge pnpm run build
+pnpm run deploy
+```
+
+它會在你的 crate 裡跑 `worker-build`、裁掉除錯段，再把 Worker 複製到 checkout 的
+`wrangler.toml`、控制檯資源和它們的 header 旁邊。[Edge 部署指南](/zh-tw/deployment/edge/)
+裡的一切——D1 繫結、金鑰、`GPROXY_CONFIG`——原樣適用。
+
+**給 Worker 用的渠道必須能編到 `wasm32-unknown-unknown`**，每個內建渠道都已經遵守這條規則。
+實際上就是：不用 `tokio` 網路、不碰檔案系統、用 `web-time` 而不是 `std::time::Instant`，
+所有請求都走宿主交過來的 client。用
+`cargo check --target wasm32-unknown-unknown -p my-channel` 檢查。
+
+### 公開契約給了你什麼
+
+渠道要實現或會收到的一切都在 `gproxy_channel::channel` 裡公開：`BaseChannel`、上下文與
+檢視型別、每一個能力 trait、descriptor 型別，以及構造請求要用的助手——處理用戶端 header 的
+`forwardable` 與 `HeaderAllowlist`、寫入運維靜態 header 的 `insert_configured`、清理查詢串的
+`strip_query_auth`，還有 `standard_reason_observer`。協議詞彙（`Dialect`、`Operation`、
+`OperationKey`、`HttpBody`、`WireRequest`）來自 `gproxy_protocol`。
+
+`gproxy_channel::channels::shared` **不**公開：它是為本倉庫裡的渠道調的，會隨它們一起變。
+需要什麼就複製什麼。
+
+上面的規則原樣適用——尤其是準備必須是純的、來源鑑權絕不到達上游。
+
+### 與內建渠道的不同
+
+- **控制檯和對待其他渠道一樣，從 descriptor 渲染你的渠道**：Provider 表單來自
+  `config_keys`，憑證表單來自 `credential_kinds`，登入按鈕來自 `login_modes`，配額、重置、
+  重新整理與付費用量開關來自 `capabilities`。它沒有的是為內建 id 寫的那些逐渠道潤色——量身定製的
+  提示文字、模型預設組。
+- **原生二進位制的自更新會拒絕安裝。** 釋出的 release 是本倉庫的構建；把它換上來會丟掉你的
+  渠道，下次重啟後它上面的每個 Provider 都會失效。請對著新版本重新構建。檢查更新照常可用。
+- **契約跟著 gproxy 的版本走。** 實際上的變化都是增量的——大多數協議型別帶
+  `#[non_exhaustive]`，`BaseChannel` 的新方法都帶預設實現——但請對著你執行的那個版本構建。
+  寫 `ChannelCapabilities { quota_query: true, ..Default::default() }` 而不是列出每個欄位，
+  這樣新增一項能力不會讓你的構建失敗。
+
+## 給編碼 Agent 的清單
+
+同樣的步驟，按 agent 應當執行的方式列出。
+
+**內建**（向本倉庫提 PR）：
+
+1. 以 `crates/gproxy-channel/src/channels/nvidia.rs`（API key）或 `codex/`（OAuth）為模板，
+   並閱讀 `samples/` 下廠商的 wire 原始碼或它的 API 參考。
+2. 在 `crates/gproxy-channel/Cargo.toml` 里加 feature，在 `src/channels/mod.rs` 的
+   `channels!` 里加一行，並把 feature 加進該渠道用到的 `src/channels/shared/` 裡每一個
+   `cfg(any(...))`。
+3. 寫 `src/channels/<id>.rs` 或 `src/channels/<id>/`；覆寫 `descriptor`。
+4. 在第 9 步列出的四處轉發 feature。
+5. 如果渠道認 `allow_paid_usage` 或提供 WebSocket，在它 descriptor 的 capabilities 裡設
+   `paid_usage` / `websocket`。
+6. 跑[收尾](#收尾)下的命令。
+
+**在本倉庫之外**：
+
+1. 把 `examples/channel-plugin` 複製到 checkout 之外——`channel/` 必須要，`native/` 和
+   `edge/` 按你要部署的宿主取。加上上面那個帶 `[patch.crates-io]` 表的 workspace 根
+   `Cargo.toml`，並複製 `Cargo.lock`。
+2. 在每個 crate 的 `Cargo.toml` 裡，用包自己的 `version` 和 `edition = "2024"` 替換
+   `*.workspace = true` 這些鍵，把每個 `workspace = true` 依賴改成上面寫的路徑依賴。
+3. 重新命名包、二進位制、結構體和 `ID`。除非就是要替換某個內建渠道，否則選一個內建渠道沒用過的 id。
+4. 只對著 `gproxy_channel::channel` 實現；不要去用 `channels::shared`。
+5. `cargo clippy --all-targets -- -D warnings`；要部署 Worker 的話再跑
+   `cargo check --target wasm32-unknown-unknown -p <channel> -p <edge>`。
+6. 在一個全新的 `GPROXY_DATA_DIR` 上執行原生二進位制，或者按上面的步驟構建後在
+   `deploy/cloudflare` 裡用 `wrangler dev --local` 執行 Worker，確認
+   `GET /admin/api/channels` 裡列出了這個 id。

@@ -27,6 +27,8 @@ you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
   before you write a lot of code.
 - New upstream channels follow
   [Adding a channel](https://gproxy.leenhawk.com/guides/adding-a-channel/).
+  A channel you would rather not upstream can ship from your own crate instead;
+  the same page covers that.
 
 ### Branches
 
@@ -143,6 +145,7 @@ or crate you change.
   讨论方案，再动手写大量代码。
 - 新增上游渠道请参考
   [添加渠道](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)。
+  不打算合进上游的渠道也可以放在你自己的 crate 里发布，同一页有说明。
 
 ### 分支
 

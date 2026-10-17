@@ -1,6 +1,6 @@
 ---
 title: Adding a Channel
-description: "How a v4 channel is structured: the BaseChannel contract, the optional ability traits, the module layout, and the nine steps from a Cargo feature to a registered channel."
+description: "How a v4 channel is structured: the BaseChannel contract, the optional ability traits, the steps from a Cargo feature to a registered channel, and how to ship one from outside this repository."
 ---
 
 A channel knows one upstream family: its URLs, how a credential is injected,
@@ -11,9 +11,19 @@ Everything else is somebody else's job. Routing, credential selection,
 failover, protocol conversion, settlement and capture belong to the engine, and
 **nothing in a channel reads the database or picks a transport**.
 
-Channels are built in, not plugged in: a new one is a module of
-`gproxy-channel` behind its own Cargo feature, and adding one is a pull request
-against this repository. No concrete channel is compiled by default.
+A channel is compiled in, never loaded at runtime, and there are two places
+it can live:
+
+- **In this repository**: a module of `gproxy-channel` behind its own Cargo
+  feature, added by a pull request. It reaches every host, the Workers one
+  included. This is [the nine steps](#the-nine-steps).
+- **In your own crate**: a type implementing `BaseChannel` against the public
+  contract, and a native binary or a Worker that is the stock one plus that
+  type. Nothing in this repository changes. This is
+  [outside this repository](#outside-this-repository).
+
+Both implement the same trait the same way; only the registration differs. No
+concrete channel is compiled by default.
 
 ## Does It Need One?
 
@@ -97,9 +107,19 @@ report quota windows without offering a reset.
 | `quota_query` | Read a quota snapshot from the upstream's usage endpoint |
 | `quota_headers` | Turn response headers into quota entries; empty means nothing reported |
 | `quota_reset` | Credits and a manual reset, on upstreams that sell them |
-| `usage_extractor` | Normalized usage from a buffered response. `None` means **unreported**, not zero |
-| `usage_stream` | A per-response observer fed raw chunks or frames. It never rewrites the delivered stream |
+| `usage_extras` | The vendor's own usage fields, read beside the standard usage the host already took from the shaped response |
+| `response_reason_observer` | Classify a raw upstream response (rate limit, overload, refusal…). The default parses standard JSON and SSE; override only for a private wire format |
+| `websocket_response_reason` | The same, for one complete incoming WebSocket message |
 | `services` | Vendor control-plane routes — see [CLI Clients](/guides/cli-clients/) |
+
+Usage itself needs no ability: the host reads it from the standard response the
+channel shapes, and a channel that reports none is **unreported**, not zero.
+
+Two descriptor capabilities cannot be derived from an accessor, so a channel
+that has them says so in its own `descriptor`: `websocket` (it overrides a
+socket operation) and `paid_usage` (its `QuotaModel::allows_paid_usage` reads
+the credential metadata flag `allow_paid_usage`, which is what makes the
+console offer that switch).
 
 Cross-request memory is scoped by the host to one provider and one credential,
 and written under compare-and-swap. The binding default refuses every write, so
@@ -201,12 +221,20 @@ Use `custom` (API key) and `codex` (OAuth account) as the two references.
    recorded quota headers and usage bodies. A scripted outbound client
    exercises multi-call overrides. **Do not test the engine from here.**
 
-9. **Register it in the host.** The engine never lists channels itself. A host
-   that wants everything it compiled in takes the whole list — which is what
-   `gproxy-sdk` does, so enabling the feature there is the only step — and one
-   that wants an exact set passes instances. A duplicate id is rejected, and a
-   provider naming an unregistered channel is a configuration error rather than
-   a fallback.
+9. **Forward the feature to every host.** The engine never lists channels
+   itself: `gproxy-sdk` registers whatever `compiled_in()` returns, so a channel
+   is reachable from a binary exactly when that binary's feature set reaches
+   its feature. Add the feature, by the same name, to:
+
+   | File | Line to add |
+   | --- | --- |
+   | `crates/gproxy-sdk/Cargo.toml` | `acme = ["gproxy-channel/acme"]`, plus `"acme"` in its `channels` list |
+   | `crates/gproxy/Cargo.toml` | `acme = ["gproxy-sdk/acme"]` |
+   | `crates/gproxy-host-edge/Cargo.toml` | `acme = ["gproxy-sdk/acme"]` |
+   | `crates/gproxy-app/src/v3/channels.rs` | the id in `V4_CHANNELS`, so a v3 import accepts it |
+
+   A duplicate id is rejected, and a provider naming an unregistered channel is
+   a configuration error rather than a fallback.
 
 ## Finish
 
@@ -224,3 +252,217 @@ reduced channel set. A lint finding gets a code change, not an `#[allow]`.
 Once it is in, nothing else is required: a provider on the new channel appears
 in `GET /admin/api/channels` with its descriptor, and a management UI renders
 its form from that.
+
+## Outside This Repository
+
+A channel can live in a crate of its own and ship without a fork, in either
+host: a native binary that is the stock `gproxy` — same commands, flags,
+console and database — or a Worker that is the stock GPROXY Worker, each with
+the channel registered beside the built-in ones. `examples/channel-plugin` is
+a complete, working set of all three crates: an OpenAI-compatible API-key
+channel in one file, and a few-line entry point for each host.
+
+### The layout
+
+```text
+my-gproxy/
+  channel/    the channel: a unit struct implementing BaseChannel, no host
+  native/     the gproxy binary, carrying it
+  edge/       the Cloudflare Worker, carrying it (only if you deploy there)
+```
+
+The channel is its own crate so both hosts can depend on it. The native host
+cannot be one of its dependencies: `gproxy` does not build for wasm, and the
+Worker would not build either.
+
+```rust
+// native/src/main.rs
+use std::{process::ExitCode, sync::Arc};
+
+fn main() -> ExitCode {
+    gproxy::main_with(vec![Arc::new(my_channel::Acme)])
+}
+```
+
+`main_with` is the whole stock `main`: it loads `.env`, parses the same
+arguments, builds the runtime and runs. A host with a runtime of its own calls
+`gproxy::run_with(cli, channels)` instead.
+
+```rust
+// edge/src/lib.rs
+#[cfg(target_arch = "wasm32")]
+mod entry {
+    use std::sync::Arc;
+
+    use worker::{Context, Env, HttpRequest, event};
+
+    #[event(fetch)]
+    async fn fetch(
+        request: HttpRequest,
+        env: Env,
+        ctx: Context,
+    ) -> worker::Result<gproxy_host_edge::Response> {
+        gproxy_host_edge::fetch_with(request, env, ctx, || vec![Arc::new(my_channel::Acme)])
+            .await
+    }
+}
+```
+
+`fetch_with` is the whole stock fetch handler. A Worker module has exactly one
+`#[event(fetch)]`, so the edge crate depends on `gproxy-host-edge` **without**
+its `entry` feature, which is the one that declares the stock handler. The
+closure runs once per isolate, when the first request assembles it.
+
+In both hosts a channel whose `id` matches a built-in one **replaces** the
+built-in, which is how a patched copy of an existing channel ships.
+
+### Dependencies
+
+Depend on a gproxy checkout by path, at the version you build against:
+
+```toml
+# channel/Cargo.toml
+[dependencies]
+gproxy-channel = { path = "../../gproxy/crates/gproxy-channel" }
+gproxy-protocol = { path = "../../gproxy/crates/gproxy-protocol", features = ["exhaustive"] }
+http = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+```
+
+```toml
+# native/Cargo.toml
+[dependencies]
+my-channel = { path = "../channel" }
+gproxy = { path = "../../gproxy/crates/gproxy", features = ["channels", "memory", "fs", "embedded-console"] }
+```
+
+```toml
+# edge/Cargo.toml
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+my-channel = { path = "../channel" }
+gproxy-host-edge = { path = "../../gproxy/crates/gproxy-host-edge", default-features = false, features = ["channels", "d1", "libsql"] }
+worker = { version = "0.8", default-features = false, features = ["http"] }
+```
+
+```toml
+# Cargo.toml, the workspace root
+[workspace]
+resolver = "3"
+members = ["channel", "native", "edge"]
+
+# Copied from the checkout's root Cargo.toml: a patch applies only in the
+# workspace that declares it, and the build depends on these.
+[patch.crates-io]
+sqlx-sqlite = { path = "../gproxy/vendor/sqlx-sqlite" }
+btls-sys = { git = "https://github.com/0x676e67/btls", rev = "609f955e6de4df4a215ee9b273d327af1c0771db" }
+```
+
+Copy the checkout's `Cargo.lock` next to the root `Cargo.toml` before the first
+build, so you resolve the dependency versions gproxy was tested with.
+
+A checkout rather than a git dependency, for one reason: the native console is
+built into the binary from `crates/gproxy-host-axum/assets/web`, which is not
+committed. Run `pnpm install && pnpm build` in the checkout's `console/` first,
+or leave `embedded-console` out of the features for a binary without one. The
+Worker build below takes its console from the checkout too.
+
+`gproxy`'s and `gproxy-host-edge`'s own feature lists work as they do for the
+stock builds: `channels` is every built-in channel, or name only the ones a
+deployment uses.
+
+### Building the Worker
+
+The checkout's `deploy/cloudflare` builds any Worker crate, not only the stock
+one. Point it at yours with an absolute path and deploy as usual:
+
+```sh
+cd ../gproxy/deploy/cloudflare
+pnpm install
+GPROXY_EDGE_CRATE=/absolute/path/to/my-gproxy/edge pnpm run build
+pnpm run deploy
+```
+
+That runs `worker-build` in your crate, strips the debug sections and copies
+the Worker next to the checkout's `wrangler.toml`, the console assets and their
+headers. Everything in the [edge deployment guide](/deployment/edge/) — the D1
+binding, secrets, `GPROXY_CONFIG` — applies unchanged.
+
+**A channel for the Worker must build for `wasm32-unknown-unknown`**, the rule
+every built-in channel already follows. In practice: no `tokio` networking, no
+filesystem, `web-time` rather than `std::time::Instant`, and every request
+through the client the host hands over. Check it with
+`cargo check --target wasm32-unknown-unknown -p my-channel`.
+
+### What the public contract gives you
+
+Everything a channel implements or receives is public in
+`gproxy_channel::channel`: `BaseChannel`, the context and view types, every
+ability trait, the descriptor types, and the helpers a request needs —
+`forwardable` and `HeaderAllowlist` for the client headers, `insert_configured`
+for an operator's static header, `strip_query_auth` for the query string, and
+`standard_reason_observer`. The protocol vocabulary (`Dialect`, `Operation`,
+`OperationKey`, `HttpBody`, `WireRequest`) is `gproxy_protocol`'s.
+
+`gproxy_channel::channels::shared` is **not** public: it is tuned to the
+channels in this repository and changes with them. Copy what you need.
+
+The rules above apply unchanged — especially that preparation is pure and
+source authentication never reaches the upstream.
+
+### What differs from a built-in channel
+
+- **The console renders your channel from its descriptor**, like any other: the
+  provider form from `config_keys`, the credential form from
+  `credential_kinds`, the login buttons from `login_modes`, the quota, reset,
+  refresh and paid-usage controls from `capabilities`. What it does not have is
+  the per-channel polish written for built-in ids — a tailored hint text, a
+  model preset group.
+- **Self-update refuses to install** in the native binary. A published release
+  is this repository's build; swapping it in would drop your channel and break
+  every provider on it at the next restart. Rebuild against the new version
+  instead. Checking for updates still works.
+- **The contract follows gproxy's version.** Changes are additive in practice —
+  most protocol types are `#[non_exhaustive]`, and new `BaseChannel` methods
+  come with defaults — but build against the version you run. Write
+  `ChannelCapabilities { quota_query: true, ..Default::default() }` rather than
+  listing every field, so a new capability does not break your build.
+
+## Checklist for Coding Agents
+
+The same steps, as an agent should execute them.
+
+**Built in** (a pull request here):
+
+1. Read `crates/gproxy-channel/src/channels/nvidia.rs` (API key) or `codex/`
+   (OAuth) as the template, and the vendor's wire source under `samples/` or
+   its API reference.
+2. Add the feature to `crates/gproxy-channel/Cargo.toml`, the line to
+   `channels!` in `src/channels/mod.rs`, and the feature to each `cfg(any(...))`
+   in `src/channels/shared/` the channel uses.
+3. Write `src/channels/<id>.rs` or `src/channels/<id>/`; override `descriptor`.
+4. Forward the feature in the four places of step 9.
+5. If the channel honours `allow_paid_usage` or serves a WebSocket, set
+   `paid_usage` / `websocket` in its descriptor's capabilities.
+6. Run the commands under [Finish](#finish).
+
+**Outside this repository**:
+
+1. Copy `examples/channel-plugin` out of the checkout — `channel/` always,
+   `native/` and `edge/` for the hosts you deploy. Add the workspace root
+   `Cargo.toml` above with its `[patch.crates-io]` table, and copy `Cargo.lock`.
+2. In each crate's `Cargo.toml`, give the package its own `version` and
+   `edition = "2024"` in place of the `*.workspace = true` keys, and turn every
+   `workspace = true` dependency into the path dependency shown above.
+3. Rename the packages, the binary, the struct and `ID`. Choose an id no
+   built-in uses unless the point is to replace that one.
+4. Implement against `gproxy_channel::channel` only; do not reach for
+   `channels::shared`.
+5. `cargo clippy --all-targets -- -D warnings`; for the Worker also
+   `cargo check --target wasm32-unknown-unknown -p <channel> -p <edge>`.
+6. Run the native binary on a fresh `GPROXY_DATA_DIR`, or the Worker under
+   `wrangler dev --local` from `deploy/cloudflare` after the build above, and
+   check that `GET /admin/api/channels` lists the id.
