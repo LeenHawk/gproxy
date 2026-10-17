@@ -2,8 +2,7 @@ import { KeyCreateDialog } from "@/components/keys/create-dialog"
 import { KeySettingsDialog } from "@/components/keys/settings-dialog"
 import { RecordDialog, type FormField } from "@/components/record-form"
 import { providers } from "@/api/configuration"
-import { optionSource } from "@/api/options"
-import { models } from "@/api/models"
+import { modelSource, optionSource } from "@/api/options"
 import { useConsoleContext } from "@/capability/session"
 import { ScopedBudgetObjects } from "./scoped-budgets"
 import { QuotaButton } from "@/pages/quotas"
@@ -124,7 +123,7 @@ export function ApiKeysPage() {
         ]}
         fields={fields}
         onEdit={row => setEditing({ row, tab: "basic" })}
-        renderForm={props => <KeyCreateDialog {...props} error={props.error} pending={props.pending} fields={fields} defaults={{ userId: context.userId, enabled: true, retainSecret: true }} title={t("create.api-keys")} canSetBudget={context.has("configuration.quotas.write")} />}
+        renderForm={props => <KeyCreateDialog {...props} error={props.error} pending={props.pending} fields={fields} defaults={{ userId: context.userId, enabled: true, retainSecret: true }} title={t("create.api-keys")} models={modelSource(context.has)} canSetBudget={context.has("configuration.quotas.write")} />}
 
         rowActions={(row) => (
           <>
@@ -236,10 +235,11 @@ function InstanceTeamsPage() {
 
 export function PermissionsPage() {
   const { t } = useTranslation()
+  const context = useConsoleContext()
   const client = useQueryClient()
   const fields: FormField[] = [
     { name: "action", label: t("fields.permissionEffect"), kind: "select", options: ACTIONS, required: true },
-    { name: "modelPattern", kind: "searchable", allowCustom: true, emptyValue: "*", emptyLabel: t("form.all"), source: optionSource(models, row => ({ value: row.name, label: row.name })) },
+    { name: "modelPattern", kind: "searchable", allowCustom: true, emptyValue: "*", emptyLabel: t("form.all"), source: values => modelSource(context.has, values.providerId ? String(values.providerId) : undefined) },
     { name: "userId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), source: optionSource(admin.users, row => ({ value: row.id, label: `${row.name} (${row.id})` })) },
     { name: "apiKeyId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), source: optionSource(admin.apiKeys, row => ({ value: row.id, label: `${row.name} (${row.prefix})` })) },
     { name: "providerId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), source: optionSource(providers, row => ({ value: row.id, label: `${row.name} (${row.id})` })) },

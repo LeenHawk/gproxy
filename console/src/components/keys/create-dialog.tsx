@@ -2,13 +2,14 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { ApiKeyBudgetWrite } from "@/generated/app"
 import { RecordDialog, type FormField } from "@/components/record-form"
+import { SearchableSelect, type OptionSource } from "@/components/searchable-select"
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-type Props = { open: boolean; onOpenChange: (open: boolean) => void; title: string; fields: readonly FormField[]; canSetBudget: boolean; onSubmit: (body: Record<string, unknown>) => void; pending: boolean; error: unknown; defaults?: Record<string, unknown> }
+type Props = { open: boolean; onOpenChange: (open: boolean) => void; title: string; fields: readonly FormField[]; canSetBudget: boolean; onSubmit: (body: Record<string, unknown>) => void; pending: boolean; error: unknown; defaults?: Record<string, unknown>; models?: OptionSource }
 export function KeyCreateDialog(props: Props) { return props.open ? <KeyCreateForm {...props} /> : null }
 function KeyCreateForm(props: Props) {
   const { t } = useTranslation()
@@ -18,7 +19,7 @@ function KeyCreateForm(props: Props) {
   const [seconds, setSeconds] = useState("")
   const [model, setModel] = useState("")
   const valid = !limited || (/^\d+(\.\d+)?$/.test(amount.trim()) && (period !== "custom" || (/^\d+$/.test(seconds) && Number(seconds) > 0 && Number.isSafeInteger(Number(seconds)))))
-  return <RecordDialog {...props} advancedFields={props.fields.filter(field => !["name", "userId"].includes(field.name)).map(field => field.name)} advancedExtra={limited ? <Field><FieldLabel htmlFor="key-budget-model">{t("limits.appliesTo")}</FieldLabel><Input id="key-budget-model" placeholder={t("limits.allModels")} value={model} onChange={event => setModel(event.target.value)} /></Field> : null} extraAfter="name" mode="create" original={props.defaults} submitDisabled={!valid} onSubmit={body => {
+  return <RecordDialog {...props} advancedFields={props.fields.filter(field => !["name", "userId"].includes(field.name)).map(field => field.name)} advancedExtra={limited ? <Field><FieldLabel htmlFor="key-budget-model">{t("limits.appliesTo")}</FieldLabel><SearchableSelect id="key-budget-model" label={t("limits.appliesTo")} value={model} onChange={setModel} disabled={props.pending} allowCustom emptyLabel={t("limits.allModels")} source={props.models} /></Field> : null} extraAfter="name" mode="create" original={props.defaults} submitDisabled={!valid} onSubmit={body => {
     const budget: ApiKeyBudgetWrite | undefined = props.canSetBudget && limited ? { limitValue: amount.trim(), windowKey: t("limits.defaultBudget"), period, periodSeconds: period === "custom" ? Number(seconds) : null, anchorAtMs: null, modelPattern: model.trim() || null } : undefined
     props.onSubmit({ ...body, ...(budget ? { budget } : {}) })
   }} extra={<div className="flex flex-col gap-4" data-field-span="full">

@@ -20,7 +20,8 @@ export type FormField = {
   options?: ReadonlyArray<string>
   /** Choices whose labels are data rather than translations — a row's name. */
   choices?: ReadonlyArray<{ value: string; label: string }>
-  source?: OptionSource
+  /** A function when the options depend on another field, such as a provider. */
+  source?: OptionSource | ((values: FormValues) => OptionSource)
   /** Refuse an empty value on a create. */
   required?: boolean
   /** Offered when creating and not when editing: the column is immutable. */

@@ -3,14 +3,18 @@ import { useTranslation } from "react-i18next"
 import type { QuotaDto, QuotaWrite } from "@/generated/sdk"
 import { fromLocalInput, toLocalInput } from "@/lib/format"
 import { ErrorNotice } from "@/components/state"
+import { SearchableSelect } from "@/components/searchable-select"
+import { modelSource } from "@/api/options"
+import { useConsoleContext } from "@/capability/session"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-export function QuotaEditor({ original, limit, override, pending, error, onSave, onCancel }: { original?: QuotaDto; limit: boolean; override?: boolean; pending: boolean; error: unknown; onSave: (body: Partial<QuotaWrite>) => void; onCancel: () => void }) {
+export function QuotaEditor({ original, limit, providerId, override, pending, error, onSave, onCancel }: { original?: QuotaDto; limit: boolean; providerId?: string; override?: boolean; pending: boolean; error: unknown; onSave: (body: Partial<QuotaWrite>) => void; onCancel: () => void }) {
   const { t } = useTranslation()
+  const context = useConsoleContext()
   const [name, setName] = useState(original?.windowKey ?? t(limit ? "limits.defaultRule" : "limits.defaultBudget"))
   const [metric, setMetric] = useState(original?.metric ?? "cost")
   const [amount, setAmount] = useState(original?.limitValue ?? "")
@@ -36,7 +40,7 @@ export function QuotaEditor({ original, limit, override, pending, error, onSave,
       {limit ? <Field><FieldLabel htmlFor="limit-metric">{t("limits.measure")}</FieldLabel><Select value={metric} onValueChange={setMetric}><SelectTrigger id="limit-metric"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{["cost", "requests"].map(value => <SelectItem key={value} value={value}>{t(`management.${value}`)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field> : null}
       <Field><FieldLabel htmlFor="limit-amount">{t(metric === "requests" ? "limits.requestLimit" : "limits.costLimit")}</FieldLabel><Input id="limit-amount" value={amount} inputMode={metric === "requests" ? "numeric" : "decimal"} pattern={metric === "requests" ? "[0-9]+" : "[0-9]+([.][0-9]+)?"} required onChange={event => setAmount(event.target.value)} /></Field>
       <Field><FieldLabel htmlFor="limit-period">{t("fields.period")}</FieldLabel><Select value={period} onValueChange={setPeriod}><SelectTrigger id="limit-period"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{periods.map(value => <SelectItem key={value} value={value}>{t(`userQuota.periods.${value}`, { defaultValue: value })}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-      <Field><FieldLabel htmlFor="limit-model">{t("limits.appliesTo")}</FieldLabel><Input id="limit-model" value={pattern} placeholder={t("limits.allModels")} onChange={event => setPattern(event.target.value)} /></Field>
+      <Field><FieldLabel htmlFor="limit-model">{t("limits.appliesTo")}</FieldLabel><SearchableSelect id="limit-model" label={t("limits.appliesTo")} value={pattern} onChange={setPattern} disabled={pending} allowCustom emptyLabel={t("limits.allModels")} source={modelSource(context.has, providerId)} /></Field>
       <Field orientation="horizontal"><FieldLabel htmlFor="limit-enabled">{t("fields.enabled")}</FieldLabel><Switch id="limit-enabled" checked={enabled} onCheckedChange={setEnabled} /></Field>
       {period !== "1m" && period !== "total" ? <details open={customPeriod || undefined}><summary className="cursor-pointer text-sm">{t("limits.advanced")}</summary><FieldGroup className="mt-3">
         {customPeriod ? <Field><FieldLabel htmlFor="limit-seconds">{t("fields.periodSeconds")}</FieldLabel><Input id="limit-seconds" type="number" min={1} step={1} required value={seconds} onChange={event => setSeconds(event.target.value)} /></Field> : null}

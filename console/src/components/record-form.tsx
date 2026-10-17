@@ -32,12 +32,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { buildPatch, buildWrite, readValue, type FormField, type FormValues } from "./record-form-values"
 export type { FieldKind, FormField } from "./record-form-values"
 
-function Control({ id, required, invalid, field, value, onChange, original }: {
+function Control({ id, required, invalid, field, values, value, onChange, original }: {
   id: string
   required: boolean
   invalid: boolean
   original?: Record<string, unknown>
   field: FormField
+  values: FormValues
   value: string | boolean
   onChange: (value: string | boolean) => void
 }) {
@@ -47,7 +48,7 @@ function Control({ id, required, invalid, field, value, onChange, original }: {
   if (field.kind === "switch") {
     return <Switch id={id} aria-describedby={describedBy} checked={Boolean(value)} onCheckedChange={(next) => onChange(next)} />
   }
-  if (field.kind === "searchable") return <SearchableSelect id={id} aria-required={required} aria-invalid={invalid} aria-describedby={describedBy} label={field.label ?? t(`fields.${field.name}`)} value={String(value)} options={field.choices ?? []} source={field.source} allowCustom={field.allowCustom} emptyLabel={field.emptyLabel} emptyValue={field.emptyValue} onChange={onChange} />
+  if (field.kind === "searchable") return <SearchableSelect id={id} aria-required={required} aria-invalid={invalid} aria-describedby={describedBy} label={field.label ?? t(`fields.${field.name}`)} value={String(value)} options={field.choices ?? []} source={typeof field.source === "function" ? field.source(values) : field.source} allowCustom={field.allowCustom} emptyLabel={field.emptyLabel} emptyValue={field.emptyValue} onChange={onChange} />
   if (field.kind === "select") {
     const choices = field.choices ?? (field.options ?? []).map((option) => ({ value: option, label: t(`values.${option}`) }))
     return (
@@ -153,7 +154,7 @@ function RecordForm({ fields, original, mode, onSubmit, pending, submitDisabled,
     const label = <FieldLabel htmlFor={id}>{field.label ?? t(`fields.${field.name}`)}{field.required && mode === "create" ? <span aria-hidden className="text-destructive"> *</span> : null}</FieldLabel>
     return <Fragment key={field.name}><Field data-invalid={invalid?.name === field.name} orientation={field.kind === "switch" ? "horizontal" : "vertical"}>
       {field.description ? <FieldContent>{label}<FieldDescription id={`${id}-description`}>{field.description}</FieldDescription></FieldContent> : label}
-      <Control id={id} required={!!field.required && mode === "create"} invalid={invalid?.name === field.name} field={field} original={original} value={values[field.name] ?? ""} onChange={next => { setValues(current => ({ ...current, [field.name]: next })); if (invalid?.name === field.name) setInvalid(null) }} />
+      <Control id={id} required={!!field.required && mode === "create"} invalid={invalid?.name === field.name} field={field} values={values} original={original} value={values[field.name] ?? ""} onChange={next => { setValues(current => ({ ...current, [field.name]: next })); if (invalid?.name === field.name) setInvalid(null) }} />
       {invalid?.name === field.name ? <FieldError id={`${id}-error`}>{invalid.message}</FieldError> : null}
     </Field>{extraAfter === field.name ? extra : null}</Fragment>
   }

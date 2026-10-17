@@ -18,6 +18,7 @@ import { Plus } from "lucide-react"
 import { toast } from "sonner"
 import * as portal from "@/api/portal"
 import { useConsoleContext } from "@/capability/session"
+import { modelSource } from "@/api/options"
 import { SELF_KEYS_WRITE } from "@/capability/capability"
 import { BoolCell, InstantCell, MaybeCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
@@ -138,6 +139,7 @@ export function KeysPage() {
 
       <KeyCreateDialog
         canSetBudget={maySetBudget}
+        models={modelSource(context.has)}
         open={creating}
         onOpenChange={setCreating}
         title={t("create.keys")}
