@@ -106,7 +106,7 @@ export function ApiKeysPage() {
       <CollectionPage
         id="api-keys"
         family={admin.apiKeys}
-        resolveGroups={rows => Promise.all(rows.map(async row => ({ id: row.userId, label: (await client.fetchQuery({ staleTime: 30000, queryKey: ["admin", "/users", "detail", row.userId], queryFn: () => admin.users.get(row.userId) })).name })))}
+        groupByOwner={context.has("identity.users") ? "userId" : undefined}
         searchable
         create={(body) => admin.createApiKey(body as Parameters<typeof admin.createApiKey>[0])}
         onCreated={(created) => { setToken((created as ApiKeyCreated).token); void client.invalidateQueries({ queryKey: ["portal", "keys"] }); void client.invalidateQueries({ queryKey: ["admin", "/quotas"] }) }}
@@ -236,7 +236,6 @@ function InstanceTeamsPage() {
 export function PermissionsPage() {
   const { t } = useTranslation()
   const context = useConsoleContext()
-  const client = useQueryClient()
   const fields: FormField[] = [
     { name: "action", label: t("fields.permissionEffect"), kind: "select", options: ACTIONS, required: true },
     { name: "modelPattern", kind: "searchable", allowCustom: true, emptyValue: "*", emptyLabel: t("form.all"), source: values => modelSource(context.has, values.providerId ? String(values.providerId) : undefined) },
@@ -250,7 +249,7 @@ export function PermissionsPage() {
     <CollectionPage
       id="permissions"
       family={admin.permissions}
-      resolveGroups={rows => Promise.all(rows.map(row => ownerGroup(client, row, t("management.allUsers"))))}
+      groupByOwner={context.has("identity.users") ? "ownerUserId" : undefined}
       rowId={(row: PermissionDto) => row.id}
       rowLabel={(row) => row.modelPattern}
       columns={[
@@ -271,14 +270,12 @@ export function PermissionsPage() {
 // ----------------------------------------------------------- rate limits --
 
 export function RateLimitsPage() {
-  const { t } = useTranslation()
   const context = useConsoleContext()
-  const client = useQueryClient()
   return (
     <CollectionPage
       id="rate-limits"
       family={admin.rateLimits}
-      resolveGroups={rows => Promise.all(rows.map(row => ownerGroup(client, row, t("management.allUsers"), context.has("identity.users"), context.has("identity.api-keys"))))}
+      groupByOwner={context.has("identity.users") ? "ownerUserId" : undefined}
       rowId={(row: RateLimitDto) => row.id}
       rowLabel={(row) => row.metric}
       columns={[
@@ -354,8 +351,3 @@ export function OAuthClientsPage() {
   )
 }
 
-async function ownerGroup(client: import("@tanstack/react-query").QueryClient, row: { userId: string | null; apiKeyId: string | null }, globalLabel: string, readUsers = true, readKeys = true) {
-  const userId = row.userId ?? (row.apiKeyId && readKeys ? (await client.fetchQuery({ staleTime: 30000, queryKey: ["admin", "/api-keys", "detail", row.apiKeyId], queryFn: () => admin.apiKeys.get(row.apiKeyId!) })).userId : null)
-  const label = userId && readUsers ? (await client.fetchQuery({ staleTime: 30000, queryKey: ["admin", "/users", "detail", userId], queryFn: () => admin.users.get(userId) })).name : userId ?? row.apiKeyId ?? globalLabel
-  return { id: userId ?? row.apiKeyId ?? "global", label }
-}

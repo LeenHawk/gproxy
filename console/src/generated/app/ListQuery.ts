@@ -20,4 +20,9 @@ pageSize: number | null,
 /**
  * Case-insensitive substring of the family's natural name column.
  */
-search: string | null, userId: string | null, apiKeyId: string | null, organizationId: string | null, teamId: string | null, providerId: string | null, credentialId: string | null, enabled: boolean | null, };
+search: string | null, userId: string | null,
+/**
+ * Rows whose subject is this user or one of the user's API keys — for the
+ * families whose rule names one subject or the other.
+ */
+ownerUserId: string | null, apiKeyId: string | null, organizationId: string | null, teamId: string | null, providerId: string | null, credentialId: string | null, enabled: boolean | null, };

@@ -127,6 +127,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for RateLimits<'_
         if let Some(user_id) = crud::optional_text(query.user_id.clone()) {
             select = select.filter(rate_limit::Column::UserId.eq(user_id));
         }
+        if let Some(owner) = crud::optional_text(query.owner_user_id.clone()) {
+            select = select.filter(crud::owned_by(
+                rate_limit::Column::UserId,
+                rate_limit::Column::ApiKeyId,
+                owner,
+            ));
+        }
         if let Some(api_key_id) = crud::optional_text(query.api_key_id.clone()) {
             select = select.filter(rate_limit::Column::ApiKeyId.eq(api_key_id));
         }

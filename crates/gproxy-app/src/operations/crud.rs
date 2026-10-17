@@ -15,8 +15,9 @@
 //! in the same signature.
 
 use gproxy_seaorm::{BatchConnectionTrait, BatchResult, BatchStatement, SelectProjection};
-use gproxy_store::{Repository, StoreError};
-use sea_orm::{ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, Select};
+use gproxy_store::{Repository, StoreError, entity::identity::api_key};
+use sea_orm::sea_query::Query;
+use sea_orm::{ColumnTrait, Condition, EntityTrait, FromQueryResult, QueryFilter, Select};
 use serde_json::Value;
 
 use super::{Scope, Writer};
@@ -337,6 +338,23 @@ pub(crate) fn decimal(value: &str, field: &'static str) -> Result<gproxy_store::
         .trim()
         .parse()
         .map_err(|error| AppError::invalid(format!("{field} is not a valid decimal: {error}")))
+}
+
+/// The `ownerUserId` filter: rows whose subject is the user, or one of the
+/// user's API keys.
+pub(crate) fn owned_by(
+    user: impl ColumnTrait,
+    key: impl ColumnTrait,
+    user_id: String,
+) -> Condition {
+    let keys = Query::select()
+        .column(api_key::Column::Id)
+        .from(api_key::Entity)
+        .and_where(api_key::Column::UserId.eq(user_id.clone()))
+        .to_owned();
+    Condition::any()
+        .add(user.eq(user_id))
+        .add(key.in_subquery(keys))
 }
 
 /// A model glob, as `snapshot::glob` and core's `rewrite::compile` read one.

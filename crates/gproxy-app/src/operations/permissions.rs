@@ -136,6 +136,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Permissions<'
         if let Some(user_id) = crud::optional_text(query.user_id.clone()) {
             select = select.filter(permission::Column::UserId.eq(user_id));
         }
+        if let Some(owner) = crud::optional_text(query.owner_user_id.clone()) {
+            select = select.filter(crud::owned_by(
+                permission::Column::UserId,
+                permission::Column::ApiKeyId,
+                owner,
+            ));
+        }
         if let Some(api_key_id) = crud::optional_text(query.api_key_id.clone()) {
             select = select.filter(permission::Column::ApiKeyId.eq(api_key_id));
         }

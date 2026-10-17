@@ -21,6 +21,9 @@ pub struct ListQuery {
     /// Case-insensitive substring of the family's natural name column.
     pub search: Option<String>,
     pub user_id: Option<String>,
+    /// Rows whose subject is this user or one of the user's API keys — for the
+    /// families whose rule names one subject or the other.
+    pub owner_user_id: Option<String>,
     pub api_key_id: Option<String>,
     pub organization_id: Option<String>,
     pub team_id: Option<String>,

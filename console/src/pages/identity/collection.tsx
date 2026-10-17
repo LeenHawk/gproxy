@@ -18,12 +18,12 @@ import { usePagination } from "@/lib/use-pagination"
 //! which is what the reviewer of a family declaration is actually checking.
 
 import { useState, type ReactNode } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Pencil, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { directory } from "@/api/models"
-import type { Family, ListFilter } from "@/api/admin"
+import { users, type Family, type ListFilter } from "@/api/admin"
 import { ConfirmButton } from "@/components/confirm"
 import { DataTable, Pagination, type Column } from "@/components/data-table"
 import { Page, PageHeader } from "@/components/page"
@@ -34,6 +34,9 @@ import { useConfigBatch } from "@/components/config-batch"
 import type { BatchItem } from "@/generated/sdk"
 import { Input } from "@/components/ui/input"
 
+
+/** One request per user group; the host clamps a page to this anyway. */
+const GROUP_SIZE = 500
 
 export type CollectionProps<D, W, P> = {
   /** The nav id: `nav.<id>` names it, `description.<id>` explains it. */
@@ -51,8 +54,8 @@ export type CollectionProps<D, W, P> = {
   batchEnabled?: boolean
   createLabel?: string
   searchable?: boolean
-  groupBy?: (row: D) => { id: string; label: string }
-  resolveGroups?: (rows: D[]) => Promise<Array<{ id: string; label: string }>>
+  /** Paginate users, each a group holding its own rows under this filter. */
+  groupByOwner?: "userId" | "ownerUserId"
   /** Filters held constant for this page, e.g. a parent id. */
   filter?: ListFilter
   /** Row actions this family has and the others do not. */
@@ -70,7 +73,7 @@ export type CollectionProps<D, W, P> = {
 }
 
 export function CollectionPage<D, W, P>({
-  id, family, columns, fields, rowId, rowLabel, searchable, groupBy, resolveGroups, filter, embedded = false,
+  id, family, columns, fields, rowId, rowLabel, searchable, groupByOwner, filter, embedded = false,
   rowActions, onOpen, onEdit, deletable = true, rowDeletable = deletable, creatable = true, onCreated, create, renderForm, createLabel, paginate = true, batchEnabled = fields.some(field => field.name === "enabled"),
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
@@ -83,14 +86,22 @@ export function CollectionPage<D, W, P>({
 
   const request: ListFilter = { ...filter, page, pageSize, search: search.trim() || undefined }
   const key = ["admin", family.path, request, paginate] as const
-  const list = useQuery({ queryKey: key, queryFn: async () => {
+  const list = useQuery({ queryKey: key, enabled: !groupByOwner, queryFn: async () => {
     if (paginate) return family.list(request)
     const items = await directory(family, request)
     return { items, total: items.length, offset: 0, limit: items.length }
   } })
-  if (paginate && list.data && page > Math.max(1, Math.ceil(list.data.total / pageSize))) setPage(Math.max(1, Math.ceil(list.data.total / pageSize)))
-
-  const resolvedGroups = useQuery({ queryKey: [...key, "groups", list.dataUpdatedAt], queryFn: () => resolveGroups!(list.data!.items), enabled: !!resolveGroups && !!list.data })
+  // Grouped, the pager walks users and the search names them; each user's
+  // rows come whole from their own request, so a group never spans pages.
+  const ownersRequest: ListFilter = { page, pageSize, search: search.trim() || undefined }
+  const owners = useQuery({ queryKey: ["admin", users.path, ownersRequest], queryFn: () => users.list(ownersRequest), enabled: !!groupByOwner })
+  const groups = useQueries({ queries: (groupByOwner ? owners.data?.items ?? [] : []).map(owner => {
+    const groupRequest: ListFilter = { ...filter, [groupByOwner!]: owner.id, pageSize: GROUP_SIZE }
+    return { queryKey: ["admin", family.path, groupRequest, true] as const, queryFn: () => family.list(groupRequest) }
+  }) })
+  const total = (groupByOwner ? owners.data?.total : list.data?.total) ?? 0
+  if (paginate && (groupByOwner ? owners.data : list.data) && page > Math.max(1, Math.ceil(total / pageSize))) setPage(Math.max(1, Math.ceil(total / pageSize)))
+  const loadedRows = groupByOwner ? groups.flatMap(group => group.data?.items ?? []) : list.data?.items ?? []
   const invalidate = () => invalidateConfiguration(client, family.path)
 
   const created = useMutation({
@@ -122,7 +133,7 @@ export function CollectionPage<D, W, P>({
     onError: (error: Error) => toast.error(error.message),
   })
 
-  const batch = useConfigBatch({ family, context: selectionKey, rows: (list.data?.items ?? []).map(row => ({ id: rowId(row) })), enableToggle: batchEnabled, deletable })
+  const batch = useConfigBatch({ family, context: selectionKey, rows: loadedRows.map(row => ({ id: rowId(row) })), enableToggle: batchEnabled, deletable })
   const tableColumns = batch.active ? [{ key: "selection", header: t("management.select"), cell: (row: D) => batch.checkbox(rowId(row), rowLabel(row)) }, ...columns] : columns
 
   const add = (
@@ -130,7 +141,7 @@ export function CollectionPage<D, W, P>({
       <Plus data-icon="inline-start" /> {createLabel ?? t("actions.new")}
     </Button>
   )
-  const searchInput = searchable ? (
+  const searchInput = searchable || groupByOwner ? (
     <Input
       className="max-w-xs"
       aria-label={t("actions.search")}
@@ -140,12 +151,6 @@ export function CollectionPage<D, W, P>({
     />
   ) : null
 
-  const groups = (groupBy || resolvedGroups.data) && list.data?.items.length ? new Map<string, { label: string; rows: D[] }>() : null
-  if (groups) for (const [index, row] of list.data!.items.entries()) {
-    const group = resolvedGroups.data?.[index] ?? groupBy!(row)
-    if (!groups.has(group.id)) groups.set(group.id, { label: group.label, rows: [] })
-    groups.get(group.id)!.rows.push(row)
-  }
   const renderRows = (rows: D[]) => (<DataTable paginate={false}
             columns={tableColumns}
             rows={rows}
@@ -177,16 +182,22 @@ export function CollectionPage<D, W, P>({
         <><PageHeader title={t(`nav.${id}`)} actions={<>{batch.trigger}{add}</>} />{searchInput}</>
       )}
       {batch.toolbar}
-      <QueryState isPending={list.isPending || (!!resolveGroups && resolvedGroups.isPending)} error={list.error ?? resolvedGroups.error}>
+      <QueryState isPending={groupByOwner ? owners.isPending : list.isPending} error={groupByOwner ? owners.error : list.error}>
         <div className="flex flex-col gap-3">
-          {groups ? <div className="flex flex-col gap-3"><p className="text-xs text-muted-foreground">{t("management.groupedPage")}</p>{[...groups].map(([id, group]) => <Collapsible key={id} defaultOpen={groups.size === 1} className="rounded-lg border">
-            <CollapsibleTrigger asChild><Button variant="ghost" className="group h-auto w-full justify-start whitespace-normal p-3"><ChevronRight data-icon="inline-start" className="transition-transform group-data-[state=open]:rotate-90" /><span className="min-w-0 flex-1 break-words text-left">{group.label}</span><Badge variant="secondary">{group.rows.length}</Badge></Button></CollapsibleTrigger>
-            <CollapsibleContent className="p-3 pt-0">{renderRows(group.rows)}</CollapsibleContent>
-          </Collapsible>)}</div> : renderRows(list.data?.items ?? [])}
+          {groupByOwner ? (owners.data?.items.length ? <div className="flex flex-col gap-3">{owners.data.items.map((owner, index) => {
+            const group = groups[index]
+            return <Collapsible key={owner.id} defaultOpen={owners.data.items.length === 1} className="rounded-lg border">
+              <CollapsibleTrigger asChild><Button variant="ghost" className="group h-auto w-full justify-start whitespace-normal p-3"><ChevronRight data-icon="inline-start" className="transition-transform group-data-[state=open]:rotate-90" /><span className="min-w-0 flex-1 break-words text-left">{owner.name}</span><Badge variant={group?.data?.total ? "secondary" : "outline"}>{group?.data?.total ?? "…"}</Badge></Button></CollapsibleTrigger>
+              <CollapsibleContent className="flex flex-col gap-2 p-3 pt-0"><QueryState isPending={!group || group.isPending} error={group?.error}>
+                {renderRows(group?.data?.items ?? [])}
+                {group?.data && group.data.total > group.data.items.length ? <p className="text-xs text-muted-foreground">{t("management.groupTruncated", { shown: group.data.items.length, total: group.data.total })}</p> : null}
+              </QueryState></CollapsibleContent>
+            </Collapsible>
+          })}</div> : <EmptyNotice title={t("state.emptyTitle")} />) : renderRows(list.data?.items ?? [])}
           {paginate ? <Pagination
             page={page}
             pageSize={pageSize}
-            total={list.data?.total ?? 0}
+            total={total}
             onPage={setPage} onPageSize={setPageSize}
           /> : null}
         </div>

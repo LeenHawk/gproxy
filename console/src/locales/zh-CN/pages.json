@@ -851,8 +851,7 @@
     "chooseScope": "选择管理范围",
     "newPriceRule": "新增另一条价格规则",
     "cleanupFailed": "记录已删除，但关联规则清理失败：{{message}}",
-    "groupedPage": "当前页按用户分组",
-    "allUsers": "所有用户"
+    "groupTruncated": "仅显示 {{total}} 条中的 {{shown}} 条"
   },
   "limits": {
     "cycleCost": "花费",
