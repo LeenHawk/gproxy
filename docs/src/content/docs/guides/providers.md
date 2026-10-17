@@ -32,6 +32,7 @@ provider form should render.
 | `cline` | Cline's own account at `api.cline.bot` | `{"api_key"}` or OAuth |
 | `cloudflare_ai_gateway` | Cloudflare AI Gateway over the REST API; account and gateway per credential, credit balance | `{"api_key", "account_id", "gateway_id"?}` |
 | `codex` | A ChatGPT account through the Codex backend: Responses over SSE and WebSocket, `/wham/usage` | OAuth |
+| `commandcode` | Command Code CLI: native generation, model catalogue, credit balance, billing-period spend/request counts and usage windows | `{"api_key"}` or browser authorization (paste the issued key) |
 | `copilotcli` | GitHub Copilot through the `copilot` CLI | GitHub OAuth token |
 | `custom` | Any API-key endpoint speaking OpenAI, Claude or Gemini natively | `{"api_key"}` |
 | `dashscope` | Alibaba DashScope: the OpenAI and Anthropic modes, rerank, native image generation | `{"api_key"}` |

@@ -10,6 +10,7 @@
 /// ability helpers.
 #[cfg(any(
     feature = "cline",
+    feature = "commandcode",
     feature = "cloudflare_ai_gateway",
     feature = "copilotcli",
     feature = "deepseek",

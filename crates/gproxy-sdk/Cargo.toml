@@ -23,6 +23,7 @@ claudeweb = ["gproxy-channel/claudeweb", "gproxy-client/wreq"]
 cline = ["gproxy-channel/cline"]
 cloudflare_ai_gateway = ["gproxy-channel/cloudflare_ai_gateway"]
 codex = ["gproxy-channel/codex", "gproxy-client/reqwest-native"]
+commandcode = ["gproxy-channel/commandcode"]
 copilotcli = ["gproxy-channel/copilotcli", "gproxy-client/wreq"]
 custom = ["gproxy-channel/custom"]
 dashscope = ["gproxy-channel/dashscope"]
@@ -55,6 +56,7 @@ channels = [
     "cline",
     "cloudflare_ai_gateway",
     "codex",
+    "commandcode",
     "copilotcli",
     "custom",
     "dashscope",

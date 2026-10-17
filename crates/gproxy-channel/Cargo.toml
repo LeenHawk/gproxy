@@ -87,6 +87,8 @@ claudeweb = [
 # headers, the `{success, data}` envelope its REST surface wraps replies in,
 # its own recommended-model catalogue, plan-usage windows and credit balance.
 cline = ["dep:base64", "dep:futures-util", "dep:time", "dep:web-time"]
+# Command Code CLI: /alpha/generate NDJSON, public model catalog and billing.
+commandcode = ["dep:futures-util", "dep:getrandom", "dep:percent-encoding", "dep:time"]
 # GitHub Copilot CLI: a GitHub OAuth token from a device login, exchanged
 # through CredentialRefresh for the short-lived Copilot token that Chat
 # Completions actually presents, the CLI's editor-identity headers and the

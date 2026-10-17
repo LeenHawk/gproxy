@@ -22,6 +22,7 @@ export function CredentialLoginDialog({ provider, onClose }: { provider: Credent
   const ownership = useOwnerChoices()
   const [owner, setOwner] = useState(ownership.defaultOwner)
   const [label, setLabel] = useState("")
+  const browserKey = provider.channel === "commandcode"
   const modes = provider.loginModes.filter(mode => mode !== "api_key")
   const [mode, setMode] = useState(modes[0])
   const [cookie, setCookie] = useState("")
@@ -88,8 +89,11 @@ export function CredentialLoginDialog({ provider, onClose }: { provider: Credent
         </div>
       </Field> : null}
       {auth ? <>
-        <p className="text-sm text-muted-foreground">{t(auth.redirectUri ? "management.callbackHelp" : "management.authorizationCodeHelp")}</p>
-        <Field><FieldLabel htmlFor="login-callback">{t(auth.redirectUri ? "management.callbackUrl" : "management.authorizationCode")}</FieldLabel><Textarea id="login-callback" autoComplete="off" value={callback} onChange={e => setCallback(e.target.value)} disabled={busy} /></Field>
+        <p className="text-sm text-muted-foreground">{t(browserKey ? "management.commandCodeKeyHelp" : auth.redirectUri ? "management.callbackHelp" : "management.authorizationCodeHelp")}</p>
+        <Field>
+          <FieldLabel htmlFor="login-callback">{t(browserKey ? "management.authorizationKey" : auth.redirectUri ? "management.callbackUrl" : "management.authorizationCode")}</FieldLabel>
+          {browserKey ? <Input id="login-callback" type="password" autoComplete="off" value={callback} onChange={e => setCallback(e.target.value)} disabled={busy} /> : <Textarea id="login-callback" autoComplete="off" value={callback} onChange={e => setCallback(e.target.value)} disabled={busy} />}
+        </Field>
         <Button disabled={busy || !callback.trim()} onClick={() => complete.mutate()}>{t("management.completeLogin")}</Button>
       </> : null}
       {device ? <>

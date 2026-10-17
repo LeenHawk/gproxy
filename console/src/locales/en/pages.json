@@ -781,6 +781,8 @@
     "authorizationUrl": "Authorization URL",
     "openAuthorization": "Open in new tab",
     "authorizationCodeHelp": "After authorization, paste the authorization code shown by the provider.",
+    "authorizationKey": "Sign-in key",
+    "commandCodeKeyHelp": "Authorize on the official Command Code website, then copy the key from its “Copy your API key” page and paste it below. If prompted for local-network access, you can decline it. GProxy can run on a remote server; no CLI installation is needed.",
     "authorizationCode": "Authorization code",
     "callbackHelp": "After authorization, copy the full callback URL from the address bar, including code and state. A local callback page may fail to load; its address still contains the result.",
     "callbackUrl": "Full callback URL",

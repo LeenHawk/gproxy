@@ -36,6 +36,7 @@ pub(crate) mod code_assist;
 /// `kimi`, `opencode`, `openrouter` and `xai`, among others.
 #[cfg(any(
     feature = "cloudflare_ai_gateway",
+    feature = "commandcode",
     feature = "nvidia",
     feature = "cline",
     feature = "copilotcli",

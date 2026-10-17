@@ -781,6 +781,8 @@
     "authorizationUrl": "授權網址",
     "openAuthorization": "在新分頁開啟",
     "authorizationCodeHelp": "完成授權後，貼上授權頁面顯示的授權碼。",
+    "authorizationKey": "登入金鑰",
+    "commandCodeKeyHelp": "在 Command Code 官網授權後，從官網「複製 API key」頁面複製登入金鑰並貼到下方。如瀏覽器詢問本機網路權限，可以拒絕。GProxy 可以部署在遠端伺服器，無需安裝 CLI。",
     "authorizationCode": "授權碼",
     "callbackHelp": "授權後從網址列複製完整回呼 URL，包含 code 和 state。本機回呼頁面可能無法開啟，但網址中仍包含授權結果。",
     "callbackUrl": "完整回呼 URL",

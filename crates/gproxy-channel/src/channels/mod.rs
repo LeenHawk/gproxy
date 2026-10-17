@@ -50,6 +50,7 @@ channels! {
     "cline" => cline, cline::Cline;
     "cloudflare_ai_gateway" => cloudflare_ai_gateway, cloudflare_ai_gateway::CloudflareAiGateway;
     "codex" => codex, codex::Codex;
+    "commandcode" => commandcode, commandcode::CommandCode;
     "copilotcli" => copilotcli, copilotcli::CopilotCli;
     "custom" => custom, custom::Custom;
     "dashscope" => dashscope, dashscope::DashScope;
@@ -82,6 +83,7 @@ channels! {
     feature = "azure",
     feature = "claudeapi",
     feature = "codex",
+    feature = "commandcode",
     feature = "claudecode",
     feature = "claudeweb",
     feature = "cline",

@@ -26,6 +26,7 @@ description: "选择渠道、添加供应商与凭证，配置登录、额度查
 | `cline` | Cline 自家账号，`api.cline.bot` | `{"api_key"}` 或 OAuth |
 | `cloudflare_ai_gateway` | 经 REST API 使用 Cloudflare AI Gateway；account 与 gateway 按凭据存放，额度余额 | `{"api_key", "account_id", "gateway_id"?}` |
 | `codex` | 经 Codex 后端使用 ChatGPT 账号：HTTP SSE 与 WebSocket 上的 Responses、`/wham/usage` | OAuth |
+| `commandcode` | Command Code CLI：原生生成接口、动态模型目录、余额、账期消费／请求数与用量窗口 | `{"api_key"}` 或浏览器授权（回传登录密钥，支持远程部署） |
 | `copilotcli` | 经 `copilot` CLI 使用 GitHub Copilot | GitHub OAuth 令牌 |
 | `custom` | 任何原生讲 OpenAI、Claude 或 Gemini 的 API-key 端点 | `{"api_key"}` |
 | `dashscope` | 阿里 DashScope：OpenAI 模式、Anthropic 模式、rerank 与原生多模态图像 API | `{"api_key"}` |
