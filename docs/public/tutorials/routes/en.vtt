@@ -1,0 +1,68 @@
+WEBVTT
+
+1
+00:00:00.400 --> 00:00:03.180
+Prepare two provider connections.
+
+2
+00:00:03.200 --> 00:00:09.500
+Here we add a backup Codex connection, keep the official address, and
+select the system proxy if needed.
+
+3
+00:00:10.500 --> 00:00:17.162
+Create a model route named demo-balanced, select the weighted strategy,
+and set the maximum attempts to two.
+
+4
+00:00:18.100 --> 00:00:21.217
+Add a model from each provider to the route.
+
+5
+00:00:21.237 --> 00:00:25.092
+Set both tiers to zero, with weights of three and one.
+
+6
+00:00:25.112 --> 00:00:29.262
+Requests are balanced by weight within the same tier and health state.
+
+7
+00:00:30.250 --> 00:00:34.918
+For primary and backup operation, change the strategy to failover.
+
+8
+00:00:34.938 --> 00:00:39.055
+Keep the primary at tier zero and set the backup to tier one.
+
+9
+00:00:39.075 --> 00:00:41.600
+The lower tier is preferred.
+
+10
+00:00:42.600 --> 00:00:49.600
+Next, make the primary return a simulated HTTP 503 error to check
+whether the backup can take over.
+
+11
+00:00:50.500 --> 00:00:53.705
+The client still requests the same route name.
+
+12
+00:00:53.725 --> 00:00:57.100
+The reply shown here comes from a real request.
+
+13
+00:00:58.100 --> 00:01:01.205
+Open the logs using the request ID.
+
+14
+00:01:01.225 --> 00:01:05.642
+The primary returned 503 and the backup returned 200.
+
+15
+00:01:05.663 --> 00:01:09.413
+One downstream request produced two upstream calls.
+
+16
+00:01:10.400 --> 00:01:15.350
+After the demonstration, restore the primary provider’s normal address.

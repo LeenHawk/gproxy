@@ -1,0 +1,64 @@
+WEBVTT
+
+1
+00:00:00.400 --> 00:00:04.142
+Create a regular user with a name and sign-in password.
+
+2
+00:00:04.162 --> 00:00:06.418
+Select the user role.
+
+3
+00:00:06.438 --> 00:00:11.050
+Use a regular account when configuring model access restrictions.
+
+4
+00:00:12.050 --> 00:00:16.480
+Open the user’s cost budgets and add a monthly budget of ten dollars.
+
+5
+00:00:16.500 --> 00:00:22.025
+Costs use your configured model prices and are separate from the
+upstream account balance.
+
+6
+00:00:23.000 --> 00:00:27.955
+Add an allow rule for demo-user and set the model pattern to demo-*.
+
+7
+00:00:27.975 --> 00:00:31.292
+This user can access matching model routes.
+
+8
+00:00:31.312 --> 00:00:34.475
+Other models remain denied by default.
+
+9
+00:00:35.450 --> 00:00:39.755
+Create a client key for this user and give it a recognizable name.
+
+10
+00:00:39.775 --> 00:00:42.542
+Keep management access disabled.
+
+11
+00:00:42.562 --> 00:00:46.938
+Without an additional key budget, the user’s budget still applies.
+
+12
+00:00:47.900 --> 00:00:51.392
+Copy the key immediately and save it in the client.
+
+13
+00:00:51.412 --> 00:00:58.088
+Secret retention is disabled here, so the complete value cannot be
+revealed again after closing this dialog.
+
+14
+00:00:59.050 --> 00:01:02.668
+The new key can call demo-chat and receive a reply.
+
+15
+00:01:02.688 --> 00:01:09.538
+A model outside the allowed pattern returns HTTP 403, confirming that
+the permission rule is active.

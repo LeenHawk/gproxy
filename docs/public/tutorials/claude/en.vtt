@@ -1,0 +1,20 @@
+WEBVTT
+
+1
+00:00:00.400 --> 00:00:07.805
+Set ANTHROPIC_BASE_URL to the local GPROXY address, then export the
+gateway key as ANTHROPIC_AUTH_TOKEN.
+
+2
+00:00:07.825 --> 00:00:12.962
+This example uses a GPT model and sets its context window accordingly.
+
+3
+00:00:13.950 --> 00:00:20.492
+Use the model option to select a gateway model or route, and send a
+simple request in manual permission mode.
+
+4
+00:00:20.512 --> 00:00:25.900
+This custom model produces an identification notice, followed by the
+real reply.

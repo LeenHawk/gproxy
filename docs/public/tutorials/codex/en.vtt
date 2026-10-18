@@ -1,0 +1,32 @@
+WEBVTT
+
+1
+00:00:00.400 --> 00:00:04.830
+Add GPROXY as a provider in the Codex configuration file.
+
+2
+00:00:04.850 --> 00:00:10.692
+Use the local base URL ending in slash v1, and set the wire API to
+responses.
+
+3
+00:00:10.712 --> 00:00:14.612
+Select a model route that already exists in the gateway.
+
+4
+00:00:15.600 --> 00:00:21.692
+Export the gateway key as the GPROXY_API_KEY environment variable named
+in the configuration.
+
+5
+00:00:21.712 --> 00:00:24.988
+The key is entered without displaying its value.
+
+6
+00:00:26.000 --> 00:00:29.092
+Run codex exec with a simple prompt.
+
+7
+00:00:29.112 --> 00:00:36.350
+The terminal identifies GPROXY as the provider and receives a real
+reply, confirming that the client is connected.

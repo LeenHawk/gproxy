@@ -1,0 +1,33 @@
+WEBVTT
+
+1
+00:00:00.400 --> 00:00:04.280
+Add GPROXY in Cherry Studio’s model provider settings.
+
+2
+00:00:04.300 --> 00:00:10.013
+Enter the gateway key and set the OpenAI endpoint to the local address
+ending in slash v1.
+
+3
+00:00:11.000 --> 00:00:16.392
+Load the model list, search for the gateway model or route, and add the
+selected model.
+
+4
+00:00:16.412 --> 00:00:20.275
+This example uses gpt-6.1-sol.
+
+5
+00:00:21.250 --> 00:00:26.638
+Confirm the model configuration, enable the provider, and return to the
+chat page.
+
+6
+00:00:27.550 --> 00:00:31.780
+Choose the model under GPROXY in the chat window and send a message.
+
+7
+00:00:31.800 --> 00:00:36.475
+The real reply confirms that Cherry Studio is connected through the
+gateway.

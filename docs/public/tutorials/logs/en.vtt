@@ -1,0 +1,54 @@
+WEBVTT
+
+1
+00:00:00.400 --> 00:00:03.855
+Enable downstream and upstream logs in Settings.
+
+2
+00:00:03.875 --> 00:00:10.050
+Turn on body recording when you need to inspect message contents, and
+keep the default redaction enabled.
+
+3
+00:00:11.050 --> 00:00:16.118
+When a request fails, find its record by time, model, or request ID.
+
+4
+00:00:16.138 --> 00:00:18.992
+Here, no upstream response arrived.
+
+5
+00:00:19.013 --> 00:00:23.800
+The request URL in the details helps locate the configuration problem.
+
+6
+00:00:24.800 --> 00:00:30.500
+Check the provider address, restore the correct configuration, and send
+the request again.
+
+7
+00:00:31.450 --> 00:00:35.105
+The new request returns HTTP 200.
+
+8
+00:00:35.125 --> 00:00:40.438
+Compare the records before and after the change to confirm that the
+connection is working again.
+
+9
+00:00:41.400 --> 00:00:48.092
+Filter global usage by user to inspect request counts, input and output
+tokens, costs, and trends.
+
+10
+00:00:48.112 --> 00:00:51.912
+You can also group the results by model or provider.
+
+11
+00:00:52.900 --> 00:00:57.680
+Open a usage record to inspect tokens and cost for an individual call.
+
+12
+00:00:57.700 --> 00:01:03.475
+Costs depend on your configured model prices and do not represent the
+upstream account balance.
