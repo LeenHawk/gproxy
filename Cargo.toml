@@ -135,7 +135,7 @@ opendal-service-s3 = { version = "0.59", default-features = false }
 opendal-http-transport-reqwest = { version = "0.59", default-features = false }
 mysql_async = { version = "0.37", default-features = false, features = ["default-rustls"] }
 openssl-sys = "0.9"
-p256 = { version = "0.13", features = ["ecdsa", "pem"] }
+p256 = { version = "0.14", features = ["ecdsa", "pem"] }
 percent-encoding = "2"
 paste = "1"
 proc-macro2 = "1"
