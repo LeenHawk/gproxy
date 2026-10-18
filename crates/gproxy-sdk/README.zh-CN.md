@@ -2,7 +2,7 @@
 
 [English](README.md) | 简体中文
 
-宿主嵌入用的 GPROXY 句柄。`gproxy-core` 只负责按调用方给定的 Provider 执行请求：
+宿主嵌入用的 GPROXY 句柄。`gproxy-core` 只负责按调用方给定的供应商执行请求：
 它不写配置、不解析模型名、也不知道别的实例改了什么。这一层补上其余部分——用默认
 实现装配出 `Core`，承担推进 `settings.config_revision` 的配置写入，把一次登录变成
 一行凭证，把模型名解析成执行计划，并通过共享 cache 与持久 revision 轮询让同一部署
@@ -100,7 +100,7 @@ let (response, usage) = execution.into_parts();
 # }
 ```
 
-`connect` 是同一套 builder 的 websocket 握手版本。应用层决定的一切——允许的 Provider
+`connect` 是同一套 builder 的 websocket 握手版本。应用层决定的一切——允许的供应商
 与凭证、预算链、会话——都由调用方传入；这里不对任何人做鉴权。
 
 Responses 的 `connect().send()` 使用会话驱动，逐轮准入生成和 steering 后继，
@@ -113,18 +113,18 @@ Responses 的 `connect().send()` 使用会话驱动，逐轮准入生成和 stee
 
 | 名字 | 解析为 | 尝试预算 |
 |---|---|---|
-| 没有模型 | 全部启用的 Provider，无上游模型 | `settings.max_attempts` |
+| 没有模型 | 全部启用的供应商，无上游模型 | `settings.max_attempts` |
 | 暴露的模型名 | 该路由启用的成员 | 路由自己的 |
-| `Provider 名/模型` | 那一个 Provider | `settings.max_attempts` |
+| `供应商名/模型` | 那一个供应商 | `settings.max_attempts` |
 | 其他 | `SdkError::UnknownModel` | — |
 
 暴露名精确匹配，且先于前缀形式，所以运营者可以把字面量 `openai/gpt-5` 暴露出来。
-前缀永远是 Provider 名，不是渠道 id。
+前缀永远是供应商名，不是渠道 id。
 
-候选随后按渠道、允许的 Provider id、允许的凭证 id 收窄——最后一项正是应用层把某个
+候选随后按渠道、允许的供应商 id、允许的凭证 id 收窄——最后一项正是应用层把某个
 组织的凭证挡在别人请求之外的手段。禁用、已退役、`Dead` 的凭证直接去掉。被临时封禁的
-凭证在该 Provider 还有未封禁凭证时去掉；若某 Provider 的凭证**全部**被封禁，则保留并
-排在所有健康 Provider 之后——限流是最后手段，不是故障。名字解析成功但无处可发是
+凭证在该供应商还有未封禁凭证时去掉；若某供应商的凭证**全部**被封禁，则保留并
+排在所有健康供应商之后——限流是最后手段，不是故障。名字解析成功但无处可发是
 `SdkError::NoTarget`，与"名字不认识"是两回事。
 
 排序为 `(tier, 健康度, 权重倒序, 稳定 id)`。tier 是硬偏好；只有首段——与第一个候选
@@ -133,10 +133,10 @@ tier 与健康度相同的那一串——参与均衡，由路由策略决定：
 
 ## 失败转移
 
-core 已经在单个 Provider 的凭证之间重试。`send` 是另一个维度，只在另一个 Provider
+core 已经在单个供应商的凭证之间重试。`send` 是另一个维度，只在另一个供应商
 可能救得回来时才换下一个：
 
-| 结果 | 换下一个 Provider |
+| 结果 | 换下一个供应商 |
 |---|---|
 | `NoUsableCredential`、`CredentialDead`、`RefreshContended` | 是 |
 | `ContinuationElsewhere` | 是 |
@@ -148,7 +148,7 @@ core 已经在单个 Provider 的凭证之间重试。`send` 是另一个维度�
 
 尝试预算跨目标共享：每个目标最多拿到自己凭证数那么多次、且不超过剩余额度，因此一个
 计划的上游调用次数不会超过它的 `max_attempts`。没有目标可换时，最后一个应答原样返回
-——最后一个 Provider 的 429 就是调用方的 429，不会被换成别的错误。请求体缓冲一次以便
+——最后一个供应商的 429 就是调用方的 429，不会被换成别的错误。请求体缓冲一次以便
 重放；超过 `max_request_body_bytes` 的流式体保持流式，计划裁剪为单个目标。
 
 ## 会话
@@ -169,7 +169,7 @@ core 已经在单个 Provider 的凭证之间重试。`send` 是另一个维度�
 
 ## 凭证登录
 
-`gproxy.login()` 把一个人的浏览器会话变成一行凭证。三种流程，取决于该 Provider 的渠道
+`gproxy.login()` 把一个人的浏览器会话变成一行凭证。三种流程，取决于该供应商的渠道
 实现了哪几种——`Gproxy::channels()` 会报出每个渠道的 `login_modes`，向渠道要一个它没有
 的流程就是 `SdkError::Unsupported`。
 
@@ -221,7 +221,7 @@ println!("credential {}", created.credential_id);
 一次通知。密钥在语句构造**之前**就用配置好的 codec 密封，渠道与数据库之间没有任何一环
 见过明文，也没有任何东西把它送回去——返回的只有凭证 id。两种 OAuth 流程的 `auth_kind`
 是 `oauth`，cookie 交换是 `cookie`；归属三列原样透传；调用方没给标签时，默认标签由渠道
-名与上游报出的账号拼成，并在该 Provider 的既有标签里去重。
+名与上游报出的账号拼成，并在该供应商的既有标签里去重。
 
 ## 管理面
 
@@ -229,7 +229,7 @@ println!("credential {}", created.credential_id);
 
 | 家族 | 表 | CRUD 之外 |
 |---|---|---|
-| `providers()` | `providers` | `reset_routing_defaults(provider_id)` 一次提交清掉该 Provider 的操作规则与 URL |
+| `providers()` | `providers` | `reset_routing_defaults(provider_id)` 一次提交清掉该供应商的操作规则与 URL |
 | `credentials()` | `credentials` | `reveal_secret`、`set_status`、`refresh`、`quota_probe`、`quota_read`、`quota_reset_credits`、`quota_reset`、`quota_reset_with`、`health_reset`、`limit_status` |
 | `models()` / `provider_models()` | `models`、`provider_models` | |
 | `routes()` / `route_members()` | `routes`、`route_members` | |
@@ -283,7 +283,7 @@ publish  Invalidation::ConfigurationChanged { revision, scopes }
 
 暴露名按精确匹配，但带 `/` 的名字并不自由：解析时会把未知名字的第一段读作收窄前
 缀。`codex/gpt-5` 意为“`codex` 渠道上的该模型”，`my-openai/gpt-5` 意为“`my-openai`
-这个 Provider 上的该模型”。因此第一段是已注册渠道 id 或现有 Provider 名的暴露名永
+这个供应商上的该模型”。因此第一段是已注册渠道 id 或现有供应商名的暴露名永
 远走不到自己的路由，写入时即被拒绝，而不是留到运行期静默失效。其余都没问题：
 `coding/fast` 就是个好名字。
 
@@ -351,13 +351,13 @@ publish  Invalidation::ConfigurationChanged { revision, scopes }
 `manage().catalog()` 的答案来自这个二进制，不来自数据库。
 
 - `channels()`——每个编译进来的渠道作为 `ChannelDescriptor`：登录方式、能力，以及
-  Provider 表单该渲染哪些配置键。与 `Gproxy::channels()` 是同一份列表。
+  供应商表单该渲染哪些配置键。与 `Gproxy::channels()` 是同一份列表。
 - `default_models()`——自带的模型目录：这个版本知道的模型名、上下文窗口与默认价
   格。它是生成资产时的快照，不是实时目录。
 - `apply_default_prices({ providerId, modelIds, overwrite })`——把目录价格写成
-  `price_rules` 及其 rates 与 tiers，一次提交。不给 Provider 时用目录自己的
-  `*fragment*` 通配与 priority，一条规则就给该模型在所有 Provider 上定价；给了
-  Provider 则用字面模型名作 pattern、priority 为 0。`overwrite: false` 正是重复应用
+  `price_rules` 及其 rates 与 tiers，一次提交。不给供应商时用目录自己的
+  `*fragment*` 通配与 priority，一条规则就给该模型在所有供应商上定价；给了
+  供应商则用字面模型名作 pattern、priority 为 0。`overwrite: false` 正是重复应用
   目录也安全的原因——运维改过的规则保留其修改，并报为 `skipped`。
 - `tls_presets()`——六种客户端身份，形式就是 `gproxy_client::EmulationConfig` 对
   象，可直接存进连接配置的 `emulation`。只有 `wreq` 后端会呈现它。
@@ -374,8 +374,8 @@ publish  Invalidation::ConfigurationChanged { revision, scopes }
 从外面看是什么样——`Global`（实例默认配置）、`Provider`、`Credential`（就是它的调用
 真正用的那条传输），或者 `Proxy { url }`，用来测一个还没配置在任何地方的代理。返回
 `{ ok, latencyMs, ip, colo, error }`。**网络失败是 `ok: false` 加一个原因，不是
-`Err`**：“上游不可达”正是提问者要的答案。`Err` 意味着请求本身错了——Provider 不存
-在，或凭证不属于这个 Provider。
+`Err`**：“上游不可达”正是提问者要的答案。`Err` 意味着请求本身错了——供应商不存
+在，或凭证不属于这个供应商。
 
 `model_test({ providerId, model, credentialId })` 与
 `discover_models(provider_id, credential_id)` 完全按调用方请求的路径走 `Core`。
@@ -383,8 +383,8 @@ publish  Invalidation::ConfigurationChanged { revision, scopes }
 行**，归属到 scope `gproxy-sdk:admin` 与 API key id `admin-probe`。没有 dry run：没
 真打上游的测试什么也没测到。一次尝试、三十秒 deadline、自身不带预算。
 
-`discover_models` 用 Provider 自己的 dialect 去问，因此不发生任何转换，拿到的就是上
-游自己的名字；每一个都带 `known`（该 Provider 已有 `provider_models` 行）与
+`discover_models` 用供应商自己的 dialect 去问，因此不发生任何转换，拿到的就是上
+游自己的名字；每一个都带 `known`（该供应商已有 `provider_models` 行）与
 `hasDefaultPrice`（自带目录能给它定价）。`apply_discovered(provider_id, names)` 插入
 这些行并跳过已有的，所以同一次发现应用两遍与一遍等价。
 
@@ -444,13 +444,13 @@ settings 行，绑定在一个固定身份上，因此数据库的副本里没�
 一个更小的数字当成全部事实。`trend` 还有第二重边界：`bucketMs` 为零或负、区间反向、
 以及会产生超过 `query::MAX_TREND_BUCKETS`（5 000）个桶的区间，一律直接拒绝。
 
-有两个数不来自文档。成本读自带索引的 `cost` 列——结算时写一次；只有按 Provider 的
+有两个数不来自文档。成本读自带索引的 `cost` 列——结算时写一次；只有按供应商的
 切分会去读 `metrics` 里的定价金额，因为明细只存在于那里。而当被扫描的记录对币种不
 一致时 `currency` 为 `None`：把美元和欧元加进同一个数字不叫合计。
 
-因此按 `provider` 分组是按 exchange 而不是按行的：一个从某 Provider 失败转移到另一
+因此按 `provider` 分组是按 exchange 而不是按行的：一个从某供应商失败转移到另一
 个的请求会同时计入两者，各自带着那次尝试自己的 token 与价格，`requests` 对每个不同
-的 Provider 只计一次。完全没有到达上游的记录落在空键下，这样各组仍然能加回总计。
+的供应商只计一次。完全没有到达上游的记录落在空键下，这样各组仍然能加回总计。
 
 单条记录上的 token 计数是 `Option<u64>`——上游没报告某个字段不等于它测得零——而所有
 合计都是普通 `u64`，因为“什么都没报告”的和确实是零。
@@ -501,7 +501,7 @@ GPROXY_TS_OUT=console/src/generated \
 控制台里通过类型检查——最后写一份把全部类型再导出一遍的 `index.ts`。
 
 渠道目录也在其中：`dto` 把 `gproxy-channel` 的 `ChannelDescriptor` 及其组成类型再
-导出一遍，本 crate 的 `ts` feature 会连带打开那个 crate 的。控制台渲染 Provider 表单
+导出一遍，本 crate 的 `ts` feature 会连带打开那个 crate 的。控制台渲染供应商表单
 用的就是渠道自己返回的描述符，那么类型也应该由这个描述符生成，而不是一份下次渠道加
 配置键就会失真的手抄件。
 
@@ -531,7 +531,7 @@ GPROXY_TS_OUT=console/src/generated \
 
 - **身份**：用户、API key、组织、团队、权限、订阅、限流与 OAuth issuer 属于上层
   应用，它通过 `gproxy_store::load_all_data` 读同一个持久 revision。
-- **下游鉴权**：这里不判断调用方是谁；句柄拿到的是 scope 以及允许的 Provider 与
+- **下游鉴权**：这里不判断调用方是谁；句柄拿到的是 scope 以及允许的供应商与
   凭证集合。
 - **server**：没有监听、路由、中间件或 CLI。原生与边缘宿主建在本 crate 之上。
 - **控制台**：本 crate 只生成界面所依据的 TypeScript 类型；界面本身、它的会话处理与

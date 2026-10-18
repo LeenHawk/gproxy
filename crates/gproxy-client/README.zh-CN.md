@@ -68,7 +68,7 @@ RFC 6455 WS／WSS 使用 `pool.get_websocket(&config).await?` 获取句柄。保
 
 ## 配置选择
 
-store 保存具名的 `ConnectionProfile`；宿主按凭证 → Provider 顺序选择第一个非空
+store 保存具名的 `ConnectionProfile`；宿主按凭证 → 供应商顺序选择第一个非空
 `connection_profile_id`，都没有时用渠道自带的 `default_connection()`，再退到全局
 默认 profile，加载整份配置，再构造 `ConnectionConfig`。
 全部未选时使用默认 reqwest／直连；引用的记录不存在时报错，不回退。

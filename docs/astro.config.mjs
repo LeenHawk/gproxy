@@ -162,7 +162,7 @@ export default defineConfig({
             {
               label: 'Providers & Credentials',
               slug: 'guides/providers',
-              translations: { 'zh-CN': 'Provider 与凭证', 'zh-TW': 'Provider 與憑證' },
+              translations: { 'zh-CN': '供应商与凭证', 'zh-TW': '供應商與憑證' },
             },
             {
               label: 'Models & Routes',

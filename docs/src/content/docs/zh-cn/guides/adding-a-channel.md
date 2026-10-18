@@ -20,10 +20,10 @@ description: "一个 v4 渠道的结构：BaseChannel 契约、可选能力 trai
 
 ## 它需要一个渠道吗
 
-渠道是要对着别人的 wire 维护的代码。只有当一行 Provider 说不清它需要什么时——路径随操作
+渠道是要对着别人的 wire 维护的代码。只有当一行供应商说不清它需要什么时——路径随操作
 移动、body 必须被改写、有账号 surface 要读、有客户端身份要呈现——一个厂商才值得一个渠道。
 
-全部差别只是一个源和一个 header 的厂商，就是一个 `custom` Provider。见
+全部差别只是一个源和一个 header 的厂商，就是一个 `custom` 供应商。见
 [不需要渠道的厂商](/zh-cn/guides/providers/#接入兼容服务)。
 
 ## 契约
@@ -35,7 +35,7 @@ description: "一个 v4 渠道的结构：BaseChannel 契约、可选能力 trai
 两个准备钩子的默认实现都是"不支持"，因此**一个渠道恰好支持它准备或覆写的那些，绝不更多**。
 
 ```text
-宿主选定 Provider、凭证、client
+宿主选定供应商、凭证、client
   → ChannelBinding::new(&channel, provider, credential, client)
   → binding.send(OperationKey, WireRequest<HttpBody>)
     binding.connect(OperationKey, WireRequest<()>)
@@ -51,7 +51,7 @@ description: "一个 v4 渠道的结构：BaseChannel 契约、可选能力 trai
 | `ProviderView` | `id`、`channel`、可选 `base_url`，以及渠道自己解码成类型化设置的 `config` JSON |
 | `CredentialView` | `id`、`provider_id`、`auth_kind`、`secret` JSON（无 `Debug`、无 `Serialize`）、宿主记录的公开 `metadata`、`version`、`expires_at_ms` |
 | `OperationContext` | 两个视图、操作的方言、`WireRequest`、一个持有的 client、跨请求状态、宿主 `instance_id` 和可选的端点覆盖 |
-| `CredentialContext` | 刷新、配额与服务用的 Provider、凭证和 client |
+| `CredentialContext` | 刷新、配额与服务用的供应商、凭证和 client |
 
 ### 每个渠道都遵守的规则
 
@@ -59,7 +59,7 @@ description: "一个 v4 渠道的结构：BaseChannel 契约、可选能力 trai
   经 `context.client`，并且可以在响应流结束后继续持有它完成收尾工作。
 - **来源鉴权绝不到达上游。** 转发助手丢弃逐跳 header，外加 `host`、`content-length`、
   `authorization`、`x-api-key`、`x-goog-api-key` 和 `api-key`；渠道从凭证里加上自己的
-  鉴权。全局白名单、Provider 的 `allowed_headers` 与渠道声明的头取并集，
+  鉴权。全局白名单、供应商的 `allowed_headers` 与渠道声明的头取并集，
   `content-type` 总是保留。未配置或空列表不增加允许项。
 - **端点覆盖是完整的方法 URL**，替换 base URL 加渠道默认路径——不是一个拿来再拼的 base。
 - **非 2xx 是一个响应，不是一个错误。** 状态、header 和一个惰性 body 原样回来。错误变体
@@ -99,7 +99,7 @@ description: "一个 v4 渠道的结构：BaseChannel 契约、可选能力 trai
 `QuotaModel::allows_paid_usage` 读取凭证 metadata 标志 `allow_paid_usage`，控制台正是据此
 显示那个开关）。
 
-跨请求记忆由宿主限定在一个 Provider 加一把凭证的范围内，并以 CAS 写入。binding 的默认实现
+跨请求记忆由宿主限定在一个供应商加一把凭证的范围内，并以 CAS 写入。binding 的默认实现
 拒绝一切写入，因此想要状态的渠道必须被明确授予。
 
 ### 登录口袋
@@ -110,7 +110,7 @@ description: "一个 v4 渠道的结构：BaseChannel 契约、可选能力 trai
 
 **这个口袋可以带密钥**，与宿主会当作凭证 metadata 公开的 `provider_fields` 不同：它活在
 宿主的登录会话里，短命、由 cache 承载、从不被渲染，登录结束就没了。任何必须活过登录的
-东西都要从 exchange 返回——公开事实进 metadata，秘密进 provider secrets，后者与令牌一起
+东西都要从 exchange 返回——公开事实进 metadata，秘密进供应商 secrets，后者与令牌一起
 密封，永远不会变成 metadata。
 
 ## 九步
@@ -140,7 +140,7 @@ description: "一个 v4 渠道的结构：BaseChannel 契约、可选能力 trai
    ```text
    src/channels/acme/
      mod.rs        id、单元结构体、re-export、模块文档
-     config.rs     Provider 的 `config` JSON，serde(default)，忽略未知键
+     config.rs     供应商的 `config` JSON，serde(default)，忽略未知键
      request.rs    prepare / prepare_connect / 被覆写的操作
      oauth.rs      登录与刷新能力
      quota.rs      配额能力
@@ -152,19 +152,19 @@ description: "一个 v4 渠道的结构：BaseChannel 契约、可选能力 trai
    源码。wire 真相绝不是另一个渠道的代码。
 
 4. **实现 `BaseChannel`。** 最少是 `id`、`native_dialects` 和 `prepare`。结构体是无状态
-   单元，所以一个实例服务该渠道的每一个 Provider。
+   单元，所以一个实例服务该渠道的每一个供应商。
 
    也要覆写 `descriptor`。默认实现只读能力访问器，而只有渠道自己知道它的显示名，以及它
-   从 Provider `config` JSON 里解码哪些键。**那份 descriptor 是管理 UI 渲染 Provider 表单
+   从供应商 `config` JSON 里解码哪些键。**那份 descriptor 是管理 UI 渲染供应商表单
    的全部依据**——在 `ts` feature 下它还是一个 TypeScript 类型——所以漏掉的键就是没人能设的键。
 
    当上游需要多次交换、需要本地合成的应答、需要另一种传输，或需要把响应改写成声明的原生
    方言时，覆写具体的操作方法而不是 `prepare`。
 
 5. **声明厂商客户端会发什么。** 如果渠道模拟某个 CLI，导出它的 header 常量并用它构造
-   allow-list，这样 Provider 的 `allowed_headers` 就剥不掉 CLI 自己的 header。把这些身份
+   allow-list，这样供应商的 `allowed_headers` 就剥不掉 CLI 自己的 header。把这些身份
    header 传进转发助手的丢弃列表，让**客户端无法伪造它们**。上游对客户端做指纹时返回一份
-   默认连接配置；凭证或 Provider 上的显式配置依然胜出。
+   默认连接配置；凭证或供应商上的显式配置依然胜出。
 
 6. **把能力做成独立类型**并从访问器返回。守住每个 trait 的规则：刷新返回完整替换而不是
    合并；配额维度从凭证 metadata 读套餐事实，绝不走网络；用量观察者做累积快照，而它的
@@ -174,7 +174,7 @@ description: "一个 v4 渠道的结构：BaseChannel 契约、可选能力 trai
    渠道里；shared 模块只执行渠道要求的事。
 
 8. **测试贴着代码放**在 `tests/<id>.rs`，用 `#![cfg(feature = "…")]` 门控。手工构造
-   Provider 与凭证视图，用一份 fixture 密钥调 `prepare`，断言 URL、注入的鉴权和被丢弃的
+   供应商与凭证视图，用一份 fixture 密钥调 `prepare`，断言 URL、注入的鉴权和被丢弃的
    header。把抓到的帧喂给用量观察者；解析录下来的配额 header 与用量 body。一个脚本化的
    出站 client 用来演练多次调用覆写。**不要从这里测引擎。**
 
@@ -189,7 +189,7 @@ description: "一个 v4 渠道的结构：BaseChannel 契约、可选能力 trai
    | `crates/gproxy-host-edge/Cargo.toml` | `acme = ["gproxy-sdk/acme"]` |
    | `crates/gproxy-app/src/v3/channels.rs` | 把 id 加进 `V4_CHANNELS`，让 v3 导入接受它 |
 
-   重复 id 会被拒绝，而点名了未注册渠道的 Provider 是一个配置错误，不是一次回退。
+   重复 id 会被拒绝，而点名了未注册渠道的供应商是一个配置错误，不是一次回退。
 
 ## 收尾
 
@@ -203,7 +203,7 @@ cargo test   -p gproxy-channel --all-features
 **每个渠道都要能为原生目标和 `wasm32-unknown-unknown` 构建**，这正是 Workers 宿主不是一个
 缩水渠道集的原因。lint 报错要改代码，不是加 `#[allow]`。
 
-进去之后就不需要别的了：新渠道上的 Provider 会带着它的 descriptor 出现在
+进去之后就不需要别的了：新渠道上的供应商会带着它的 descriptor 出现在
 `GET /admin/api/channels` 里，管理 UI 从那份 descriptor 渲染它的表单。
 
 ## 在本仓库之外
@@ -356,12 +356,12 @@ pnpm run deploy
 
 ### 与内置渠道的不同
 
-- **控制台和对待其他渠道一样，从 descriptor 渲染你的渠道**：Provider 表单来自
+- **控制台和对待其他渠道一样，从 descriptor 渲染你的渠道**：供应商表单来自
   `config_keys`，凭证表单来自 `credential_kinds`，登录按钮来自 `login_modes`，配额、重置、
   刷新与付费用量开关来自 `capabilities`。它没有的是为内置 id 写的那些逐渠道润色——量身定制的
   提示文字、模型预设组。
 - **原生二进制的自更新会拒绝安装。** 发布的 release 是本仓库的构建；把它换上来会丢掉你的
-  渠道，下次重启后它上面的每个 Provider 都会失效。请对着新版本重新构建。检查更新照常可用。
+  渠道，下次重启后它上面的每个供应商都会失效。请对着新版本重新构建。检查更新照常可用。
 - **契约跟着 gproxy 的版本走。** 实际上的变化都是增量的——大多数协议类型带
   `#[non_exhaustive]`，`BaseChannel` 的新方法都带默认实现——但请对着你运行的那个版本构建。
   写 `ChannelCapabilities { quota_query: true, ..Default::default() }` 而不是列出每个字段，

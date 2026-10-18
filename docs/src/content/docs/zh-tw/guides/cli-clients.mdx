@@ -25,12 +25,12 @@ Cherry Studio 連線影片教學。
 
 ## 怎麼到達它們
 
-控制面路徑是廠商特有的，所以只在 **Provider 或 namespace 掛載點**上匹配。匹配一條服務
+控制面路徑是廠商特有的，所以只在 **供應商或 namespace 掛載點**上匹配。匹配一條服務
 路由需要一個渠道，而聚合掛載點沒有點名任何渠道。
 
 ```text
 https://gproxy.example/codex/backend-api/wham/profiles/me
-                       ^^^^^ 名为 "codex" 的 Provider（或 namespace）
+                       ^^^^^ 名为 "codex" 的供應商（或 namespace）
 ```
 
 ## 三種檢視
@@ -43,7 +43,7 @@ https://gproxy.example/codex/backend-api/wham/profiles/me
 | `x-gproxy-view: pool` | 同上，但在目標裡的每把憑證上聚合。 |
 | `x-gproxy-view: credential:{id}` | 原始轉發。點名憑證自己的鑑權發往上游，廠商的應答原樣回來。 |
 
-誰能要哪一種由歸屬決定，不是由某個開關決定。目標是呼叫方在該 Provider 上**可見的**憑證
+誰能要哪一種由歸屬決定，不是由某個開關決定。目標是呼叫方在該供應商上**可見的**憑證
 集合——和同一把 key 的模型呼叫能花的是同一批——而只有當呼叫方是實例管理員，或者是擁有
 該集合中**每一把**憑證的那個組織或團隊的 `Admin` 成員時，他們才是這個目標的管理員。
 其餘都是成員，成員只能要 `caller`；`pool` 和 `credential:{id}` 返回 `403`。
@@ -102,7 +102,7 @@ profile、validate、roles、bootstrap、用量、策略限額、帳號設定、
 它們全部解析到 `api.anthropic.com`；`claude.ai` 只提供 cookie 登入，因此渠道在這裡不查它。
 
 在 `caller` 與 `pool` 下，身份、用量與設定類答案由本實例已知的事實合成，其 id 是對
-Provider 和呼叫方身份的穩定雜湊。關於那個共享帳號，既不編造也不洩漏：CLI 顯示的帳號、
+供應商和呼叫方身份的穩定雜湊。關於那個共享帳號，既不編造也不洩漏：CLI 顯示的帳號、
 組織和套餐是 GPROXY 的合成值，不是上游帳號的。
 
 ## GPROXY 作為 OAuth issuer

@@ -23,7 +23,7 @@ let tokens = tokenizer.count("Hello, 世界!")?;
 
 GPT 名称按 tiktoken 的模型映射选择词表，包括 GPT-3.5/4、GPT-4o/4.1/5 和 GPT-OSS，
 也识别 ChatGPT、o1/o3/o4、Codex Mini。tiktoken 尚未识别的新 GPT 名称使用
-`o200k_base`。调用方传入不带 provider 前缀的实际模型名。
+`o200k_base`。调用方传入不带供应商前缀的实际模型名。
 回退词表不代表与该模型原生 tokenizer 的结果相同。
 
 ## 提供词表

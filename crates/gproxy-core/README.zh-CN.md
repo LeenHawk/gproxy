@@ -2,8 +2,8 @@
 
 [English](README.md) | 简体中文
 
-不含下游职责的 Provider 执行引擎。上层完成路由与模型别名解析、调用方认证、策略与
-准入，然后把 Store、Cache 和一个 `ExecutionTarget`（Provider、上游模型、
+不含下游职责的供应商执行引擎。上层完成路由与模型别名解析、调用方认证、策略与
+准入，然后把 Store、Cache 和一个 `ExecutionTarget`（供应商、上游模型、
 允许的凭证集合）交给 core。core 负责协议转换、请求／响应改写、凭证选择／刷新／可用
 性、HTTP 与 WebSocket 上游调用、流式转发、观测与结算、多次调用适配所需的续接状态与
 资源、agent 会话 assignment、账号额度观测、用量抽取和本地 token 估算。
@@ -31,13 +31,13 @@
 
 ## 快照与数据
 
-`CoreData` 保存 Provider、凭证、共享改写规则集、执行限额、估算器、启用的调用方预算和
+`CoreData` 保存供应商、凭证、共享改写规则集、执行限额、估算器、启用的调用方预算和
 价格本。不保存路由、对外模型别名、身份表、权限、OAuth client 白名单、订阅或准入规则；
 这些连同路由亲和
-与跨 Provider 均衡都属于上层。`publish_snapshot` 只接受更新的 revision；请求各自
+与跨供应商均衡都属于上层。`publish_snapshot` 只接受更新的 revision；请求各自
 持有 `Arc`，重载不会中途改变请求。
 
-`ExecutionTarget` 指定一个 Provider、可选的上游模型和确切的允许凭证集合。core 只在
+`ExecutionTarget` 指定一个供应商、可选的上游模型和确切的允许凭证集合。core 只在
 该集合内轮换与重试；空集合是"没有可用凭证"，绝不是全局池。上层给出 attempt 预算、
 截止时间和不透明的隔离 scope。core 不解释用户或 key 的角色。已绑定的远端资源随其
 原始目标与受限凭证一起传入。
@@ -49,7 +49,7 @@ profile、渠道为该凭证声明的 `QuotaDimension`，以及共享的 `Creden
 说明原因，`CoreError::CredentialDead` 告诉调用方需要有人重新登录。
 
 client 按凭证解析，先命中者胜、整份替换不逐字段合并：凭证的 `connection_profile_id` →
-Provider 的 → Setting 的默认 profile → 渠道的 `BaseChannel::default_connection_for(Request)` → `ConnectionConfig::default()`。引用的 profile 缺失或
+供应商的 → Setting 的默认 profile → 渠道的 `BaseChannel::default_connection_for(Request)` → `ConnectionConfig::default()`。引用的 profile 缺失或
 非法时整次装配失败。
 
 Codex 默认使用 reqwest；Claude Code 常规请求使用不带伪装的 wreq。Claude Code 的
@@ -66,7 +66,7 @@ scope 与操作分别记录，坏掉的模型既不藏在健康模型后面，�
 已观测额度窗口，优先选择最早重置的可用凭证。同时间轮询，缺失有效观测时退回轮询，
 阻断凭证不参与选择。独立配置 `session_affinity` 开启时优先复用成功绑定。
 旧 `sticky`／`round_robin_affinity` 默认保持“轮询＋亲和”，显式亲和开关可覆盖此默认值。
-pin 按调用方 scope 与 Provider 隔离。详见[会话识别与选择](../../design/session-identity.md)。
+pin 按调用方 scope 与供应商隔离。详见[会话识别与选择](../../design/session-identity.md)。
 
 所有渠道均提供供应商配置 `forward_thinking`（默认 `true`，Console 中为“传递思考块”）。
 设为 `false` 后，在协议转换和发送上游前，移除 Claude、Responses（含 WebSocket）、Chat、
@@ -85,7 +85,7 @@ context 操作。每个方法返回 `Execution<T>`：protocol 响应或连接，
 |---|---|
 | `load_data` / `reload_data` | 一次 `load_control_data` 批读、装配、存活 block 预热进 cache、自定义词表从文件存储解析一次；单调发布，加载失败保留旧快照 |
 | `reload_credentials` | 按输入顺序重读行并发布到既有槽位；缺失行返回 None 并摘除槽位 |
-| `refresh_credential` | Provider 归属校验、每凭证 cache 租约（其他实例等待，更新的持久版本可直接满足调用）、权威 Store 读取、渠道刷新、密封、`refresh_many` CAS、发布并发出 `CredentialChanged` 通知；`RefreshRejected` 写入带原因的 `Dead` |
+| `refresh_credential` | 供应商归属校验、每凭证 cache 租约（其他实例等待，更新的持久版本可直接满足调用）、权威 Store 读取、渠道刷新、密封、`refresh_many` CAS、发布并发出 `CredentialChanged` 通知；`RefreshRejected` 写入带原因的 `Dead` |
 | `query_credential_quota` | 通过指派 client 调用渠道 `QuotaQuery`；每条 entry 写一行 `credential_quota_cycles`，已声明维度耗尽则打 block |
 | `call_service` / `connect_service` | [service.rs](src/service.rs)：按 `ServiceView` 调用渠道的 `ChannelServices`（没有 `OperationKey` 的厂商 CLI 接口）。`Caller`（任何角色）只用网关对显式 `ServiceRequest::user_id` 的记账和绑定到 `scope` 的资源渲染调用方自己的画面——Member 永远看不到任何凭证的状态；`Pool`（仅 admin）把 target 内的凭证合成为一个账号；`Credential(id)`（仅 admin）用该凭证自己的鉴权原样转发。core 不判断谁是谁的管理员：宿主通过选择 `target.credentials` 表达组织边界，`CallerRole::Admin` 指对这个集合的管理员。core 提供事实来源（`TargetCaller`：按显式 user_id 的 usage 行、`ServiceRequest::budgets` 指定的预算的当前窗口、target 凭证的额度周期、`resource_bindings`），取第一个可用凭证（或指名的那条），单项资源路由沿用绑定记录的凭证。角色不符返回 `Forbidden`，渠道没有 services 返回 `Channel(UnsupportedService)`。运行在**漏斗之外**：没有 attempt、usage、capture 和重试 |
 
@@ -93,7 +93,7 @@ context 操作。每个方法返回 `Execution<T>`：protocol 响应或连接，
 
 每个 attempt 在允许集合内选凭证（enabled、Active、未摘除、对该模型与操作未被 block），
 对一分钟内到期的材料先刷新，在发出前对 Counted 请求维度计数，准备请求并经
-`ChannelBinding` 用 Provider 的方法 URL 分派。流式请求体缓冲到限额以便重试重放；超限
+`ChannelBinding` 用供应商的方法 URL 分派。流式请求体缓冲到限额以便重试重放；超限
 则降为单次尝试。
 
 回答按状态分类：2xx 与客户端 4xx 直接返回；429 写 `RateLimited` block（Retry-After
@@ -128,7 +128,7 @@ capture、计量与改写，原生的拒绝回答重新进入同一分类。
 | 族 | 覆盖 |
 |---|---|
 | Generate | 全部十二个 dialect 对，缓冲与流式；Chat `n`／Gemini `candidateCount` 拆成有日志的子调用；Chat、Claude、Gemini 客户端打到 Responses WebSocket 上游；Responses WebSocket 客户端逐 turn 由 Chat、Claude 或 Gemini HTTP 上游承接 |
-| Models | 列表与单个，OpenAI、Claude、Gemini 之间借助 Provider 模型 supplements |
+| Models | 列表与单个，OpenAI、Claude、Gemini 之间借助供应商模型 supplements |
 | Count tokens | Claude 与 Gemini 目标；OpenAI 作为目标刻意不支持 |
 | Embeddings | OpenAI ↔ Gemini，单条与批量 |
 | Guardian、compact、memory | 四种目标任一；guardian 流式拒绝 |
@@ -146,7 +146,7 @@ capture、计量与改写，原生的拒绝回答重新进入同一分类。
 任何声明维度的 entry 仍持久化为周期记录。
 
 渠道不知道的上限由运营用 `quotas` 行配置：owner 为 `credential`（`owner_id` 是凭证 id）
-或 `provider`（`owner_id` 是 provider id，覆盖该 provider 的每把凭证，除非某把凭证有
+或 `provider`（`owner_id` 是供应商 id，覆盖该供应商的每把凭证，除非某把凭证有
 `window_key` 相同的自己的行）；`metric` 为 `requests`（unit `count`）或 `cost`（unit `USD`）；
 `period` 为 `5h`／`1d`／`7d`（按 `anchor_at_ms` 对齐的固定窗口，未设则 epoch 0）、`1m`
 （UTC 自然月）或 `total`（永不重置）；可选 `model_pattern` glob。组装时在渠道自己的维度
@@ -206,7 +206,7 @@ count-tokens 与 embeddings。base64 媒体、文件 id、URL 与加密数据一
 向宿主与控制台报告 owner 的每个预算及其窗口、`used`、`limit` 和 `resets_at_ms`。
 
 定价是 core 的事。结算时每次交换按快照的 `PriceBook`（`price_rules` 及其
-`price_rates`、`price_tiers`）计价：Provider 规则先于全局规则，在 `model_pattern` glob
+`price_rates`、`price_tiers`）计价：供应商规则先于全局规则，在 `model_pattern` glob
 与可选操作都匹配的规则里 `(priority, id)` 最小者胜；档位按 `actual_service_tier` 与
 `min_prompt_tokens` 选择；token 类按每百万计价，其他 metric 按费率行，条件对用量
 dimensions 匹配（映射见 [pricing.rs](src/pricing.rs)）。结果写在 `ExchangeUsage::cost`
@@ -236,10 +236,10 @@ Setting 的 `enable_upstream_log`、`enable_upstream_log_body` 控制头信息�
 
 | 类型 | trait | 绑定 |
 |---|---|---|
-| `AttemptUpstream` | `Upstream<Target = OperationKey>` | 一次 attempt 的 Provider、固定的凭证版本与 client；自持且可克隆，惰性启动的 fanout 子调用可超出 attempt 栈帧存活 |
-| `ProtocolState` | `StateStore<Scope = StateScope>` | Store 的 ProtocolState 行；scope 是调用方 scope、Provider 与可选会话 |
-| `Resources` | `ResourceAccess<Scope = ResourceScope>` | 经文件存储落 `resource_bindings` 与 `file_objects` 的发布；`Id` 先解析同 scope 的发布，再走 scope Provider 的 files API；`Url` 由匿名 client 在宿主 `FetchPolicy` 之下抓取（`resolve` 只做策略检查，`read` 才发 GET） |
-| `ChannelStateStore` | `gproxy_channel::ChannelState` | 同一批 ProtocolState 行，限定到一个 Provider 与一个凭证，作为 `OperationContext.state` 交给渠道；渠道只选 key，看不到 scope |
+| `AttemptUpstream` | `Upstream<Target = OperationKey>` | 一次 attempt 的供应商、固定的凭证版本与 client；自持且可克隆，惰性启动的 fanout 子调用可超出 attempt 栈帧存活 |
+| `ProtocolState` | `StateStore<Scope = StateScope>` | Store 的 ProtocolState 行；scope 是调用方 scope、供应商与可选会话 |
+| `Resources` | `ResourceAccess<Scope = ResourceScope>` | 经文件存储落 `resource_bindings` 与 `file_objects` 的发布；`Id` 先解析同 scope 的发布，再走 scope 供应商的 files API；`Url` 由匿名 client 在宿主 `FetchPolicy` 之下抓取（`resolve` 只做策略检查，`read` 才发 GET） |
+| `ChannelStateStore` | `gproxy_channel::ChannelState` | 同一批 ProtocolState 行，限定到一个供应商与一个凭证，作为 `OperationContext.state` 交给渠道；渠道只选 key，看不到 scope |
 
 按 URL 读取（请求里以链接给出的媒体：`image_url`、Gemini `file_uri`、Claude 的 URL
 source）是 core 代调用方发起的服务端抓取，因此受 `FetchPolicy`
@@ -251,7 +251,7 @@ multicast 地址，含 IPv4-mapped 形式，无论地址来自 URL 的字面主�
 宿主的网络就是调用方自己的网络，一行即可放开：
 `.fetch_policy(Arc::new(AllowAllFetchPolicy))`；`AllowlistFetchPolicy::new(["cdn.example", "*.media.example"])`
 只信任列出的主机名。抓取走 core 连接池缺省配置的普通 client，绝不走 scope 的凭证
-client，Provider 鉴权不会流向任意 origin；body 受读取限额约束（先看 `Content-Length`），
+client，供应商鉴权不会流向任意 origin；body 受读取限额约束（先看 `Content-Length`），
 `Content-Type`／`Content-Disposition` 填入返回的元数据。两处剩余风险留给宿主：出站
 client 连接时会再解析一次域名，core 无法把连接钉在检查过的地址上（两次解析之间换绑的
 域名会绕过检查——在意的话在前面放出口代理，或只 allow-list 自己掌控的域名）；wasm32

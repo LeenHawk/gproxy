@@ -36,7 +36,7 @@ Cargo feature：
 | `kiro` | `kiro` | 经 Kiro 桌面端使用的 AWS CodeWhisperer：设备登录或 IAM Identity Center 登录、刷新、把 Responses 请求改写成 CodeWhisperer 会话信封、把 AWS event-stream 回包翻译回 Responses SSE、`GetUsageLimits` 的额度窗口 | `OAuthCredential` |
 | `openai` | `openai` | OpenAI 自家平台：完整 OpenAI 面、WebSocket 上的 Responses 与 Realtime、`x-ratelimit-*` 头、`/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
 | `opencode` | `opencode` | OpenCode Zen 与 Go：每档一个 origin，上面同时挂 Chat Completions、Responses 与 Claude Messages 三个面，CLI 的 `x-opencode-session` 会话头、Console 设备登录，Go 档的 `/usage` 窗口 | `{"api_key"}` 或 `OAuthCredential` |
-| `openrouter` | `openrouter` | OpenRouter：把 provider 选路偏好填进 body、`HTTP-Referer`／`X-Title` 归属头、响应里自报的价格、`/v1/auth/key` | `{"api_key"}` |
+| `openrouter` | `openrouter` | OpenRouter：把供应商选路偏好填进 body、`HTTP-Referer`／`X-Title` 归属头、响应里自报的价格、`/v1/auth/key` | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI：按项目与地区寻址 google／anthropic／OpenAI 兼容三个发布者；服务账号密钥经 `CredentialRefresh` 换取访问令牌 | Google 服务账号密钥 |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：默认全局、可配置区域 origin 的 Gemini 面，key 走 query，无项目 | `{"api_key"}` |
 | `trae` | `trae` | Trae 国内／国际版：浏览器 PKCE 登录、设备签名刷新、原生聊天转 OpenAI Chat、账号模型目录与额度查询 | `OAuthCredential` |
@@ -46,7 +46,7 @@ Cargo feature：
 所有渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
 
 `claudeapi`、`openai`、`aistudio` 是三家厂商自己的第一方 API。它们成为渠道而不是
-一个 `custom` Provider，理由都是 `custom` 表达不了的路由布局：Anthropic 的路由由
+一个 `custom` 供应商，理由都是 `custom` 表达不了的路由布局：Anthropic 的路由由
 operation 而不是客户端 path 决定，OpenAI 的 Responses 与 Realtime 要走 socket，
 AI Studio 在同一个 origin 上放了两套面、各要各的凭证头。
 
@@ -122,11 +122,11 @@ Grok Build 的 Responses 默认设置 `store: false`，
 
 ## 不需要渠道的厂商
 
-一个渠道就是一份要跟着别人 wire 维护的代码。只有当"Provider 行表达不了它要的
+一个渠道就是一份要跟着别人 wire 维护的代码。只有当"供应商行表达不了它要的
 东西"时，厂商才值得一个渠道：路径随 operation 移动、body 必须改写、有账号面要读、
 有客户端身份要出示。差别只有一个 origin 加一个头的厂商，就是一个 `custom`
-Provider——下面三个正是如此。这些配方就是完整的 Provider 行，`base_url` 是
-Provider 列，其余都在它的 `config` JSON 里。
+供应商——下面三个正是如此。这些配方就是完整的供应商行，`base_url` 是
+供应商列，其余都在它的 `config` JSON 里。
 
 **NVIDIA NIM**——一个 OpenAI 兼容端点，仅此而已。
 
@@ -170,7 +170,7 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
 `UnsupportedOperation`，所以渠道支持的恰好就是它准备或覆写的那些操作，不多不少。
 
 ```text
-宿主选定 provider、credential、client
+宿主选定供应商、credential、client
   → ChannelBinding::new(&channel, provider, credential, client)
   → binding.send(OperationKey, WireRequest<HttpBody>)
     binding.connect(OperationKey, WireRequest<()>)
@@ -187,7 +187,7 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
 | `ProviderView` | `id`、`channel`、可选 `base_url`、JSON `config`（渠道解码成自己的类型化设置） |
 | `CredentialView` | `id`、`provider_id`、`auth_kind`、JSON `secret`（无 `Debug`、无 `Serialize`）、宿主记录的公开 `metadata`（套餐、账号 id）、`version`、`expires_at_ms` |
 | `OperationContext` | 上述两个视图、操作的 `Dialect`、`WireRequest`、拥有所有权的 `Arc<dyn OutboundClient>`、`ChannelState`、宿主 `instance_id`、可选 `endpoint_override` |
-| `CredentialContext` | 刷新、额度和服务用的 provider、credential、client |
+| `CredentialContext` | 刷新、额度和服务用的供应商、credential、client |
 
 每个渠道都遵守的规则：
 
@@ -196,7 +196,7 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
   一个厂商侧对话）。
 - 源请求的鉴权永远到不了上游。`forwardable` 丢弃逐跳头、`host`、`content-length`、
   `authorization`、`x-api-key`、`x-goog-api-key`、`api-key`；渠道从凭证注入自己的
-  鉴权。客户端头按全局 `allowedHeaders`、provider 的 `config.allowed_headers`
+  鉴权。客户端头按全局 `allowedHeaders`、供应商的 `config.allowed_headers`
   与渠道声明的 `ChannelHeaders` 取并集；`content-type` 总是保留。
   未配置或空列表不增加允许项，不在并集中的客户端头默认丢弃。
 - `endpoint_override` 一旦设置就是完整的方法 URL，替代 `base_url` 加渠道默认路径。
@@ -226,7 +226,7 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
 | `usage_extras` | `UsageExtras` | 厂商自己的用量字段（上游报的价格、自有名字的缓存计数、实际服务的模型），在宿主从渠道整形后的标准响应里读出标准用量之后补充 |
 | `services` | `ChannelServices` | 厂商控制面路由（Codex 插件、文件、远程控制；Claude Code 文件），`ServiceCaller` 由宿主实现，提供身份、角色、用量与资源绑定 |
 
-`ChannelState` 是宿主按 provider 与 credential 划定范围的跨请求记忆（要恢复的网页
+`ChannelState` 是宿主按供应商与 credential 划定范围的跨请求记忆（要恢复的网页
 对话、要复用的会话）。渠道用自己选的 key 经 compare-and-swap 写入；`NoState` 是
 绑定的默认值，拒绝一切写入。
 
@@ -285,7 +285,7 @@ Kimi 的订阅与 Moonshot API、OpenCode Go 与 Zen 是独立产品，没有用
    ```text
    src/channels/acme/
      mod.rs        ID、单元结构体、重导出、写明 wire 事实来源的模块文档
-     config.rs     AcmeConfig：provider `config` JSON，serde(default)，忽略未知键
+     config.rs     AcmeConfig：供应商 `config` JSON，serde(default)，忽略未知键
      request.rs    impl BaseChannel：prepare / prepare_connect / 覆写的操作
      oauth.rs      OAuthAuthorizationCode、OAuthDeviceCode、CookieLogin、CredentialRefresh
      quota.rs      QuotaModel、QuotaQuery、QuotaHeaders
@@ -297,9 +297,9 @@ Kimi 的订阅与 Moonshot API、OpenCode Go 与 Zen 是独立产品，没有用
    wire 事实永远不来自另一个渠道的代码。
 
 4. 实现 `BaseChannel`。最少是 `id`、`native_dialects` 和 `prepare`；结构体是无状态
-   单元类型，一个实例服务该渠道的所有 provider。同时覆写 `descriptor`：默认实现只会
-   读能力访问器，而显示名和该渠道从 provider `config` JSON 里解出的键只有渠道自己
-   知道。管理界面渲染 Provider 表单就只有这份描述符可用——开了 `ts` feature 它还是
+   单元类型，一个实例服务该渠道的所有供应商。同时覆写 `descriptor`：默认实现只会
+   读能力访问器，而显示名和该渠道从供应商 `config` JSON 里解出的键只有渠道自己
+   知道。管理界面渲染供应商表单就只有这份描述符可用——开了 `ts` feature 它还是
    一个 TypeScript 类型——漏写一个键，就等于没人能设置它。
 
    ```rust
@@ -365,11 +365,11 @@ Kimi 的订阅与 Moonshot API、OpenCode Go 与 Zen 是独立产品，没有用
    `generate_content` 与 `stream_generate_content`，用多次调用驱动一次浏览器对话。
 
 5. 声明厂商客户端会发什么。若渠道模仿某个 CLI，导出一个 `ChannelHeaders` 常量并用
-   `HeaderAllowlist::from_view_for(provider, HEADERS)` 构造允许列表，这样 provider 的
+   `HeaderAllowlist::from_view_for(provider, HEADERS)` 构造允许列表，这样供应商的
    `allowed_headers` 不会剥掉 CLI 自己的头。把渠道的身份头传给 `forwardable` 的
    `also_drop`，客户端就无法伪造。上游会对客户端做指纹识别时返回
    `default_connection()`（`codex` 用原生 TLS 的 reqwest，`claudeweb` 用浏览器
-   preset）；credential 或 provider 上显式指定的宿主 profile 仍然优先。
+   preset）；credential 或供应商上显式指定的宿主 profile 仍然优先。
 
 6. 把能力做成独立类型，从访问器返回。遵守各 trait 的规则：refresh 返回完整替换而
    不是合并；`QuotaModel::dimensions` 从 `credential.metadata` 读套餐事实而不走网络；
@@ -408,7 +408,7 @@ Kimi 的订阅与 Moonshot API、OpenCode Go 与 Zen 是独立产品，没有用
        .await?;
    ```
 
-   `ChannelRegistry` 拒绝重复 id；provider 指向未注册的渠道是配置错误，不会回退到
+   `ChannelRegistry` 拒绝重复 id；供应商指向未注册的渠道是配置错误，不会回退到
    别的渠道。
 
 最后跑 `cargo fmt --all`、`cargo clippy -p gproxy-channel --all-features

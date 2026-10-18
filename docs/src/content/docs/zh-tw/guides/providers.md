@@ -1,18 +1,18 @@
 ---
-title: "Provider 與憑證"
+title: "供應商與憑證"
 description: "選擇渠道、新增供應商與憑證，配置登入、額度查詢和連線選項。"
 ---
 
-**渠道（channel）** 是編譯進二進位制的某一族上游介面卡。**Provider** 是某個渠道上的一條
+**渠道（channel）** 是編譯進二進位制的某一族上游介面卡。**供應商** 是某個渠道上的一條
 已儲存連線：名字、可選 base URL、該渠道自己的 `config` JSON，以及一個憑證池。同一個渠道
-可以建任意多個 Provider——`openai-main` 和 `openai-eu` 可以都在 `openai` 渠道上。
+可以建任意多個供應商——`openai-main` 和 `openai-eu` 可以都在 `openai` 渠道上。
 
 供應商和憑證的配置儲存後生效，通常不需要重啟。首次接入請先測試憑證，再把它加入模型路由。
 
 ## 支援的渠道
 
 只有編譯進你的二進位制的渠道才存在。`GET /admin/api/channels` 回答自二進位制而非資料庫，
-每一項帶著登入方式、能力，以及一個 Provider 表單該渲染的 `config` 鍵。
+每一項帶著登入方式、能力，以及一個供應商表單該渲染的 `config` 鍵。
 
 | 渠道 | 上游 | 憑證 |
 | --- | --- | --- |
@@ -70,12 +70,12 @@ NVIDIA NIM、Vercel AI Gateway 和 Cloudflare AI Gateway 提供專用渠道，�
 
 | 欄位 | 含義 |
 | --- | --- |
-| `name` | 運維者取的標籤，唯一。它同時是 **Provider 掛載點**和 `provider/model` 形式的左半邊。 |
+| `name` | 運維者取的標籤，唯一。它同時是 **供應商掛載點**和 `provider/model` 形式的左半邊。 |
 | `channel` | 上表中的一個 id。 |
 | `baseUrl` | 渠道接受 base URL 時的源。 |
 | `config` | 該渠道自己的 JSON。每個渠道宣告它解碼哪些鍵，`GET /admin/api/channels` 就是那份清單。 |
-| `connectionProfileId` | 這個 Provider 的呼叫走哪套出站棧——代理、TLS 模擬。 |
-| `enabled` | 被禁用的 Provider 退出解析。 |
+| `connectionProfileId` | 這個供應商的呼叫走哪套出站棧——代理、TLS 模擬。 |
+| `enabled` | 被禁用的供應商退出解析。 |
 
 `custom` 的 `config` 帶 `dialects`（端點講哪些協議格式）、靜態 `headers`、`allowed_headers`
 和兩個 magic cache 開關。模擬廠商 CLI 的渠道宣告自己的身份 header，並且不讓用戶端偽造它們。
@@ -106,7 +106,7 @@ NVIDIA NIM、Vercel AI Gateway 和 Cloudflare AI Gateway 提供專用渠道，�
 
 ### 按操作覆蓋 URL
 
-`operation_endpoints` 對某個 Provider 的某個 `(操作, 方言, 传输)` 整體替換方法 URL。它
+`operation_endpoints` 對某個供應商的某個 `(操作, 方言, 传输)` 整體替換方法 URL。它
 **不是**一個再拼預設路徑的 base URL；渠道自己的路徑引數由那個方法解析：
 
 ```sh
@@ -119,8 +119,8 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/operation-endpoints \
 URL 裡的 `{model}` 會被替換成 upstream 模型名（按一個路徑段做百分號編碼），用於把模型寫在路徑裡的介面：
 `https://relay.example/v1beta/models/{model}:generateContent`。
 
-`operation_rules` 是另一半：對某個操作上渠道行為的按 Provider 覆蓋。渠道預設值留在程式碼裡，
-不會被拷進每個新建的 Provider。
+`operation_rules` 是另一半：對某個操作上渠道行為的按供應商覆蓋。渠道預設值留在程式碼裡，
+不會被拷進每個新建的供應商。
 `POST /admin/api/providers/{id}/routing-defaults/reset` 在一次提交裡把兩者都清掉。
 
 ## 一行憑證
@@ -131,7 +131,7 @@ URL 裡的 `{model}` 會被替換成 upstream 模型名（按一個路徑段做�
 | `authKind` | `api_key`、`oauth` 或 `cookie`——金鑰是怎麼得到的。 |
 | `secret` | 該渠道宣告的欄位。從不返回；列表裡只有 `hasSecret`。 |
 | `organizationId` / `teamId` / `userId` | 歸屬。恰好一個，或都沒有（共享憑證）。 |
-| `connectionProfileId` | 覆蓋 Provider 的出站棧。 |
+| `connectionProfileId` | 覆蓋供應商的出站棧。 |
 | `expiresAtMs` | 金鑰該重新整理的時間。 |
 | `status` | `active` 或 `dead`。死掉的憑證退出計劃。 |
 | `version` | 重新整理寫回時所用的 CAS 守衛。 |
@@ -205,8 +205,8 @@ curl -s -X POST 'http://127.0.0.1:8787/admin/api/credentials/{id}/refresh?force=
 ## 健康、封禁與計劃
 
 解析直接去掉禁用、已退役和已死的憑證。**被封禁**的憑證——被上游限流的那種——在該
-Provider 還有別的可用憑證時被去掉；若**全部**被封禁則保留該 Provider 並排在所有健康
-Provider 之後。限流是最後手段，不是故障。
+供應商還有別的可用憑證時被去掉；若**全部**被封禁則保留該供應商並排在所有健康
+供應商之後。限流是最後手段，不是故障。
 
 ```sh
 # 上游怎么说这把凭证的窗口
@@ -226,7 +226,7 @@ curl -s http://127.0.0.1:8787/admin/api/credentials/{id}/limits -H "Authorizatio
 ## 連線配置
 
 一份連線配置就是一次呼叫走的出站棧：代理，以及它呈現的 TLS 與 HTTP/2 身份。選擇順序是
-憑證優先，然後 Provider，然後渠道自己的預設，最後實例預設。
+憑證優先，然後供應商，然後渠道自己的預設，最後實例預設。
 
 內建六種身份預設，可直接存成一份連線配置的 `emulation`：
 
@@ -239,7 +239,7 @@ claude / Claude CLI    codex / Codex CLI       gemini / Gemini CLI
 antigravity            kiro / Kiro CLI         copilot / GitHub Copilot CLI
 ```
 
-只有 `wreq` 傳輸會呈現指紋。模擬 CLI 的渠道返回自己的預設；憑證或 Provider 上的顯式配置
+只有 `wreq` 傳輸會呈現指紋。模擬 CLI 的渠道返回自己的預設；憑證或供應商上的顯式配置
 依然勝出。
 
 ## 兩個探針
@@ -279,7 +279,7 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/models/discover \
 它們**花的是真憑證、消耗真上游配額、對該憑證適用的任何預算真結算，並寫一行用量**。
 沒有 dry run：一個沒有真正呼叫上游的測試什麼也沒測到。
 
-發現用 Provider 自己的方言提問，因此名字就是上游的。每一個回來時都帶著"這個 Provider
+發現用供應商自己的方言提問，因此名字就是上游的。每一個回來時都帶著"這個供應商
 是否已有這一行"和"內建目錄能不能給它定價"；
 `POST /admin/api/models/discover/apply` 插入你點名的那些，已有的跳過。
 
@@ -290,7 +290,7 @@ gproxy export --out config.json --include-secrets
 gproxy import --in  config.json --mode merge --source-master-key '…'
 ```
 
-會走的是一套部署*本身*的配置：連線配置、Provider、憑證、模型目錄、路由、操作覆蓋、
+會走的是一套部署*本身*的配置：連線配置、供應商、憑證、模型目錄、路由、操作覆蓋、
 改寫規則、配額、價格和 settings 行。**身份不走**——使用者、key、組織、團隊、權限和訂閱屬於
 產品層——用量和 capture 也不走，因為複製它們等於偽造目的端從未有過的歷史。主金鑰規則見
 [配置](/zh-tw/reference/configuration/#搬運一份配置)。

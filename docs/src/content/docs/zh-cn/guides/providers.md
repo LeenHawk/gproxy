@@ -1,18 +1,18 @@
 ---
-title: "Provider 与凭证"
+title: "供应商与凭证"
 description: "选择渠道、添加供应商与凭证，配置登录、额度查询和连接选项。"
 ---
 
-**渠道（channel）** 是编译进二进制的某一族上游适配器。**Provider** 是某个渠道上的一条
+**渠道（channel）** 是编译进二进制的某一族上游适配器。**供应商** 是某个渠道上的一条
 已保存连接：名字、可选 base URL、该渠道自己的 `config` JSON，以及一个凭证池。同一个渠道
-可以建任意多个 Provider——`openai-main` 和 `openai-eu` 可以都在 `openai` 渠道上。
+可以建任意多个供应商——`openai-main` 和 `openai-eu` 可以都在 `openai` 渠道上。
 
 供应商和凭证的配置保存后生效，通常不需要重启。首次接入请先测试凭证，再把它加入模型路由。
 
 ## 支持的渠道
 
 只有编译进你的二进制的渠道才存在。`GET /admin/api/channels` 回答自二进制而非数据库，
-每一项带着登录方式、能力，以及一个 Provider 表单该渲染的 `config` 键。
+每一项带着登录方式、能力，以及一个供应商表单该渲染的 `config` 键。
 
 | 渠道 | 上游 | 凭证 |
 | --- | --- | --- |
@@ -70,12 +70,12 @@ NVIDIA NIM、Vercel AI Gateway 和 Cloudflare AI Gateway 提供专用渠道，�
 
 | 字段 | 含义 |
 | --- | --- |
-| `name` | 运维者取的标签，唯一。它同时是 **Provider 挂载点**和 `provider/model` 形式的左半边。 |
+| `name` | 运维者取的标签，唯一。它同时是 **供应商挂载点**和 `provider/model` 形式的左半边。 |
 | `channel` | 上表中的一个 id。 |
 | `baseUrl` | 渠道接受 base URL 时的源。 |
 | `config` | 该渠道自己的 JSON。每个渠道声明它解码哪些键，`GET /admin/api/channels` 就是那份清单。 |
-| `connectionProfileId` | 这个 Provider 的调用走哪套出站栈——代理、TLS 模拟。 |
-| `enabled` | 被禁用的 Provider 退出解析。 |
+| `connectionProfileId` | 这个供应商的调用走哪套出站栈——代理、TLS 模拟。 |
+| `enabled` | 被禁用的供应商退出解析。 |
 
 `custom` 的 `config` 带 `dialects`（端点讲哪些协议格式）、静态 `headers`、`allowed_headers`
 和两个 magic cache 开关。模拟厂商 CLI 的渠道声明自己的身份 header，并且不让客户端伪造它们。
@@ -106,7 +106,7 @@ NVIDIA NIM、Vercel AI Gateway 和 Cloudflare AI Gateway 提供专用渠道，�
 
 ### 按操作覆盖 URL
 
-`operation_endpoints` 对某个 Provider 的某个 `(操作, 方言, 传输)` 整体替换方法 URL。它
+`operation_endpoints` 对某个供应商的某个 `(操作, 方言, 传输)` 整体替换方法 URL。它
 **不是**一个再拼默认路径的 base URL；渠道自己的路径参数由那个方法解析：
 
 ```sh
@@ -119,8 +119,8 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/operation-endpoints \
 URL 里的 `{model}` 会被替换成 upstream 模型名（按一个路径段做百分号编码），用于把模型写在路径里的接口：
 `https://relay.example/v1beta/models/{model}:generateContent`。
 
-`operation_rules` 是另一半：对某个操作上渠道行为的按 Provider 覆盖。渠道默认值留在代码里，
-不会被拷进每个新建的 Provider。
+`operation_rules` 是另一半：对某个操作上渠道行为的按供应商覆盖。渠道默认值留在代码里，
+不会被拷进每个新建的供应商。
 `POST /admin/api/providers/{id}/routing-defaults/reset` 在一次提交里把两者都清掉。
 
 ## 一行凭证
@@ -131,7 +131,7 @@ URL 里的 `{model}` 会被替换成 upstream 模型名（按一个路径段做�
 | `authKind` | `api_key`、`oauth` 或 `cookie`——密钥是怎么得到的。 |
 | `secret` | 该渠道声明的字段。从不返回；列表里只有 `hasSecret`。 |
 | `organizationId` / `teamId` / `userId` | 归属。恰好一个，或都没有（共享凭证）。 |
-| `connectionProfileId` | 覆盖 Provider 的出站栈。 |
+| `connectionProfileId` | 覆盖供应商的出站栈。 |
 | `expiresAtMs` | 密钥该刷新的时间。 |
 | `status` | `active` 或 `dead`。死掉的凭证退出计划。 |
 | `version` | 刷新写回时所用的 CAS 守卫。 |
@@ -205,8 +205,8 @@ curl -s -X POST 'http://127.0.0.1:8787/admin/api/credentials/{id}/refresh?force=
 ## 健康、封禁与计划
 
 解析直接去掉禁用、已退役和已死的凭证。**被封禁**的凭证——被上游限流的那种——在该
-Provider 还有别的可用凭证时被去掉；若**全部**被封禁则保留该 Provider 并排在所有健康
-Provider 之后。限流是最后手段，不是故障。
+供应商还有别的可用凭证时被去掉；若**全部**被封禁则保留该供应商并排在所有健康
+供应商之后。限流是最后手段，不是故障。
 
 ```sh
 # 上游怎么说这把凭证的窗口
@@ -226,7 +226,7 @@ curl -s http://127.0.0.1:8787/admin/api/credentials/{id}/limits -H "Authorizatio
 ## 连接配置
 
 一份连接配置就是一次调用走的出站栈：代理，以及它呈现的 TLS 与 HTTP/2 身份。选择顺序是
-凭证优先，然后 Provider，然后渠道自己的默认，最后实例默认。
+凭证优先，然后供应商，然后渠道自己的默认，最后实例默认。
 
 内置六种身份预设，可直接存成一份连接配置的 `emulation`：
 
@@ -239,7 +239,7 @@ claude / Claude CLI    codex / Codex CLI       gemini / Gemini CLI
 antigravity            kiro / Kiro CLI         copilot / GitHub Copilot CLI
 ```
 
-只有 `wreq` 传输会呈现指纹。模拟 CLI 的渠道返回自己的默认；凭证或 Provider 上的显式配置
+只有 `wreq` 传输会呈现指纹。模拟 CLI 的渠道返回自己的默认；凭证或供应商上的显式配置
 依然胜出。
 
 ## 两个探针
@@ -279,7 +279,7 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/models/discover \
 它们**花的是真凭证、消耗真上游配额、对该凭证适用的任何预算真结算，并写一行用量**。
 没有 dry run：一个没有真正调用上游的测试什么也没测到。
 
-发现用 Provider 自己的方言提问，因此名字就是上游的。每一个回来时都带着"这个 Provider
+发现用供应商自己的方言提问，因此名字就是上游的。每一个回来时都带着"这个供应商
 是否已有这一行"和"内置目录能不能给它定价"；
 `POST /admin/api/models/discover/apply` 插入你点名的那些，已有的跳过。
 
@@ -290,7 +290,7 @@ gproxy export --out config.json --include-secrets
 gproxy import --in  config.json --mode merge --source-master-key '…'
 ```
 
-会走的是一套部署*本身*的配置：连接配置、Provider、凭证、模型目录、路由、操作覆盖、
+会走的是一套部署*本身*的配置：连接配置、供应商、凭证、模型目录、路由、操作覆盖、
 改写规则、配额、价格和 settings 行。**身份不走**——用户、key、组织、团队、权限和订阅属于
 产品层——用量和 capture 也不走，因为拷贝它们等于伪造目的端从未有过的历史。主密钥规则见
 [配置](/zh-cn/reference/configuration/#搬运一份配置)。

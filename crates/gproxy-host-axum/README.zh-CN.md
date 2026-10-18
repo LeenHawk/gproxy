@@ -79,7 +79,7 @@ scope **参与构造查询**，而不是拿来核对答案——这正是它安�
 而它对不认识的 section 一律拒绝。这张表因此默认是关的。
 
 目前开放的 section 是 `context`、`session`、`credentials`、`quotas`。其余都是实例
-机器：网关自身的配置（Provider、模型、路由、改写、端点、价格、连接档、设置、
+机器：网关自身的配置（供应商、模型、路由、改写、端点、价格、连接档、设置、
 导入导出、连通性、词表、目录），以及——暂时——身份家族。按组织收窄身份是下一步，
 刻意不做成半开。
 
@@ -256,7 +256,7 @@ POST   /portal/api/oauth/device      批准或拒绝；需要登录会话或带�
 2. **挂载点**——语法见下。
 3. **OAuth issuer**，在 `{mount}/v1/oauth/…`，用 RFC 自己的错误信封。
 4. **渠道声明的厂商服务路由**（Codex 的 `/backend-api/…`、Claude Code 的
-   `/api/…`）。只在 Provider 或命名空间挂载上：匹配一条服务路由需要渠道，而聚合
+   `/api/…`）。只在供应商或命名空间挂载上：匹配一条服务路由需要渠道，而聚合
    挂载不指名任何渠道。视图用 `x-gproxy-view: caller | pool | credential:{id}` 选。
    渠道声明为 socket 的那条路由走升级，不走调用。
 5. **数据面**——`/v1/messages`、`/v1/responses`、`/v1/chat/completions`、
@@ -351,7 +351,7 @@ issuer 标识是 `{origin}{prefix}/v1`。P7 的模块注释里把聚合挂载写
 |---|---|
 | 调用者是谁 | `gproxy_app::Authenticator` |
 | 他能够到什么 | `gproxy_app::Admission` |
-| 哪个 Provider 服务这个模型 | sdk 的 resolver |
+| 哪个供应商服务这个模型 | sdk 的 resolver |
 | 一个失败在协议上值多少 | `AppError::status_code` / `code` |
 | 一个操作做什么 | `gproxy_app::Operations` / `Portal` / `Issuer` |
 
@@ -366,14 +366,14 @@ issuer 标识是 `{origin}{prefix}/v1`。P7 的模块注释里把聚合挂载写
 |---|---|---|
 | `/v1/messages` | 聚合 | 不收窄 |
 | `/acme/v1/messages` | 命名空间 `acme` | `acme/` 下的暴露名 |
-| `/openai-prod/v1/messages` | Provider `openai-prod` | 该 Provider |
+| `/openai-prod/v1/messages` | 供应商 `openai-prod` | 该供应商 |
 
 **命名空间**是带斜杠的暴露模型名的第一段（暴露 `acme/fast` 就产生命名空间
-`acme`）。**Provider** 用的是 `providers.name`，即运维给的标签，而不是行 id——
+`acme`）。**供应商** 用的是 `providers.name`，即运维给的标签，而不是行 id——
 没人会把机器铸的 id 写进客户端的 base URL。同名时命名空间优先。
 
 **只有当剩下的部分同样是一个已声明的 ingress 面时，前缀才会被剥掉。** 这正是这套
-语法存在的理由，任何简化都是错的：否则一个叫 `backend-api` 的 Provider 会把
+语法存在的理由，任何简化都是错的：否则一个叫 `backend-api` 的供应商会把
 `/backend-api/codex/responses` 吃掉——那是 Codex 的真实路径——把一次数据面调用变成
 一个并不存在的挂载。
 

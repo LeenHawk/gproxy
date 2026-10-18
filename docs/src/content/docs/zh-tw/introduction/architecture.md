@@ -35,7 +35,7 @@ Cloudflare Worker 裡的原因。
 | `gproxy-protocol` | 連線建模（`WireRequest`、`WireResponse`、body、分幀、套接字）、操作登錄檔、OpenAI／Claude／Gemini 協議型別，以及協議適配所需的宿主能力介面 | 知道渠道存在；匹配 URL 路徑 |
 | `gproxy-channel` | `BaseChannel`、可選能力 trait，以及按 feature 啟用的上游介面卡 | 依賴引擎或 store；選擇 client 後端 |
 | `gproxy-client` | 出站傳輸契約及其 `reqwest` / `wreq` 實現，加上 wasm 的 `fetch` 與 Workers 後端 | 讀資料庫、選憑證、做協議轉換 |
-| `gproxy-core` | 引擎：Provider 執行快照、允許集合內的憑證選擇／重新整理／健康、轉換、改寫、預算、計價、結算與觀測 | 解析路由、檢查權限、跑 server |
+| `gproxy-core` | 引擎：供應商執行快照、允許集合內的憑證選擇／重新整理／健康、轉換、改寫、預算、計價、結算與觀測 | 解析路由、檢查權限、跑 server |
 | `gproxy-store` | 表結構與查詢，後端按 feature 切 | — |
 | `gproxy-cache` | TTL 狀態、原子計數／許可／租約、跨實例失效通知；Memory 與 Redis | 業務實體；後端故障時靜默降級 |
 | `gproxy-seaorm` | SeaORM 批次讀寫、D1 binding、型別對映、結構同步 | 業務實體 |
@@ -57,7 +57,7 @@ router 或 UI。
 | --- | --- |
 | 誰在呼叫 | `gproxy-app` 的認證器 |
 | 能觸達什麼、花誰的錢 | `gproxy-app` 的准入 |
-| 哪個 Provider 承接這個模型名 | sdk 的解析器 |
+| 哪個供應商承接這個模型名 | sdk 的解析器 |
 | 哪把憑證、失敗了怎麼辦 | 引擎 |
 | 一個操作*做*什麼 | `gproxy-app` 的操作家族與 sdk 的 `manage()` |
 | 一次失敗線上上值什麼狀態碼 | `AppError::status_code` / `code` |
@@ -72,28 +72,28 @@ router 或 UI。
 
 | 名字 | 解析為 | 嘗試預算 |
 | --- | --- | --- |
-| 沒有模型 | 全部啟用的 Provider，無上游模型 | `settings.max_attempts` |
+| 沒有模型 | 全部啟用的供應商，無上游模型 | `settings.max_attempts` |
 | 公開模型名 | 該路由啟用的成員 | 路由自己的 |
-| `Provider 名/模型` | 那一個 Provider | `settings.max_attempts` |
+| `供應商名/模型` | 那一個供應商 | `settings.max_attempts` |
 | 其他 | unknown model 錯誤 | — |
 
 公開名精確匹配，並且**先於**字首形式，因此運維者可以把字面量 `openai/gpt-5` 作為自己的
 公開名暴露出來。
 
-字首永遠是 Provider 名，不是渠道 id。
+字首永遠是供應商名，不是渠道 id。
 
-候選隨後按渠道、允許的 Provider id、允許的憑證 id 收窄——最後一項是產品層做組織間隔離的
+候選隨後按渠道、允許的供應商 id、允許的憑證 id 收窄——最後一項是產品層做組織間隔離的
 手段。排序是 `(tier, 健康度, 权重倒序, 稳定 id)`；只有首段按路由策略做均衡。
 
 ## 失敗轉移有兩個維度
 
-引擎已經在單個 Provider 的憑證之間重試過了。sdk 是另一個維度，**只有"另一個 Provider
+引擎已經在單個供應商的憑證之間重試過了。sdk 是另一個維度，**只有"另一個供應商
 可能救得回來"的失敗才換目標**：沒有可用憑證、憑證已死、續接釘在別的實例上、任何渠道或
 傳輸錯誤，以及 401／403／429／5xx 應答。預算耗盡、被禁止、被取消、轉換錯誤，以及 store
 或 cache 故障，都就地停止——在別處重試只是多花一點。
 
 嘗試預算跨目標共享，因此一個計劃的上游呼叫次數不會超過它的 `max_attempts`。沒有目標可換
-時，最後一個應答原樣返回——最後一個 Provider 的 429 就是呼叫方的 429，不會被換成別的錯誤。
+時，最後一個應答原樣返回——最後一個供應商的 429 就是呼叫方的 429，不會被換成別的錯誤。
 
 ## 一次寫入 = 一個 revision + 一次過載 + 一次通知
 

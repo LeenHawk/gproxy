@@ -54,7 +54,7 @@ GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_1FAS5GV9R5H29T5Y2J9584K6O95M2NBVW52C9
 
 ## 啟用它
 
-兩個 Provider `config` 開關，每族一個：
+兩個供應商 `config` 開關，每族一個：
 
 ```json
 { "config": { "enable_claude_magic_cache": true,
@@ -66,7 +66,7 @@ GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_1FAS5GV9R5H29T5Y2J9584K6O95M2NBVW52C9
 | `enable_claude_magic_cache` | `aws_bedrock`、`azure`、`claudeapi`、`claudecode`、`custom`、`opencodego`、`opencodezen`、`openrouter` |
 | `enable_openai_magic_cache` | `aws_bedrock`、`azure`、`openai`、`codex`、`custom`、`opencodego`、`opencodezen`、`openrouter` |
 
-開關是對著**目標方言**讀的，不是用戶端的。一個被路由到 Claude Provider 的 OpenAI 形狀
+開關是對著**目標方言**讀的，不是用戶端的。一個被路由到 Claude 供應商的 OpenAI 形狀
 請求會先轉成 Claude Messages，因此起作用的是 Claude 開關，寫下的標記是 `cache_control`。
 用戶端收到的仍然是它自己的格式。
 

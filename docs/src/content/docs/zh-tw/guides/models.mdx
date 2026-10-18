@@ -1,6 +1,6 @@
 ---
 title: "模型與路由"
-description: 用戶端的模型名如何解析到一個 Provider 和一把憑證：三種形式、路由與成員、namespace 與模型目錄。
+description: 用戶端的模型名如何解析到一個供應商和一把憑證：三種形式、路由與成員、namespace 與模型目錄。
 ---
 
 import VideoTutorial from '../../../../components/VideoTutorial.astro';
@@ -13,11 +13,11 @@ import VideoTutorial from '../../../../components/VideoTutorial.astro';
 
 ```text
 请求里的 model
-  → 第一条命中的形式：路由名 · Provider 名/模型
-  → 候选按渠道、允许的 Provider、允许的凭证收窄
+  → 第一条命中的形式：路由名 · 供應商名/模型
+  → 候选按渠道、允许的供應商、允许的凭证收窄
   → 按 (tier, 健康度, 权重倒序, 稳定 id) 排序
   → 首段按路由策略均衡
-  → 每次尝试得到一个 (Provider, 凭证, 上游模型)
+  → 每次尝试得到一个 (供應商, 凭证, 上游模型)
 ```
 
 直接使用路由名稱作為用戶端模型名。需要修改請求引數時，使用[重寫規則](/zh-tw/guides/rules/)。
@@ -28,14 +28,14 @@ import VideoTutorial from '../../../../components/VideoTutorial.astro';
 
 | 名字 | 解析為 | 嘗試預算 |
 | --- | --- | --- |
-| 沒有模型 | 全部啟用的 Provider，無上游模型 | `settings.max_attempts` |
+| 沒有模型 | 全部啟用的供應商，無上游模型 | `settings.max_attempts` |
 | **模型路由名稱** | 該路由啟用的成員 | 路由自己的 |
-| `Provider 名/模型` | 那一個 Provider | `settings.max_attempts` |
+| `供應商名/模型` | 那一個供應商 | `settings.max_attempts` |
 | 其他 | `404 unknown_model` | — |
 
-路由名**精確匹配且先於**字首形式。管理介面會拒絕首段是現有 Provider 名的名稱。
+路由名**精確匹配且先於**字首形式。管理介面會拒絕首段是現有供應商名的名稱。
 
-字首永遠是 **Provider 名**，不是渠道 id。名為 `openai`、渠道為 `codex` 的 Provider 用
+字首永遠是 **供應商名**，不是渠道 id。名為 `openai`、渠道為 `codex` 的供應商用
 `openai/…` 呼叫，與它的專屬入口 `/openai/v1` 一致。
 
 ## 路由
@@ -77,8 +77,8 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/route-members \
 | `weight` | 正數，預設 100。層內分流，同時決定故障轉移候選的順序。 |
 | `enabled` | 被禁用的成員退出計劃。 |
 
-成員不指定憑證。選中的 Provider 內部由哪把憑證承接是引擎另做的決定，而且它會在計劃移動到
-下一個成員之前，先在該 Provider 的憑證之間做轉移。
+成員不指定憑證。選中的供應商內部由哪把憑證承接是引擎另做的決定，而且它會在計劃移動到
+下一個成員之前，先在該供應商的憑證之間做轉移。
 
 ### 順序怎麼定
 
@@ -95,8 +95,8 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/route-members \
 
 輪轉是計數器而不是隨機抽取，因此 wasm 與原生行為一致，一次序列可復現。
 
-禁用、已退役和已死的憑證直接去掉。被封禁的憑證在其 Provider 還有別的可用憑證時去掉；
-若**全部**被封禁則保留該 Provider 並排在所有健康 Provider 之後。限流是最後手段，不是故障。
+禁用、已退役和已死的憑證直接去掉。被封禁的憑證在其供應商還有別的可用憑證時去掉；
+若**全部**被封禁則保留該供應商並排在所有健康供應商之後。限流是最後手段，不是故障。
 
 解析成功但無處可發，與"名字不認識"是兩回事——那是配置問題，不是未知模型。
 
@@ -120,7 +120,7 @@ namespace 是一個**名字索引**，不是被儲存的分組，也不是歸屬
 
 ### 被保留的第一段
 
-為了避免 namespace 與字首路由歧義，首段是現有 Provider 名的路由名會在寫入時被拒絕：
+為了避免 namespace 與字首路由歧義，首段是現有供應商名的路由名會在寫入時被拒絕：
 
 ```json
 {"error":{"code":"invalid_request","message":"invalid request: `codex/` is reserved:
@@ -134,7 +134,7 @@ namespace 是一個**名字索引**，不是被儲存的分組，也不是歸屬
 
 兩張表，而且路由都不需要它們。
 
-**`provider_models`** 記錄某個 Provider 承接哪些上游名字：
+**`provider_models`** 記錄某個供應商承接哪些上游名字：
 
 ```sh
 curl -s -X POST http://127.0.0.1:8787/admin/api/provider-models \
@@ -162,8 +162,8 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/models/discover \
   -d '{"providerId":"…"}'
 ```
 
-發現用 Provider **自己的方言**提問，因此什麼都不轉換，名字就是上游的。每個答案帶著這個
-Provider 是否已有該行、以及內建目錄能不能給它定價。
+發現用供應商 **自己的方言**提問，因此什麼都不轉換，名字就是上游的。每個答案帶著這個
+供應商是否已有該行、以及內建目錄能不能給它定價。
 `POST /admin/api/models/discover/apply` 插入你點名的那些，已有的跳過，所以發現應用兩次和
 一次結果相同。
 
@@ -185,7 +185,7 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/default-model-catalog/apply-pric
 ## 呼叫方看到什麼
 
 `GET /v1/models` 返回已配置的模型清單，包括路由名和
-`Provider 名/模型`，只列出呼叫方有權使用的名字，不會輪流返回某一家上游的目錄。
+`供應商名/模型`，只列出呼叫方有權使用的名字，不會輪流返回某一家上游的目錄。
 新增或匯入供應商模型後，它會出現在這份清單中，字首使用配置的供應商路由名。
 
 兩種呼叫方式等價：API 地址用 `/供应商A/v1`、模型填 `gpt-5`；
@@ -207,8 +207,8 @@ curl -s http://127.0.0.1:8787/portal/api/models -H "Authorization: Bearer $GPROX
 ——因為一份會靜默省略的清單會讓"這個模型 404 了"和"你沒有權限用這個模型"變成同一個觀察，
 而且沒什麼要保護的：公開名本來就是運維者對外發布的實例配置。
 
-被扣下的是名字背後的 Provider id：答案只報一個數量和一個渠道，說明一個名字有多冗餘，
-卻不點破機器。`Provider 名/模型` 使用供應商的顯示名稱；供應商改名後，對應的模型字首和 API 地址也隨之改變。
+被扣下的是名字背後的供應商 id：答案只報一個數量和一個渠道，說明一個名字有多冗餘，
+卻不點破機器。`供應商名/模型` 使用供應商的顯示名稱；供應商改名後，對應的模型字首和 API 地址也隨之改變。
 
 ### 全域性模型與預設後設資料
 

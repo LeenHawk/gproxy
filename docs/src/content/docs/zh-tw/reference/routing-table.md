@@ -40,7 +40,7 @@ curl -s http://127.0.0.1:8787/healthz
 3. **OAuth issuer**，在 `{mount}/v1/oauth/…`。排在資料面之前，因為這些路徑是*本實例*的
    而不是某個上游的，而且它們用另一套錯誤信封應答。
 4. **某個渠道的廠商服務路由**——Codex 的 `/backend-api/…`、Claude Code 的 `/api/…`。
-   只在 Provider 或 namespace 掛載點上：匹配它需要一個渠道，而聚合掛載點沒有點名渠道。
+   只在供應商或 namespace 掛載點上：匹配它需要一個渠道，而聚合掛載點沒有點名渠道。
 5. **資料面**，見下。
 6. **console**，帶 SPA 兜底，受配置開關控制。
 
@@ -184,7 +184,7 @@ Realtime 套接字持有它的併發租約直到它**關閉**，而不是到 `10
 
 ### Codex 專有介面
 
-Codex 專有方法僅在使用 Codex 渠道的 Provider 掛載點下提供。假設 Provider 名為
+Codex 專有方法僅在使用 Codex 渠道的供應商掛載點下提供。假設供應商名為
 `codex`，可呼叫 `POST /codex/v1/memories/trace_summarize`、
 `POST /codex/v1/guardian` 和 `POST /codex/v1/guardian-classifier`。
 它們使用正常的操作準入、模型路由和結算流程；公共 `/v1` 不提供這三條路徑。
@@ -212,14 +212,14 @@ Codex 專有方法僅在使用 Codex 渠道的 Provider 掛載點下提供。假
 | --- | --- | --- |
 | `/v1/messages` | 聚合 | 不收窄 |
 | `/acme/v1/messages` | namespace `acme` | `acme/` 下的公開名稱 |
-| `/openai-prod/v1/messages` | Provider `openai-prod` | 那一個 Provider |
+| `/openai-prod/v1/messages` | 供應商 `openai-prod` | 那一個供應商 |
 
-**namespace** 是帶斜槓的公開模型名的第一段。**Provider** 掛載點用的是 Provider 的 `name`
+**namespace** 是帶斜槓的公開模型名的第一段。**供應商** 掛載點用的是供應商的 `name`
 ——運維者取的標籤，而不是行 id，因為沒有人會把機器生成的 id 敲進用戶端的 base URL。同名時
-namespace 勝過 Provider。
+namespace 勝過供應商。
 
 **只有在剝掉字首後剩下的部分也是一個被宣告的 surface 時，字首才會被剝掉。** 這條規則的
-每一種簡化都是錯的：一個叫 `backend-api` 的 Provider 否則會吃掉
+每一種簡化都是錯的：一個叫 `backend-api` 的供應商否則會吃掉
 `/backend-api/codex/responses`——那是一條真實的 Codex 路徑——把一次資料面呼叫變成一個並不
 存在的掛載點。
 
@@ -231,8 +231,8 @@ namespace 勝過 Provider。
 名字原樣保留。
 
 :::note[一個已知的缺口]
-**不帶模型**的操作在 Provider 掛載點上被收窄到那個 Provider 的*渠道*，而不是那個
-Provider。`GET /p1/v1/models` 會列出 `p1` 所在渠道上、呼叫方能觸達的每個 Provider 的模型。
+**不帶模型**的操作在供應商掛載點上被收窄到那個供應商的*渠道*，而不是那個
+供應商。`GET /p1/v1/models` 會列出 `p1` 所在渠道上、呼叫方能觸達的每個供應商的模型。
 補上它需要請求形狀裡還沒有的一個欄位。
 :::
 
@@ -336,10 +336,10 @@ POST   /portal/api/oauth/device      批准或拒绝；需要登录会话或带�
 - 它是路由自己的 `maxAttempts`，被 `settings.maxAttempts` 鉗住；
 - 它**跨目標共享**：每個目標最多拿到自己憑證數那麼多次、且不超過剩餘額度，因此一個計劃的
   上游呼叫次數不會超過它的預算；
-- 只有"另一個 Provider 可能救得回來"的失敗才換目標——沒有可用憑證、憑證已死、續接釘在別的
+- 只有"另一個供應商可能救得回來"的失敗才換目標——沒有可用憑證、憑證已死、續接釘在別的
   實例上、任何渠道或傳輸錯誤，或 401／403／429／5xx 應答；
 - 預算耗盡、被禁止、被取消、轉換錯誤，以及 store 或 cache 故障，都就地停止；
-- 沒有目標可換時，**最後一個應答原樣返回**。最後一個 Provider 的 429 就是呼叫方的 429，
+- 沒有目標可換時，**最後一個應答原樣返回**。最後一個供應商的 429 就是呼叫方的 429，
   不會被換成別的錯誤。
 
 請求體緩衝一次以便重放。超過 `maxRequestBodyBytes` 的串流體保持串流，計劃隨之裁剪為單個

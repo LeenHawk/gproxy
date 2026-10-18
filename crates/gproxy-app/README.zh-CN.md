@@ -25,12 +25,12 @@ Cloudflare Worker 里——本 crate 能为 `wasm32-unknown-unknown` 构建，�
 ```text
 传输层（宿主）
   → auth        Caller   { 用户、角色、api key、组织、团队、grant }
-  → admission   Admitted { 允许的 Provider 集、允许的凭证集、预算 owner 链、
+  → admission   Admitted { 允许的供应商集、允许的凭证集、预算 owner 链、
                            scope、会话身份、限流许可 }
   → App::call   引擎只按这些执行，下游不再重新推导任何一项
 ```
 
-每一步都在收窄，下面不会重新打开上面已经收窄的东西：交给引擎的是一个 Provider 集和
+每一步都在收窄，下面不会重新打开上面已经收窄的东西：交给引擎的是一个供应商集和
 一个凭证集，而不是一个待解释的调用方。
 
 `App` 是三样东西汇合的地方——引擎句柄、实例配置、身份快照——也是宿主唯一需要持有的值：
@@ -57,7 +57,7 @@ let outcome = app.call(&caller, request).await?;
 | `config` | `AppConfig`：纯 serde，两个宿主共用，不碰文件系统也不读环境变量 |
 | `snapshot` | `AppData`——某个配置 revision 编译后的身份，以及单调发布它的 `AppSnapshot` |
 | `auth` | 请求指认调用方的三条路径，以及三者产出的同一个 `Caller` |
-| `admission` | `Caller` → `Admitted`：Provider 集、凭证集、预算 owner 链、scope、会话、限流扣减 |
+| `admission` | `Caller` → `Admitted`：供应商集、凭证集、预算 owner 链、scope、会话、限流扣减 |
 | `call` | `DataPlaneRequest` → `CallOutcome`：先准入，再让引擎严格按准入结果执行 |
 | `service` | 厂商 CLI 服务：目标集里有哪些凭证，以及调用方对这组凭证是什么角色 |
 | `capture` | 下游 `capture_records` 行，以及连向 core 所记上游尝试的 `capture_links` 边 |
@@ -87,7 +87,7 @@ let outcome = app.call(&caller, request).await?;
 | `ApiKeyIndex` | 摘要 → `ApiKeyIdentity`（key、用户、角色、组织、团队、kind、过期） |
 | `MembershipIndex` | 用户 → 带角色的组织与团队，外加每个团队的父组织 |
 | `CredentialOwnership` | 凭证 → `Shared` / `User` / `Team` / `Org`，以及调用方能否选中它 |
-| `PermissionSet` | `(主体, Provider, 模型, 操作)` → `Allow` / `Deny(原因)`，以及允许的 Provider 集 |
+| `PermissionSet` | `(主体, 供应商, 模型, 操作)` → `Allow` / `Deny(原因)`，以及允许的供应商集 |
 | `ClientAllowlist` | 某用户是否可以授权某个 OAuth client |
 
 此外还以 map 形式带着 `users`、`organizations`、`teams`、`rate_limits`、
@@ -193,7 +193,7 @@ argon2id，每次哈希一份全新的 16 字节盐，存成完整的 PHC 串，
 
 | # | 步骤 | 产出 | 可能拒绝为 |
 |---|---|---|---|
-| 1 | 权限 | 允许的 Provider 集 | `403 forbidden` |
+| 1 | 权限 | 允许的供应商集 | `403 forbidden` |
 | 2 | 凭证可见性 | 允许的凭证集 | — |
 | 3 | 预算链 | 这次请求记在谁头上 | — |
 | 4 | scope | 它算作谁的流量（用于亲和） | — |
@@ -206,9 +206,9 @@ argon2id，每次哈希一份全新的 16 字节盐，存成完整的 PHC 串，
 
 ### 实例管理员绕过什么
 
-`users.role = "admin"` **绕过权限过滤**（拿到全部 Provider）与**凭证可见性**
+`users.role = "admin"` **绕过权限过滤**（拿到全部供应商）与**凭证可见性**
 （看到全部凭证）。这个角色本来就拥有写 `permissions` 表的操作权，一条拒绝管理员某个
-Provider 的规则是他自己就能删掉的规则；把这条绕过写明，可以避免一条写歪的 deny 把
+供应商的规则是他自己就能删掉的规则；把这条绕过写明，可以避免一条写歪的 deny 把
 运维锁在自己的实例外面。
 
 它不绕过别的。限流照样生效，预算照样生效，而且**下面那条 OAuth 基线也照样生效**——
@@ -288,7 +288,7 @@ permit 度量的是在途请求数，不是已发生请求数。丢弃一个 lea
 ## 数据面
 
 `App::call` 与 `App::connect` 就是通往引擎的全部桥接：先准入，再用 `Admitted` 里的每
-一项去驱动句柄的 builder——scope、归因、预算 owner、Provider 集、凭证集、会话——并且不
+一项去驱动句柄的 builder——scope、归因、预算 owner、供应商集、凭证集、会话——并且不
 带任何不是在那里决定的东西。引擎永远看不到 `Caller`，所以它无法重新回答这一层已经回答
 过的问题；这一层也从不猜测选路，那是引擎的事。
 
@@ -327,7 +327,7 @@ await，只能 spawn。
 服务视图（`profile`、用量、插件、远程控制）没有 `OperationKey`，也没有模型。core 自己
 就写明它不决定谁是谁的 admin，所以本 crate 只回答两个问题，其余交出去：
 
-1. **目标集的凭证**是该 Provider 下调用方**可见**的那些凭证——和同一把 key 发模型请求时
+1. **目标集的凭证**是该供应商下调用方**可见**的那些凭证——和同一把 key 发模型请求时
    能花的是同一组。因此 `Pool` 聚合的只是这个调用方本来就够得着的东西，`Credential(id)`
    也只能点名其中之一（其余是 `404`）；
 2. **角色**：实例管理员是 `Admin`；否则必须是**该集合中每一个凭证**所属组织或团队的
@@ -431,7 +431,7 @@ capture.record_frame(CaptureDirection::Request, CapturedFrame::Text(text));
   知道本请求也碰过它。
 
 `sequence` 是 `(started_at_ms, attempt_ordinal)` 上的稠密排名，不是上游自己的序号：
-换 Provider 重试会让引擎的尝试计数从头开始，于是同一个请求的两次尝试都可能是序号 1。
+换供应商重试会让引擎的尝试计数从头开始，于是同一个请求的两次尝试都可能是序号 1。
 同一毫秒内开始的两次尝试共用一个号，这正是该列所说的「并行调用可以共享序号，展示时用
 upstream_id 打破并列」。
 
@@ -445,7 +445,7 @@ upstream_id 打破并列」。
 而失败，则单独重试写记录本身：为一条缺失的边丢掉请求自己的日志行，是两者中更糟的那个。
 
 下游行的 `provider_id`、`credential_id` 和 `metrics` 保持为空。重试过的请求
-碰了两个 Provider、两份凭证，单个列只能二选一；边不必二选一就能回答，而计费用量是
+碰了两个供应商、两份凭证，单个列只能二选一；边不必二选一就能回答，而计费用量是
 `usage_records` 那一行。
 
 ## 发布链接
@@ -635,7 +635,7 @@ verifier     xApiKey
 
 `Operations::issuer()` 是 gproxy **面向下游客户端**充当 OAuth 授权服务器——编辑器插件、
 编码 CLI、用户机器上的脚本。它**不是** gproxy 登录上游的那条路；那是 sdk 的 `login()`，
-在那里 gproxy 是别人 OAuth 的客户端。本模块里没有任何东西会和 Provider 通信。
+在那里 gproxy 是别人 OAuth 的客户端。本模块里没有任何东西会和供应商通信。
 
 ```text
   Claude Code ──authorize/token──▶ gproxy  (operations::issuer：服务器)
@@ -771,7 +771,7 @@ portal.password().change(change).await?;
 | 操作 | 返回 |
 |---|---|
 | `context()` | 用户、组织、团队、功能开关 |
-| `models()` | 全部暴露名与 `Provider名/模型` 形式，各带 `permitted` |
+| `models()` | 全部暴露名与 `供应商名/模型` 形式，各带 `permitted` |
 | `keys()` | 对调用方自己的 key 做 `list`、`create`、`rotate`、`reveal`、`delete` |
 | `usage(query)` | 汇总，可选的分组切片，可选的趋势 |
 | `quota()` | 调用方预算链上每条预算的当前窗口 |
@@ -822,12 +822,12 @@ portal.password().change(change).await?;
 ### 门户刻意比管理面看得少
 
 `recent_requests` 不返回体、不返回头、不返回 URL、不返回客户端地址、不返回凭证 id、也不
-返回 Provider id——只有 `requestId`、调用方自己的 `apiKeyId`、模型、操作、Provider 的
+返回供应商 id——只有 `requestId`、调用方自己的 `apiKeyId`、模型、操作、供应商的
 **展示名**、状态码、capture 状态和时间。
 
 被捕获的体里可能是调用方自己的 prompt，那是他的；但同样可能是系统提示词、工具定义，或者
-属于运营者的上游错误，而读取侧的任何过滤都分不出这两者。凭证 id 与 Provider id 是账号持有人
-用不上、攻击者用得上的基础设施。Provider 以名字的形式保留，因为"这次是哪个上游服务的"是个
+属于运营者的上游错误，而读取侧的任何过滤都分不出这两者。凭证 id 与供应商 id 是账号持有人
+用不上、攻击者用得上的基础设施。供应商以名字的形式保留，因为"这次是哪个上游服务的"是个
 合理的问题。运营者的日志视图全都保留——它就是干这个的。
 
 这份列表由 **`settings.portal_recent_requests_enabled`** 控制，本 crate 里只有这一处读它。
@@ -837,14 +837,14 @@ portal.password().change(change).await?;
 
 ### 模型列表标明调用权限
 
-`models()` 列出每一个暴露名和每一个 `Provider名/模型` 形式，并为每个标上 `permitted`。调用方
+`models()` 列出每一个暴露名和每一个 `供应商名/模型` 形式，并为每个标上 `permitted`。调用方
 规则够不到的名字仍然留在列表里，只是 `permitted: false`。v3 会把这种行丢掉，这里不丢：
 静默省略会让"这个模型 404"和"你没被允许用这个模型"变成同一个观察结果——而且也没什么要保护
-的：暴露名和 `Provider名/模型` 形式是实例配置，就是运营者发布出去的那些字符串。被扣下的是它们
-背后的 Provider id；DTO 只报一个数量和一个渠道，这说明了一个名字有多冗余，却没点名任何机器。
+的：暴露名和 `供应商名/模型` 形式是实例配置，就是运营者发布出去的那些字符串。被扣下的是它们
+背后的供应商 id；DTO 只报一个数量和一个渠道，这说明了一个名字有多冗余，却没点名任何机器。
 
-`Provider名/模型` 与使用 Provider 专属 API 地址并填写原模型名等价。
-Provider 改名后，模型前缀和专属 API 地址也随之改变。
+`供应商名/模型` 与使用供应商专属 API 地址并填写原模型名等价。
+供应商改名后，模型前缀和专属 API 地址也随之改变。
 
 `permitted` 由 `admission::permission::allowed_providers` 算出——正是请求漏斗调用的那个
 函数，对同一份快照——按 `GenerateContent` 评估，因为门户问的是"我能把 prompt 发给什么"。

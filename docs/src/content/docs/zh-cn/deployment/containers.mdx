@@ -51,10 +51,10 @@ docker logs gproxy
 ## Render
 
 1. 点击上方 Render 卡片中的部署按钮，检查仓库根目录 `render.yaml` Blueprint：免费 Web 服务，使用外置 PostgreSQL 数据库。
-2. 将 `GPROXY_DATABASE_URL` 填为自备的外置 PostgreSQL 连接地址，然后部署服务。数据库需允许 Render 连接，连接地址应保留数据库提供商要求的 SSL 参数。管理员密码和加密主密钥由 Render 生成。
+2. 将 `GPROXY_DATABASE_URL` 填为自备的外置 PostgreSQL 连接地址，然后部署服务。数据库需允许 Render 连接，连接地址应保留数据库供应商要求的 SSL 参数。管理员密码和加密主密钥由 Render 生成。
 3. 在服务的 **Environment** 设置中查看并保存 `GPROXY_ADMIN_PASSWORD` 和 `GPROXY_MASTER_KEY`。打开服务地址的 `/console/`，使用 `admin` 登录。
 
-模板不创建数据库。Render Web 服务默认使用免费套餐，外置数据库的费用与限制取决于所选提供商。免费 Web 服务空闲时会休眠，再次请求可能需要等待唤醒。健康检查使用 `8787` 端口的 `/healthz`。
+模板不创建数据库。Render Web 服务默认使用免费套餐，外置数据库的费用与限制取决于所选供应商。免费 Web 服务空闲时会休眠，再次请求可能需要等待唤醒。健康检查使用 `8787` 端口的 `/healthz`。
 
 ## Heroku
 

@@ -111,7 +111,7 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 
 | 目录 | 实体 |
 |---|---|
-| `upstream` 上游 | Provider、Credential、Model、ProviderModel、OperationRule、OperationEndpoint、RewriteRuleSet、RewriteRule、ProviderRewriteRuleSet |
+| `upstream` 上游 | 供应商、Credential、Model、ProviderModel、OperationRule、OperationEndpoint、RewriteRuleSet、RewriteRule、ProviderRewriteRuleSet |
 | `routing` 路由 | Route、RouteMember |
 | `identity` 身份 | Organization、Team、OrganizationMember、TeamMember、User、ApiKey、UserSession、Permission、AuditEvent |
 | `oauth` 下游授权 | Client、Grant、Code、Token、Device |
@@ -135,7 +135,7 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 - 业务 ID 使用调用方生成的字符串；时间戳使用 Unix 毫秒。全局设置使用 `id = 1` 的记录，
   明确列出网络、执行、执行限额（core 派生有限 limits 的超时与字节上限）、`config_revision`、
   词表、日志、存储选择、维护和用户门户字段。
-- Provider 为全局配置。Credential 引用 Provider，同时归属组织、团队、用户三者之一；
+- 供应商为全局配置。Credential 引用供应商，同时归属组织、团队、用户三者之一；
   凭证归属与供应商配置分别建模。`status`（`active`／`dead`）加 `status_reason` 是持久
   生命周期，与运营的 `enabled` 开关分开：`set_status_many` 在版本 CAS 下记录确定性的刷新
   拒绝及原因，`refresh_many` 成功后回到 `active`。选择器只看这一位，原因是给人看的。
@@ -143,7 +143,7 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
   `until_ms` 和 core 的 `BlockSource` JSON。core 的 cache 是热副本，Store 跨重启权威；
   过期行由 core 懒惰清理。删除凭证级联删除其 block。
 - 独立 ConnectionProfile 保存后端（`reqwest`、`wreq`、`reqwest_native`）、代理模式／URL、wreq 模拟参数、解压开关、重定向、重试和连接池参数。
-  三层可空 `connection_profile_id` 按凭证 → Provider → 渠道默认连接 → 全局 → 内置 reqwest／直连选择。
+  三层可空 `connection_profile_id` 按凭证 → 供应商 → 渠道默认连接 → 全局 → 内置 reqwest／直连选择。
   `None` 继承整份配置；直连／系统代理是配置中的明确模式，不使用空 URL 表示。
   被引用的配置禁止删除（`ON DELETE RESTRICT`），没有 profile version。
   `gproxy-client` 按有效参数缓存 Client；已提供仓储 CRUD；宿主校验、继承和执行接线仍由 core 实现。
@@ -152,11 +152,11 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 - 组织凭证供组织成员及下属团队用户使用，团队凭证供团队成员使用；查看、编辑、删除这些
   共享凭证要求具备其归属组织／团队的管理员角色。当前 entity 只表达关系，尚未实现 API 权限判断。
 - ProviderModel 可关联全局模型，删除模型资料时清空该可选引用。
-- 路由结构为对外模型名 → Route → Provider／上游模型成员；不设置组织、团队、用户归属。
+- 路由结构为对外模型名 → Route → 供应商／上游模型成员；不设置组织、团队、用户归属。
 - Permission、RateLimit 暂留 user／API key 归属。Quota 归一个 `(owner_kind, owner_id)`，
   kind 是宿主定义的字符串（建议 `user`／`api_key`／`team`／`org`），
   不建外键，归属一致性由宿主写入层校验。core 保留两种 kind 表示上游侧上限而非调用方预算：
-  `credential`（一把凭证）与 `provider`（该 provider 的每把凭证），metric `requests`／unit
+  `credential`（一把凭证）与 `provider`（该供应商的每把凭证），metric `requests`／unit
   `count` 或 metric `cost`／unit `USD`。
 - 配置从属行使用代码中声明的删除行为。历史身份 ID 不建立配置外键；QuotaSettlement 关联
   QuotaWindow，与可以清理的 UsageRecord 独立。
@@ -179,17 +179,17 @@ Header／Query 选择已存在字段的值进行替换，保留重复项；Query
 
 ## 方法级 URL
 
-`operation_endpoints()` 提供 Provider 方法地址的通用批量 CRUD。每行保存 `provider_id`、
+`operation_endpoints()` 提供供应商方法地址的通用批量 CRUD。每行保存 `provider_id`、
 原生 `operation`、`dialect`、`transport`（`http`／`websocket`）、完整 `url` 和 `enabled`。
-前四项构成唯一键，同一 Provider 的 OpenAI／Claude 生成方法可设不同 URL，同一 OperationKey
+前四项构成唯一键，同一供应商的 OpenAI／Claude 生成方法可设不同 URL，同一 OperationKey
 的 HTTP／WS 也可独立配置；流式生成是独立 operation，需要覆盖时单独设置。
 
 地址配置由独立的 OperationEndpoint 保存，OperationRule 继续负责动作／操作映射。
-新表已加入 sync 与 `load_control_data`；删除 Provider 会级联删除地址配置，不改变旧的
+新表已加入 sync 与 `load_control_data`；删除供应商会级联删除地址配置，不改变旧的
 operation-rule 唯一约束。删除／停用一条地址即可回退默认值。
 
 组装执行数据时校验 operation／dialect 及方法 URL 要求，将启用项加入
-`ProviderData.operation_urls`。优先级为：方法 URL → Provider base_url＋渠道路径 → 渠道默认 URL。
+`ProviderData.operation_urls`。优先级为：方法 URL → 供应商 base_url＋渠道路径 → 渠道默认 URL。
 方法 URL 是完整地址，不再追加默认路径；渠道定义的路径参数仍由对应方法处理。
 动态返回的下载 URL，以及 OAuth／厂商 service 的辅助请求，不被这个设置统一覆盖。
 当前完成持久化和 core 数据接口，调用接线仍未实现。
@@ -200,23 +200,23 @@ operation-rule 唯一约束。删除／停用一条地址即可回退默认值�
 Route 保存名称、启用状态、`round_robin`／`weighted`／`failover` 策略和正数
 `max_attempts`（含首次调用，执行时受全局最大尝试次数限制）。
 
-[`RouteMember`](src/entity/routing/route_member.rs) 保存 Provider、明确的上游模型名、
+[`RouteMember`](src/entity/routing/route_member.rs) 保存供应商、明确的上游模型名、
 `tier`、`weight` 和启用状态。先选较低且可用的层级，同组内按轮询、权重或故障切换策略
-选择成员；再由 Provider 的凭证策略选取可用凭证。模型名不建立模型目录外键。
+选择成员；再由供应商的凭证策略选取可用凭证。模型名不建立模型目录外键。
 当前 v3 的接口与执行路径不使用旧 schema 中的固定 credential_id 和 priority，本稿也不保留它们。
 
 Namespace 从对外名称的首段派生：`coding/fast` 在全局以完整名称索引，在 `coding`
 入口内以 `fast` 索引；没有独立 Namespace 表。命名入口沿用 namespace → 路由名 →
-Provider 名的查找顺序。这里是模型映射，不是 alias 字符串改写。
+供应商名的查找顺序。这里是模型映射，不是 alias 字符串改写。
 
-删除路由级联删除其成员和对外映射；删除 Provider 只删除引用它的成员。路由配置没有
+删除路由级联删除其成员和对外映射；删除供应商只删除引用它的成员。路由配置没有
 组织、团队、用户归属。非空名称、正数权重／尝试次数以及运行时选择规则是后续写入和
 执行层的契约；当前只定义实体，不代表路由执行已经实现。
 
 ## 定价结构
 
-- [`PriceRule`](src/entity/pricing/price_rule.rs) 按全局／Provider、上游模型和可选操作匹配；
-  币种归属于规则。先匹配 Provider 规则，再回退全局，同范围按 `(priority, id)` 升序选择。
+- [`PriceRule`](src/entity/pricing/price_rule.rs) 按全局／供应商、上游模型和可选操作匹配；
+  币种归属于规则。先匹配供应商规则，再回退全局，同范围按 `(priority, id)` 升序选择。
 - [`PriceRate`](src/entity/pricing/price_rate.rs) 保存具体指标的价格、计量单位和数量分母。
   每行有独立 ID，同一指标可以有多个尺寸、质量、工具名等条件费率；按 `(priority, id)`
   选择首条全部条件匹配的费率，没有匹配则回退无条件费率，二者不叠加。
@@ -308,7 +308,7 @@ ping、pong、close 和无法归属轮次的消息不填写 turn_id。每条消�
 | Device | 设备码摘要、用户短码、客户端、scopes、授权归属、批准／拒绝／消费时间，以及兼容 Codex 的密文结果 |
 
 Client.id 就是公开的 OAuth client_id；Grant 关联 GProxy 用户及一个 `kind = oauth`
-的内部 API Key，不绑定 Provider／Credential。内部 key 承载权限、用量归属，不能作为
+的内部 API Key，不绑定供应商／Credential。内部 key 承载权限、用量归属，不能作为
 普通 API Key 登录或导出。OAuth 身份仍走统一准入、路由、结算、日志路径，并取当前用户权限
 与授权 scopes 的交集；不能获得控制台管理权限。UserSession 继续独立表示控制台会话。
 
@@ -327,7 +327,7 @@ core 必须在每次访问及 WS 新轮次调用，并负责用户授权和 PKCE
 内容结构为 `OAuthCredentialSecret`（access／refresh／ID token、类型、scopes、refresh
 过期时间和供应商扩展字段）。`expires_at_ms` 表示 access token 到期；刷新需要按 version
 条件更新密文及到期时间并递增版本，避免覆盖较新的凭证。加密封装及供应商刷新适配尚未实现。
-上游登录过程的 state／PKCE verifier／device code 使用有过期时间、绑定发起人及 Provider
+上游登录过程的 state／PKCE verifier／device code 使用有过期时间、绑定发起人及供应商
 的缓存事务。交互式登录和凭证替换遵循归属管理权限；自动刷新由宿主执行，不改变普通
 成员对共享凭证的使用权。上游登录／刷新均使用三级连接配置选择。
 
@@ -371,7 +371,7 @@ scope 和下游 affinity_key 唯一标识；它与 CaptureRecord 的一次 WS �
 才因额度原因切换；普通瞬时限流不能直接认定订阅耗尽。切换成功后继续粘住新凭证，
 旧凭证重置不会触发切回。既有用量账本保持不变。
 
-[`AgentAssignment`](src/entity/resource/agent_assignment.rs) 每代保存目标 Provider／Credential、
+[`AgentAssignment`](src/entity/resource/agent_assignment.rs) 每代保存目标供应商／Credential、
 前一有效代、触发原因／额度观测或请求关联，以及准备、启用、替换、失败／结果未知状态。
 不会覆盖旧目标。会话保存 version 和 active_generation，当前目标必须按
 `(session_id, active_generation)` 查找，不能取最新一行。切换预留使用条件更新 version，
@@ -398,7 +398,7 @@ ProtocolState，scope/key 必须绑定用户、逻辑会话和分配代；状态
 
 已开始的 WS／流式调用固定其 CaptureRecord.agent_assignment_id，不能中途换成另一账号的
 数据流。切换只影响准备完成后的新调用／受支持的重新连接。日志中的分配 ID 是历史引用；
-凭证／Provider 删除也不再级联清除 AgentAssignment 或 ResourceBinding 的目标记录。
+凭证／供应商删除也不再级联清除 AgentAssignment 或 ResourceBinding 的目标记录。
 目标配置不存在时必须返回不可用，不能把丢失绑定当作无约束选路。显式清理逻辑会话会
 删除分配行、清空资源的 assignment_id，但保留资源代号／原目标，不将其变成普通第 0 代资源。
 
