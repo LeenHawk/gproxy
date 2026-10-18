@@ -1,5 +1,7 @@
 {
   "shell": {
+    "personal": "Personal",
+    "admin": "Admin",
     "navigation": "Navigation",
     "resizeHint": "Drag to resize; double-click to reset. Use arrow keys to adjust.",
     "skipToContent": "Skip to main content",

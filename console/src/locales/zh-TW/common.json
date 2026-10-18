@@ -1,5 +1,7 @@
 {
   "shell": {
+    "personal": "個人",
+    "admin": "管理",
     "navigation": "導覽",
     "resizeHint": "拖曳調整寬度，按兩下恢復預設；也可使用方向鍵調整。",
     "skipToContent": "跳至主要內容",

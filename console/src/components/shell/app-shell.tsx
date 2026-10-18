@@ -26,6 +26,7 @@ import {
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SUPPORTED_LANGS, setLanguage, type LangCode } from "@/i18n"
 import { Link } from "@/components/link"
 import { useRoute } from "@/lib/router"
@@ -177,18 +178,40 @@ function Navigation({ sections, route, onNavigate }: {
   )
 }
 
-function Sidebar({ sections, route, onNavigate }: {
+type NavigationMode = "personal" | "admin"
+
+function Sidebar({ sections, route, mode, onModeChange, onNavigate }: {
   sections: Array<NavSection>
   route: string
+  mode: NavigationMode
+  onModeChange: (mode: NavigationMode) => void
   onNavigate?: () => void
 }) {
+  const { t } = useTranslation()
   const info = useQuery({ queryKey: INFO_KEY, queryFn: instanceInfo })
+  const personal = sections.filter(section => section.id === "self").flatMap(section =>
+    section.items.map(item => ({ id: item.id, icon: item.icon, items: [item], standalone: true })),
+  )
+  const admin = sections.filter(section => section.id !== "self" && section.id !== "about")
+  const shared = sections.filter(section => section.id === "about")
   return (
     <div className="flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 shrink-0 items-center px-5"><Brand onNavigate={onNavigate} /></div>
       <Separator />
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
-        <Navigation sections={sections} route={route} onNavigate={onNavigate} />
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-3 py-4">
+        {admin.length ? <Tabs value={mode} onValueChange={value => onModeChange(value as NavigationMode)} className="gap-4">
+          <TabsList variant="slider" className="w-full" aria-label={t("shell.navigation")}>
+            <span aria-hidden="true" className={cn(
+              "pointer-events-none absolute inset-y-[3px] left-[3px] -z-10 w-[calc((100%-6px)/2)] rounded-md bg-background shadow-sm transition-transform duration-200 ease-out motion-reduce:transition-none",
+              mode === "admin" && "translate-x-full",
+            )} />
+            <TabsTrigger value="personal">{t("shell.personal")}</TabsTrigger>
+            <TabsTrigger value="admin">{t("shell.admin")}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="personal"><Navigation sections={personal} route={route} onNavigate={onNavigate} /></TabsContent>
+          <TabsContent value="admin"><Navigation sections={admin} route={route} onNavigate={onNavigate} /></TabsContent>
+        </Tabs> : <Navigation sections={personal} route={route} onNavigate={onNavigate} />}
+        <Navigation sections={shared} route={route} onNavigate={onNavigate} />
       </div>
       <Separator />
       <div className="shrink-0 p-3">
@@ -207,6 +230,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const sections = sectionsFor(context)
   const section = sections.find((group) => group.items.some((item) => item.route === navRoute))
   const item = section?.items.find((item) => item.route === navRoute)
+  const routeMode = section && section.id !== "about" ? section.id === "self" ? "personal" : "admin" : null
+  const [navigation, setNavigation] = useState<{ route: string; mode: NavigationMode }>(() => ({ route: navRoute, mode: routeMode ?? "personal" }))
+  if (navigation.route !== navRoute) {
+    setNavigation({ route: navRoute, mode: routeMode ?? navigation.mode })
+  }
+  const setNavigationMode = (mode: NavigationMode) => setNavigation({ route: navRoute, mode })
   const info = useQuery({ queryKey: INFO_KEY, queryFn: instanceInfo })
   usePageTitle(item ? t(`nav.${item.id}`) : t("shell.mainContent"), info.data?.instanceName === "default" ? "GPROXY" : info.data?.instanceName ?? "GPROXY")
   const ActiveIcon = item?.icon
@@ -227,7 +256,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <a href="#console-main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-40 focus:rounded-lg focus:bg-background focus:px-4 focus:py-3 focus:text-foreground" onClick={event => { event.preventDefault(); mainRef.current?.focus() }}>{t("shell.skipToContent")}</a>
     <ResizableColumns storageKey="gproxy.layout.navigation.v1" initialWidth={248} minWidth={192} maxWidth={400} contentMinWidth={640} label={t("shell.navigation")} handleClassName="sticky top-0 h-dvh" className="min-h-dvh bg-background text-foreground">
       <aside className="sticky top-0 hidden h-dvh lg:block">
-        <Sidebar sections={sections} route={navRoute} />
+        <Sidebar sections={sections} route={navRoute} mode={navigation.mode} onModeChange={setNavigationMode} />
       </aside>
       <div className="min-w-0">
         <header className="top-0 z-30 flex min-h-16 flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-2 backdrop-blur lg:sticky lg:px-8">
@@ -241,7 +270,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               if (drawerRoute.current !== route) { event.preventDefault(); mainRef.current?.focus({ preventScroll: true }) }
             }} closeLabel={t("actions.close")} aria-describedby={undefined} className="gap-0 data-[side=left]:w-72 data-[side=left]:sm:max-w-72">
               <SheetTitle className="sr-only">{t("shell.navigation")}</SheetTitle>
-              <Sidebar sections={sections} route={navRoute} onNavigate={() => setOpen(false)} />
+              <Sidebar sections={sections} route={navRoute} mode={navigation.mode} onModeChange={setNavigationMode} onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>
           <div className="min-w-0 flex-1 lg:hidden"><Brand /></div>
