@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemWithReferencePayload {
     #[serde(
         default,
@@ -81,6 +82,7 @@ pub struct ConversationItemWithReferencePayload {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemWithReferenceContent {
     #[serde(
         default,
@@ -120,6 +122,7 @@ pub struct ConversationItemWithReferenceContent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemWithReferenceObject {
     #[serde(rename = "realtime.item")]
     RealtimeItem,
@@ -128,6 +131,7 @@ pub enum ConversationItemWithReferenceObject {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemWithReferenceRole {
     #[serde(rename = "user")]
     User,
@@ -140,6 +144,7 @@ pub enum ConversationItemWithReferenceRole {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemWithReferenceStatus {
     #[serde(rename = "completed")]
     Completed,
@@ -152,6 +157,7 @@ pub enum ConversationItemWithReferenceStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemWithReferenceType {
     #[serde(rename = "message")]
     Message,
@@ -164,6 +170,7 @@ pub enum ConversationItemWithReferenceType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemWithReferenceContentType {
     #[serde(rename = "input_audio")]
     InputAudio,
@@ -180,6 +187,7 @@ pub enum ConversationItemWithReferenceContentType {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemWithReference {
     Item(ConversationItemWithReferencePayload),
     Reference(ConversationItemReference),
@@ -187,6 +195,7 @@ pub enum ConversationItemWithReference {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemReference {
     pub id: String,
     #[serde(rename = "type")]
@@ -197,6 +206,7 @@ pub struct ConversationItemReference {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemReferenceType {
     #[serde(rename = "item_reference")]
     ItemReference,

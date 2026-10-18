@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ThinkingLevel {
     #[serde(rename = "THINKING_LEVEL_UNSPECIFIED")]
     Unspecified,
@@ -24,6 +25,7 @@ pub enum ThinkingLevel {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum GenerationMediaResolution {
     #[serde(rename = "MEDIA_RESOLUTION_UNSPECIFIED")]
     Unspecified,
@@ -37,6 +39,7 @@ pub enum GenerationMediaResolution {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TextMimeType {
     #[serde(rename = "MIME_TYPE_UNSPECIFIED")]
     Unspecified,
@@ -48,6 +51,7 @@ pub enum TextMimeType {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AudioMimeType {
     #[serde(rename = "MIME_TYPE_UNSPECIFIED")]
     Unspecified,
@@ -67,6 +71,7 @@ pub enum AudioMimeType {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Delivery {
     #[serde(rename = "DELIVERY_UNSPECIFIED")]
     Unspecified,
@@ -78,6 +83,7 @@ pub enum Delivery {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ImageMimeType {
     #[serde(rename = "MIME_TYPE_UNSPECIFIED")]
     Unspecified,
@@ -87,6 +93,7 @@ pub enum ImageMimeType {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AspectRatio {
     #[serde(rename = "ASPECT_RATIO_UNSPECIFIED")]
     Unspecified,
@@ -122,6 +129,7 @@ pub enum AspectRatio {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ImageSize {
     #[serde(rename = "IMAGE_SIZE_UNSPECIFIED")]
     Unspecified,
@@ -137,6 +145,7 @@ pub enum ImageSize {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ServiceTier {
     #[serde(rename = "unspecified")]
     Unspecified,
@@ -152,6 +161,7 @@ pub enum ServiceTier {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SpeechConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "voice_config")]
@@ -169,6 +179,7 @@ pub struct SpeechConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VoiceConfig {
     #[serde(alias = "prebuilt_voice_config")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -185,6 +196,7 @@ pub struct VoiceConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PrebuiltVoiceConfig {
     #[serde(alias = "voice_name")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -196,6 +208,7 @@ pub struct PrebuiltVoiceConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MultiSpeakerVoiceConfig {
     #[serde(alias = "speaker_voice_configs")]
     pub speaker_voice_configs: Vec<SpeakerVoiceConfig>,
@@ -206,6 +219,7 @@ pub struct MultiSpeakerVoiceConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SpeakerVoiceConfig {
     pub speaker: String,
     #[serde(alias = "voice_config")]
@@ -219,6 +233,7 @@ pub struct SpeakerVoiceConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ThinkingConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "thinking_budget")]
@@ -238,6 +253,7 @@ pub struct ThinkingConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ImageConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "aspect_ratio")]
@@ -252,6 +268,7 @@ pub struct ImageConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseFormatConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<TextResponseFormat>,
@@ -266,6 +283,7 @@ pub struct ResponseFormatConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TextResponseFormat {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "mime_type")]
@@ -281,6 +299,7 @@ pub struct TextResponseFormat {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AudioResponseFormat {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "mime_type")]
@@ -302,6 +321,7 @@ pub struct AudioResponseFormat {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ImageResponseFormat {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "mime_type")]
@@ -325,6 +345,7 @@ pub struct ImageResponseFormat {
 /// `model` is part of this embedded Batch API object; standalone REST
 /// generation keeps model in its path.
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EmbeddedGenerateContentRequest {
     /// Required by the Batch API `GenerateContentRequest` embedded in CountTokens.
     pub model: String,
@@ -361,6 +382,7 @@ pub struct EmbeddedGenerateContentRequest {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GenerationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "stop_sequences")]

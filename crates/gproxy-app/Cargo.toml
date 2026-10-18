@@ -8,6 +8,8 @@ license.workspace = true
 repository.workspace = true
 
 [features]
+# Structured configuration documentation; not enabled by runtime hosts.
+schema = ["dep:schemars", "gproxy-sdk/schema"]
 # TypeScript declarations for the identity and portal DTOs, and the export
 # test that writes them. It turns the sdk's on as well, because a portal shape
 # is built out of sdk shapes — `PortalUsageDto` carries a `UsageSummaryDto` —
@@ -52,6 +54,7 @@ rust_decimal = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+schemars = { workspace = true, optional = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 # `CancellationToken` only: a host cancels a call when its client goes away,

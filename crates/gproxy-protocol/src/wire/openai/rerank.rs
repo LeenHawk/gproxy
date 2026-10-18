@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RerankRequestBody {
     #[serde(
         default,
@@ -28,6 +29,7 @@ pub type RerankRequest = WireRequest<RerankRequestBody>;
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RerankDocumentInput {
     Text(String),
     Structured(RerankDocument),
@@ -36,6 +38,7 @@ pub enum RerankDocumentInput {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RerankDocument {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
@@ -48,6 +51,7 @@ pub struct RerankDocument {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RerankResponseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -64,6 +68,7 @@ pub type RerankResponse = WireResponse<RerankResponseBody>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RerankObject {
     #[serde(rename = "list")]
     List,
@@ -72,6 +77,7 @@ pub enum RerankObject {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RerankResult {
     pub index: i64,
     pub relevance_score: serde_json::Number,
@@ -83,6 +89,7 @@ pub struct RerankResult {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RerankUsage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub search_units: Option<i64>,
@@ -106,6 +113,7 @@ where
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderPreferences {
     #[serde(
         default,
@@ -189,6 +197,7 @@ pub struct ProviderPreferences {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MaxPrice {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio: Option<String>,
@@ -208,6 +217,7 @@ pub struct MaxPrice {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PercentileCutoffs {
     #[serde(
         default,
@@ -241,6 +251,7 @@ pub struct PercentileCutoffs {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderSortConfig {
     #[serde(
         default,
@@ -261,6 +272,7 @@ pub struct ProviderSortConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DataCollection {
     #[serde(rename = "deny")]
     Deny,
@@ -271,6 +283,7 @@ pub enum DataCollection {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Quantization {
     #[serde(rename = "int4")]
     Int4,
@@ -301,6 +314,7 @@ pub enum Quantization {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ProviderSortBy {
     #[serde(rename = "price")]
     Price,
@@ -315,6 +329,7 @@ pub enum ProviderSortBy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ProviderPartition {
     #[serde(rename = "model")]
     Model,
@@ -326,6 +341,7 @@ pub enum ProviderPartition {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum PreferredCutoff {
     Number(serde_json::Number),
     Percentiles(PercentileCutoffs),
@@ -335,6 +351,7 @@ pub enum PreferredCutoff {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ProviderSort {
     By(ProviderSortBy),
     Config(ProviderSortConfig),
@@ -344,6 +361,7 @@ pub enum ProviderSort {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DashscopeRerankRequestBody {
     /// Documented by DashScope under results.document: true returns input text.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -362,6 +380,7 @@ pub type DashscopeRerankRequest = WireRequest<DashscopeRerankRequestBody>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DashscopeRerankResponseBody {
     pub id: String,
     pub object: RerankObject,
@@ -375,6 +394,7 @@ pub type DashscopeRerankResponse = WireResponse<DashscopeRerankResponseBody>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DashscopeRerankResult {
     pub index: i64,
     pub relevance_score: serde_json::Number,
@@ -386,6 +406,7 @@ pub struct DashscopeRerankResult {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DashscopeRerankDocument {
     pub text: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -394,6 +415,7 @@ pub struct DashscopeRerankDocument {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DashscopeRerankUsage {
     pub total_tokens: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]

@@ -1,0 +1,16 @@
+---
+title: "Configuration Schema"
+description: "Configuration fields, variants and defaults derived from the Rust AppConfig types."
+---
+
+import ConfigurationReference from "../../../components/ConfigurationReference.astro";
+
+This reference is generated from `AppConfig` and its nested Rust types with
+`schemars`. Field names follow Serde; defaults come from the Rust defaults.
+The shape is shared by native and edge hosts. See [Configuration](/reference/configuration/)
+for CLI flags, environment variables and precedence.
+
+Schema validation covers the serialized structure. Runtime checks, such as
+whether a master key decodes to 32 bytes or a backend was compiled in, still apply.
+
+<ConfigurationReference locale="en" />

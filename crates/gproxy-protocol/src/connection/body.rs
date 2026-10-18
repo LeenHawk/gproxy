@@ -73,3 +73,16 @@ pub struct MultipartPart {
     pub headers: HeaderMap,
     pub body: HttpBody,
 }
+
+/// A multipart field carries its bytes directly; its part headers are MIME
+/// metadata, not nested JSON properties in the API payload.
+#[cfg(feature = "schema")]
+impl schemars::JsonSchema for MultipartPart {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "BinaryPart".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({ "type": "string", "format": "binary" })
+    }
+}

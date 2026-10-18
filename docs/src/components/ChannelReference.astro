@@ -1,0 +1,40 @@
+---
+import catalog from '../../public/generated/channels.json';
+import { referenceText, description } from '../lib/reference-i18n';
+const { locale = 'en' } = Astro.props;
+const t = referenceText(locale);
+const suffix = locale === 'en' ? '' : `.${locale}`;
+const configTable = [...catalog.hostConfigKeys];
+---
+
+<p>GPROXY {catalog.version}. <a href={`/generated/channels${suffix}.json`}>{t.jsonDownload}</a>.</p>
+<h2 id="host-configuration">{t.hostConfig}</h2>
+<table>
+  <thead><tr><th>{t.key}</th><th>{t.kind}</th><th>{t.description}</th></tr></thead>
+  <tbody>{configTable.map((key) => <tr><td><code>{key.name}</code></td><td>{t[key.kind]}</td><td>{description(key.description,locale)}</td></tr>)}</tbody>
+</table>
+{catalog.channels.map(({ descriptor: channel, services }) => (
+  <section>
+    <h2 id={channel.id}>{channel.displayName} <code>{channel.id}</code></h2>
+    <p>{t.login}: {channel.loginModes.map((mode) => t[mode]).join(' / ') || t.none}. {t.credentials}: <code>{channel.credentialKinds.join(', ') || t.none}</code>.</p>
+    <table>
+      <thead><tr><th>{t.capability}</th><th>{t.supported}</th></tr></thead>
+      <tbody>{Object.entries(channel.capabilities).map(([name, supported]) => <tr><td>{t[name]}</td><td>{supported ? t.yes : t.no}</td></tr>)}</tbody>
+    </table>
+    {channel.configKeys.length > 0 && <table>
+      <thead><tr><th>{t.key}</th><th>{t.kind}</th><th>{t.required}</th><th>{t.description}</th><th>{t.placeholder}</th></tr></thead>
+      <tbody>{channel.configKeys.map((key) => <tr>
+        <td><code>{key.name}</code></td><td>{t[key.kind]}</td><td>{key.required ? t.yes : t.no}</td><td>{description(key.description,locale)}</td><td>{key.placeholder ? <code>{key.placeholder}</code> : '—'}</td>
+      </tr>)}</tbody>
+    </table>}
+    {services.length > 0 && <details>
+      <summary>{t.services} ({services.length})</summary>
+      <table>
+        <thead><tr><th>{t.method}</th><th>{t.path}</th><th>{t.transport}</th><th>{t.access}</th><th>{t.idempotent}</th></tr></thead>
+        <tbody>{services.map((route) => <tr>
+          <td><code>{route.method}</code></td><td><code>{route.path}</code></td><td>{route.transport === 'web_socket' ? 'WebSocket' : 'HTTP'}</td><td>{t[route.class.class]}{route.class.class === 'resource' && <Fragment>: <code>{route.class.kind}</code> / {t[route.class.access]}</Fragment>}</td><td>{route.idempotent ? t.yes : t.no}</td>
+        </tr>)}</tbody>
+      </table>
+    </details>}
+  </section>
+))}

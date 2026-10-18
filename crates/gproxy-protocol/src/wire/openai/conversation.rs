@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateConversationRequestBody {
     #[serde(
         default,
@@ -34,6 +35,7 @@ pub type CreateConversationRequest = crate::WireRequest<CreateConversationReques
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationResponseBody {
     pub id: String,
     pub created_at: i64,
@@ -46,6 +48,7 @@ pub type CreateConversationResponse = crate::WireResponse<ConversationResponseBo
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationObject {
     #[serde(rename = "conversation")]
     Conversation,

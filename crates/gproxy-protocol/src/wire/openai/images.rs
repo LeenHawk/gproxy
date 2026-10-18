@@ -23,6 +23,7 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ImageBackground {
     #[serde(rename = "transparent")]
     Transparent,
@@ -35,6 +36,7 @@ pub enum ImageBackground {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ImageModeration {
     #[serde(rename = "low")]
     Low,
@@ -45,6 +47,7 @@ pub enum ImageModeration {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ImageOutputFormat {
     #[serde(rename = "png")]
     Png,
@@ -57,6 +60,7 @@ pub enum ImageOutputFormat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ImageQuality {
     #[serde(rename = "standard")]
     Standard,
@@ -79,6 +83,7 @@ pub enum ImageQuality {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ImageResponseFormat {
     #[serde(rename = "url")]
     Url,
@@ -89,6 +94,7 @@ pub enum ImageResponseFormat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ImageStyle {
     #[serde(rename = "vivid")]
     Vivid,
@@ -99,6 +105,7 @@ pub enum ImageStyle {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum InputFidelity {
     #[serde(rename = "high")]
     High,
@@ -109,6 +116,7 @@ pub enum InputFidelity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum EditedImageQuality {
     #[serde(rename = "low")]
     Low,
@@ -127,6 +135,7 @@ pub enum EditedImageQuality {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum EditedImageSize {
     #[serde(rename = "auto")]
     Auto,
@@ -143,6 +152,7 @@ pub enum EditedImageSize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum OutputImageBackground {
     #[serde(rename = "transparent")]
     Transparent,
@@ -153,6 +163,7 @@ pub enum OutputImageBackground {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum OutputImageQuality {
     #[serde(rename = "low")]
     Low,
@@ -169,6 +180,7 @@ pub enum OutputImageQuality {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum OutputImageSize {
     #[serde(rename = "1024x1024")]
     Square,
@@ -183,6 +195,7 @@ pub enum OutputImageSize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum MultipartImageQuality {
     #[serde(rename = "standard")]
     Standard,
@@ -203,6 +216,7 @@ pub enum MultipartImageQuality {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum StreamImageQuality {
     #[serde(rename = "low")]
     Low,
@@ -223,6 +237,7 @@ pub enum StreamImageQuality {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateImageRequestBody {
     pub prompt: String,
     #[serde(
@@ -312,6 +327,7 @@ pub struct CreateImageRequestBody {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ImageReference {
     #[serde(
         default,
@@ -334,6 +350,7 @@ pub struct ImageReference {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EditImageJsonBody {
     pub images: Vec<ImageReference>,
     pub prompt: String,
@@ -422,6 +439,7 @@ pub struct EditImageJsonBody {
 #[derive(Debug, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EditImageMultipartForm {
     pub image: Vec<MultipartPart>,
     pub prompt: String,
@@ -445,6 +463,7 @@ pub struct EditImageMultipartForm {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ImagesResponse {
     pub created: i64,
     #[serde(
@@ -492,6 +511,7 @@ pub struct ImagesResponse {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GeneratedImage {
     #[serde(
         default,
@@ -520,6 +540,7 @@ pub struct GeneratedImage {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ImageUsage {
     pub input_tokens: i64,
     pub input_tokens_details: ImageTokenDetails,
@@ -540,6 +561,7 @@ pub struct ImageUsage {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ImageTokenDetails {
     pub image_tokens: i64,
     pub text_tokens: i64,
@@ -552,6 +574,7 @@ pub struct ImageTokenDetails {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ImagePartialEvent {
     pub b64_json: String,
     pub background: ImageBackground,
@@ -569,6 +592,7 @@ pub struct ImagePartialEvent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ImageCompletedEvent {
     pub b64_json: String,
     pub background: ImageBackground,
@@ -585,6 +609,7 @@ pub struct ImageCompletedEvent {
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ImageGenerationStreamEvent {
     #[serde(rename = "image_generation.partial_image")]
     Partial(ImagePartialEvent),
@@ -596,6 +621,7 @@ pub enum ImageGenerationStreamEvent {
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ImageEditStreamEvent {
     #[serde(rename = "image_edit.partial_image")]
     Partial(ImagePartialEvent),

@@ -1,0 +1,22 @@
+---
+title: "HTTP API Reference"
+description: "Complete request, response and event schemas for forwarding, management, portal and OAuth APIs."
+---
+
+import ApiReference from "../../../components/ApiReference.astro";
+
+This reference is generated from Rust wire types, management DTOs and the host's
+route declarations. Request and response schemas use their respective Serde
+contracts. Expand an operation to see its parameters, payloads, status codes and
+referenced [data structures](/reference/api-schemas/).
+
+Shared forwarding paths select the protocol from request headers. `stream: true`
+selects the streaming operation. SSE schemas describe each decoded data event;
+WebSocket schemas describe messages after the upgrade. Binary and multipart
+payloads retain their own content types.
+
+The forwarding paths can also use a provider or namespace prefix. Codex-specific
+paths require a Codex provider name. See [Routing & Endpoints](/reference/routing-table/)
+for mount selection, authentication and administrative scopes.
+
+<ApiReference locale="en" />

@@ -15,6 +15,7 @@ pub(super) struct FontPackage {
 
 #[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 pub struct FontStatus {
     pub installed: bool,
     pub downloading: bool,

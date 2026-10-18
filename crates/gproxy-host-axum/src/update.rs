@@ -125,6 +125,7 @@ pub trait UpdateService: Send + Sync {
 
 /// One notice from the publisher's feed, already known to apply to this build.
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 pub struct Announcement {
     /// Stable across edits of the same notice, so a console can remember which
     /// ones a reader has dismissed.
@@ -143,6 +144,7 @@ pub struct Announcement {
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 pub enum AnnouncementSeverity {
     Info,
     Warning,
@@ -153,6 +155,7 @@ pub enum AnnouncementSeverity {
 /// blockquotes, bullets, bold and code — which is all the publisher's checker
 /// admits and all a console has to render.
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 pub struct AnnouncementContent {
     pub title: String,
     pub body: String,
@@ -160,6 +163,7 @@ pub struct AnnouncementContent {
 
 /// What the scheduled check has found so far, and whether there is a schedule.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 pub struct UpdateSchedule {
     /// The last completed check, or `None` when none has finished yet — a
     /// process that started a minute ago, or one whose every check failed.
@@ -181,6 +185,7 @@ pub struct UpdateSchedule {
 
 /// Live byte counts and the current installation phase.
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 pub struct UpdateProgress {
     pub phase: String,
     pub downloaded_bytes: u64,
@@ -189,6 +194,7 @@ pub struct UpdateProgress {
 
 /// One check's answer.
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 pub struct UpdateReport {
     /// The version this process is running.
     pub current: String,
@@ -217,6 +223,7 @@ pub struct UpdateReport {
 
 /// The answer to an apply or a rollback.
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 pub struct AppliedUpdate {
     /// The version now on disk.
     ///
@@ -235,6 +242,7 @@ pub struct AppliedUpdate {
 
 /// A refusal, in the three shapes a caller can act on differently.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 pub struct UpdateFailure {
     pub kind: UpdateFailureKind,
     pub message: String,
@@ -242,6 +250,7 @@ pub struct UpdateFailure {
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 pub enum UpdateFailureKind {
     /// The operator configured something this host cannot use. Their mistake,
     /// fixable without touching the release.
@@ -324,6 +333,7 @@ impl IntoResponse for UpdateFailure {
 /// `?channel=dev`, for an operator checking one channel without reconfiguring
 /// the instance.
 #[derive(Debug, Default, Deserialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 pub struct ChannelQuery {
     pub channel: Option<String>,
     pub source: Option<String>,
@@ -534,3 +544,9 @@ mod tests {
         assert!(schedule.interval_secs.is_none());
     }
 }
+
+#[cfg(feature = "documentation")]
+#[path = "update_docs.rs"]
+mod documentation;
+#[cfg(feature = "documentation")]
+pub(crate) use documentation::document;

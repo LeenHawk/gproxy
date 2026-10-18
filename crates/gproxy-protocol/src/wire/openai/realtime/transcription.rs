@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionLanguage {
     pub code: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -21,6 +22,7 @@ pub struct TranscriptionLanguage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LogProbProperties {
     pub token: String,
     pub bytes: Vec<i64>,
@@ -33,6 +35,7 @@ pub struct LogProbProperties {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeTranscriptionSessionCreateRequest {
     #[serde(rename = "type")]
     pub type_: RealtimeTranscriptionSessionCreateRequestType,
@@ -56,6 +59,7 @@ pub struct RealtimeTranscriptionSessionCreateRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AudioTranscription {
     #[serde(
         default,
@@ -101,6 +105,7 @@ pub struct AudioTranscription {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeTranscriptionSessionAudio {
     #[serde(
         default,
@@ -116,6 +121,7 @@ pub struct RealtimeTranscriptionSessionAudio {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NoiseReductionType {
     #[serde(rename = "near_field")]
     NearField,
@@ -127,6 +133,7 @@ pub enum NoiseReductionType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeTranscriptionSessionAudioInput {
     #[serde(
         default,
@@ -160,6 +167,7 @@ pub struct RealtimeTranscriptionSessionAudioInput {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeTranscriptionSessionAudioInputNoiseReduction {
     #[serde(rename = "type")]
     #[serde(
@@ -177,6 +185,7 @@ pub struct RealtimeTranscriptionSessionAudioInputNoiseReduction {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeTranscriptionSessionAudioInputTurnDetection {
     RealtimeTranscriptionSessionAudioInputTurnDetectionServerVad(
         RealtimeTranscriptionSessionAudioInputTurnDetectionServerVad,
@@ -191,6 +200,7 @@ pub enum RealtimeTranscriptionSessionAudioInputTurnDetection {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeTranscriptionSessionAudioInputTurnDetectionServerVad {
     #[serde(rename = "type")]
     pub type_: RealtimeTranscriptionSessionAudioInputTurnDetectionServerVadType,
@@ -238,6 +248,7 @@ pub struct RealtimeTranscriptionSessionAudioInputTurnDetectionServerVad {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVad {
     #[serde(rename = "type")]
     pub type_: RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVadType,
@@ -267,6 +278,7 @@ pub struct RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVad {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeTranscriptionSessionCreateRequestType {
     #[serde(rename = "transcription")]
     Transcription,
@@ -275,6 +287,7 @@ pub enum RealtimeTranscriptionSessionCreateRequestType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeTranscriptionSessionCreateRequestIncludeItem {
     #[serde(rename = "item.input_audio_transcription.logprobs")]
     ItemInputAudioTranscriptionLogprobs,
@@ -283,6 +296,7 @@ pub enum RealtimeTranscriptionSessionCreateRequestIncludeItem {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AudioTranscriptionDelay {
     #[serde(rename = "minimal")]
     Minimal,
@@ -299,6 +313,7 @@ pub enum AudioTranscriptionDelay {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeTranscriptionSessionAudioInputTurnDetectionServerVadType {
     #[serde(rename = "server_vad")]
     ServerVad,
@@ -307,6 +322,7 @@ pub enum RealtimeTranscriptionSessionAudioInputTurnDetectionServerVadType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVadType {
     #[serde(rename = "semantic_vad")]
     SemanticVad,
@@ -315,6 +331,7 @@ pub enum RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVadType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVadEagerness {
     #[serde(rename = "low")]
     Low,

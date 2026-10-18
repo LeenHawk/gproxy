@@ -28,6 +28,7 @@ where
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateVideoRequestBody {
     pub model: String,
     #[serde(
@@ -105,6 +106,7 @@ pub struct CreateVideoRequestBody {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VideoGenerationResponseBody {
     pub id: String,
     pub polling_url: String,
@@ -142,6 +144,7 @@ pub struct VideoGenerationResponseBody {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VideoUsage {
     #[serde(
         default,
@@ -166,6 +169,7 @@ pub struct VideoUsage {
 /// provider.options is explicitly arbitrary per-provider JSON in the OpenRouter schema.
 /// Video provider configuration has no routing preferences; do not import rerank fields.
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VideoProvider {
     #[serde(
         default,
@@ -182,6 +186,7 @@ pub struct VideoProvider {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ReferenceUrl {
     pub url: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -193,6 +198,7 @@ pub struct ReferenceUrl {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FrameImage {
     #[serde(rename = "type")]
     pub type_: VideoImageType,
@@ -205,6 +211,7 @@ pub struct FrameImage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum VideoImageType {
     #[serde(rename = "image_url")]
     ImageUrl,
@@ -213,6 +220,7 @@ pub enum VideoImageType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum FrameType {
     #[serde(rename = "first_frame")]
     FirstFrame,
@@ -224,6 +232,7 @@ pub enum FrameType {
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum InputReference {
     #[serde(rename = "image_url")]
     Image(InputImageReference),
@@ -238,6 +247,7 @@ pub enum InputReference {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InputImageReference {
     pub image_url: ReferenceUrl,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -249,6 +259,7 @@ pub struct InputImageReference {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InputAudioReference {
     pub audio_url: ReferenceUrl,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -260,6 +271,7 @@ pub struct InputAudioReference {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InputVideoReference {
     pub video_url: ReferenceUrl,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -269,6 +281,7 @@ pub struct InputVideoReference {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum VideoAspectRatio {
     #[serde(rename = "16:9")]
     R16x9,
@@ -293,6 +306,7 @@ pub enum VideoAspectRatio {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum VideoResolution {
     #[serde(rename = "480p")]
     P480,
@@ -313,6 +327,7 @@ pub enum VideoResolution {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum VideoStatus {
     #[serde(rename = "pending")]
     Pending,
@@ -333,6 +348,7 @@ pub enum VideoStatus {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RetrieveVideoPath {
     #[serde(rename = "jobId")]
     pub job_id: String,
@@ -345,6 +361,7 @@ pub struct RetrieveVideoPath {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DownloadVideoQuery {
     #[serde(
         default,
@@ -368,6 +385,7 @@ pub type DownloadVideoResponse = WireResponse<HttpBody>;
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeCreateVideoRequestBody {
     pub prompt: String,
     #[serde(
@@ -401,6 +419,7 @@ pub struct NativeCreateVideoRequestBody {
 #[derive(Debug, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeCreateVideoMultipartForm {
     pub prompt: String,
     pub input_reference: Option<MultipartPart>,
@@ -413,6 +432,7 @@ pub struct NativeCreateVideoMultipartForm {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NativeInputReference {
     File(NativeFileReference),
     Url(NativeUrlReference),
@@ -423,6 +443,7 @@ pub enum NativeInputReference {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeFileReference {
     pub file_id: String,
     #[serde(
@@ -439,6 +460,7 @@ pub struct NativeFileReference {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeUrlReference {
     pub image_url: String,
     #[serde(
@@ -472,6 +494,7 @@ fn url_extensions<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Rest, D::Err
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NativeVideoSeconds {
     #[serde(rename = "4")]
     Four,
@@ -484,6 +507,7 @@ pub enum NativeVideoSeconds {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NativeVideoSize {
     #[serde(rename = "720x1280")]
     Portrait720,
@@ -498,6 +522,7 @@ pub enum NativeVideoSize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NativeVideoStatus {
     #[serde(rename = "queued")]
     Queued,
@@ -512,6 +537,7 @@ pub enum NativeVideoStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NativeVideoObject {
     #[serde(rename = "video")]
     Video,
@@ -520,6 +546,7 @@ pub enum NativeVideoObject {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NativeVideoDeletedObject {
     #[serde(rename = "video.deleted")]
     VideoDeleted,
@@ -528,6 +555,7 @@ pub enum NativeVideoDeletedObject {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NativeVideoListOrder {
     #[serde(rename = "asc")]
     Asc,
@@ -538,6 +566,7 @@ pub enum NativeVideoListOrder {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum NativeVideoDownloadVariant {
     #[serde(rename = "video")]
     Video,
@@ -552,6 +581,7 @@ pub enum NativeVideoDownloadVariant {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeVideo {
     pub id: String,
     pub created_at: i64,
@@ -600,6 +630,7 @@ pub struct NativeVideo {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeVideoError {
     pub code: String,
     pub message: String,
@@ -618,6 +649,7 @@ pub struct NativeVideoError {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeVideoPath {
     pub video_id: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -629,6 +661,7 @@ pub struct NativeVideoPath {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeListVideosQuery {
     #[serde(
         default,
@@ -657,6 +690,7 @@ pub struct NativeListVideosQuery {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeListVideosResponseBody {
     pub data: Vec<NativeVideo>,
     #[serde(
@@ -680,6 +714,7 @@ pub struct NativeListVideosResponseBody {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeDeleteVideoResponseBody {
     pub id: String,
     pub deleted: bool,
@@ -693,6 +728,7 @@ pub struct NativeDeleteVideoResponseBody {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeDownloadVideoQuery {
     #[serde(
         default,
@@ -723,6 +759,7 @@ pub type NativeDownloadVideoResponse = WireResponse<HttpBody>;
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeVideoMisalignment {
     #[serde(
         default,
@@ -750,6 +787,7 @@ pub struct NativeVideoMisalignment {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NativeVideoSteer {
     pub message: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]

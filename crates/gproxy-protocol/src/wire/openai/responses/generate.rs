@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GenerateContentRequestBody {
     #[serde(
         default,
@@ -217,6 +218,7 @@ pub struct GenerateContentRequestBody {
 )]
 #[serde(rename_all = "snake_case")]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContextManagement {
     pub r#type: String,
     #[serde(
@@ -238,6 +240,7 @@ pub struct ContextManagement {
     Deserialize,
     gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseIncludable {
     #[serde(rename = "web_search_call.action.sources")]
     WebSearchSources,
@@ -259,6 +262,7 @@ pub enum ResponseIncludable {
 )]
 #[serde(rename_all = "snake_case")]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseModeration {
     pub model: String,
     #[serde(
@@ -280,6 +284,7 @@ pub struct ResponseModeration {
     Deserialize,
     gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ModerationMode {
     #[serde(rename = "score")]
     Score,
@@ -296,6 +301,7 @@ pub enum ModerationMode {
     gproxy_protocol_macros::WireBuilder,
     gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModerationPolicy {
     #[serde(
         default,
@@ -322,6 +328,7 @@ pub struct ModerationPolicy {
     gproxy_protocol_macros::WireBuilder,
     gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModerationPolicyMode {
     pub mode: ModerationMode,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -337,6 +344,7 @@ pub struct ModerationPolicyMode {
     gproxy_protocol_macros::WireBuilder,
     gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponsePrompt {
     pub id: String,
     #[serde(
@@ -364,6 +372,7 @@ pub struct ResponsePrompt {
     Deserialize,
     gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum PromptCachingMode {
     #[serde(rename = "implicit")]
     Implicit,
@@ -380,6 +389,7 @@ pub enum PromptCachingMode {
     gproxy_protocol_macros::WireBuilder,
     gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PromptCacheOptions {
     #[serde(
         default,
@@ -415,6 +425,7 @@ pub struct PromptCacheOptions {
     Deserialize,
     gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum PromptCacheRetention {
     #[serde(rename = "in_memory")]
     InMemory,
@@ -431,6 +442,7 @@ pub enum PromptCacheRetention {
     Deserialize,
     gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ServiceTier {
     #[serde(rename = "auto")]
     Auto,
@@ -457,6 +469,7 @@ pub enum ServiceTier {
     gproxy_protocol_macros::WireBuilder,
     gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct StreamOptions {
     #[serde(
         default,
@@ -477,6 +490,7 @@ pub struct StreamOptions {
     Deserialize,
     gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum GenerateTruncation {
     #[serde(rename = "auto")]
     Auto,
@@ -490,6 +504,7 @@ pub type GenerateContentRequest = crate::WireRequest<GenerateContentRequestBody>
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum PromptVariableValue {
     String(String),
     Text(ResponseInputText),
@@ -501,6 +516,7 @@ pub enum PromptVariableValue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum PromptCacheTtl {
     #[serde(rename = "30m")]
     ThirtyMinutes,

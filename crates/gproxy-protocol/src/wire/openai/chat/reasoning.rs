@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ReasoningDetailKind {
     #[serde(rename = "reasoning.text")]
     Text,
@@ -20,6 +21,7 @@ pub enum ReasoningDetailKind {
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ReasoningDetail {
     #[serde(rename = "type")]
     pub type_: ReasoningDetailKind,

@@ -11,6 +11,7 @@ use gproxy_store::entity::config::connection_profile as profile;
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConnectionProfileDto {
     pub id: String,
     pub name: String,
@@ -72,6 +73,7 @@ pub(crate) fn retry_name(retry: profile::RetryPolicy) -> &'static str {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConnectionProfileWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -105,6 +107,7 @@ pub struct ConnectionProfileWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConnectionProfilePatch {
     #[serde(default)]
     pub name: Option<String>,

@@ -1,4 +1,5 @@
 /target
+/docs/public/generated/
 /data
 *.db
 *.db-*

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FileObject {
     pub id: String,
     pub bytes: i64,
@@ -35,6 +36,7 @@ pub struct FileObject {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum FileObjectType {
     #[serde(rename = "file")]
     File,
@@ -42,6 +44,7 @@ pub enum FileObjectType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum FilePurpose {
     #[serde(rename = "assistants")]
     Assistants,
@@ -63,6 +66,7 @@ pub enum FilePurpose {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum FileStatus {
     #[serde(rename = "uploaded")]
     Uploaded,
@@ -75,6 +79,7 @@ pub enum FileStatus {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ListFilesQuery {
     #[serde(
         default,
@@ -106,6 +111,7 @@ pub struct ListFilesQuery {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum FileOrder {
     #[serde(rename = "asc")]
     Asc,
@@ -116,6 +122,7 @@ pub enum FileOrder {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ListFilesResponseBody {
     // Official list reference declares string, rather than a closed literal.
     pub object: String,
@@ -133,6 +140,7 @@ pub struct ListFilesResponseBody {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DeleteFileResponseBody {
     pub id: String,
     pub object: DeletedFileObject,
@@ -143,6 +151,7 @@ pub struct DeleteFileResponseBody {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DeletedFileObject {
     #[serde(rename = "file")]
     File,
@@ -150,6 +159,7 @@ pub enum DeletedFileObject {
 #[derive(Debug, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UploadFileForm {
     pub file: MultipartPart,
     pub purpose: UploadFilePurpose,
@@ -172,6 +182,7 @@ pub type DeleteFileWireResponse = DeleteFileResponse;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum UploadFilePurpose {
     #[serde(rename = "assistants")]
     Assistants,
@@ -191,6 +202,7 @@ pub enum UploadFilePurpose {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FileExpiry {
     pub anchor: FileExpiryAnchor,
     pub seconds: i64,
@@ -200,6 +212,7 @@ pub struct FileExpiry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum FileExpiryAnchor {
     #[serde(rename = "created_at")]
     CreatedAt,

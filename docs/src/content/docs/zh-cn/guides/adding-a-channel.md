@@ -382,7 +382,9 @@ pnpm run deploy
 4. 在第 9 步列出的四处转发 feature。
 5. 如果渠道认 `allow_paid_usage` 或提供 WebSocket，在它 descriptor 的 capabilities 里设
    `paid_usage` / `websocket`。
-6. 跑[收尾](#收尾)下的命令。
+6. 在 `docs/src/i18n/reference/zh-cn.json` 和 `zh-tw.json` 中补齐新增 descriptor／Schema 说明的翻译，
+   运行 `pnpm --dir docs generate:reference`。它会导出已注册渠道，缺少翻译时会失败。不要提交生成的 JSON。
+7. 跑[收尾](#收尾)下的命令。
 
 **在本仓库之外**：
 

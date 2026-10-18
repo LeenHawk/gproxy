@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CredentialOwner {
     #[serde(default)]
     pub organization_id: Option<String>,
@@ -30,6 +31,7 @@ pub struct CredentialOwner {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AuthCodeStart {
     pub provider_id: String,
     /// Where the upstream should send the person back. Absent lets the channel
@@ -49,6 +51,7 @@ pub struct AuthCodeStart {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AuthCodeStarted {
     /// Names the pending session in every later step. It is not a secret, but
     /// whoever holds it can complete this login.
@@ -66,6 +69,7 @@ pub struct AuthCodeStarted {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AuthCodeComplete {
     pub login_session_id: String,
     /// The callback as the browser received it; `code` and `state` are read
@@ -87,6 +91,7 @@ pub struct AuthCodeComplete {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CredentialCreated {
     pub credential_id: String,
 }
@@ -95,6 +100,7 @@ pub struct CredentialCreated {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DeviceStart {
     pub provider_id: String,
     #[serde(default)]
@@ -107,6 +113,7 @@ pub struct DeviceStart {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DeviceStarted {
     pub login_session_id: String,
     /// What the person types on the other device.
@@ -139,6 +146,7 @@ pub struct DeviceStarted {
         rename_all_fields = "camelCase"
     )
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DevicePollOutcome {
     /// Nobody has approved it yet. Poll again after `interval_secs`.
     Pending {
@@ -160,6 +168,7 @@ pub enum DevicePollOutcome {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CookieExchange {
     pub provider_id: String,
     /// The cookie as the browser holds it; the channel normalizes it.

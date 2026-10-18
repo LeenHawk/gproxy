@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Agent {
     pub agent_name: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -33,6 +34,7 @@ pub struct Agent {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MultiAgentConfig {
     pub enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -46,6 +48,7 @@ pub struct MultiAgentConfig {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Action {
     SpawnAgent,
     InterruptAgent,
@@ -59,6 +62,7 @@ pub enum Action {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum MultiAgentCallType {
     #[serde(rename = "multi_agent_call")]
     MultiAgentCall,
@@ -68,6 +72,7 @@ pub enum MultiAgentCallType {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum MultiAgentCallOutputType {
     #[serde(rename = "multi_agent_call_output")]
     MultiAgentCallOutput,
@@ -77,6 +82,7 @@ pub enum MultiAgentCallOutputType {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AgentMessageType {
     #[serde(rename = "agent_message")]
     AgentMessage,
@@ -86,6 +92,7 @@ pub enum AgentMessageType {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum EncryptedContentType {
     #[serde(rename = "encrypted_content")]
     EncryptedContent,
@@ -102,6 +109,7 @@ pub enum EncryptedContentType {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MultiAgentCall {
     #[serde(rename = "type")]
     pub type_: MultiAgentCallType,
@@ -135,6 +143,7 @@ pub struct MultiAgentCall {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MultiAgentCallOutput {
     #[serde(rename = "type")]
     pub type_: MultiAgentCallOutputType,
@@ -168,6 +177,7 @@ pub struct MultiAgentCallOutput {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AgentMessage {
     #[serde(rename = "type")]
     pub type_: AgentMessageType,
@@ -201,6 +211,7 @@ pub struct AgentMessage {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseMultiAgentCall {
     #[serde(rename = "type")]
     pub type_: MultiAgentCallType,
@@ -229,6 +240,7 @@ pub struct ResponseMultiAgentCall {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseMultiAgentCallOutput {
     #[serde(rename = "type")]
     pub type_: MultiAgentCallOutputType,
@@ -257,6 +269,7 @@ pub struct ResponseMultiAgentCallOutput {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseAgentMessage {
     #[serde(rename = "type")]
     pub type_: AgentMessageType,
@@ -285,6 +298,7 @@ pub struct ResponseAgentMessage {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ReplayOutputText {
     #[serde(rename = "type")]
     pub type_: input::ResponseOutputTextType,
@@ -302,6 +316,7 @@ pub struct ReplayOutputText {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AgentContent {
     InputText(input::ResponseInputText),
     OutputText(ReplayOutputText),
@@ -326,6 +341,7 @@ pub enum AgentContent {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AgentText {
     #[serde(rename = "type")]
     pub type_: AgentTextType,
@@ -339,6 +355,7 @@ pub struct AgentText {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AgentTextType {
     Text,
 }
@@ -354,6 +371,7 @@ pub enum AgentTextType {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EncryptedContent {
     #[serde(rename = "type")]
     pub type_: EncryptedContentType,
@@ -373,6 +391,7 @@ pub struct EncryptedContent {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InjectRequest {
     pub response_id: String,
     pub input: Vec<input::InputItem>,
@@ -385,6 +404,7 @@ pub struct InjectRequest {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum InjectionEvent {
     #[serde(rename = "response.inject.created")]
     Created(InjectCreated),
@@ -403,6 +423,7 @@ pub enum InjectionEvent {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InjectCreated {
     pub sequence_number: i64,
     pub response_id: String,
@@ -421,6 +442,7 @@ pub struct InjectCreated {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InjectFailed {
     pub sequence_number: i64,
     pub response_id: String,
@@ -441,6 +463,7 @@ pub struct InjectFailed {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InjectError {
     pub code: InjectErrorCode,
     pub message: String,
@@ -460,6 +483,7 @@ pub struct InjectError {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum InjectErrorCode {
     ResponseAlreadyCompleted,
     ResponseNotFound,

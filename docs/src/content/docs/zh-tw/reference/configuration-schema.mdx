@@ -1,0 +1,12 @@
+---
+title: "設定結構"
+description: "從 Rust AppConfig 型別產生的設定欄位、變體和預設值。"
+---
+
+import ConfigurationReference from "../../../../components/ConfigurationReference.astro";
+
+本頁透過 `schemars` 從 `AppConfig` 及其巢狀 Rust 型別產生。欄位名稱遵循 Serde，預設值來自 Rust 的預設實作；原生和邊緣宿主共用這套結構。命令列參數、環境變數及優先順序見[設定](/zh-tw/reference/configuration/)。
+
+Schema 描述序列化結構；主金鑰是否解碼為 32 位元組、後端是否已編譯等執行階段驗證仍然適用。
+
+<ConfigurationReference locale="zh-tw" />

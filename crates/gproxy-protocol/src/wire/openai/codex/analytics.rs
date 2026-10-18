@@ -15,6 +15,7 @@ use serde_json::Number;
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ActiveUsersSummary {
     pub total_users: i64,
     pub clients: Vec<ClientActiveUsersCount>,
@@ -33,6 +34,7 @@ pub struct ActiveUsersSummary {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientActiveUsersCount {
     pub client_id: String,
     pub users: i64,
@@ -50,6 +52,7 @@ pub struct ClientActiveUsersCount {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientWorkspaceUsageCount {
     pub client_id: String,
     pub users: i64,
@@ -76,6 +79,7 @@ pub struct ClientWorkspaceUsageCount {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConsumptionUsageGroup {
     pub dimensions: std::collections::BTreeMap<String, String>,
     pub is_other: Option<bool>,
@@ -100,6 +104,7 @@ pub struct ConsumptionUsageGroup {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreditUsageEventBySurface {
     pub date: String,
     pub product_surface: String,
@@ -119,6 +124,7 @@ pub struct CreditUsageEventBySurface {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreditUsageEventsResponse {
     pub data: Vec<CreditUsageEventBySurface>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -135,6 +141,7 @@ pub struct CreditUsageEventsResponse {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CurrentUserCreditUsageDatum {
     pub date: String,
     pub values: std::collections::BTreeMap<String, Number>,
@@ -152,6 +159,7 @@ pub struct CurrentUserCreditUsageDatum {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CurrentUserCreditUsageResponse {
     pub breakdown: String,
     pub data: Vec<CurrentUserCreditUsageDatum>,
@@ -172,6 +180,7 @@ pub struct CurrentUserCreditUsageResponse {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CurrentUserCreditUsageSeries {
     pub key: String,
     pub label: String,
@@ -190,6 +199,7 @@ pub struct CurrentUserCreditUsageSeries {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DailyProductSurfaceUsage {
     pub attribution: Option<Vec<PersonalUsageAttribution>>,
     pub date: String,
@@ -211,6 +221,7 @@ pub struct DailyProductSurfaceUsage {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DailyProductSurfaceUsageResponse {
     pub data: Vec<DailyProductSurfaceUsage>,
     pub units: Option<String>,
@@ -231,6 +242,7 @@ pub struct DailyProductSurfaceUsageResponse {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DailySkillUsageMetricsResponse {
     pub data: Vec<DailySkillUsageOverview>,
     pub data_freshness_ts: Option<String>,
@@ -249,6 +261,7 @@ pub struct DailySkillUsageMetricsResponse {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DailySkillUsageOverview {
     pub date: String,
     pub skill_usage_overviews: Vec<SkillUsageOverview>,
@@ -266,6 +279,7 @@ pub struct DailySkillUsageOverview {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DailyWorkspaceUsageCount {
     pub date: String,
     pub totals: WorkspaceUsageCount,
@@ -286,6 +300,7 @@ pub struct DailyWorkspaceUsageCount {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DailyWorkspaceUsageCountResponse {
     pub data: Vec<DailyWorkspaceUsageCount>,
     pub balance_unit: Option<String>,
@@ -306,6 +321,7 @@ pub struct DailyWorkspaceUsageCountResponse {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModelActivitySummary {
     pub model: String,
     pub users: i64,
@@ -325,6 +341,7 @@ pub struct ModelActivitySummary {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModelUsage {
     pub model: String,
     pub speed: Option<String>,
@@ -353,6 +370,7 @@ pub struct ModelUsage {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PersonalUsageAttribution {
     pub thread_source: String,
     pub turn_trigger: String,
@@ -373,6 +391,7 @@ pub struct PersonalUsageAttribution {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PluginUsageBucket {
     pub date: String,
     pub plugin_usage_overviews: Vec<PluginUsageOverview>,
@@ -390,6 +409,7 @@ pub struct PluginUsageBucket {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PluginUsageMetricsResponse {
     pub data: Vec<PluginUsageBucket>,
     pub data_freshness_ts: Option<String>,
@@ -408,6 +428,7 @@ pub struct PluginUsageMetricsResponse {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PluginUsageOverview {
     pub plugin_id: Option<String>,
     pub plugin_name: String,
@@ -428,6 +449,7 @@ pub struct PluginUsageOverview {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProductSurfacePremiumUsageValues {
     pub total_usage_credits: std::collections::BTreeMap<String, Number>,
     pub credit_usage_credits: std::collections::BTreeMap<String, Number>,
@@ -450,6 +472,7 @@ pub struct ProductSurfacePremiumUsageValues {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SkillUsageOverview {
     pub skill_name: String,
     pub display_name: String,
@@ -469,6 +492,7 @@ pub struct SkillUsageOverview {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WorkspaceUsageCount {
     pub users: i64,
     pub threads: i64,
@@ -494,6 +518,7 @@ pub struct WorkspaceUsageCount {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WorkspaceUsageGroup {
     pub dimensions: std::collections::BTreeMap<String, String>,
     pub is_other: Option<bool>,

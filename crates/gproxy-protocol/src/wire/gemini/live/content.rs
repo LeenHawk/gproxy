@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveContent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parts: Option<Vec<LivePart>>,
@@ -23,6 +24,7 @@ pub struct LiveContent {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LivePart {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thought: Option<bool>,

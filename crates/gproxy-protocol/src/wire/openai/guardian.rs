@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientAdditionalTools {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -23,6 +24,7 @@ pub struct ClientAdditionalTools {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientMessage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -41,6 +43,7 @@ pub struct ClientMessage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientAgentMessage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -57,6 +60,7 @@ pub struct ClientAgentMessage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientReasoning {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -68,6 +72,7 @@ pub struct ClientReasoning {
     )]
     pub content: Option<Option<Vec<ReasoningItemContent>>>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "super::responses::input::required_nullable")]
     pub encrypted_content: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -80,11 +85,13 @@ pub struct ClientReasoning {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientLocalShellCall {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
 
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "super::responses::input::required_nullable")]
     pub call_id: Option<String>,
     pub status: LocalShellStatus,
@@ -99,6 +106,7 @@ pub struct ClientLocalShellCall {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientFunctionCall {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -120,10 +128,12 @@ pub struct ClientFunctionCall {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientToolSearchCall {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "super::responses::input::required_nullable")]
     pub call_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -140,6 +150,7 @@ pub struct ClientToolSearchCall {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientFunctionCallOutput {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -160,6 +171,7 @@ pub struct ClientFunctionCallOutput {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientCustomToolCall {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -181,6 +193,7 @@ pub struct ClientCustomToolCall {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientCustomToolCallOutput {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -198,10 +211,12 @@ pub struct ClientCustomToolCallOutput {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientToolSearchOutput {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "super::responses::input::required_nullable")]
     pub call_id: Option<String>,
     pub status: String,
@@ -217,6 +232,7 @@ pub struct ClientToolSearchOutput {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientWebSearchCall {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -234,6 +250,7 @@ pub struct ClientWebSearchCall {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientImageGenerationCall {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -251,6 +268,7 @@ pub struct ClientImageGenerationCall {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientCompaction {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -265,6 +283,7 @@ pub struct ClientCompaction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientConfigurationUpdate {
     pub reasoning: ConfigurationReasoning,
 
@@ -275,6 +294,7 @@ pub struct ClientConfigurationUpdate {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientCompactionTrigger {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -283,6 +303,7 @@ pub struct ClientCompactionTrigger {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientContextCompaction {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -298,6 +319,7 @@ pub struct ClientContextCompaction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseItemOther {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -307,6 +329,7 @@ pub struct ResponseItemOther {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ClientResponseItem {
     AdditionalTools(ClientAdditionalTools),
     Message(ClientMessage),
@@ -332,6 +355,7 @@ pub enum ClientResponseItem {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContentItemInputText {
     pub text: String,
 
@@ -342,6 +366,7 @@ pub struct ContentItemInputText {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContentItemInputImage {
     pub image_url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -354,6 +379,7 @@ pub struct ContentItemInputImage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContentItemInputAudio {
     pub audio_url: String,
 
@@ -364,6 +390,7 @@ pub struct ContentItemInputAudio {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContentItemOutputText {
     pub text: String,
 
@@ -375,6 +402,7 @@ pub struct ContentItemOutputText {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ContentItem {
     InputText(ContentItemInputText),
     InputImage(ContentItemInputImage),
@@ -385,6 +413,7 @@ pub enum ContentItem {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AgentMessageInputContentInputText {
     pub text: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -394,6 +423,7 @@ pub struct AgentMessageInputContentInputText {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AgentMessageInputContentEncryptedContent {
     pub encrypted_content: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -404,6 +434,7 @@ pub struct AgentMessageInputContentEncryptedContent {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AgentMessageInputContent {
     InputText(AgentMessageInputContentInputText),
     EncryptedContent(AgentMessageInputContentEncryptedContent),
@@ -412,6 +443,7 @@ pub enum AgentMessageInputContent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WebSearchActionSearch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub query: Option<String>,
@@ -425,6 +457,7 @@ pub struct WebSearchActionSearch {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WebSearchActionOpenPage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
@@ -436,6 +469,7 @@ pub struct WebSearchActionOpenPage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WebSearchActionFindInPage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
@@ -449,6 +483,7 @@ pub struct WebSearchActionFindInPage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WebSearchActionOther {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -458,6 +493,7 @@ pub struct WebSearchActionOther {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum WebSearchAction {
     Search(WebSearchActionSearch),
     OpenPage(WebSearchActionOpenPage),
@@ -468,6 +504,7 @@ pub enum WebSearchAction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ReasoningItemReasoningSummarySummaryText {
     pub text: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -478,6 +515,7 @@ pub struct ReasoningItemReasoningSummarySummaryText {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ReasoningItemReasoningSummary {
     SummaryText(ReasoningItemReasoningSummarySummaryText),
 }
@@ -485,6 +523,7 @@ pub enum ReasoningItemReasoningSummary {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ReasoningItemContentReasoningText {
     pub text: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -494,6 +533,7 @@ pub struct ReasoningItemContentReasoningText {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ReasoningItemContentText {
     pub text: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -504,6 +544,7 @@ pub struct ReasoningItemContentText {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ReasoningItemContent {
     ReasoningText(ReasoningItemContentReasoningText),
     Text(ReasoningItemContentText),
@@ -512,6 +553,7 @@ pub enum ReasoningItemContent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FunctionCallOutputContentItemInputText {
     pub text: String,
 
@@ -522,6 +564,7 @@ pub struct FunctionCallOutputContentItemInputText {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FunctionCallOutputContentItemInputImage {
     pub image_url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -534,6 +577,7 @@ pub struct FunctionCallOutputContentItemInputImage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FunctionCallOutputContentItemInputAudio {
     pub audio_url: String,
 
@@ -544,6 +588,7 @@ pub struct FunctionCallOutputContentItemInputAudio {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FunctionCallOutputContentItemEncryptedContent {
     pub encrypted_content: String,
 
@@ -555,6 +600,7 @@ pub struct FunctionCallOutputContentItemEncryptedContent {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum FunctionCallOutputContentItem {
     InputText(FunctionCallOutputContentItemInputText),
     InputImage(FunctionCallOutputContentItemInputImage),
@@ -566,6 +612,7 @@ pub enum FunctionCallOutputContentItem {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ImageDetail {
     Auto,
     Low,
@@ -577,6 +624,7 @@ pub enum ImageDetail {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum MessagePhase {
     Commentary,
 
@@ -587,6 +635,7 @@ pub enum MessagePhase {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum LocalShellStatus {
     Completed,
     InProgress,
@@ -596,18 +645,23 @@ pub enum LocalShellStatus {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LocalShellExecAction {
     pub command: Vec<String>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "super::responses::input::required_nullable")]
     pub timeout_ms: Option<u64>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "super::responses::input::required_nullable")]
     pub working_directory: Option<String>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "super::responses::input::required_nullable")]
     pub env: Option<BTreeMap<String, String>>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "super::responses::input::required_nullable")]
     pub user: Option<String>,
 
@@ -619,6 +673,7 @@ pub struct LocalShellExecAction {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum LocalShellAction {
     Exec(LocalShellExecAction),
 }
@@ -627,6 +682,7 @@ pub enum LocalShellAction {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum FunctionCallOutputBody {
     Text(String),
     ContentItems(Vec<FunctionCallOutputContentItem>),
@@ -635,6 +691,7 @@ pub enum FunctionCallOutputBody {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConfigurationReasoning {
     pub effort: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -644,6 +701,7 @@ pub struct ConfigurationReasoning {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InternalChatMessageMetadataPassthrough {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
@@ -664,6 +722,7 @@ pub struct InternalChatMessageMetadataPassthrough {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ExecutedToolCall {
     pub name: String,
     pub arguments: serde_json::Value,
@@ -677,6 +736,7 @@ pub struct ExecutedToolCall {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ToolResultSources {
     Sources(Vec<ToolResultSource>),
     ParseFailed(ParseFailed),
@@ -686,6 +746,7 @@ pub enum ToolResultSources {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ParseFailed {
     ParseFailed,
 }
@@ -693,6 +754,7 @@ pub enum ParseFailed {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolResultSource {
     #[serde(rename = "type")]
     pub type_: String,
@@ -704,6 +766,7 @@ pub struct ToolResultSource {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Reasoning {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effort: Option<String>,
@@ -719,6 +782,7 @@ pub struct Reasoning {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ReasoningSummary {
     Auto,
     Concise,
@@ -730,6 +794,7 @@ pub enum ReasoningSummary {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ReasoningContext {
     Auto,
     CurrentTurn,
@@ -739,6 +804,7 @@ pub enum ReasoningContext {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientTextControls {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verbosity: Option<ClientVerbosity>,
@@ -752,6 +818,7 @@ pub struct ClientTextControls {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ClientVerbosity {
     Low,
     Medium,
@@ -761,6 +828,7 @@ pub enum ClientVerbosity {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientTextFormat {
     #[serde(rename = "type")]
     pub type_: ClientTextFormatType,
@@ -775,6 +843,7 @@ pub struct ClientTextFormat {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ClientTextFormatType {
     JsonSchema,
 }
@@ -782,6 +851,7 @@ pub enum ClientTextFormatType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientStreamOptions {
     pub reasoning_summary_delivery: ReasoningSummaryDelivery,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -792,6 +862,7 @@ pub struct ClientStreamOptions {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ReasoningSummaryDelivery {
     SequentialCutoff,
 }
@@ -799,6 +870,7 @@ pub enum ReasoningSummaryDelivery {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AccessPrograms {
     pub cyber: CyberAccessProgram,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -809,6 +881,7 @@ pub struct AccessPrograms {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum CyberAccessProgram {
     Standard,
     DaybreakBlue,
@@ -818,6 +891,7 @@ pub enum CyberAccessProgram {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GuardianRequestBody {
     pub model: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -832,6 +906,7 @@ pub struct GuardianRequestBody {
     pub tool_choice: String,
     pub parallel_tool_calls: bool,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "super::responses::input::required_nullable")]
     pub reasoning: Option<Reasoning>,
     pub store: bool,

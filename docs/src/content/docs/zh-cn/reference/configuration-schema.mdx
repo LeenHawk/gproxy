@@ -1,0 +1,12 @@
+---
+title: "配置结构"
+description: "从 Rust AppConfig 类型生成的配置字段、变体和默认值。"
+---
+
+import ConfigurationReference from "../../../../components/ConfigurationReference.astro";
+
+本页通过 `schemars` 从 `AppConfig` 及其嵌套 Rust 类型生成。字段名遵循 Serde，默认值来自 Rust 的默认实现；原生和边缘宿主共用这套结构。命令行参数、环境变量及优先级见[配置](/zh-cn/reference/configuration/)。
+
+Schema 描述序列化结构；主密钥是否解码为 32 字节、后端是否已编译等运行时校验仍然适用。
+
+<ConfigurationReference locale="zh-cn" />

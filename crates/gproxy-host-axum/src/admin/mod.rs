@@ -420,6 +420,29 @@ mod fonts;
 mod identity;
 mod observation;
 
+#[cfg(feature = "documentation")]
+pub(crate) fn document(api: &mut crate::documentation::Api) {
+    identity::document(api);
+    config::document(api);
+    observation::document(api);
+    credential_login::document(api);
+    context::document(api);
+    #[cfg(not(target_arch = "wasm32"))]
+    for method in ["get", "post", "delete"] {
+        let response = api.schemas.output::<crate::console::fonts::FontStatus>();
+        let operation = api.route(
+            method,
+            "/admin/api/fonts",
+            "configuration.settings",
+            None,
+            vec![],
+            Some(response),
+        );
+        operation["x-runtime-condition"] =
+            serde_json::json!("Native host with the console enabled");
+    }
+}
+
 /// `/admin/api`, to be nested under that prefix.
 ///
 /// The state is taken by value because the guards below are

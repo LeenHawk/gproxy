@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SteerRequest {
     pub previous_response_id: String,
     pub input: SteerInput,
@@ -26,6 +27,7 @@ pub struct SteerRequest {
 )]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SteerInput {
     Text(String),
     Messages(Vec<SteerMessage>),
@@ -42,6 +44,7 @@ pub enum SteerInput {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SteerMessage {
     pub role: SteerRole,
     pub content: input::MessageContent,
@@ -63,6 +66,7 @@ pub struct SteerMessage {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SteerRole {
     User,
 }
@@ -72,6 +76,7 @@ pub enum SteerRole {
 )]
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SteeringEvent {
     #[serde(rename = "response.steer.accepted")]
     Accepted(SteerAccepted),
@@ -92,6 +97,7 @@ pub enum SteeringEvent {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SteeringReference {
     pub id: String,
     pub previous_response_id: String,
@@ -110,6 +116,7 @@ pub struct SteeringReference {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SteerAccepted {
     pub sequence_number: i64,
     pub steer: SteeringReference,
@@ -128,6 +135,7 @@ pub struct SteerAccepted {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SteerPending {
     pub sequence_number: i64,
     pub steer: SteeringReference,
@@ -148,6 +156,7 @@ pub struct SteerPending {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SteerFailed {
     pub sequence_number: i64,
     pub steer: FailedSteeringSubmission,
@@ -167,6 +176,7 @@ pub struct SteerFailed {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FailedSteeringSubmission {
     pub previous_response_id: String,
     pub input: SteerInput,
@@ -187,6 +197,7 @@ pub struct FailedSteeringSubmission {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SteerError {
     pub code: String,
     pub message: String,
@@ -208,6 +219,7 @@ pub struct SteerError {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SteerErrorType {
     InvalidRequestError,
 }
@@ -217,6 +229,7 @@ pub enum SteerErrorType {
 )]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RequiredSteeringInput {
     FunctionCallOutput {
         call_id: String,
@@ -255,6 +268,7 @@ pub enum RequiredSteeringInput {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SteeringToolSearchExecution {
     Client,
 }

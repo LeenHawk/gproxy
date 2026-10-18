@@ -27,6 +27,7 @@ pub type StreamResponse = WireResponse<ByteStream>;
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChatCompletionChunk {
     #[serde(
         default,
@@ -70,6 +71,7 @@ pub struct ChatCompletionChunk {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ChunkObject {
     #[serde(rename = "chat.completion.chunk")]
     ChatCompletionChunk,
@@ -79,6 +81,7 @@ pub enum ChunkObject {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct StreamChoice {
     pub index: i64,
     pub delta: Delta,
@@ -102,6 +105,7 @@ pub struct StreamChoice {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Delta {
     #[serde(
         default,
@@ -160,6 +164,7 @@ pub struct Delta {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DeltaRole {
     #[serde(rename = "developer")]
     Developer,
@@ -179,6 +184,7 @@ pub enum DeltaRole {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DeltaFunctionCall {
     #[serde(
         default,
@@ -202,6 +208,7 @@ pub struct DeltaFunctionCall {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DeltaToolCall {
     pub index: i64,
     #[serde(
@@ -230,6 +237,7 @@ pub struct DeltaToolCall {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DeltaToolCallType {
     #[serde(rename = "function")]
     Function,
@@ -239,6 +247,7 @@ pub enum DeltaToolCallType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChunkLogprobs {
     #[serde(
         default,
@@ -260,6 +269,7 @@ pub struct ChunkLogprobs {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChunkTokenLogprob {
     pub token: String,
     #[serde(
@@ -278,6 +288,7 @@ pub struct ChunkTokenLogprob {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChunkTopLogprob {
     pub token: String,
     #[serde(
@@ -295,6 +306,7 @@ pub struct ChunkTopLogprob {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChunkUsage {
     pub completion_tokens: i64,
     pub prompt_tokens: i64,
@@ -319,6 +331,7 @@ pub struct ChunkUsage {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChunkCompletionTokensDetails {
     #[serde(
         default,
@@ -358,6 +371,7 @@ pub struct ChunkCompletionTokensDetails {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChunkPromptTokensDetails {
     #[serde(
         default,

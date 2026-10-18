@@ -19,6 +19,7 @@ use serde_json::{Map, Value};
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all(serialize = "camelCase"))]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DefaultModelCatalogDto {
     pub schema_version: u32,
     pub source: DefaultModelCatalogSourceDto,
@@ -29,6 +30,7 @@ pub struct DefaultModelCatalogDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all(serialize = "camelCase"))]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DefaultModelCatalogSourceDto {
     pub catalog: String,
     pub fetched_at: String,
@@ -48,6 +50,7 @@ pub struct DefaultModelCatalogSourceDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all(serialize = "camelCase"))]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DefaultModelDto {
     pub model_id: String,
     #[serde(default)]
@@ -68,6 +71,7 @@ pub struct DefaultModelDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all(serialize = "camelCase"))]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DefaultModelPricingDto {
     /// A `*fragment*` glob. The longer the fragment, the more specific the
     /// rule, which is what `priority` encodes.
@@ -82,6 +86,7 @@ pub struct DefaultModelPricingDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all(serialize = "camelCase"))]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DefaultModelPriceRateDto {
     pub metric: String,
     /// `1000000` for the token metrics, `1` for counted ones.
@@ -97,6 +102,7 @@ pub struct DefaultModelPriceRateDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all(serialize = "camelCase"))]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DefaultModelTierDto {
     #[serde(default)]
     pub service_tier: Option<String>,
@@ -130,6 +136,7 @@ pub struct DefaultModelTierDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ApplyDefaultPricesRequest {
     /// None writes global rules, which price the model at every provider. A
     /// provider id writes rules that only that provider's traffic matches, and
@@ -150,6 +157,7 @@ pub struct ApplyDefaultPricesRequest {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ApplyDefaultPricesReportDto {
     pub created: u64,
     /// Rules `overwrite` replaced, rates and tiers included.
@@ -171,6 +179,7 @@ pub struct ApplyDefaultPricesReportDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TlsPresetDto {
     pub id: String,
     pub label: String,
@@ -187,6 +196,7 @@ pub struct TlsPresetDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", ts(rename_all = "snake_case"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RulePresetCategory {
     /// Rewrites that hide one client application's identity from the upstream.
     Application,
@@ -199,6 +209,7 @@ pub enum RulePresetCategory {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RulePresetDto {
     pub id: String,
     pub name: String,
@@ -213,6 +224,7 @@ pub struct RulePresetDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ApplyRulePreset {
     pub rule_set_id: String,
     pub preset_id: String,
@@ -222,6 +234,7 @@ pub struct ApplyRulePreset {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CatalogProviderDto {
     pub id: String,
     pub name: String,

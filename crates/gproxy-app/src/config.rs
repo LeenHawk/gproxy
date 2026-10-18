@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 /// issued OAuth refresh token.
 const THIRTY_DAYS_SECS: u64 = 30 * 24 * 3600;
 
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct AppConfig {
@@ -84,6 +85,7 @@ fn default_port() -> u16 {
 /// Where the durable configuration and usage live. Which variants a build can
 /// actually open depends on the backend features the binary was built with;
 /// an unsupported one is refused when the connection is made, not here.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StoreBackendConfig {
@@ -111,6 +113,7 @@ impl Default for StoreBackendConfig {
 /// Shared TTL state, counters and invalidation notices. `Memory` is per
 /// process: correct for a single instance, and silently wrong for several,
 /// which is why a multi-instance deployment must name `Redis` or `Store`.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CacheBackendConfig {
@@ -134,6 +137,7 @@ pub enum CacheBackendConfig {
 /// operator then promotes `next` to `key`. Leaving `key` unset stores secrets
 /// in plaintext; that is a supported deployment, not an accident, and the
 /// binary warns about it once at startup.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct MasterKeyConfig {
@@ -148,6 +152,7 @@ pub struct MasterKeyConfig {
 /// A 32-byte key, encoded. Two encodings because operators paste whichever
 /// their secret manager emits, and guessing between them silently is worse
 /// than naming it.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum MasterKey {
@@ -207,6 +212,7 @@ impl MasterKeyConfig {
 }
 
 /// Where publication and vocabulary bytes live. Unset means neither is served.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FileStorageConfig {
@@ -229,6 +235,7 @@ pub enum FileStorageConfig {
     },
 }
 
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct ConsoleConfig {
@@ -249,6 +256,7 @@ impl Default for ConsoleConfig {
 /// Lifetimes of what the OAuth issuer mints. Access tokens are short because
 /// they are bearer credentials with no revocation check on the hot path;
 /// codes and device codes are short because they are one-shot handoffs.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct OAuthIssuerConfig {
@@ -279,6 +287,13 @@ impl Default for OAuthIssuerConfig {
             cli_client_ids: Vec::new(),
         }
     }
+}
+
+/// JSON Schema for the shared native/edge configuration, including Serde names,
+/// defaults and Rust field documentation. Does not read instance configuration.
+#[cfg(feature = "schema")]
+pub fn schema() -> schemars::Schema {
+    schemars::schema_for!(AppConfig)
 }
 
 #[cfg(test)]

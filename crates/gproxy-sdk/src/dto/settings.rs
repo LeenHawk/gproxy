@@ -11,6 +11,7 @@ use gproxy_store::entity::config::setting;
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SettingsDto {
     pub instance: InstanceSettingsDto,
     pub logging: LoggingSettingsDto,
@@ -81,6 +82,7 @@ impl From<setting::Model> for SettingsDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InstanceSettingsDto {
     pub instance_name: String,
     #[serde(default = "empty_header_list")]
@@ -160,6 +162,7 @@ pub struct InstanceSettingsDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LoggingSettingsDto {
     pub enable_downstream_log: bool,
     pub enable_downstream_log_body: bool,
@@ -183,6 +186,7 @@ pub struct LoggingSettingsDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SettingsPatch {
     #[serde(default)]
     pub instance: Option<InstanceSettingsPatch>,
@@ -194,6 +198,7 @@ pub struct SettingsPatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InstanceSettingsPatch {
     #[serde(default)]
     pub instance_name: Option<String>,
@@ -283,6 +288,7 @@ pub struct InstanceSettingsPatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LoggingSettingsPatch {
     #[serde(default)]
     pub enable_downstream_log: Option<bool>,

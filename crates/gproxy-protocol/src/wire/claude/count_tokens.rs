@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CountTokensRequestBody {
     pub messages: Vec<Message>,
     pub model: String,
@@ -40,6 +41,7 @@ pub struct CountTokensRequestBody {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContextManagementConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub edits: Option<Vec<ContextEdit>>,
@@ -50,6 +52,7 @@ pub struct ContextManagementConfig {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ContextEdit {
     ClearToolUses(ClearToolUsesEdit),
     ClearThinking(ClearThinkingEdit),
@@ -59,6 +62,7 @@ pub enum ContextEdit {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClearToolUsesEdit {
     #[serde(rename = "type")]
     pub type_: ClearToolUsesType,
@@ -79,6 +83,7 @@ pub struct ClearToolUsesEdit {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ClearToolUsesType {
     #[serde(rename = "clear_tool_uses_20250919")]
     Clear,
@@ -87,6 +92,7 @@ pub enum ClearToolUsesType {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ClearToolInputs {
     All(bool),
     Names(Vec<String>),
@@ -95,6 +101,7 @@ pub enum ClearToolInputs {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InputTokensThreshold {
     #[serde(rename = "type")]
     pub type_: InputTokensType,
@@ -106,6 +113,7 @@ pub struct InputTokensThreshold {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum InputTokensType {
     InputTokens,
 }
@@ -113,6 +121,7 @@ pub enum InputTokensType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolUsesKeep {
     #[serde(rename = "type")]
     pub type_: ToolUsesType,
@@ -124,6 +133,7 @@ pub struct ToolUsesKeep {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ToolUsesType {
     ToolUses,
 }
@@ -131,6 +141,7 @@ pub enum ToolUsesType {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ContextTrigger {
     Input(InputTokensThreshold),
     Tools(ToolUsesKeep),
@@ -139,6 +150,7 @@ pub enum ContextTrigger {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClearThinkingEdit {
     #[serde(rename = "type")]
     pub type_: ClearThinkingType,
@@ -151,6 +163,7 @@ pub struct ClearThinkingEdit {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ClearThinkingType {
     #[serde(rename = "clear_thinking_20251015")]
     Clear,
@@ -161,6 +174,7 @@ pub enum ClearThinkingType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AllThinkingTurns {
     #[serde(rename = "type")]
     pub type_: AllThinkingType,
@@ -170,6 +184,7 @@ pub struct AllThinkingTurns {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AllThinkingType {
     #[serde(rename = "all")]
     All,
@@ -177,6 +192,7 @@ pub enum AllThinkingType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AllStringThinkingTurns {
     #[serde(rename = "all")]
     All,
@@ -185,6 +201,7 @@ pub enum AllStringThinkingTurns {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ThinkingKeep {
     Turns(ThinkingTurns),
     All(AllThinkingTurns),
@@ -194,6 +211,7 @@ pub enum ThinkingKeep {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ThinkingTurns {
     #[serde(rename = "type")]
     pub type_: ThinkingTurnsType,
@@ -205,6 +223,7 @@ pub struct ThinkingTurns {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ThinkingTurnsType {
     ThinkingTurns,
 }
@@ -212,6 +231,7 @@ pub enum ThinkingTurnsType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CompactEdit {
     #[serde(rename = "type")]
     pub type_: CompactType,
@@ -228,6 +248,7 @@ pub struct CompactEdit {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum CompactType {
     #[serde(rename = "compact_20260112")]
     Compact,
@@ -237,6 +258,7 @@ pub enum CompactType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct McpServerUrlDefinition {
     pub name: String,
     #[serde(rename = "type")]
@@ -253,6 +275,7 @@ pub struct McpServerUrlDefinition {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum McpServerType {
     Url,
 }
@@ -262,6 +285,7 @@ pub enum McpServerType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct McpToolConfiguration {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_tools: Option<Vec<String>>,
@@ -274,6 +298,7 @@ pub struct McpToolConfiguration {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OutputConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effort: Option<Effort>,
@@ -291,6 +316,7 @@ pub struct OutputConfig {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TokenTaskBudget {
     pub total: i64,
     #[serde(rename = "type")]
@@ -304,6 +330,7 @@ pub struct TokenTaskBudget {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TokenTaskBudgetType {
     Tokens,
 }
@@ -311,6 +338,7 @@ pub enum TokenTaskBudgetType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Effort {
     Low,
     Medium,
@@ -322,6 +350,7 @@ pub enum Effort {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct JsonOutputFormat {
     #[serde(rename = "type")]
     pub type_: JsonOutputFormatType,
@@ -333,6 +362,7 @@ pub struct JsonOutputFormat {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum JsonOutputFormatType {
     JsonSchema,
 }
@@ -340,6 +370,7 @@ pub enum JsonOutputFormatType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Speed {
     Standard,
     Fast,
@@ -348,6 +379,7 @@ pub enum Speed {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SystemPrompt {
     Text(String),
     Blocks(Vec<TextBlock>),
@@ -356,6 +388,7 @@ pub enum SystemPrompt {
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ThinkingConfig {
     #[serde(rename = "enabled")]
     Enabled(ThinkingEnabled),
@@ -371,6 +404,7 @@ pub enum ThinkingConfig {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ThinkingEnabled {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_binding: Option<ThinkingBlockBinding>,
@@ -387,6 +421,7 @@ pub struct ThinkingEnabled {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ThinkingDisabled {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -397,6 +432,7 @@ pub struct ThinkingDisabled {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ThinkingAdaptive {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_binding: Option<ThinkingBlockBinding>,
@@ -410,6 +446,7 @@ pub struct ThinkingAdaptive {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ThinkingDisplay {
     Summarized,
     Omitted,
@@ -419,6 +456,7 @@ pub enum ThinkingDisplay {
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ToolChoice {
     #[serde(rename = "auto")]
     Auto(ToolChoiceAuto),
@@ -435,6 +473,7 @@ pub enum ToolChoice {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolChoiceAuto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_parallel_tool_use: Option<bool>,
@@ -447,6 +486,7 @@ pub struct ToolChoiceAuto {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolChoiceAny {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_parallel_tool_use: Option<bool>,
@@ -459,6 +499,7 @@ pub struct ToolChoiceAny {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolChoiceTool {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -472,6 +513,7 @@ pub struct ToolChoiceTool {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolChoiceNone {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -485,6 +527,7 @@ pub type CountTokensRequest = crate::WireRequest<CountTokensRequestBody>;
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CountTokensResponseBody {
     pub context_management: CountTokensContextManagementResponse,
     pub input_tokens: i64,
@@ -499,6 +542,7 @@ pub type CountTokensResponse = crate::WireResponse<CountTokensResponseBody>;
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CountTokensContextManagementResponse {
     pub original_input_tokens: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -516,6 +560,7 @@ pub struct CountTokensContextManagementResponse {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ThinkingBlockBinding {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prefix_mismatch_behavior: Option<ThinkingPrefixMismatchBehavior>,
@@ -535,6 +580,7 @@ pub struct ThinkingBlockBinding {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ThinkingPrefixMismatchBehavior {
     Error,
     DropBlock,

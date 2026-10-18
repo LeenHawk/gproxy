@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 )]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum PromptCacheDiagnostics {
     CacheMiss(CacheMiss),
     CacheHit(DiagnosticOutcome),
@@ -25,6 +26,7 @@ pub enum PromptCacheDiagnostics {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CacheMiss {
     pub cache_missed_tokens: i64,
     pub reason: CacheMissReason,
@@ -45,6 +47,7 @@ pub struct CacheMiss {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DiagnosticOutcome {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -62,6 +65,7 @@ pub struct DiagnosticOutcome {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum CacheMissReason {
     ModelChanged,
     PromptCacheKeyChanged,

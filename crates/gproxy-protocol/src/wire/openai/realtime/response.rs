@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeResponse {
     #[serde(
         default,
@@ -86,6 +87,7 @@ pub struct RealtimeResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeResponseAudio {
     #[serde(
         default,
@@ -101,6 +103,7 @@ pub struct RealtimeResponseAudio {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeResponseStatus {
     #[serde(
         default,
@@ -129,6 +132,7 @@ pub struct RealtimeResponseStatus {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeResponseUsage {
     #[serde(
         default,
@@ -168,6 +172,7 @@ pub struct RealtimeResponseUsage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeResponseAudioOutput {
     #[serde(
         default,
@@ -189,6 +194,7 @@ pub struct RealtimeResponseAudioOutput {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeResponseStatusError {
     #[serde(
         default,
@@ -211,6 +217,7 @@ pub struct RealtimeResponseStatusError {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeResponseUsageInputTokenDetails {
     #[serde(
         default,
@@ -251,6 +258,7 @@ pub struct RealtimeResponseUsageInputTokenDetails {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeResponseUsageOutputTokenDetails {
     #[serde(
         default,
@@ -272,6 +280,7 @@ pub struct RealtimeResponseUsageOutputTokenDetails {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeResponseUsageInputTokenDetailsCachedTokensDetails {
     #[serde(
         default,
@@ -298,6 +307,7 @@ pub struct RealtimeResponseUsageInputTokenDetailsCachedTokensDetails {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeResponseMaxOutputTokensVariant2 {
     #[serde(rename = "inf")]
     Inf,
@@ -307,6 +317,7 @@ pub enum RealtimeResponseMaxOutputTokensVariant2 {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeResponseMaxOutputTokens {
     Number(i64),
     Literal(RealtimeResponseMaxOutputTokensVariant2),
@@ -315,6 +326,7 @@ pub enum RealtimeResponseMaxOutputTokens {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeResponseObject {
     #[serde(rename = "realtime.response")]
     RealtimeResponse,
@@ -323,6 +335,7 @@ pub enum RealtimeResponseObject {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeResponseOutputModalitiesItem {
     #[serde(rename = "text")]
     Text,
@@ -333,6 +346,7 @@ pub enum RealtimeResponseOutputModalitiesItem {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeResponseStatusValue {
     #[serde(rename = "completed")]
     Completed,
@@ -349,6 +363,7 @@ pub enum RealtimeResponseStatusValue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeResponseStatusReason {
     #[serde(rename = "turn_detected")]
     TurnDetected,
@@ -363,6 +378,7 @@ pub enum RealtimeResponseStatusReason {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeResponseStatusType {
     #[serde(rename = "completed")]
     Completed,

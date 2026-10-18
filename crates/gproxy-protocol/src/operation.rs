@@ -36,6 +36,7 @@
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Operation {
     // models
     ListModels,
@@ -181,6 +182,7 @@ impl Operation {
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum WireFamily {
     #[serde(rename = "openai")]
     #[strum(serialize = "openai")]
@@ -227,6 +229,7 @@ impl WireFamily {
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Dialect {
     /// OpenAI's shape for the operation; Responses for content generation.
     #[serde(rename = "openai")]
@@ -284,6 +287,7 @@ impl Dialect {
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OperationKey {
     pub operation: Operation,
     pub dialect: Dialect,

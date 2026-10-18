@@ -7,6 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [features]
+schema = ["dep:schemars", "gproxy-protocol/schema"]
 default = []
 # Not a channel. `ts-rs` declarations for the descriptor types, so the console
 # that renders a provider form off `BaseChannel::descriptor` is typed against
@@ -216,6 +217,7 @@ workbuddy = [
 xai = ["dep:futures-util"]
 
 [dependencies]
+schemars = { workspace = true, optional = true }
 p256 = { workspace = true, optional = true }
 percent-encoding = { workspace = true, optional = true }
 url = { workspace = true, optional = true }

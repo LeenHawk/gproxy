@@ -37,6 +37,7 @@ pub type HandshakeResponse = crate::WireResponse<()>;
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeClientEvent {
     ConversationItemCreateEvent(ConversationItemCreateEvent),
     ConversationItemDeleteEvent(ConversationItemDeleteEvent),
@@ -56,6 +57,7 @@ pub enum RealtimeClientEvent {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeServerEvent {
     ConversationCreatedEvent(ConversationCreatedEvent),
     ConversationItemCreatedEvent(ConversationItemCreatedEvent),
@@ -115,6 +117,7 @@ pub enum RealtimeServerEvent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemRetrieved {
     pub event_id: String,
     pub item: ConversationItem,
@@ -128,6 +131,7 @@ pub struct ConversationItemRetrieved {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeServerEventOutputAudioBufferStarted {
     pub event_id: String,
     pub response_id: String,
@@ -141,6 +145,7 @@ pub struct RealtimeServerEventOutputAudioBufferStarted {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeServerEventOutputAudioBufferStopped {
     pub event_id: String,
     pub response_id: String,
@@ -154,6 +159,7 @@ pub struct RealtimeServerEventOutputAudioBufferStopped {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeServerEventOutputAudioBufferCleared {
     pub event_id: String,
     pub response_id: String,
@@ -166,6 +172,7 @@ pub struct RealtimeServerEventOutputAudioBufferCleared {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemRetrievedType {
     #[serde(rename = "conversation.item.retrieved")]
     ConversationItemRetrieved,
@@ -174,6 +181,7 @@ pub enum ConversationItemRetrievedType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeServerEventOutputAudioBufferStartedType {
     #[serde(rename = "output_audio_buffer.started")]
     OutputAudioBufferStarted,
@@ -182,6 +190,7 @@ pub enum RealtimeServerEventOutputAudioBufferStartedType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeServerEventOutputAudioBufferStoppedType {
     #[serde(rename = "output_audio_buffer.stopped")]
     OutputAudioBufferStopped,
@@ -190,6 +199,7 @@ pub enum RealtimeServerEventOutputAudioBufferStoppedType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeServerEventOutputAudioBufferClearedType {
     #[serde(rename = "output_audio_buffer.cleared")]
     OutputAudioBufferCleared,

@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeSessionCreateResponse {
     pub id: String,
     pub object: RealtimeSessionCreateResponseObject,
@@ -106,6 +107,7 @@ pub struct RealtimeSessionCreateResponse {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeSessionCreateResponseTracing {
     Literal(RealtimeSessionCreateResponseTracingVariant1),
     RealtimeSessionCreateResponseTracingTracingConfiguration(
@@ -118,6 +120,7 @@ pub enum RealtimeSessionCreateResponseTracing {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeSessionCreateResponseTracingTracingConfiguration {
     #[serde(
         default,
@@ -144,6 +147,7 @@ pub struct RealtimeSessionCreateResponseTracingTracingConfiguration {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeSessionCreateResponseObject {
     #[serde(rename = "realtime.session")]
     RealtimeSession,
@@ -152,6 +156,7 @@ pub enum RealtimeSessionCreateResponseObject {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeSessionCreateResponseType {
     #[serde(rename = "realtime")]
     Realtime,
@@ -160,6 +165,7 @@ pub enum RealtimeSessionCreateResponseType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeSessionCreateResponseIncludeItem {
     #[serde(rename = "item.input_audio_transcription.logprobs")]
     ItemInputAudioTranscriptionLogprobs,
@@ -168,6 +174,7 @@ pub enum RealtimeSessionCreateResponseIncludeItem {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeSessionCreateResponseMaxOutputTokensVariant2 {
     #[serde(rename = "inf")]
     Inf,
@@ -177,6 +184,7 @@ pub enum RealtimeSessionCreateResponseMaxOutputTokensVariant2 {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeSessionCreateResponseMaxOutputTokens {
     Number(i64),
     Literal(RealtimeSessionCreateResponseMaxOutputTokensVariant2),
@@ -185,6 +193,7 @@ pub enum RealtimeSessionCreateResponseMaxOutputTokens {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeSessionCreateResponseOutputModalitiesItem {
     #[serde(rename = "text")]
     Text,
@@ -195,6 +204,7 @@ pub enum RealtimeSessionCreateResponseOutputModalitiesItem {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeSessionCreateResponseTracingVariant1 {
     #[serde(rename = "auto")]
     Auto,

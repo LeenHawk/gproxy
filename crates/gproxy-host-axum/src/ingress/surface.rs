@@ -29,6 +29,12 @@ use gproxy_protocol::{Dialect, Operation, OperationKey};
 use http::{HeaderMap, Method};
 use serde_json::Value;
 
+#[cfg(feature = "documentation")]
+#[path = "surface_docs.rs"]
+mod documentation;
+#[cfg(feature = "documentation")]
+pub(crate) use documentation::openapi;
+
 /// One declared ingress path.
 struct Surface {
     method: Method,

@@ -34,6 +34,7 @@ pub const DEVICE_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:device_cod
 /// failure the client cannot act on.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AuthorizeQuery {
     /// Must be `code`. This issuer has no implicit and no hybrid flow.
     #[serde(default)]
@@ -66,6 +67,7 @@ pub struct AuthorizeQuery {
 /// rather than one that fails after they take it.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AuthorizeDetails {
     pub client_id: String,
     /// `oauth_clients.name`, which is what the user recognises. The id is a
@@ -89,6 +91,7 @@ pub struct AuthorizeDetails {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", ts(rename_all = "snake_case"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConsentDecision {
     Approve,
     Deny,
@@ -100,6 +103,7 @@ pub enum ConsentDecision {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case", tag = "outcome")]
 #[cfg_attr(feature = "ts", ts(rename_all = "snake_case"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AuthorizeOutcome {
     Issued(AuthorizationIssued),
     Denied(AuthorizationDenied),
@@ -126,6 +130,7 @@ impl AuthorizeOutcome {
 /// An approved authorization. `code` is plaintext and exists only here.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AuthorizationIssued {
     pub code: String,
     pub redirect_uri: String,
@@ -152,6 +157,7 @@ impl AuthorizationIssued {
 /// used to bounce an error (and a `state`) to an attacker.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AuthorizationDenied {
     pub redirect_uri: String,
     pub state: Option<String>,
@@ -182,6 +188,7 @@ impl AuthorizationDenied {
 /// every field of every grant type.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TokenRequest {
     /// `authorization_code`, `refresh_token` or [`DEVICE_GRANT_TYPE`].
     #[serde(default)]
@@ -206,6 +213,7 @@ pub struct TokenRequest {
 /// RFC 6749 §5.1. Both token values are plaintext and exist only here.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TokenResponse {
     pub access_token: String,
     /// Always [`TOKEN_TYPE`].
@@ -223,6 +231,7 @@ pub struct TokenResponse {
 /// RFC 8628 §3.1.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DeviceCodeRequest {
     #[serde(default)]
     pub client_id: String,
@@ -233,6 +242,7 @@ pub struct DeviceCodeRequest {
 /// RFC 8628 §3.2. `device_code` is plaintext and exists only here.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DeviceCodeResponse {
     /// The secret the device polls with.
     pub device_code: String,
@@ -253,6 +263,7 @@ pub struct DeviceCodeResponse {
 /// What the approval page renders for a pending device authorization.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DeviceDetails {
     pub client_id: String,
     pub client_name: String,
@@ -267,6 +278,7 @@ pub struct DeviceDetails {
 /// The outcome of an approval-page decision or a cancellation.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DeviceDecided {
     pub user_code: String,
     pub approved: bool,
@@ -275,6 +287,7 @@ pub struct DeviceDecided {
 /// RFC 7009 §2.1.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RevokeRequest {
     #[serde(default)]
     pub token: String,
@@ -297,6 +310,7 @@ pub struct RevokeRequest {
 /// at instead of assuming one.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AuthorizationServerMetadata {
     /// The issuer identifier: exactly the mount this document was fetched
     /// from, with no trailing slash (RFC 8414 §2).
@@ -322,6 +336,7 @@ pub struct AuthorizationServerMetadata {
 /// RFC 6749 §5.2's error body, which RFC 7009 and RFC 8628 reuse.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OAuthErrorBody {
     pub error: String,
     pub error_description: String,

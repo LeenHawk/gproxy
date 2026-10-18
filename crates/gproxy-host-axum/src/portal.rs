@@ -111,12 +111,14 @@ where
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct DeviceQuery {
     user_code: String,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct DeviceDecisionBody {
     user_code: String,
     decision: ConsentDecision,
@@ -252,6 +254,7 @@ fn secure_cookie<C>(state: &HostState<C>, request: &Request) -> bool {
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct LoginBody {
     name: String,
     password: String,
@@ -517,3 +520,9 @@ where
 {
     crate::send(async move { portal!(@empty state, caller, password.change(change)) }).await
 }
+
+#[cfg(feature = "documentation")]
+#[path = "portal_docs.rs"]
+mod documentation;
+#[cfg(feature = "documentation")]
+pub(crate) use documentation::document;

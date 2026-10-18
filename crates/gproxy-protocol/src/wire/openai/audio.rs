@@ -18,6 +18,7 @@ where
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateSpeechRequestBody {
     pub model: String,
     pub input: String,
@@ -54,6 +55,7 @@ pub struct CreateSpeechRequestBody {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SpeechVoice {
     Name(String),
     Custom(CustomVoice),
@@ -64,6 +66,7 @@ pub enum SpeechVoice {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CustomVoice {
     pub id: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -73,6 +76,7 @@ pub struct CustomVoice {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AudioResponseFormat {
     #[serde(rename = "mp3")]
     Mp3,
@@ -91,6 +95,7 @@ pub enum AudioResponseFormat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SpeechStreamFormat {
     #[serde(rename = "sse")]
     Sse,
@@ -102,6 +107,7 @@ pub enum SpeechStreamFormat {
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SpeechAudioEvent {
     #[serde(rename = "speech.audio.delta")]
     Delta(SpeechAudioDelta),
@@ -114,6 +120,7 @@ pub enum SpeechAudioEvent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SpeechAudioDelta {
     pub audio: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -125,6 +132,7 @@ pub struct SpeechAudioDelta {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SpeechAudioDone {
     pub usage: SpeechUsage,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -136,6 +144,7 @@ pub struct SpeechAudioDone {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SpeechUsage {
     pub input_tokens: i64,
     pub output_tokens: i64,
@@ -147,6 +156,7 @@ pub struct SpeechUsage {
 #[derive(Debug, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateTranscriptionMultipartForm {
     pub file: MultipartPart,
     pub model: String,
@@ -167,6 +177,7 @@ pub struct CreateTranscriptionMultipartForm {
 #[derive(Debug, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateTranslationMultipartForm {
     pub file: MultipartPart,
     pub model: String,
@@ -178,6 +189,7 @@ pub struct CreateTranslationMultipartForm {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TranscriptionResponseFormat {
     #[serde(rename = "json")]
     Json,
@@ -196,6 +208,7 @@ pub enum TranscriptionResponseFormat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TranslationResponseFormat {
     #[serde(rename = "json")]
     Json,
@@ -212,6 +225,7 @@ pub enum TranslationResponseFormat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TranscriptionTimestampGranularity {
     #[serde(rename = "word")]
     Word,
@@ -222,6 +236,7 @@ pub enum TranscriptionTimestampGranularity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TranscriptionInclude {
     #[serde(rename = "logprobs")]
     Logprobs,
@@ -230,6 +245,7 @@ pub enum TranscriptionInclude {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AutomaticChunking {
     #[serde(rename = "auto")]
     Auto,
@@ -238,6 +254,7 @@ pub enum AutomaticChunking {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum VadType {
     #[serde(rename = "server_vad")]
     ServerVad,
@@ -247,6 +264,7 @@ pub enum VadType {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ChunkingStrategy {
     Auto(AutomaticChunking),
     Vad(VadConfig),
@@ -257,6 +275,7 @@ pub enum ChunkingStrategy {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VadConfig {
     #[serde(rename = "type")]
     pub type_: VadType,
@@ -287,6 +306,7 @@ pub struct VadConfig {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionJson {
     pub text: String,
     #[serde(
@@ -316,6 +336,7 @@ pub struct TranscriptionJson {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionLanguage {
     pub code: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -327,6 +348,7 @@ pub struct TranscriptionLanguage {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionLogprob {
     #[serde(
         default,
@@ -355,6 +377,7 @@ pub struct TranscriptionLogprob {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionVerbose {
     // Verbose examples in Create transcription.md include task, although the
     // field table and SDK omit it. Preserve the observed field as optional.
@@ -394,6 +417,7 @@ pub struct TranscriptionVerbose {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionDiarized {
     pub duration: serde_json::Number,
     pub segments: Vec<TranscriptionDiarizedSegment>,
@@ -412,6 +436,7 @@ pub struct TranscriptionDiarized {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TranscriptionTask {
     #[serde(rename = "transcribe")]
     Transcribe,
@@ -420,6 +445,7 @@ pub enum TranscriptionTask {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TranscriptionDiarizedSegmentType {
     #[serde(rename = "transcript.text.segment")]
     Segment,
@@ -430,6 +456,7 @@ pub enum TranscriptionDiarizedSegmentType {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionDiarizedSegment {
     pub id: String,
     pub end: serde_json::Number,
@@ -447,6 +474,7 @@ pub struct TranscriptionDiarizedSegment {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionSegment {
     pub id: i64,
     pub avg_logprob: serde_json::Number,
@@ -467,6 +495,7 @@ pub struct TranscriptionSegment {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionWord {
     pub end: serde_json::Number,
     pub start: serde_json::Number,
@@ -478,6 +507,7 @@ pub struct TranscriptionWord {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TokenUsageType {
     #[serde(rename = "tokens")]
     Tokens,
@@ -486,6 +516,7 @@ pub enum TokenUsageType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DurationUsageType {
     #[serde(rename = "duration")]
     Duration,
@@ -496,6 +527,7 @@ pub enum DurationUsageType {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionTokenUsage {
     pub input_tokens: i64,
     pub output_tokens: i64,
@@ -517,6 +549,7 @@ pub struct TranscriptionTokenUsage {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionInputTokenDetails {
     #[serde(
         default,
@@ -539,6 +572,7 @@ pub struct TranscriptionInputTokenDetails {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionDurationUsage {
     pub seconds: serde_json::Number,
     #[serde(rename = "type")]
@@ -551,6 +585,7 @@ pub struct TranscriptionDurationUsage {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TranscriptionUsage {
     Tokens(TranscriptionTokenUsage),
     Duration(TranscriptionDurationUsage),
@@ -561,6 +596,7 @@ pub enum TranscriptionUsage {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranslationJson {
     pub text: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -572,6 +608,7 @@ pub struct TranslationJson {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranslationVerbose {
     pub duration: serde_json::Number,
     pub language: String,
@@ -590,6 +627,7 @@ pub struct TranslationVerbose {
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TranscriptionTextStreamEvent {
     #[serde(rename = "transcript.text.delta")]
     Delta(TranscriptionTextDelta),
@@ -601,6 +639,7 @@ pub enum TranscriptionTextStreamEvent {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TranscriptionStreamEvent {
     Text(TranscriptionTextStreamEvent),
     Segment(TranscriptionDiarizedSegment),
@@ -611,6 +650,7 @@ pub enum TranscriptionStreamEvent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionTextDelta {
     pub delta: String,
     #[serde(
@@ -634,6 +674,7 @@ pub struct TranscriptionTextDelta {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranscriptionTextDone {
     pub text: String,
     #[serde(

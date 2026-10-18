@@ -11,6 +11,7 @@ use gproxy_store::entity::upstream::{operation_endpoint, operation_rule};
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OperationRuleDto {
     pub id: String,
     pub provider_id: String,
@@ -38,6 +39,7 @@ impl From<operation_rule::Model> for OperationRuleDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OperationRuleWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -53,6 +55,7 @@ pub struct OperationRuleWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OperationRulePatch {
     #[serde(default)]
     pub operation: Option<String>,
@@ -69,6 +72,7 @@ pub struct OperationRulePatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OperationEndpointDto {
     pub id: String,
     pub provider_id: String,
@@ -106,6 +110,7 @@ pub(crate) fn transport_name(transport: operation_endpoint::EndpointTransport) -
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OperationEndpointWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -123,6 +128,7 @@ pub struct OperationEndpointWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OperationEndpointPatch {
     #[serde(default)]
     pub operation: Option<String>,
@@ -141,6 +147,7 @@ pub struct OperationEndpointPatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RoutingTargetDto {
     pub operation: String,
     pub dialect: String,
@@ -150,6 +157,7 @@ pub struct RoutingTargetDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RoutingMappingDto {
     pub implementation: String,
     pub target: Option<RoutingTargetDto>,
@@ -159,6 +167,7 @@ pub struct RoutingMappingDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OperationRoutingDto {
     pub operation: String,
     pub dialect: String,
@@ -173,6 +182,7 @@ pub struct OperationRoutingDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RoutingMappingWrite {
     pub implementation: String,
     pub target: Option<RoutingTargetDto>,

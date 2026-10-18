@@ -19,6 +19,7 @@ use super::UsageTokensDto;
 // The variants' own fields are not renamed, so the tagged object is
 // `{"scope": "provider", "provider_id": "…"}`. Mirrored exactly.
 #[cfg_attr(feature = "ts", ts(tag = "scope", rename_all = "snake_case"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConnectivityScope {
     /// The instance default profile, with no provider in the picture.
     Global,
@@ -40,6 +41,7 @@ pub enum ConnectivityScope {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConnectivityTest {
     #[serde(flatten)]
     pub scope: ConnectivityScope,
@@ -61,6 +63,7 @@ pub struct ConnectivityTest {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConnectivityResultDto {
     pub ipv4: Option<ConnectivityProbeDto>,
     pub ipv6: Option<ConnectivityProbeDto>,
@@ -84,6 +87,7 @@ pub struct ConnectivityResultDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModelTest {
     pub provider_id: String,
     /// The upstream model name, as the provider's catalog spells it.
@@ -98,6 +102,7 @@ pub struct ModelTest {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModelTestResultDto {
     pub ok: bool,
     pub latency_ms: u64,
@@ -117,6 +122,7 @@ pub struct ModelTestResultDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DiscoveredModelDto {
     pub upstream_name: String,
     /// Whether this provider already has a `provider_models` row for it.
@@ -136,6 +142,7 @@ pub struct DiscoveredModelDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConnectivityProbeDto {
     pub ip: String,
     pub location: Option<String>,

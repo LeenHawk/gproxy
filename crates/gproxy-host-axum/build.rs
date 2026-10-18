@@ -1,4 +1,10 @@
+#[cfg(feature = "documentation")]
+#[path = "build/documentation.rs"]
+mod documentation;
+
 fn main() {
+    #[cfg(feature = "documentation")]
+    documentation::inventory();
     println!("cargo:rerun-if-env-changed=GPROXY_BUILD_HASH");
     let hash = std::env::var("GPROXY_BUILD_HASH")
         .ok()

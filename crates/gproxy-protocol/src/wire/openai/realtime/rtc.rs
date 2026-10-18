@@ -9,6 +9,7 @@ use crate::{
 #[derive(Debug, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateRealtimeCallMultipartForm {
     pub sdp: MultipartPart,
     pub session: Option<RealtimeSessionCreateRequest>,
@@ -31,6 +32,7 @@ pub type RealtimeCallSessionJson = RealtimeSessionCreateRequest;
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveSessionCreateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -56,6 +58,7 @@ pub struct LiveSessionCreateRequest {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveDelegation {
     #[serde(rename = "type")]
     pub type_: String,
@@ -75,6 +78,7 @@ pub struct LiveDelegation {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveInitialMessage {
     #[serde(rename = "type")]
     pub type_: String,
@@ -94,6 +98,7 @@ pub struct LiveInitialMessage {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveInitialText {
     #[serde(rename = "type")]
     pub type_: String,
@@ -104,6 +109,7 @@ pub struct LiveInitialText {
 
 #[derive(Debug, gproxy_protocol_macros::WireBuilder, gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateLiveCallMultipartForm {
     pub sdp: MultipartPart,
     pub session: LiveSessionCreateRequest,
@@ -114,6 +120,7 @@ pub type CreateLiveCallResponse = WireResponse<HttpBody>;
 /// HTTP/WS entry paths for the OpenAI realtime family. The host still owns
 /// authentication, model routing and upgrading the connection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeRoute<'a> {
     CreateCall,
     CreateLiveCall,

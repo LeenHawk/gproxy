@@ -23,6 +23,7 @@ where
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum StreamEvent {
     #[serde(rename = "message_start")]
     MessageStart(Box<MessageStartEvent>),
@@ -47,6 +48,7 @@ pub enum StreamEvent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MessageStartEvent {
     pub message: StreamMessage,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -58,6 +60,7 @@ pub struct MessageStartEvent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct StreamMessage {
     #[serde(
         default,
@@ -118,6 +121,7 @@ pub struct StreamMessage {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContentBlockStartEvent {
     pub index: i64,
     pub content_block: response::ResponseContentBlock,
@@ -130,6 +134,7 @@ pub struct ContentBlockStartEvent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContentBlockDeltaEvent {
     pub index: i64,
     pub delta: ContentBlockDelta,
@@ -141,6 +146,7 @@ pub struct ContentBlockDeltaEvent {
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ContentBlockDelta {
     #[serde(rename = "text_delta")]
     Text(TextDelta),
@@ -161,6 +167,7 @@ pub enum ContentBlockDelta {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TextDelta {
     pub text: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -172,6 +179,7 @@ pub struct TextDelta {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InputJsonDelta {
     pub partial_json: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -183,6 +191,7 @@ pub struct InputJsonDelta {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ThinkingDelta {
     pub thinking: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -194,6 +203,7 @@ pub struct ThinkingDelta {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SignatureDelta {
     pub signature: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -205,6 +215,7 @@ pub struct SignatureDelta {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CitationsDelta {
     pub citation: response::ResponseTextCitation,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -216,6 +227,7 @@ pub struct CitationsDelta {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CompactionDelta {
     #[serde(
         default,
@@ -238,6 +250,7 @@ pub struct CompactionDelta {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContentBlockStopEvent {
     pub index: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -249,6 +262,7 @@ pub struct ContentBlockStopEvent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MessageDeltaEvent {
     #[serde(
         default,
@@ -274,6 +288,7 @@ pub struct MessageDeltaEvent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MessageDelta {
     #[serde(
         default,
@@ -308,6 +323,7 @@ pub struct MessageDelta {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MessageDeltaUsage {
     #[serde(
         default,
@@ -361,6 +377,7 @@ pub struct MessageDeltaUsage {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MessageStopEvent {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -371,6 +388,7 @@ pub struct MessageStopEvent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PingEvent {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -381,6 +399,7 @@ pub struct PingEvent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ErrorEvent {
     pub error: StreamError,
     #[serde(
@@ -398,6 +417,7 @@ pub struct ErrorEvent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct StreamError {
     #[serde(rename = "type")]
     pub type_: StreamErrorType,
@@ -410,6 +430,7 @@ pub struct StreamError {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum StreamErrorType {
     ApiError,
     AuthenticationError,

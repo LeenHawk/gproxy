@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, PartialEq, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WebSearchRequestBody {
     pub id: String,
     pub model: String,
@@ -26,6 +27,7 @@ pub struct WebSearchRequestBody {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SearchInput {
     Text(String),
     Items(Vec<super::guardian::ClientResponseItem>),
@@ -34,6 +36,7 @@ pub enum SearchInput {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SearchCommands {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub search_query: Option<Vec<SearchQuery>>,
@@ -64,6 +67,7 @@ pub struct SearchCommands {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SearchQuery {
     pub q: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -77,6 +81,7 @@ pub struct SearchQuery {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OpenOperation {
     pub ref_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -90,6 +95,7 @@ pub struct OpenOperation {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClickOperation {
     pub ref_id: String,
     pub id: u64,
@@ -102,6 +108,7 @@ pub struct ClickOperation {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FindOperation {
     pub ref_id: String,
     pub pattern: String,
@@ -114,6 +121,7 @@ pub struct FindOperation {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ScreenshotOperation {
     pub ref_id: String,
     pub pageno: u64,
@@ -124,6 +132,7 @@ pub struct ScreenshotOperation {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FinanceOperation {
     pub ticker: String,
     pub r#type: FinanceAssetType,
@@ -137,6 +146,7 @@ pub struct FinanceOperation {
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum FinanceAssetType {
     Equity,
     Fund,
@@ -147,6 +157,7 @@ pub enum FinanceAssetType {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WeatherOperation {
     pub location: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -160,6 +171,7 @@ pub struct WeatherOperation {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SportsOperation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool: Option<SportsToolName>,
@@ -185,6 +197,7 @@ pub struct SportsOperation {
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SportsToolName {
     Sports,
 }
@@ -193,6 +206,7 @@ pub enum SportsToolName {
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SportsFunction {
     Schedule,
     Standings,
@@ -202,6 +216,7 @@ pub enum SportsFunction {
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SportsLeague {
     Nba,
     Wnba,
@@ -219,6 +234,7 @@ pub enum SportsLeague {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TimeOperation {
     pub utc_offset: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -229,6 +245,7 @@ pub struct TimeOperation {
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SearchResponseLength {
     Short,
     Medium,
@@ -239,6 +256,7 @@ pub enum SearchResponseLength {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ExternalWebAccessMode {
     Cached,
     Indexed,
@@ -249,6 +267,7 @@ pub enum ExternalWebAccessMode {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ExternalWebAccess {
     Boolean(bool),
     Mode(ExternalWebAccessMode),
@@ -257,6 +276,7 @@ pub enum ExternalWebAccess {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SearchSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_location: Option<ApproximateLocation>,
@@ -277,6 +297,7 @@ pub struct SearchSettings {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ApproximateLocation {
     pub r#type: LocationType,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -295,6 +316,7 @@ pub struct ApproximateLocation {
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum LocationType {
     Approximate,
 }
@@ -303,6 +325,7 @@ pub enum LocationType {
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SearchContextSize {
     Low,
     Medium,
@@ -314,6 +337,7 @@ pub enum SearchContextSize {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SearchFilters {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_domains: Option<Vec<String>>,
@@ -328,6 +352,7 @@ pub struct SearchFilters {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SearchImageSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_results: Option<u64>,
@@ -341,6 +366,7 @@ pub struct SearchImageSettings {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AllowedCaller {
     Direct,
     Shell,
@@ -352,6 +378,7 @@ pub enum AllowedCaller {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WebSearchResponseBody {
     #[serde(
         default,

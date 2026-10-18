@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GenerateContentResponseBody {
     pub id: String,
     pub choices: Vec<Choice>,
@@ -36,6 +37,7 @@ pub type GenerateContentResponse = WireResponse<GenerateContentResponseBody>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum CompletionObject {
     #[serde(rename = "chat.completion")]
     ChatCompletion,
@@ -43,6 +45,7 @@ pub enum CompletionObject {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseServiceTier {
     #[serde(rename = "auto")]
     Auto,
@@ -63,10 +66,12 @@ pub enum ResponseServiceTier {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Choice {
     pub finish_reason: FinishReason,
     pub index: i64,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(default, deserialize_with = "required_nullable")]
     pub logprobs: Option<Logprobs>,
     pub message: ResponseMessage,
@@ -76,6 +81,7 @@ pub struct Choice {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum FinishReason {
     #[serde(rename = "stop")]
     Stop,
@@ -92,6 +98,7 @@ pub enum FinishReason {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseMessage {
     #[serde(
         default,
@@ -114,9 +121,11 @@ pub struct ResponseMessage {
     )]
     pub reasoning: Option<Option<String>>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(default, deserialize_with = "required_nullable")]
     pub content: Option<String>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(default, deserialize_with = "required_nullable")]
     pub refusal: Option<String>,
     pub role: ResponseRole,
@@ -138,6 +147,7 @@ pub struct ResponseMessage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseRole {
     #[serde(rename = "assistant")]
     Assistant,
@@ -148,6 +158,7 @@ pub enum ResponseRole {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseAudio {
     pub id: String,
     pub data: String,
@@ -162,6 +173,7 @@ pub struct ResponseAudio {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Annotation {
     #[serde(rename = "type")]
     pub type_: AnnotationType,
@@ -172,6 +184,7 @@ pub struct Annotation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AnnotationType {
     #[serde(rename = "url_citation")]
     UrlCitation,
@@ -182,6 +195,7 @@ pub enum AnnotationType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UrlCitation {
     pub end_index: i64,
     pub start_index: i64,
@@ -194,11 +208,14 @@ pub struct UrlCitation {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Logprobs {
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub content: Option<Vec<TokenLogprob>>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub refusal: Option<Vec<TokenLogprob>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -208,9 +225,11 @@ pub struct Logprobs {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TokenLogprob {
     pub token: String,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub bytes: Option<Vec<i64>>,
     pub logprob: f64,
@@ -222,9 +241,11 @@ pub struct TokenLogprob {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TokenLogprobTop {
     pub token: String,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub bytes: Option<Vec<i64>>,
     pub logprob: f64,
@@ -237,6 +258,7 @@ pub struct TokenLogprobTop {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Usage {
     pub prompt_tokens: i64,
     pub completion_tokens: i64,
@@ -254,6 +276,7 @@ pub struct Usage {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PromptTokensDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_write_tokens: Option<i64>,
@@ -271,6 +294,7 @@ pub struct PromptTokensDetails {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CompletionTokensDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accepted_prediction_tokens: Option<i64>,
@@ -288,6 +312,7 @@ pub struct CompletionTokensDetails {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModerationResponse {
     pub input: ModerationResultOrError,
     pub output: ModerationResultOrError,
@@ -298,6 +323,7 @@ pub struct ModerationResponse {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ModerationResultOrError {
     Result(ModerationResult),
     Error(ModerationError),
@@ -306,6 +332,7 @@ pub enum ModerationResultOrError {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModerationResult {
     pub model: String,
     pub results: Vec<ModerationResultItem>,
@@ -317,6 +344,7 @@ pub struct ModerationResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ModerationResultType {
     #[serde(rename = "moderation_results")]
     ModerationResults,
@@ -325,6 +353,7 @@ pub enum ModerationResultType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModerationResultItem {
     pub categories: std::collections::BTreeMap<String, bool>,
     pub category_applied_input_types: std::collections::BTreeMap<String, Vec<ModerationInputType>>,
@@ -339,6 +368,7 @@ pub struct ModerationResultItem {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ModerationInputType {
     #[serde(rename = "text")]
     Text,
@@ -348,6 +378,7 @@ pub enum ModerationInputType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ModerationItemType {
     #[serde(rename = "moderation_result")]
     ModerationResult,
@@ -358,6 +389,7 @@ pub enum ModerationItemType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModerationError {
     pub code: String,
     pub message: String,
@@ -369,6 +401,7 @@ pub struct ModerationError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ModerationErrorType {
     #[serde(rename = "error")]
     Error,

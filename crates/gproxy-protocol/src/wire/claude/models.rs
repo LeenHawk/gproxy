@@ -13,6 +13,7 @@ use crate::Rest;
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ListModelsQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub after_id: Option<String>,
@@ -33,6 +34,7 @@ pub type GetModelRequest = crate::WireRequest<()>;
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ListModelsResponseBody {
     pub data: Vec<ModelInfo>,
     pub first_id: String,
@@ -51,6 +53,7 @@ pub type GetModelResponse = crate::WireResponse<ModelInfo>;
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModelInfo {
     pub id: String,
     #[serde(default)]
@@ -77,6 +80,7 @@ pub struct ModelInfo {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ModelType {
     Model,
 }
@@ -87,6 +91,7 @@ pub enum ModelType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModelCapabilities {
     pub batch: CapabilitySupport,
     pub citations: CapabilitySupport,
@@ -109,6 +114,7 @@ pub struct ModelCapabilities {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CapabilitySupport {
     pub supported: bool,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -121,6 +127,7 @@ pub struct CapabilitySupport {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContextManagementCapability {
     pub clear_thinking_20251015: CapabilitySupport,
     pub clear_tool_uses_20250919: CapabilitySupport,
@@ -136,6 +143,7 @@ pub struct ContextManagementCapability {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EffortCapability {
     pub high: CapabilitySupport,
     pub low: CapabilitySupport,
@@ -153,6 +161,7 @@ pub struct EffortCapability {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ThinkingCapability {
     pub supported: bool,
     pub types: ThinkingTypes,
@@ -166,6 +175,7 @@ pub struct ThinkingCapability {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ThinkingTypes {
     pub adaptive: CapabilitySupport,
     pub enabled: CapabilitySupport,
@@ -182,6 +192,7 @@ pub struct ThinkingTypes {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ServerToolsCapability {
     pub supported: bool,
     pub web_search: CapabilitySupport,

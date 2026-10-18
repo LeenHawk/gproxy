@@ -5,8 +5,9 @@
   "type": "module",
   "packageManager": "pnpm@9.15.9",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
+    "dev": "node scripts/generate-reference.mjs && astro dev",
+    "build": "node scripts/generate-reference.mjs && astro build",
+    "generate:reference": "node scripts/generate-reference.mjs",
     "preview": "astro preview",
     "check": "node scripts/check-notifications.mjs"
   },

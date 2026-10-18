@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationCreatedEvent {
     pub conversation: ConversationCreatedEventConversation,
     pub event_id: String,
@@ -24,6 +25,7 @@ pub struct ConversationCreatedEvent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemCreatedEvent {
     pub event_id: String,
     pub item: ConversationItem,
@@ -43,6 +45,7 @@ pub struct ConversationItemCreatedEvent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemDeletedEvent {
     pub event_id: String,
     pub item_id: String,
@@ -56,6 +59,7 @@ pub struct ConversationItemDeletedEvent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemTruncatedEvent {
     pub audio_end_ms: i64,
     pub content_index: i64,
@@ -71,6 +75,7 @@ pub struct ConversationItemTruncatedEvent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemAdded {
     pub event_id: String,
     pub item: ConversationItem,
@@ -90,6 +95,7 @@ pub struct ConversationItemAdded {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemDone {
     pub event_id: String,
     pub item: ConversationItem,
@@ -109,6 +115,7 @@ pub struct ConversationItemDone {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationCreatedEventConversation {
     #[serde(
         default,
@@ -129,6 +136,7 @@ pub struct ConversationCreatedEventConversation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationCreatedEventType {
     #[serde(rename = "conversation.created")]
     ConversationCreated,
@@ -137,6 +145,7 @@ pub enum ConversationCreatedEventType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemCreatedEventType {
     #[serde(rename = "conversation.item.created")]
     ConversationItemCreated,
@@ -145,6 +154,7 @@ pub enum ConversationItemCreatedEventType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemDeletedEventType {
     #[serde(rename = "conversation.item.deleted")]
     ConversationItemDeleted,
@@ -153,6 +163,7 @@ pub enum ConversationItemDeletedEventType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemTruncatedEventType {
     #[serde(rename = "conversation.item.truncated")]
     ConversationItemTruncated,
@@ -161,6 +172,7 @@ pub enum ConversationItemTruncatedEventType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemAddedType {
     #[serde(rename = "conversation.item.added")]
     ConversationItemAdded,
@@ -169,6 +181,7 @@ pub enum ConversationItemAddedType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemDoneType {
     #[serde(rename = "conversation.item.done")]
     ConversationItemDone,
@@ -177,6 +190,7 @@ pub enum ConversationItemDoneType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationCreatedEventConversationObject {
     #[serde(rename = "realtime.conversation")]
     RealtimeConversation,

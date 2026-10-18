@@ -1,0 +1,12 @@
+---
+title: "通道能力目錄"
+description: "從 Rust 匯出的通道能力、登入方式、設定項目及廠商服務路由。"
+---
+
+import ChannelReference from "../../../../components/ChannelReference.astro";
+
+本目錄直接讀取各通道的 `descriptor()` 和服務路由宣告，涵蓋 SDK `channels` feature 群組中的全部通道。部署的二進位檔可能只啟用其中一部分。
+
+能力標記表示已實作的可選介面，不代表真實帳號已獲授權，也不是協定操作支援矩陣。設定預留位置僅為範例，不是執行階段預設值。廠商服務路由需要 provider 或命名空間掛載，並受呼叫者角色和服務檢視約束；路由分類可能表示受限或拒絕存取。設定方法見 [Provider 與憑證](/zh-tw/guides/providers/)。
+
+<ChannelReference locale="zh-tw" />

@@ -17,6 +17,7 @@ pub type ResponseInstructions = input::Input;
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GenerateContentResponseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_cache_diagnostics: Option<super::diagnostics::PromptCacheDiagnostics>,
@@ -24,15 +25,19 @@ pub struct GenerateContentResponseBody {
     pub id: String,
     pub created_at: i64,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub error: Option<ResponseError>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub incomplete_details: Option<ResponseIncompleteDetails>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub instructions: Option<ResponseInstructions>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub metadata: Option<BTreeMap<String, String>>,
     pub model: String,
@@ -40,11 +45,13 @@ pub struct GenerateContentResponseBody {
     pub output: Vec<ResponseOutputItem>,
     pub parallel_tool_calls: bool,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub temperature: Option<serde_json::Number>,
     pub tool_choice: input::ToolChoice,
     pub tools: Vec<tools::Tool>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub top_p: Option<serde_json::Number>,
     #[serde(
@@ -180,6 +187,7 @@ pub struct GenerateContentResponseBody {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseObject {
     #[serde(rename = "response")]
     Response,
@@ -190,6 +198,7 @@ pub enum ResponseObject {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseError {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub misalignment: Option<MisalignmentDetails>,
@@ -203,6 +212,7 @@ pub struct ResponseError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseErrorCode {
     #[serde(rename = "server_error")]
     ServerError,
@@ -251,6 +261,7 @@ pub enum ResponseErrorCode {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseIncompleteDetails {
     #[serde(
         default,
@@ -265,6 +276,7 @@ pub struct ResponseIncompleteDetails {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseIncompleteReason {
     #[serde(rename = "max_messages")]
     MaxMessages,
@@ -283,6 +295,7 @@ pub enum ResponseIncompleteReason {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponsePromptCacheOptions {
     #[serde(
         default,
@@ -300,6 +313,7 @@ pub struct ResponsePromptCacheOptions {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseStatus {
     #[serde(rename = "completed")]
     Completed,
@@ -320,6 +334,7 @@ pub enum ResponseStatus {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseModerationReport {
     pub input: ResponseModerationOutcome,
     pub output: ResponseModerationOutcome,
@@ -331,6 +346,7 @@ pub struct ResponseModerationReport {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseModerationOutcome {
     Result(ResponseModerationResult),
     Error(ResponseModerationError),
@@ -341,6 +357,7 @@ pub enum ResponseModerationOutcome {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseModerationResult {
     pub categories: BTreeMap<String, bool>,
     pub category_applied_input_types: BTreeMap<String, Vec<ResponseModerationInputType>>,
@@ -356,6 +373,7 @@ pub struct ResponseModerationResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseModerationInputType {
     #[serde(rename = "text")]
     Text,
@@ -366,6 +384,7 @@ pub enum ResponseModerationInputType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseModerationResultType {
     #[serde(rename = "moderation_result")]
     ModerationResult,
@@ -376,6 +395,7 @@ pub enum ResponseModerationResultType {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseModerationError {
     pub code: String,
     pub message: String,
@@ -388,6 +408,7 @@ pub struct ResponseModerationError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseModerationErrorType {
     #[serde(rename = "error")]
     Error,
@@ -398,6 +419,7 @@ pub enum ResponseModerationErrorType {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseUsage {
     pub input_tokens: i64,
     pub input_tokens_details: ResponseInputTokensDetails,
@@ -413,6 +435,7 @@ pub struct ResponseUsage {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseInputTokensDetails {
     pub cache_write_tokens: i64,
     pub cached_tokens: i64,
@@ -425,6 +448,7 @@ pub struct ResponseInputTokensDetails {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseOutputTokensDetails {
     pub reasoning_tokens: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -437,6 +461,7 @@ pub struct ResponseOutputTokensDetails {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseOutputItem {
     MultiAgentCall(super::multi_agent::ResponseMultiAgentCall),
     MultiAgentCallOutput(super::multi_agent::ResponseMultiAgentCallOutput),
@@ -477,6 +502,7 @@ pub enum ResponseOutputItem {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseFunctionCallOutput {
     #[serde(
         default,
@@ -523,6 +549,7 @@ pub struct ResponseFunctionCallOutput {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseComputerCallOutput {
     #[serde(
         default,
@@ -555,6 +582,7 @@ pub struct ResponseComputerCallOutput {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseComputerOutputStatus {
     #[serde(rename = "completed")]
     Completed,
@@ -571,6 +599,7 @@ pub enum ResponseComputerOutputStatus {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseToolSearchCall {
     #[serde(
         default,
@@ -582,6 +611,7 @@ pub struct ResponseToolSearchCall {
     // Source line 10675 explicitly permits unknown (arbitrary JSON) arguments.
     pub arguments: serde_json::Value,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub call_id: Option<String>,
     pub execution: tools::ToolExecution,
@@ -603,6 +633,7 @@ pub struct ResponseToolSearchCall {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseToolSearchOutput {
     #[serde(
         default,
@@ -612,6 +643,7 @@ pub struct ResponseToolSearchOutput {
     pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub call_id: Option<String>,
     pub execution: tools::ToolExecution,
@@ -634,6 +666,7 @@ pub struct ResponseToolSearchOutput {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseAdditionalTools {
     #[serde(
         default,
@@ -653,6 +686,7 @@ pub struct ResponseAdditionalTools {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseAdditionalToolsRole {
     #[serde(rename = "unknown")]
     Unknown,
@@ -677,6 +711,7 @@ pub enum ResponseAdditionalToolsRole {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseCompaction {
     #[serde(
         default,
@@ -703,6 +738,7 @@ pub struct ResponseCompaction {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseShellCall {
     #[serde(
         default,
@@ -714,6 +750,7 @@ pub struct ResponseShellCall {
     pub action: ResponseShellAction,
     pub call_id: String,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub environment: Option<ResponseShellEnvironment>,
     pub status: input::ItemStatus,
@@ -740,12 +777,15 @@ pub struct ResponseShellCall {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseShellAction {
     pub commands: Vec<String>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub max_output_length: Option<i64>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub timeout_ms: Option<i64>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -756,6 +796,7 @@ pub struct ResponseShellAction {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseShellEnvironment {
     Local(ResponseLocalEnvironment),
     Reference(tools::ShellContainerReference),
@@ -766,6 +807,7 @@ pub enum ResponseShellEnvironment {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseLocalEnvironment {
     #[serde(rename = "type")]
     pub type_: tools::ShellLocalType,
@@ -778,6 +820,7 @@ pub struct ResponseLocalEnvironment {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseShellCallOutput {
     #[serde(
         default,
@@ -788,6 +831,7 @@ pub struct ResponseShellCallOutput {
     pub id: String,
     pub call_id: String,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub max_output_length: Option<i64>,
     pub output: Vec<ResponseShellOutputContent>,
@@ -815,6 +859,7 @@ pub struct ResponseShellCallOutput {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseShellOutputContent {
     pub outcome: input::ShellOutputOutcome,
     pub stderr: String,
@@ -834,6 +879,7 @@ pub struct ResponseShellOutputContent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseApplyPatchCall {
     #[serde(
         default,
@@ -868,6 +914,7 @@ pub struct ResponseApplyPatchCall {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseApplyPatchCallOutput {
     #[serde(
         default,
@@ -907,6 +954,7 @@ pub struct ResponseApplyPatchCallOutput {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseMcpApprovalResponse {
     #[serde(
         default,
@@ -934,6 +982,7 @@ pub struct ResponseMcpApprovalResponse {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseCustomToolCallOutput {
     #[serde(
         default,
@@ -974,6 +1023,7 @@ pub struct ResponseCustomToolCallOutput {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MisalignmentDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detailed_explanation: Option<String>,
@@ -996,6 +1046,7 @@ pub struct MisalignmentDetails {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MisalignmentSteer {
     pub message: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]

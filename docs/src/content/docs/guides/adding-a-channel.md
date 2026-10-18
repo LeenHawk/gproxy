@@ -447,7 +447,11 @@ The same steps, as an agent should execute them.
 4. Forward the feature in the four places of step 9.
 5. If the channel honours `allow_paid_usage` or serves a WebSocket, set
    `paid_usage` / `websocket` in its descriptor's capabilities.
-6. Run the commands under [Finish](#finish).
+6. Add translations for new descriptor/schema descriptions to
+   `docs/src/i18n/reference/zh-cn.json` and `zh-tw.json`. Run
+   `pnpm --dir docs generate:reference`; it exports the registered channels
+   and rejects untranslated descriptions. Do not commit generated JSON.
+7. Run the commands under [Finish](#finish).
 
 **Outside this repository**:
 

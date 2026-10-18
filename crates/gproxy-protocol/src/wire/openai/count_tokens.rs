@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CountTokensRequestBody {
     #[serde(
         default,
@@ -93,6 +94,7 @@ pub struct CountTokensRequestBody {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CountTokensResponseBody {
     pub input_tokens: i64,
     pub object: CountTokensObject,
@@ -104,6 +106,7 @@ pub struct CountTokensResponseBody {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum CountTokensObject {
     #[serde(rename = "response.input_tokens")]
     ResponseInputTokens,
@@ -122,6 +125,7 @@ pub type CountTokensResponse = crate::WireResponse<CountTokensResponseBody>;
     Deserialize,
     gproxy_protocol_macros::DeclaredFields,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Truncation {
     #[serde(rename = "auto")]
     Auto,

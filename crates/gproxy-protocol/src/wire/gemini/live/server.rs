@@ -15,6 +15,7 @@ pub type LiveUrlContextMetadata = crate::gemini::generate_content::UrlContextMet
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BidiGenerateContentServerContent {
     #[serde(alias = "model_turn")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -62,6 +63,7 @@ pub struct BidiGenerateContentServerContent {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BidiGenerateContentToolCall {
     #[serde(alias = "function_calls")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -74,6 +76,7 @@ pub struct BidiGenerateContentToolCall {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BidiGenerateContentToolCallCancellation {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ids: Option<Vec<String>>,
@@ -85,6 +88,7 @@ pub struct BidiGenerateContentToolCallCancellation {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GoAway {
     #[serde(alias = "time_left")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -97,6 +101,7 @@ pub struct GoAway {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SessionResumptionUpdate {
     #[serde(alias = "new_handle")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -114,6 +119,7 @@ pub struct SessionResumptionUpdate {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BidiGenerateContentTranscription {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
@@ -135,6 +141,7 @@ pub struct BidiGenerateContentTranscription {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WordInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub word: Option<String>,
@@ -152,6 +159,7 @@ pub struct WordInfo {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveUsageMetadata {
     #[serde(alias = "prompt_token_count")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -194,6 +202,7 @@ pub struct LiveUsageMetadata {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VoiceActivityDetectionSignal {
     #[serde(alias = "vad_signal_type")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -206,6 +215,7 @@ pub struct VoiceActivityDetectionSignal {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VoiceActivity {
     #[serde(rename = "type")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -220,6 +230,7 @@ pub struct VoiceActivity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TurnCompleteReason {
     #[serde(rename = "TURN_COMPLETE_REASON_UNSPECIFIED")]
     TurnCompleteReasonUnspecified,
@@ -282,6 +293,7 @@ pub enum TurnCompleteReason {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum InteractionStatus {
     #[serde(rename = "INTERACTION_STATUS_UNSPECIFIED")]
     InteractionStatusUnspecified,
@@ -296,6 +308,7 @@ pub enum InteractionStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum VadSignalType {
     #[serde(rename = "VAD_SIGNAL_TYPE_UNSPECIFIED")]
     VadSignalTypeUnspecified,
@@ -308,6 +321,7 @@ pub enum VadSignalType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum VoiceActivityType {
     #[serde(rename = "TYPE_UNSPECIFIED")]
     TypeUnspecified,
@@ -324,6 +338,7 @@ pub enum VoiceActivityType {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SpeechState {
     Name(String),
     Number(i32),

@@ -16,6 +16,7 @@ use serde_json::Number;
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TaskUsageRequestBody {
     pub threads: Vec<TaskUsageThread>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -32,6 +33,7 @@ pub struct TaskUsageRequestBody {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TaskUsageThread {
     pub thread_id: String,
     pub created_at: Option<String>,
@@ -50,6 +52,7 @@ pub struct TaskUsageThread {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TaskUsageResponseBody {
     pub data_as_of: Option<String>,
     pub threads: Vec<TaskUsage>,
@@ -67,6 +70,7 @@ pub struct TaskUsageResponseBody {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TaskUsage {
     pub thread_id: String,
     pub data_status: TaskUsageStatus,
@@ -91,6 +95,7 @@ pub struct TaskUsage {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TaskUsageStatus {
     Available,
     Partial,
@@ -107,6 +112,7 @@ pub enum TaskUsageStatus {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TaskUsageGroup {
     pub product_experience: Option<String>,
     pub model: Option<String>,
@@ -129,6 +135,7 @@ pub struct TaskUsageGroup {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PlanLimitHistory {
     pub data_as_of: Option<String>,
     pub coverage_start: Option<String>,
@@ -155,6 +162,7 @@ fn approximate_by_default() -> bool {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PlanLimitPeriod {
     pub id: String,
     pub window_minutes: u32,
@@ -178,6 +186,7 @@ pub struct PlanLimitPeriod {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PlanLimitBreakdown {
     pub dimension: String,
     pub rows: Vec<PlanLimitValue>,
@@ -195,6 +204,7 @@ pub struct PlanLimitBreakdown {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PlanLimitValue {
     pub key: String,
     pub basis_points: Number,

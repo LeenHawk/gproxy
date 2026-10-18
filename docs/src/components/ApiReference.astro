@@ -1,0 +1,53 @@
+---
+import api from '../../public/generated/openapi.json';
+import ApiPayload from './ApiPayload.astro';
+import { referenceText, description } from '../lib/reference-i18n';
+const { locale = 'en' } = Astro.props;
+const t = referenceText(locale);
+const suffix = locale === 'en' ? '' : `.${locale}`;
+const groups = ['Forwarding','Codex provider','Management','Portal','OAuth','System'];
+const operations = Object.entries(api.paths).flatMap(([path, methods]) => Object.entries(methods).map(([method, operation]) => ({path,method,operation})));
+---
+<p>GPROXY {api.info.version}. <a href={`/generated/openapi${suffix}.json`}>{t.jsonDownload} (OpenAPI)</a>.</p>
+{groups.map((group) => <section>
+  <h2 id={group.toLowerCase().replaceAll(' ','-')}>{t[group]}</h2>
+  {operations.filter(({operation}) => operation.tags?.includes(group)).map(({path,method,operation}) => <section>
+    <h3 id={`${method}-${path.replace(/[^a-zA-Z0-9]/g,'-')}`}><code>{method.toUpperCase()} {path}</code></h3>
+    {operation.description && <p>{description(operation.description,locale)}</p>}
+    {operation['x-runtime-condition'] && <p>{t.condition}: {description(operation['x-runtime-condition'],locale)}</p>}
+    {operation['x-gproxy-section'] && <p>{t.section}: <code>{operation['x-gproxy-section']}</code></p>}
+    {operation['x-gproxy-routes'] && <table>
+      <thead><tr><th>{t.dialect}</th><th>{t.operation}</th><th>{t.transport}</th></tr></thead>
+      <tbody>{operation['x-gproxy-routes'].map((route) => <tr><td><code>{route.dialect}</code></td><td><code>{route.operation}</code>{route.streaming && <Fragment><br/><code>stream: true → {route.streaming}</code></Fragment>}</td><td>{route.websocket ? 'WebSocket' : 'HTTP'}</td></tr>)}</tbody>
+    </table>}
+    <details>
+      <summary>{t.parameters} · {t.request} · {t.response}</summary>
+      {operation.parameters?.length > 0 && <section>
+        <h4>{t.parameters}</h4>
+        {operation.parameters.map((parameter) => <section>
+          <p><code>{parameter.name}</code> ({parameter.in}) — {t.required}: {parameter.required ? t.yes : t.no}</p>
+          {parameter.description && <p>{description(parameter.description,locale)}</p>}
+          <ApiPayload schema={parameter.schema} locale={locale} />
+        </section>)}
+      </section>}
+      {operation.requestBody && <section>
+        <h4>{t.request}</h4>
+        {!operation.requestBody.required && <p>{t.optionalBody}</p>}
+        {Object.entries(operation.requestBody.content).map(([media,content]) => <section><p><code>{media}</code></p><ApiPayload schema={content.schema} locale={locale}/></section>)}
+      </section>}
+      <h4>{t.response}</h4>
+      {Object.entries(operation.responses).map(([status,response]) => <section>
+        <p>{t.status}: <code>{status}</code> — {description(response.description,locale)}</p>
+        {response.content ? Object.entries(response.content).map(([media,content]) => <section>
+          <p><code>{media}</code></p><ApiPayload schema={content.schema} locale={locale}/>
+          {content['x-event-schema'] && <section><p>{t.event}</p><ApiPayload schema={content['x-event-schema']} locale={locale}/></section>}
+        </section>) : <p>{t.noBody}</p>}
+        {response.headers && <ApiPayload schema={response.headers} locale={locale}/>}
+      </section>)}
+      {operation['x-websocket'] && <section>
+        <h4>{t.websocket}</h4><p>{t.clientMessage}</p><ApiPayload schema={operation['x-websocket'].clientMessage} locale={locale}/>
+        <p>{t.serverMessage}</p><ApiPayload schema={operation['x-websocket'].serverMessage} locale={locale}/>
+      </section>}
+    </details>
+  </section>)}
+</section>)}

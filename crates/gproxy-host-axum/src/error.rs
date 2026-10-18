@@ -41,14 +41,21 @@ impl From<AppError> for ErrorResponse {
 }
 
 #[derive(Serialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct Envelope<'a> {
     error: EnvelopeBody<'a>,
 }
 
 #[derive(Serialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct EnvelopeBody<'a> {
     code: &'a str,
     message: String,
+}
+
+#[cfg(feature = "documentation")]
+pub(crate) fn schema(schemas: &mut crate::documentation::Schemas) -> serde_json::Value {
+    schemas.output::<Envelope<'static>>()
 }
 
 impl IntoResponse for ErrorResponse {

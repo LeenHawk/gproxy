@@ -70,6 +70,7 @@ async fn session_status(Extension(caller): Extension<Caller>) -> Response {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct SessionStatus {
     user_id: String,
     user_role: String,
@@ -83,3 +84,9 @@ where
 {
     crate::send(async move { crate::portal::sign_out(state, request).await }).await
 }
+
+#[cfg(feature = "documentation")]
+#[path = "context_docs.rs"]
+mod documentation;
+#[cfg(feature = "documentation")]
+pub(crate) use documentation::document;

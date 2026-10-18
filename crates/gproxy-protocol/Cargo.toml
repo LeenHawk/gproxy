@@ -12,6 +12,7 @@ default = []
 # so that adding a variant produces an exhaustive-match checklist; left off for
 # external consumers so that adding one is not a breaking change.
 exhaustive = []
+schema = ["dep:schemars"]
 
 [dependencies]
 blake3 = { workspace = true }
@@ -25,6 +26,7 @@ http = { workspace = true }
 rust_decimal = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+schemars = { workspace = true, optional = true }
 strum = { workspace = true }
 time = { workspace = true, features = ["formatting"] }
 multer = { workspace = true }

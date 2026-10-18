@@ -1,0 +1,32 @@
+---
+import schema from '../../public/generated/configuration.schema.json';
+import defaults from '../../public/generated/configuration.defaults.json';
+import SchemaFields from './SchemaFields.astro';
+import { referenceText, description, localizedSchema } from '../lib/reference-i18n';
+const { locale = 'en' } = Astro.props;
+const t = referenceText(locale);
+const suffix = locale === 'en' ? '' : `.${locale}`;
+---
+
+<p><a href={`/generated/configuration.schema${suffix}.json`}>{t.download} JSON Schema</a> · <a href="/generated/configuration.defaults.json">{t.defaults}</a></p>
+<h2 id="appconfig">AppConfig</h2>
+<SchemaFields schema={schema} locale={locale} />
+{Object.entries(schema.$defs).map(([name, definition]) => (
+  <section>
+    <h2 id={name.toLowerCase()}>{name}</h2>
+    {definition.description && <p>{description(definition.description,locale)}</p>}
+    {definition.oneOf ? definition.oneOf.map((variant) => (
+      <section>
+        <h3>{variant.properties?.kind?.const ?? variant.title}</h3>
+        {variant.description && <p>{description(variant.description,locale)}</p>}
+        <SchemaFields schema={variant} locale={locale} />
+      </section>
+    )) : <SchemaFields schema={definition} locale={locale} />}
+  </section>
+))}
+<h2 id="defaults">{t.defaults}</h2>
+<pre><code class="language-json">{JSON.stringify(defaults, null, 2)}</code></pre>
+<details>
+  <summary>{t.completeSchema}</summary>
+  <pre><code class="language-json">{JSON.stringify(localizedSchema(schema,locale), null, 2)}</code></pre>
+</details>

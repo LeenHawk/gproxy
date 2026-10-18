@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BidiGenerateContentSetup {
     pub model: String,
     #[serde(alias = "generation_config")]
@@ -56,6 +57,7 @@ pub struct BidiGenerateContentSetup {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SessionResumptionConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub handle: Option<String>,
@@ -67,6 +69,7 @@ pub struct SessionResumptionConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContextWindowCompressionConfig {
     #[serde(alias = "sliding_window")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -82,6 +85,7 @@ pub struct ContextWindowCompressionConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SlidingWindow {
     #[serde(alias = "target_tokens")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -94,6 +98,7 @@ pub struct SlidingWindow {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProactivityConfig {
     #[serde(alias = "proactive_audio")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -106,6 +111,7 @@ pub struct ProactivityConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct HistoryConfig {
     #[serde(alias = "initial_history_in_client_content")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -118,6 +124,7 @@ pub struct HistoryConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AvatarConfig {
     #[serde(alias = "avatar_name")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -139,6 +146,7 @@ pub struct AvatarConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CustomizedAvatar {
     #[serde(alias = "image_mime_type")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -154,6 +162,7 @@ pub struct CustomizedAvatar {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BidiGenerateContentSetupComplete {
     #[serde(alias = "session_id")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -169,6 +178,7 @@ pub struct BidiGenerateContentSetupComplete {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VoiceConsentSignature {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,

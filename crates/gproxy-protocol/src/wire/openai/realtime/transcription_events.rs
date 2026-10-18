@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemInputAudioTranscriptionCompletedEvent {
     pub content_index: i64,
     pub event_id: String,
@@ -39,6 +40,7 @@ pub struct ConversationItemInputAudioTranscriptionCompletedEvent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemInputAudioTranscriptionDeltaEvent {
     pub event_id: String,
     pub item_id: String,
@@ -70,6 +72,7 @@ pub struct ConversationItemInputAudioTranscriptionDeltaEvent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemInputAudioTranscriptionFailedEvent {
     pub content_index: i64,
     pub error: ConversationItemInputAudioTranscriptionFailedEventError,
@@ -85,6 +88,7 @@ pub struct ConversationItemInputAudioTranscriptionFailedEvent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemInputAudioTranscriptionSegment {
     pub id: String,
     pub content_index: i64,
@@ -105,6 +109,7 @@ pub struct ConversationItemInputAudioTranscriptionSegment {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemInputAudioTranscriptionCompletedEventUsage {
     ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptTextUsageTokens(
         ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptTextUsageTokens,
@@ -118,6 +123,7 @@ pub enum ConversationItemInputAudioTranscriptionCompletedEventUsage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemInputAudioTranscriptionFailedEventError {
     #[serde(
         default,
@@ -152,6 +158,7 @@ pub struct ConversationItemInputAudioTranscriptionFailedEventError {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptTextUsageTokens {
     pub input_tokens: i64,
     pub output_tokens: i64,
@@ -168,6 +175,7 @@ pub struct ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptT
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptTextUsageDuration {
     pub seconds: serde_json::Number,
     #[serde(rename = "type")]
@@ -181,6 +189,7 @@ pub struct ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptT
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptTextUsageTokensInputTokenDetails
 {
     #[serde(
@@ -202,6 +211,7 @@ pub struct ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptT
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemInputAudioTranscriptionCompletedEventType {
     #[serde(rename = "conversation.item.input_audio_transcription.completed")]
     ConversationItemInputAudioTranscriptionCompleted,
@@ -210,6 +220,7 @@ pub enum ConversationItemInputAudioTranscriptionCompletedEventType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemInputAudioTranscriptionDeltaEventType {
     #[serde(rename = "conversation.item.input_audio_transcription.delta")]
     ConversationItemInputAudioTranscriptionDelta,
@@ -218,6 +229,7 @@ pub enum ConversationItemInputAudioTranscriptionDeltaEventType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemInputAudioTranscriptionFailedEventType {
     #[serde(rename = "conversation.item.input_audio_transcription.failed")]
     ConversationItemInputAudioTranscriptionFailed,
@@ -226,6 +238,7 @@ pub enum ConversationItemInputAudioTranscriptionFailedEventType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemInputAudioTranscriptionSegmentType {
     #[serde(rename = "conversation.item.input_audio_transcription.segment")]
     ConversationItemInputAudioTranscriptionSegment,
@@ -234,6 +247,7 @@ pub enum ConversationItemInputAudioTranscriptionSegmentType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptTextUsageTokensType {
     #[serde(rename = "tokens")]
     Tokens,
@@ -242,6 +256,7 @@ pub enum ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptTex
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptTextUsageDurationType {
     #[serde(rename = "duration")]
     Duration,

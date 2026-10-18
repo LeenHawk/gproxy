@@ -8,6 +8,7 @@ use gproxy_store::entity::routing::{route, route_member};
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RouteDto {
     pub id: String,
     /// The exact model name clients send in requests.
@@ -45,6 +46,7 @@ pub(crate) fn strategy_name(strategy: route::RouteStrategy) -> &'static str {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RouteWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -64,6 +66,7 @@ pub struct RouteWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RoutePatch {
     #[serde(default)]
     pub name: Option<String>,
@@ -81,6 +84,7 @@ pub struct RoutePatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RouteMemberDto {
     pub id: String,
     pub route_id: String,
@@ -112,6 +116,7 @@ impl From<route_member::Model> for RouteMemberDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RouteMemberWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -130,6 +135,7 @@ pub struct RouteMemberWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RouteMemberPatch {
     #[serde(default)]
     pub route_id: Option<String>,

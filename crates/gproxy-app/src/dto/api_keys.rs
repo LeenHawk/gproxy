@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ApiKeyDto {
     pub id: String,
     pub user_id: String,
@@ -60,6 +61,7 @@ pub(crate) fn kind_name(kind: ApiKeyKind) -> &'static str {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ApiKeyWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -95,6 +97,7 @@ pub struct ApiKeyWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ApiKeyBudgetWrite {
     pub limit_value: String,
     #[serde(default)]
@@ -113,6 +116,7 @@ pub struct ApiKeyBudgetWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ApiKeyPatch {
     #[serde(default)]
     pub name: Option<String>,
@@ -135,6 +139,7 @@ pub struct ApiKeyPatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ApiKeyCreated {
     #[serde(flatten)]
     pub key: ApiKeyDto,
@@ -148,6 +153,7 @@ pub struct ApiKeyCreated {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ApiKeySecretDto {
     pub id: String,
     pub token: String,

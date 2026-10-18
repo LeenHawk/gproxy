@@ -16,6 +16,15 @@ repository.workspace = true
 [features]
 default = ["embedded-console"]
 embedded-console = ["dep:rust-embed"]
+# Build-time documentation export; absent from normal host builds.
+documentation = ["dep:utoipa", "dep:schemars", "dep:syn", "gproxy-app/schema"]
+
+[[example]]
+name = "export-docs"
+required-features = ["documentation"]
+
+[build-dependencies]
+syn = { workspace = true, optional = true, features = ["visit"] }
 
 [dependencies]
 bytes = { workspace = true }
@@ -34,9 +43,11 @@ http = { workspace = true }
 ruzstd = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+schemars = { workspace = true, optional = true }
 serde_urlencoded = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
+utoipa = { workspace = true, optional = true }
 # `SystemTime::now()` inside a Worker isolate, where `std::time` has no clock.
 web-time = { workspace = true }
 

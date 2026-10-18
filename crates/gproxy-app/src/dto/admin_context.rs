@@ -28,6 +28,7 @@ use crate::{
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AdminContextDto {
     pub user: AdminContextUserDto,
     /// `apiKey`, `oauthGrant` or `session`. A console only ever sees
@@ -53,6 +54,7 @@ pub struct AdminContextDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AdminContextUserDto {
     pub id: String,
     /// The display name, when this revision's snapshot knows the user. A user
@@ -70,6 +72,7 @@ pub struct AdminContextUserDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AdminScopeDto {
     /// `instance`, `organization` or `team`.
     pub kind: String,
@@ -89,6 +92,7 @@ pub struct AdminScopeDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AdminSectionDto {
     pub id: String,
     /// The collection path under `/admin/api`.

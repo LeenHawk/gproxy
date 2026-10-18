@@ -180,3 +180,9 @@ async fn no_store(mut response: Response) -> Response {
     );
     response
 }
+
+#[cfg(feature = "documentation")]
+#[path = "observation_docs.rs"]
+mod documentation;
+#[cfg(feature = "documentation")]
+pub(crate) use documentation::document;

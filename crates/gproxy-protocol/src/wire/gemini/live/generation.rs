@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveGenerationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "stop_sequences")]
@@ -102,6 +103,7 @@ pub struct LiveGenerationConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveSpeechConfig {
     #[serde(alias = "voice_config")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -120,6 +122,7 @@ pub struct LiveSpeechConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveVoiceConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub voice: Option<String>,
@@ -137,6 +140,7 @@ pub struct LiveVoiceConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LivePrebuiltVoiceConfig {
     #[serde(alias = "voice_name")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -149,6 +153,7 @@ pub struct LivePrebuiltVoiceConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveMultiSpeakerVoiceConfig {
     #[serde(alias = "speaker_voice_configs")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -161,6 +166,7 @@ pub struct LiveMultiSpeakerVoiceConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveSpeakerVoiceConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub speaker: Option<String>,
@@ -175,6 +181,7 @@ pub struct LiveSpeakerVoiceConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ReplicatedVoiceConfig {
     #[serde(alias = "mime_type")]
     #[serde(default, skip_serializing_if = "Option::is_none")]

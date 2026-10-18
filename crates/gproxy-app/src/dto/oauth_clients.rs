@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OAuthClientDto {
     /// The public `client_id`, chosen at registration and immutable after it.
     pub id: String,
@@ -36,6 +37,7 @@ impl From<client::Model> for OAuthClientDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OAuthClientWrite {
     /// Required, unlike every other family: the id *is* the `client_id` a
     /// third-party binary was built with, so it cannot be generated here.
@@ -51,6 +53,7 @@ pub struct OAuthClientWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OAuthClientPatch {
     #[serde(default)]
     pub name: Option<String>,

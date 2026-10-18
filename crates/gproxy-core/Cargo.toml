@@ -31,6 +31,7 @@ sea-orm = { workspace = true }
 serde = { workspace = true }
 jmespath = { workspace = true }
 serde_json = { workspace = true }
+schemars = { workspace = true, optional = true }
 serde_urlencoded = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
@@ -42,6 +43,7 @@ web-time = { workspace = true }
 zeroize = { workspace = true }
 
 [features]
+schema = ["dep:schemars", "gproxy-channel/schema", "gproxy-protocol/schema", "gproxy-store/schema"]
 default = ["bundled-vocabulary"]
 # Ship DeepSeek's vocabulary for models without a catalog vocabulary file
 # (about 4 MiB in the binary). Off, such models use the character estimate.

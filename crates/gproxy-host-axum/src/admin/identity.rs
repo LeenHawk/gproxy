@@ -145,11 +145,13 @@ where
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct PasswordBody {
     password: String,
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct AllowlistBody {
     /// `null` clears the per-user allowlist and falls back to the global one.
     clients: Option<Vec<String>>,
@@ -466,3 +468,9 @@ where
 {
     crate::send(async move { operations!(state, scope, "audit", audit.query(query)) }).await
 }
+
+#[cfg(feature = "documentation")]
+#[path = "identity_docs.rs"]
+mod documentation;
+#[cfg(feature = "documentation")]
+pub(crate) use documentation::document;

@@ -335,14 +335,27 @@ jobs:
 
   docs:
     name: Docs (build)
+    permissions:
+      contents: read
+      packages: write
     needs: scope
     if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-24.04
+    env:
+      CARGO_PROFILE_DEV_DEBUG: "0"
     defaults:
       run:
         working-directory: docs
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # 1.99.0
+        with:
+          toolchain: 1.99.0
+      - uses: ./.github/actions/ghcr-rust-cache
+        with:
+          key: linux-docs
+          restore-key: linux-checks
+          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           package_json_file: docs/package.json

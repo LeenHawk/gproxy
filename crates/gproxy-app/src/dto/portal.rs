@@ -34,6 +34,7 @@ use super::ApiKeyDto;
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalContextDto {
     pub user: PortalUserDto,
     /// Direct organization memberships. A team joined without its parent is
@@ -47,6 +48,7 @@ pub struct PortalContextDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalUserDto {
     pub id: String,
     pub name: String,
@@ -62,6 +64,7 @@ pub struct PortalUserDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalOrganizationDto {
     pub id: String,
     pub name: String,
@@ -73,6 +76,7 @@ pub struct PortalOrganizationDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalTeamDto {
     pub id: String,
     pub name: String,
@@ -91,6 +95,7 @@ pub struct PortalTeamDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalFeaturesDto {
     /// Whether the key family's writing half is open. False for an OAuth-grant
     /// caller: a token the user handed to somebody else's program must not be
@@ -121,6 +126,7 @@ pub struct PortalFeaturesDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalModelDto {
     /// Either an exposed model name or a `providerName/model` form.
     pub name: String,
@@ -143,6 +149,7 @@ pub struct PortalModelDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalKeyDto {
     pub id: String,
     pub name: String,
@@ -189,6 +196,7 @@ impl From<api_key::Model> for PortalKeyDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalKeyCreate {
     pub name: String,
     /// Absent mints a key that never expires.
@@ -211,6 +219,7 @@ pub struct PortalKeyCreate {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalKeyCreated {
     #[serde(flatten)]
     pub key: PortalKeyDto,
@@ -223,6 +232,7 @@ pub struct PortalKeyCreated {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalKeySecretDto {
     pub id: String,
     pub token: String,
@@ -240,6 +250,7 @@ pub struct PortalKeySecretDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalUsageQuery {
     /// Inclusive lower bound on `startedAtMs`.
     #[serde(default)]
@@ -282,6 +293,7 @@ pub struct PortalUsageQuery {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalUsageDto {
     pub from_ms: Option<i64>,
     pub to_ms: Option<i64>,
@@ -304,6 +316,7 @@ pub struct PortalUsageDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalQuotaWindowDto {
     /// `api_key`, `user`, `team` or `org`.
     pub owner_kind: String,
@@ -338,6 +351,7 @@ pub struct PortalQuotaWindowDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalRequestDto {
     pub request_id: String,
     /// The caller's own key that made the request, when one did.
@@ -391,6 +405,7 @@ impl PortalRequestDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalOAuthSessionDto {
     pub id: String,
     pub client_id: String,
@@ -450,6 +465,7 @@ fn scopes(value: &serde_json::Value) -> Vec<String> {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalPasswordChange {
     #[serde(default)]
     pub current: Option<String>,
@@ -461,6 +477,7 @@ pub struct PortalPasswordChange {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalLogin {
     pub name: String,
     pub password: String,
@@ -472,6 +489,7 @@ pub struct PortalLogin {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PortalSessionDto {
     pub id: String,
     pub token: String,

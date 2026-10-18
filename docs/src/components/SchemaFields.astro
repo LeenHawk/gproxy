@@ -1,0 +1,40 @@
+---
+import { createMarkdownProcessor } from '@astrojs/markdown-remark';
+import { referenceText, description } from '../lib/reference-i18n';
+
+const { schema, locale = 'en' } = Astro.props;
+const t = referenceText(locale);
+const markdown = await createMarkdownProcessor();
+const typeName = (value) => {
+  if (value.$ref) return value.$ref.split('/').at(-1);
+  if (value.anyOf || value.oneOf) return (value.anyOf || value.oneOf).map(typeName).join(' | ');
+  if ('const' in value) return JSON.stringify(value.const);
+  if (value.enum) return value.enum.map((item) => JSON.stringify(item)).join(' | ');
+  if (value.type === 'array') return `Array<${typeName(value.items)}>`;
+  return Array.isArray(value.type) ? value.type.join(' | ') : value.type ?? 'any';
+};
+const rows = await Promise.all(Object.entries(schema.properties ?? {}).map(async ([name, value]) => ({
+  name, value,
+  type: typeName(value),
+  required: (schema.required ?? []).includes(name),
+  // Rust intra-doc targets are names, not browser URLs.
+  description: (await markdown.render(description(value.description,locale).replace(
+    /\[([^\]]+)\]\((?:crate|self|super)::[^)]+\)/g, '$1',
+  ))).code,
+})));
+---
+
+<table>
+  <thead><tr><th>{t.field}</th><th>{t.type}</th><th>{t.required}</th><th>{t.default}</th><th>{t.description}</th></tr></thead>
+  <tbody>
+    {rows.map((row) => (
+      <tr>
+        <td><code>{row.name}</code></td>
+        <td><code>{row.type}</code></td>
+        <td>{row.required ? t.yes : t.no}</td>
+        <td>{'default' in row.value ? <code>{JSON.stringify(row.value.default)}</code> : '—'}</td>
+        <td><Fragment set:html={row.description} /></td>
+      </tr>
+    ))}
+  </tbody>
+</table>

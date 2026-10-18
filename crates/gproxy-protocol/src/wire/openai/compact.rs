@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CompactRequestBody {
     #[serde(
         default,
@@ -23,6 +24,7 @@ pub struct CompactRequestBody {
     )]
     pub prompt_cache_retention: Option<Option<super::responses::generate::PromptCacheRetention>>,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "super::responses::input::required_nullable")]
     pub model: Option<String>,
     #[serde(
@@ -63,6 +65,7 @@ pub type CompactRequest = crate::WireRequest<CompactRequestBody>;
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ServiceTier {
     Auto,
     Default,
@@ -76,6 +79,7 @@ pub enum ServiceTier {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CompactResponseBody {
     pub usage: super::responses::response::ResponseUsage,
     pub id: String,
@@ -89,6 +93,7 @@ pub type CompactResponse = crate::WireResponse<CompactResponseBody>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum CompactObject {
     #[serde(rename = "response.compaction")]
     ResponseCompaction,
@@ -106,6 +111,7 @@ pub enum CompactObject {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientCompactRequestBody {
     pub model: String,
     pub input: Vec<super::guardian::ClientResponseItem>,
@@ -139,6 +145,7 @@ pub struct ClientCompactRequestBody {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientCompactResponseBody {
     pub output: Vec<super::guardian::ClientResponseItem>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]

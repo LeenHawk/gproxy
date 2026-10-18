@@ -21,6 +21,7 @@
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", ts(rename_all = "snake_case"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum LoginMode {
     /// Browser redirect with PKCE; `OAuthAuthorizationCode`.
     AuthorizationCode,
@@ -39,6 +40,7 @@ pub enum LoginMode {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChannelCapabilities {
     /// `CredentialRefresh`: the credential can be renewed without a person.
     pub refresh: bool,
@@ -63,6 +65,7 @@ pub struct ChannelCapabilities {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", ts(rename_all = "snake_case"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ConfigKeyKind {
     String,
     Bool,
@@ -79,6 +82,7 @@ pub enum ConfigKeyKind {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConfigKey {
     pub name: &'static str,
     pub kind: ConfigKeyKind,
@@ -155,6 +159,7 @@ pub const HOST_CONFIG_KEYS: [ConfigKey; 4] = [
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ChannelDescriptor {
     /// Matches `BaseChannel::id` and the provider's `channel` column.
     pub id: &'static str,

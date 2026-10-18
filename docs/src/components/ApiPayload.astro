@@ -1,0 +1,8 @@
+---
+import { referenceText, localizedSchema, schemaReferences, schemaHref } from '../lib/reference-i18n';
+const { schema, locale = 'en' } = Astro.props;
+const t = referenceText(locale);
+const refs = schemaReferences(schema);
+---
+{refs.length > 0 && <p>{t.references}: {refs.map((name, index) => <Fragment>{index > 0 && ', '}<a href={schemaHref(name,locale)}><code>{name}</code></a></Fragment>)}</p>}
+<pre><code class="language-json">{JSON.stringify(localizedSchema(schema,locale),null,2)}</code></pre>

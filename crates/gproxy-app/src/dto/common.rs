@@ -13,6 +13,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ListQuery {
     /// 1-based. Zero and absent both mean the first page.
     pub page: Option<u64>,
@@ -57,6 +58,7 @@ impl ListQuery {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Page<T> {
     pub items: Vec<T>,
     pub total: u64,
@@ -83,6 +85,7 @@ impl<T> Page<T> {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum BatchItem<W, P> {
     Create(W),
     Update(BatchPatch<P>),
@@ -93,6 +96,7 @@ pub enum BatchItem<W, P> {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BatchPatch<P> {
     pub id: String,
     pub patch: P,

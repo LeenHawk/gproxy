@@ -11,6 +11,7 @@ use gproxy_store::entity::pricing::{price_rate, price_rule, price_tier, price_un
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PriceRuleDto {
     pub id: String,
     /// None prices every provider; a provider rule wins over a global one.
@@ -43,6 +44,7 @@ impl From<price_rule::Model> for PriceRuleDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PriceRuleWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -62,6 +64,7 @@ pub struct PriceRuleWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PriceRulePatch {
     #[serde(default, deserialize_with = "double_option")]
     pub provider_id: Option<Option<String>>,
@@ -83,6 +86,7 @@ pub struct PriceRulePatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PriceRateDto {
     pub id: String,
     pub price_rule_id: String,
@@ -126,6 +130,7 @@ pub(crate) fn unit_name(unit: PriceUnit) -> &'static str {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PriceRateWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -145,6 +150,7 @@ pub struct PriceRateWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PriceRatePatch {
     #[serde(default)]
     pub metric: Option<String>,
@@ -167,6 +173,7 @@ pub struct PriceRatePatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PriceTierDto {
     pub id: String,
     pub price_rule_id: String,
@@ -223,6 +230,7 @@ impl From<price_tier::Model> for PriceTierDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PriceTierWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -269,6 +277,7 @@ pub struct PriceTierWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PriceTierPatch {
     #[serde(default, deserialize_with = "double_option")]
     pub service_tier: Option<Option<String>>,

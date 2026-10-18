@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum StreamEvent {
     /// Undocumented upstream heartbeat; converted to Claude ping or otherwise ignored.
     #[serde(rename = "keepalive")]
@@ -134,6 +135,7 @@ pub enum StreamEvent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sequence_number: Option<i64>,
@@ -162,8 +164,10 @@ pub struct ResponseMetadata {
 }
 
 macro_rules! event_struct { ($name:ident { $($field:ident : $ty:ty),* $(,)? }) => { #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)] #[serde(rename_all="snake_case")] #[cfg_attr(not(feature="exhaustive"), non_exhaustive)] #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct $name { pub sequence_number: i64, $(pub $field: $ty,)* #[serde(default, flatten, skip_serializing_if="serde_json::Map::is_empty")] pub rest: Rest } }; }
 macro_rules! agent_event_struct { ($name:ident { $($field:ident : $ty:ty),* $(,)? }) => { #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)] #[serde(rename_all="snake_case")] #[cfg_attr(not(feature="exhaustive"), non_exhaustive)] #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct $name { #[serde(default, deserialize_with = "super::input::present_nullable", skip_serializing_if = "Option::is_none")] pub agent: Option<Option<super::multi_agent::Agent>>, pub sequence_number: i64, $(pub $field: $ty,)* #[serde(default, flatten, skip_serializing_if="serde_json::Map::is_empty")] pub rest: Rest } }; }
 event_struct!(ResponseCreated {
     response: GenerateContentResponseBody
@@ -236,6 +240,7 @@ agent_event_struct!(ReasoningSummaryPartAddedEvent {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ReasoningSummaryPartDoneEvent {
     #[serde(
         default,
@@ -260,6 +265,7 @@ pub struct ReasoningSummaryPartDoneEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SummaryPartStatus {
     #[serde(rename = "incomplete")]
     Incomplete,
@@ -354,6 +360,7 @@ pub type ResponseStream = crate::WireResponse<crate::connection::ByteStream>;
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum OutputContentPart {
     Text(super::input::ResponseOutputText),
     Refusal(super::input::ResponseOutputRefusal),
@@ -364,6 +371,7 @@ pub enum OutputContentPart {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ReasoningText {
     pub text: String,
     #[serde(rename = "type")]
@@ -374,6 +382,7 @@ pub struct ReasoningText {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ReasoningTextType {
     #[serde(rename = "reasoning_text")]
     ReasoningText,
@@ -384,6 +393,7 @@ pub enum ReasoningTextType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct StreamLogprob {
     pub token: String,
     pub logprob: serde_json::Number,
@@ -402,6 +412,7 @@ pub struct StreamLogprob {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct StreamTopLogprob {
     #[serde(
         default,
@@ -424,6 +435,7 @@ pub struct StreamTopLogprob {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ReasoningSummaryPart {
     pub text: String,
     #[serde(rename = "type")]
@@ -434,6 +446,7 @@ pub struct ReasoningSummaryPart {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ReasoningSummaryPartType {
     #[serde(rename = "summary_text")]
     SummaryText,
@@ -444,12 +457,15 @@ pub enum ReasoningSummaryPartType {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseErrorEvent {
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "super::input::required_nullable")]
     pub code: Option<String>,
     pub message: String,
     #[wire(required)]
+    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "super::input::required_nullable")]
     pub param: Option<String>,
     pub sequence_number: i64,

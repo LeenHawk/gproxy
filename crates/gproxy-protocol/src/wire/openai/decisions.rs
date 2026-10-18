@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateDecisionRequestBody {
     pub model: String,
     pub input: DecisionInput,
@@ -25,6 +26,7 @@ pub struct CreateDecisionRequestBody {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DecisionInput {
     Text(String),
     Messages(Vec<DecisionInputMessage>),
@@ -35,6 +37,7 @@ pub enum DecisionInput {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DecisionInputMessage {
     pub role: DecisionRole,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -50,6 +53,7 @@ pub struct DecisionInputMessage {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DecisionRole {
     User,
 }
@@ -59,6 +63,7 @@ pub enum DecisionRole {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DecisionMessageType {
     Message,
 }
@@ -68,6 +73,7 @@ pub enum DecisionMessageType {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DecisionContent {
     Text(String),
     Parts(Vec<DecisionInputPart>),
@@ -78,6 +84,7 @@ pub enum DecisionContent {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DecisionInputPart {
     InputText {
         text: String,
@@ -102,6 +109,7 @@ pub enum DecisionInputPart {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DecisionImageDetail {
     Low,
     High,
@@ -114,6 +122,7 @@ pub enum DecisionImageDetail {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DecisionChoiceValue {
     String(String),
     Boolean(bool),
@@ -124,6 +133,7 @@ pub enum DecisionChoiceValue {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DecisionChoice {
     pub value: DecisionChoiceValue,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -137,6 +147,7 @@ pub struct DecisionChoice {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DecisionScoreLevel {
     pub label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -150,6 +161,7 @@ pub struct DecisionScoreLevel {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DecisionQuestion {
     Predicate {
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -181,6 +193,7 @@ pub enum DecisionQuestion {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateDecisionResponseBody {
     pub model: String,
     pub answers: Vec<DecisionAnswer>,
@@ -194,6 +207,7 @@ pub struct CreateDecisionResponseBody {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DecisionChoiceProbability {
     pub value: DecisionChoiceValue,
     pub probability: f64,
@@ -206,6 +220,7 @@ pub struct DecisionChoiceProbability {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DecisionScoreProbability {
     pub label: String,
     pub value: i64,
@@ -219,6 +234,7 @@ pub struct DecisionScoreProbability {
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum DecisionAnswer {
     Predicate {
         #[serde(default, skip_serializing_if = "Option::is_none")]

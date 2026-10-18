@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BidiGenerateContentRealtimeInput {
     #[serde(alias = "media_chunks")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -36,6 +37,7 @@ pub struct BidiGenerateContentRealtimeInput {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveBlob {
     #[serde(alias = "display_name", skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
@@ -52,6 +54,7 @@ pub struct LiveBlob {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveActivityStart {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -61,6 +64,7 @@ pub struct LiveActivityStart {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveActivityEnd {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -70,6 +74,7 @@ pub struct LiveActivityEnd {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeInputConfig {
     #[serde(alias = "automatic_activity_detection")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -91,6 +96,7 @@ pub struct RealtimeInputConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AutomaticActivityDetection {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disabled: Option<bool>,
@@ -113,6 +119,7 @@ pub struct AutomaticActivityDetection {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ActivityHandling {
     #[serde(rename = "ACTIVITY_HANDLING_UNSPECIFIED")]
     ActivityHandlingUnspecified,
@@ -125,6 +132,7 @@ pub enum ActivityHandling {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TurnCoverage {
     #[serde(rename = "TURN_COVERAGE_UNSPECIFIED")]
     TurnCoverageUnspecified,
@@ -139,6 +147,7 @@ pub enum TurnCoverage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum StartSensitivity {
     #[serde(rename = "START_SENSITIVITY_UNSPECIFIED")]
     StartSensitivityUnspecified,
@@ -151,6 +160,7 @@ pub enum StartSensitivity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum EndSensitivity {
     #[serde(rename = "END_SENSITIVITY_UNSPECIFIED")]
     EndSensitivityUnspecified,

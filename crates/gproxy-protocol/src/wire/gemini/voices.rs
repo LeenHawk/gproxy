@@ -24,6 +24,7 @@ pub type DeleteVoiceResponse = WireResponse<DeleteVoiceResponseBody>;
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateVoiceRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store: Option<bool>,
@@ -42,6 +43,7 @@ pub struct CreateVoiceRequestBody {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ListVoicesResponseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_page_token: Option<String>,
@@ -61,6 +63,7 @@ pub struct ListVoicesResponseBody {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DeleteVoiceResponseBody {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -76,6 +79,7 @@ pub struct DeleteVoiceResponseBody {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Voice {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accent: Option<String>,
@@ -135,6 +139,7 @@ pub struct Voice {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Pitch {
     Low,
     Medium,
@@ -151,6 +156,7 @@ pub enum Pitch {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PromptedVoice {
     pub input: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -167,6 +173,7 @@ pub struct PromptedVoice {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ReplicatedVoice {
     pub consent_audio: AudioData,
     pub source_audio: AudioData,
@@ -184,6 +191,7 @@ pub struct ReplicatedVoice {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AudioData {
     pub data: String,
     pub mime_type: String,
@@ -203,6 +211,7 @@ pub struct AudioData {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum VoiceType {
     Replicated,
     Prompted,
@@ -219,6 +228,7 @@ pub enum VoiceType {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Usage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cached_tokens_by_modality: Option<Vec<ModalityTokens>>,
@@ -256,6 +266,7 @@ pub struct Usage {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModalityTokens {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modality: Option<ResponseModality>,
@@ -275,6 +286,7 @@ pub struct ModalityTokens {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GroundingToolCount {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub count: Option<i64>,
@@ -297,6 +309,7 @@ pub struct GroundingToolCount {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseModality {
     Text,
     Image,
@@ -317,6 +330,7 @@ pub enum ResponseModality {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum GroundingToolType {
     GoogleSearch,
     GoogleMaps,
@@ -333,6 +347,7 @@ pub enum GroundingToolType {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ListVoicesQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accent: Option<Vec<String>>,

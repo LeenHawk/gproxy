@@ -16,6 +16,7 @@ use std::collections::BTreeMap;
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateModerationRequestBody {
     pub input: ModerationInput,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -29,6 +30,7 @@ pub struct CreateModerationRequestBody {
 )]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ModerationInput {
     Text(String),
     Texts(Vec<String>),
@@ -40,6 +42,7 @@ pub enum ModerationInput {
 )]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ModerationContent {
     Text {
         text: String,
@@ -63,6 +66,7 @@ pub enum ModerationContent {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModerationImageUrl {
     pub url: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -79,6 +83,7 @@ pub struct ModerationImageUrl {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateModerationResponseBody {
     pub id: String,
     pub model: String,
@@ -97,6 +102,7 @@ pub struct CreateModerationResponseBody {
     gproxy_protocol_macros::DeclaredFields,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModerationResult {
     pub flagged: bool,
     pub categories: BTreeMap<String, Option<bool>>,

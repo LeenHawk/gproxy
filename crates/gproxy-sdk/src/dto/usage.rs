@@ -14,6 +14,7 @@ use gproxy_store::entity::usage::usage_record;
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UsageTokensDto {
     /// Ordinary input, excluding cache reads and cache writes.
     pub input_tokens: Option<u64>,
@@ -46,6 +47,7 @@ impl UsageTokensDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UsageRecordDto {
     /// Physical upstream call ID. A corresponding capture log need not exist.
     pub request_id: String,
@@ -108,6 +110,7 @@ impl From<gproxy_core::usage_scan::UsageRecord> for UsageRecordDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UsageExchangeDto {
     pub capture_id: Option<String>,
     pub completeness: Option<String>,
@@ -153,6 +156,7 @@ impl UsageExchangeDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UsageSummaryDto {
     /// Number of physical upstream calls, independent of downstream association count.
     pub requests: u64,
@@ -186,6 +190,7 @@ pub struct UsageSummaryDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UsageGroupDto {
     /// The grouping column's value. None is "the records carried none" — an
     /// anonymous request has no user, a failed attempt no provider.
@@ -200,6 +205,7 @@ pub struct UsageGroupDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UsageTrendPointDto {
     pub start_ms: i64,
     /// Exclusive, always `start_ms + bucketMs`: the last bucket keeps the
@@ -214,6 +220,7 @@ pub struct UsageTrendPointDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UsageRecordQuery {
     pub from_ms: Option<i64>,
     pub to_ms: Option<i64>,
@@ -237,6 +244,7 @@ pub struct UsageRecordQuery {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UsageRecordPage {
     pub items: Vec<UsageRecordDto>,
     pub total: u64,
@@ -252,6 +260,7 @@ pub struct UsageRecordPage {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UsageQuery {
     pub from_ms: Option<i64>,
     pub to_ms: Option<i64>,
@@ -274,6 +283,7 @@ pub struct UsageQuery {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum UsageGroupBy {
     User,
     ApiKey,
@@ -291,6 +301,7 @@ pub enum UsageGroupBy {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UsageGroupQuery {
     pub filter: UsageQuery,
     pub group_by: UsageGroupBy,
@@ -300,6 +311,7 @@ pub struct UsageGroupQuery {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct UsageTrendQuery {
     /// `to_ms` is required: buckets are counted up to it. Buckets are aligned
     /// to `from_ms`; without it they start at the first matching record,

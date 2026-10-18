@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RateLimitDto {
     pub id: String,
     /// Exactly one subject, the same rule permissions follow.
@@ -44,6 +45,7 @@ impl From<rate_limit::Model> for RateLimitDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RateLimitWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -64,6 +66,7 @@ pub struct RateLimitWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RateLimitPatch {
     #[serde(default, deserialize_with = "double_option")]
     pub user_id: Option<Option<String>>,

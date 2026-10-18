@@ -89,6 +89,23 @@ export default defineConfig({
           details:
             'GPROXY is a Rust LLM gateway: clients speak OpenAI, Anthropic or Gemini wire formats and GPROXY routes them to many upstream providers with per-user keys, quotas, usage accounting and an admin console.',
           exclude: ['legal/**'],
+          // Keep generated reference tables valid Markdown in compact sets.
+          minify: { whitespace: false },
+          customSets: [
+            {
+              label: 'API and Configuration',
+              description: 'Overview of HTTP APIs, configuration and channel capabilities; complete schemas are linked.',
+              paths: ['reference/http-api', 'reference/api-schemas', 'reference/configuration-schema', 'reference/channel-catalog'],
+            },
+          ],
+          optionalLinks: [
+            { label: 'Complete API and configuration text', url: 'https://gproxy.leenhawk.com/llms-api.txt' },
+            { label: '简体中文完整 API 与配置', url: 'https://gproxy.leenhawk.com/zh-cn/llms-api.txt' },
+            { label: '繁體中文完整 API 與設定', url: 'https://gproxy.leenhawk.com/zh-tw/llms-api.txt' },
+            { label: 'OpenAPI specification', url: 'https://gproxy.leenhawk.com/generated/openapi.json' },
+            { label: 'Configuration JSON Schema', url: 'https://gproxy.leenhawk.com/generated/configuration.schema.json' },
+            { label: 'Channel catalogue', url: 'https://gproxy.leenhawk.com/generated/channels.json' },
+          ],
         }),
       ],
       social: [
@@ -222,6 +239,26 @@ export default defineConfig({
               label: 'Embedding the Core',
               slug: 'reference/embedding',
               translations: { 'zh-CN': '嵌入核心库', 'zh-TW': '嵌入核心庫' },
+            },
+            {
+              label: 'HTTP API Reference',
+              slug: 'reference/http-api',
+              translations: { 'zh-CN': 'HTTP API 参考', 'zh-TW': 'HTTP API 參考' },
+            },
+            {
+              label: 'API Data Structures',
+              slug: 'reference/api-schemas',
+              translations: { 'zh-CN': 'API 数据结构', 'zh-TW': 'API 資料結構' },
+            },
+            {
+              label: 'Configuration Schema',
+              slug: 'reference/configuration-schema',
+              translations: { 'zh-CN': '配置结构', 'zh-TW': '設定結構' },
+            },
+            {
+              label: 'Channel Catalogue',
+              slug: 'reference/channel-catalog',
+              translations: { 'zh-CN': '渠道能力目录', 'zh-TW': '通道能力目錄' },
             },
           ],
         },

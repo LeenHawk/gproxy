@@ -33,6 +33,7 @@ use rust_decimal::Decimal;
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaDto {
     pub id: String,
     pub owner_kind: String,
@@ -76,6 +77,7 @@ impl From<quota::Model> for QuotaDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -101,6 +103,7 @@ pub struct QuotaWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaPatch {
     #[serde(default)]
     pub owner_kind: Option<String>,
@@ -131,6 +134,7 @@ pub struct QuotaPatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BudgetStatusDto {
     pub quota_id: String,
     pub owner_kind: String,
@@ -172,6 +176,7 @@ impl From<gproxy_core::BudgetStatus> for BudgetStatusDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CredentialLimitStatusDto {
     pub quota_id: String,
     pub owner_kind: String,
@@ -217,6 +222,7 @@ impl From<gproxy_core::CredentialLimitStatus> for CredentialLimitStatusDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CredentialQuotaDto {
     /// Open cycles first, by window; then closed ones by window, newest
     /// first.
@@ -231,6 +237,7 @@ pub struct CredentialQuotaDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CredentialCycleDto {
     pub id: String,
     pub credential_id: String,
@@ -267,6 +274,7 @@ pub struct CredentialCycleDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CycleSampleDto {
     /// On the 0..100 scale.
     pub used_percent: Option<String>,
@@ -329,6 +337,7 @@ impl From<credential_cycle::Model> for CredentialCycleDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaObservationDto {
     pub id: String,
     pub credential_id: String,
@@ -371,6 +380,7 @@ impl From<credential_quota_cycle::Model> for QuotaObservationDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaObservationQuery {
     /// Inclusive. Absent means the start of the earliest open cycle of the
     /// credential, or 24 hours before now when none is open.
@@ -387,6 +397,7 @@ pub struct QuotaObservationQuery {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CredentialBlockDto {
     pub id: String,
     pub credential_id: String,
@@ -419,6 +430,7 @@ impl From<credential_block::Model> for CredentialBlockDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaSnapshotDto {
     pub observed_at_ms: i64,
     pub entries: Vec<QuotaEntryDto>,
@@ -429,6 +441,7 @@ pub struct QuotaSnapshotDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaProbeDto {
     pub snapshot: Option<QuotaSnapshotDto>,
     pub error: Option<String>,
@@ -439,6 +452,7 @@ pub struct QuotaProbeDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaResetCreditsDto {
     pub credit_expirations_ms: Vec<Option<i64>>,
     pub options: Vec<QuotaResetOptionDto>,
@@ -461,6 +475,7 @@ impl From<QuotaResetCredits> for QuotaResetCreditsDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaResetOptionDto {
     pub program: String,
     pub grant_id: Option<String>,
@@ -493,6 +508,7 @@ impl From<QuotaResetOption> for QuotaResetOptionDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaResetWrite {
     pub program: Option<String>,
     pub grant_id: Option<String>,
@@ -513,6 +529,7 @@ impl From<QuotaSnapshot> for QuotaSnapshotDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaEntryDto {
     pub id: String,
     pub source_id: String,
@@ -564,6 +581,7 @@ impl From<QuotaEntry> for QuotaEntryDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaBreakdownRowDto {
     pub key: String,
     pub label: Option<String>,
@@ -595,6 +613,7 @@ fn subject_name(subject: QuotaSubject) -> &'static str {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaAllowanceDto {
     pub used: Option<String>,
     pub limit: Option<String>,
@@ -641,6 +660,7 @@ fn reset_behavior_name(behavior: QuotaResetBehavior) -> &'static str {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaBalanceDto {
     pub remaining: Option<String>,
     pub unit: Option<String>,
@@ -660,6 +680,7 @@ impl From<QuotaBalance> for QuotaBalanceDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaResetDto {
     pub reason: Option<String>,
     /// `reset`, `nothing_to_reset`, `no_credit`, `already_redeemed`,
@@ -693,6 +714,7 @@ impl From<QuotaResetResult> for QuotaResetDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaWindowDto {
     pub id: String,
     pub quota_id: String,
@@ -723,6 +745,7 @@ pub struct QuotaWindowDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaSettlementDto {
     pub window_id: String,
     /// A downstream request id for a caller budget, an upstream capture id
@@ -749,6 +772,7 @@ impl From<quota_settlement::Model> for QuotaSettlementDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CountedWindowDto {
     pub credential_id: String,
     /// A channel-declared dimension, or `limit:{quota_id}` for the synthetic
@@ -781,6 +805,7 @@ impl From<counted_window::Model> for CountedWindowDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaWindowQuery {
     pub quota_id: Option<String>,
     /// Both owner fields select the quotas first; a kind without an id is a

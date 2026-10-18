@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct OrganizationMemberDto {
     pub organization_id: String,
     pub user_id: String,
@@ -32,6 +33,7 @@ impl From<organization_member::Model> for OrganizationMemberDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TeamMemberDto {
     pub team_id: String,
     pub user_id: String,
@@ -55,6 +57,7 @@ impl From<team_member::Model> for TeamMemberDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MembershipDto {
     /// `organization` or `team`.
     pub scope_kind: String,
@@ -74,6 +77,7 @@ pub(crate) fn role_name(role: MembershipRole) -> &'static str {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MemberWrite {
     pub user_id: String,
     /// `member` or `admin`; absent means `member`.
@@ -87,6 +91,7 @@ pub struct MemberWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct MemberPatch {
     pub role: String,
 }

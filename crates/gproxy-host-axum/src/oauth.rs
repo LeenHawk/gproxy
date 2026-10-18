@@ -212,6 +212,7 @@ where
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct DecisionBody {
     decision: ConsentDecision,
 }
@@ -462,3 +463,9 @@ mod tests {
         assert_eq!(request.refresh_token.as_deref(), Some("r"));
     }
 }
+
+#[cfg(feature = "documentation")]
+#[path = "oauth_docs.rs"]
+mod documentation;
+#[cfg(feature = "documentation")]
+pub(crate) use documentation::document;

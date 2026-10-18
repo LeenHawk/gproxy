@@ -16,6 +16,7 @@ pub type RealtimeToolsConfig = Vec<RealtimeToolsConfigUnion>;
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeToolsConfigUnion {
     RealtimeFunctionTool(RealtimeFunctionTool),
     RealtimeToolsConfigUnionMcp(RealtimeToolsConfigUnionMcp),
@@ -25,6 +26,7 @@ pub enum RealtimeToolsConfigUnion {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeMcpApprovalResponse {
     pub id: String,
     pub approval_request_id: String,
@@ -45,6 +47,7 @@ pub struct RealtimeMcpApprovalResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeMcpListTools {
     pub server_label: String,
     pub tools: Vec<RealtimeMcpListToolsTool>,
@@ -64,6 +67,7 @@ pub struct RealtimeMcpListTools {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeMcpToolCall {
     pub id: String,
     pub arguments: String,
@@ -97,6 +101,7 @@ pub struct RealtimeMcpToolCall {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeMcpApprovalRequest {
     pub id: String,
     pub arguments: String,
@@ -112,6 +117,7 @@ pub struct RealtimeMcpApprovalRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeToolsConfigUnionMcp {
     pub server_label: String,
     #[serde(rename = "type")]
@@ -184,6 +190,7 @@ pub struct RealtimeToolsConfigUnionMcp {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeMcpListToolsTool {
     pub input_schema: serde_json::Value,
     pub name: String,
@@ -208,6 +215,7 @@ pub struct RealtimeMcpListToolsTool {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeMcpToolCallError {
     RealtimeMcpProtocolError(RealtimeMcpProtocolError),
     RealtimeMcpToolExecutionError(RealtimeMcpToolExecutionError),
@@ -220,6 +228,7 @@ pub enum RealtimeMcpToolCallError {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeToolsConfigUnionMcpAllowedTools {
     Items(Vec<String>),
     RealtimeToolsConfigUnionMcpAllowedToolsMcpToolFilter(
@@ -233,6 +242,7 @@ pub enum RealtimeToolsConfigUnionMcpAllowedTools {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeToolsConfigUnionMcpRequireApproval {
     RealtimeToolsConfigUnionMcpRequireApprovalMcpToolApprovalFilter(
         RealtimeToolsConfigUnionMcpRequireApprovalMcpToolApprovalFilter,
@@ -245,6 +255,7 @@ pub enum RealtimeToolsConfigUnionMcpRequireApproval {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeMcpProtocolError {
     pub code: i64,
     pub message: String,
@@ -258,6 +269,7 @@ pub struct RealtimeMcpProtocolError {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeMcpToolExecutionError {
     pub message: String,
     #[serde(rename = "type")]
@@ -270,6 +282,7 @@ pub struct RealtimeMcpToolExecutionError {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeToolsConfigUnionMcpAllowedToolsMcpToolFilter {
     #[serde(
         default,
@@ -291,6 +304,7 @@ pub struct RealtimeToolsConfigUnionMcpAllowedToolsMcpToolFilter {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeToolsConfigUnionMcpRequireApprovalMcpToolApprovalFilter {
     #[serde(
         default,
@@ -313,6 +327,7 @@ pub struct RealtimeToolsConfigUnionMcpRequireApprovalMcpToolApprovalFilter {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeToolsConfigUnionMcpRequireApprovalMcpToolApprovalFilterAlways {
     #[serde(
         default,
@@ -334,6 +349,7 @@ pub struct RealtimeToolsConfigUnionMcpRequireApprovalMcpToolApprovalFilterAlways
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeToolsConfigUnionMcpRequireApprovalMcpToolApprovalFilterNever {
     #[serde(
         default,
@@ -354,6 +370,7 @@ pub struct RealtimeToolsConfigUnionMcpRequireApprovalMcpToolApprovalFilterNever 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeMcpApprovalResponseType {
     #[serde(rename = "mcp_approval_response")]
     McpApprovalResponse,
@@ -362,6 +379,7 @@ pub enum RealtimeMcpApprovalResponseType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeMcpListToolsType {
     #[serde(rename = "mcp_list_tools")]
     McpListTools,
@@ -370,6 +388,7 @@ pub enum RealtimeMcpListToolsType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeMcpToolCallType {
     #[serde(rename = "mcp_call")]
     McpCall,
@@ -378,6 +397,7 @@ pub enum RealtimeMcpToolCallType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeMcpApprovalRequestType {
     #[serde(rename = "mcp_approval_request")]
     McpApprovalRequest,
@@ -386,6 +406,7 @@ pub enum RealtimeMcpApprovalRequestType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeToolsConfigUnionMcpType {
     #[serde(rename = "mcp")]
     Mcp,
@@ -394,6 +415,7 @@ pub enum RealtimeToolsConfigUnionMcpType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeToolsConfigUnionMcpAllowedCallersItem {
     #[serde(rename = "direct")]
     Direct,
@@ -404,6 +426,7 @@ pub enum RealtimeToolsConfigUnionMcpAllowedCallersItem {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeToolsConfigUnionMcpConnectorId {
     #[serde(rename = "connector_dropbox")]
     ConnectorDropbox,
@@ -426,6 +449,7 @@ pub enum RealtimeToolsConfigUnionMcpConnectorId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeToolsConfigUnionMcpRequireApprovalVariant2 {
     #[serde(rename = "always")]
     Always,
@@ -436,6 +460,7 @@ pub enum RealtimeToolsConfigUnionMcpRequireApprovalVariant2 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeMcpProtocolErrorType {
     #[serde(rename = "protocol_error")]
     ProtocolError,
@@ -444,6 +469,7 @@ pub enum RealtimeMcpProtocolErrorType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeMcpToolExecutionErrorType {
     #[serde(rename = "tool_execution_error")]
     ToolExecutionError,

@@ -346,6 +346,7 @@ where
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct StatusBody {
     status: CredentialStatus,
     #[serde(default)]
@@ -376,6 +377,7 @@ where
 /// operator testing a channel's refresh actually wants.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct ForceQuery {
     #[serde(default)]
     force: bool,
@@ -548,6 +550,7 @@ where
 /// nothing to mirror.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct DiscoverBody {
     provider_id: String,
     #[serde(default)]
@@ -575,6 +578,7 @@ where
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct ApplyDiscoveredBody {
     provider_id: String,
     #[serde(default)]
@@ -718,6 +722,7 @@ where
 /// every `POST` on this surface writes an audit row.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct OwnersQuery {
     #[serde(default)]
     owners: String,
@@ -997,6 +1002,7 @@ where
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct TokenBody {
     /// `null` clears the token and downloads anonymously again.
     #[serde(default)]
@@ -1146,3 +1152,9 @@ where
             .collect::<Vec<_>>(),
     )
 }
+
+#[cfg(feature = "documentation")]
+#[path = "config_docs.rs"]
+mod documentation;
+#[cfg(feature = "documentation")]
+pub(crate) use documentation::document;

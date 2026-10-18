@@ -11,6 +11,7 @@ use gproxy_store::entity::upstream::{credential, model, provider, provider_model
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderDto {
     pub id: String,
     /// Invocation URL prefix.
@@ -58,6 +59,7 @@ impl From<provider::Model> for ProviderDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderWrite {
     /// Supplied ids let a host import its own; blank or absent mints one.
     #[serde(default)]
@@ -89,6 +91,7 @@ pub struct ProviderWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderPatch {
     #[serde(default)]
     pub name: Option<String>,
@@ -119,6 +122,7 @@ pub struct ProviderPatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CredentialDto {
     pub id: String,
     pub provider_id: String,
@@ -187,6 +191,7 @@ pub(crate) fn status_name(status: credential::CredentialStatus) -> &'static str 
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CredentialWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -229,6 +234,7 @@ pub struct CredentialWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CredentialPatch {
     #[serde(default, deserialize_with = "double_option")]
     pub label: Option<Option<String>>,
@@ -284,6 +290,7 @@ impl CredentialPatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CredentialSummaryDto {
     pub credential_id: String,
     pub version: i64,
@@ -308,6 +315,7 @@ impl From<gproxy_core::CredentialSummary> for CredentialSummaryDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModelDto {
     /// Saved, enabled rules matching this model, in billing precedence order.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -339,6 +347,7 @@ impl From<model::Model> for ModelDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModelWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -354,6 +363,7 @@ pub struct ModelWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModelPatch {
     #[serde(default)]
     pub name: Option<String>,
@@ -368,6 +378,7 @@ pub struct ModelPatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderModelDto {
     /// Saved, enabled rules matching this model, in billing precedence order.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -406,6 +417,7 @@ impl From<provider_model::Model> for ProviderModelDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderModelWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -424,6 +436,7 @@ pub struct ProviderModelWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderModelPatch {
     #[serde(default)]
     pub provider_id: Option<String>,

@@ -30,6 +30,7 @@ pub type LiveResponse = WireResponse<()>;
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum LiveInt64 {
     String(#[serde(deserialize_with = "decimal_i64")] String),
     Number(i64),
@@ -44,6 +45,7 @@ fn decimal_i64<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Erro
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveClientMessage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub setup: Option<BidiGenerateContentSetup>,
@@ -64,6 +66,7 @@ pub struct LiveClientMessage {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LiveServerMessage {
     #[serde(alias = "setup_complete")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -100,6 +103,7 @@ pub struct LiveServerMessage {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BidiGenerateContentClientContent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turns: Option<Vec<LiveContent>>,
@@ -114,6 +118,7 @@ pub struct BidiGenerateContentClientContent {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BidiGenerateContentToolResponse {
     #[serde(alias = "function_responses")]
     #[serde(default, skip_serializing_if = "Option::is_none")]

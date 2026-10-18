@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AuditEventDto {
     pub id: String,
     pub actor_user_id: Option<String>,
@@ -49,6 +50,7 @@ impl From<audit_event::Model> for AuditEventDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AuditQuery {
     /// 1-based; zero and absent both mean the first page.
     pub page: Option<u64>,

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct McpListToolsInProgress {
     pub event_id: String,
     pub item_id: String,
@@ -23,6 +24,7 @@ pub struct McpListToolsInProgress {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct McpListToolsCompleted {
     pub event_id: String,
     pub item_id: String,
@@ -36,6 +38,7 @@ pub struct McpListToolsCompleted {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct McpListToolsFailed {
     pub event_id: String,
     pub item_id: String,
@@ -49,6 +52,7 @@ pub struct McpListToolsFailed {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseMcpCallArgumentsDelta {
     pub delta: String,
     pub event_id: String,
@@ -71,6 +75,7 @@ pub struct ResponseMcpCallArgumentsDelta {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseMcpCallArgumentsDone {
     pub arguments: String,
     pub event_id: String,
@@ -87,6 +92,7 @@ pub struct ResponseMcpCallArgumentsDone {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseMcpCallInProgress {
     pub event_id: String,
     pub item_id: String,
@@ -101,6 +107,7 @@ pub struct ResponseMcpCallInProgress {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseMcpCallCompleted {
     pub event_id: String,
     pub item_id: String,
@@ -115,6 +122,7 @@ pub struct ResponseMcpCallCompleted {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseMcpCallFailed {
     pub event_id: String,
     pub item_id: String,
@@ -128,6 +136,7 @@ pub struct ResponseMcpCallFailed {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum McpListToolsInProgressType {
     #[serde(rename = "mcp_list_tools.in_progress")]
     McpListToolsInProgress,
@@ -136,6 +145,7 @@ pub enum McpListToolsInProgressType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum McpListToolsCompletedType {
     #[serde(rename = "mcp_list_tools.completed")]
     McpListToolsCompleted,
@@ -144,6 +154,7 @@ pub enum McpListToolsCompletedType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum McpListToolsFailedType {
     #[serde(rename = "mcp_list_tools.failed")]
     McpListToolsFailed,
@@ -152,6 +163,7 @@ pub enum McpListToolsFailedType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseMcpCallArgumentsDeltaType {
     #[serde(rename = "response.mcp_call_arguments.delta")]
     ResponseMcpCallArgumentsDelta,
@@ -160,6 +172,7 @@ pub enum ResponseMcpCallArgumentsDeltaType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseMcpCallArgumentsDoneType {
     #[serde(rename = "response.mcp_call_arguments.done")]
     ResponseMcpCallArgumentsDone,
@@ -168,6 +181,7 @@ pub enum ResponseMcpCallArgumentsDoneType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseMcpCallInProgressType {
     #[serde(rename = "response.mcp_call.in_progress")]
     ResponseMcpCallInProgress,
@@ -176,6 +190,7 @@ pub enum ResponseMcpCallInProgressType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseMcpCallCompletedType {
     #[serde(rename = "response.mcp_call.completed")]
     ResponseMcpCallCompleted,
@@ -184,6 +199,7 @@ pub enum ResponseMcpCallCompletedType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ResponseMcpCallFailedType {
     #[serde(rename = "response.mcp_call.failed")]
     ResponseMcpCallFailed,

@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CountTokensRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contents: Option<Vec<Content>>,
@@ -27,6 +28,7 @@ pub struct CountTokensRequestBody {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModalityTokenCount {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modality: Option<Modality>,
@@ -42,6 +44,7 @@ pub struct ModalityTokenCount {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CountTokensResponseBody {
     #[serde(alias = "total_tokens", skip_serializing_if = "Option::is_none")]
     pub total_tokens: Option<i64>,

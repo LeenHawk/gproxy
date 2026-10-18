@@ -19,6 +19,8 @@ use super::{ChannelError, CredentialContext, OperationFuture};
 use gproxy_client::ClientBounds;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "schema", derive(serde::Serialize, schemars::JsonSchema))]
+#[cfg_attr(feature = "schema", serde(rename_all = "snake_case"))]
 pub enum ServiceTransport {
     Http,
     WebSocket,
@@ -58,6 +60,8 @@ impl ServiceView {
 
 /// How the caller may touch an upstream resource family through a route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "schema", derive(serde::Serialize, schemars::JsonSchema))]
+#[cfg_attr(feature = "schema", serde(rename_all = "snake_case"))]
 pub enum ResourceAccess {
     /// Lists the account's resources; synthesized views list bindings.
     List,
@@ -73,6 +77,8 @@ pub enum ResourceAccess {
 
 /// What a vendor route returns, from the shared account's point of view.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "schema", derive(serde::Serialize, schemars::JsonSchema))]
+#[cfg_attr(feature = "schema", serde(rename_all = "snake_case", tag = "class"))]
 pub enum ServiceClass {
     /// Caller-neutral catalog data (models, featured plugins, public keys):
     /// the same answer for any caller, forwarded under every view.

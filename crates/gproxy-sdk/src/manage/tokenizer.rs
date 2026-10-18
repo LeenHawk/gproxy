@@ -57,6 +57,7 @@ static PROGRESS: LazyLock<ArcSwap<Option<TokenizerProgressDto>>> =
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TokenizerFetch {
     /// A Hugging Face repository id, `owner/name`.
     pub repo: String,
@@ -78,6 +79,7 @@ pub struct TokenizerFetch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VocabularyDto {
     pub file_id: String,
     pub filename: Option<String>,
@@ -93,6 +95,7 @@ pub struct VocabularyDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TokenizerProgressDto {
     pub repo: String,
     pub filename: String,
@@ -107,6 +110,7 @@ pub struct TokenizerProgressDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TokenizerAuthDto {
     pub configured: bool,
 }

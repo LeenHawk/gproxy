@@ -1,0 +1,12 @@
+---
+title: "渠道能力目录"
+description: "从 Rust 导出的渠道能力、登录方式、配置项及厂商服务路由。"
+---
+
+import ChannelReference from "../../../../components/ChannelReference.astro";
+
+本目录直接读取各渠道的 `descriptor()` 和服务路由声明，覆盖 SDK `channels` feature 组中的全部渠道。部署的二进制可能只启用其中一部分。
+
+能力标记表示已实现的可选接口，不代表真实账号已获授权，也不是协议操作支持矩阵。配置占位符仅为示例，不是运行时默认值。厂商服务路由需要 provider 或命名空间挂载，并受调用者角色和服务视图约束；路由分类可能表示受限或拒绝访问。配置方法见 [Provider 与凭证](/zh-cn/guides/providers/)。
+
+<ChannelReference locale="zh-cn" />

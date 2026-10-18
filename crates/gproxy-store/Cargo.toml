@@ -7,7 +7,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+schema = ["dep:schemars"]
+
 [dependencies]
+schemars = { workspace = true, optional = true }
 async-trait = { workspace = true }
 gproxy-cache = { workspace = true, default-features = false }
 sea-orm = { workspace = true, features = ["with-rust_decimal"] }

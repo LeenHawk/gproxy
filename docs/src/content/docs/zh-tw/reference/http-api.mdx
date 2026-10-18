@@ -1,0 +1,14 @@
+---
+title: "HTTP API 參考"
+description: "轉發、管理、使用者入口和 OAuth API 的完整請求、回應與事件結構。"
+---
+
+import ApiReference from "../../../../components/ApiReference.astro";
+
+本頁從 Rust 協定型別、管理 DTO 和宿主路由宣告產生，請求與回應分別使用各自的 Serde 規則。展開端點可查看參數、承載內容、狀態碼以及引用的[資料結構](/zh-tw/reference/api-schemas/)。
+
+共用的轉發路徑根據請求標頭選擇協定，`stream: true` 切換為串流操作。SSE 結構描述解碼後的單一事件，WebSocket 結構描述升級連線後的訊息；二進位與 multipart 承載內容保留各自的內容型別。
+
+轉發路徑也可使用 provider 或命名空間前綴。Codex 專用路徑要求指定 Codex provider 名稱。掛載、驗證及管理權限範圍見[路由與端點](/zh-tw/reference/routing-table/)。
+
+<ApiReference locale="zh-tw" />

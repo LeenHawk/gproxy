@@ -85,6 +85,7 @@ impl ActiveModelBehavior for ActiveModel {}
 )]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum CredentialStatus {
     #[default]
     #[sea_orm(string_value = "active")]

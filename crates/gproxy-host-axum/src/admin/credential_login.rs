@@ -80,6 +80,7 @@ async fn discover<C: BatchConnectionTrait + Send + Sync + 'static>(
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct Model {
     model: String,
 }
@@ -125,6 +126,7 @@ login_handler!(cookie_exchange, CookieExchange, cookie_exchange);
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "documentation", derive(schemars::JsonSchema))]
 struct Poll {
     login_session_id: String,
 }
@@ -145,3 +147,9 @@ async fn device_poll<C: BatchConnectionTrait + Send + Sync + 'static>(
     })
     .await
 }
+
+#[cfg(feature = "documentation")]
+#[path = "credential_login_docs.rs"]
+mod documentation;
+#[cfg(feature = "documentation")]
+pub(crate) use documentation::document;

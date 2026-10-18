@@ -96,6 +96,8 @@
 pub mod admin;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod console;
+#[cfg(feature = "documentation")]
+pub mod documentation;
 pub mod error;
 pub mod ingress;
 mod memo;
@@ -515,4 +517,45 @@ pub(crate) async fn json_body<T: serde::de::DeserializeOwned>(
             .into_response(),
         )
     })
+}
+
+#[cfg(feature = "documentation")]
+pub(crate) fn document_system(api: &mut documentation::Api) {
+    use serde_json::json;
+    api.route(
+        "get",
+        "/healthz",
+        "",
+        None,
+        vec![],
+        Some(json!({
+            "type":"object", "required":["status","revision"],
+            "properties":{"status":{"const":"ok"},"revision":{"type":"integer"}}
+        })),
+    )["security"] = json!([]);
+    api.route("get", "/info", "", None, vec![], Some(json!({
+        "type":"object", "required":["instanceName","version","hash","fontManagement"],
+        "properties":{"instanceName":{"type":"string"},"version":{"type":"string"},"hash":{"type":"string"},"fontManagement":{"type":"boolean"}}
+    })))["security"] = json!([]);
+    for (path, media, schema) in [
+        (
+            "/robots.txt".to_owned(),
+            "text/plain",
+            json!({"type":"string"}),
+        ),
+        (
+            format!("{}/{{id}}", gproxy_app::publication::PUBLICATION_PATH),
+            "*/*",
+            json!({"type":"string","format":"binary"}),
+        ),
+    ] {
+        let operation = api.route("get", &path, "", None, vec![], None);
+        operation["security"] = json!([]);
+        operation["responses"]
+            .as_object_mut()
+            .unwrap()
+            .remove("204");
+        operation["responses"]["200"] =
+            json!({"description":"Success","content":{media:{"schema":schema}}});
+    }
 }

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PermissionDto {
     pub id: String,
     /// Exactly one of these two is set. A rule with neither is a grant to
@@ -49,6 +50,7 @@ impl From<permission::Model> for PermissionDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PermissionWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -72,6 +74,7 @@ pub struct PermissionWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PermissionPatch {
     #[serde(default, deserialize_with = "double_option")]
     pub user_id: Option<Option<String>>,

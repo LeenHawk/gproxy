@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AudioTranscriptionConfig {
     #[serde(alias = "language_codes")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -37,6 +38,7 @@ pub struct AudioTranscriptionConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LanguageAuto {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -46,6 +48,7 @@ pub struct LanguageAuto {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct LanguageHints {
     #[serde(alias = "language_codes")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -57,6 +60,7 @@ pub struct LanguageHints {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum AudioTranscriptionMode {
     #[serde(rename = "MODE_UNSPECIFIED")]
     ModeUnspecified,
@@ -70,6 +74,7 @@ pub enum AudioTranscriptionMode {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TranslationConfig {
     #[serde(alias = "echo_target_language")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -91,6 +96,7 @@ pub struct TranslationConfig {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SpeechMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub speaker: Option<String>,
@@ -111,6 +117,7 @@ pub struct SpeechMetadata {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AudioTranscription {
     pub text: String,
     #[serde(alias = "speaker_label")]
@@ -133,6 +140,7 @@ pub struct AudioTranscription {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WordInfo {
     pub word: String,
     #[serde(alias = "start_offset")]

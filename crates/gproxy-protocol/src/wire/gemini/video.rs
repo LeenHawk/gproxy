@@ -20,6 +20,7 @@ use serde_json::{Map, Value};
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VideoImage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bytes_base64_encoded: Option<String>,
@@ -41,6 +42,7 @@ pub struct VideoImage {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Video {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
@@ -64,6 +66,7 @@ pub struct Video {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VideoReferenceImage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image: Option<VideoImage>,
@@ -87,6 +90,7 @@ pub struct VideoReferenceImage {
 )]
 #[serde(rename_all = "UPPERCASE")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum VideoReferenceType {
     Asset,
 }
@@ -102,6 +106,7 @@ pub enum VideoReferenceType {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VideoGenerationInstance {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>,
@@ -128,6 +133,7 @@ pub struct VideoGenerationInstance {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VideoGenerationParameters {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sample_count: Option<i32>,
@@ -158,6 +164,7 @@ pub struct VideoGenerationParameters {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VideoWebhookConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uris: Option<Vec<String>>,
@@ -180,6 +187,7 @@ pub struct VideoWebhookConfig {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PredictLongRunningRequestBody {
     pub instances: Vec<VideoGenerationInstance>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -208,6 +216,7 @@ pub type FetchVideoOperationResponse = WireResponse<VideoOperation>;
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VideoOperation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -237,6 +246,7 @@ pub struct VideoOperation {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct VideoOperationResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generate_video_response: Option<GenerateVideoResponse>,
@@ -255,6 +265,7 @@ pub struct VideoOperationResponse {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GoogleRpcStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<i32>,
@@ -277,6 +288,7 @@ pub struct GoogleRpcStatus {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GenerateVideoResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generated_samples: Option<Vec<GeneratedVideoSample>>,
@@ -299,6 +311,7 @@ pub struct GenerateVideoResponse {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GeneratedVideoSample {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub video: Option<Video>,

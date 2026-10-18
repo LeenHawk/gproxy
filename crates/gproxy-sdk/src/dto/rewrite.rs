@@ -10,6 +10,7 @@ use gproxy_store::entity::upstream::{provider_rewrite_rule_set, rewrite_rule, re
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RuleSetDto {
     pub id: String,
     pub name: String,
@@ -41,6 +42,7 @@ impl From<rewrite_rule_set::Model> for RuleSetDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RuleSetWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -55,6 +57,7 @@ pub struct RuleSetWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RuleSetPatch {
     #[serde(default)]
     pub name: Option<String>,
@@ -71,6 +74,7 @@ pub struct RuleSetPatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RewriteRuleDto {
     pub id: String,
     pub rule_set_id: String,
@@ -155,6 +159,7 @@ pub(crate) fn target_name(target: rewrite_rule::RewriteTarget) -> &'static str {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RewriteRuleWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -212,6 +217,7 @@ pub struct RewriteRuleWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RewriteRulePatch {
     #[serde(default)]
     pub phase: Option<String>,
@@ -267,6 +273,7 @@ pub struct RewriteRulePatch {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderRuleSetDto {
     pub id: String,
     pub provider_id: String,
@@ -295,6 +302,7 @@ impl From<provider_rewrite_rule_set::Model> for ProviderRuleSetDto {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderRuleSetWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -310,6 +318,7 @@ pub struct ProviderRuleSetWrite {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProviderRuleSetPatch {
     #[serde(default)]
     pub sort_order: Option<i64>,

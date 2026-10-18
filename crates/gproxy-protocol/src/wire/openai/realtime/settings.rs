@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeReasoning {
     #[serde(
         default,
@@ -27,6 +28,7 @@ pub struct RealtimeReasoning {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeToolChoiceConfig {
     ToolChoiceOptions(ToolChoiceOptions),
     ToolChoiceFunction(ToolChoiceFunction),
@@ -38,6 +40,7 @@ pub enum RealtimeToolChoiceConfig {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeTracingConfig {
     Literal(RealtimeTracingConfigVariant1),
     RealtimeTracingConfigTracingConfiguration(RealtimeTracingConfigTracingConfiguration),
@@ -49,6 +52,7 @@ pub enum RealtimeTracingConfig {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeTruncation {
     Literal(RealtimeTruncationVariant1),
     RealtimeTruncationRetentionRatio(RealtimeTruncationRetentionRatio),
@@ -58,6 +62,7 @@ pub enum RealtimeTruncation {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeError {
     pub message: String,
     #[serde(rename = "type")]
@@ -88,6 +93,7 @@ pub struct RealtimeError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeReasoningEffort {
     #[serde(rename = "minimal")]
     Minimal,
@@ -105,6 +111,7 @@ pub enum RealtimeReasoningEffort {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeTracingConfigTracingConfiguration {
     #[serde(
         default,
@@ -132,6 +139,7 @@ pub struct RealtimeTracingConfigTracingConfiguration {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeTruncationRetentionRatio {
     pub retention_ratio: serde_json::Number,
     #[serde(rename = "type")]
@@ -150,6 +158,7 @@ pub struct RealtimeTruncationRetentionRatio {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeFunctionTool {
     #[serde(
         default,
@@ -184,6 +193,7 @@ pub struct RealtimeFunctionTool {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeTruncationRetentionRatioTokenLimits {
     #[serde(
         default,
@@ -199,6 +209,7 @@ pub struct RealtimeTruncationRetentionRatioTokenLimits {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RealtimeMcphttpError {
     pub code: i64,
     pub message: String,
@@ -211,6 +222,7 @@ pub struct RealtimeMcphttpError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeTracingConfigVariant1 {
     #[serde(rename = "auto")]
     Auto,
@@ -219,6 +231,7 @@ pub enum RealtimeTracingConfigVariant1 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeTruncationVariant1 {
     #[serde(rename = "auto")]
     Auto,
@@ -229,6 +242,7 @@ pub enum RealtimeTruncationVariant1 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeTruncationRetentionRatioType {
     #[serde(rename = "retention_ratio")]
     RetentionRatio,
@@ -237,6 +251,7 @@ pub enum RealtimeTruncationRetentionRatioType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeFunctionToolType {
     #[serde(rename = "function")]
     Function,
@@ -245,6 +260,7 @@ pub enum RealtimeFunctionToolType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum RealtimeMcphttpErrorType {
     #[serde(rename = "http_error")]
     HttpError,
