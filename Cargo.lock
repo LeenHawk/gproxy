@@ -2839,7 +2839,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "aes-gcm",
  "axum",
@@ -2877,7 +2877,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-app"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "aes-gcm",
  "arc-swap",
@@ -2919,7 +2919,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-cache"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "async-trait",
  "futures-util",
@@ -2932,7 +2932,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-channel"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "base64 0.23.1",
  "crc32fast",
@@ -2965,7 +2965,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-client"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "futures-util",
  "gproxy-protocol",
@@ -2994,7 +2994,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-core"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "aes-gcm",
  "arc-swap",
@@ -3037,7 +3037,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-example-channel"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "gproxy-channel",
  "gproxy-protocol",
@@ -3048,7 +3048,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-example-edge"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "gproxy-example-channel",
  "gproxy-host-edge",
@@ -3057,7 +3057,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-example-native"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "gproxy",
  "gproxy-example-channel",
@@ -3065,7 +3065,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-file"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "futures-util",
  "http",
@@ -3080,7 +3080,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-host-axum"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "async-trait",
  "axum",
@@ -3123,7 +3123,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-host-edge"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "axum",
  "gproxy-app",
@@ -3146,7 +3146,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-host-tauri"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "axum",
  "getrandom 0.4.3",
@@ -3180,7 +3180,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "base64 0.23.1",
  "blake3",
@@ -3201,7 +3201,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol-macros"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3210,7 +3210,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-sdk"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -3246,7 +3246,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-seaorm"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -3270,7 +3270,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-store"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "async-trait",
  "blake3",
@@ -3292,7 +3292,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-tokenizer"
-version = "4.1.7"
+version = "4.1.8"
 dependencies = [
  "tiktoken-rs",
  "tokenizers",
