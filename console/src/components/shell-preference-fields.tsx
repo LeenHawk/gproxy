@@ -5,9 +5,9 @@ import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-export function ShellPreferenceFields({ value, onChange, desktop, canAutoStart, disabled }: {
+export function ShellPreferenceFields({ value, onChange, desktop, canAutoStart, disabled, showDescriptions = true }: {
   value: ShellPreferences; onChange: (value: ShellPreferences) => void
-  desktop: boolean; canAutoStart: boolean; disabled?: boolean
+  desktop: boolean; canAutoStart: boolean; disabled?: boolean; showDescriptions?: boolean
 }) {
   const { t } = useTranslation()
   const id = useId()
@@ -18,8 +18,8 @@ export function ShellPreferenceFields({ value, onChange, desktop, canAutoStart, 
     </Field> : null}
     {desktop ? <>
       <Field orientation="horizontal" className="sm:col-span-2" data-disabled={disabled}>
-        <FieldContent><FieldLabel htmlFor={`${id}-tray`}>{t("shellPreferences.tray")}</FieldLabel><FieldDescription id={`${id}-tray-description-0`}>{t("shellPreferences.trayHelp")}</FieldDescription></FieldContent>
-        <Switch aria-describedby={`${id}-tray-description-0`} id={`${id}-tray`} checked={value.tray} disabled={disabled} onCheckedChange={tray => onChange({ ...value, tray, closeToTray: tray && value.closeToTray })} />
+        <FieldContent><FieldLabel htmlFor={`${id}-tray`}>{t("shellPreferences.tray")}</FieldLabel>{showDescriptions ? <FieldDescription id={`${id}-tray-description-0`}>{t("shellPreferences.trayHelp")}</FieldDescription> : null}</FieldContent>
+        <Switch aria-describedby={showDescriptions ? `${id}-tray-description-0` : undefined} id={`${id}-tray`} checked={value.tray} disabled={disabled} onCheckedChange={tray => onChange({ ...value, tray, closeToTray: tray && value.closeToTray })} />
       </Field>
       <Field data-disabled={disabled || !value.tray}>
         <FieldLabel htmlFor={`${id}-close`}>{t("shellPreferences.close")}</FieldLabel>
@@ -29,8 +29,8 @@ export function ShellPreferenceFields({ value, onChange, desktop, canAutoStart, 
         </Select>
       </Field>
       <Field orientation="horizontal" data-disabled={disabled || !value.autoStart || !value.tray}>
-        <FieldContent><FieldLabel htmlFor={`${id}-hidden`}>{t("shellPreferences.hidden")}</FieldLabel><FieldDescription id={`${id}-hidden-description-0`}>{t("shellPreferences.hiddenHelp")}</FieldDescription></FieldContent>
-        <Switch aria-describedby={`${id}-hidden-description-0`} id={`${id}-hidden`} checked={value.autoStart && value.tray && value.startHidden} disabled={disabled || !value.autoStart || !value.tray} onCheckedChange={startHidden => onChange({ ...value, startHidden })} />
+        <FieldContent><FieldLabel htmlFor={`${id}-hidden`}>{t("shellPreferences.hidden")}</FieldLabel>{showDescriptions ? <FieldDescription id={`${id}-hidden-description-0`}>{t("shellPreferences.hiddenHelp")}</FieldDescription> : null}</FieldContent>
+        <Switch aria-describedby={showDescriptions ? `${id}-hidden-description-0` : undefined} id={`${id}-hidden`} checked={value.autoStart && value.tray && value.startHidden} disabled={disabled || !value.autoStart || !value.tray} onCheckedChange={startHidden => onChange({ ...value, startHidden })} />
       </Field>
     </> : null}
   </>

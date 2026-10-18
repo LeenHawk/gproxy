@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 
-export function FontSettings() {
+export function FontSettings({ showDescriptions = true }: { showDescriptions?: boolean }) {
   const { t } = useTranslation()
   const client = useQueryClient()
   const onSuccess = (value: FontStatus) => {
@@ -25,15 +25,15 @@ export function FontSettings() {
   return <Card size="sm">
     <CardHeader>
       <CardTitle>{t("fonts.title")}</CardTitle>
-      <CardDescription>{t("fonts.description")}</CardDescription>
+      {showDescriptions ? <CardDescription>{t("fonts.description")}</CardDescription> : null}
     </CardHeader>
-    <CardContent className="flex flex-col gap-3">
-      <p role="status" className="text-sm">{download.isPending || status.data?.downloading
+    {showDescriptions || busy || error ? <CardContent className="flex flex-col gap-3">
+      {showDescriptions ? <p role="status" className="text-sm">{download.isPending || status.data?.downloading
         ? t("fonts.progress", { progress })
-        : status.isPending ? t("fonts.loading") : status.data?.installed ? t("fonts.installed") : t("fonts.system")}</p>
+        : status.isPending ? t("fonts.loading") : status.data?.installed ? t("fonts.installed") : t("fonts.system")}</p> : null}
       {download.isPending || status.data?.downloading ? <Progress value={progress} aria-label={t("fonts.downloading")} /> : null}
       {error ? <ErrorNotice error={error} /> : null}
-    </CardContent>
+    </CardContent> : null}
     <CardFooter className="flex flex-wrap gap-2">
       {status.data?.installed ? <Button type="button" variant="outline" disabled={!!busy} onClick={() => { download.reset(); remove.mutate() }}>{t("fonts.remove")}</Button>
         : <Button type="button" variant="outline" disabled={!!busy || status.isPending || !!status.error} onClick={() => { remove.reset(); download.mutate() }}>{t("fonts.download")}</Button>}
