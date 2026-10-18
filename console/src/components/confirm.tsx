@@ -25,7 +25,7 @@ export function ConfirmButton({ title, confirmLabel, onConfirm, children, disabl
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent aria-describedby={undefined}>
           <AlertDialogHeader>
-            <AlertDialogTitle className="wrap-anywhere">{title}</AlertDialogTitle>
+            <AlertDialogTitle>{title}</AlertDialogTitle>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("actions.cancel")}</AlertDialogCancel>

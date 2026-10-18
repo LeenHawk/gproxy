@@ -35,7 +35,7 @@ function AlertDialogContent({ className, onOpenAutoFocus, onCloseAutoFocus, ...p
         {...focus}
         data-slot="alert-dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm grid-rows-[minmax(0,1fr)_auto] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className,
         )}
         {...props}
@@ -45,7 +45,7 @@ function AlertDialogContent({ className, onOpenAutoFocus, onCloseAutoFocus, ...p
 }
 
 function AlertDialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return <div data-slot="alert-dialog-header" className={cn("flex flex-col gap-2", className)} {...props} />
+  return <div data-slot="alert-dialog-header" className={cn("flex min-h-0 flex-col gap-2 overflow-y-auto wrap-anywhere", className)} {...props} />
 }
 
 function AlertDialogFooter({ className, ...props }: React.ComponentProps<"div">) {

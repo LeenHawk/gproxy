@@ -56,10 +56,10 @@ export function UpstreamReset({ id, enabled, busy, onReset }: { id: string; enab
     </CardContent></Card>
     <AlertDialog open={selection != null} onOpenChange={open => { if (!open && !reset.isPending) setSelection(null) }}><AlertDialogContent><AlertDialogHeader>
       <AlertDialogTitle>{t("management.upstreamReset")}</AlertDialogTitle><AlertDialogDescription>{t("management.upstreamResetConfirm")}</AlertDialogDescription>
-    </AlertDialogHeader>
       {selection?.option ? <div className="flex flex-col gap-2 text-sm"><p>{label(selection.option)}</p>{selection.option.clears.length ? <p>{t("limits.resetScope", { scope: selection.option.clears.map(key => quotaWindowName(key, t)).join(i18n.language.startsWith("zh") ? "、" : ", ") })}</p> : null}{selection.option.expiresAtMs != null ? <p>{t("limits.resetCreditsExpire", { at: formatInstant(selection.option.expiresAtMs, i18n.language) })}</p> : null}</div> : null}
-      <AlertDialogFooter><AlertDialogCancel disabled={reset.isPending}>{t("actions.cancel")}</AlertDialogCancel><Button disabled={pending || !selectedUsable} onClick={() => selection && reset.mutate(selection.request)}>{t("management.upstreamReset")}</Button></AlertDialogFooter>
       {reset.error ? <ErrorNotice error={reset.error} /> : null}
+    </AlertDialogHeader>
+      <AlertDialogFooter><AlertDialogCancel disabled={reset.isPending}>{t("actions.cancel")}</AlertDialogCancel><Button disabled={pending || !selectedUsable} onClick={() => selection && reset.mutate(selection.request)}>{t("management.upstreamReset")}</Button></AlertDialogFooter>
     </AlertDialogContent></AlertDialog>
   </>
 }
