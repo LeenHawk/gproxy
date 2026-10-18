@@ -1,5 +1,19 @@
 use std::{error::Error, fmt};
 
+/// A recognized upstream failure, retaining its declared vendor error payload.
+/// Hosts can render a client error event without parsing a diagnostic string.
+#[derive(Debug)]
+pub struct UpstreamError<T>(pub T);
+
+impl<T: serde::Serialize> fmt::Display for UpstreamError<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let json = serde_json::to_string(&self.0).map_err(|_| fmt::Error)?;
+        f.write_str(&json)
+    }
+}
+
+impl<T: fmt::Debug + serde::Serialize> Error for UpstreamError<T> {}
+
 /// Why a request, result, or required host operation could not be converted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]

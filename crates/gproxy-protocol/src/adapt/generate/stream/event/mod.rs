@@ -77,6 +77,9 @@ pub trait NativeEvent:
     }
     const DIALECT: Dialect;
     const DONE: bool = false;
+    fn decode(value: serde_json::Value) -> Result<Self, TransformError> {
+        decode_event(value)
+    }
     fn collector(
         flow: IdentityFlow,
         policy: TargetIdPolicy,
@@ -99,6 +102,21 @@ pub trait NativeEvent:
         &self,
         complete_tool_names: bool,
     ) -> Vec<(String, ToolCallKind, Option<String>)>;
+}
+
+fn decode_event<T: DeserializeOwned + DeclaredFields>(
+    value: serde_json::Value,
+) -> Result<T, TransformError> {
+    serde_json::from_value(value)
+        .map(DeclaredFields::into_declared)
+        .map_err(|error| {
+            super::codec_error(crate::codec::CodecError::with_source(
+                crate::codec::CodecErrorKind::Json,
+                crate::codec::CodecErrorStage::Stream,
+                "invalid native event",
+                error,
+            ))
+        })
 }
 
 fn invalid(message: impl Into<String>) -> TransformError {

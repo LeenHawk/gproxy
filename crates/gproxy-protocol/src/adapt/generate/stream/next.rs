@@ -229,9 +229,15 @@ impl<B: StreamBridge> StreamInvocation<B> {
                 self.reader
                     .as_mut()
                     .expect("successful start")
-                    .next::<B::NativeEvent>()
+                    .next::<serde_json::Value>()
                     .await
                     .map_err(super::codec_error)
+                    .and_then(|frame| match frame {
+                        Some(NativeFrame::Event { name, value }) => B::NativeEvent::decode(value)
+                            .map(|value| Some(NativeFrame::Event { name, value })),
+                        Some(NativeFrame::Done) => Ok(Some(NativeFrame::Done)),
+                        None => Ok(None),
+                    })
             };
             let result = match next {
                 Err(error) => Err(error),

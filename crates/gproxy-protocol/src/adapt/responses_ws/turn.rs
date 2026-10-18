@@ -197,12 +197,17 @@ impl<'a> ResponsesWsTurn<'a> {
                 .map_err(|e| codec_error(e, false))?
                 .into_declared();
             let lane_matches = error.stream_id.is_none() || error.stream_id == self.lane;
-            self.session.websocket_failure = Some(Box::new(error));
-            return Err(invalid(if lane_matches {
-                "native WebSocket error; see websocket_failure receipt"
+            self.session.websocket_failure = Some(Box::new(error.clone()));
+            return Err(if lane_matches {
+                TransformError::with_source(
+                    crate::transform::TransformErrorKind::InvalidResult,
+                    "responses.websocket",
+                    "native WebSocket error; see websocket_failure receipt",
+                    crate::transform::UpstreamError(error),
+                )
             } else {
-                "WebSocket error belongs to another lane"
-            }));
+                invalid("WebSocket error belongs to another lane")
+            });
         }
         let message = codec::decode_json::<ServerMessage>(bytes, limits)
             .map_err(|e| codec_error(e, false))?

@@ -224,9 +224,11 @@ impl ClaudeStreamCollector {
                 self.stopped = true;
             }
             StreamEvent::Error(event) => {
-                return Err(invalid(
+                return Err(TransformError::with_source(
+                    TransformErrorKind::InvalidResult,
                     "stream.error",
                     format!("{:?}: {}", event.error.type_, event.error.message),
+                    crate::transform::UpstreamError(event.error),
                 ));
             }
             StreamEvent::Ping(_) => {}

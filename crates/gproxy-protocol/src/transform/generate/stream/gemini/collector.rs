@@ -90,14 +90,16 @@ impl GeminiStreamCollector {
             "bytes",
         )?;
         if let Some(error) = chunk.error {
-            return Err(TransformError::invalid_result(
+            return Err(TransformError::with_source(
+                TransformErrorKind::InvalidResult,
                 "stream.error",
                 format!(
                     "{} {}: {}",
                     error.code,
                     error.status.as_deref().unwrap_or_default(),
-                    error.message,
+                    error.message
                 ),
+                crate::transform::UpstreamError(error),
             ));
         }
         merge_identity(&mut self.body.response_id, chunk.response_id, "response_id")?;

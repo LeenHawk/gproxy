@@ -22,6 +22,18 @@ impl NativeEvent for s::ChatCompletionChunk {
     type Collector = ChatCollector;
     const DIALECT: Dialect = Dialect::OpenAiChat;
     const DONE: bool = true;
+    fn decode(mut value: serde_json::Value) -> Result<Self, TransformError> {
+        if let Some(error) = value.get_mut("error").filter(|error| !error.is_null()) {
+            let error: s::StreamError = super::decode_event(error.take())?;
+            return Err(TransformError::with_source(
+                crate::transform::TransformErrorKind::InvalidResult,
+                "chat.stream.error",
+                error.message.clone(),
+                crate::transform::UpstreamError(error),
+            ));
+        }
+        super::decode_event(value)
+    }
     fn collector(
         flow: IdentityFlow,
         mut policy: TargetIdPolicy,

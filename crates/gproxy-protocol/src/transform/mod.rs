@@ -19,7 +19,9 @@ pub mod models;
 pub mod video;
 pub mod web_search;
 
-pub use error::{Diagnostic, DiagnosticKind, Report, TransformError, TransformErrorKind};
+pub use error::{
+    Diagnostic, DiagnosticKind, Report, TransformError, TransformErrorKind, UpstreamError,
+};
 
 /// An unrepresentable field or item is omitted at its mapping boundary.
 /// Parsing, host and state errors still propagate to the caller.

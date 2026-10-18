@@ -312,18 +312,30 @@ pub(super) fn transport(error: TransformError) -> TransportError {
 /// a generic function: `StreamInvocation::next` is only `Send` per concrete
 /// bridge, which a generic bound cannot express.
 macro_rules! drive {
-    ($invocation:expr, $owned:expr) => {{
-        let invocation = $invocation;
+    ($invocation:expr, $owned:expr, $dialect:expr, $framing:expr) => {{
+        // Keep the large per-protocol invocation out of the stream driver's
+        // stack frame (notably Chat -> Responses on a default Tokio worker).
+        let invocation = Box::new($invocation);
         let owned = $owned;
+        let dialect = $dialect;
+        let framing = $framing;
         let stream: ByteStream = Box::pin(futures_util::stream::unfold(
-            Some((invocation, owned)),
-            |slot| async move {
-                let (mut invocation, owned) = slot?;
+            Some((invocation, owned, 0i64)),
+            move |slot| async move {
+                let (mut invocation, owned, sequence) = slot?;
                 let next = invocation.next(&owned.access()).await;
                 match next {
-                    Ok(Some(chunk)) => Some((Ok(chunk.bytes), Some((invocation, owned)))),
+                    Ok(Some(chunk)) => {
+                        let sequence = sequence + i64::from(chunk.event.is_some());
+                        Some((Ok(chunk.bytes), Some((invocation, owned, sequence))))
+                    }
                     Ok(None) => None,
-                    Err(error) => Some((Err(transport(error)), None)),
+                    Err(error) => Some((
+                        Err(super::stream_error::converted(
+                            error, dialect, framing, sequence,
+                        )),
+                        None,
+                    )),
                 }
             },
         ));
@@ -419,16 +431,17 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
                     let owned = OwnedState::capture(call, state);
                     let upstream = upstream.clone();
                     let stream: ByteStream = Box::pin(futures_util::stream::unfold(
-                        Some((fanout, owned, upstream)),
+                        Some((fanout, owned, upstream, 0i64)),
                         move |slot| async move {
-                            let (mut fanout, owned, upstream) = slot?;
+                            let (mut fanout, owned, upstream, sequence) = slot?;
                             let next = fanout.next(&upstream, &key, &owned.access()).await;
                             match next {
                                 Ok(Some(chunk)) => {
-                                    Some((Ok(chunk.bytes), Some((fanout, owned, upstream))))
+                                    let sequence = sequence + i64::from(chunk.event.is_some());
+                                    Some((Ok(chunk.bytes), Some((fanout, owned, upstream, sequence))))
                                 }
                                 Ok(None) => None,
-                                Err(error) => Some((Err(transport(error)), None)),
+                                Err(error) => Some((Err(super::stream_error::converted(error, client, client_framing, sequence)), None)),
                             }
                         },
                     ));
@@ -507,7 +520,7 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
                     Ok(Converted::Stream(WireResponse {
                         status: head.status,
                         headers: head.headers,
-                        body: drive!(invocation, owned),
+                        body: drive!(invocation, owned, client, settings.client_framing),
                     }))
                 }
             }
@@ -821,9 +834,11 @@ async fn collect_native<C: BatchConnectionTrait + Send + Sync>(
                 TargetIdPolicy::new(call.target),
                 settings.events,
             );
-            while let Some(frame) = reader.next::<$event>().await.map_err(codec)? {
+            while let Some(frame) = reader.next::<serde_json::Value>().await.map_err(codec)? {
                 match frame {
-                    NativeFrame::Event { value, .. } => <$event>::collect(&mut collector, value)?,
+                    NativeFrame::Event { value, .. } => {
+                        <$event>::collect(&mut collector, <$event>::decode(value)?)?
+                    }
                     NativeFrame::Done => <$event>::collect_done(&mut collector)?,
                 }
             }

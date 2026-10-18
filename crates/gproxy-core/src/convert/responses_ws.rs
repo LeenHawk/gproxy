@@ -16,7 +16,7 @@ mod responses_http;
 
 use super::{
     Call, Converted,
-    generate::{OwnedState, decode, namespace, stream_headers, stream_settings, transport},
+    generate::{OwnedState, decode, namespace, stream_headers, stream_settings},
 };
 use crate::{
     Core, CoreError, CoreResult, ProtocolState, RequestContext, StateScope, UsageState,
@@ -110,7 +110,7 @@ pub(crate) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'stat
         }};
         (@drive $prepare:expr) => {{
             Box::pin(async move {
-                let invocation = $prepare.await?;
+                let invocation = Box::new(Box::pin($prepare).await?);
                 let session = match connect(
                     upstream,
                     &WS_KEY,
@@ -139,13 +139,15 @@ pub(crate) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'stat
                     let mut turn = match invocation.start_websocket(&mut session, &access).await {
                         Ok(turn) => turn,
                         Err(error) => {
-                            let _ = tx.send(Err(transport(error))).await;
+                            let _ = tx.send(Err(super::stream_error::converted(error, client, client_framing, 0))).await;
                             return;
                         }
                     };
+                    let mut sequence = 0i64;
                     loop {
                         match turn.next(&access).await {
                             Ok(Some(chunk)) => {
+                                sequence += i64::from(chunk.event.is_some());
                                 if !chunk.bytes.is_empty()
                                     && tx.send(Ok(chunk.bytes)).await.is_err()
                                 {
@@ -154,7 +156,7 @@ pub(crate) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'stat
                             }
                             Ok(None) => return,
                             Err(error) => {
-                                let _ = tx.send(Err(transport(error))).await;
+                                let _ = tx.send(Err(super::stream_error::converted(error, client, client_framing, sequence))).await;
                                 return;
                             }
                         }

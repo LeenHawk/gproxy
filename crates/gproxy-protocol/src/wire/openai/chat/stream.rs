@@ -23,6 +23,24 @@ use serde::{Deserialize, Serialize};
 pub type StreamRequest = GenerateContentRequest;
 pub type StreamResponse = WireResponse<ByteStream>;
 
+/// The `error` payload of a failed Chat SSE record, which has no chunk fields.
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct StreamError {
+    pub message: String,
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub type_: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub param: Option<String>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]

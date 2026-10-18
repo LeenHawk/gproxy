@@ -208,6 +208,7 @@ pub(crate) fn settling(
     funnel: Arc<super::Funnel>,
     inner: ByteStream,
     completed: crate::UsageState,
+    sse_limits: Option<gproxy_protocol::codec::CodecLimits>,
 ) -> ByteStream {
     struct Guard {
         funnel: Arc<super::Funnel>,
@@ -226,10 +227,12 @@ pub(crate) fn settling(
     struct State {
         inner: Option<ByteStream>,
         guard: Guard,
+        errors: Option<gproxy_protocol::codec::SseDecoder>,
     }
     Box::pin(futures_util::stream::unfold(
         State {
             inner: Some(inner),
+            errors: sse_limits.map(gproxy_protocol::codec::SseDecoder::new),
             guard: Guard {
                 funnel,
                 done: false,
@@ -239,7 +242,23 @@ pub(crate) fn settling(
         |mut state| async move {
             let inner = state.inner.as_mut()?;
             match inner.next().await {
-                Some(Ok(chunk)) => Some((Ok(chunk), state)),
+                Some(Ok(chunk)) => {
+                    let failed = state
+                        .errors
+                        .as_mut()
+                        .and_then(|decoder| decoder.push(&chunk).ok())
+                        .is_some_and(|frames| {
+                            frames
+                                .iter()
+                                .any(crate::convert::stream_error::is_error_frame)
+                        });
+                    if failed {
+                        state.inner = None;
+                        state.guard.done = true;
+                        state.guard.funnel.finish(crate::UsageState::Failed).await;
+                    }
+                    Some((Ok(chunk), state))
+                }
                 Some(Err(error)) => {
                     state.inner = None;
                     state.guard.done = true;
@@ -248,7 +267,10 @@ pub(crate) fn settling(
                         .funnel
                         .finish(state.guard.funnel.interrupted_state())
                         .await;
-                    Some((Err(error), state))
+                    // A recognized upstream protocol error has a client SSE
+                    // representation. Settle as failed, then send that event
+                    // and clean EOF instead of aborting the HTTP body.
+                    Some((crate::convert::stream_error::into_event(error), state))
                 }
                 None => {
                     state.inner = None;

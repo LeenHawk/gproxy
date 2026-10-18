@@ -165,3 +165,226 @@ async fn rows(host: &Host) -> Vec<usage_record::Model> {
         .await
         .unwrap()
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_tool_error_does_not_close_the_response_stream() {
+    let host = instance().await;
+    let (chunks, receiver) = tokio::sync::mpsc::unbounded_channel();
+    host.client.push(Reply::Sse(StatusCode::OK, receiver));
+    let response = host
+        .raw(keyed(
+            post(
+                "/v1/responses",
+                json!({"model":"p1/m1","stream":true,"input":"hi"}),
+            ),
+            "k-alice",
+        ))
+        .await;
+    let mut body = response.into_body().into_data_stream();
+    let tool = Bytes::from_static(b"data: {\"type\":\"response.mcp_call.failed\",\"error\":{\"message\":\"tool unavailable\"}}\n\n");
+    chunks.send(tool.clone()).unwrap();
+    assert_eq!(body.next().await.unwrap().unwrap(), tool);
+    assert!(!chunks.is_closed());
+    let error = Bytes::from_static(b"data: {\"type\":\"error\",\"code\":\"server_error\",\"message\":\"upstream unavailable\",\"param\":null,\"sequence_number\":1}\n\n");
+    chunks.send(error.clone()).unwrap();
+    assert_eq!(body.next().await.unwrap().unwrap(), error);
+    assert!(body.next().await.is_none());
+    assert!(chunks.is_closed());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upstream_errors_reach_http_clients_and_close_without_upstream_eof() {
+    use gproxy_store::entity::upstream::provider;
+    use serde_json::Value;
+    use std::time::Duration;
+
+    for source in [
+        "gemini",
+        "claude",
+        "openai_chat",
+        "openai",
+        "response.failed",
+        "websocket",
+        "websocket_sse",
+    ] {
+        let dialect = if source.starts_with("websocket") {
+            "openai_responses_websocket"
+        } else if source == "response.failed" {
+            "openai"
+        } else {
+            source
+        };
+        for (client_dialect, path) in [
+            ("openai_chat", "/v1/chat/completions"),
+            ("openai", "/v1/responses"),
+            ("claude", "/v1/messages"),
+            (
+                "gemini",
+                "/v1beta/models/p1/m1:streamGenerateContent?alt=sse",
+            ),
+            ("gemini", "/v1beta/models/p1/m1:streamGenerateContent"),
+        ] {
+            for prefix in [false, true] {
+                if prefix && source != "gemini" {
+                    continue;
+                }
+                let host = instance().await;
+                host.handle()
+                    .store()
+                    .providers()
+                    .update_many(vec![provider::ActiveModel {
+                        id: Set("p1".into()),
+                        config: Set(json!({"test_dialect":dialect})),
+                        ..Default::default()
+                    }])
+                    .await
+                    .unwrap();
+                host.publish().await;
+                let bound = host.bind().await;
+                let (chunks, receiver) = tokio::sync::mpsc::unbounded_channel();
+                let socket = source
+                    .starts_with("websocket")
+                    .then(|| host.client.accept_socket());
+                if socket.is_none() {
+                    host.client.push(Reply::Sse(StatusCode::OK, receiver));
+                }
+                let send = |event: Value| {
+                    if let Some(socket) = &socket {
+                        socket
+                            .send
+                            .send(Ok(gproxy_protocol::connection::WsFrame::Text(
+                                event.to_string(),
+                            )))
+                            .unwrap();
+                    } else {
+                        for part in format!("data: {event}\n\n").as_bytes().chunks(7) {
+                            chunks.send(Bytes::copy_from_slice(part)).unwrap();
+                        }
+                    }
+                };
+                if prefix {
+                    send(
+                        json!({"candidates":[{"content":{"role":"model","parts":[{"text":"hello {\"error\":{\"message\":\"quoted content\"}}"}]}}]}),
+                    );
+                }
+                let message = "服务器繁忙 (rate limited) | Upstream: {\"errors\":[]}";
+                match source {
+                    "gemini" => send(
+                        json!({"error":{"code":429,"message":message,"status":"RESOURCE_EXHAUSTED"}}),
+                    ),
+                    "claude" => send(
+                        json!({"type":"error","error":{"type":"rate_limit_error","message":message}}),
+                    ),
+                    "openai_chat" => send(
+                        json!({"error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":message,"param":"model"}}),
+                    ),
+                    "openai" | "websocket_sse" => send(
+                        json!({"type":"error","sequence_number":0,"code":"rate_limit_exceeded","message":message,"param":"model"}),
+                    ),
+                    "websocket" => send(json!({"type":"error","status":429,
+                        "error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":message,"param":"model"}})),
+                    _ => {
+                        let mut response = json!({"id":"r1","created_at":1,"model":"m1","object":"response",
+                            "status":"in_progress","error":null,"incomplete_details":null,"instructions":null,
+                            "metadata":null,"output":[],"parallel_tool_calls":true,"temperature":null,
+                            "top_p":null,"tools":[],"tool_choice":"auto"});
+                        send(
+                            json!({"type":"response.created","sequence_number":0,"response":response}),
+                        );
+                        response["status"] = json!("failed");
+                        response["error"] = json!({"code":"rate_limit_exceeded","message":message});
+                        send(
+                            json!({"type":"response.failed","sequence_number":1,"response":response}),
+                        );
+                    }
+                }
+                // Keep the sender alive. The real HTTP client must receive clean
+                // EOF before either its five-second deadline or the upstream idle timeout.
+                let client = reqwest::Client::builder()
+                    .no_proxy()
+                    .timeout(Duration::from_secs(5))
+                    .build()
+                    .unwrap();
+                let request = json!({"model":"p1/m1","stream":true,"max_tokens":64,"input":"hi",
+                    "messages":[{"role":"user","content":"hi"}],"contents":[{"role":"user","parts":[{"text":"hi"}]}]});
+                let response = client
+                    .post(bound.http(path))
+                    .bearer_auth("k-alice")
+                    .header("content-type", "application/json")
+                    .body(request.to_string())
+                    .send()
+                    .await
+                    .unwrap();
+                assert_eq!(response.status(), StatusCode::OK, "{source} -> {path}");
+                let array = response.headers()["content-type"] == "application/json";
+                let text = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|error| panic!("{source} -> {path}: {error}"));
+                assert!(
+                    socket
+                        .as_ref()
+                        .map_or_else(|| chunks.is_closed(), |socket| socket.send.is_closed()),
+                    "upstream retained: {source} -> {path}"
+                );
+                let events: Vec<Value> = if array {
+                    serde_json::from_str(&text).unwrap()
+                } else {
+                    text.lines()
+                        .filter_map(|line| line.strip_prefix("data: "))
+                        .filter(|data| *data != "[DONE]")
+                        .map(|data| serde_json::from_str(data).unwrap())
+                        .collect()
+                };
+                let error = events.last().expect("downstream error event");
+                let detail = error
+                    .get("error")
+                    .or_else(|| error.pointer("/response/error"))
+                    .unwrap_or(error);
+                assert_eq!(detail["message"], message, "{source} -> {path}: {text}");
+                if client_dialect == "openai" && dialect != "openai" {
+                    assert_eq!(error["type"], "error");
+                    assert_eq!(error["status"], 429);
+                    assert_eq!(error["sequence_number"], events.len() - 1);
+                }
+                if client_dialect == "openai_chat" && dialect != "openai_chat" {
+                    assert_eq!(detail["type"], "rate_limit_error");
+                    assert!(text.ends_with("data: [DONE]\n\n"));
+                }
+                if source == "gemini" && client_dialect == "openai_chat" {
+                    assert_eq!(detail["code"], 429);
+                }
+                assert!(!text.contains("response.completed"));
+                gproxy_host_axum::response::settled().await;
+                let records = rows(&host).await;
+                if socket.is_some() {
+                    // A socket rejected before a metered response has no
+                    // billable exchange, and must not create a success row.
+                    assert!(records.is_empty(), "{source} -> {path}");
+                    continue;
+                }
+                assert_eq!(records.len(), 1, "{source} -> {path}");
+                assert_eq!(
+                    records[0].state.as_deref(),
+                    Some("failed"),
+                    "{source} -> {path}"
+                );
+                // Switch back to a native request to check the concurrency lease.
+                host.client
+                    .push(Reply::Http(StatusCode::OK, json!({"ok":true})));
+                let native_path = match dialect {
+                    "gemini" => "/v1beta/models/p1/m1:generateContent",
+                    "claude" => "/v1/messages",
+                    "openai_chat" => "/v1/chat/completions",
+                    _ => "/v1/responses",
+                };
+                let mut request = request;
+                request["stream"] = json!(false);
+                let next = host
+                    .send(keyed(post(native_path, request), "k-alice"))
+                    .await;
+                assert_eq!(next.status, StatusCode::OK, "{}", next.text());
+            }
+        }
+    }
+}

@@ -136,18 +136,23 @@ impl ResponsesStreamCollector {
                 if value.response.status != Some(r::ResponseStatus::Failed) {
                     return Err(invalid("failed event status mismatch"));
                 }
-                let detail = value
-                    .response
-                    .error
-                    .map(|error| format!("{:?}: {}", error.code, error.message))
-                    .unwrap_or_else(|| "upstream response failed without error detail".into());
-                return Err(TransformError::invalid_result(
+                let error = value.response.error.unwrap_or_else(|| {
+                    r::ResponseError::builder(
+                        r::ResponseErrorCode::ServerError,
+                        "upstream response failed without error detail".into(),
+                    )
+                    .build()
+                });
+                return Err(TransformError::with_source(
+                    crate::transform::TransformErrorKind::InvalidResult,
                     "responses.stream.failed",
-                    detail,
+                    format!("{:?}: {}", error.code, error.message),
+                    crate::transform::UpstreamError(error),
                 ));
             }
             s::StreamEvent::Error(error) => {
-                return Err(TransformError::invalid_result(
+                return Err(TransformError::with_source(
+                    crate::transform::TransformErrorKind::InvalidResult,
                     "responses.stream.error",
                     format!(
                         "{}{}: {}",
@@ -159,6 +164,7 @@ impl ResponsesStreamCollector {
                             .unwrap_or_default(),
                         error.message
                     ),
+                    crate::transform::UpstreamError(error),
                 ));
             }
             s::StreamEvent::OutputItemAdded(v) => {

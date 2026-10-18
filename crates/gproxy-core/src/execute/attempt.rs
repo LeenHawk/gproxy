@@ -56,6 +56,22 @@ impl Answer {
         completion: crate::UsageCompletion,
     ) -> HttpExecution {
         let mut response = self.response;
+        let sse_limits = response
+            .headers
+            .get(http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| {
+                value
+                    .split(';')
+                    .next()
+                    .is_some_and(|value| value.trim() == "text/event-stream")
+            })
+            .then(|| {
+                self.attempt
+                    .as_ref()
+                    .map(|attempt| attempt.request.snapshot.limits.codec())
+            })
+            .flatten();
         let state = if response.status.is_client_error() || response.status.is_server_error() {
             UsageState::Failed
         } else {
@@ -64,8 +80,12 @@ impl Answer {
         let settled = match response.body {
             HttpBody::Bytes(_) => funnel.finish(state).await,
             HttpBody::Stream(body) => {
-                response.body =
-                    HttpBody::Stream(super::stream::settling(funnel.clone(), body, state));
+                response.body = HttpBody::Stream(super::stream::settling(
+                    funnel.clone(),
+                    body,
+                    state,
+                    sse_limits,
+                ));
                 funnel.arm()
             }
         };

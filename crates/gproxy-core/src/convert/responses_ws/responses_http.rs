@@ -58,10 +58,14 @@ pub(super) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'stat
     }
     let (tx, rx) = mpsc::channel(FRAME_QUEUE);
     crate::rt::spawn(async move {
+        let mut sequence = 0i64;
         let drive = async {
             let mut turn = session.turn(request)?;
             while let Some(event) = turn.next().await {
                 let event = serde_json::to_value(event?)?;
+                if let Some(number) = event["sequence_number"].as_i64() {
+                    sequence = number.saturating_add(1);
+                }
                 let event = SseEvent {
                     event: event["type"].as_str().map(str::to_owned),
                     id: None,
@@ -78,7 +82,14 @@ pub(super) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'stat
             Ok(())
         };
         if let Err(error) = drive.await {
-            let _ = tx.send(Err(transport(error))).await;
+            let _ = tx
+                .send(Err(super::super::stream_error::converted(
+                    error,
+                    Dialect::OpenAi,
+                    settings.client_framing,
+                    sequence,
+                )))
+                .await;
         }
     });
     let body = Box::pin(futures_util::stream::unfold(rx, |mut rx| async move {
