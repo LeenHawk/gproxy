@@ -225,6 +225,52 @@ fn run<B: StreamBridge>(mut call: StreamInvocation<B>, store: Arc<Store>) {
 fn auto() -> r::ToolChoice {
     r::ToolChoice::Mode(r::ToolChoiceMode::Auto)
 }
+
+#[test]
+fn gemini_error_ends_chat_stream_without_waiting_for_eof() {
+    for prefix in [false, true] {
+        let store = Arc::new(Store::default());
+        let state = access(&store, Dialect::Gemini);
+        let mut call = ready(ChatViaGemini::prepare_stream(
+            serde_json::from_value(request(Dialect::OpenAiChat)).unwrap(),
+            target(Dialect::OpenAiChat, Dialect::Gemini),
+            ChatViaGeminiStreamFacts {
+                function_names: Default::default(),
+                response: p::gemini_chat::stream::GeminiToChatContext {
+                    created: 7,
+                    model: Some("selected".into()),
+                },
+            },
+            settings(),
+            &state,
+        ))
+        .unwrap();
+        let feed = Feed::default();
+        if prefix {
+            feed.push("data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"hello\"}]}}]}\n\n");
+        }
+        let error = json!({"error":{"code":429,"message":"服务器繁忙 (rate limited)","status":"RESOURCE_EXHAUSTED"}});
+        feed.push(format!("data: {error}\n\n"));
+        // Leave the upstream open: reading beyond the error would stay pending.
+        let host = Host::stream(store.clone(), feed.clone());
+        ready(call.start(&host, &(), &state)).unwrap();
+        let error = loop {
+            match ready(call.next(&state)) {
+                Err(error) => break error,
+                Ok(Some(_)) => {}
+                Ok(None) => panic!("error stream completed successfully"),
+            }
+        };
+        assert_eq!(error.context(), "stream.error");
+        assert_eq!(
+            error.detail(),
+            "429 RESOURCE_EXHAUSTED: 服务器繁忙 (rate limited)"
+        );
+        assert_eq!(feed.polls(), if prefix { 2 } else { 1 });
+        assert!(call.client_result().is_none());
+        assert!(ready(call.next(&state)).is_err());
+    }
+}
 pub(super) fn chat_response_context() -> p::chat_responses::stream::ChatToResponsesContext {
     p::chat_responses::ResponsesResponseContext {
         request: serde_json::from_value(request(Dialect::OpenAi)).unwrap(),

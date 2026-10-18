@@ -55,6 +55,9 @@ pub type GenerateContentResponse = WireResponse<GenerateContentResponseBody>;
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GenerateContentResponseBody {
+    /// A Google API error can arrive as a record inside a successful HTTP stream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<GenerateContentError>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub candidates: Option<Vec<Candidate>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -72,6 +75,20 @@ pub struct GenerateContentResponseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "model_status")]
     pub model_status: Option<ModelStatus>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
+pub struct GenerateContentError {
+    pub code: i64,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<Vec<serde_json::Value>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
