@@ -17,6 +17,8 @@ case "$TARGET_OS:$TARGET_TRIPLE" in
     bash "$root/scripts/build-musl-application.sh"
     ;;
   linux:* | macos:*)
+    # Cargo caches include old installers; only package this build's bundles.
+    rm -rf "$root/target/$TARGET_TRIPLE/release/bundle"
     bundle=deb
     [ "$TARGET_OS" != macos ] || bundle=dmg
     if [ "$TARGET_OS" = linux ]; then
@@ -33,7 +35,8 @@ case "$TARGET_OS:$TARGET_TRIPLE" in
     fi
     if [ "$TARGET_OS" = macos ]; then
       apps=("$root/target/$TARGET_TRIPLE/release/bundle/macos/"*.app)
-      test "${#apps[@]}" -eq 1 && test -d "${apps[0]}"
+      test "${#apps[@]}" -eq 1
+      test -d "${apps[0]}"
       work="$(mktemp -d)"
       trap 'rm -rf "$work"' EXIT
       cp -R "${apps[0]}" "$work/"
@@ -44,7 +47,9 @@ case "$TARGET_OS:$TARGET_TRIPLE" in
       trap - EXIT
     else
       files=("$root/target/$TARGET_TRIPLE/release/bundle/deb/"*.deb)
-      test "${#files[@]}" -eq 1 && test -f "${files[0]}"
+      test "${#files[@]}" -eq 1
+      test -f "${files[0]}"
+      test "$(dpkg-deb -f "${files[0]}" Version)" = "$GPROXY_BUILD_VERSION"
       python3 "$root/scripts/reproducible-deb.py" "${files[0]}" "$output/$ARTIFACT_NAME.deb"
       work="$(mktemp -d)"
       dpkg-deb -x "${files[0]}" "$work"

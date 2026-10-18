@@ -6,8 +6,10 @@ GitHub currently provides Container registry storage and bandwidth for free:
 https://docs.github.com/en/billing/concepts/product-billing/github-packages#free-use-of-github-packages
 
 The action restores `target/`, Cargo's registry and Git dependencies before the
-build, then uploads them in a successful job's post step. Incremental state is
-excluded. Cargo/rustup executables remain managed by the toolchain setup steps.
+build, then uploads them in a successful job's post step. Incremental state and
+`target/**/release/bundle/` installer output are excluded. Native application
+packaging also clears bundle output restored from older caches before building.
+Cargo/rustup executables remain managed by the toolchain setup steps.
 Musl's nested Cargo and Go caches are included through `target/`.
 Archives stream through multithreaded zstd at level 3. This changes only cache
 transport; release LTO, binary optimization and UPX compression are unaffected.
