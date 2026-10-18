@@ -352,6 +352,66 @@ impl<C: BatchConnectionTrait> Store<C> {
         if let Some(bytes) = &row.response_body {
             row.response_body = Some(decompress(&row.response_body_encoding, bytes)?);
         }
+        // HTTP bodies have one read contract, whether written inline or as
+        // transport segments. Read all segments independently of detail-event
+        // pagination; a truncated event list must never truncate the body.
+        if row.kind == capture_record::CaptureKind::Http {
+            let mut directions = Vec::new();
+            if row.request_body.is_none()
+                && row.request_body_state != capture_record::CaptureBodyState::NotCaptured
+            {
+                directions.push(capture_event::CaptureDirection::Request);
+            }
+            if row.response_body.is_none()
+                && row.response_body_state != capture_record::CaptureBodyState::NotCaptured
+            {
+                directions.push(capture_event::CaptureDirection::Response);
+            }
+            if !directions.is_empty() {
+                let events: Vec<capture_event::Model> = match row.side {
+                    capture_record::CaptureSide::Upstream => self
+                        .upstream_events()
+                        .query(
+                            upstream_event::Entity::find()
+                                .filter(upstream_event::Column::CaptureId.eq(&row.id))
+                                .filter(upstream_event::Column::Direction.is_in(directions))
+                                .filter(
+                                    upstream_event::Column::Kind
+                                        .eq(capture_event::CaptureEventKind::Bytes),
+                                )
+                                .order_by_asc(upstream_event::Column::Sequence),
+                        )
+                        .await?
+                        .into_iter()
+                        .map(Into::into)
+                        .collect(),
+                    capture_record::CaptureSide::Downstream => self
+                        .downstream_events()
+                        .query(
+                            downstream_event::Entity::find()
+                                .filter(downstream_event::Column::CaptureId.eq(&row.id))
+                                .filter(downstream_event::Column::Direction.is_in(directions))
+                                .filter(
+                                    downstream_event::Column::Kind
+                                        .eq(capture_event::CaptureEventKind::Bytes),
+                                )
+                                .order_by_asc(downstream_event::Column::Sequence),
+                        )
+                        .await?
+                        .into_iter()
+                        .map(Into::into)
+                        .collect(),
+                };
+                for event in events {
+                    let bytes = self.read_capture_event_payload(&event).await?;
+                    let body = match event.direction {
+                        capture_event::CaptureDirection::Request => &mut row.request_body,
+                        capture_event::CaptureDirection::Response => &mut row.response_body,
+                    };
+                    body.get_or_insert_with(Vec::new).extend(bytes);
+                }
+            }
+        }
         row.request_body_encoding = "identity".into();
         row.response_body_encoding = "identity".into();
         Ok(row)
@@ -364,11 +424,7 @@ impl<C: BatchConnectionTrait> Store<C> {
     ) -> Result<Vec<capture_event::Model>> {
         let mut out = Vec::new();
         for event in events {
-            let payload = if let Some(id) = &event.body_id {
-                self.read_capture_body(id).await?
-            } else {
-                decompress(&event.encoding, &event.payload)?
-            };
+            let payload = self.read_capture_event_payload(&event).await?;
             let chunks = split(
                 Chunk {
                     sequence: event.sequence,
@@ -397,5 +453,13 @@ impl<C: BatchConnectionTrait> Store<C> {
         }
         out.sort_by(|a, b| (&a.capture_id, a.sequence).cmp(&(&b.capture_id, b.sequence)));
         Ok(out)
+    }
+
+    async fn read_capture_event_payload(&self, event: &capture_event::Model) -> Result<Vec<u8>> {
+        if let Some(id) = &event.body_id {
+            self.read_capture_body(id).await
+        } else {
+            decompress(&event.encoding, &event.payload)
+        }
     }
 }

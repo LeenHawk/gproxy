@@ -23,7 +23,8 @@ kind: string, sessionId: string | null, streamKey: string | null, userId: string
 requestHeaders: [string, string][] | null, requestBody: LogBodyDto,
 /**
  * `buffered`, `bytes`, `sse`, `ndjson`, `json_array` or `websocket`.
- * Anything but `buffered` means the body is in the events, not the row.
+ * HTTP bodies are reconstructed regardless of transport framing;
+ * WebSocket messages retain their boundaries in the events.
  */
 requestFraming: string, responseStatus: number | null, responseHeaders: [string, string][] | null, responseBody: LogBodyDto, responseFraming: string, clientIp: string | null,
 /**

@@ -110,6 +110,8 @@ async fn segments_restore_interleaved_directions_empty_chunks_and_frames() {
             id: Set("u".into()),
             kind: Set(record::CaptureKind::Http),
             started_at_ms: Set(1),
+            request_body_state: Set(record::CaptureBodyState::Complete),
+            response_body_state: Set(record::CaptureBodyState::Partial),
             ..Default::default()
         }])
         .await
@@ -181,6 +183,30 @@ async fn segments_restore_interleaved_directions_empty_chunks_and_frames() {
         })
         .collect();
     assert_eq!(decoded, chunks);
+    let row = store
+        .upstream_records()
+        .get_many(&["u".into()])
+        .await
+        .unwrap()
+        .pop()
+        .flatten()
+        .unwrap();
+    let hydrated = store.hydrate_capture(row.clone().into()).await.unwrap();
+    for (direction, body) in [
+        (D::Request, hydrated.request_body),
+        (D::Response, hydrated.response_body),
+    ] {
+        let expected: Vec<u8> = chunks
+            .iter()
+            .filter(|c| c.kind == K::Bytes && c.direction == direction)
+            .flat_map(|c| c.payload.clone())
+            .collect();
+        assert_eq!(body.unwrap(), expected);
+    }
+    let mut ws: gproxy_store::entity::usage::capture_record::Model = row.into();
+    ws.kind = record::CaptureKind::WsConnection;
+    let ws = store.hydrate_capture(ws).await.unwrap();
+    assert!(ws.request_body.is_none() && ws.response_body.is_none());
 }
 
 #[tokio::test]

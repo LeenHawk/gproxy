@@ -45,7 +45,7 @@ pub struct LogBodyDto {
     pub encoding: LogBodyEncoding,
     /// Compatibility field: false, because reads return the complete stored payload.
     pub truncated: bool,
-    /// Bytes stored on the row, not the length of `content`.
+    /// Reconstructed body bytes, not the length of `content`.
     pub bytes: u64,
     pub content: String,
 }
@@ -188,7 +188,8 @@ pub struct CaptureRecordDto {
     pub request_headers: Option<Value>,
     pub request_body: LogBodyDto,
     /// `buffered`, `bytes`, `sse`, `ndjson`, `json_array` or `websocket`.
-    /// Anything but `buffered` means the body is in the events, not the row.
+    /// HTTP bodies are reconstructed regardless of transport framing;
+    /// WebSocket messages retain their boundaries in the events.
     pub request_framing: String,
     pub response_status: Option<i32>,
     #[cfg_attr(feature = "ts", ts(type = "[string, string][] | null"))]

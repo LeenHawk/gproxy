@@ -333,8 +333,8 @@ fn record(row: capture_record::Model) -> CaptureRecordDto {
 /// `NotCaptured` never produces content, whatever is in the column: a body
 /// nobody stored must not come back looking like a body that was empty. The
 /// state travels with every body so the two cases stay distinguishable, and so
-/// does a body that is only in the events because its framing was not
-/// `buffered`.
+/// does an interrupted body. Store hydration reconstructs HTTP bodies from
+/// either inline storage or their transport events before this projection.
 fn body(state: capture_record::CaptureBodyState, bytes: Option<&[u8]>) -> LogBodyDto {
     let name = state.to_value();
     match bytes {

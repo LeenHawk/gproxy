@@ -17,6 +17,6 @@ state: string, encoding: LogBodyEncoding,
  */
 truncated: boolean, 
 /**
- * Bytes stored on the row, not the length of `content`.
+ * Reconstructed body bytes, not the length of `content`.
  */
 bytes: number, content: string, };

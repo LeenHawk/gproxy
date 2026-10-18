@@ -1659,6 +1659,52 @@ async fn counted_windows_and_cycles_read_the_meter_and_its_history() {
 }
 
 #[tokio::test]
+async fn http_bodies_are_complete_even_when_event_details_are_limited() {
+    let gproxy = support::sdk().await;
+    capture(&gproxy, downstream("d", 1)).await;
+    let mut row = upstream("u", "d", 2);
+    row.request_body_state = Set(capture_record::CaptureBodyState::Complete);
+    row.response_body_state = Set(capture_record::CaptureBodyState::Partial);
+    row.request_framing = Set(capture_record::BodyFraming::Bytes);
+    row.response_framing = Set(capture_record::BodyFraming::Sse);
+    capture(&gproxy, row).await;
+    // Split UTF-8 across transport chunks and exceed the detail-event limit.
+    let expected = "界".repeat(701);
+    let rows = expected
+        .as_bytes()
+        .iter()
+        .enumerate()
+        .map(|(sequence, byte)| upstream_event::ActiveModel {
+            capture_id: Set("u".into()),
+            sequence: Set(sequence as i64),
+            direction: Set(capture_event::CaptureDirection::Request),
+            kind: Set(capture_event::CaptureEventKind::Bytes),
+            payload: Set(vec![*byte]),
+            observed_at_ms: Set(2),
+            ..Default::default()
+        })
+        .collect();
+    gproxy
+        .store()
+        .upstream_events()
+        .create_many(rows)
+        .await
+        .unwrap();
+    event(&gproxy, "u", expected.len() as i64, b"data: partial\n\n").await;
+    let single = gproxy.query().logs().capture("u").await.unwrap();
+    let detail = gproxy.query().logs().detail("d").await.unwrap();
+    assert!(single.events_truncated && detail.events_truncated);
+    for record in [single.record, detail.upstream.into_iter().next().unwrap()] {
+        assert_eq!(record.request_body.content, expected);
+        assert_eq!(record.request_body.bytes, expected.len() as u64);
+        assert_eq!(record.request_body.encoding, LogBodyEncoding::Utf8);
+        assert!(!record.request_body.truncated);
+        assert_eq!(record.response_body.content, "data: partial\n\n");
+        assert_eq!(record.response_body.state, "partial");
+    }
+}
+
+#[tokio::test]
 async fn log_details_return_full_large_text_binary_and_event_payloads() {
     use base64::Engine;
     let gproxy = support::sdk().await;
