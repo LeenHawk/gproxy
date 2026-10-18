@@ -429,7 +429,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                 let retry_same = matches!(status.as_u16(), 401 | 403)
                     && refreshable
                     && !refreshed.contains(&credential.id);
-                let unusable = matches!(status.as_u16(), 429 | 401 | 403 | 500..=599);
+                let unusable = matches!(status.as_u16(), 429 | 401 | 403 | 404 | 500..=599);
                 if !unusable {
                     let outcome = AttemptOutcome::Succeeded { status };
                     funnel.trace(TraceEvent::AttemptFinished {

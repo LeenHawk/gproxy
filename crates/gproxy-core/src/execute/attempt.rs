@@ -105,7 +105,7 @@ enum Classified {
 fn classify(status: StatusCode, refreshable: bool, refreshed: bool) -> Classified {
     match status.as_u16() {
         401 | 403 if refreshable && !refreshed => Classified::Refresh,
-        429 | 401 | 403 | 500..=599 => Classified::Exclude,
+        429 | 401 | 403 | 404 | 500..=599 => Classified::Exclude,
         _ => Classified::Final,
     }
 }
