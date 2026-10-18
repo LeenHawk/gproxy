@@ -225,7 +225,10 @@ An exchange the upstream served without reported usage (or with missing token
 counts) is estimated locally when the Setting row enables usage: input tokens
 from the request's prompt text counted by the tokenizer for the upstream model
 (catalog vocabulary file, Setting default, or bundled encoders), output tokens as
-half the response bytes. The prompt text is read through the protocol wire
+half the generated Unicode characters, rounded up. Output counting reads text,
+reasoning and tool arguments through the existing stream framing or complete
+response, excluding SSE/JSON metadata, signatures, media and terminal snapshots
+that repeat streamed content. The prompt text is read through the protocol wire
 types of the exchange's native `(operation, dialect)` pair — system prompts,
 messages, tool calls and results, tool declarations — for Claude Messages,
 OpenAI Chat, OpenAI Responses (HTTP and websocket envelope), OpenAI
@@ -233,7 +236,8 @@ count-tokens, guardian, compaction, memory and embeddings, and Gemini
 generate, count-tokens and embeddings. Base64 media, file ids, URLs and
 encrypted blobs are never counted. There is no key-name fallback: a pair
 without an extractor, or a body the wire types reject, gets no input estimate
-at all (the output estimate still applies). Estimates are `Partial` and carry
+at all (output is estimated only when generated content was recognized).
+Estimates are `Partial` and carry
 `dimensions["estimated"] = "true"`; reported values are never overwritten and
 rejected answers are not estimated. `UsageState::Skipped` means the request's
 policy disabled usage, distinct from an upstream that reported nothing.

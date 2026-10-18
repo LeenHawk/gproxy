@@ -2,8 +2,9 @@
 //! only part of it. Input tokens come from the text the request carried,
 //! counted with the tokenizer selected for the upstream model (a custom
 //! vocabulary from the model catalog, the Setting default, or the bundled
-//! encoders); output tokens are a coarse half-of-bytes guess over the
-//! response body. Everything estimated is marked `estimated=true` and
+//! encoders); output tokens are a coarse one-token-per-two-characters guess
+//! over generated text only, excluding wire framing and metadata.
+//! Everything estimated is marked `estimated=true` and
 //! `Partial`; reported values are never overwritten.
 //!
 //! Only operations that are metered in tokens are estimated (see
@@ -86,15 +87,15 @@ impl Estimator {
     /// Fill the token counts the upstream did not report, for an operation
     /// that [`estimates`]; any other operation keeps what was reported.
     /// `operation` is the native call's key, which names the wire shape of
-    /// `request_body`; `response_bytes` is what was read of the response,
-    /// whole or streamed.
+    /// `request_body`; `output_characters` counts only generated text read
+    /// from the response, whole or streamed.
     pub(crate) fn complete(
         &self,
         operation: OperationKey,
         provider_id: &str,
         model: Option<&str>,
         request_body: Option<&[u8]>,
-        response_bytes: u64,
+        output_characters: u64,
         reported: Option<NormalizedUsage>,
     ) -> Option<NormalizedUsage> {
         if !estimates(operation.operation) {
@@ -112,12 +113,10 @@ impl Estimator {
                 estimated = true;
             }
         }
-        // Coarse by design: the response is JSON or SSE framing around the
-        // generated text, and half its bytes is a rough stand-in for the
-        // tokens inside. Refining it needs per-dialect stream parsing, which
-        // the usage observer already does whenever the upstream reports.
-        if usage.tokens.output_tokens.is_none() && response_bytes > 0 {
-            usage.tokens.output_tokens = Some(response_bytes.div_ceil(2));
+        // Same character heuristic as Tokenizer::character_estimate, applied
+        // once to all generated content, independent of transport chunking.
+        if usage.tokens.output_tokens.is_none() && output_characters > 0 {
+            usage.tokens.output_tokens = Some(output_characters.div_ceil(2));
             estimated = true;
         }
         if estimated {
@@ -1029,20 +1028,16 @@ mod tests {
             ),
             None
         );
-        // The output side is still estimated from the response bytes.
-        let usage = Estimator::default()
-            .complete(
-                key(Operation::Rerank, Dialect::OpenAi),
-                "p",
-                Some("gpt-4o"),
-                Some(br#"{"query":"cats"}"#),
-                10,
-                None,
-            )
-            .unwrap();
-        assert_eq!(usage.tokens.input_tokens, None);
-        assert_eq!(usage.tokens.output_tokens, Some(5));
-        assert_eq!(usage.completeness, UsageCompleteness::Partial);
+        // Without recognized input or generated content, nothing is estimated.
+        let usage = Estimator::default().complete(
+            key(Operation::Rerank, Dialect::OpenAi),
+            "p",
+            Some("gpt-4o"),
+            Some(br#"{"query":"cats"}"#),
+            0,
+            None,
+        );
+        assert!(usage.is_none());
     }
 
     #[test]

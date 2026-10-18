@@ -62,8 +62,6 @@ pub(crate) struct Reading {
     operation: OperationKey,
     headers: http::HeaderMap,
     source: Source,
-    /// Bytes seen, for the local output estimate.
-    bytes: u64,
     /// The most a whole body is held for.
     cap: u64,
     first_output_at: Option<web_time::Instant>,
@@ -80,6 +78,7 @@ impl Reading {
         operation: OperationKey,
         headers: &http::HeaderMap,
         cap: u64,
+        estimate_output: bool,
     ) -> Self {
         let extras = channel.usage_extras().is_some();
         let framing = response_framing(operation, headers);
@@ -99,6 +98,9 @@ impl Reading {
                 if extras {
                     reader.keep_usage_event();
                 }
+                if estimate_output {
+                    reader.count_output_characters();
+                }
                 Source::Stream(Box::new(reader))
             })
         } else if usage::reads(operation.operation, operation.dialect) || extras {
@@ -111,7 +113,6 @@ impl Reading {
             operation,
             headers: headers.clone(),
             source,
-            bytes: 0,
             cap,
             first_output_at: None,
         }
@@ -135,14 +136,12 @@ impl Reading {
             operation,
             headers: http::HeaderMap::new(),
             source,
-            bytes: 0,
             cap: 0,
             first_output_at: None,
         }
     }
 
     pub(crate) fn push(&mut self, chunk: &[u8]) {
-        self.bytes = self.bytes.saturating_add(chunk.len() as u64);
         match &mut self.source {
             Source::Stream(reader) => {
                 reader.push(chunk);
@@ -166,6 +165,18 @@ impl Reading {
     pub(crate) fn push_message(&mut self, text: &str) {
         if let Source::Stream(reader) = &mut self.source {
             reader.push_message(text);
+        }
+    }
+
+    fn output_characters(&self) -> u64 {
+        match &self.source {
+            Source::Stream(reader) => reader.output_characters(),
+            Source::Whole(Some(body)) => usage::whole_output_characters(
+                self.operation.operation,
+                self.operation.dialect,
+                body,
+            ),
+            Source::Whole(None) | Source::Nothing => 0,
         }
     }
 
@@ -385,7 +396,13 @@ impl Meter {
     ) -> WireResponse<HttpBody> {
         self.gate.returned();
         self.status = response.status;
-        self.reading = Some(Reading::http(channel, operation, &response.headers, cap));
+        self.reading = Some(Reading::http(
+            channel,
+            operation,
+            &response.headers,
+            cap,
+            self.attempt.request.snapshot.estimation.is_some(),
+        ));
         let WireResponse {
             status,
             headers,
@@ -427,7 +444,11 @@ impl Meter {
         let ttft_ms = reading.first_output_at.and_then(|first| {
             i64::try_from(first.duration_since(self.started_at).as_millis()).ok()
         });
-        let bytes = reading.bytes;
+        let output_characters = if self.attempt.request.snapshot.estimation.is_some() {
+            reading.output_characters()
+        } else {
+            0
+        };
         let operation = reading.operation;
         let mut usage = reading.finish(end);
         // What the upstream did not report is estimated locally, for answers
@@ -441,7 +462,7 @@ impl Meter {
                 &attempt.credential.provider_id,
                 attempt.request.target.upstream_model.as_deref(),
                 self.request_body.as_deref(),
-                bytes,
+                output_characters,
                 usage,
             );
         }

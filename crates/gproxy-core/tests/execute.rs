@@ -106,28 +106,9 @@ async fn rate_limit_blocks_the_credential_persistently_and_fails_over() {
     assert_eq!(response.status, StatusCode::OK);
     read(response.body).await;
     let report = completion.await.unwrap();
-    assert_eq!(
-        report.exchanges.len(),
-        1,
-        "a served answer without reported usage is estimated locally"
-    );
-    let estimated = &report.exchanges[0].usage;
-    assert_eq!(
-        estimated.dimensions.get("estimated").map(String::as_str),
-        Some("true")
-    );
-    assert_eq!(
-        estimated.completeness,
-        gproxy_channel::channel::UsageCompleteness::Partial
-    );
-    assert_eq!(
-        estimated.tokens.input_tokens, None,
-        "`{{}}` carries no prompt text: nothing to count"
-    );
-    assert_eq!(
-        estimated.tokens.output_tokens,
-        Some(6),
-        "half the 11 bytes of `{{\"ok\":true}}`, rounded up"
+    assert!(
+        report.exchanges.is_empty(),
+        "metadata-only responses and empty prompts provide no tokens to estimate"
     );
     let seen = h.client.seen.lines();
     assert!(seen[0].contains("auth=Bearer ka"));
@@ -463,11 +444,12 @@ async fn websocket_handshake_fails_over_and_the_socket_is_observed_in_both_direc
 #[tokio::test]
 async fn dropping_a_body_early_settles_as_cancelled() {
     let h = harness(full(), "round_robin").await;
+    let delta = b"data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\",\"metadata\":\"ignored\"}\n\n";
     h.script(vec![(
         StatusCode::OK,
         vec![("content-type", "text/event-stream")],
         vec![
-            Bytes::from_static(b"data: 1\n\n"),
+            Bytes::from_static(delta),
             Bytes::from_static(b"data: 2\n\n"),
         ],
     )]);
@@ -480,13 +462,24 @@ async fn dropping_a_body_early_settles_as_cancelled() {
     let HttpBody::Stream(mut body) = response.body else {
         panic!()
     };
-    assert_eq!(body.next().await.unwrap().unwrap().as_ref(), b"data: 1\n\n");
+    assert_eq!(body.next().await.unwrap().unwrap().as_ref(), delta);
     drop(body);
     let report = tokio::time::timeout(std::time::Duration::from_secs(2), completion)
         .await
         .expect("drop settles")
         .unwrap();
     assert_eq!(report.state, UsageState::Cancelled);
+    let usage = &report.exchanges[0].usage;
+    assert_eq!(
+        usage.tokens.output_tokens,
+        Some(3),
+        "only the five generated characters count"
+    );
+    assert_eq!(usage.dimensions["estimated"], "true");
+    assert_eq!(
+        usage.completeness,
+        gproxy_channel::channel::UsageCompleteness::Partial
+    );
     assert!(
         h.observer
             .log

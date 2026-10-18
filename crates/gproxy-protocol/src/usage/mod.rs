@@ -14,8 +14,8 @@
 //! the stream is framed with this crate's own [`SseDecoder`] and
 //! [`JsonArrayDecoder`], events are filtered by name or by a substring before
 //! anything is parsed. Until first output, content is also inspected for TTFT.
-//! Otherwise only the events that carry usage are deserialized
-//! — into small envelopes that skip the content around the usage object.
+//! When fallback output counting is disabled, only events that carry usage are
+//! deserialized into small envelopes that skip the content around the usage object.
 //!
 //! A reading is `None` when the response reported no usage, which is not the
 //! same as zero consumption; a malformed response is one that reported none.
@@ -42,9 +42,11 @@ mod common;
 mod gemini;
 mod media;
 mod openai;
+mod output;
 mod timing;
 mod types;
 
+pub use output::whole_output_characters;
 pub use types::{
     NormalizedUsage, ResponseUsage, TokenUsage, UsageAttempt, UsageCompleteness, UsageStreamEnd,
     UsageTransport,
@@ -213,6 +215,8 @@ pub struct UsageReader {
     keep: bool,
     kept: Option<Kept>,
     output_started: bool,
+    dialect: Dialect,
+    output_characters: Option<u64>,
 }
 
 /// The latest event that carried usage, as it arrived.
@@ -270,6 +274,8 @@ impl UsageReader {
             keep: false,
             kept: None,
             output_started: false,
+            dialect,
+            output_characters: None,
         })
     }
 
@@ -282,6 +288,17 @@ impl UsageReader {
     /// answer.
     pub fn keep_usage_event(&mut self) {
         self.keep = true;
+    }
+
+    /// Count generated characters for local fallback metering, without retaining
+    /// the generated text. Call before feeding any chunks. Off by default.
+    pub fn count_output_characters(&mut self) {
+        self.output_characters.get_or_insert(0);
+    }
+
+    /// Generated characters observed so far; excludes framing and metadata.
+    pub fn output_characters(&self) -> u64 {
+        self.output_characters.unwrap_or_default()
     }
 
     /// The latest event that carried usage, when
@@ -303,6 +320,15 @@ impl UsageReader {
                 Ok(frames) => {
                     for frame in frames {
                         if let SseFrame::Event(event) = frame {
+                            if let Some(count) = &mut self.output_characters
+                                && let Ok(value) = serde_json::from_str(&event.data)
+                            {
+                                *count = count.saturating_add(output::stream(
+                                    self.dialect,
+                                    event.event.as_deref(),
+                                    &value,
+                                ));
+                            }
                             if !self.output_started {
                                 self.output_started =
                                     timing::has_output(event.event.as_deref(), &event.data);
@@ -319,6 +345,13 @@ impl UsageReader {
                 Ok(records) => {
                     if let Watch::Gemini(stream) = &mut self.watch {
                         for record in records {
+                            if let Some(count) = &mut self.output_characters {
+                                *count = count.saturating_add(output::stream(
+                                    self.dialect,
+                                    None,
+                                    &record,
+                                ));
+                            }
                             if !self.output_started {
                                 self.output_started = timing::value_has_output(None, &record);
                             }
@@ -336,8 +369,15 @@ impl UsageReader {
 
     /// Observe one websocket text message, which is one complete event.
     pub fn push_message(&mut self, text: &str) {
-        if matches!(self.framing, Framing::Messages) && self.watch.event(None, text) && self.keep {
-            self.kept = Some(Kept::Text(text.to_owned()));
+        if matches!(self.framing, Framing::Messages) {
+            if let Some(count) = &mut self.output_characters
+                && let Ok(value) = serde_json::from_str(text)
+            {
+                *count = count.saturating_add(output::stream(self.dialect, None, &value));
+            }
+            if self.watch.event(None, text) && self.keep {
+                self.kept = Some(Kept::Text(text.to_owned()));
+            }
         }
     }
 
