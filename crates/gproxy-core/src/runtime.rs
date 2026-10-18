@@ -217,6 +217,31 @@ impl CredentialBlocks {
         });
     }
 
+    /// Request-scoped upstream continuation permissions do not modify the
+    /// stored blocks and cannot exempt local limits or transport cooldowns.
+    pub fn retain_for_request(
+        &mut self,
+        provider: &crate::ProviderData,
+        credential: &crate::CredentialData,
+        model: Option<&str>,
+        operation: gproxy_protocol::OperationKey,
+        headers: &http::HeaderMap,
+    ) {
+        self.retain_enforced(provider, credential, model);
+        let Some(quota) = provider.channel.quota_model() else {
+            return;
+        };
+        self.blocks.retain(|block| match &block.source {
+            BlockSource::QuotaExhausted { dimension, .. } => !quota.allows_exhausted_request(
+                crate::execute::prepare::provider_view(provider),
+                dimension,
+                operation,
+                headers,
+            ),
+            _ => true,
+        });
+    }
+
     /// Insert or replace the block for the same scope, operation and origin,
     /// dropping blocks that already expired.
     pub fn upsert(&mut self, block: CredentialBlock, now_ms: i64) {

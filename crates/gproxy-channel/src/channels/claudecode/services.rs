@@ -543,6 +543,7 @@ fn service_headers(
             HeaderValue::from_str(value).map_err(|_| invalid_config(format!("header `{name}`")))?,
         );
     }
+    headers.remove(super::usage_limit::HEADER);
     Ok(headers)
 }
 

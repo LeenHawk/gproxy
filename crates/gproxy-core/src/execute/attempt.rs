@@ -295,7 +295,10 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
             drop(held.take());
             return Err(CoreError::DeadlineExceeded);
         }
-        let selection = match core.select_credential(&request, &excluded, now).await {
+        let selection = match core
+            .select_credential(&request, &inbound_headers, &excluded, now)
+            .await
+        {
             Ok(selection) => selection,
             Err(CoreError::NoUsableCredential) if held.is_some() => {
                 let answer = held.take().expect("held");

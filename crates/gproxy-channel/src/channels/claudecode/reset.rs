@@ -1,5 +1,6 @@
-//! Claude Code 2.1.280 reset eligibility and explicit redemption.
+//! Claude Code 2.1.302 reset eligibility and explicit redemption.
 //! These GETs deliberately do not run as part of the plain usage query.
+//! Source: samples/claude-code-2.1.302/readable/chunk-yaq31fwj.js.
 
 use super::{
     Claudecode, account, base_url, fact, header_value, invalid_response, send, unix_now_ms,
@@ -260,9 +261,28 @@ impl QuotaReset for Claudecode {
             if !matches!(program, "juniper_tide" | "cedar_ember") {
                 return Err(ChannelError::InvalidConfig("unknown reset program".into()));
             }
-            // Revalidate exactly what the user confirmed, never switch grants.
-            let status = self.credits(context).await?;
-            let choice = status.options.iter().find(|option| {
+            // Revalidate only the selected program. An unrelated offer's
+            // rate limit or malformed response must not block this redemption.
+            let options = if program == "juniper_tide" {
+                let status = call(
+                    context,
+                    Method::GET,
+                    "/api/oauth/usage?at_wall=1&skip_spend=1",
+                    None,
+                )
+                .await?;
+                vec![weekly_option(status.get("juniper_tide"))?]
+            } else {
+                let status = call(
+                    context,
+                    Method::GET,
+                    "/api/oauth/usage?cedar_ember=1&skip_spend=1",
+                    None,
+                )
+                .await?;
+                grant_options(status.get("cedar_ember"), unix_now_ms())?
+            };
+            let choice = options.iter().find(|option| {
                 option.program == program && option.grant_id.as_deref() == request.grant_id
             });
             let Some(choice) = choice.filter(|option| option.usable) else {

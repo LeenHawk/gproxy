@@ -171,6 +171,7 @@
     "issuer": "Issuer",
     "locale": "Locale",
     "low_priority": "Low priority mode",
+    "extended_usage": "Extended usage grace",
     "location": "Location",
     "login_provider": "Login provider",
     "management_base_url": "Management base url",

@@ -2922,6 +2922,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.2.17",
  "getrandom 0.4.3",
+ "gloo-timers",
  "gproxy-client",
  "gproxy-protocol",
  "hmac 0.13.0",

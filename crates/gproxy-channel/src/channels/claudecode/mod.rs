@@ -28,6 +28,7 @@ mod hygiene;
 mod quota;
 mod reset;
 mod services;
+mod usage_limit;
 
 pub use services::{KIND_FILE, KIND_PLUGIN, KIND_SKILL, service_routes};
 
@@ -65,23 +66,19 @@ pub const DEFAULT_TOKEN_URL: &str = "https://platform.claude.com/v1/oauth/token"
 /// The manual-callback redirect the CLI registers (v3 `auth.rs`).
 pub const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
 pub const DEFAULT_CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-/// Default refresh scopes verified against CLI 2.1.299, including plugins.
+/// Default refresh scopes verified against CLI 2.1.302, including plugins.
 pub const OAUTH_SCOPE: &str = "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins";
-/// Interactive login adds `org:create_api_key` (CLI 2.1.299).
+/// Interactive login adds `org:create_api_key` (CLI 2.1.302).
 pub const LOGIN_SCOPE: &str = concat!(
     "org:create_api_key ",
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins"
 );
 pub const OAUTH_BETA: &str = "oauth-2025-04-20";
 /// The CLI version the channel impersonates. Protocol behavior was audited in
-/// `design/claudecode-2.1.299.md` against the installed binary and local capture.
-pub const CLI_VERSION: &str = "2.1.299";
-pub const CLI_USER_AGENT: &str = "claude-cli/2.1.299 (external, cli)";
+/// `design/claudecode-2.1.302.md` against the installed binary and local capture.
+pub const CLI_VERSION: &str = "2.1.302";
+pub const CLI_USER_AGENT: &str = "claude-cli/2.1.302 (external, cli)";
 pub const ANTHROPIC_VERSION: &str = "2023-06-01";
-/// The CLI marks a request it sends in low-priority mode with this header
-/// (CLI 2.1.283).
-const USAGE_LIMIT_HEADER: &str = "anthropic-usage-limit";
-const LOW_PRIORITY: &str = "slow";
 /// Optional scopes a refresh preserves when the credential already has them.
 const PRESERVED_SCOPES: &[&str] = &["user:projects:read", "user:projects:write"];
 /// Bodies the channel reads itself (login, refresh, usage) are small.
@@ -108,12 +105,12 @@ pub struct ClaudecodeConfig {
     pub fallback_mode: FallbackMode,
     /// Ordered fallback models; at most three are sent.
     pub fallback_models: Vec<String>,
-    /// Ask for the CLI's low-priority mode on every Messages call
-    /// (`anthropic-usage-limit: slow`) and keep a full five-hour window from
-    /// blocking the credential. The server decides per account whether to
-    /// serve it (`anthropic-ratelimit-unified-slow-status`); the weekly
-    /// windows still block.
+    /// Accept a first-party lower-priority offer after a five-hour rejection,
+    /// then wait/retry capacity failures with the CLI's bounds. Off by default.
     pub low_priority: bool,
+    /// Request the CLI's extended grace for tool-result continuations when
+    /// extra usage is not known to be enabled. Off by default.
+    pub extended_usage: bool,
 }
 
 impl Default for ClaudecodeConfig {
@@ -127,6 +124,7 @@ impl Default for ClaudecodeConfig {
             fallback_mode: FallbackMode::Off,
             fallback_models: Vec::new(),
             low_priority: false,
+            extended_usage: false,
         }
     }
 }
@@ -295,6 +293,7 @@ fn prev_req_key(session: &str) -> String {
 /// allow-list never hides these from the channel.
 pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
     names: &[
+        usage_limit::HEADER,
         "anthropic-beta",
         "x-claude-code-session-id",
         "session_id",
@@ -306,6 +305,7 @@ pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
 /// Headers the channel sets itself; a client cannot supply them. Cookies are
 /// claude.ai identity and never belong on an api.anthropic.com call.
 const CHANNEL_HEADERS: &[&str] = &[
+    usage_limit::HEADER,
     "anthropic-version",
     "anthropic-beta",
     "anthropic-dangerous-direct-browser-access",
@@ -375,7 +375,7 @@ fn stainless_arch() -> &'static str {
 }
 
 /// A client user agent is honoured only when it is the impersonated CLI
-/// version with a plausible entrypoint, e.g. `claude-cli/2.1.299 (external,
+/// version with a plausible entrypoint, e.g. `claude-cli/2.1.302 (external,
 /// sdk-cli)`; anything else becomes the CLI's own (v3 `auth.rs`).
 fn valid_cli_user_agent(value: &str) -> bool {
     value
@@ -604,7 +604,12 @@ impl BaseChannel for Claudecode {
                 ConfigKey::optional(
                     "low_priority",
                     ConfigKeyKind::Bool,
-                    "Send Messages calls in low-priority mode and keep routing to an account whose 5h window is full; the server decides whether the account is served.",
+                    "Accept lower-priority offers after a full 5h window and wait for capacity like Claude Code. Off by default; the server decides eligibility and budget.",
+                ),
+                ConfigKey::optional(
+                    "extended_usage",
+                    ConfigKeyKind::Bool,
+                    "Request extended usage grace for tool-result continuations unless paid extra usage is enabled. Off by default; the server decides whether grace is available.",
                 ),
             ]
             .into_iter()
@@ -721,6 +726,7 @@ impl Claudecode {
         let client_user_agent = client_header(&source, allowlist.as_ref(), "user-agent");
         let client_beta = client_header(&source, allowlist.as_ref(), "anthropic-beta")
             .and_then(|value| HeaderValue::from_str(value).ok());
+        let mut usage_mode = usage_limit::requested_mode(&source, &config);
         let mut headers = forwardable(&source, allowlist.as_ref(), CHANNEL_HEADERS);
         if let Some(beta) = client_beta {
             headers.insert(HeaderName::from_static("anthropic-beta"), beta);
@@ -730,6 +736,13 @@ impl Claudecode {
             HttpBody::Bytes(bytes) if is_messages(operation) => {
                 match hygiene::json_object(&bytes) {
                     Some(mut value) => {
+                        if usage_mode.is_none()
+                            && config.extended_usage
+                            && usage_limit::is_continuation(&value)
+                            && !usage_limit::paid_usage_enabled(&ctx.credential)
+                        {
+                            usage_mode = Some(usage_limit::Mode::Extended);
+                        }
                         hygiene::messages(
                             &mut value,
                             &mut headers,
@@ -775,12 +788,10 @@ impl Claudecode {
             &session,
             client_user_agent,
         )?;
-        if config.low_priority && is_messages(operation) {
-            headers.insert(
-                HeaderName::from_static(USAGE_LIMIT_HEADER),
-                HeaderValue::from_static(LOW_PRIORITY),
-            );
-        }
+        usage_limit::set_mode(
+            &mut headers,
+            if is_messages(operation) { usage_mode } else { None },
+        );
         let mut builder = http::Request::builder().method(method).uri(uri);
         if let Some(map) = builder.headers_mut() {
             *map = headers;
@@ -795,6 +806,8 @@ impl Claudecode {
         operation: Operation,
         ctx: OperationContext<'_>,
     ) -> Result<WireResponse<HttpBody>, ChannelError> {
+        let config = ClaudecodeConfig::from_view(ctx.provider)?;
+        let explicit_usage = usage_limit::requested_mode(&ctx.request.headers, &config).is_some();
         let account = account(&ctx.credential)?;
         let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLI_HEADERS)?;
         let session = session_id(
@@ -822,7 +835,15 @@ impl Claudecode {
             },
             prev_req.as_deref(),
         )?;
-        let response = ctx.client.send(request).await?;
+        let response = usage_limit::send(
+            &config,
+            ctx.client.as_ref(),
+            ctx.state.as_ref(),
+            &session,
+            request,
+            explicit_usage,
+        )
+        .await?;
         let request_id = response
             .headers
             .get("request-id")

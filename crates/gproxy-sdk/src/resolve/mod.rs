@@ -175,7 +175,8 @@ impl<C> Gproxy<C> {
     pub async fn resolve(&self, request: ResolveRequest<'_>) -> SdkResult<Plan> {
         let snapshot = self.0.core.snapshot();
         let routing = self.0.routing.load_full();
-        self.resolve_with(&snapshot, &routing, request).await
+        self.resolve_with(&snapshot, &routing, request, &http::HeaderMap::new())
+            .await
     }
 
     pub(crate) async fn resolve_with(
@@ -183,6 +184,7 @@ impl<C> Gproxy<C> {
         snapshot: &CoreData,
         routing: &RoutingTable,
         request: ResolveRequest<'_>,
+        headers: &http::HeaderMap,
     ) -> SdkResult<Plan> {
         let matched = self.match_name(snapshot, routing, request.model)?;
         let named = matched.candidates.len();
@@ -210,7 +212,7 @@ impl<C> Gproxy<C> {
                 continue;
             }
             let Some((credentials, health)) = self
-                .usable_credentials(snapshot, &candidate, &request, now)
+                .usable_credentials(snapshot, &candidate, &request, headers, now)
                 .await
             else {
                 continue;
@@ -354,6 +356,7 @@ impl<C> Gproxy<C> {
         snapshot: &CoreData,
         candidate: &Candidate,
         request: &ResolveRequest<'_>,
+        headers: &http::HeaderMap,
         now_ms: i64,
     ) -> Option<(Vec<Arc<CredentialData>>, u8)> {
         if matches!(
@@ -410,7 +413,13 @@ impl<C> Gproxy<C> {
             .into_iter()
             .zip(blocks)
             .map(|(credential, mut blocks)| {
-                blocks.retain_enforced(&candidate.provider, &credential, model);
+                blocks.retain_for_request(
+                    &candidate.provider,
+                    &credential,
+                    model,
+                    request.operation,
+                    headers,
+                );
                 (credential, blocks)
             })
             .partition(|(_, blocks)| blocks.blocked_by(model, operation, now_ms).is_some());

@@ -171,6 +171,7 @@
     "issuer": "身份认证地址",
     "locale": "语言区域",
     "low_priority": "低优先级模式",
+    "extended_usage": "额度宽限",
     "location": "部署位置",
     "login_provider": "登录服务",
     "management_base_url": "管理 API 地址",

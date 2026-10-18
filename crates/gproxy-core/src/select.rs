@@ -67,6 +67,7 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
     pub(crate) async fn select_credential(
         &self,
         request: &RequestContext,
+        headers: &http::HeaderMap,
         excluded: &HashSet<String>,
         now_ms: i64,
     ) -> CoreResult<Selection> {
@@ -102,7 +103,7 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
             .into_iter()
             .zip(blocks)
             .map(|(credential, mut blocks)| {
-                blocks.retain_enforced(provider, &credential, model);
+                blocks.retain_for_request(provider, &credential, model, request.operation, headers);
                 (credential, blocks)
             })
             .filter(|(_, blocks)| blocks.blocked_by(model, operation, now_ms).is_none())
@@ -169,7 +170,9 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
         };
         // An agent session overrides the strategy: it stays on its assigned
         // credential while usable, and reserves the strategy's pick otherwise.
-        let (index, assignment) = match self.session_pick(request, &eligible, index, now_ms).await?
+        let (index, assignment) = match self
+            .session_pick(request, headers, &eligible, index, now_ms)
+            .await?
         {
             Some((index, handle)) => (index, Some(handle)),
             None => (index, None),

@@ -198,7 +198,10 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
             funnel.finish(UsageState::Cancelled).await;
             return Err(CoreError::Cancelled);
         }
-        let selection = match core.select_credential(&request, &excluded, now).await {
+        let selection = match core
+            .select_credential(&request, &wire.headers, &excluded, now)
+            .await
+        {
             Ok(selection) => selection,
             Err(CoreError::NoUsableCredential) if held.is_some() => {
                 let (connection, exchange) = held.take().expect("held");

@@ -218,6 +218,21 @@ pub trait QuotaModel: Send + Sync {
         false
     }
 
+    /// Whether the channel configuration or request asks for a continuation mode
+    /// that can serve past a reported subscription window. This affects only
+    /// this selection; it never clears observations, bypasses local budgets,
+    /// or overrides failure/rate-limit cooldowns. The upstream remains the
+    /// authority on whether the requested mode is available.
+    fn allows_exhausted_request(
+        &self,
+        _provider: ProviderView<'_>,
+        _dimension: &str,
+        _operation: OperationKey,
+        _headers: &HeaderMap,
+    ) -> bool {
+        false
+    }
+
     /// Whether an exhausted dimension covers the requested model. This also
     /// applies to previously persisted blocks, whose scope may be outdated.
     fn block_applies_to(&self, _dimension: &str, _model: Option<&str>) -> bool {

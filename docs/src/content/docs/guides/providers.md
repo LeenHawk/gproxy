@@ -118,14 +118,37 @@ tool is never replayed without a redeemable credit. Every physical attempt is
 observed separately and priced by its model; a refusal reporting zero output
 is unbillable. The final response retains the final attempt's top-level usage.
 
-### Claude Code low-priority mode
+### Claude Code usage-limit modes
 
-`claudecode` with `low_priority: true` sends every Messages call the way the
-CLI does after a user accepts its low-priority offer
-(`anthropic-usage-limit: slow`), and a full five-hour window no longer takes
-the credential out of rotation; the weekly windows still do. Anthropic decides
-per account whether to serve the request at lower priority; a busy slot comes
-back as a 429 and GProxy moves to the next credential.
+Both channel switches default to `false`:
+
+- `low_priority: true` accepts a server-provided lower-priority offer after a
+  five-hour limit rejection. The session then sends `anthropic-usage-limit: slow`
+  until that window resets or the server ends the mode. Weekly limits and the
+  separate lower-priority allowance still apply.
+- `extended_usage: true` sends `anthropic-usage-limit: extended` for tool-result
+  continuations when paid extra usage is not known to be enabled. The server
+  decides whether grace is available; it does not reset the subscription quota.
+
+An explicit client `slow` or `extended` header is supported even with both
+switches off; the two values are mutually exclusive. CountTokens and control
+requests do not carry this header. For other clients, tool-result messages
+provide the continuation signal; private CLI task-depth and experiment flags
+are not available to the gateway.
+
+While sending `slow`, GProxy waits on `429 slot_busy` and overload responses,
+then retries the same buffered request on the same credential. Like CLI 2.1.302,
+the default delay is 20 seconds with 30% jitter and the default maximum wait is
+20 minutes; server hints are bounded to 5–600 seconds per delay and 1–360 minutes
+total. The host deadline and cancellation can stop the wait earlier. Budget,
+weekly-limit and eligibility refusals are returned without this retry, and
+successful response streams, non-replayable bodies and opaque fallback-credit
+redemptions are never replayed.
+
+The quota view also records reported lower-priority and grace allowances.
+These do not block normal traffic. Explicit modes exempt only their applicable
+reported subscription windows for that request; local budgets, scoped model
+limits and upstream failure/rate-limit cooldowns still apply.
 
 ### Per-operation URL overrides
 

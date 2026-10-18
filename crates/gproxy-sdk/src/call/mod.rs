@@ -558,6 +558,7 @@ impl Options {
                     // pin a credential to it.
                     affinity_key: session.is_stable().then_some(session.id.as_str()),
                 },
+                headers,
             )
             .await?;
 

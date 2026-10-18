@@ -244,7 +244,10 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
         )));
     }
     let now = now_ms();
-    let selection = match core.select_credential(&request, &HashSet::new(), now).await {
+    let selection = match core
+        .select_credential(&request, &wire.headers, &HashSet::new(), now)
+        .await
+    {
         Ok(selection) => selection,
         Err(error) => {
             funnel.finish(UsageState::Failed).await;

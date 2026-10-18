@@ -71,6 +71,8 @@ claudecode = [
     "dep:sha2",
     "dep:time",
     "dep:web-time",
+    "dep:tokio",
+    "dep:gloo-timers",
 ]
 # Claude Web (claude.ai browser session) upstream: cookie login against
 # /api/bootstrap, multi-call conversation turns translated into Claude
@@ -241,7 +243,11 @@ time = { workspace = true, optional = true }
 ts-rs = { workspace = true, optional = true }
 web-time = { workspace = true, optional = true }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true, features = ["time"], optional = true }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { workspace = true, optional = true }
 send_wrapper = { workspace = true, optional = true }
 # Never imported. `rsa` and `p256` reach getrandom 0.2 through rand_core 0.6; that
 # version refuses to build for wasm32-unknown-unknown unless its `js` backend

@@ -64,6 +64,7 @@ impl<C: BatchConnectionTrait> Core<C> {
     pub(crate) async fn session_pick(
         &self,
         request: &RequestContext,
+        headers: &http::HeaderMap,
         eligible: &[(Arc<CredentialData>, CredentialBlocks)],
         chosen: usize,
         now_ms: i64,
@@ -101,7 +102,7 @@ impl<C: BatchConnectionTrait> Core<C> {
                     },
                 )));
             }
-            match self.why_unusable(request, active, now_ms).await? {
+            match self.why_unusable(request, headers, active, now_ms).await? {
                 Unusable::Transient => return Ok(None),
                 Unusable::Durable {
                     exhausted_cycle_id: cycle,
@@ -213,6 +214,7 @@ impl<C: BatchConnectionTrait> Core<C> {
     async fn why_unusable(
         &self,
         request: &RequestContext,
+        headers: &http::HeaderMap,
         active: &agent_assignment::Model,
         now_ms: i64,
     ) -> CoreResult<Unusable> {
@@ -239,7 +241,13 @@ impl<C: BatchConnectionTrait> Core<C> {
             .read_blocks(&credential.provider_id, &credential.id)
             .await?;
         let model = request.target.upstream_model.as_deref();
-        blocks.retain_enforced(&request.target.provider, credential, model);
+        blocks.retain_for_request(
+            &request.target.provider,
+            credential,
+            model,
+            request.operation,
+            headers,
+        );
         Ok(
             match blocks
                 .blocked_by(model, request.operation.operation, now_ms)
