@@ -1,0 +1,63 @@
+---
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+interface Props {
+  locale: 'en' | 'zh-CN' | 'zh-TW';
+}
+const { locale } = Astro.props;
+const languages = locale === 'en' ? ['en', 'zh'] : ['zh', 'en'];
+const base = '/tutorials/sillytavern';
+const labels = {
+  en: { tab: 'English', captions: 'English', lang: 'en', title: 'GPROXY and SillyTavern tutorial' },
+  zh: { tab: '中文', captions: '简体中文', lang: 'zh-CN', title: 'GPROXY 与 SillyTavern 视频教程' },
+};
+---
+
+<div class="tutorial-player">
+  <Tabs>
+    {languages.map((language) => {
+      const copy = labels[language as keyof typeof labels];
+      return <TabItem label={copy.tab}>
+        <video
+          controls
+          controlslist="nodownload"
+          playsinline
+          preload="metadata"
+          width="1600"
+          height="900"
+          poster={`${base}/${language}.webp`}
+          aria-label={copy.title}
+        >
+          <source src={`${base}/${language}.mp4`} type="video/mp4" />
+          <track kind="captions" src={`${base}/${language}.vtt`} srclang={copy.lang} label={copy.captions} default />
+        </video>
+      </TabItem>;
+    })}
+  </Tabs>
+</div>
+
+<style>
+  .tutorial-player {
+    margin-block: 1.5rem 2rem;
+  }
+  video {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    background: #101820;
+  }
+</style>
+
+<script>
+  document.querySelectorAll('.tutorial-player').forEach((player) => {
+    const pause = () => player.querySelectorAll('video').forEach((video) => video.pause());
+    player.querySelector('[role="tablist"]')?.addEventListener('click', pause);
+    player.querySelector('[role="tablist"]')?.addEventListener('keydown', (event) => {
+      if (event instanceof KeyboardEvent && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) pause();
+    });
+  });
+</script>

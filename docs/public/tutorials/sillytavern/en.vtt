@@ -1,0 +1,146 @@
+WEBVTT
+
+1
+00:00:00.400 --> 00:00:07.505
+On first launch, keep the listening address at 127.0.0.1 and the port at
+8787.
+
+2
+00:00:07.525 --> 00:00:10.930
+This accepts connections from the same computer.
+
+3
+00:00:10.950 --> 00:00:15.112
+Choose a data directory, keep SQLite, and continue.
+
+4
+00:00:16.300 --> 00:00:21.005
+Choose an administrator username and password, then confirm the password.
+
+5
+00:00:21.025 --> 00:00:25.342
+Leave the initial gateway key blank to generate one automatically.
+
+6
+00:00:25.362 --> 00:00:30.212
+Skip the configuration import for a fresh installation, then finish setup.
+
+7
+00:00:31.400 --> 00:00:35.968
+Save the client address and gateway API key, then open the console.
+
+8
+00:00:35.988 --> 00:00:39.168
+SillyTavern will use this gateway key.
+
+9
+00:00:39.188 --> 00:00:44.825
+The provider login credential stays in GPROXY and is not entered into the
+chat client.
+
+10
+00:00:46.000 --> 00:00:50.230
+Add a provider, choose OpenAI Codex, and name it codex.
+
+11
+00:00:50.250 --> 00:00:52.955
+Keep the official default address.
+
+12
+00:00:52.975 --> 00:00:57.405
+If your network requires a proxy, select the system proxy.
+
+13
+00:00:57.425 --> 00:01:00.725
+Save the provider and open its credentials.
+
+14
+00:01:01.900 --> 00:01:06.455
+Click Add by signing in, choose Browser authorization, and start sign-in.
+
+15
+00:01:06.475 --> 00:01:11.092
+In Chrome, select your signed-in account and click Continue to confirm.
+
+16
+00:01:11.112 --> 00:01:15.318
+After the redirect, copy the URL from the address bar.
+
+17
+00:01:15.338 --> 00:01:20.005
+Return to GPROXY, paste the URL, and click Complete sign-in.
+
+18
+00:01:20.025 --> 00:01:23.062
+The credential is saved automatically.
+
+19
+00:01:24.250 --> 00:01:27.430
+Check that the saved credential is enabled.
+
+20
+00:01:27.450 --> 00:01:31.268
+Click Test and select gpt-6.1-sol.
+
+21
+00:01:31.288 --> 00:01:38.275
+A successful test with HTTP 200 confirms that the local GPROXY instance
+can call Codex directly.
+
+22
+00:01:39.450 --> 00:01:42.780
+Create a model route named tutorial-codex.
+
+23
+00:01:42.800 --> 00:01:45.680
+Open its details and add a member.
+
+24
+00:01:45.700 --> 00:01:51.255
+Select codex as the provider and gpt-6.1-sol as the upstream model.
+
+25
+00:01:51.275 --> 00:01:54.430
+Keep the default tier and weight, then save.
+
+26
+00:01:54.450 --> 00:01:57.362
+Clients can now use this route name.
+
+27
+00:01:58.550 --> 00:02:01.768
+Open API Connections in SillyTavern.
+
+28
+00:02:01.788 --> 00:02:05.730
+Choose Chat Completion and Custom OpenAI compatible.
+
+29
+00:02:05.750 --> 00:02:14.738
+Set the base URL to http, colon, double slash, 127.0.0.1, colon 8787,
+slash v1.
+
+30
+00:02:15.900 --> 00:02:19.868
+Enter the local gateway key saved earlier, then connect.
+
+31
+00:02:19.888 --> 00:02:24.630
+Load the model list, choose tutorial-codex, and keep streaming enabled.
+
+32
+00:02:24.650 --> 00:02:28.275
+Once the connection is valid, return to the chat.
+
+33
+00:02:29.450 --> 00:02:33.568
+Send a message asking for a short greeting in Chinese and English.
+
+34
+00:02:33.588 --> 00:02:37.043
+The content shown here comes from a real request.
+
+35
+00:02:37.062 --> 00:02:42.400
+The path is SillyTavern, the local GPROXY instance, and then Codex
+directly.
