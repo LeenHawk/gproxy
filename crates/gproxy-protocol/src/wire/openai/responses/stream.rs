@@ -124,7 +124,7 @@ pub enum StreamEvent {
     #[serde(rename = "response.mcp_list_tools.failed")]
     McpListToolsFailed(McpListToolsEvent),
     #[serde(rename = "error")]
-    Error(ResponseErrorEvent),
+    Error(ResponseStreamError),
     /// A future event type is ignored by converters. Known event payloads remain strict.
     /// Native passthrough retains the original bytes rather than this marker.
     #[serde(other, rename = "unknown")]
@@ -450,6 +450,57 @@ pub struct ReasoningSummaryPart {
 pub enum ReasoningSummaryPartType {
     #[serde(rename = "summary_text")]
     SummaryText,
+}
+
+/// HTTP Responses uses flat errors; the Codex backend also emits nested errors.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, gproxy_protocol_macros::DeclaredFields)]
+#[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum ResponseStreamError {
+    Flat(ResponseErrorEvent),
+    Nested(ResponseNestedErrorEvent),
+}
+
+impl<'de> Deserialize<'de> for ResponseStreamError {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        // A malformed nested error must not fall back to flat fields and lose
+        // the upstream failure as an unknown extension.
+        if value.get("error").is_some() {
+            serde_json::from_value(value).map(Self::Nested)
+        } else {
+            serde_json::from_value(value).map(Self::Flat)
+        }
+        .map_err(serde::de::Error::custom)
+    }
+}
+
+impl From<ResponseErrorEvent> for ResponseStreamError {
+    fn from(event: ResponseErrorEvent) -> Self {
+        Self::Flat(event)
+    }
+}
+
+impl ResponseStreamError {
+    pub fn sequence_number(&self) -> i64 {
+        match self {
+            Self::Flat(event) => event.sequence_number,
+            Self::Nested(event) => event.sequence_number,
+        }
+    }
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct ResponseNestedErrorEvent {
+    pub sequence_number: i64,
+    pub error: super::websocket::ErrorDetail,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
 }
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,

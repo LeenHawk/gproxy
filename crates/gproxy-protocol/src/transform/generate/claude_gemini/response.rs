@@ -166,6 +166,9 @@ pub fn gemini_to_claude_response(
     policy: &TargetIdPolicy,
 ) -> Result<Converted<c::GenerateContentResponseBody>, TransformError> {
     let input = input.into_declared();
+    if let Some(error) = input.error {
+        return Err(TransformError::upstream("response.error", error));
+    }
     // `Some([])` is as empty as `None`: an upstream may send either.
     let candidate = input
         .candidates

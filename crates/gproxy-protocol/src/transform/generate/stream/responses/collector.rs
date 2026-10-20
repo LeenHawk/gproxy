@@ -151,21 +151,7 @@ impl ResponsesStreamCollector {
                 ));
             }
             s::StreamEvent::Error(error) => {
-                return Err(TransformError::with_source(
-                    crate::transform::TransformErrorKind::InvalidResult,
-                    "responses.stream.error",
-                    format!(
-                        "{}{}: {}",
-                        error.code.as_deref().unwrap_or("error"),
-                        error
-                            .param
-                            .as_ref()
-                            .map(|p| format!(" ({p})"))
-                            .unwrap_or_default(),
-                        error.message
-                    ),
-                    crate::transform::UpstreamError(error),
-                ));
+                return Err(TransformError::upstream("responses.stream.error", error));
             }
             s::StreamEvent::OutputItemAdded(v) => {
                 if v.output_index != self.items.len() as i64 {

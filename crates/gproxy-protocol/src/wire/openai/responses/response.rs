@@ -205,11 +205,15 @@ pub struct ResponseError {
 
     pub code: ResponseErrorCode,
     pub message: String,
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub type_: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub param: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -254,6 +258,9 @@ pub enum ResponseErrorCode {
     FailedToDownloadImage,
     #[serde(rename = "image_file_not_found")]
     ImageFileNotFound,
+    /// Preserve backend-specific and future error codes verbatim.
+    #[serde(untagged)]
+    Other(String),
 }
 
 #[derive(

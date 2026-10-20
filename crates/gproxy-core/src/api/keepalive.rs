@@ -134,22 +134,18 @@ fn byte_stream(body: HttpBody) -> ByteStream {
 }
 
 fn error_event(dialect: Dialect, status: u16, message: &str) -> Bytes {
-    let upstream = serde_json::from_str::<serde_json::Value>(message).ok();
-    let detail = upstream
-        .as_ref()
-        .and_then(|v| v.pointer("/error/message"))
-        .and_then(|v| v.as_str())
-        .unwrap_or(message);
-    let value = match dialect {
-        Dialect::OpenAi => {
-            serde_json::json!({"type":"error", "code":"upstream_error", "message":detail, "param":null, "status":status})
-        }
-        Dialect::Claude => {
-            serde_json::json!({"type":"error", "error":{"type":"api_error", "message":detail}, "status":status})
-        }
-        _ => serde_json::json!({"error":{"type":"api_error", "message":detail, "code":status}}),
-    };
-    Bytes::from(format!("event: error\ndata: {value}\n\n"))
+    let detail = serde_json::from_str::<serde_json::Value>(message)
+        .ok()
+        .map(crate::convert::upstream_error::unwrap)
+        .filter(|detail| detail["message"].is_string())
+        .unwrap_or_else(|| serde_json::json!({"message": message}));
+    let value = crate::convert::upstream_error::event(&detail, status, dialect, 0)
+        .expect("SSE generation dialect");
+    if dialect == Dialect::OpenAiChat {
+        Bytes::from(format!("data: {value}\n\ndata: [DONE]\n\n"))
+    } else {
+        Bytes::from(format!("event: error\ndata: {value}\n\n"))
+    }
 }
 
 #[cfg(test)]
@@ -226,7 +222,7 @@ mod tests {
         let event = body.next().await.unwrap().unwrap();
         let text = std::str::from_utf8(&event).unwrap();
         assert!(text.starts_with("event: error\n"));
-        assert!(text.contains("over quota") && text.contains("429"));
+        assert!(text.contains("over quota") && text.contains("rate_limit_error"));
         assert!(body.next().await.is_none());
         assert!(matches!(
             usage.await,

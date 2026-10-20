@@ -346,7 +346,7 @@ async fn upstream_errors_reach_http_clients_and_close_without_upstream_eof() {
                 assert_eq!(detail["message"], message, "{source} -> {path}: {text}");
                 if client_dialect == "openai" && dialect != "openai" {
                     assert_eq!(error["type"], "error");
-                    assert_eq!(error["status"], 429);
+                    assert!(error.get("status").is_none());
                     assert_eq!(error["sequence_number"], events.len() - 1);
                 }
                 if client_dialect == "openai_chat" && dialect != "openai_chat" {

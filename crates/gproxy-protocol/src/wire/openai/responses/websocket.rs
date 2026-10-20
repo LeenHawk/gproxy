@@ -151,7 +151,8 @@ pub struct ServerMessage {
 pub struct ErrorMessage {
     #[serde(rename = "type")]
     pub type_: ErrorMessageType,
-    pub status: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<u16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stream_id: Option<String>,
     pub error: ErrorDetail,
@@ -174,6 +175,7 @@ pub enum ErrorMessageType {
     Debug,
     Clone,
     PartialEq,
+    Eq,
     serde::Serialize,
     serde::Deserialize,
     gproxy_protocol_macros::DeclaredFields,

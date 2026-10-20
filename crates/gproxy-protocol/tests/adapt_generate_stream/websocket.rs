@@ -283,7 +283,7 @@ fn ws_named_lane_errors_and_malformed_known_errors_are_explicit() {
         .unwrap();
     assert!(drain(&mut turn).is_err());
     let failure = turn.websocket_failure().unwrap();
-    assert_eq!(failure.status, 400);
+    assert_eq!(failure.status, Some(400));
     assert_eq!(failure.stream_id.as_deref(), Some("main"));
     assert_eq!(
         failure.error.code.as_deref(),

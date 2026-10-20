@@ -113,7 +113,12 @@ fn rest(e: &StreamEvent) -> &gproxy_protocol::Rest {
         StreamEvent::McpListToolsInProgress(x) => &x.rest,
         StreamEvent::McpListToolsCompleted(x) => &x.rest,
         StreamEvent::McpListToolsFailed(x) => &x.rest,
-        StreamEvent::Error(x) => &x.rest,
+        StreamEvent::Error(x) => match x {
+            ResponseStreamError::Flat(x) => &x.rest,
+            ResponseStreamError::Nested(x) => &x.rest,
+            #[cfg(not(feature = "exhaustive"))]
+            _ => panic!(),
+        },
         #[cfg(not(feature = "exhaustive"))]
         _ => panic!(),
     }
@@ -816,7 +821,11 @@ fn audio_minimal_shapes_and_builders_emit_native_wire_tags() {
     );
     let wire = serde_json::to_value(text).unwrap();
     assert_eq!(wire["logprobs"], json!([{"token":"x","logprob":0}]));
-    let err = StreamEvent::Error(ResponseErrorEvent::builder(None, "m".into(), None, 4).build());
+    let err = StreamEvent::Error(
+        ResponseErrorEvent::builder(None, "m".into(), None, 4)
+            .build()
+            .into(),
+    );
     assert_eq!(
         serde_json::to_value(err).unwrap(),
         json!({"type":"error","sequence_number":4,"code":null,"message":"m","param":null})

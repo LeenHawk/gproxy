@@ -1,4 +1,5 @@
 use super::*;
+use crate::convert::upstream_error;
 
 pub(in super::super) struct Failure {
     pub status: u16,
@@ -15,6 +16,11 @@ impl Failure {
     }
 
     pub fn core(error: CoreError) -> Self {
+        if let CoreError::Transform(error) = &error
+            && let Some(detail) = upstream_error::detail(error)
+        {
+            return Self::detail(upstream_error::status(&detail), detail);
+        }
         let status = match &error {
             CoreError::BudgetExhausted { .. } => 429,
             CoreError::Forbidden(_) => 403,
@@ -49,30 +55,18 @@ impl Failure {
     }
 
     pub fn event(event: &Value) -> Self {
-        let status = event["status"]
-            .as_u64()
-            .and_then(|value| u16::try_from(value).ok())
-            .unwrap_or(502);
-        let detail = event
-            .get("error")
-            .filter(|error| error.is_object())
-            .cloned()
-            .unwrap_or_else(|| {
-                let mut detail = event.clone();
-                if let Some(object) = detail.as_object_mut() {
-                    object.remove("type");
-                    object.remove("sequence_number");
-                    object.remove("stream_id");
-                }
-                detail
-            });
+        let detail = upstream_error::unwrap(event.clone());
+        let status = upstream_error::status(&detail);
         Self::detail(status, detail)
     }
 
     fn detail(status: u16, mut detail: Value) -> Self {
         let (kind, code) = match status {
             401 => ("authentication_error", "invalid_api_key"),
+            402 => ("billing_error", "billing_error"),
             403 => ("permission_error", "permission_denied"),
+            409 => ("conflict_error", "conflict_error"),
+            413 => ("request_too_large", "request_too_large"),
             429 => ("rate_limit_error", "rate_limit_exceeded"),
             400..=499 => ("invalid_request_error", "invalid_request"),
             _ => ("server_error", "server_error"),

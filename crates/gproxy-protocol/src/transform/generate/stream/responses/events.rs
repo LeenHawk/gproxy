@@ -56,6 +56,6 @@ pub(super) fn sequence(event: &s::StreamEvent) -> Option<i64> {
         s::StreamEvent::McpListToolsInProgress(v) => v.sequence_number,
         s::StreamEvent::McpListToolsCompleted(v) => v.sequence_number,
         s::StreamEvent::McpListToolsFailed(v) => v.sequence_number,
-        s::StreamEvent::Error(v) => v.sequence_number,
+        s::StreamEvent::Error(v) => v.sequence_number(),
     })
 }

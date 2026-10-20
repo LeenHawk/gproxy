@@ -77,6 +77,20 @@ impl TransformError {
         Self::new(TransformErrorKind::InvalidResult, context, detail)
     }
 
+    /// Retain a declared upstream error for HTTP and streaming renderers.
+    pub fn upstream<T>(context: impl Into<String>, payload: T) -> Self
+    where
+        T: fmt::Debug + serde::Serialize + Send + Sync + 'static,
+    {
+        let error = UpstreamError(payload);
+        Self::with_source(
+            TransformErrorKind::InvalidResult,
+            context,
+            error.to_string(),
+            error,
+        )
+    }
+
     pub fn missing_metadata(field: impl Into<String>) -> Self {
         Self::new(
             TransformErrorKind::MissingMetadata,

@@ -135,10 +135,7 @@ pub fn responses_to_chat_response(
     }
     let input = input.into_declared();
     if let Some(error) = input.error {
-        return Err(TransformError::invalid_result(
-            "response.error",
-            error.message,
-        ));
+        return Err(TransformError::upstream("response.error", error));
     }
     let completed = match input.status {
         Some(r::ResponseStatus::Completed) => true,

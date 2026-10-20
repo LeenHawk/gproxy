@@ -199,7 +199,7 @@ pub(crate) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'stat
 fn error_frame(status: u16, lane: Option<String>, message: String) -> WsFrame {
     let message = ErrorMessage {
         type_: ErrorMessageType::Error,
-        status,
+        status: Some(status),
         stream_id: lane,
         error: ErrorDetail {
             type_: Some("invalid_request_error".into()),

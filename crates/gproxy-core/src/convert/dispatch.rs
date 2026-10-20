@@ -7,7 +7,7 @@ use gproxy_seaorm::BatchConnectionTrait;
 pub(crate) async fn dispatch<C: BatchConnectionTrait + Send + Sync + 'static>(
     call: &Call<'_, C>,
 ) -> Result<Converted, TransformError> {
-    match call.client.operation {
+    let result = match call.client.operation {
         Operation::GenerateContent => super::generate::buffered(call).await,
         Operation::StreamGenerateContent => super::generate::streamed(call).await,
         Operation::ListModels | Operation::GetModel => super::models::run(call).await,
@@ -34,5 +34,26 @@ pub(crate) async fn dispatch<C: BatchConnectionTrait + Send + Sync + 'static>(
             "route",
             format!("{other:?} has no cross-dialect conversion; it is passthrough only"),
         )),
+    };
+    match result {
+        Err(error) => {
+            let Some(detail) = super::upstream_error::detail(&error) else {
+                return Err(error);
+            };
+            let status = super::upstream_error::status(&detail);
+            let Some(body) = super::upstream_error::body(&detail, status, call.client.dialect)
+            else {
+                return Err(error);
+            };
+            Ok(Converted::Rejected(gproxy_protocol::WireResponse {
+                status: http::StatusCode::from_u16(status).expect("error HTTP status"),
+                headers: http::HeaderMap::from_iter([(
+                    http::header::CONTENT_TYPE,
+                    http::HeaderValue::from_static("application/json"),
+                )]),
+                body: gproxy_protocol::HttpBody::Bytes(body.to_string().into()),
+            }))
+        }
+        result => result,
     }
 }

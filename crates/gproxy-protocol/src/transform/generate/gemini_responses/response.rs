@@ -29,6 +29,9 @@ pub fn gemini_to_responses_response(
         return Err(TransformError::shape("created_at", "negative timestamp"));
     }
     let input = input.into_declared();
+    if let Some(error) = input.error {
+        return Err(TransformError::upstream("response.error", error));
+    }
     // `Some([])` is as empty as `None`: an upstream may send either.
     let candidate = input
         .candidates
@@ -341,8 +344,8 @@ pub fn responses_to_gemini_response_with_modalities(
     modalities: Option<&[g::Modality]>,
 ) -> Result<Converted<g::GenerateContentResponseBody>, TransformError> {
     let input = input.into_declared();
-    if input.error.is_some() {
-        return Err(TransformError::invalid_result("error", "upstream error"));
+    if let Some(error) = input.error {
+        return Err(TransformError::upstream("response.error", error));
     }
     let completed = match input.status {
         Some(r::ResponseStatus::Completed) => true,

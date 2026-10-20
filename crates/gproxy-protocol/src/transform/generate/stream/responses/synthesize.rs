@@ -16,6 +16,9 @@ pub fn synthesize_responses_stream(
 ) -> Result<Converted<Vec<s::StreamEvent>>, TransformError> {
     let mut input = input.into_declared();
     bounded(&input, limits.max_bytes)?;
+    if let Some(error) = input.error {
+        return Err(TransformError::upstream("response.error", error));
+    }
     if !matches!(
         input.status,
         Some(r::ResponseStatus::Completed | r::ResponseStatus::Incomplete)

@@ -19,6 +19,7 @@ mod memory;
 mod models;
 pub(crate) mod responses_ws;
 pub(crate) mod stream_error;
+pub(crate) mod upstream_error;
 mod video;
 mod web_search;
 

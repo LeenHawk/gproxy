@@ -25,6 +25,9 @@ pub fn gemini_to_openai_response(
         ));
     }
     let input = input.into_declared();
+    if let Some(error) = input.error {
+        return Err(TransformError::upstream("response.error", error));
+    }
     let created = supplement
         .created_unix_seconds
         .ok_or_else(|| TransformError::missing_metadata("response.created"))?;
