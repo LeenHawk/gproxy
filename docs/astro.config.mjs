@@ -50,6 +50,10 @@ export default defineConfig({
     '/zh-cn/getting-started/installation': '/zh-cn/download/',
     '/zh-tw/getting-started/installation': '/zh-tw/download/',
     '/ru/getting-started/installation': '/ru/download/',
+    '/deployment/v2-postgres-to-v4': '/deployment/v2-to-v4/',
+    '/zh-cn/deployment/v2-postgres-to-v4': '/zh-cn/deployment/v2-to-v4/',
+    '/zh-tw/deployment/v2-postgres-to-v4': '/zh-tw/deployment/v2-to-v4/',
+    '/ru/deployment/v2-postgres-to-v4': '/ru/deployment/v2-to-v4/',
   },
   integrations: [
     starlight({
@@ -290,9 +294,9 @@ export default defineConfig({
               translations: { 'zh-CN': '从 v2 SQLite 迁移到 v3', 'zh-TW': '從 v2 SQLite 遷移到 v3', ru: 'Миграция SQLite с v2 на v3' },
             },
             {
-              label: 'Migrating v2 PostgreSQL to v4',
-              slug: 'deployment/v2-postgres-to-v4',
-              translations: { 'zh-CN': '从 v2 PostgreSQL 迁移到 v4', 'zh-TW': '從 v2 PostgreSQL 遷移到 v4', ru: 'Миграция PostgreSQL с v2 на v4' },
+              label: 'Migrating v2 to v4',
+              slug: 'deployment/v2-to-v4',
+              translations: { 'zh-CN': '从 v2 迁移到 v4', 'zh-TW': '從 v2 遷移到 v4', ru: 'Миграция с v2 на v4' },
             },
             {
               label: 'Migrating v3 to v4',

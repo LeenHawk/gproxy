@@ -10,7 +10,7 @@ description: 使用 v3.0.22 升級 v2 SQLite 資料庫，了解遷移範圍與�
 - 保存目前的 v2 執行檔與啟動設定。v2 自動更新會替換執行檔，不保留舊版；v3 資料庫遷移無法找回已被替換的程式。
 - 停止其他使用此資料庫的執行個體。原生入口會在存取資料庫前占用監聽連接埠，遷移還需要 SQLite 獨佔鎖。
 - 預留完整來源備份、遷移工作資料庫和獨立切換快照所需的磁碟空間。
-- 自動升級不支援 PostgreSQL、MySQL、遠端 libSQL、v1 資料庫或非標準 SQLite DSN。這些輸入需要先明確匯出、遷移。v2 PostgreSQL 到 v4 請使用[離線遷移工具](/zh-tw/deployment/v2-postgres-to-v4/)。
+- 自動升級不支援 PostgreSQL、MySQL、遠端 libSQL、v1 資料庫或非標準 SQLite DSN。這些輸入需要先明確匯出、遷移。直接遷移到 v4 可使用[離線遷移工具](/zh-tw/deployment/v2-to-v4/)。
 
 ## 啟動時的處理
 

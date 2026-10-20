@@ -10,7 +10,7 @@ description: 使用 v3.0.22 升级 v2 SQLite 数据库，了解迁移边界及�
 - 保存当前 v2 可执行文件及启动配置。v2 自更新会替换可执行文件，不保留旧版；v3 数据库迁移无法找回已被替换的程序。
 - 停止其他使用该数据库的实例。原生入口会在接触数据库前占用监听端口，迁移还需要 SQLite 独占锁。
 - 预留完整源库备份、迁移工作库和独立切换快照所需的磁盘空间。
-- 自动升级不支持 PostgreSQL、MySQL、远程 libSQL、v1 数据库或非标准 SQLite DSN。这些输入需要先显式导出、迁移。v2 PostgreSQL 到 v4 请使用[离线迁移工具](/zh-cn/deployment/v2-postgres-to-v4/)。
+- 自动升级不支持 PostgreSQL、MySQL、远程 libSQL、v1 数据库或非标准 SQLite DSN。这些输入需要先显式导出、迁移。直接迁移到 v4 可使用[离线迁移工具](/zh-cn/deployment/v2-to-v4/)。
 
 ## 启动时的处理
 
