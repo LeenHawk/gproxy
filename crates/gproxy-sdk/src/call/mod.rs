@@ -235,8 +235,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
             .for_operation(operation.operation)
             .max_request_body_bytes;
         let mut payload = Payload::buffer(body, cap).await;
-        if operation.operation == gproxy_protocol::Operation::CreateRealtimeCall
-            && options.model.is_none()
+        if matches!(
+            operation.operation,
+            gproxy_protocol::Operation::CreateRealtimeCall
+                | gproxy_protocol::Operation::CreateLiveSession
+                | gproxy_protocol::Operation::CreateRealtimeClientSecret
+        ) && options.model.is_none()
             && let Payload::Bytes(bytes) = &payload
         {
             let mut limits = snapshot.limits.codec();
@@ -445,9 +449,28 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ConnectBuilder<'_, C> {
             body: (),
         } = request;
         let snapshot = gproxy.core().snapshot();
-        let prepared = options
+        let mut prepared = options
             .prepare(gproxy, snapshot, operation, &headers, None)
             .await?;
+        if let Some(owned) = gproxy
+            .core()
+            .owned_resource_bindings(
+                &prepared.scope,
+                operation,
+                &path,
+                query.as_deref(),
+                &headers,
+                None,
+                prepared
+                    .plan
+                    .targets
+                    .iter()
+                    .map(|target| target.provider.entity.id.as_str()),
+            )
+            .await?
+        {
+            narrow_to_owned(&mut prepared.plan.targets, &owned);
+        }
         session::strip_gateway_header(&mut headers);
 
         let mut walk = Walk::new(prepared);
@@ -526,9 +549,12 @@ impl Options {
             SdkError::invalid("scope required: call scope() before send(), after admission")
         })?;
         let request_id = self.request_id.unwrap_or_else(random_id);
-        let model = self
-            .model
-            .or_else(|| body?.get("model")?.as_str().map(str::to_owned));
+        let model = self.model.or_else(|| {
+            if operation.operation == gproxy_protocol::Operation::CreateVoice {
+                return None;
+            }
+            body?.get("model")?.as_str().map(str::to_owned)
+        });
 
         // The explicit identity first, then the request's own, then the
         // request id — which is honestly labelled as not being a session.

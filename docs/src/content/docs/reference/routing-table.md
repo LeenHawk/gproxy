@@ -173,13 +173,30 @@ OAuth grant is a caller of its own) and the credential that served it.
 
 | Method | Path | Operation / dialect |
 | --- | --- | --- |
+| `POST` | `/v1/realtime/client_secrets` | `create_realtime_client_secret` / `openai` |
+| `POST` | `/v1/realtime/calls/{call_id}/hangup` | `hangup_realtime_call` / `openai` |
+| `POST` | `/v1/audio/voices` | `create_voice` / `openai` |
+| `POST` | `/v1/live/sessions` | `create_live_session` / `openai` |
+| `GET` | `/v1/live/sessions` | `connect_live` / `openai` — upgrade, model in `session.start` |
+| `GET` | `/v1/live/sessions/{session_id}/attach` | `connect_live` / `openai` — bound sideband |
+| `POST` | `/v1/live/sessions/{session_id}/hangup` | `hangup_live_session` / `openai` |
 | `POST` | `/v1/realtime/calls` | `create_realtime_call` / `openai` |
 | `POST` | `/v1/live` | `create_realtime_call` / `openai` |
 | `GET` | `/v1/realtime` | `connect_realtime` / `openai` — upgrade |
-| `GET` | `/v1/live` | the same, at the WebRTC spelling |
-| `GET` | `/v1/live/{call_id}` | the continuation with the call in the path |
+| `GET` | `/v1/live` | legacy GPT-Live/AVAS WebSocket |
+| `GET` | `/v1/live/{call_id}` | legacy Live sideband continuation |
 | `GET` | `/v1/responses` | `generate_content` / `openai_responses_websocket` |
 | `GET` | `/ws/v1beta/BidiGenerateContent` | `connect_realtime` / `gemini` — Gemini Live |
+
+Standard Realtime and GPT-Live use different protocols and account entitlements. The legacy
+`/v1/live` routes remain for compatibility. New Live routes and custom voice creation are
+OpenAI API Key capabilities; Codex supports standard Realtime, client secrets and explicit
+hangup. A 201 session bootstrap alone does not prove that the session can run.
+Client secrets are upstream bearer credentials for direct connections. Their bodies are
+never captured, and requests made directly upstream bypass gateway admission and metering.
+Explicit hangup and sidebands use the creating caller's scope and original credential.
+Their bound model is recovered before admission, including current model permission checks.
+
 
 Responses uses the same `/v1/responses` path for HTTP POST and WebSocket GET.
 Its handshake authenticates the caller; each `response.create` then supplies
@@ -219,8 +236,7 @@ was written. A session that runs for an hour holds its slot for that hour.
 ### Codex-only routes
 
 Private Codex operations require a provider mount using the Codex channel.
-For a provider named `codex`, use `POST /codex/v1/memories/trace_summarize`,
-`POST /codex/v1/guardian`, and `POST /codex/v1/guardian-classifier`.
+For a provider named `codex`, use `POST /codex/v1/memories/trace_summarize`.
 These use normal operation admission, model routing and settlement; the
 aggregate `/v1` surface does not expose them. Standard `/v1/moderations` uses
 its own `create_moderation` JSON contract.

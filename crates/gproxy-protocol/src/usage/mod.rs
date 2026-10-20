@@ -40,6 +40,7 @@
 mod claude;
 mod common;
 mod gemini;
+mod live;
 mod media;
 mod openai;
 mod output;
@@ -64,6 +65,7 @@ enum Reader {
     Responses,
     Gemini,
     Realtime,
+    Live,
     OpenAiEmbedding,
     GeminiEmbedding,
     Image,
@@ -104,6 +106,7 @@ fn reader(operation: Operation, dialect: Dialect) -> Option<Reader> {
         }
         Operation::Rerank if openai => Reader::Rerank,
         Operation::ConnectRealtime if openai => Reader::Realtime,
+        Operation::ConnectLive if openai => Reader::Live,
         _ => return None,
     })
 }
@@ -126,6 +129,7 @@ fn read(reader: Reader, body: &[u8]) -> Option<NormalizedUsage> {
     match reader {
         Reader::Claude => claude::whole(body),
         Reader::Chat | Reader::Responses | Reader::Realtime => openai::whole(body),
+        Reader::Live => None,
         Reader::Gemini => gemini::whole(body),
         Reader::OpenAiEmbedding => media::openai_embedding(body),
         Reader::GeminiEmbedding => gemini::embedding(body),
@@ -166,6 +170,7 @@ enum Watch {
     Claude(claude::Stream),
     Chat(openai::ChatStream),
     Responses(openai::ResponsesStream),
+    Live(live::LiveStream),
     Gemini(gemini::Stream),
     Transcription(media::TranscriptionStream),
 }
@@ -177,6 +182,7 @@ impl Watch {
             Self::Claude(stream) => stream.event(name, data),
             Self::Chat(stream) => stream.event(data),
             Self::Responses(stream) => stream.event(name, data),
+            Self::Live(stream) => stream.event(data),
             Self::Gemini(stream) => stream.event(data),
             Self::Transcription(stream) => stream.event(name, data),
         }
@@ -189,6 +195,7 @@ impl Watch {
             Self::Claude(stream) => stream.snapshot(),
             Self::Chat(stream) => stream.snapshot(),
             Self::Responses(stream) => stream.snapshot(),
+            Self::Live(stream) => stream.snapshot(),
             Self::Gemini(stream) => stream.reading(settled),
             Self::Transcription(stream) => stream.snapshot(),
         }
@@ -240,6 +247,7 @@ impl UsageReader {
             Reader::Responses => {
                 Watch::Responses(openai::ResponsesStream::new(openai::Mode::Single))
             }
+            Reader::Live => Watch::Live(live::LiveStream::default()),
             Reader::Realtime => {
                 Watch::Responses(openai::ResponsesStream::new(openai::Mode::Realtime))
             }
@@ -252,7 +260,7 @@ impl UsageReader {
             | Reader::CountTokens(_) => return None,
         };
         let framing = match (transport, &watch) {
-            (UsageTransport::WebSocket, Watch::Responses(_)) => Framing::Messages,
+            (UsageTransport::WebSocket, Watch::Responses(_) | Watch::Live(_)) => Framing::Messages,
             (UsageTransport::WebSocket, _) => return None,
             (
                 UsageTransport::Http {

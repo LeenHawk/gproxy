@@ -147,13 +147,26 @@ Gemini 把它写在路径里，这也是那个方言有两行的原因。
 
 | 方法 | 路径 | 操作 / 方言 |
 | --- | --- | --- |
+| `POST` | `/v1/realtime/client_secrets` | `create_realtime_client_secret` / `openai` |
+| `POST` | `/v1/realtime/calls/{call_id}/hangup` | `hangup_realtime_call` / `openai` |
+| `POST` | `/v1/audio/voices` | `create_voice` / `openai` |
+| `POST` | `/v1/live/sessions` | `create_live_session` / `openai` |
+| `GET` | `/v1/live/sessions` | `connect_live` / `openai`，模型来自 `session.start` |
+| `GET` | `/v1/live/sessions/{session_id}/attach` | `connect_live` / `openai`，绑定会话的控制连接 |
+| `POST` | `/v1/live/sessions/{session_id}/hangup` | `hangup_live_session` / `openai` |
 | `POST` | `/v1/realtime/calls` | `create_realtime_call` / `openai` |
 | `POST` | `/v1/live` | `create_realtime_call` / `openai` |
 | `GET` | `/v1/realtime` | `connect_realtime` / `openai`——升级 |
-| `GET` | `/v1/live` | 同上，WebRTC 写法 |
+| `GET` | `/v1/live` | 旧 GPT-Live/AVAS WebSocket |
 | `GET` | `/v1/live/{call_id}` | 把 call 放在路径里的续接 |
 | `GET` | `/v1/responses` | `generate_content` / `openai_responses_websocket` |
 | `GET` | `/ws/v1beta/BidiGenerateContent` | `connect_realtime` / `gemini`——Gemini Live |
+
+标准 Realtime 与 GPT-Live 的协议和账号权限不同。旧 `/v1/live` 保留兼容；新 Live 和
+自定义音色创建由 OpenAI API Key 渠道支持，Codex 渠道支持标准 Realtime、临时凭据与显式挂断。
+201 只表示接受创建请求，不代表会话可运行。临时凭据是可直连上游的 bearer token，接口正文
+不会被捕获；直连上游的后续请求不经过网关准入和计量。挂断及控制连接绑定原调用方与创建凭据，并恢复原模型重新检查当前权限。
+
 
 Responses 的 HTTP POST 与 WebSocket GET 共用 `/v1/responses`。握手先认证调用者，
 再由每条 `response.create` 中的模型完成权限、选路和生成限流。不同 `stream_id` 可以并发；
@@ -185,9 +198,8 @@ Realtime 套接字持有它的并发租约直到它**关闭**，而不是到 `10
 ### Codex 专有接口
 
 Codex 专有方法仅在使用 Codex 渠道的供应商挂载点下提供。假设供应商名为
-`codex`，可调用 `POST /codex/v1/memories/trace_summarize`、
-`POST /codex/v1/guardian` 和 `POST /codex/v1/guardian-classifier`。
-它们使用正常的操作准入、模型路由和结算流程；公共 `/v1` 不提供这三条路径。
+`codex`，可调用 `POST /codex/v1/memories/trace_summarize`。
+它们使用正常的操作准入、模型路由和结算流程；公共 `/v1` 不提供该专有路径。
 标准 `/v1/moderations` 使用独立的 `create_moderation` JSON 契约。
 
 账号服务也可在 `/codex/v1` 下调用，包括 `usage/thread_usage/query_v2`（POST）、

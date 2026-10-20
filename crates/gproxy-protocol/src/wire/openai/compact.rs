@@ -114,22 +114,22 @@ pub enum CompactObject {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientCompactRequestBody {
     pub model: String,
-    pub input: Vec<super::guardian::ClientResponseItem>,
+    pub input: Vec<super::codex::ClientResponseItem>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub instructions: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<serde_json::Value>,
     pub parallel_tool_calls: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reasoning: Option<super::guardian::Reasoning>,
+    pub reasoning: Option<super::codex::Reasoning>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_tier: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_cache_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub text: Option<super::guardian::ClientTextControls>,
+    pub text: Option<super::codex::ClientTextControls>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub access_programs: Option<super::guardian::AccessPrograms>,
+    pub access_programs: Option<super::codex::AccessPrograms>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -147,7 +147,7 @@ pub struct ClientCompactRequestBody {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientCompactResponseBody {
-    pub output: Vec<super::guardian::ClientResponseItem>,
+    pub output: Vec<super::codex::ClientResponseItem>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }

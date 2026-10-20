@@ -13,7 +13,6 @@ mod dispatch;
 mod embeddings;
 mod files;
 pub(crate) mod generate;
-mod guardian;
 mod images;
 mod memory;
 mod models;

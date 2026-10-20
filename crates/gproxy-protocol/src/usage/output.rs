@@ -76,7 +76,8 @@ pub(super) fn stream(dialect: Dialect, name: Option<&str>, value: &Value) -> u64
                 | "response.function_call_arguments.delta"
                 | "response.custom_tool_call_input.delta"
                 | "response.refusal.delta"
-                | "transcript.text.delta",
+                | "transcript.text.delta"
+                | "session.output_transcript.delta",
             ) => text(&value["delta"]),
             _ => 0,
         },

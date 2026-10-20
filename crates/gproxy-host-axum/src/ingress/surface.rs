@@ -153,10 +153,15 @@ surfaces! { table;
     // the *call id*, in the path or in `?call_id=`, which core looks up to pin
     // the socket to the credential the offer was answered by.
     //
-    // The three upgrade paths are the three `RealtimeRoute`s that
-    // `Core::connect_realtime_path` accepts, so this table is that guard: a
-    // path it does not declare never reaches the engine, and a test checks the
-    // two agree.
+    // Standard Realtime, legacy Live and public GPT-Live have distinct routes.
+    // RealtimeRoute also parses their call IDs for scope/credential binding.
+    POST "/v1/audio/voices" => CreateVoice / OpenAi;
+    POST "/v1/realtime/client_secrets" => CreateRealtimeClientSecret / OpenAi;
+    POST "/v1/realtime/calls/{call_id}/hangup" => HangupRealtimeCall / OpenAi;
+    POST "/v1/live/sessions" => CreateLiveSession / OpenAi;
+    GET "/v1/live/sessions" => ConnectLive / OpenAi, upgrade: true;
+    GET "/v1/live/sessions/{session_id}/attach" => ConnectLive / OpenAi, upgrade: true;
+    POST "/v1/live/sessions/{session_id}/hangup" => HangupLiveSession / OpenAi;
     POST "/v1/realtime/calls" => CreateRealtimeCall / OpenAi;
     POST "/v1/live" => CreateRealtimeCall / OpenAi;
     GET "/v1/realtime" => ConnectRealtime / OpenAi, upgrade: true;
@@ -170,8 +175,6 @@ surfaces! { table;
 // Standard OpenAI operations remain in `table`, including on that mount.
 surfaces! { codex_table;
     POST "/v1/memories/trace_summarize" => SummarizeMemory / OpenAi;
-    POST "/v1/guardian" => GuardianReview / OpenAi;
-    POST "/v1/guardian-classifier" => GuardianClassify / OpenAi;
 }
 
 /// Codex's native backend URLs and our scoped `/v1` spelling resolve to the

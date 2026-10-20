@@ -96,6 +96,7 @@ fn attach_attempts(usage: &mut NormalizedUsage, wire: &Value, model: &str, refus
             };
             let produced = normalized.tokens.output_tokens.is_some_and(|n| n > 0);
             usage.attempts.push(UsageAttempt {
+                operation: None,
                 model: item
                     .get("model")
                     .and_then(Value::as_str)
@@ -110,6 +111,7 @@ fn attach_attempts(usage: &mut NormalizedUsage, wire: &Value, model: &str, refus
     }
     if refused && !model.is_empty() {
         usage.attempts = vec![UsageAttempt {
+            operation: None,
             model: model.to_owned(),
             billable: usage.tokens.output_tokens.map(|n| n > 0),
             usage: Box::new(usage.clone()),

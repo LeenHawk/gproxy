@@ -178,10 +178,17 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         }
     };
 
-    if operation.operation == gproxy_protocol::Operation::ConnectRealtime {
+    if matches!(
+        operation.operation,
+        gproxy_protocol::Operation::ConnectRealtime | gproxy_protocol::Operation::ConnectLive
+    ) {
         funnel.set_realtime_dedup(crate::realtime::SettlementDedup::new(
             core.cache().clone(),
-            crate::realtime::call_id(&wire)?,
+            if operation.operation == gproxy_protocol::Operation::ConnectLive {
+                None
+            } else {
+                crate::realtime::call_id(&wire)?
+            },
         ));
     }
     let attempts = request.max_attempts.get();
@@ -408,6 +415,8 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     &request_rules,
                     limits.max_ws_frame_bytes,
                     session,
+                    (operation.operation == gproxy_protocol::Operation::ConnectLive)
+                        .then(|| core.cache().clone()),
                 );
                 // Client messages naming uploaded files must name the
                 // caller's own, on this socket's credential.
@@ -587,7 +596,7 @@ pub(crate) fn observe_generation_socket(
     max: u64,
 ) -> WebSocket {
     exchange.start_ws_usage();
-    let socket = observe_socket(exchange.clone(), socket, rules, max, None);
+    let socket = observe_socket(exchange.clone(), socket, rules, max, None, None);
     let incoming = futures_util::stream::unfold(
         (socket.incoming, exchange),
         |(mut incoming, exchange)| async move {
@@ -615,6 +624,7 @@ fn observe_socket(
     request_rules: &SelectedRules,
     max_frame_bytes: u64,
     session: Option<crate::ResponsesSession>,
+    cache: Option<Arc<dyn gproxy_cache::Cache>>,
 ) -> WebSocket {
     let response_rules = exchange.response_rules.clone();
     let cancellation = exchange.context.attempt.request.cancellation.clone();
@@ -625,6 +635,7 @@ fn observe_socket(
         max: u64,
         cancellation: tokio_util::sync::CancellationToken,
         session: SessionGuard,
+        cache: Option<Arc<dyn gproxy_cache::Cache>>,
     }
     let incoming = futures_util::stream::unfold(
         Incoming {
@@ -634,6 +645,7 @@ fn observe_socket(
             max: max_frame_bytes,
             cancellation,
             session: SessionGuard(session.clone()),
+            cache,
         },
         |mut state| async move {
             let inner = state.inner.as_mut()?;
@@ -688,6 +700,20 @@ fn observe_socket(
                             Err(transport_error("frame exceeds the frame limit")),
                             state,
                         ));
+                    }
+                    if let Some(cache) = &state.cache {
+                        let attempt = &state.guard.0.context.attempt;
+                        if let Err(error) = crate::realtime::remember_live_socket(
+                            cache.as_ref(),
+                            &attempt.request,
+                            &attempt.credential.id,
+                            &frame,
+                        )
+                        .await
+                        {
+                            state.inner = None;
+                            return Some((Err(transport_error(&error.to_string())), state));
+                        }
                     }
                     if state.guard.0.wants_full_capture() {
                         let turn_id = state.session.0.as_ref().and_then(|s| s.capture_id());
@@ -775,10 +801,29 @@ impl Sink<WsFrame> for ObservedSink {
                 .upstream_model
                 .as_deref(),
         ) && let Ok(mut value) = serde_json::from_str::<serde_json::Value>(text)
-            && value.get("type").and_then(serde_json::Value::as_str) == Some("response.create")
         {
-            value["model"] = serde_json::Value::String(model.into());
-            *text = value.to_string();
+            match value.get("type").and_then(serde_json::Value::as_str) {
+                Some("response.create")
+                    if self.exchange.context.operation.operation
+                        != gproxy_protocol::Operation::ConnectLive =>
+                {
+                    value["model"] = serde_json::Value::String(model.into());
+                    *text = value.to_string();
+                }
+                Some("session.start")
+                    if self.exchange.context.operation.operation
+                        == gproxy_protocol::Operation::ConnectLive =>
+                {
+                    if let Some(session) = value
+                        .get_mut("session")
+                        .and_then(serde_json::Value::as_object_mut)
+                    {
+                        session.insert("model".into(), serde_json::Value::String(model.into()));
+                        *text = value.to_string();
+                    }
+                }
+                _ => {}
+            }
         }
         if super::thinking::enabled(
             &self

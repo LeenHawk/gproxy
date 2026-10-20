@@ -69,6 +69,7 @@ impl UsageExtras for OpenRouter {
         }
         if let Some(model) = usage.dimensions.get("serving_model").cloned() {
             usage.attempts = vec![UsageAttempt {
+                operation: None,
                 model,
                 usage: Box::new(usage.clone()),
                 billable: None,

@@ -373,20 +373,44 @@ pub trait BaseChannel: Send + Sync {
         operations::http(self, Operation::CreateDecision, context)
     }
 
-    /// Review content for safety.
-    fn guardian_review<'a>(
+    /// Invoke the native CreateVoice endpoint.
+    fn create_voice<'a>(
         &'a self,
         context: OperationContext<'a>,
     ) -> OperationFuture<'a, WireResponse<HttpBody>> {
-        operations::http(self, Operation::GuardianReview, context)
+        operations::http(self, Operation::CreateVoice, context)
     }
 
-    /// Classify content using the native guardian operation.
-    fn guardian_classify<'a>(
+    /// Invoke the native CreateRealtimeClientSecret endpoint.
+    fn create_realtime_client_secret<'a>(
         &'a self,
         context: OperationContext<'a>,
     ) -> OperationFuture<'a, WireResponse<HttpBody>> {
-        operations::http(self, Operation::GuardianClassify, context)
+        operations::http(self, Operation::CreateRealtimeClientSecret, context)
+    }
+
+    /// Invoke the native HangupRealtimeCall endpoint.
+    fn hangup_realtime_call<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        operations::http(self, Operation::HangupRealtimeCall, context)
+    }
+
+    /// Invoke the native CreateLiveSession endpoint.
+    fn create_live_session<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        operations::http(self, Operation::CreateLiveSession, context)
+    }
+
+    /// Invoke the native HangupLiveSession endpoint.
+    fn hangup_live_session<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        operations::http(self, Operation::HangupLiveSession, context)
     }
 
     /// Compact an existing context.
@@ -572,6 +596,14 @@ pub trait BaseChannel: Send + Sync {
         context: OperationContext<'a>,
     ) -> OperationFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateRealtimeCall, context)
+    }
+
+    /// Connect a native GPT-Live primary or sideband socket.
+    fn connect_live<'a>(
+        &'a self,
+        context: OperationContext<'a, ()>,
+    ) -> OperationFuture<'a, UpstreamConnection> {
+        operations::websocket(self, Operation::ConnectLive, context)
     }
 
     /// Connect a duplex Realtime session.

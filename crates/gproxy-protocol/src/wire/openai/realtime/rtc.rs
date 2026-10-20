@@ -126,6 +126,10 @@ pub enum RealtimeRoute<'a> {
     CreateLiveCall,
     Connect,
     Live { call_id: Option<&'a str> },
+    HangupCall { call_id: &'a str },
+    CreateLiveSession,
+    LiveSession { session_id: Option<&'a str> },
+    HangupLiveSession { session_id: &'a str },
 }
 impl<'a> RealtimeRoute<'a> {
     /// `/live` serves HTTP setup and a WebSocket; the method disambiguates it.
@@ -134,7 +138,15 @@ impl<'a> RealtimeRoute<'a> {
         match (method, route) {
             (&http::Method::POST, Self::Live { call_id: None }) => Some(Self::CreateLiveCall),
             (&http::Method::POST, Self::CreateCall) => Some(route),
-            (&http::Method::GET, Self::Connect | Self::Live { .. }) => Some(route),
+            (&http::Method::POST, Self::LiveSession { session_id: None }) => {
+                Some(Self::CreateLiveSession)
+            }
+            (&http::Method::POST, Self::HangupCall { .. } | Self::HangupLiveSession { .. }) => {
+                Some(route)
+            }
+            (&http::Method::GET, Self::Connect | Self::Live { .. } | Self::LiveSession { .. }) => {
+                Some(route)
+            }
             _ => None,
         }
     }
@@ -147,6 +159,17 @@ impl<'a> RealtimeRoute<'a> {
             "realtime/calls" => Some(Self::CreateCall),
             "realtime" => Some(Self::Connect),
             "live" => Some(Self::Live { call_id: None }),
+            "live/sessions" => Some(Self::LiveSession { session_id: None }),
+            _ if path.starts_with("realtime/calls/") => segment(path, "realtime/calls/", "/hangup")
+                .map(|call_id| Self::HangupCall { call_id }),
+            _ if path.starts_with("live/sessions/") => segment(path, "live/sessions/", "/attach")
+                .map(|session_id| Self::LiveSession {
+                    session_id: Some(session_id),
+                })
+                .or_else(|| {
+                    segment(path, "live/sessions/", "/hangup")
+                        .map(|session_id| Self::HangupLiveSession { session_id })
+                }),
             _ => path
                 .strip_prefix("live/")
                 .filter(|id| !id.is_empty() && !id.contains('/') && !matches!(*id, "." | ".."))
@@ -157,9 +180,19 @@ impl<'a> RealtimeRoute<'a> {
         crate::OperationKey {
             operation: match self {
                 Self::CreateCall | Self::CreateLiveCall => crate::Operation::CreateRealtimeCall,
+                Self::HangupCall { .. } => crate::Operation::HangupRealtimeCall,
+                Self::CreateLiveSession => crate::Operation::CreateLiveSession,
+                Self::LiveSession { .. } => crate::Operation::ConnectLive,
+                Self::HangupLiveSession { .. } => crate::Operation::HangupLiveSession,
                 _ => crate::Operation::ConnectRealtime,
             },
             dialect: crate::Dialect::OpenAi,
         }
     }
+}
+
+fn segment<'a>(path: &'a str, prefix: &str, suffix: &str) -> Option<&'a str> {
+    path.strip_prefix(prefix)?
+        .strip_suffix(suffix)
+        .filter(|id| !id.is_empty() && !id.contains('/') && !matches!(*id, "." | ".."))
 }

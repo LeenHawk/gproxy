@@ -555,6 +555,12 @@
     "create_speech": "语音合成",
     "create_transcription": "语音转写",
     "create_translation": "语音翻译",
+    "create_voice": "创建自定义音色",
+    "create_realtime_client_secret": "创建 Realtime 临时凭据",
+    "hangup_realtime_call": "挂断 Realtime 通话",
+    "create_live_session": "创建 Live 会话",
+    "hangup_live_session": "挂断 Live 会话",
+    "connect_live": "连接 Live",
     "create_realtime_call": "创建实时通话",
     "create_video": "创建视频",
     "retrieve_video": "获取视频",
@@ -567,8 +573,6 @@
     "retrieve_file_content": "获取文件内容",
     "delete_file": "删除文件",
     "connect_realtime": "连接实时会话",
-    "guardian_review": "内容审核",
-    "guardian_classify": "内容分类",
     "create_conversation": "创建会话"
   },
   "clientProfile": {

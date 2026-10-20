@@ -10,7 +10,8 @@ use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelServices,
     ChannelState, ConfigKey, ConfigKeyKind, CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist,
     LoginMode, OAuthAuthorizationCode, OAuthDeviceCode, OperationContext, OperationFuture,
-    PrepareContext, ProviderView, QuotaReset, QuotaHeaders, QuotaModel, QuotaQuery, };
+    PrepareContext, ProviderView, QuotaHeaders, QuotaModel, QuotaQuery, QuotaReset,
+};
 use crate::channels::shared::cache;
 use crate::channels::shared::services_common::unix_now_ms;
 use gproxy_client::ConnectionConfig;
@@ -30,8 +31,6 @@ fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
         Operation::CreateImage => "/images/generations",
         Operation::EditImage => "/images/edits",
         Operation::SummarizeMemory => "/memories/trace_summarize",
-        Operation::GuardianReview => "/guardian",
-        Operation::GuardianClassify => "/guardian-classifier",
         Operation::CreateRealtimeCall => "/realtime/calls",
         Operation::WebSearch => "/alpha/search",
         other => {
@@ -415,6 +414,22 @@ impl Codex {
         let mut request = ctx.request;
         let url = match ctx.endpoint_override {
             Some(url) => url.to_owned(),
+            None if ctx.operation.operation == Operation::CreateRealtimeClientSecret => {
+                "https://api.openai.com/v1/realtime/client_secrets".to_owned()
+            }
+            None if ctx.operation.operation == Operation::HangupRealtimeCall => {
+                let route = gproxy_protocol::wire::openai::realtime::RealtimeRoute::from_request(
+                    &request.method,
+                    &request.path,
+                );
+                let Some(gproxy_protocol::wire::openai::realtime::RealtimeRoute::HangupCall {
+                    call_id,
+                }) = route
+                else {
+                    return Err(invalid_config("invalid realtime hangup path"));
+                };
+                format!("https://api.openai.com/v1/realtime/calls/{call_id}/hangup")
+            }
             None => {
                 let (base, _) = base_urls(ctx.provider);
                 let path = if ctx.operation.operation == Operation::CreateRealtimeCall {
@@ -550,8 +565,8 @@ impl BaseChannel for Codex {
             | Operation::GetModel
             | Operation::CompactContent
             | Operation::SummarizeMemory
-            | Operation::GuardianReview
-            | Operation::GuardianClassify
+            | Operation::CreateRealtimeClientSecret
+            | Operation::HangupRealtimeCall
             | Operation::CreateRealtimeCall
             | Operation::ConnectRealtime
             | Operation::WebSearch

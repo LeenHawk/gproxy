@@ -36,6 +36,7 @@ pub fn openapi() -> Value {
             let mut request = Map::new();
             let mut response = Map::new();
             let mut websocket = None;
+            let mut empty_response = false;
             let mut parameters = operation["parameters"]
                 .as_array()
                 .cloned()
@@ -46,6 +47,7 @@ pub fn openapi() -> Value {
                 }))
                 .unwrap();
                 let shape = protocol::payloads(&mut api.schemas, key, path);
+                empty_response |= shape.empty_response;
                 route["requestContent"] = json!(shape.request);
                 route["responseContent"] = json!(shape.response);
                 if let Some(messages) = shape.websocket {
@@ -77,6 +79,9 @@ pub fn openapi() -> Value {
             if !response.is_empty() {
                 operation["responses"]["2XX"] =
                     json!({"description":"Successful protocol response", "content":response});
+            } else if empty_response {
+                operation["responses"]["2XX"] =
+                    json!({"description":"Successful response without a body"});
             }
             operation["parameters"] = json!(parameters);
             operation["responses"]["default"] = protocol::error_response(&mut api.schemas);

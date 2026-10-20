@@ -329,7 +329,7 @@ fn all_preflight_checks_happen_before_first_call_and_empty_batch_has_no_side_eff
 #[test]
 fn reasoning_is_typed_and_unrepresentable_effort_is_not_silently_lowered() {
     use gproxy_protocol::transform::memory as mapping;
-    let reasoning: gproxy_protocol::openai::guardian::Reasoning =
+    let reasoning: gproxy_protocol::openai::codex::Reasoning =
         serde_json::from_value(json!({"effort":"high","foreign":{"summary":"detailed"}})).unwrap();
     let mapping::MemoryDialectRequest::Claude(request) =
         mapping::build_claude("trace".into(), "claude".into(), 128, Some(&reasoning)).unwrap()
@@ -340,7 +340,7 @@ fn reasoning_is_typed_and_unrepresentable_effort_is_not_silently_lowered() {
         request.body.output_config.unwrap().effort,
         Some(gproxy_protocol::claude::count_tokens::Effort::High)
     );
-    let reasoning: gproxy_protocol::openai::guardian::Reasoning =
+    let reasoning: gproxy_protocol::openai::codex::Reasoning =
         serde_json::from_value(json!({"effort":"none"})).unwrap();
     let mapping::MemoryDialectRequest::Gemini(request) = mapping::build_gemini(
         "trace".into(),
@@ -362,7 +362,7 @@ fn reasoning_is_typed_and_unrepresentable_effort_is_not_silently_lowered() {
             .thinking_budget,
         Some(0)
     );
-    let reasoning: gproxy_protocol::openai::guardian::Reasoning =
+    let reasoning: gproxy_protocol::openai::codex::Reasoning =
         serde_json::from_value(json!({"effort":"xhigh"})).unwrap();
     assert!(mapping::build_gemini("trace".into(), "model".into(), 128, Some(&reasoning)).is_ok());
     assert!(mapping::build_gemini("trace".into(), "model?key=x".into(), 128, None).is_err());

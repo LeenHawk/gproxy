@@ -4,8 +4,8 @@ use crate::{
     wire::{
         DeclaredFields,
         openai::{
+            codex::{self as client, ClientResponseItem as Item},
             compact::ClientCompactRequestBody,
-            guardian::{self as client, ClientResponseItem as Item},
         },
     },
 };

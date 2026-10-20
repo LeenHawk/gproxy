@@ -15,7 +15,6 @@ pub(crate) async fn dispatch<C: BatchConnectionTrait + Send + Sync + 'static>(
         Operation::CreateEmbedding | Operation::BatchCreateEmbedding => {
             super::embeddings::run(call).await
         }
-        Operation::GuardianReview | Operation::GuardianClassify => super::guardian::run(call).await,
         Operation::CompactContent => super::compact::run(call).await,
         Operation::SummarizeMemory => super::memory::run(call).await,
         Operation::WebSearch => Box::pin(super::web_search::run(call)).await,

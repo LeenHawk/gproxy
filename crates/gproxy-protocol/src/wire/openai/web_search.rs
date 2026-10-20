@@ -1,5 +1,5 @@
 //! Native Codex /search DTOs; source codex-api/src/search.rs and endpoint/search.rs.
-use super::guardian::Reasoning;
+use super::codex::Reasoning;
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, PartialEq, Deserialize, gproxy_protocol_macros::WireBuilder)]
@@ -30,7 +30,7 @@ pub struct WebSearchRequestBody {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum SearchInput {
     Text(String),
-    Items(Vec<super::guardian::ClientResponseItem>),
+    Items(Vec<super::codex::ClientResponseItem>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, gproxy_protocol_macros::WireBuilder)]

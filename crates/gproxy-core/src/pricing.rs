@@ -348,8 +348,17 @@ impl PriceBook {
                 continue;
             }
             let rule = self
-                .find(provider_id, &attempt.model, operation)
-                .or_else(|| self.find(provider_id, model?, operation))?;
+                .find(
+                    provider_id,
+                    &attempt.model,
+                    attempt.operation.unwrap_or(operation),
+                )
+                .or_else(|| {
+                    if attempt.operation.is_some() {
+                        return None;
+                    }
+                    self.find(provider_id, model?, operation)
+                })?;
             let amount = rule.cost(&attempt.usage);
             match &mut total {
                 Some(cost) if cost.currency == rule.currency => {
@@ -846,12 +855,14 @@ mod tests {
         let mut aggregate = usage(0, 5_000_000);
         aggregate.attempts = vec![
             UsageAttempt {
+                operation: None,
                 model: "o3".into(),
                 usage: Box::new(usage(0, 1_000_000)),
                 billable: None,
                 started_at_ms: None,
             },
             UsageAttempt {
+                operation: None,
                 model: "o3".into(),
                 usage: Box::new(usage(0, 1_000_000)),
                 billable: Some(false),

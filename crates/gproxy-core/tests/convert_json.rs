@@ -1,7 +1,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 //! Buffered JSON conversion families over the attempt loop: embeddings,
-//! guardian, compaction and memory summarisation. Each test drives a client
+//! compaction and memory summarisation. Each test drives a client
 //! dialect into a provider whose only native dialect differs, then checks the
 //! native call that went out and the client-dialect body that came back.
 
@@ -98,8 +98,6 @@ async fn send(
     match ctx.operation.operation {
         Operation::CreateEmbedding => h.core.create_embedding(ctx, request).await,
         Operation::BatchCreateEmbedding => h.core.batch_create_embedding(ctx, request).await,
-        Operation::GuardianReview => h.core.guardian_review(ctx, request).await,
-        Operation::GuardianClassify => h.core.guardian_classify(ctx, request).await,
         Operation::CompactContent => h.core.compact_content(ctx, request).await,
         Operation::SummarizeMemory => h.core.summarize_memory(ctx, request).await,
         Operation::WebSearch => h.core.web_search(ctx, request).await,
@@ -382,131 +380,6 @@ async fn rejected_embedding_call_returns_the_native_rejection_and_claude_is_unsu
         format!("{error:?}").contains("CreateEmbedding"),
         "{error:?}"
     );
-}
-
-fn guardian_request(stream: bool) -> Value {
-    json!({
-        "model":"guardian-client", "instructions":"Assess the action.",
-        "input":[
-            {"type":"message","id":"msg-1","role":"user","content":[{"type":"input_text","text":"hello"}]},
-            {"type":"function_call","id":"item-1","name":"exec_command","arguments":"{\"command\":\"echo hi\"}","call_id":"call-1"}
-        ],
-        "tools":[{"type":"function","name":"exec_command"}], "tool_choice":"none",
-        "parallel_tool_calls":false, "reasoning":null, "store":false, "stream":stream, "include":[]
-    })
-}
-
-#[tokio::test]
-async fn guardian_review_is_generated_on_claude_and_answered_as_a_completed_response() {
-    let h = harness(full(), "round_robin").await;
-    let verdict = json!({"risk_level":"high","user_authorization":"low","outcome":"deny","rationale":"The action is high risk."});
-    h.script(vec![json_reply(
-        StatusCode::OK,
-        json!({
-            "type":"message","id":"m","role":"assistant","model":"gpt-x",
-            "content":[{"type":"text","text":verdict.to_string()}],
-            "stop_reason":"end_turn","stop_sequence":null,
-            "usage":{"input_tokens":9,"output_tokens":4}
-        }),
-    )]);
-    let (status, body, state) = run(
-        &h,
-        "claude",
-        key(Operation::GuardianReview, Dialect::OpenAi),
-        wire("/v1/guardian", guardian_request(false)),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(state, UsageState::Completed);
-    assert_eq!(body["object"], "response");
-    assert_eq!(body["status"], "completed");
-    assert_eq!(body["model"], "guardian-client");
-    assert_eq!(body["output"][0]["type"], "message");
-    assert_eq!(body["output"][0]["status"], "completed");
-    let text = body["output"][0]["content"][0]["text"].as_str().unwrap();
-    let parsed: Value = serde_json::from_str(text).unwrap();
-    assert_eq!(parsed["outcome"], "deny");
-    assert_eq!(parsed["risk_level"], "high");
-    assert_eq!(body["output_text"], text);
-    let seen = h.client.seen.lines();
-    assert_eq!(seen.len(), 1);
-    assert!(
-        seen[0].starts_with("POST https://claude.example/v1/messages auth=Bearer k1"),
-        "{}",
-        seen[0]
-    );
-    let sent = sent_body(&h, 0);
-    assert_eq!(sent["model"], "gpt-x");
-    assert!(sent.to_string().contains("exec_command"));
-}
-
-#[tokio::test]
-async fn guardian_classify_is_generated_on_gemini_and_streams_are_refused() {
-    let h = harness(full(), "round_robin").await;
-    seed_provider(&h, "gem", "gemini").await;
-    h.script(vec![json_reply(
-        StatusCode::OK,
-        json!({"candidates":[{"content":{"role":"model","parts":[{"text":"low"}]},"finishReason":"STOP"}]}),
-    )]);
-    let (status, body, _) = run(
-        &h,
-        "gem",
-        key(Operation::GuardianClassify, Dialect::OpenAi),
-        wire("/v1/guardian-classifier", guardian_request(false)),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["output"][0]["content"][0]["text"], "low");
-    assert!(
-        h.client.seen.lines()[0]
-            .starts_with("POST https://gem.example/v1beta/models/gpt-x:generateContent"),
-        "{}",
-        h.client.seen.lines()[0]
-    );
-
-    let ctx = h.context_for(
-        "gem",
-        key(Operation::GuardianClassify, Dialect::OpenAi),
-        "r2",
-        1,
-        None,
-    );
-    let error = send(
-        &h,
-        ctx,
-        wire("/v1/guardian-classifier", guardian_request(true)),
-    )
-    .await
-    .expect_err("streamed guardian is not converted");
-    assert!(
-        format!("{error:?}").contains("guardian.stream"),
-        "{error:?}"
-    );
-    assert_eq!(
-        h.client.seen.lines().len(),
-        1,
-        "no native call for a refused stream"
-    );
-}
-
-#[tokio::test]
-async fn guardian_rejection_is_returned_verbatim() {
-    let h = harness(full(), "round_robin").await;
-    h.script(vec![(
-        StatusCode::TOO_MANY_REQUESTS,
-        vec![("content-type", "application/json")],
-        vec![b"{\"error\":\"slow down\"}".as_slice().into()],
-    )]);
-    let (status, body, _) = run(
-        &h,
-        "claude",
-        key(Operation::GuardianReview, Dialect::OpenAi),
-        wire("/v1/guardian", guardian_request(false)),
-    )
-    .await;
-    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
-    assert_eq!(body["error"], "slow down");
-    assert_eq!(h.client.seen.lines().len(), 1);
 }
 
 #[tokio::test]

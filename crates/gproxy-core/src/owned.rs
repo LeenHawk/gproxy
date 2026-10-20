@@ -39,7 +39,7 @@
 //!
 //! # The rules
 //!
-//! * **Create** (`CreateFile`, `CreateVideo`): after a successful answer the
+//! * **Create** (`CreateFile`, `CreateVideo`, `CreateVoice`): after a successful answer the
 //!   id is read from the client-dialect response and a row is written for the
 //!   request's scope on the credential that served it.
 //! * **Read and delete** (`RetrieveFile`, `RetrieveFileContent`, `DeleteFile`,
@@ -128,12 +128,14 @@ use std::{
 pub const FILE_KIND: &str = "upstream_file";
 /// `resource_bindings.kind` of an upstream video job owned through the gateway.
 pub const VIDEO_KIND: &str = "upstream_video";
+pub const VOICE_KIND: &str = "upstream_voice";
 
-/// The two resource families the registry covers.
+/// The upstream resource families the registry covers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OwnedKind {
     File,
     Video,
+    Voice,
 }
 
 impl OwnedKind {
@@ -142,6 +144,7 @@ impl OwnedKind {
         match self {
             Self::File => FILE_KIND,
             Self::Video => VIDEO_KIND,
+            Self::Voice => VOICE_KIND,
         }
     }
 
@@ -150,6 +153,7 @@ impl OwnedKind {
         match self {
             Self::File => "file",
             Self::Video => "video",
+            Self::Voice => "voice",
         }
     }
 
@@ -158,6 +162,7 @@ impl OwnedKind {
         match self {
             Self::File => "files",
             Self::Video => "videos",
+            Self::Voice => "voices",
         }
     }
 }
@@ -176,9 +181,10 @@ impl OwnedAccess {
     /// The access an operation performs, or `None` for one the registry does
     /// not govern.
     pub const fn of(operation: Operation) -> Option<Self> {
-        use OwnedKind::{File, Video};
+        use OwnedKind::{File, Video, Voice};
         Some(match operation {
             Operation::CreateFile => Self::Create(File),
+            Operation::CreateVoice => Self::Create(Voice),
             Operation::RetrieveFile | Operation::RetrieveFileContent => Self::Read(File),
             Operation::DeleteFile => Self::Delete(File),
             Operation::ListFiles => Self::List(File),
@@ -241,6 +247,7 @@ fn object_id(kind: OwnedKind, object: &Value) -> Option<String> {
     let field = |name: &str| object.get(name).and_then(Value::as_str);
     let id = match kind {
         OwnedKind::File => field("id").or_else(|| field("name")),
+        OwnedKind::Voice => field("id"),
         OwnedKind::Video => field("id")
             .or_else(|| field("request_id"))
             .or_else(|| field("task_id")),
@@ -303,7 +310,6 @@ pub const fn scans_references(operation: Operation) -> bool {
         operation,
         Operation::ListModels
             | Operation::GetModel
-            | Operation::CreateSpeech
             | Operation::CreateTranscription
             | Operation::CreateTranslation
             | Operation::CreateFile
@@ -315,7 +321,6 @@ pub const fn scans_references(operation: Operation) -> bool {
             | Operation::ListVideos
             | Operation::DeleteVideo
             | Operation::DownloadVideoContent
-            | Operation::CreateRealtimeCall
             | Operation::ConnectRealtime
     )
 }
@@ -697,6 +702,12 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         providers: impl IntoIterator<Item = &'p str>,
     ) -> CoreResult<Option<BTreeMap<String, Option<String>>>> {
         let providers: Vec<&str> = providers.into_iter().collect();
+        if let Some(bindings) = self
+            .realtime_bindings(scope, operation.operation, path, query, &providers)
+            .await?
+        {
+            return Ok(Some(bindings));
+        }
         if upload::session_token(operation, query).is_some() {
             return Ok(Some(
                 self.upload_session_target(scope, operation, query)
@@ -707,8 +718,21 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                     .collect(),
             ));
         }
-        if let Some(kind) = OwnedAccess::of(operation.operation).and_then(OwnedAccess::addressed) {
-            let id = path_id(kind, path)?;
+        let addressed = if let Some(kind) =
+            OwnedAccess::of(operation.operation).and_then(OwnedAccess::addressed)
+        {
+            Some((kind, path_id(kind, path)?))
+        } else {
+            request_voice(
+                operation.operation,
+                headers,
+                body.unwrap_or_default(),
+                scan_limits(&self.snapshot().limits.for_operation(operation.operation)),
+            )
+            .await?
+            .map(|id| (OwnedKind::Voice, id))
+        };
+        if let Some((kind, id)) = addressed {
             let columns: Vec<String> = providers
                 .iter()
                 .map(|provider| scope_column(scope, provider))
@@ -792,6 +816,27 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                 .limits
                 .for_operation(context.operation.operation),
         );
+        let context = if let Some(id) =
+            request_voice(context.operation.operation, headers, body, limits).await?
+        {
+            let credential_id = voice_credential_in(
+                self.store(),
+                &context.scope,
+                &context.target.provider.entity.id,
+                &id,
+            )
+            .await?;
+            let credential = context
+                .target
+                .credentials
+                .iter()
+                .find(|c| c.id == credential_id)
+                .cloned()
+                .ok_or_else(|| CoreError::ResourceNotFound { kind: "voice", id })?;
+            pin(context, credential)
+        } else {
+            context
+        };
         let ids = request_references(context.operation, headers, body, limits).await?;
         if ids.is_empty() {
             return Ok(context);
@@ -1399,4 +1444,65 @@ mod tests {
         assert!(filter_list(OwnedKind::Video, Dialect::OpenAi, b"[]", &owned).is_err());
         assert!(filter_list(OwnedKind::Video, Dialect::OpenAi, b"nope", &owned).is_err());
     }
+}
+
+/// Custom voice identifiers occur in audio settings, never in user text/schema data.
+pub(crate) fn voice_reference(value: &Value) -> Option<&str> {
+    [
+        "/session/audio/output/voice/id",
+        "/audio/output/voice/id",
+        "/voice/id",
+    ]
+    .into_iter()
+    .find_map(|path| value.pointer(path).and_then(Value::as_str))
+    .filter(|id| !id.is_empty())
+}
+
+pub(crate) async fn voice_credential_in<C: BatchConnectionTrait + Send + Sync>(
+    store: &gproxy_store::Store<C>,
+    scope: &str,
+    provider: &str,
+    id: &str,
+) -> CoreResult<String> {
+    let query = resource_binding::Entity::find()
+        .filter(resource_binding::Column::Scope.eq(scope_column(scope, provider)))
+        .filter(resource_binding::Column::Kind.eq(VOICE_KIND))
+        .filter(resource_binding::Column::Generation.eq(0i64))
+        .filter(resource_binding::Column::PublicId.eq(id));
+    store
+        .resource_bindings()
+        .query(query)
+        .await?
+        .into_iter()
+        .next()
+        .map(|row| row.credential_id)
+        .ok_or_else(|| CoreError::ResourceNotFound {
+            kind: "voice",
+            id: id.to_owned(),
+        })
+}
+
+async fn request_voice(
+    operation: Operation,
+    headers: &http::HeaderMap,
+    body: &[u8],
+    limits: CodecLimits,
+) -> CoreResult<Option<String>> {
+    if !matches!(
+        operation,
+        Operation::CreateSpeech
+            | Operation::CreateRealtimeCall
+            | Operation::CreateRealtimeClientSecret
+            | Operation::CreateLiveSession
+            | Operation::ConnectLive
+    ) {
+        return Ok(None);
+    }
+    Ok(
+        crate::realtime::request::session_value(headers, body, limits)
+            .await?
+            .as_ref()
+            .and_then(voice_reference)
+            .map(str::to_owned),
+    )
 }

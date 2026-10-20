@@ -37,7 +37,10 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
             usage: (s.settlement || s.usage) && request.operation.operation.produces_usage(),
             capture: if !s.upstream_log {
                 CapturePolicy::Off
-            } else if s.upstream_log_body {
+            } else if s.upstream_log_body
+                && request.operation.operation
+                    != gproxy_protocol::Operation::CreateRealtimeClientSecret
+            {
                 CapturePolicy::Full
             } else {
                 CapturePolicy::Metadata
@@ -607,7 +610,7 @@ fn usage_json(u: &NormalizedUsage) -> Value {
         "reasoning_tokens": t.reasoning_tokens,
     }, "metrics": u.metrics, "dimensions": u.dimensions, "actual_service_tier": u.actual_service_tier,
     "completeness": format!("{:?}", u.completeness).to_lowercase(),
-    "attempts": u.attempts.iter().map(|a| json!({"model": a.model, "usage": usage_json(&a.usage), "billable": a.billable, "started_at_ms": a.started_at_ms})).collect::<Vec<_>>(),
+    "attempts": u.attempts.iter().map(|a| json!({"model": a.model, "operation": a.operation.map(gproxy_protocol::Operation::id), "usage": usage_json(&a.usage), "billable": a.billable, "started_at_ms": a.started_at_ms})).collect::<Vec<_>>(),
     "responses": u.responses.iter().map(|r| json!({"id": r.id, "usage": usage_json(&r.usage)})).collect::<Vec<_>>()})
 }
 
@@ -676,7 +679,7 @@ fn usage_columns(u: &NormalizedUsage) -> usage_record::ActiveModel {
         extra.insert("dimensions".into(), json!(u.dimensions));
     }
     if !u.attempts.is_empty() {
-        extra.insert("attempts".into(), json!(u.attempts.iter().map(|a| json!({"model": a.model, "usage": usage_json(&a.usage), "billable": a.billable, "started_at_ms": a.started_at_ms})).collect::<Vec<_>>()));
+        extra.insert("attempts".into(), json!(u.attempts.iter().map(|a| json!({"model": a.model, "operation": a.operation.map(gproxy_protocol::Operation::id), "usage": usage_json(&a.usage), "billable": a.billable, "started_at_ms": a.started_at_ms})).collect::<Vec<_>>()));
     }
     if !u.responses.is_empty() {
         extra.insert(

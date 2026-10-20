@@ -149,6 +149,31 @@ pub fn responses<C: BatchConnectionTrait + Send + Sync + 'static>(
     }
 }
 
+/// GPT-Live starts with a session.start message carrying its model.
+pub fn live<C: BatchConnectionTrait + Send + Sync + 'static>(
+    app: Arc<App<C>>,
+    upgrade: Upgrade,
+    caller: Caller,
+    request: DataPlaneRequest,
+    prefix: Option<String>,
+    max_frame_bytes: u64,
+    mut cancel: CancelOnDrop,
+) -> Response {
+    match app.open_live(caller, request, prefix) {
+        Ok(socket) => accept(
+            upgrade,
+            socket,
+            max_frame_bytes,
+            Some(Trailer::service(app, None, cancel)),
+            &HeaderMap::new(),
+        ),
+        Err(error) => {
+            cancel.disarm();
+            crate::ErrorResponse(error).into_response()
+        }
+    }
+}
+
 /// Step 5, for the surfaces that are a handshake: admit, connect, upgrade.
 ///
 /// The three refusals answer over HTTP, in this order: admission

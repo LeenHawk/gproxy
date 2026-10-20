@@ -120,47 +120,13 @@ fn client_items() -> Vec<serde_json::Value> {
     ]
 }
 #[test]
-fn guardian_native_client_items_and_root_extensions_do_not_use_public_ir() {
-    use gproxy_protocol::openai::guardian::*;
+fn codex_native_client_items_do_not_use_public_ir() {
+    use gproxy_protocol::openai::codex::ClientResponseItem;
     use serde_json::json;
     for item in client_items() {
         exact::<ClientResponseItem>(item);
     }
-    let value = json!({"model":"m","instructions":"i","input":client_items(),"tools":[{"custom_native":true}],"tool_choice":"auto","parallel_tool_calls":true,"reasoning":null,"store":false,"stream":true,"stream_options":{"reasoning_summary_delivery":"sequential_cutoff"},"include":["reasoning.encrypted_content"],"service_tier":"future-tier","prompt_cache_key":"k","text":{"verbosity":"low","format":{"type":"json_schema","strict":true,"schema":true,"name":"n"}},"client_metadata":{"source":"guardian"},"access_programs":{"cyber":"daybreak_blue"}});
-    exact::<GuardianRequestBody>(value.clone());
-    let mut missing = value;
-    missing.as_object_mut().unwrap().remove("reasoning");
-    assert!(serde_json::from_value::<GuardianRequestBody>(missing).is_err());
     exact::<WebSearchRequestBody>(json!({"id":"s","model":"m","input":client_items()}));
-    let mut headers = http::HeaderMap::new();
-    headers.insert("x-openai-subagent", "guardian".parse().unwrap());
-    let body = GuardianRequestBody::builder(
-        "m".into(),
-        "".into(),
-        vec![],
-        "auto".into(),
-        true,
-        None,
-        false,
-        true,
-        vec![],
-    )
-    .build();
-    let request: GuardianClassifierRequest = gproxy_protocol::WireRequest {
-        method: http::Method::POST,
-        path: "/guardian-classifier".into(),
-        query: None,
-        headers: headers.clone(),
-        body,
-    };
-    assert_eq!(request.method, http::Method::POST);
-    assert_eq!(request.path, "/guardian-classifier");
-    assert_eq!(request.headers, headers);
-    assert!(request.query.is_none());
-    assert_eq!(
-        serde_json::to_value(request.body).unwrap(),
-        json!({"model":"m","input":[],"tool_choice":"auto","parallel_tool_calls":true,"reasoning":null,"store":false,"stream":true,"include":[]})
-    );
 }
 
 #[test]
@@ -197,8 +163,6 @@ fn context_http_envelopes_and_native_optional_payloads_are_separate() {
         serde_json::to_value(response.body).unwrap(),
         json!({"id":"c","created_at":1,"metadata":null,"object":"conversation"})
     );
-    let body: gproxy_protocol::openai::guardian::GuardianRequestBody=serde_json::from_value(json!({"model":"m","input":[],"tools":null,"tool_choice":"auto","parallel_tool_calls":true,"reasoning":null,"store":false,"stream":true,"include":[]})).unwrap();
-    assert_eq!(serde_json::to_value(body).unwrap()["tools"], json!(null));
     for asset in ["equity", "fund", "crypto", "index"] {
         exact::<FinanceAssetType>(json!(asset));
     }

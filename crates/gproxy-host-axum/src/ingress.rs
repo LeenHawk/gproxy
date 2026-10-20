@@ -483,9 +483,12 @@ where
         std::borrow::Cow::Borrowed(remainder)
     };
     parts.uri = rewrite_path(&parts.uri, &operation_path);
-    let offer_model = if matched.operation.operation
-        == gproxy_protocol::Operation::CreateRealtimeCall
-    {
+    let offer_model = if matches!(
+        matched.operation.operation,
+        gproxy_protocol::Operation::CreateRealtimeCall
+            | gproxy_protocol::Operation::CreateLiveSession
+            | gproxy_protocol::Operation::CreateRealtimeClientSecret
+    ) {
         let mut limits = core.limits.codec();
         limits.max_body_bytes = allowed;
         match gproxy_core::realtime::request::model(&parts.headers, &body, limits).await {
@@ -501,7 +504,11 @@ where
         .model
         .clone()
         .or(offer_model)
-        .or_else(|| body_model(json.as_ref()))
+        .or_else(|| {
+            (matched.operation.operation != gproxy_protocol::Operation::CreateVoice)
+                .then(|| body_model(json.as_ref()))
+                .flatten()
+        })
         .map(|model| mounted_model(mount, &model));
     let mut request = DataPlaneRequest::new(crate::request_id(), matched.operation, parts, body);
     request.client_ip = Some(client_ip.to_owned());
@@ -528,6 +535,30 @@ where
         .flatten();
     let app = Arc::clone(state.app());
     if let Some(upgrade) = upgrade {
+        if matched.operation.operation == gproxy_protocol::Operation::ConnectLive
+            && matches!(
+                gproxy_protocol::wire::openai::realtime::RealtimeRoute::from_path(remainder),
+                Some(
+                    gproxy_protocol::wire::openai::realtime::RealtimeRoute::LiveSession {
+                        session_id: None
+                    }
+                )
+            )
+        {
+            let prefix = match mount {
+                Mount::Aggregated => None,
+                Mount::Namespace(name) | Mount::Provider(name) => Some(name.clone()),
+            };
+            return Some(crate::websocket::live(
+                app,
+                upgrade,
+                caller,
+                request,
+                prefix,
+                core.limits.max_ws_frame_bytes,
+                cancel,
+            ));
+        }
         if matched.operation.dialect == gproxy_protocol::Dialect::OpenAiResponsesWebSocket {
             let prefix = match mount {
                 Mount::Aggregated => None,

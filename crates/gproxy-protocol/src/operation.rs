@@ -51,8 +51,6 @@ pub enum Operation {
     CreateModeration,
     /// Typed predicate, choice and score answers from the OpenAI Decisions API.
     CreateDecision,
-    GuardianReview,
-    GuardianClassify,
     // context management
     CompactContent,
     SummarizeMemory,
@@ -91,6 +89,18 @@ pub enum Operation {
     /// Some vendors instead expose a download URL in a job response; their
     /// channel implementation resolves that URL as part of this operation.
     DownloadVideoContent,
+    /// Create a custom voice from a description or a consented audio sample.
+    CreateVoice,
+    /// Mint an upstream Realtime client credential.
+    CreateRealtimeClientSecret,
+    /// Explicitly end a bound Realtime call.
+    HangupRealtimeCall,
+    /// Create a GPT-Live media session; distinct from legacy `/live` SDP setup.
+    CreateLiveSession,
+    /// Explicitly end a bound GPT-Live session.
+    HangupLiveSession,
+    /// Native GPT-Live primary or sideband WebSocket.
+    ConnectLive,
     // realtime
     /// SDP handshake creating a WebRTC realtime call.
     CreateRealtimeCall,
@@ -110,8 +120,6 @@ impl Operation {
             | Self::StreamGenerateContent
             | Self::CreateModeration
             | Self::CreateDecision
-            | Self::GuardianReview
-            | Self::GuardianClassify
             | Self::CompactContent
             | Self::SummarizeMemory
             | Self::CreateEmbedding
@@ -124,7 +132,8 @@ impl Operation {
             | Self::CreateTranscription
             | Self::CreateTranslation
             | Self::CreateVideo
-            | Self::ConnectRealtime => true,
+            | Self::ConnectRealtime
+            | Self::ConnectLive => true,
             Self::ListModels
             | Self::GetModel
             | Self::CountTokens
@@ -138,7 +147,12 @@ impl Operation {
             | Self::ListVideos
             | Self::DeleteVideo
             | Self::DownloadVideoContent
-            | Self::CreateRealtimeCall => false,
+            | Self::CreateRealtimeCall
+            | Self::CreateVoice
+            | Self::CreateRealtimeClientSecret
+            | Self::HangupRealtimeCall
+            | Self::CreateLiveSession
+            | Self::HangupLiveSession => false,
         }
     }
 
@@ -355,8 +369,6 @@ mod tests {
                 "stream_generate_content",
                 "create_moderation",
                 "create_decision",
-                "guardian_review",
-                "guardian_classify",
                 "compact_content",
                 "summarize_memory",
                 "create_conversation",
@@ -379,6 +391,12 @@ mod tests {
                 "list_videos",
                 "delete_video",
                 "download_video_content",
+                "create_voice",
+                "create_realtime_client_secret",
+                "hangup_realtime_call",
+                "create_live_session",
+                "hangup_live_session",
+                "connect_live",
                 "create_realtime_call",
                 "connect_realtime",
             ]

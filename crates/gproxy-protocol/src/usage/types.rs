@@ -123,6 +123,8 @@ impl NormalizedUsage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UsageAttempt {
+    /// A delegated API may have a different billing operation from its parent session.
+    pub operation: Option<crate::Operation>,
     pub model: String,
     pub usage: Box<NormalizedUsage>,
     /// None when the provider did not establish whether this attempt is charged.

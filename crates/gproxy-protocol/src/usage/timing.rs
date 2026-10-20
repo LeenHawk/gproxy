@@ -24,8 +24,11 @@ pub(super) fn value_has_output(name: Option<&str>, value: &Value) -> bool {
             | "response.reasoning_text.delta"
             | "response.reasoning_summary_text.delta"
             | "response.function_call_arguments.delta"
-            | "response.refusal.delta",
+            | "response.refusal.delta"
+            | "response.output_audio.delta"
+            | "session.output_transcript.delta",
         ) => nonempty(&value["delta"]),
+        Some("session.output_audio.delta") => nonempty(&value["audio"]),
         Some(_) => false,
         None => {
             let chat = value["choices"].as_array().is_some_and(|choices| {

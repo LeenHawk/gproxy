@@ -46,3 +46,5 @@ pub use settings::*;
 pub use transcription::*;
 pub use transcription_events::*;
 pub use transcription_response::*;
+pub mod client_secrets;
+pub use client_secrets::*;

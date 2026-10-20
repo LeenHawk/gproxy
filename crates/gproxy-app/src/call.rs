@@ -233,11 +233,35 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
         caller: &Caller,
         request: DataPlaneRequest,
     ) -> Result<CallOutcome, AppError> {
+        let request = self.continuation_request(caller, request).await?;
         let json = json_body(&request.body);
-        let model = request
-            .model
-            .clone()
-            .or_else(|| body_model(json.as_ref()).map(str::to_owned));
+        let session_model = if request.model.is_none()
+            && matches!(
+                request.operation.operation,
+                gproxy_protocol::Operation::CreateRealtimeCall
+                    | gproxy_protocol::Operation::CreateLiveSession
+                    | gproxy_protocol::Operation::CreateRealtimeClientSecret
+            ) {
+            let limits = self
+                .gproxy()
+                .core()
+                .snapshot()
+                .limits
+                .for_operation(request.operation.operation);
+            gproxy_core::realtime::request::model(
+                &request.parts.headers,
+                &request.body,
+                limits.codec(),
+            )
+            .await?
+        } else {
+            None
+        };
+        let model = request.model.clone().or(session_model).or_else(|| {
+            (request.operation.operation != gproxy_protocol::Operation::CreateVoice)
+                .then(|| body_model(json.as_ref()).map(str::to_owned))
+                .flatten()
+        });
 
         let data = self.data();
         let mut admitted = self
@@ -311,6 +335,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
         caller: &Caller,
         request: DataPlaneRequest,
     ) -> Result<ConnectOutcome, AppError> {
+        let request = self.continuation_request(caller, request).await?;
         let model = request.model.clone();
 
         let data = self.data();
@@ -318,6 +343,41 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
             .admit(&data, caller, &request, None, model.as_deref())
             .await?;
 
+        if request.operation.operation == gproxy_protocol::Operation::ConnectLive
+            && !request.body.is_empty()
+        {
+            match self
+                .gproxy()
+                .core()
+                .owned_resource_bindings(
+                    &admitted.scope,
+                    request.operation,
+                    request.parts.uri.path(),
+                    request.parts.uri.query(),
+                    &request.parts.headers,
+                    Some(&request.body),
+                    admitted.providers.iter().map(String::as_str),
+                )
+                .await
+            {
+                Ok(Some(owned)) => {
+                    admitted.providers.retain(|id| owned.contains_key(id));
+                    let credentials = self.gproxy().core().snapshot();
+                    admitted.credentials.retain(|id| {
+                        credentials.credentials.get(id).is_some_and(|credential| {
+                            owned
+                                .get(&credential.provider_id)
+                                .is_some_and(|bound| bound.as_ref().is_none_or(|bound| bound == id))
+                        })
+                    });
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    admitted.release().await;
+                    return Err(error.into());
+                }
+            }
+        }
         let capture = DownstreamCapture::open(&data.observation, &request, caller, &admitted);
 
         let DataPlaneRequest {
@@ -354,6 +414,38 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
                 Err(error.into())
             }
         }
+    }
+
+    async fn continuation_request(
+        &self,
+        caller: &Caller,
+        mut request: DataPlaneRequest,
+    ) -> Result<DataPlaneRequest, AppError> {
+        if !matches!(
+            request.operation.operation,
+            gproxy_protocol::Operation::ConnectRealtime
+                | gproxy_protocol::Operation::ConnectLive
+                | gproxy_protocol::Operation::HangupRealtimeCall
+                | gproxy_protocol::Operation::HangupLiveSession
+        ) {
+            return Ok(request);
+        }
+        if let Some((provider, model)) = self
+            .gproxy()
+            .core()
+            .realtime_request_model(
+                &crate::admission::scope::render(caller),
+                request.operation.operation,
+                request.parts.uri.path(),
+                request.parts.uri.query(),
+                request.provider_id.as_deref(),
+            )
+            .await?
+        {
+            request.provider_id = Some(provider);
+            request.model = model.or(request.model);
+        }
+        Ok(request)
     }
 
     /// Write the record of a request that never got a response.

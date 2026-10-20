@@ -8,7 +8,6 @@ mod edges;
 pub mod embeddings;
 pub mod files;
 pub mod generate;
-pub mod guardian;
 pub mod images;
 mod json;
 pub mod memory;

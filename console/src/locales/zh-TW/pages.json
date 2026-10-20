@@ -555,6 +555,12 @@
     "create_speech": "語音合成",
     "create_transcription": "語音轉寫",
     "create_translation": "語音翻譯",
+    "create_voice": "建立自訂音色",
+    "create_realtime_client_secret": "建立 Realtime 臨時憑據",
+    "hangup_realtime_call": "掛斷 Realtime 通話",
+    "create_live_session": "建立 Live 工作階段",
+    "hangup_live_session": "掛斷 Live 工作階段",
+    "connect_live": "連線 Live",
     "create_realtime_call": "建立即時通話",
     "create_video": "建立影片",
     "retrieve_video": "取得影片",
@@ -567,8 +573,6 @@
     "retrieve_file_content": "取得檔案內容",
     "delete_file": "刪除檔案",
     "connect_realtime": "連線即時工作階段",
-    "guardian_review": "內容審核",
-    "guardian_classify": "內容分類",
     "create_conversation": "建立對話"
   },
   "clientProfile": {

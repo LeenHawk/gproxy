@@ -30,6 +30,7 @@ pub struct Payloads {
     pub response: Map<String, Value>,
     pub parameters: Vec<Value>,
     pub websocket: Option<Value>,
+    pub empty_response: bool,
 }
 
 impl Payloads {
@@ -154,12 +155,6 @@ pub fn payloads(s: &mut Schemas, key: OperationKey, path: &str) -> Payloads {
             o::decisions::CreateDecisionRequestBody,
             o::decisions::CreateDecisionResponseBody
         ),
-        (GuardianReview | GuardianClassify, OpenAi) => empty()
-            .request(
-                "application/json",
-                s.input::<o::guardian::GuardianRequestBody>(),
-            )
-            .sse(s.output::<o::guardian::GuardianEvent>()),
         (CompactContent, OpenAi) => pair!(
             o::compact::CompactRequestBody,
             o::compact::CompactResponseBody
@@ -283,6 +278,35 @@ pub fn payloads(s: &mut Schemas, key: OperationKey, path: &str) -> Payloads {
         (DownloadVideoContent, OpenAi) => empty()
             .response("application/octet-stream", binary())
             .query(s.query::<o::video::NativeDownloadVideoQuery>()),
+        (CreateVoice, OpenAi) => empty()
+            .request(
+                "application/json",
+                s.input::<o::voices::CreatePromptVoiceRequestBody>(),
+            )
+            .request(
+                "multipart/form-data",
+                s.input::<o::voices::CreateSampleVoiceMultipartForm>(),
+            )
+            .response("application/json", s.output::<o::voices::Voice>()),
+        (CreateRealtimeClientSecret, OpenAi) => pair!(
+            o::realtime::CreateRealtimeClientSecretRequestBody,
+            o::realtime::CreateRealtimeClientSecretResponseBody
+        ),
+        (CreateLiveSession, OpenAi) => pair!(
+            o::live::CreateLiveSessionRequestBody,
+            o::live::CreateLiveSessionResponseBody
+        ),
+        (HangupRealtimeCall | HangupLiveSession, OpenAi) => Payloads {
+            empty_response: true,
+            ..empty()
+        },
+        (ConnectLive, OpenAi) => Payloads {
+            websocket: Some(json!({
+                "clientMessage": s.input::<o::live::LiveClientEvent>(),
+                "serverMessage": s.output::<o::live::LiveServerEvent>()
+            })),
+            ..empty()
+        },
         (CreateRealtimeCall, OpenAi) => {
             let request = if path.ends_with("/live") {
                 s.input::<o::realtime::CreateLiveCallMultipartForm>()

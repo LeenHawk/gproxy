@@ -20,7 +20,7 @@
 //! message with references is held until its lookup finishes and is then
 //! forwarded or dropped, in order with every other message.
 
-use super::{OwnedKind, Placement, placement_in};
+use super::{Placement, placement_in};
 use futures_util::{Sink, StreamExt};
 use gproxy_protocol::{
     Dialect,
@@ -41,17 +41,27 @@ use tokio::sync::mpsc;
 /// and provider.
 #[cfg(not(target_arch = "wasm32"))]
 type Check = Arc<
-    dyn Fn(BTreeSet<String>) -> CapabilityFuture<'static, crate::CoreResult<Placement>>
+    dyn Fn(
+            BTreeSet<String>,
+            Option<String>,
+        ) -> CapabilityFuture<'static, crate::CoreResult<Placement>>
         + Send
         + Sync,
 >;
 /// wasm32 is single-threaded and its sockets are not `Send` either.
 #[cfg(target_arch = "wasm32")]
-type Check =
-    Arc<dyn Fn(BTreeSet<String>) -> CapabilityFuture<'static, crate::CoreResult<Placement>>>;
+type Check = Arc<
+    dyn Fn(
+        BTreeSet<String>,
+        Option<String>,
+    ) -> CapabilityFuture<'static, crate::CoreResult<Placement>>,
+>;
 
 /// The file ids one client message names.
-fn references(dialect: Dialect, frame: &WsFrame) -> Option<(BTreeSet<String>, Value)> {
+fn references(
+    dialect: Dialect,
+    frame: &WsFrame,
+) -> Option<(BTreeSet<String>, Option<String>, Value)> {
     let value: Value = match frame {
         WsFrame::Text(text) => serde_json::from_str(text).ok()?,
         WsFrame::Binary(bytes) => serde_json::from_slice(bytes).ok()?,
@@ -59,7 +69,8 @@ fn references(dialect: Dialect, frame: &WsFrame) -> Option<(BTreeSet<String>, Va
     };
     let mut ids = BTreeSet::new();
     super::walk_references(&value, dialect == Dialect::Gemini, &mut ids);
-    (!ids.is_empty()).then_some((ids, value))
+    let voice = super::voice_reference(&value).map(str::to_owned);
+    (!ids.is_empty() || voice.is_some()).then_some((ids, voice, value))
 }
 
 /// What the client is told in place of a refused message.
@@ -118,12 +129,12 @@ impl GuardedSink {
                         None
                     }
                     Ok(Placement::Credential(_)) => Some(
-                        "the referenced file lives on another upstream credential than this \
+                        "the referenced resource lives on another upstream credential than this \
                          connection"
                             .to_owned(),
                     ),
-                    Err(crate::CoreError::ResourceNotFound { id, .. }) => {
-                        Some(format!("{} `{id}` not found", OwnedKind::File.noun()))
+                    Err(crate::CoreError::ResourceNotFound { kind, id }) => {
+                        Some(format!("{kind} `{id}` not found"))
                     }
                     Err(error) => Some(error.to_string()),
                 };
@@ -158,8 +169,8 @@ impl Sink<WsFrame> for GuardedSink {
 
     fn start_send(mut self: Pin<&mut Self>, frame: WsFrame) -> Result<(), Self::Error> {
         match references(self.dialect, &frame) {
-            Some((ids, message)) => {
-                let lookup = (self.check)(ids);
+            Some((ids, voice, message)) => {
+                let lookup = (self.check)(ids, voice);
                 self.held = Some(Held {
                     frame,
                     message,
@@ -192,11 +203,22 @@ pub(crate) fn guard<C: BatchConnectionTrait + Send + Sync + 'static>(
     dialect: Dialect,
     socket: WebSocket,
 ) -> WebSocket {
-    let check: Check = Arc::new(move |ids: BTreeSet<String>| {
+    let check: Check = Arc::new(move |ids: BTreeSet<String>, voice: Option<String>| {
         let store = store.clone();
         let scope = scope.clone();
         let provider_id = provider_id.clone();
-        Box::pin(async move { placement_in(&store, &scope, &provider_id, &ids).await })
+        Box::pin(async move {
+            let files = placement_in(&store, &scope, &provider_id, &ids).await?;
+            let Some(voice) = voice else { return Ok(files) };
+            let credential =
+                super::voice_credential_in(&store, &scope, &provider_id, &voice).await?;
+            if matches!(&files, Placement::Credential(other) if other != &credential) {
+                return Err(crate::CoreError::InvalidTarget(
+                    "voice and files belong to different credentials".into(),
+                ));
+            }
+            Ok(Placement::Credential(credential))
+        })
     });
     guard_with(check, credential_id, dialect, socket)
 }
@@ -254,7 +276,7 @@ mod tests {
 
     /// `file-mine` lives on `c1`, `file-other` on `c2`; nothing else exists.
     fn check() -> Check {
-        Arc::new(|ids: BTreeSet<String>| {
+        Arc::new(|ids: BTreeSet<String>, _voice: Option<String>| {
             Box::pin(async move {
                 let mut credentials = BTreeSet::new();
                 for id in &ids {

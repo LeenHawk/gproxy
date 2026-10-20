@@ -3,7 +3,7 @@ use crate::{
     wire::{
         claude::content as a,
         gemini as g,
-        openai::{chat as c, guardian as source, responses as r},
+        openai::{chat as c, codex as source, responses as r},
     },
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};

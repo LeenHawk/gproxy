@@ -144,7 +144,10 @@ fn estimates(operation: Operation) -> bool {
     operation.produces_usage()
         && !matches!(
             operation,
-            Operation::CreateVideo | Operation::WebSearch | Operation::ConnectRealtime
+            Operation::CreateVideo
+                | Operation::WebSearch
+                | Operation::ConnectRealtime
+                | Operation::ConnectLive
         )
 }
 
@@ -237,14 +240,6 @@ fn wire_text(operation: OperationKey, body: &[u8], out: &mut Text) -> Option<()>
                 b.tools.as_ref().and_then(Option::as_deref),
                 out,
             );
-        }
-        (Dialect::OpenAi, GuardianReview | GuardianClassify) => {
-            let b: openai::guardian::GuardianRequestBody = parse(body)?;
-            out.push(&b.instructions);
-            b.input.iter().for_each(|item| client_item(item, out));
-            if let Some(Some(tools)) = &b.tools {
-                out.push_json(tools);
-            }
         }
         (Dialect::OpenAi, CompactContent) => {
             // Native compaction carries the client's Responses-item history;
@@ -628,10 +623,10 @@ fn responses_input_contents(parts: &[openai::responses::InputContent], out: &mut
     }
 }
 
-// ---- OpenAI client-shaped items (guardian, native compaction) -------------
+// ---- OpenAI client-shaped items (native compaction) -------------
 
-fn client_item(item: &openai::guardian::ClientResponseItem, out: &mut Text) {
-    use openai::guardian::{
+fn client_item(item: &openai::codex::ClientResponseItem, out: &mut Text) {
+    use openai::codex::{
         AgentMessageInputContent, ClientResponseItem, ContentItem, FunctionCallOutputBody,
         FunctionCallOutputContentItem, LocalShellAction, ReasoningItemContent,
         ReasoningItemReasoningSummary, WebSearchAction,
@@ -905,7 +900,7 @@ mod tests {
     }
 
     #[test]
-    fn client_shaped_items_cover_guardian_compaction_and_memory() {
+    fn client_shaped_items_cover_compaction_and_memory() {
         let body = format!(
             r#"{{"model":"m","instructions":"review this","input":[
               {{"type":"message","role":"user","content":[
@@ -919,11 +914,7 @@ mod tests {
         );
         let expected =
             "review this\nhi there\nf\n{\"a\":1}\nresult\n[{\"name\":\"f\",\"type\":\"function\"}]";
-        for operation in [Operation::GuardianReview, Operation::GuardianClassify] {
-            let text = request_text(key(operation, Dialect::OpenAi), body.as_bytes()).unwrap();
-            assert_eq!(text, expected);
-            assert!(!text.contains(BASE64));
-        }
+
         assert_eq!(
             request_text(
                 key(Operation::CompactContent, Dialect::OpenAi),

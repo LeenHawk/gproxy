@@ -359,6 +359,13 @@ impl DownstreamCapture {
         if !switches.downstream_log {
             return None;
         }
+        // Client-secret responses carry a reusable bearer credential. Retain
+        // metadata, never payloads, even when ordinary body capture is enabled.
+        let mut effective = *switches;
+        if operation == "create_realtime_client_secret" {
+            effective.downstream_log_body = false;
+        }
+        let switches = &effective;
         let request_body = capture_body(body, switches);
         let uri = &parts.uri;
         let row = record::ActiveModel {

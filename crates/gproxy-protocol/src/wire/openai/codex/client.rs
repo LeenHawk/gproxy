@@ -1,4 +1,4 @@
-//! Guardian and guardian-classifier use the Codex Responses client wire request.
+//! Shared Codex Responses client items and request controls.
 //! Sources: samples/codex/codex-rs/codex-api/src/common.rs (ResponsesApiRequest),
 //! endpoint/responses.rs (ResponsesEndpoint), and protocol/src/models.rs.
 //! Private client items differ from the public Responses schema. Headers such
@@ -67,13 +67,13 @@ pub struct ClientReasoning {
     pub summary: Vec<ReasoningItemReasoningSummary>,
     #[serde(
         default,
-        deserialize_with = "super::responses::input::present_nullable",
+        deserialize_with = "super::super::responses::input::present_nullable",
         skip_serializing_if = "Option::is_none"
     )]
     pub content: Option<Option<Vec<ReasoningItemContent>>>,
     #[wire(required)]
     #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
-    #[serde(deserialize_with = "super::responses::input::required_nullable")]
+    #[serde(deserialize_with = "super::super::responses::input::required_nullable")]
     pub encrypted_content: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub internal_chat_message_metadata_passthrough: Option<InternalChatMessageMetadataPassthrough>,
@@ -92,7 +92,7 @@ pub struct ClientLocalShellCall {
 
     #[wire(required)]
     #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
-    #[serde(deserialize_with = "super::responses::input::required_nullable")]
+    #[serde(deserialize_with = "super::super::responses::input::required_nullable")]
     pub call_id: Option<String>,
     pub status: LocalShellStatus,
     pub action: LocalShellAction,
@@ -134,7 +134,7 @@ pub struct ClientToolSearchCall {
     pub id: Option<String>,
     #[wire(required)]
     #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
-    #[serde(deserialize_with = "super::responses::input::required_nullable")]
+    #[serde(deserialize_with = "super::super::responses::input::required_nullable")]
     pub call_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
@@ -217,7 +217,7 @@ pub struct ClientToolSearchOutput {
     pub id: Option<String>,
     #[wire(required)]
     #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
-    #[serde(deserialize_with = "super::responses::input::required_nullable")]
+    #[serde(deserialize_with = "super::super::responses::input::required_nullable")]
     pub call_id: Option<String>,
     pub status: String,
     pub execution: String,
@@ -650,19 +650,19 @@ pub struct LocalShellExecAction {
     pub command: Vec<String>,
     #[wire(required)]
     #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
-    #[serde(deserialize_with = "super::responses::input::required_nullable")]
+    #[serde(deserialize_with = "super::super::responses::input::required_nullable")]
     pub timeout_ms: Option<u64>,
     #[wire(required)]
     #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
-    #[serde(deserialize_with = "super::responses::input::required_nullable")]
+    #[serde(deserialize_with = "super::super::responses::input::required_nullable")]
     pub working_directory: Option<String>,
     #[wire(required)]
     #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
-    #[serde(deserialize_with = "super::responses::input::required_nullable")]
+    #[serde(deserialize_with = "super::super::responses::input::required_nullable")]
     pub env: Option<BTreeMap<String, String>>,
     #[wire(required)]
     #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
-    #[serde(deserialize_with = "super::responses::input::required_nullable")]
+    #[serde(deserialize_with = "super::super::responses::input::required_nullable")]
     pub user: Option<String>,
 
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -852,25 +852,6 @@ pub enum ClientTextFormatType {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub struct ClientStreamOptions {
-    pub reasoning_summary_delivery: ReasoningSummaryDelivery,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[derive(gproxy_protocol_macros::DeclaredFields)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub enum ReasoningSummaryDelivery {
-    SequentialCutoff,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[derive(gproxy_protocol_macros::DeclaredFields)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct AccessPrograms {
     pub cyber: CyberAccessProgram,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -887,49 +868,3 @@ pub enum CyberAccessProgram {
     DaybreakBlue,
     DaybreakRed,
 }
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[derive(gproxy_protocol_macros::DeclaredFields)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub struct GuardianRequestBody {
-    pub model: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub instructions: String,
-    pub input: Vec<ClientResponseItem>,
-    #[serde(
-        default,
-        deserialize_with = "super::responses::input::present_nullable",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub tools: Option<Option<serde_json::Value>>,
-    pub tool_choice: String,
-    pub parallel_tool_calls: bool,
-    #[wire(required)]
-    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
-    #[serde(deserialize_with = "super::responses::input::required_nullable")]
-    pub reasoning: Option<Reasoning>,
-    pub store: bool,
-    pub stream: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stream_options: Option<ClientStreamOptions>,
-    pub include: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub service_tier: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt_cache_key: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub text: Option<ClientTextControls>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_metadata: Option<BTreeMap<String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub access_programs: Option<AccessPrograms>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-
-pub type GuardianRequest = crate::WireRequest<GuardianRequestBody>;
-pub type GuardianClassifierRequest = GuardianRequest;
-pub type GuardianResponse = crate::WireResponse<crate::connection::ByteStream>;
-pub type GuardianClassifierResponse = GuardianResponse;
-pub type GuardianEvent = super::responses::stream::StreamEvent;

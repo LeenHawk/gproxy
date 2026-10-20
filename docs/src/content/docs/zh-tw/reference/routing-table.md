@@ -147,13 +147,26 @@ Gemini 把它寫在路徑裡，這也是那個方言有兩行的原因。
 
 | 方法 | 路徑 | 操作 / 方言 |
 | --- | --- | --- |
+| `POST` | `/v1/realtime/client_secrets` | `create_realtime_client_secret` / `openai` |
+| `POST` | `/v1/realtime/calls/{call_id}/hangup` | `hangup_realtime_call` / `openai` |
+| `POST` | `/v1/audio/voices` | `create_voice` / `openai` |
+| `POST` | `/v1/live/sessions` | `create_live_session` / `openai` |
+| `GET` | `/v1/live/sessions` | `connect_live` / `openai`，模型來自 `session.start` |
+| `GET` | `/v1/live/sessions/{session_id}/attach` | `connect_live` / `openai`，綁定工作階段的控制連線 |
+| `POST` | `/v1/live/sessions/{session_id}/hangup` | `hangup_live_session` / `openai` |
 | `POST` | `/v1/realtime/calls` | `create_realtime_call` / `openai` |
 | `POST` | `/v1/live` | `create_realtime_call` / `openai` |
 | `GET` | `/v1/realtime` | `connect_realtime` / `openai`——升級 |
-| `GET` | `/v1/live` | 同上，WebRTC 寫法 |
+| `GET` | `/v1/live` | 舊 GPT-Live/AVAS WebSocket |
 | `GET` | `/v1/live/{call_id}` | 把 call 放在路徑裡的續接 |
 | `GET` | `/v1/responses` | `generate_content` / `openai_responses_websocket` |
 | `GET` | `/ws/v1beta/BidiGenerateContent` | `connect_realtime` / `gemini`——Gemini Live |
+
+標準 Realtime 與 GPT-Live 的協定和帳號權限不同。舊 `/v1/live` 保留相容；新 Live 和
+自訂音色建立由 OpenAI API Key 渠道支援，Codex 渠道支援標準 Realtime、臨時憑據與明確掛斷。
+201 只表示接受建立請求，不代表工作階段可執行。臨時憑據是可直連上游的 bearer token，介面本文
+不會被擷取；直連上游的後續請求不經過閘道准入和計量。掛斷及控制連線綁定原呼叫者與建立憑據，並恢復原模型重新檢查目前權限。
+
 
 Responses 的 HTTP POST 與 WebSocket GET 共用 `/v1/responses`。握手先認證呼叫者，
 再由每條 `response.create` 中的模型完成權限、選路和生成限流。不同 `stream_id` 可以併發；
@@ -185,9 +198,8 @@ Realtime 套接字持有它的併發租約直到它**關閉**，而不是到 `10
 ### Codex 專有介面
 
 Codex 專有方法僅在使用 Codex 渠道的供應商掛載點下提供。假設供應商名為
-`codex`，可呼叫 `POST /codex/v1/memories/trace_summarize`、
-`POST /codex/v1/guardian` 和 `POST /codex/v1/guardian-classifier`。
-它們使用正常的操作準入、模型路由和結算流程；公共 `/v1` 不提供這三條路徑。
+`codex`，可呼叫 `POST /codex/v1/memories/trace_summarize`。
+此介面使用正常的操作準入、模型路由和結算流程；公共 `/v1` 不提供此專有路徑。
 標準 `/v1/moderations` 使用獨立的 `create_moderation` JSON 契約。
 
 帳號服務也可在 `/codex/v1` 下呼叫，包括 `usage/thread_usage/query_v2`（POST）、

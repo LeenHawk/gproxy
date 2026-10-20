@@ -555,6 +555,12 @@
     "create_speech": "Create Speech",
     "create_transcription": "Create Transcription",
     "create_translation": "Create Translation",
+    "create_voice": "Create custom voice",
+    "create_realtime_client_secret": "Create Realtime client secret",
+    "hangup_realtime_call": "Hang up Realtime call",
+    "create_live_session": "Create Live session",
+    "hangup_live_session": "Hang up Live session",
+    "connect_live": "Connect Live",
     "create_realtime_call": "Create Realtime Call",
     "create_video": "Create Video",
     "retrieve_video": "Retrieve Video",
@@ -567,8 +573,6 @@
     "retrieve_file_content": "Retrieve File Content",
     "delete_file": "Delete File",
     "connect_realtime": "Connect Realtime",
-    "guardian_review": "Review content",
-    "guardian_classify": "Classify content",
     "create_conversation": "Create conversation"
   },
   "clientProfile": {

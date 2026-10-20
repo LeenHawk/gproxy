@@ -95,18 +95,6 @@ fn media_and_realtime_rows_match_wire_formats_without_claiming_codecs() {
             &[F::Text],
         ),
         (
-            Operation::GuardianReview,
-            Dialect::OpenAi,
-            &[F::Json],
-            &[F::JsonStream(S::Sse)],
-        ),
-        (
-            Operation::GuardianClassify,
-            Dialect::OpenAi,
-            &[F::Json],
-            &[F::JsonStream(S::Sse)],
-        ),
-        (
             Operation::StreamGenerateContent,
             Dialect::Gemini,
             &[F::Json],

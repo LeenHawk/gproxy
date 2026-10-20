@@ -2,7 +2,10 @@
 pub mod request;
 use crate::{Core, CoreError, CoreResult, RequestContext, keys};
 pub use gproxy_protocol::wire::openai::realtime::RealtimeRoute;
-use gproxy_protocol::{Operation, WireRequest};
+use gproxy_protocol::{
+    HttpBody, Operation, WireRequest, WireResponse,
+    codec::{CodecLimits, read_http_body},
+};
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 
@@ -11,11 +14,65 @@ const CALL_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 struct CallBinding {
     credential_id: String,
     model: Option<String>,
+    #[serde(default)]
+    requested_model: Option<String>,
+    #[serde(default)]
+    live: bool,
 }
 
-pub(crate) fn call_id(wire: &WireRequest<()>) -> CoreResult<Option<String>> {
+pub(crate) async fn remember_live_socket(
+    cache: &dyn gproxy_cache::Cache,
+    request: &RequestContext,
+    credential: &str,
+    frame: &gproxy_protocol::connection::WsFrame,
+) -> CoreResult<()> {
+    if request.operation.operation != Operation::ConnectLive {
+        return Ok(());
+    }
+    let gproxy_protocol::connection::WsFrame::Text(text) = frame else {
+        return Ok(());
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(text) else {
+        return Ok(());
+    };
+    if value["type"] != "session.started" {
+        return Ok(());
+    }
+    let id = value
+        .pointer("/session/id")
+        .and_then(serde_json::Value::as_str)
+        .filter(|id| !id.is_empty() && !id.contains('/') && !matches!(*id, "." | ".."))
+        .ok_or_else(|| {
+            CoreError::InvalidTarget("Live session.started omitted session.id".into())
+        })?;
+    let binding = CallBinding {
+        credential_id: credential.to_owned(),
+        model: request.target.upstream_model.clone(),
+        requested_model: request.attribution.model.clone(),
+        live: true,
+    };
+    let bytes = serde_json::to_vec(&binding)
+        .map_err(|error| CoreError::InvalidTarget(error.to_string()))?;
+    cache
+        .put(
+            &keys::realtime_call(&request.target.provider.entity.id, &request.scope, id),
+            bytes,
+            CALL_TTL,
+        )
+        .await?;
+    Ok(())
+}
+
+pub(crate) fn call_id<B>(wire: &WireRequest<B>) -> CoreResult<Option<String>> {
     let path_id = match RealtimeRoute::from_path(&wire.path) {
-        Some(RealtimeRoute::Live { call_id: Some(id) }) => Some(
+        Some(
+            RealtimeRoute::Live { call_id: Some(id) }
+            | RealtimeRoute::HangupCall { call_id: id }
+            | RealtimeRoute::LiveSession {
+                session_id: Some(id),
+            }
+            | RealtimeRoute::HangupLiveSession { session_id: id },
+        ) => Some(
             percent_encoding::percent_decode_str(id)
                 .decode_utf8()
                 .map_err(|e| CoreError::InvalidTarget(e.to_string()))?
@@ -47,21 +104,157 @@ pub(crate) fn call_id(wire: &WireRequest<()>) -> CoreResult<Option<String>> {
     Ok(id)
 }
 impl<C> Core<C> {
+    /// Recover a continuation's model before application admission, so a
+    /// model-less sideband URL cannot evade current model permissions.
+    pub async fn realtime_request_model(
+        &self,
+        scope: &str,
+        operation: Operation,
+        path: &str,
+        query: Option<&str>,
+        provider: Option<&str>,
+    ) -> CoreResult<Option<(String, Option<String>)>> {
+        let snapshot = self.snapshot();
+        let providers: Vec<_> = snapshot
+            .providers
+            .keys()
+            .filter(|id| provider.is_none_or(|provider| provider == id.as_str()))
+            .map(String::as_str)
+            .collect();
+        let Some(bindings) = self
+            .realtime_bindings(scope, operation, path, query, &providers)
+            .await?
+        else {
+            return Ok(None);
+        };
+        if bindings.len() != 1 {
+            return Err(CoreError::Forbidden(
+                "voice session is not uniquely bound in this scope",
+            ));
+        }
+        let provider_id = bindings.into_keys().next().expect("one binding");
+        let wire = WireRequest {
+            method: http::Method::GET,
+            path: path.to_owned(),
+            query: query.map(str::to_owned),
+            headers: Default::default(),
+            body: (),
+        };
+        let id = call_id(&wire)?.expect("continuation has an ID");
+        let entry = self
+            .cache
+            .get(&keys::realtime_call(&provider_id, scope, &id))
+            .await?
+            .ok_or(CoreError::Forbidden("voice session binding expired"))?;
+        let binding: CallBinding = serde_json::from_slice(&entry.value)
+            .map_err(|_| CoreError::InvalidTarget("corrupt realtime call binding".into()))?;
+        let model = binding.requested_model.or_else(|| {
+            binding
+                .model
+                .map(|model| format!("{}/{model}", snapshot.providers[&provider_id].entity.name))
+        });
+        Ok(Some((provider_id, model)))
+    }
+
+    /// Resolve an existing call before a multi-provider failover walk. Execution
+    /// still checks the same binding and permitted credential set again.
+    pub(crate) async fn realtime_bindings(
+        &self,
+        scope: &str,
+        operation: Operation,
+        path: &str,
+        query: Option<&str>,
+        providers: &[&str],
+    ) -> CoreResult<Option<std::collections::BTreeMap<String, Option<String>>>> {
+        if !matches!(
+            operation,
+            Operation::ConnectRealtime
+                | Operation::ConnectLive
+                | Operation::HangupRealtimeCall
+                | Operation::HangupLiveSession
+        ) {
+            return Ok(None);
+        }
+        let wire = WireRequest {
+            method: http::Method::GET,
+            path: path.to_owned(),
+            query: query.map(str::to_owned),
+            headers: Default::default(),
+            body: (),
+        };
+        let Some(id) = call_id(&wire)? else {
+            return Ok(None);
+        };
+        let live = matches!(
+            operation,
+            Operation::ConnectLive | Operation::HangupLiveSession
+        );
+        let mut bindings = std::collections::BTreeMap::new();
+        for &provider in providers {
+            if let Some(entry) = self
+                .cache
+                .get(&keys::realtime_call(provider, scope, &id))
+                .await?
+            {
+                let binding: CallBinding = serde_json::from_slice(&entry.value).map_err(|_| {
+                    CoreError::InvalidTarget("corrupt realtime call binding".into())
+                })?;
+                if binding.live == live {
+                    bindings.insert(provider.to_owned(), Some(binding.credential_id));
+                }
+            }
+        }
+        Ok(Some(bindings))
+    }
+
     pub(crate) async fn remember_realtime_call(
         &self,
         request: &RequestContext,
         credential_id: &str,
-        headers: &http::HeaderMap,
+        response: &mut WireResponse<HttpBody>,
+        limits: CodecLimits,
     ) -> CoreResult<()> {
-        if request.operation.operation != Operation::CreateRealtimeCall {
+        if !matches!(
+            request.operation.operation,
+            Operation::CreateRealtimeCall | Operation::CreateLiveSession
+        ) {
             return Ok(());
         }
-        let location = headers
-            .get(http::header::LOCATION)
-            .and_then(|v| v.to_str().ok())
-            .ok_or_else(|| {
-                CoreError::InvalidTarget("successful realtime call omitted Location".into())
-            })?;
+        let live = request.operation.operation == Operation::CreateLiveSession;
+        let live_id = if live {
+            let body = std::mem::replace(&mut response.body, HttpBody::Bytes(Default::default()));
+            let bytes = read_http_body(body, limits)
+                .await
+                .map_err(|error| CoreError::InvalidTarget(error.to_string()))?;
+            let value: serde_json::Value = serde_json::from_slice(&bytes)
+                .map_err(|error| CoreError::InvalidTarget(error.to_string()))?;
+            response.body = HttpBody::Bytes(bytes);
+            Some(
+                value
+                    .pointer("/session/id")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|id| !id.is_empty() && !id.contains('/') && !matches!(*id, "." | ".."))
+                    .ok_or_else(|| {
+                        CoreError::InvalidTarget(
+                            "successful Live creation omitted session.id".into(),
+                        )
+                    })?
+                    .to_owned(),
+            )
+        } else {
+            None
+        };
+        let location = if let Some(id) = live_id.as_deref() {
+            id
+        } else {
+            response
+                .headers
+                .get(http::header::LOCATION)
+                .and_then(|v| v.to_str().ok())
+                .ok_or_else(|| {
+                    CoreError::InvalidTarget("successful realtime call omitted Location".into())
+                })?
+        };
         let path = location
             .split('?')
             .next()
@@ -71,7 +264,7 @@ impl<C> Core<C> {
             .rsplit('/')
             .next()
             .filter(|id| {
-                id.starts_with("rtc_")
+                live || id.starts_with("rtc_")
                     || (id.len() == 36 && id.bytes().filter(|b| *b == b'-').count() == 4)
             })
             .ok_or_else(|| CoreError::InvalidTarget("invalid realtime Location call ID".into()))?;
@@ -81,6 +274,8 @@ impl<C> Core<C> {
         let value = serde_json::to_vec(&CallBinding {
             credential_id: credential_id.into(),
             model: request.target.upstream_model.clone(),
+            requested_model: request.attribution.model.clone(),
+            live,
         })
         .map_err(|e| CoreError::InvalidTarget(e.to_string()))?;
         self.cache
@@ -97,10 +292,24 @@ impl<C> Core<C> {
         context: Arc<RequestContext>,
         wire: &WireRequest<()>,
     ) -> CoreResult<Arc<RequestContext>> {
-        if context.operation.operation != Operation::ConnectRealtime {
+        if !matches!(
+            context.operation.operation,
+            Operation::ConnectRealtime
+                | Operation::ConnectLive
+                | Operation::HangupRealtimeCall
+                | Operation::HangupLiveSession
+        ) {
             return Ok(context);
         }
         let Some(id) = call_id(wire)? else {
+            if matches!(
+                context.operation.operation,
+                Operation::HangupRealtimeCall | Operation::HangupLiveSession
+            ) {
+                return Err(CoreError::InvalidTarget(
+                    "hangup requires a bound session ID".into(),
+                ));
+            }
             return Ok(context);
         };
         let key = keys::realtime_call(&context.target.provider.entity.id, &context.scope, &id);
@@ -109,6 +318,16 @@ impl<C> Core<C> {
         ))?;
         let binding: CallBinding = serde_json::from_slice(&entry.value)
             .map_err(|_| CoreError::InvalidTarget("corrupt realtime call binding".into()))?;
+        if binding.live
+            != matches!(
+                context.operation.operation,
+                Operation::ConnectLive | Operation::HangupLiveSession
+            )
+        {
+            return Err(CoreError::Forbidden(
+                "session belongs to another voice protocol",
+            ));
+        }
         let credential = context
             .target
             .credentials
@@ -145,7 +364,7 @@ impl<C> Core<C> {
 }
 
 impl<C: gproxy_seaorm::BatchConnectionTrait + Send + Sync + 'static> Core<C> {
-    /// Dispatch a native `/realtime`, `/live` or `/live/{call_id}` upgrade.
+    /// Dispatch a native Realtime, legacy Live or public GPT-Live upgrade.
     /// The host supplies an already admitted realtime context and WebSocket upgrade.
     pub async fn connect_realtime_path(
         &self,
@@ -156,6 +375,7 @@ impl<C: gproxy_seaorm::BatchConnectionTrait + Send + Sync + 'static> Core<C> {
             Some(RealtimeRoute::Connect | RealtimeRoute::Live { .. }) => {
                 self.connect_realtime(context, wire).await
             }
+            Some(RealtimeRoute::LiveSession { .. }) => self.connect_live(context, wire).await,
             _ => Err(CoreError::InvalidTarget(
                 "not a realtime WebSocket route".into(),
             )),
@@ -195,6 +415,30 @@ impl SettlementDedup {
                     self.call_id.as_deref(),
                     &response.id,
                 );
+                if response
+                    .usage
+                    .dimensions
+                    .get("cumulative_audio_seconds")
+                    .is_some_and(|v| v == "true")
+                {
+                    let Some(reported) = response.usage.metrics.get("audio_seconds").copied()
+                    else {
+                        continue;
+                    };
+                    let Some(delta) = self.claim_duration(&key, reported).await? else {
+                        continue;
+                    };
+                    response.usage.metrics.insert("audio_seconds".into(), delta);
+                    for attempt in &mut response.usage.attempts {
+                        attempt.usage.metrics.insert("audio_seconds".into(), delta);
+                    }
+                    response
+                        .usage
+                        .dimensions
+                        .insert("settlement_id".into(), format!("{key}:{reported}"));
+                    accepted.push(response);
+                    continue;
+                }
                 let claim = gproxy_cache::Replacement {
                     value: exchange.capture_id.as_bytes().to_vec(),
                     ttl: CALL_TTL,
@@ -219,10 +463,52 @@ impl SettlementDedup {
                 accepted.iter().map(|r| r.usage.as_ref()),
             );
             exchange.usage.completeness = completeness;
+            exchange.usage.attempts = accepted
+                .iter()
+                .flat_map(|response| response.usage.attempts.clone())
+                .collect();
             exchange.usage.responses = accepted;
             exchanges.push(exchange);
         }
         report.exchanges = exchanges;
         Ok(())
+    }
+
+    /// Sidebands may end before the primary session. Claim only the increase
+    /// over the previously observed cumulative duration, on the shared cache.
+    async fn claim_duration(
+        &self,
+        key: &str,
+        reported: rust_decimal::Decimal,
+    ) -> CoreResult<Option<rust_decimal::Decimal>> {
+        loop {
+            let entry = self.cache.get(key).await?;
+            let previous = match &entry {
+                Some(entry) => std::str::from_utf8(&entry.value)
+                    .ok()
+                    .and_then(|value| value.parse::<rust_decimal::Decimal>().ok())
+                    .ok_or(gproxy_cache::CacheError::Corrupt)?,
+                None => rust_decimal::Decimal::ZERO,
+            };
+            if entry.is_some() && reported <= previous {
+                return Ok(None);
+            }
+            let replacement = gproxy_cache::Replacement {
+                value: reported.to_string().into_bytes(),
+                ttl: CALL_TTL,
+            };
+            if matches!(
+                self.cache
+                    .compare_exchange(key, entry.map(|entry| entry.version), Some(replacement))
+                    .await?,
+                gproxy_cache::CasOutcome::Applied(_)
+            ) {
+                return Ok(Some(
+                    reported
+                        .saturating_sub(previous)
+                        .max(rust_decimal::Decimal::ZERO),
+                ));
+            }
+        }
     }
 }

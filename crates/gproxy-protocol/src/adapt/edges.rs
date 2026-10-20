@@ -122,16 +122,6 @@ pub const CONVERSION_EDGES: &[ConversionEdge] = {
         edge((Stream, G), (Stream, C)),
         edge((Stream, G), (Stream, H)),
         edge((Stream, G), (Stream, W)),
-        // GuardianReview
-        edge((GuardianReview, R), (Generate, R)),
-        edge((GuardianReview, R), (Generate, C)),
-        edge((GuardianReview, R), (Generate, G)),
-        edge((GuardianReview, R), (Generate, H)),
-        // GuardianClassify
-        edge((GuardianClassify, R), (Generate, R)),
-        edge((GuardianClassify, R), (Generate, C)),
-        edge((GuardianClassify, R), (Generate, G)),
-        edge((GuardianClassify, R), (Generate, H)),
         // CompactContent
         edge((CompactContent, R), (Generate, R)),
         edge((CompactContent, R), (Generate, C)),

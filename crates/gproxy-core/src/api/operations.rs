@@ -28,7 +28,7 @@ macro_rules! http_operations {
                 // every arm in this poll's stack frame in debug builds.
                 match context.operation.operation {
                     $(Operation::$operation)|+ => self.execute_http(context, request).await,
-                    Operation::ConnectRealtime => Err(ChannelError::WrongTransport(context.operation).into()),
+                    Operation::ConnectRealtime | Operation::ConnectLive => Err(ChannelError::WrongTransport(context.operation).into()),
                 }
             }
             $(
@@ -47,10 +47,8 @@ http_operations! {
     count_tokens => CountTokens,
     generate_content => GenerateContent,
     stream_generate_content => StreamGenerateContent,
-    guardian_review => GuardianReview,
     create_moderation => CreateModeration,
     create_decision => CreateDecision,
-    guardian_classify => GuardianClassify,
     compact_content => CompactContent,
     summarize_memory => SummarizeMemory,
     create_conversation => CreateConversation,
@@ -73,6 +71,11 @@ http_operations! {
     list_videos => ListVideos,
     delete_video => DeleteVideo,
     download_video_content => DownloadVideoContent,
+    create_voice => CreateVoice,
+    create_realtime_client_secret => CreateRealtimeClientSecret,
+    hangup_realtime_call => HangupRealtimeCall,
+    create_live_session => CreateLiveSession,
+    hangup_live_session => HangupLiveSession,
     create_realtime_call => CreateRealtimeCall,
 }
 
@@ -101,6 +104,7 @@ websocket_operations! {
     generate_content_websocket => GenerateContent,
     stream_generate_content_websocket => StreamGenerateContent,
     connect_realtime => ConnectRealtime,
+    connect_live => ConnectLive,
 }
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
@@ -112,6 +116,16 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
         request: WireRequest<HttpBody>,
     ) -> CoreResult<HttpExecution> {
         let mut request = request;
+        let continuation = WireRequest {
+            method: request.method.clone(),
+            path: request.path.clone(),
+            query: request.query.clone(),
+            headers: http::HeaderMap::new(),
+            body: (),
+        };
+        let context = self
+            .bind_realtime_continuation(context, &continuation)
+            .await?;
         let context = self.bind_upload_session(context, &mut request).await?;
         let context = self.bind_owned_resource(context, &request.path).await?;
         let context = if crate::owned::scans_references(context.operation.operation) {

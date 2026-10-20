@@ -56,6 +56,37 @@ async fn multipart(
     Ok(Some((boundary, parts)))
 }
 
+/// Read audio settings from either the JSON envelope or the multipart session.
+/// Voice ownership checks use the same decoding rules as model selection.
+pub(crate) async fn session_value(
+    headers: &HeaderMap,
+    body: &[u8],
+    limits: CodecLimits,
+) -> CoreResult<Option<Value>> {
+    let bytes = Bytes::copy_from_slice(body);
+    if let Some((_, parts)) = multipart(headers, &bytes, limits).await? {
+        let mut session = None;
+        for part in parts {
+            if field(&part.headers, header::CONTENT_DISPOSITION, "name").as_deref()
+                != Some("session")
+            {
+                continue;
+            }
+            if session.is_some() {
+                return Err(invalid("duplicate session field"));
+            }
+            let HttpBody::Bytes(bytes) = part.body else {
+                unreachable!()
+            };
+            session = Some(serde_json::from_slice(&bytes).map_err(invalid)?);
+        }
+        return Ok(session);
+    }
+    Ok(serde_json::from_slice::<Value>(body)
+        .ok()
+        .map(|mut value| value.get_mut("session").map(Value::take).unwrap_or(value)))
+}
+
 /// Extract a model before admission, without consuming or changing the offer.
 pub async fn model(
     headers: &HeaderMap,

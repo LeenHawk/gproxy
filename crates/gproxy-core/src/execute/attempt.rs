@@ -231,7 +231,12 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
     if !converting {
         if let Some(model) = upstream_model.as_deref() {
             prepare::apply_model(&mut wire, operation.dialect, model);
-            if operation.operation == gproxy_protocol::Operation::CreateRealtimeCall {
+            if matches!(
+                operation.operation,
+                gproxy_protocol::Operation::CreateRealtimeCall
+                    | gproxy_protocol::Operation::CreateLiveSession
+                    | gproxy_protocol::Operation::CreateRealtimeClientSecret
+            ) {
                 let mut codec = limits.codec();
                 codec.max_body_bytes = limits.max_request_body_bytes;
                 crate::realtime::request::apply_model(&mut wire, model, codec).await?;
@@ -651,8 +656,13 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                     finished_at_ms: finished_at,
                 });
                 if status.is_success() {
-                    core.remember_realtime_call(&request, &credential.id, answer.headers())
-                        .await?;
+                    core.remember_realtime_call(
+                        &request,
+                        &credential.id,
+                        &mut answer.response,
+                        limits.codec(),
+                    )
+                    .await?;
                     core.settle_owned_resource(
                         &request,
                         &credential.id,

@@ -10,7 +10,6 @@ pub mod embeddings;
 mod error;
 pub mod files;
 pub mod generate;
-pub mod guardian;
 pub mod identity;
 pub mod images;
 mod instructions;

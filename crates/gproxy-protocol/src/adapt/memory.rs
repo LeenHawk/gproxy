@@ -85,7 +85,7 @@ pub async fn summarize_with_reasoning<U: Upstream>(
     traces: Vec<RawMemory>,
     model: impl Into<String>,
     max_tokens: i64,
-    reasoning: Option<crate::openai::guardian::Reasoning>,
+    reasoning: Option<crate::openai::codex::Reasoning>,
     limits: MemoryLimits,
 ) -> Result<Vec<MemorySummarizeOutput>, MemoryError> {
     let model = model.into();

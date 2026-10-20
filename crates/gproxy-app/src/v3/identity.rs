@@ -704,12 +704,7 @@ fn group_operations(group: &str) -> Option<&'static [&'static str]> {
         "models" => &["list_models", "get_model"],
         "count_tokens" => &["count_tokens"],
         "memories" => &["summarize_memory"],
-        "generate_content" => &[
-            "generate_content",
-            "stream_generate_content",
-            "guardian_review",
-            "guardian_classify",
-        ],
+        "generate_content" => &["generate_content", "stream_generate_content"],
         "compact" => &["compact_content"],
         "conversation" => &["create_conversation"],
         "embeddings" => &["create_embedding", "batch_create_embedding"],

@@ -68,4 +68,4 @@ pub struct MemorySummarizeResponseBody {
     pub rest: Rest,
 }
 pub type MemorySummarizeResponse = crate::WireResponse<MemorySummarizeResponseBody>;
-pub use super::guardian::Reasoning;
+pub use super::codex::Reasoning;
