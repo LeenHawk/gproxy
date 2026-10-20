@@ -239,20 +239,15 @@ fn documented_nullable_fields_preserve_missing_null_and_value() {
 }
 
 #[test]
-fn required_nullable_function_fields_remain_required_in_wire_and_builder() {
+fn function_parameters_remain_required_in_wire_and_builder() {
     use serde_json::json;
 
     for (parameters, strict) in [(json!(null), json!(null)), (json!({}), json!(false))] {
         let value = json!({"type":"function","name":"f","parameters":parameters,"strict":strict});
         assert_eq!(round_trip(value.clone()), value);
-        for key in ["parameters", "strict"] {
-            let mut missing = value.clone();
-            missing.as_object_mut().unwrap().remove(key);
-            assert!(
-                serde_json::from_value::<Tool>(missing).is_err(),
-                "missing {key}"
-            );
-        }
+        let mut missing = value.clone();
+        missing.as_object_mut().unwrap().remove("parameters");
+        assert!(serde_json::from_value::<Tool>(missing).is_err());
     }
     let tool = Tool::Function(FunctionTool::builder("f".into(), None, None).build());
     assert_eq!(

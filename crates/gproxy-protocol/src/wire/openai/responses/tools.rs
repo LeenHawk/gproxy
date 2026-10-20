@@ -64,9 +64,9 @@ pub struct FunctionTool {
     #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(deserialize_with = "required_nullable")]
     pub parameters: Option<Rest>,
+    // Keep the builder argument, but accept clients that omit strict as unspecified.
     #[wire(required)]
-    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(default)]
     pub strict: Option<bool>,
     #[serde(
         default,
