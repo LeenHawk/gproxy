@@ -29,4 +29,5 @@
     <!-- Saving a file the console produced, such as a configuration export. -->
     <string name="gproxy_save_done">"Saved"</string>
     <string name="gproxy_save_failed">"Could not save the file"</string>
+    <string name="gproxy_action_privacy">Privacy</string>
 </resources>

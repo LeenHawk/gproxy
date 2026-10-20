@@ -5,6 +5,9 @@ import { initReactI18next } from "react-i18next"
 import enCommon from "@/locales/en/common.json"
 import enNavigation from "@/locales/en/navigation.json"
 import enPages from "@/locales/en/pages.json"
+import ruCommon from "@/locales/ru/common.json"
+import ruNavigation from "@/locales/ru/navigation.json"
+import ruPages from "@/locales/ru/pages.json"
 import zhCNCommon from "@/locales/zh-CN/common.json"
 import zhCNNavigation from "@/locales/zh-CN/navigation.json"
 import zhCNPages from "@/locales/zh-CN/pages.json"
@@ -14,6 +17,7 @@ import zhTWPages from "@/locales/zh-TW/pages.json"
 
 export const SUPPORTED_LANGS = [
   "en",
+  "ru",
   "zh-CN",
   "zh-TW",
 ] as const
@@ -27,10 +31,19 @@ const combine = (...domains: Array<object>) => Object.assign({}, ...domains)
 function storedLanguage(): LangCode {
   try {
     const value = window.localStorage.getItem(STORAGE_KEY)
-    return value && langCodes.has(value as LangCode) ? (value as LangCode) : "en"
+    if (value && langCodes.has(value as LangCode)) return value as LangCode
   } catch {
-    return "en"
+    // A blocked preference store must not prevent browser-language detection.
   }
+  for (const language of navigator.languages.length ? navigator.languages : [navigator.language]) {
+    const code = language.toLowerCase()
+    if (code === "ru" || code.startsWith("ru-")) return "ru"
+    if (code === "en" || code.startsWith("en-")) return "en"
+    if (code === "zh" || code.startsWith("zh-")) {
+      return /^zh-(hant|tw|hk|mo)(-|$)/.test(code) ? "zh-TW" : "zh-CN"
+    }
+  }
+  return "en"
 }
 
 void i18n.use(initReactI18next).init({
@@ -38,6 +51,7 @@ void i18n.use(initReactI18next).init({
   fallbackLng: "en",
   resources: {
     en: { translation: combine(enCommon, enNavigation, enPages) },
+    ru: { translation: combine(ruCommon, ruNavigation, ruPages) },
     "zh-CN": { translation: combine(zhCNCommon, zhCNNavigation, zhCNPages) },
     "zh-TW": { translation: combine(zhTWCommon, zhTWNavigation, zhTWPages) },
   },

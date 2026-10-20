@@ -18,6 +18,12 @@ pub fn remove<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
 
 fn labels(language: &str) -> [&'static str; 4] {
     match language {
+        "ru" => [
+            "Открыть GPROXY",
+            "Выйти из GPROXY",
+            "Прокси работает",
+            "Прокси остановлен",
+        ],
         "zh-CN" => ["打开 GPROXY", "退出 GPROXY", "代理正在运行", "代理已停止"],
         "zh-TW" => ["開啟 GPROXY", "結束 GPROXY", "代理正在執行", "代理已停止"],
         _ => [

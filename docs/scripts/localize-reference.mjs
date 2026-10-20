@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 const generated = new URL('../public/generated/',import.meta.url);
 const files = ['openapi','configuration.schema','channels'];
 const normalize = (text) => text.replace(/\s+/g,' ').trim();
-for (const locale of ['zh-cn','zh-tw']) {
+for (const locale of ['zh-cn','zh-tw','ru']) {
   const dictionary = JSON.parse(readFileSync(new URL(`../src/i18n/reference/${locale}.json`,import.meta.url),'utf8'));
   const localize = (value) => {
     if (Array.isArray(value)) return value.map(localize);

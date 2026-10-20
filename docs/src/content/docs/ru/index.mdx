@@ -1,0 +1,53 @@
+---
+title: "GPROXY"
+description: "Управляйте аккаунтами провайдеров, преобразуйте API-запросы, настраивайте маршруты моделей и отслеживайте использование и расходы."
+template: splash
+hero:
+  tagline: "Единая точка доступа к LLM. Управляйте аккаунтами провайдеров, преобразуйте API-запросы, настраивайте маршруты моделей и отслеживайте расходы."
+  actions:
+    - text: "Скачать"
+      link: /ru/download/
+      icon: download
+    - text: "Быстрый старт"
+      link: /ru/getting-started/quick-start/
+      icon: right-arrow
+      variant: secondary
+    - text: "GitHub"
+      link: https://github.com/LeenHawk/gproxy
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+<a id="start-here"></a>
+
+## Начните здесь
+
+<CardGrid>
+  <LinkCard title="Установить и настроить" description="Выберите «Приложение», «CLI», «Контейнеры» или «Workers» и настройте свою учётную запись." href="/ru/download/" />
+  <LinkCard title="Сделайте свой первый запрос" description="Добавьте провайдера и учётные данные, создайте маршрут модели и подключите свой клиент." href="/ru/getting-started/quick-start/" />
+  <LinkCard title="Обновление с версии 3" description="Просмотрите автоматическую миграцию, сохраненные данные и проверки после обновления." href="/ru/deployment/v3-to-v4/" />
+  <LinkCard title="Подключите клиентов CLI" description="Настройте Codex CLI, Claude Code и другие инструменты." href="/ru/guides/cli-clients/" />
+</CardGrid>
+
+<a id="common-tasks"></a>
+
+## Общие задачи
+
+<CardGrid>
+  <Card title="Управление аккаунтами" icon="setting">
+    Управляйте ключами API, учётными данными OAuth и Cookie в одной консоли, используя информацию о работоспособности и разрешениях провайдера.
+  </Card>
+  <Card title="Маршрутизация моделей" icon="random">
+    Дайте клиентам стабильное имя модели, распределите запросы по весу и настройте резервных провайдеров.
+  </Card>
+  <Card title="Протоколы подключения" icon="puzzle">
+    Используйте форматы OpenAI, Claude и Gemini API для потоковой передачи. Доступные операции зависят от канала и провайдера.
+  </Card>
+  <Card title="Отслеживайте использование и затраты" icon="document">
+    Установите разрешения и бюджеты для пользователей и ключей, а затем проверьте запросы и детали расчёта стоимости.
+  </Card>
+</CardGrid>
+
+Подробности реализации: [Архитектура](/ru/introduction/architecture/) и [Встраивание ядра](/ru/reference/embedding/).

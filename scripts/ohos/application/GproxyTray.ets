@@ -26,11 +26,12 @@ export class GproxyTray {
 
   private menus(): statusBarManager.StatusBarGroupMenu[] {
     const language = native.gproxyLanguage();
-    const open = language === 'zh-CN' ? '打开 GPROXY' : language === 'zh-TW' ? '開啟 GPROXY' : 'Open GPROXY';
-    const quit = language === 'zh-CN' ? '退出 GPROXY' : language === 'zh-TW' ? '結束 GPROXY' : 'Quit GPROXY';
+    const open = language === 'zh-CN' ? '打开 GPROXY' : language === 'zh-TW' ? '開啟 GPROXY' : language === 'ru' ? 'Открыть GPROXY' : 'Open GPROXY';
+    const quit = language === 'zh-CN' ? '退出 GPROXY' : language === 'zh-TW' ? '結束 GPROXY' : language === 'ru' ? 'Выйти из GPROXY' : 'Quit GPROXY';
     const active = native.gproxyEngineRunning();
     const status = language === 'zh-CN' ? (active ? '代理正在运行' : '代理已停止')
       : language === 'zh-TW' ? (active ? '代理正在執行' : '代理已停止')
+      : language === 'ru' ? (active ? 'Прокси работает' : 'Прокси остановлен')
       : (active ? 'Proxy is running' : 'Proxy has stopped');
     return [[
       { title: status, menuAction: { abilityName: this.context.abilityInfo.name } },

@@ -11,6 +11,10 @@ Personal cost budgets are displayed read-only on Overview, alongside usage.
 There is no separate personal quota page; administrators edit budgets on the
 corresponding user, API key, organization or team.
 
+## Language
+
+The Console supports English, Simplified Chinese, Traditional Chinese and Russian (Русский). On first use it selects a supported browser/system language, including regional Russian tags such as `ru-RU`. A manual selection takes priority and is saved on this device. Numbers and dates follow the selected locale; currency remains the configured billing currency.
+
 ## First startup
 
 A new Application instance opens a three-step wizard before the in-app console. CLI / container instances create an administrator on first startup and use the browser console at `/console/`, without the app wizard. See [Download & Install](/download/#setup).

@@ -6,7 +6,7 @@ import ts from "typescript"
 
 const consoleRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const localeRoot = path.join(consoleRoot, "src/locales")
-const locales = ["en", "zh-CN", "zh-TW"]
+const locales = ["en", "ru", "zh-CN", "zh-TW"]
 const domains = ["common", "navigation", "pages"]
 
 async function sourceFiles(directory) {
@@ -31,7 +31,8 @@ function prune(value, used, prefix = "") {
       const nested = prune(child, used, name)
       return Object.keys(nested).length ? [[key, nested]] : []
     }
-    return used.has(name) ? [[key, child]] : []
+    const base = name.replace(/_(zero|one|two|few|many|other)$/, "")
+    return used.has(name) || used.has(base) ? [[key, child]] : []
   }))
 }
 

@@ -12,8 +12,12 @@ import android.widget.TextView
 class GproxyPrivacyActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val chinese = resources.configuration.locales[0].language == "zh"
-        val policy = assets.open(if (chinese) "privacy-zh-CN.txt" else "privacy-en-US.txt")
+        val policyFile = when (resources.configuration.locales[0].language) {
+            "zh" -> "privacy-zh-CN.txt"
+            "ru" -> "privacy-ru.txt"
+            else -> "privacy-en-US.txt"
+        }
+        val policy = assets.open(policyFile)
             .bufferedReader().use { it.readText() }
         val padding = (24 * resources.displayMetrics.density).toInt()
         val content = LinearLayout(this).apply {

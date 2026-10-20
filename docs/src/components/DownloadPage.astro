@@ -3,7 +3,7 @@ import { downloadSources } from '../lib/download-sources';
 
 /** Shared package catalog; source-specific release metadata is loaded in the browser. */
 interface Props {
-  locale: 'en' | 'zh-CN' | 'zh-TW';
+  locale: 'en' | 'zh-CN' | 'zh-TW' | 'ru';
 }
 const { locale } = Astro.props;
 
@@ -13,6 +13,90 @@ const NIGHTLY = `${REPO}/releases/tag/nightly`;
 const prefix = locale === 'en' ? '' : `/${locale.toLowerCase()}`;
 
 const copy = {
+  ru: {
+    "eyebrow": "Загрузка",
+    "title": "Скачать GPROXY",
+    "lede": "Единый шлюз для ваших LLM-провайдеров. Выберите приложение, CLI, контейнер или облачное развёртывание. Все сборки входят в один подписанный выпуск.",
+    "latest": "Последний выпуск",
+    "loading": "Получение сведений о выпуске…",
+    "released": "выпущено",
+    "downloadSource": "Источник загрузки",
+    "offline": "Не удалось получить сведения о выпуске из этого источника. Ссылки ниже ведут на страницу выпусков; можно выбрать другой источник.",
+    "notes": "Примечания к выпуску",
+    "allReleases": "Все выпуски",
+    "nightly": "Сборки для разработки",
+    "forYou": "Для этого устройства",
+    "forYouHint": "Определено по браузеру. Если платформа выбрана неверно, выберите другую ниже.",
+    "app": "Приложение",
+    "cli": "CLI",
+    "appHint": "Мастер настройки, значок в трее, запуск при входе в систему.",
+    "cliHint": "Один исполняемый файл для серверов и терминалов.",
+    "headless": "CLI без интерфейса",
+    "headlessHint": "Только прокси и API управления, без веб-консоли. Для CI и небольших хостов.",
+    "alpineKey": "Ключ подписи Alpine",
+    "alpineGuide": "Установка в Alpine",
+    "platforms": "Все платформы",
+    "verify": "Проверка загруженных файлов",
+    "verifyBody": "Каждый выпуск содержит SHA256SUMS и подписанный manifest.json. CLI и приложение проверяют одну и ту же подпись Ed25519 перед самообновлением; ключи подписи хранятся только в процессе выпуска.",
+    "sums": "SHA256SUMS",
+    "manifest": "manifest.json",
+    "container": "Контейнеры",
+    "containerBody": "Образы для amd64, arm64 и riscv64 доступны в Docker Hub (gproxy2/gproxy), GitHub, GitLab и CNB. Стабильные версии используют теги vX.Y.Z, бета-версии — staging, сборки для разработки — nightly.",
+    "containerGuide": "Руководство по контейнерам",
+    "hosted": "Облачные платформы",
+    "hostedBody": "Разверните GPROXY на Cloudflare Workers, Netlify или Vercel без локальной среды сборки, с D1, libSQL или PostgreSQL.",
+    "hostedGuide": "Облачное развёртывание",
+    "source": "Сборка из исходного кода",
+    "sourceBody": "Обычный cargo build создаёт CLI. Для приложения и версии без интерфейса предусмотрены отдельные короткие инструкции.",
+    "sourceGuide": "Сборка из исходного кода",
+    "next": "Установили? Далее:",
+    "nextLink": "Быстрый старт",
+    "upgrade": "Переходите с v3? Прочитайте",
+    "upgradeLink": "руководство по миграции",
+    "store": "Также в Microsoft Store",
+    "storeDesktop": "GPROXY Desktop",
+    "storeCli": "GPROXY CLI",
+    "quick": "Установка одной командой",
+    "quickBody": "Устанавливает CLI и помогает настроить базу данных, администратора и прокси. Приложение с графическим интерфейсом можно скачать ниже.",
+    "quickUnix": "Linux · macOS · Termux",
+    "quickWindows": "Windows PowerShell",
+    "quickMore": "Установка без вопросов",
+    "quickMoreBody": "Добавьте -y и нужные параметры для установки без запросов. Запустите скрипт с --help, чтобы увидеть все параметры.",
+    "setup": "После установки",
+    "setupApp": "Приложение",
+    "setupAppBody": "Откройте GPROXY. Мастер запросит порт, каталог данных, имя и пароль администратора, а также необязательную конфигурацию для импорта. Сохраните показанные в конце адрес и ключ API.",
+    "setupCli": "CLI",
+    "setupCliBody": "Если использовали установочный скрипт, запустите GPROXY указанной им командой. Иначе выполните команду ниже. Затем откройте консоль в браузере и войдите. Новый экземпляр показывает пароль администратора и ключ API только один раз — сохраните их.",
+    "experimental": "экспериментальная версия",
+    "unsigned": "без подписи",
+    "arch": {
+        "x86_64": "x86_64",
+        "aarch64": "ARM64",
+        "riscv64": "RISC-V 64"
+    },
+    "os": {
+        "linux": {
+            "name": "Linux",
+            "hint": "Сборки GNU подходят большинству дистрибутивов. Для musl доступны пакеты Alpine APK (apk-tools 3; сначала импортируйте ключ подписи). CLI статический; приложению нужны GTK/WebKitGTK из Alpine edge."
+        },
+        "windows": {
+            "name": "Windows",
+            "hint": "ZIP не требует установщика. Файлы MSIX предназначены для подачи в магазин и могут ещё не иметь подписи Microsoft."
+        },
+        "macos": {
+            "name": "macOS",
+            "hint": "Для Apple Silicon выберите ARM64. Приложения имеют подпись ad-hoc, без нотариализации; при первом запуске разрешите их в системных настройках."
+        },
+        "android": {
+            "name": "Android",
+            "hint": "Приложение распространяется как APK. CLI работает в Termux: установите DEB через apt или распакуйте ZIP и следуйте TERMUX.txt."
+        },
+        "ohos": {
+            "name": "OpenHarmony / HarmonyOS NEXT",
+            "hint": "CLI в ZIP для ARM64 и x86_64. HAP экспериментальный и требует собственной подписи. Фоновая работа зависит от устройства, профиля подписи и выданных разрешений."
+        }
+    }
+},
   en: {
     eyebrow: 'Download',
     title: 'Get GPROXY',
@@ -450,7 +534,7 @@ const headlessLabel = (asset: string) => asset.replace(/^gproxy-headless-/, '').
       const date = root.querySelector<HTMLElement>('[data-release-date]');
       if (date) {
         const when = new Date(release.published_at);
-        const released = { en: 'released ', 'zh-CN': '发布于 ', 'zh-TW': '發布於 ' }[locale] ?? '';
+        const released = { ru: 'выпущено ', en: 'released ', 'zh-CN': '发布于 ', 'zh-TW': '發布於 ' }[locale] ?? '';
         date.textContent = Number.isNaN(when.getTime()) ? '' : `${released}${new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(when)}`;
       }
 

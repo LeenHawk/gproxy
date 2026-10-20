@@ -35,11 +35,11 @@ The Rust exporter writes ignored build inputs to `public/generated/`:
   vendor service classifications. Declarations do not prove live account
   access or support for every protocol operation. Placeholders are not defaults.
 
-The English, Simplified Chinese and Traditional Chinese MDX pages render these
+The English, Simplified Chinese, Traditional Chinese and Russian MDX pages render these
 JSON files through Astro components. `src/i18n/reference/` translates all
 generated descriptions; untranslated additions fail the build. Protocol keys,
 enum values, source paths and type identifiers remain unchanged. The build also
-writes `*.zh-cn.json` and `*.zh-tw.json` with localized descriptions.
+writes `*.zh-cn.json`, `*.zh-tw.json` and `*.ru.json` with localized descriptions.
 
 The API reference links every payload to its complete data-structure definition.
 `starlight-llms-txt` renders those same pages into `llms-full.txt`,
@@ -47,10 +47,16 @@ The API reference links every payload to its complete data-structure definition.
 the documentation sets and machine-readable exports. The JSON files are also
 published as static files; generated outputs are never committed.
 
-`/llms-api.txt`, `/zh-cn/llms-api.txt` and `/zh-tw/llms-api.txt` contain the
+`/llms-api.txt`, `/zh-cn/llms-api.txt`, `/zh-tw/llms-api.txt` and `/ru/llms-api.txt` contain the
 complete OpenAPI schemas, configuration schema and channel catalogue in each
 language. Unlike the compact overview, these files never remove expandable
-payload definitions. `llms.txt` links all three language variants.
+payload definitions. `llms.txt` links all four language variants.
+
+Keep each localized content tree aligned with the English pages, including
+sidebar labels, download-page copy and localized internal links. Russian
+tutorial pages reuse the English video with `ru.vtt` subtitles; they do not
+claim a Russian audio track. The privacy page is generated from
+`distribution/mobile/privacy/privacy-ru.txt` by `scripts/mobile/sync-listings.py`.
 
 Normal gateway builds do not enable the optional `schema` or `documentation`
 features. No runtime documentation endpoint is added. Required-but-nullable

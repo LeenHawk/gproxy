@@ -1,5 +1,5 @@
 // Schema: {version:1, notifications:[{id, severity, published_at, expires_at?,
-// affects?, content:{en:{title, body}, "zh-CN"?:{title, body}, "zh-TW"?:{title, body}}}]}.
+// affects?, content:{en:{title, body}, "zh-CN"?:{title, body}, "zh-TW"?:{title, body}, ru?:{title, body}}}]}.
 // severity is info|warning|critical; dates are RFC3339; affects is a comma-separated
 // semver comparator range; body supports headings, blockquotes, bullets, bold, and code.
 import { readFile } from "node:fs/promises";
@@ -51,7 +51,7 @@ if (!object(feed) || feed.version !== 1 || !Array.isArray(feed.notifications)) {
     if (entry.affects !== undefined && !validRange(entry.affects)) errors.push(`${at}.affects must be a semver range`);
     if (!object(entry.content) || !object(entry.content.en)) errors.push(`${at}.content.en is required`);
     for (const [locale, content] of Object.entries(entry.content ?? {})) {
-      if (!["en", "zh-CN", "zh-TW"].includes(locale)) errors.push(`${at}.content has unsupported locale ${locale}`);
+      if (!["en", "ru", "zh-CN", "zh-TW"].includes(locale)) errors.push(`${at}.content has unsupported locale ${locale}`);
       if (!object(content) || !text(content.title) || !text(content.body)) errors.push(`${at}.content.${locale} needs title and body`);
     }
   });

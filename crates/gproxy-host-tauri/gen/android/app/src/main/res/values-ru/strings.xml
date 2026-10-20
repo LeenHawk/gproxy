@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">GPROXY</string>
+    <string name="main_activity_title">GPROXY</string>
+    <string name="gproxy_channel_name">Шлюз GPROXY</string>
+    <string name="gproxy_channel_description">Показывает, что шлюз работает, и позволяет остановить его.</string>
+    <string name="gproxy_status_starting">Запуск…</string>
+    <string name="gproxy_status_running">Работает на %1$s</string>
+    <string name="gproxy_status_unsealed">Учётные данные хранятся без шифрования: на устройстве нет доступного для GPROXY хранилища ключей.</string>
+    <string name="gproxy_status_failed">Не удалось запустить GPROXY</string>
+    <string name="gproxy_status_failed_unknown">Экземпляр не запустился и не сообщил причину.</string>
+    <string name="gproxy_action_stop">Остановить</string>
+    <string name="gproxy_action_privacy">Конфиденциальность</string>
+    <string name="gproxy_special_use_subtype">Поддерживает работу локального шлюза GPROXY, чтобы приложения, подключённые к http://127.0.0.1, продолжали работать, когда GPROXY находится в фоне.</string>
+    <string name="gproxy_update_none">Нет проверенного обновления GPROXY, ожидающего установки.</string>
+    <string name="gproxy_action_update">Обновить</string>
+    <string name="gproxy_update_checking">Проверка и загрузка последнего обновления…</string>
+    <string name="gproxy_update_current">Установлена последняя версия GPROXY.</string>
+    <string name="gproxy_update_failed">Не удалось обновить GPROXY</string>
+    <string name="gproxy_save_done">Сохранено</string>
+    <string name="gproxy_save_failed">Не удалось сохранить файл</string>
+</resources>

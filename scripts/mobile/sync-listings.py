@@ -17,9 +17,10 @@ for locale, text in listing["locales"].items():
         raise ValueError(f"Android description exceeds 4000 characters: {locale}")
     (directory / "full_description.txt").write_text(description)
     (directory / "privacy_url.txt").write_text(text["privacyUrl"] + "\n")
-    policy = (root / "distribution/mobile/privacy" / f"privacy-{locale}.txt").read_text()
+    policy = (root / "distribution/mobile/privacy" / f"privacy-{'ru' if locale == 'ru-RU' else locale}.txt").read_text()
     title, body = policy.split("\n", 1)
-    page = root / "docs/src/content/docs" / ("zh-cn/legal/privacy.md" if locale == "zh-CN" else "legal/privacy.md")
+    page = root / "docs/src/content/docs" / {"en-US": "legal/privacy.md", "zh-CN": "zh-cn/legal/privacy.md", "ru-RU": "ru/legal/privacy.md"}[locale]
     page.parent.mkdir(parents=True, exist_ok=True)
-    page.write_text(f"---\ntitle: {title}\ndescription: GPROXY mobile application privacy information\n---\n\n{body.lstrip()}")
-print("Generated Android listing text and English/Chinese privacy pages")
+    description = "Конфиденциальность в мобильном приложении GPROXY" if locale == "ru-RU" else "GPROXY mobile application privacy information"
+    page.write_text(f"---\ntitle: {title}\ndescription: {description}\n---\n\n{body.lstrip()}")
+print("Generated Android listing text and localized privacy pages")

@@ -198,7 +198,7 @@ class GproxyService : Service() {
                 } else {
                     addAction(
                         android.R.drawable.ic_menu_info_details,
-                        if (resources.configuration.locales[0].language == "zh") "隐私说明" else "Privacy",
+                        getString(R.string.gproxy_action_privacy),
                         PendingIntent.getActivity(
                             this@GproxyService, 2,
                             Intent(this@GproxyService, GproxyPrivacyActivity::class.java),

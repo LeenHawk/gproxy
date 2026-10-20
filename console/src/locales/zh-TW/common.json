@@ -87,7 +87,8 @@
   "language": {
     "en": "English",
     "zh-CN": "简体中文",
-    "zh-TW": "繁體中文"
+    "zh-TW": "繁體中文",
+    "ru": "Русский"
   },
   "theme": {
     "label": "主題",

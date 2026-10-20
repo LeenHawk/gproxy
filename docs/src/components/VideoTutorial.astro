@@ -2,20 +2,21 @@
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 interface Props {
-  locale: 'en' | 'zh-CN' | 'zh-TW';
+  locale: 'en' | 'zh-CN' | 'zh-TW' | 'ru';
   topic?: 'sillytavern' | 'routes' | 'users' | 'logs' | 'claude' | 'codex' | 'cherry';
   title?: string;
 }
 const { locale, topic = 'sillytavern', title = 'GPROXY × SillyTavern' } = Astro.props;
-const languages: Array<'en' | 'zh'> = locale === 'en' ? ['en', 'zh'] : ['zh', 'en'];
+const languages: Array<'en' | 'zh'> = locale === 'en' || locale === 'ru' ? ['en', 'zh'] : ['zh', 'en'];
 const base = `/tutorials/${topic}`;
 const labels = {
-  en: { tab: 'English', captions: 'English', lang: 'en' },
-  zh: { tab: '中文', captions: '简体中文', lang: 'zh-CN' },
+  en: { tab: locale === 'ru' ? 'Английское видео' : 'English', captions: 'English', lang: 'en' },
+  zh: { tab: locale === 'ru' ? 'Китайское видео' : '中文', captions: '简体中文', lang: 'zh-CN' },
 };
 ---
 
 <div class="tutorial-player">
+  {locale === 'ru' && <p>Русские субтитры доступны для английского видео.</p>}
   <Tabs>
     {languages.map((language) => {
       const copy = labels[language];
@@ -31,7 +32,8 @@ const labels = {
           aria-label={`${title} · ${copy.tab}`}
         >
           <source src={`${base}/${language}.mp4`} type="video/mp4" />
-          <track kind="captions" src={`${base}/${language}.vtt`} srclang={copy.lang} label={copy.captions} default />
+          {locale === 'ru' && language === 'en' && <track kind="subtitles" src={`${base}/ru.vtt`} srclang="ru" label="Русский" default />}
+          <track kind="captions" src={`${base}/${language}.vtt`} srclang={copy.lang} label={copy.captions} default={locale !== 'ru' || language !== 'en'} />
         </video>
       </TabItem>;
     })}

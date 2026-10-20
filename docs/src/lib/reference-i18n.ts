@@ -1,8 +1,28 @@
 import simplified from '../i18n/reference/zh-cn.json';
 import traditional from '../i18n/reference/zh-tw.json';
+import russian from '../i18n/reference/ru.json';
 
-export type ReferenceLocale = 'en' | 'zh-cn' | 'zh-tw';
+export type ReferenceLocale = 'en' | 'zh-cn' | 'zh-tw' | 'ru';
 const labels = {
+  ru: {
+    method:'Метод',path:'Путь',dialect:'Протокол',operation:'Операция',transport:'Транспорт',
+    fields:'Поля',field:'Поле',type:'Тип',required:'Обязательно',default:'По умолчанию',description:'Описание',
+    yes:'Да',no:'Нет',none:'Нет',download:'Скачать',schema:'JSON Schema',defaults:'Конфигурация по умолчанию',
+    completeSchema:'Полная JSON Schema',hostConfig:'Общие настройки провайдера',
+    key:'Ключ',kind:'Тип',capability:'Возможность',supported:'Заявленная поддержка',placeholder:'Пример / заполнитель',
+    login:'Способы входа',credentials:'Типы учётных данных для ручного ввода',services:'Сервисные маршруты провайдера',
+    access:'Категория доступа',idempotent:'Идемпотентность',request:'Тело запроса',response:'Ответы',
+    parameters:'Параметры',location:'Расположение',status:'Статус',section:'Раздел управления',
+    websocket:'Сообщения WebSocket',clientMessage:'Сообщение клиента',serverMessage:'Сообщение сервера',event:'Событие потока',
+    definitions:'Структуры данных',references:'Связанные структуры',noBody:'Без тела',
+    jsonDownload:'Скачать JSON',condition:'Доступность',optionalBody:'Необязательное тело запроса',
+    Forwarding:'Пересылка','Codex provider':'Провайдер Codex',Management:'Управление',Portal:'Личный кабинет',OAuth:'OAuth',System:'Система',
+    refresh:'Обновление учётных данных',quotaQuery:'Запрос квоты',quotaReset:'Сброс квоты',paidUsage:'Платное использование',
+    authorization_code:'Код авторизации (PKCE)',device_code:'Код устройства',cookie:'Cookie браузера',api_key:'Ключ API',
+    string:'Строка',bool:'Логическое значение',integer:'Целое число',json:'JSON',header_list:'HTTP-заголовки',
+    catalog:'Каталог',identity:'Идентификация',usage:'Использование',resource:'Ресурс',settings:'Настройки',restricted:'Ограничено',telemetry:'Телеметрия',refused:'Отклонено',prefix:'Резервный префикс',
+    list:'Список',item:'Получить / обработать элемент',create:'Создать',delete:'Удалить',
+  },
   en: {
     method:'Method', path:'Path', dialect:'Dialect', operation:'Operation', transport:'Transport',
     fields:'Fields', field:'Field', type:'Type', required:'Required', default:'Default', description:'Description',
@@ -67,7 +87,7 @@ export function referenceText(locale: ReferenceLocale) {
 export function description(text: string | undefined, locale: ReferenceLocale): string {
   if (!text || locale === 'en') return text ?? '';
   const key = text.replace(/\s+/g,' ').trim();
-  const dictionary: Record<string,string> = locale === 'zh-cn' ? simplified : traditional;
+  const dictionary: Record<string,string> = { 'zh-cn': simplified, 'zh-tw': traditional, ru: russian }[locale];
   if (!(key in dictionary)) throw new Error(`Missing ${locale} reference translation: ${key}`);
   return dictionary[key];
 }
