@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { DOCS_URL, REPO_URL, SPONSORS_URL } from "@/lib/project-links"
 
 export function AboutPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const docsPath = i18n.language === "en" ? "" : `/${i18n.language.toLowerCase()}`
   const info = useQuery({ queryKey: INFO_KEY, queryFn: instanceInfo })
   return (
     <Page>
@@ -41,7 +42,7 @@ export function AboutPage() {
               </a>
             </Button>
             <Button asChild variant="outline">
-              <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
+              <a href={`${DOCS_URL}${docsPath}/`} target="_blank" rel="noopener noreferrer">
                 <BookOpenIcon data-icon="inline-start" aria-hidden />{t("about.documentation")}
               </a>
             </Button>
