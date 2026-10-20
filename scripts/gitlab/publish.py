@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -124,13 +125,26 @@ class Gitlab:
         # Release and beta manifests differ even within the same pipeline.
         version = f"{os.environ['CI_PIPELINE_ID']}-{release['tag_name']}"
         url = f"{self.root}/packages/generic/gproxy/{version}/{urllib.parse.quote(path.name)}"
-        with path.open("rb") as stream:
-            req = urllib.request.Request(url, method="PUT", data=stream, headers={
-                "PRIVATE-TOKEN": self.token, "Content-Type": "application/octet-stream",
-                "Content-Length": str(path.stat().st_size),
-            })
-            with urllib.request.urlopen(req, timeout=600) as response:
-                response.read()
+        for attempt in range(5):
+            try:
+                # Reopen the file so a retry sends the entire package again.
+                with path.open("rb") as stream:
+                    req = urllib.request.Request(url, method="PUT", data=stream, headers={
+                        "PRIVATE-TOKEN": self.token, "Content-Type": "application/octet-stream",
+                        "Content-Length": str(path.stat().st_size),
+                    })
+                    with urllib.request.urlopen(req, timeout=600) as response:
+                        response.read()
+                break
+            except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+                if isinstance(error, urllib.error.HTTPError) and error.code not in {408, 429, 500, 502, 503, 504}:
+                    raise
+                if attempt == 4:
+                    raise
+                reason = f"HTTP {error.code}" if isinstance(error, urllib.error.HTTPError) else type(error).__name__
+                delay = 2 ** attempt
+                print(f"gitlab: retrying {path.name} after {reason} in {delay}s ({attempt + 1}/4)", flush=True)
+                time.sleep(delay)
         tag = urllib.parse.quote(release["tag_name"], safe="")
         link = next((a for a in release.get("assets", {}).get("links", []) if a["name"] == path.name), None)
         body = {"name": path.name, "url": url, "direct_asset_path": "/" + path.name, "link_type": "package"}

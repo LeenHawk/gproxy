@@ -115,12 +115,13 @@ async fn a_streamed_response_is_settled_when_it_ends_not_when_it_starts() {
     let host = instance().await;
     let (chunks, receiver) = tokio::sync::mpsc::unbounded_channel();
     host.client
-        .script(vec![Reply::Stream(StatusCode::OK, receiver)]);
+        .script(vec![Reply::Sse(StatusCode::OK, receiver)]);
 
     let response = host.raw(call()).await;
     let mut body = response.into_body().into_data_stream();
-    chunks.send(Bytes::from_static(b"partial")).unwrap();
-    assert_eq!(body.next().await.unwrap().unwrap(), "partial");
+    let delta = Bytes::from_static(b"data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hello\"}}\n\n");
+    chunks.send(delta.clone()).unwrap();
+    assert_eq!(body.next().await.unwrap().unwrap(), delta);
 
     assert!(
         rows(&host).await.is_empty(),
@@ -132,6 +133,7 @@ async fn a_streamed_response_is_settled_when_it_ends_not_when_it_starts() {
 
     let rows = rows(&host).await;
     assert_eq!(rows.len(), 1, "the settlement ran when the stream ended");
+    assert_eq!(rows[0].output_tokens, Some(3));
     assert_eq!(rows[0].user_id.as_deref(), Some("alice"));
 }
 

@@ -69,16 +69,18 @@ async fn usage_rows(
 #[tokio::test]
 async fn a_permitted_key_reaches_the_upstream_and_is_metered() {
     let (app, client) = one_provider().await;
-    client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
+    let reply = json!({"output": [{"type": "message", "content": [{"type": "output_text", "text": "hello"}]}]});
+    client.script(vec![Reply::Http(StatusCode::OK, reply.clone())]);
     let caller = support::caller_for(&app, "k-alice").await;
 
     let outcome = app.call(&caller, request("p1/m1")).await.unwrap();
     assert_eq!(outcome.execution.response().status, StatusCode::OK);
-    assert_eq!(finish(outcome).await, json!({"ok": true}));
+    assert_eq!(finish(outcome).await, reply);
 
     assert_eq!(client.urls(), ["https://p1.example/v1/responses"]);
     let rows = usage_rows(&app).await;
     assert_eq!(rows.len(), 1, "one physical call, one usage row");
+    assert_eq!(rows[0].output_tokens, Some(3));
     assert!(
         app.gproxy()
             .store()

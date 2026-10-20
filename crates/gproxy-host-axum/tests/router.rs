@@ -86,8 +86,9 @@ async fn a_permitted_call_reaches_the_upstream_and_writes_a_usage_row() {
     use sea_orm::EntityTrait;
 
     let host = instance().await;
+    let reply = json!({"content": [{"type": "text", "text": "hello"}]});
     host.client
-        .script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
+        .script(vec![Reply::Http(StatusCode::OK, reply.clone())]);
 
     let answer = host
         .send(keyed(
@@ -96,7 +97,7 @@ async fn a_permitted_call_reaches_the_upstream_and_writes_a_usage_row() {
         ))
         .await;
     assert_eq!(answer.status, StatusCode::OK, "{}", answer.text());
-    assert_eq!(answer.json(), json!({"ok": true}));
+    assert_eq!(answer.json(), reply);
     assert_eq!(host.client.urls(), ["https://p1.example/v1/messages"]);
 
     // The settlement runs as the response body ends, which `send` has already
@@ -110,6 +111,7 @@ async fn a_permitted_call_reaches_the_upstream_and_writes_a_usage_row() {
         .await
         .unwrap();
     assert_eq!(rows.len(), 1, "one physical call, one usage row");
+    assert_eq!(rows[0].output_tokens, Some(3));
     assert_eq!(rows[0].user_id.as_deref(), Some("alice"));
     assert_eq!(rows[0].api_key_id.as_deref(), Some("k-alice"));
     assert_eq!(rows[0].model, "m1");
@@ -613,8 +615,10 @@ async fn a_buffered_answer_over_a_socket_settles_as_completed() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let host = instance().await;
-    host.client
-        .script(vec![Reply::Http(StatusCode::OK, json!({ "ok": true }))]);
+    host.client.script(vec![Reply::Http(
+        StatusCode::OK,
+        json!({"content": [{"type": "text", "text": "hello"}]}),
+    )]);
     let bound = host.bind().await;
     let mut socket = tokio::net::TcpStream::connect(bound.address).await.unwrap();
     let body = json!({ "model": "p1/m1" }).to_string();

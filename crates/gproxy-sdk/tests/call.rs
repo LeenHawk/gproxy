@@ -85,7 +85,8 @@ async fn usage_rows(gproxy: &Handle) -> Vec<usage_record::Model> {
 #[tokio::test]
 async fn a_scripted_answer_comes_back_and_is_metered() {
     let (gproxy, client, _) = pair().await;
-    client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
+    let reply = json!({"output": [{"type": "message", "content": [{"type": "output_text", "text": "hello"}]}]});
+    client.script(vec![Reply::Http(StatusCode::OK, reply.clone())]);
 
     let execution = gproxy
         .call(generate(), request(json!({"model": "pair"})))
@@ -99,11 +100,12 @@ async fn a_scripted_answer_comes_back_and_is_metered() {
         .await
         .unwrap();
     assert_eq!(execution.response().status, StatusCode::OK);
-    assert_eq!(finish(execution).await, r#"{"ok":true}"#);
+    assert_eq!(finish(execution).await, reply.to_string());
 
     assert_eq!(client.urls(), ["https://p1.example/v1/responses"]);
     let rows = usage_rows(&gproxy).await;
     assert_eq!(rows.len(), 1, "one physical call, one usage row");
+    assert_eq!(rows[0].output_tokens, Some(3));
     assert!(
         gproxy
             .store()
@@ -345,7 +347,10 @@ async fn the_narrowing_setters_reach_the_plan() {
 #[tokio::test]
 async fn an_explicit_model_overrides_the_body() {
     let (gproxy, client, _) = pair().await;
-    client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
+    client.script(vec![Reply::Http(
+        StatusCode::OK,
+        json!({"output": [{"type": "message", "content": [{"type": "output_text", "text": "hello"}]}]}),
+    )]);
 
     // The body names a route that does not exist; the setter names one that does.
     let execution = gproxy
