@@ -3,9 +3,7 @@ title: "Миграция PostgreSQL v2 на v4"
 description: "Инструмент автономной миграции для перемещения базы данных PostgreSQL версии 2 в новую базу данных PostgreSQL версии 4."
 ---
 
-Автономный скрипт пока распространяется из ветки разработки; команды ниже используют эту версию.
-
-Загрузите автономный [сценарий миграции](https://github.com/LeenHawk/gproxy/blob/dev/scripts/migrate-v2-postgres.sh). В него встроен мост данных Python, поэтому требуется только один скрипт. Это автономный мост для схемы v2.3.2:
+Загрузите [Shell-скрипт](https://github.com/LeenHawk/gproxy/blob/main/scripts/migrate-v2-postgres.sh) и [вспомогательный Python-файл](https://github.com/LeenHawk/gproxy/blob/main/scripts/migrate-v2-postgres.py) из одной ревизии и сохраните оба файла в одном каталоге. Инструмент выполняет автономную миграцию схемы v2.3.2:
 
 ```text
 v2 PostgreSQL -> temporary v2 SQLite -> v3.0.22 SQLite -> new v4 PostgreSQL
@@ -20,7 +18,8 @@ v2 PostgreSQL -> temporary v2 SQLite -> v3.0.22 SQLite -> new v4 PostgreSQL
 Сохраните скрипт локально перед его запуском:
 
 ```sh
-curl -fL https://raw.githubusercontent.com/LeenHawk/gproxy/dev/scripts/migrate-v2-postgres.sh -o migrate-v2-postgres.sh
+curl -fL https://raw.githubusercontent.com/LeenHawk/gproxy/main/scripts/migrate-v2-postgres.sh -o migrate-v2-postgres.sh
+curl -fL https://raw.githubusercontent.com/LeenHawk/gproxy/main/scripts/migrate-v2-postgres.py -o migrate-v2-postgres.py
 ```
 
 - Bash, Python 3.10+ с SQLite и psycopg 3:
@@ -86,7 +85,7 @@ bash migrate-v2-postgres.sh import ./migration-work /absolute/path/to/v4/gproxy
 
 ## Что мост сохраняет, а что нет
 
-Мост наследует существующие правила миграции; он не обещает идентичного поведения для каждой функции версии 2. Через эти правила проходят провайдеры, учётные данные, маршруты, пользователи, восстанавливаемые ключи API, хэши паролей и сохраняемые сведения об использовании. См. [с v2 по v3](https://github.com/LeenHawk/gproxy/blob/main/docs/v2-upgrade.md) и [с v3 по v4](/ru/deployment/v3-to-v4/) для границ преобразования.
+Мост наследует существующие правила миграции; он не обещает идентичного поведения для каждой функции версии 2. Через эти правила проходят провайдеры, учётные данные, маршруты, пользователи, восстанавливаемые ключи API, хэши паролей и сохраняемые сведения об использовании. См. [с v2 по v3](/ru/deployment/v2-to-v3/) и [с v3 по v4](/ru/deployment/v3-to-v4/) для границ преобразования.
 
 - В v4 раундах денежные значения сохраняются с точностью до 9 знаков после запятой. Точные первоначальные затраты на использование остаются в `metrics.v3.cost`; проверка сравнивает эти оригиналы.
 - Удаленные сведения об использовании невозможно восстановить из старых агрегатов. Сводные данные об использовании версии 2 и исторические циклы квот сохраняются в моментальном снимке, а не импортируются.

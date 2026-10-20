@@ -3,9 +3,7 @@ title: 从 v2 PostgreSQL 迁移到 v4
 description: 使用离线迁移工具，将 v2 PostgreSQL 数据迁入新的 v4 PostgreSQL 数据库。
 ---
 
-独立打包脚本当前从开发分支分发；下方命令使用该版本。
-
-下载独立的[迁移脚本](https://github.com/LeenHawk/gproxy/blob/dev/scripts/migrate-v2-postgres.sh)即可使用。Python 数据转换部分已内嵌，只需要一个脚本文件。它针对 v2.3.2 的表结构，按以下路径离线迁移：
+下载同一版本的 [Shell 脚本](https://github.com/LeenHawk/gproxy/blob/main/scripts/migrate-v2-postgres.sh)和 [Python 辅助程序](https://github.com/LeenHawk/gproxy/blob/main/scripts/migrate-v2-postgres.py)，将两个文件放在同一目录。工具针对 v2.3.2 的表结构，按以下路径离线迁移：
 
 ```text
 v2 PostgreSQL → 临时 v2 SQLite → v3.0.22 SQLite → 新的 v4 PostgreSQL
@@ -20,7 +18,8 @@ SQLite 文件只用作导入中间文件，不能代替 `pg_dump` 备份：它�
 先将脚本保存到本地：
 
 ```sh
-curl -fL https://raw.githubusercontent.com/LeenHawk/gproxy/dev/scripts/migrate-v2-postgres.sh -o migrate-v2-postgres.sh
+curl -fL https://raw.githubusercontent.com/LeenHawk/gproxy/main/scripts/migrate-v2-postgres.sh -o migrate-v2-postgres.sh
+curl -fL https://raw.githubusercontent.com/LeenHawk/gproxy/main/scripts/migrate-v2-postgres.py -o migrate-v2-postgres.py
 ```
 
 需要准备：
@@ -82,7 +81,7 @@ bash migrate-v2-postgres.sh import ./migration-work /absolute/path/to/v4/gproxy
 
 ## 迁移范围
 
-工具复用现有迁移规则，不保证每个 v2 功能的行为完全相同。供应商、凭据、路由、用户、可恢复的 API key、密码哈希和保留的用量明细按这些规则转换。详细边界参见 [v2 → v3 说明](https://github.com/LeenHawk/gproxy/blob/main/docs/v2-upgrade.md)和 [v3 → v4 说明](/zh-cn/deployment/v3-to-v4/)。
+工具复用现有迁移规则，不保证每个 v2 功能的行为完全相同。供应商、凭据、路由、用户、可恢复的 API key、密码哈希和保留的用量明细按这些规则转换。详细边界参见 [v2 → v3 说明](/zh-cn/deployment/v2-to-v3/)和 [v3 → v4 说明](/zh-cn/deployment/v3-to-v4/)。
 
 - v4 存储金额时保留 9 位小数，原始用量费用保存在 `metrics.v3.cost`，校验使用该精确值。
 - 已删除的用量明细无法从旧聚合数据重建。v2 用量汇总和历史配额周期保留在快照中，不会导入。

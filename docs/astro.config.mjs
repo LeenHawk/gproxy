@@ -285,6 +285,11 @@ export default defineConfig({
               translations: { 'zh-CN': '从源码构建', 'zh-TW': '從原始碼構建', ru: 'Сборка из исходного кода' },
             },
             {
+              label: 'Migrating v2 SQLite to v3',
+              slug: 'deployment/v2-to-v3',
+              translations: { 'zh-CN': '从 v2 SQLite 迁移到 v3', 'zh-TW': '從 v2 SQLite 遷移到 v3', ru: 'Миграция SQLite с v2 на v3' },
+            },
+            {
               label: 'Migrating v2 PostgreSQL to v4',
               slug: 'deployment/v2-postgres-to-v4',
               translations: { 'zh-CN': '从 v2 PostgreSQL 迁移到 v4', 'zh-TW': '從 v2 PostgreSQL 遷移到 v4', ru: 'Миграция PostgreSQL с v2 на v4' },

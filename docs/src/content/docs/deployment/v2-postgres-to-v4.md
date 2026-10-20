@@ -3,9 +3,7 @@ title: Migrating v2 PostgreSQL to v4
 description: An offline migration tool for moving a v2 PostgreSQL database to a new v4 PostgreSQL database.
 ---
 
-The standalone script is currently distributed from the development branch; the commands below use that version.
-
-Download the standalone [migration script](https://github.com/LeenHawk/gproxy/blob/dev/scripts/migrate-v2-postgres.sh). It embeds its Python data bridge, so only one script is needed. This is an offline bridge for the v2.3.2 schema:
+Download the [shell wrapper](https://github.com/LeenHawk/gproxy/blob/main/scripts/migrate-v2-postgres.sh) and its [Python helper](https://github.com/LeenHawk/gproxy/blob/main/scripts/migrate-v2-postgres.py) from the same revision, and keep both files in the same directory. This is an offline bridge for the v2.3.2 schema:
 
 ```text
 v2 PostgreSQL -> temporary v2 SQLite -> v3.0.22 SQLite -> new v4 PostgreSQL
@@ -24,7 +22,8 @@ PostgreSQL indexes, defaults and constraints are not reproduced for restoration.
 Save the script locally before running it:
 
 ```sh
-curl -fL https://raw.githubusercontent.com/LeenHawk/gproxy/dev/scripts/migrate-v2-postgres.sh -o migrate-v2-postgres.sh
+curl -fL https://raw.githubusercontent.com/LeenHawk/gproxy/main/scripts/migrate-v2-postgres.sh -o migrate-v2-postgres.sh
+curl -fL https://raw.githubusercontent.com/LeenHawk/gproxy/main/scripts/migrate-v2-postgres.py -o migrate-v2-postgres.py
 ```
 
 - Bash, Python 3.10+ with SQLite, and psycopg 3:
@@ -121,7 +120,7 @@ Do not run both deployments using the same OAuth refresh tokens.
 The bridge inherits the existing migration rules; it does not promise identical
 behavior for every v2 feature. Providers, credentials, routes, users, recoverable
 API keys, password hashes and retained usage details pass through those rules.
-See [v2 to v3](https://github.com/LeenHawk/gproxy/blob/main/docs/v2-upgrade.md) and
+See [v2 to v3](/deployment/v2-to-v3/) and
 [v3 to v4](/deployment/v3-to-v4/) for the conversion boundaries.
 
 - v4 rounds stored monetary values to 9 decimal places. Exact original usage

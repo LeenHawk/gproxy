@@ -1,4 +1,7 @@
-# Upgrading v2 to v3
+---
+title: Migrating v2 SQLite to v3
+description: Upgrade a v2 SQLite database with v3.0.22, understand migration boundaries, and restore the original database if needed.
+---
 
 The native v3 server recognizes a v2 SQLite database before opening the v3
 store. The normal v2 launch command can keep `--persistence db`, `--data-dir`,
@@ -19,7 +22,7 @@ Do not combine this upgrade with a master-key rotation.
 - PostgreSQL, MySQL, remote libSQL, v1 databases and nonstandard SQLite DSNs are
   not automatic-upgrade inputs. Export/migrate them explicitly first.
   For v2 PostgreSQL to v4 PostgreSQL, use the separate
-  [offline migration bridge](v2-postgres-upgrade.md).
+  [offline migration bridge](/deployment/v2-postgres-to-v4/).
 
 ## What startup does
 
@@ -74,11 +77,3 @@ and `-shm` files aside with the current database before restoring the backup.
 Restore the old launch settings and master key, then start v2. Do not run v2
 against a migrated v3 database. Usage written after the cutover stays in the
 saved v3 database and is not merged back automatically.
-
-## Publishing
-
-Pushes to `main` publish the rolling `staging` release. Staging manifests use the
-commit SHA as their update identity and commit-prefixed asset names; artifacts
-are uploaded before the signed manifest is replaced. The previous manifest's
-download targets are retained for in-flight updaters. Version-tag releases keep
-their existing `releases`/`dev` behavior. Staging builds do not publish crates.

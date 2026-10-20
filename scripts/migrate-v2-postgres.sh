@@ -21,7 +21,7 @@ Environment:
   PYTHON                 Python with psycopg 3 installed, default python3
 
 Stop all GPROXY writers and retain a pg_dump backup before preparing.
-Review the reports before importing. See docs/v2-postgres-upgrade.md.
+Review the reports before importing. See https://gproxy.leenhawk.com/deployment/v2-postgres-to-v4/.
 EOF
 }
 
