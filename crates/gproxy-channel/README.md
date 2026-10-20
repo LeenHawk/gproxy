@@ -34,6 +34,8 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `glm` | `glm` | GLM pay-as-you-go API; live official ZCode model catalogue | `{"api_key"}` |
 | `glm` | `glmcode` | GLM Coding Plan; separate catalogue, Chat / Messages / Responses and subscription quota | `{"api_key"}` |
 | `minimax` | `minimax` | MiniMax text API / Token Plan and H3 video creation, query, list, cancellation/deletion and download | `{"api_key"}` |
+| `volcengine` | `volcengine_agent` | Ark Agent Plan: Chat / Messages / Responses, dynamic models, AFP quota, embeddings, images, video tasks and HTTP TTS | API key; optional IAM AK/SK for control APIs |
+| `volcengine` | `volcengine_coding` | Ark Coding Plan: Chat / Messages / Responses, dynamic models, embeddings, personal quota windows and enterprise seat usage | API key; optional IAM AK/SK for control APIs |
 | `devin` | `devin` | Devin (Windsurf) at `server.codeium.com`: Connect-RPC over protobuf rather than JSON, `GetChatMessage` frames translated into Chat Completions SSE, `GetUserStatus` daily and weekly windows | session token |
 | `geminicli` | `geminicli` | A Google account through the Code Assist endpoints the Gemini CLI talks to: PKCE login that discovers the Cloud project and tier, refresh, the Code Assist request envelope, `retrieveUserQuota` catalogue and per-model quota | `OAuthCredential` |
 | `grokbuild` | `grokbuild` | An xAI account through the Grok Build CLI: device login at `auth.x.ai`, refresh, a narrowed Responses body on `cli-chat-proxy.grok.com`, xAI's own media paths on `api.x.ai`, `/billing?format=credits` | `OAuthCredential` |

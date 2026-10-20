@@ -22,6 +22,7 @@
     feature = "opencode",
     feature = "openrouter",
     feature = "vercel",
+    feature = "volcengine",
     feature = "xai"
 ))]
 pub(crate) mod ability;

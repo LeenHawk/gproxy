@@ -29,6 +29,8 @@ Cargo feature：
 | `glm` | `glm` | GLM 按量 API；ZCode 官方动态模型目录 | `{"api_key"}` |
 | `glm` | `glmcode` | GLM Coding Plan；独立模型目录、Chat／Messages／Responses、订阅额度查询 | `{"api_key"}` |
 | `minimax` | `minimax` | MiniMax 文本 API／Token Plan，以及 H3 视频创建、查询、列表、取消／删除、下载 | `{"api_key"}` |
+| `volcengine` | `volcengine_agent` | 火山方舟 Agent Plan：Chat／Messages／Responses、动态模型、AFP 额度、向量、图片、视频任务及 HTTP TTS | API Key；管控接口另需 IAM AK/SK |
+| `volcengine` | `volcengine_coding` | 火山方舟 Coding Plan：Chat／Messages／Responses、动态模型、向量、个人版额度窗口与企业席位用量 | API Key；管控接口另需 IAM AK/SK |
 | `devin` | `devin` | `server.codeium.com` 上的 Devin（Windsurf）：传输是 Connect-RPC + protobuf 而非 JSON，`GetChatMessage` 的多帧流翻译成 Chat Completions SSE，`GetUserStatus` 给日／周两个窗口 | 会话 token |
 | `geminicli` | `geminicli` | 经 Gemini CLI 所用的 Code Assist 端点使用的 Google 账号：PKCE 登录并在登录时发现 Cloud project 与档位、刷新、Code Assist 请求信封、`retrieveUserQuota` 目录与逐模型额度 | `OAuthCredential` |
 | `grokbuild` | `grokbuild` | 经 Grok Build CLI 使用的 xAI 账号：`auth.x.ai` 的设备登录与刷新、打在 `cli-chat-proxy.grok.com` 上的收窄版 Responses body、留在 `api.x.ai` 的 xAI 自有媒体路径、`/billing?format=credits` | `OAuthCredential` |

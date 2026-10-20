@@ -38,6 +38,7 @@ pub(crate) use crate::channel::insert_configured;
     feature = "cline",
     feature = "commandcode",
     feature = "vercel",
+    feature = "volcengine",
     feature = "minimax",
     feature = "deepseek",
     feature = "kimi",

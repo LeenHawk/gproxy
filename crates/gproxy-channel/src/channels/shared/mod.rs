@@ -46,6 +46,7 @@ pub(crate) mod code_assist;
     feature = "glm",
     feature = "minimax",
     feature = "grokbuild",
+    feature = "volcengine",
     feature = "kimi",
     feature = "opencode",
     feature = "openrouter",

@@ -67,6 +67,7 @@ channels! {
     "opencode" => opencode, opencode::OpenCode::ZEN, opencode::OpenCode::GO;
     "openrouter" => openrouter, openrouter::OpenRouter;
     "vercel" => vercel, vercel::Vercel;
+    "volcengine" => volcengine, volcengine::Volcengine::AGENT, volcengine::Volcengine::CODING;
     "vertex" => vertex, vertex::Vertex;
     "vertexexpress" => vertexexpress, vertexexpress::VertexExpress;
     "trae" => trae, trae::Trae;
@@ -104,6 +105,7 @@ channels! {
     feature = "opencode",
     feature = "openrouter",
     feature = "vercel",
+    feature = "volcengine",
     feature = "vertex",
     feature = "vertexexpress",
     feature = "trae",

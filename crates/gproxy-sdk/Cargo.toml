@@ -41,6 +41,7 @@ openai = ["gproxy-channel/openai"]
 opencode = ["gproxy-channel/opencode"]
 openrouter = ["gproxy-channel/openrouter"]
 vercel = ["gproxy-channel/vercel"]
+volcengine = ["gproxy-channel/volcengine"]
 vertex = ["gproxy-channel/vertex"]
 vertexexpress = ["gproxy-channel/vertexexpress"]
 trae = ["gproxy-channel/trae"]
@@ -75,6 +76,7 @@ channels = [
     "opencode",
     "openrouter",
     "vercel",
+    "volcengine",
     "vertex",
     "vertexexpress",
     "trae",
