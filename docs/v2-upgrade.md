@@ -18,6 +18,8 @@ Do not combine this upgrade with a master-key rotation.
   and its standalone cutover snapshot.
 - PostgreSQL, MySQL, remote libSQL, v1 databases and nonstandard SQLite DSNs are
   not automatic-upgrade inputs. Export/migrate them explicitly first.
+  For v2 PostgreSQL to v4 PostgreSQL, use the separate
+  [offline migration bridge](v2-postgres-upgrade.md).
 
 ## What startup does
 
