@@ -17,7 +17,7 @@
       what the service does rather than what the app is, because a person
       reading it is deciding whether to let it keep running.
     -->
-    <string name="gproxy_special_use_subtype">"Runs the on-device GPROXY gateway so that apps configured to reach http://127.0.0.1 keep working while GPROXY is not the app in front."</string>
+    <string name="gproxy_special_use_subtype" translatable="false">"Runs the on-device GPROXY gateway so that apps configured to reach http://127.0.0.1 keep working while GPROXY is not the app in front."</string>
 
     <!-- The in-app update. -->
     <string name="gproxy_update_none">"No verified GPROXY update is waiting."</string>

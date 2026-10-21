@@ -10,7 +10,6 @@
     <string name="gproxy_status_failed_unknown">Экземпляр не запустился и не сообщил причину.</string>
     <string name="gproxy_action_stop">Остановить</string>
     <string name="gproxy_action_privacy">Конфиденциальность</string>
-    <string name="gproxy_special_use_subtype">Поддерживает работу локального шлюза GPROXY, чтобы приложения, подключённые к http://127.0.0.1, продолжали работать, когда GPROXY находится в фоне.</string>
     <string name="gproxy_update_none">Нет проверенного обновления GPROXY, ожидающего установки.</string>
     <string name="gproxy_action_update">Обновить</string>
     <string name="gproxy_update_checking">Проверка и загрузка последнего обновления…</string>

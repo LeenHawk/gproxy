@@ -1117,6 +1117,67 @@ async fn buffer(response: &mut WireResponse<HttpBody>, limits: CodecLimits) -> C
     Ok(bytes)
 }
 
+/// Custom voice identifiers occur in audio settings, never in user text/schema data.
+pub(crate) fn voice_reference(value: &Value) -> Option<&str> {
+    [
+        "/session/audio/output/voice/id",
+        "/audio/output/voice/id",
+        "/voice/id",
+    ]
+    .into_iter()
+    .find_map(|path| value.pointer(path).and_then(Value::as_str))
+    .filter(|id| !id.is_empty())
+}
+
+pub(crate) async fn voice_credential_in<C: BatchConnectionTrait + Send + Sync>(
+    store: &gproxy_store::Store<C>,
+    scope: &str,
+    provider: &str,
+    id: &str,
+) -> CoreResult<String> {
+    let query = resource_binding::Entity::find()
+        .filter(resource_binding::Column::Scope.eq(scope_column(scope, provider)))
+        .filter(resource_binding::Column::Kind.eq(VOICE_KIND))
+        .filter(resource_binding::Column::Generation.eq(0i64))
+        .filter(resource_binding::Column::PublicId.eq(id));
+    store
+        .resource_bindings()
+        .query(query)
+        .await?
+        .into_iter()
+        .next()
+        .map(|row| row.credential_id)
+        .ok_or_else(|| CoreError::ResourceNotFound {
+            kind: "voice",
+            id: id.to_owned(),
+        })
+}
+
+async fn request_voice(
+    operation: Operation,
+    headers: &http::HeaderMap,
+    body: &[u8],
+    limits: CodecLimits,
+) -> CoreResult<Option<String>> {
+    if !matches!(
+        operation,
+        Operation::CreateSpeech
+            | Operation::CreateRealtimeCall
+            | Operation::CreateRealtimeClientSecret
+            | Operation::CreateLiveSession
+            | Operation::ConnectLive
+    ) {
+        return Ok(None);
+    }
+    Ok(
+        crate::realtime::request::session_value(headers, body, limits)
+            .await?
+            .as_ref()
+            .and_then(voice_reference)
+            .map(str::to_owned),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1444,65 +1505,4 @@ mod tests {
         assert!(filter_list(OwnedKind::Video, Dialect::OpenAi, b"[]", &owned).is_err());
         assert!(filter_list(OwnedKind::Video, Dialect::OpenAi, b"nope", &owned).is_err());
     }
-}
-
-/// Custom voice identifiers occur in audio settings, never in user text/schema data.
-pub(crate) fn voice_reference(value: &Value) -> Option<&str> {
-    [
-        "/session/audio/output/voice/id",
-        "/audio/output/voice/id",
-        "/voice/id",
-    ]
-    .into_iter()
-    .find_map(|path| value.pointer(path).and_then(Value::as_str))
-    .filter(|id| !id.is_empty())
-}
-
-pub(crate) async fn voice_credential_in<C: BatchConnectionTrait + Send + Sync>(
-    store: &gproxy_store::Store<C>,
-    scope: &str,
-    provider: &str,
-    id: &str,
-) -> CoreResult<String> {
-    let query = resource_binding::Entity::find()
-        .filter(resource_binding::Column::Scope.eq(scope_column(scope, provider)))
-        .filter(resource_binding::Column::Kind.eq(VOICE_KIND))
-        .filter(resource_binding::Column::Generation.eq(0i64))
-        .filter(resource_binding::Column::PublicId.eq(id));
-    store
-        .resource_bindings()
-        .query(query)
-        .await?
-        .into_iter()
-        .next()
-        .map(|row| row.credential_id)
-        .ok_or_else(|| CoreError::ResourceNotFound {
-            kind: "voice",
-            id: id.to_owned(),
-        })
-}
-
-async fn request_voice(
-    operation: Operation,
-    headers: &http::HeaderMap,
-    body: &[u8],
-    limits: CodecLimits,
-) -> CoreResult<Option<String>> {
-    if !matches!(
-        operation,
-        Operation::CreateSpeech
-            | Operation::CreateRealtimeCall
-            | Operation::CreateRealtimeClientSecret
-            | Operation::CreateLiveSession
-            | Operation::ConnectLive
-    ) {
-        return Ok(None);
-    }
-    Ok(
-        crate::realtime::request::session_value(headers, body, limits)
-            .await?
-            .as_ref()
-            .and_then(voice_reference)
-            .map(str::to_owned),
-    )
 }
