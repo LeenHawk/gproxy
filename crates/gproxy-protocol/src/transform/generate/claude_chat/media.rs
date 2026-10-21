@@ -1,4 +1,4 @@
-use super::content::text_block;
+use crate::transform::generate::prompt_cache as cache;
 use crate::{
     Rest,
     transform::{Report, TransformError},
@@ -59,7 +59,9 @@ pub(super) fn openai_user_blocks(
     let mut output = Vec::new();
     for part in parts.iter() {
         match part {
-            chat::UserContentPart::Text(text) => output.push(text_block(text.text.clone())),
+            chat::UserContentPart::Text(text) => {
+                output.push(c::ContentBlock::Text(cache::claude_text(text)))
+            }
             chat::UserContentPart::Image(image) => {
                 let Some(source) =
                     crate::transform::optional(claude_image_source(image.image_url.url.clone()))?
@@ -69,7 +71,10 @@ pub(super) fn openai_user_blocks(
                 output.push(c::ContentBlock::Image(c::ImageBlock {
                     type_: c::ImageBlockType::Tag,
                     source,
-                    cache_control: None,
+                    cache_control: image
+                        .prompt_cache_breakpoint
+                        .as_ref()
+                        .map(cache::chat_to_claude),
                     rest: Rest::new(),
                 }))
             }
@@ -89,7 +94,10 @@ pub(super) fn openai_user_blocks(
                     output.push(c::ContentBlock::Image(c::ImageBlock {
                         type_: c::ImageBlockType::Tag,
                         source,
-                        cache_control: None,
+                        cache_control: file
+                            .prompt_cache_breakpoint
+                            .as_ref()
+                            .map(cache::chat_to_claude),
                         rest: Rest::new(),
                     }));
                 } else if let Some(document) = crate::transform::optional(file_document(file))? {
@@ -213,7 +221,10 @@ fn file_document(file: &chat::FilePart) -> Result<c::DocumentBlock, TransformErr
     Ok(c::DocumentBlock {
         type_: c::DocumentBlockType::Tag,
         source,
-        cache_control: None,
+        cache_control: file
+            .prompt_cache_breakpoint
+            .as_ref()
+            .map(cache::chat_to_claude),
         citations: None,
         context: None,
         title: file.file.filename.clone(),

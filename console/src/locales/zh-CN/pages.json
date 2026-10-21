@@ -480,7 +480,8 @@
       "query": "请求 Query",
       "request": "请求",
       "response": "响应",
-      "both": "请求和响应"
+      "both": "请求和响应",
+      "12h": "12 小时"
     },
     "selectSet": "选择规则集，查看其中的规则。",
     "providerCount": "{{count}} 个供应商",

@@ -1,3 +1,4 @@
+use crate::transform::generate::prompt_cache as cache;
 use crate::{
     transform::{
         Report, TransformError,
@@ -37,7 +38,14 @@ pub(crate) fn to_responses(
         for block in blocks {
             match block {
                 c::ContentBlock::Text(text) => {
-                    out.push(easy(role, r::MessageContent::Text(text.text)))
+                    let content = if text.cache_control.is_some() {
+                        r::MessageContent::Parts(vec![r::InputContent::Text(
+                            cache::responses_text(text),
+                        )])
+                    } else {
+                        r::MessageContent::Text(text.text)
+                    };
+                    out.push(easy(role, content))
                 }
                 c::ContentBlock::Image(image) => {
                     if role != r::MessageRole::User {
@@ -45,7 +53,7 @@ pub(crate) fn to_responses(
                     }
                     out.push(easy(
                         role,
-                        r::MessageContent::Parts(vec![super::media::image(image.source)?]),
+                        r::MessageContent::Parts(vec![super::media::image(image)?]),
                     ));
                 }
                 c::ContentBlock::Document(doc) => {
@@ -171,6 +179,9 @@ pub(crate) fn to_responses(
                                 ),
                             ),
                         }
+                    }
+                    if let Some(control) = &result.cache_control {
+                        super::media::cache_result(&mut output, control);
                     }
                     out.push(r::InputItem::FunctionCallOutput(
                         r::FunctionCallOutput::builder(

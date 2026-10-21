@@ -9,12 +9,16 @@ Prompt caching is provided by the upstream. Hits depend on the model, prompt pre
 
 Add a cache breakpoint rule on the provider's rewrite page. Select the upstream protocol and a global, system, or message target. Claude also supports tools. For a local target, positive indices start at 1, negative indices count from the end, and a blank index selects the last available position.
 
-Claude offers default, 5-minute, and 1-hour TTLs. OpenAI offers default and 30-minute TTLs. Actual behavior depends on the upstream. Select the protocol used after conversion; Gemini is not supported by this rule type.
+Claude offers default, 5-minute, and 1-hour TTLs. OpenAI local breakpoints offer default, 30-minute, and 12-hour TTLs; global rules offer default and 30-minute TTLs. Actual behavior depends on the upstream. Select the protocol used after conversion; Gemini is not supported by this rule type.
 
 For API configuration, use `action: "cache_breakpoint"` and a JSON-encoded configuration string in `replacement`, for example:
 
 ```json
 {"dialect":"claude","target":"message","index":-1,"ttl":"5m"}
+```
+
+```json
+{"dialect":"openai","target":"message","index":-1,"ttl":"12h"}
 ```
 
 This rule runs on the request body in the configured rewrite order. Clients that can set native cache fields may also use the upstream's supported fields directly.
@@ -34,11 +38,14 @@ GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_1FAS5GV9R5H29T5Y2J9584K6O95M2NBVW52C9
 | String | On a Claude target | On an OpenAI target |
 | --- | --- | --- |
 | …`7D9ASD…` | `cache_control` with the API's default TTL | an explicit breakpoint |
-| …`49VA1S…` | `cache_control` with `"ttl": "5m"` | an explicit breakpoint |
-| …`1FAS5G…` | `cache_control` with `"ttl": "1h"` | an explicit breakpoint |
+| …`49VA1S…` | `cache_control` with `"ttl": "5m"` | `prompt_cache_breakpoint` (`"ttl": "30m"`) |
+| …`1FAS5G…` | `cache_control` with `"ttl": "1h"` | `prompt_cache_breakpoint` (`"ttl": "12h"`) |
 
-All three produce the same OpenAI breakpoint, because OpenAI has no per-block
-TTL.
+The same strings select short and long retention by target dialect: Claude `5m` / `1h` maps to OpenAI `30m` / `12h`. The default string leaves TTL unset. Local rules write TTL on the selected breakpoint, without changing the request-wide cache options.
+
+Native cache fields use the same bidirectional mapping in Claude ↔ OpenAI Chat/Responses conversions. Marked system, message, image/document and tool-result blocks retain their boundaries. A Claude automatic cache policy becomes an explicit breakpoint at the corresponding final block when that block has a target representation. Per-tool definition markers without an OpenAI equivalent remain listed in the conversion report.
+
+When converting OpenAI to Claude, only an explicitly supplied `prompt_cache_options.mode: "implicit"` creates top-level `cache_control`. Omitting the options object or its `mode`, including an empty object or TTL alone, does not enable Claude automatic caching. Explicit block markers still convert independently.
 
 They are **frozen**: they are part of the client-to-proxy protocol and do not
 change between releases.

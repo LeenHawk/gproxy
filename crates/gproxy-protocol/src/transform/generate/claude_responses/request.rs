@@ -1,3 +1,4 @@
+use crate::transform::generate::prompt_cache as cache;
 mod controls;
 pub(crate) mod history;
 pub(crate) mod mcp;
@@ -37,9 +38,15 @@ pub fn claude_to_responses_request(
     let mut ids = flow.clone();
     let mut report = Report::default();
     super::super::claude_controls::project(&mut input, &mut report);
+    let explicit_cache = cache::prepare_claude(&mut input, &mut report);
     let mut out = r::GenerateContentRequestBody::builder().build();
     controls::to_responses(&input, &mut out, &mut report)?;
     out.model = Some(model.clone());
+    out.prompt_cache_options = explicit_cache.then(|| {
+        r::PromptCacheOptions::builder()
+            .mode(r::PromptCachingMode::Explicit)
+            .build()
+    });
     out.tools = input
         .tools
         .map(|v| tools::to_responses(v, &mut report))
@@ -58,22 +65,51 @@ pub fn claude_to_responses_request(
             }
         }
     }
-    out.instructions = input.system.map(|v| {
-        Some(match v {
-            crate::claude::count_tokens::SystemPrompt::Text(text) => text,
-            crate::claude::count_tokens::SystemPrompt::Blocks(blocks) => blocks
-                .into_iter()
-                .map(|v| v.text)
-                .collect::<Vec<_>>()
-                .join("\n"),
-        })
-    });
+    let system = input.system.take();
     out.input = Some(r::Input::Items(messages::to_responses(
         input.messages,
         &mut ids,
         policy,
         &mut report,
     )?));
+    match system {
+        Some(crate::claude::count_tokens::SystemPrompt::Blocks(blocks))
+            if blocks.iter().any(|block| block.cache_control.is_some()) =>
+        {
+            if let Some(r::Input::Items(items)) = &mut out.input {
+                items.insert(
+                    0,
+                    r::InputItem::Easy(
+                        r::EasyInputMessage::builder(
+                            r::MessageContent::Parts(
+                                blocks
+                                    .into_iter()
+                                    .map(|block| {
+                                        r::InputContent::Text(cache::responses_text(block))
+                                    })
+                                    .collect(),
+                            ),
+                            r::MessageRole::System,
+                        )
+                        .build(),
+                    ),
+                );
+            }
+        }
+        Some(crate::claude::count_tokens::SystemPrompt::Blocks(blocks)) => {
+            out.instructions = Some(Some(
+                blocks
+                    .into_iter()
+                    .map(|block| block.text)
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ));
+        }
+        Some(crate::claude::count_tokens::SystemPrompt::Text(text)) => {
+            out.instructions = Some(Some(text))
+        }
+        None => {}
+    }
     crate::transform::instructions::responses(
         &mut out.input,
         &mut out.instructions,
@@ -113,6 +149,24 @@ pub fn responses_to_claude_request(
     super::super::client_tools::Bindings::for_target(&input, crate::Dialect::Claude)?
         .lower(&mut input, &mut report)?;
     controls::to_claude(&input, &mut out, &mut report)?;
+    out.cache_control = input
+        .prompt_cache_options
+        .as_ref()
+        .and_then(cache::responses_options);
+    if let Some(options) = &input.prompt_cache_options {
+        if options.prewarm == Some(true) {
+            return Err(TransformError::unsupported(
+                "prompt_cache_options.prewarm",
+                "Claude has no cache-only generation mode",
+            ));
+        }
+        if options.comparison_response_id.is_some() {
+            report.omitted(
+                "prompt_cache_options.comparison_response_id",
+                "Claude has no matching cache comparison control",
+            );
+        }
+    }
     if let Some(input_tools) = input.tools {
         let mut native = Vec::new();
         let mut servers = Vec::new();

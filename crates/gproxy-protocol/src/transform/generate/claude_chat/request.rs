@@ -5,6 +5,7 @@ use super::{
         openai_tools_to_claude,
     },
 };
+use crate::transform::generate::prompt_cache as cache;
 use crate::wire::claude::count_tokens as cc;
 use crate::{
     Rest,
@@ -20,21 +21,29 @@ pub fn claude_to_openai(
     let mut report = Report::default();
     let mut projected = input.clone();
     super::super::claude_controls::project(&mut projected, &mut report);
+    let explicit_cache = cache::prepare_claude(&mut projected, &mut report);
     let input = &projected;
     super::requirements::claude(input, &mut report)?;
     let mut messages = Vec::new();
     if let Some(system) = &input.system {
-        let text = match system {
-            cc::SystemPrompt::Text(text) => text.clone(),
-            cc::SystemPrompt::Blocks(blocks) => blocks
-                .iter()
-                .map(|block| block.text.clone())
-                .collect::<Vec<_>>()
-                .join("\n"),
+        let content = match system {
+            cc::SystemPrompt::Text(text) => chat::TextContent::Text(text.clone()),
+            cc::SystemPrompt::Blocks(blocks)
+                if blocks.iter().any(|block| block.cache_control.is_some()) =>
+            {
+                chat::TextContent::Parts(blocks.iter().map(cache::chat_text).collect())
+            }
+            cc::SystemPrompt::Blocks(blocks) => chat::TextContent::Text(
+                blocks
+                    .iter()
+                    .map(|block| block.text.clone())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ),
         };
         messages.push(chat::ChatMessage::System(chat::SystemMessage {
             role: chat::SystemRole::System,
-            content: chat::TextContent::Text(text),
+            content,
             name: None,
             rest: Rest::new(),
         }));
@@ -126,7 +135,11 @@ pub fn claude_to_openai(
             prediction: None,
             presence_penalty: None,
             prompt_cache_key: None,
-            prompt_cache_options: None,
+            prompt_cache_options: explicit_cache.then(|| {
+                chat::PromptCacheOptions::builder()
+                    .mode(chat::PromptCacheOptionMode::Explicit)
+                    .build()
+            }),
             prompt_cache_retention: None,
             reasoning_effort,
             response_format,
@@ -185,10 +198,10 @@ pub fn openai_to_claude(
         ));
         match message {
             chat::ChatMessage::System(message) if leading => {
-                system.push(super::content::chat_text(&message.content))
+                system.extend(super::content::chat_text_blocks(&message.content))
             }
             chat::ChatMessage::Developer(message) if leading => {
-                system.push(super::content::chat_text(&message.content))
+                system.extend(super::content::chat_text_blocks(&message.content))
             }
             chat::ChatMessage::System(_)
             | chat::ChatMessage::Developer(_)
@@ -276,7 +289,10 @@ pub fn openai_to_claude(
             max_tokens,
             messages,
             model: target_model,
-            cache_control: None,
+            cache_control: input
+                .prompt_cache_options
+                .as_ref()
+                .and_then(cache::chat_options),
             container: None,
             context_management: None,
             diagnostics: None,
@@ -314,7 +330,19 @@ pub fn openai_to_claude(
             speed: None,
             stop_sequences,
             stream: input.stream.flatten(),
-            system: (!system.is_empty()).then(|| cc::SystemPrompt::Text(system.join("\n"))),
+            system: (!system.is_empty()).then(|| {
+                if system.iter().any(|block| block.cache_control.is_some()) {
+                    cc::SystemPrompt::Blocks(system)
+                } else {
+                    cc::SystemPrompt::Text(
+                        system
+                            .into_iter()
+                            .map(|block| block.text)
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                    )
+                }
+            }),
             temperature: input.temperature.flatten(),
             thinking,
             tool_choice,

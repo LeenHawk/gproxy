@@ -163,6 +163,21 @@ pub(super) fn responses_settings(
     )
 }
 
+/// Cache controls are projected by the Chat and Claude request converters.
+/// Keep those effective defaults for buffered and streamed Responses replies.
+fn responses_cache_settings(
+    input: &r::GenerateContentRequestBody,
+    default_mode: r::PromptCachingMode,
+) -> Option<r::ResponsePromptCacheOptions> {
+    input.prompt_cache_options.as_ref().map(|options| {
+        r::ResponsePromptCacheOptions::builder(
+            options.mode.unwrap_or(default_mode),
+            options.ttl.unwrap_or(r::PromptCacheTtl::ThirtyMinutes),
+        )
+        .build()
+    })
+}
+
 /// Responses client over a Chat upstream: the response context echoes the
 /// client's effective controls.
 pub(super) fn responses_over_chat_context(
@@ -174,7 +189,10 @@ pub(super) fn responses_over_chat_context(
         effective_parallel_tool_calls: parallel_tool_calls,
         effective_tool_choice: tool_choice,
         usage: Default::default(),
-        effective_prompt_cache_options: None,
+        effective_prompt_cache_options: responses_cache_settings(
+            input,
+            r::PromptCachingMode::Implicit,
+        ),
     }
     .into()
 }
@@ -206,7 +224,10 @@ pub(super) fn responses_over_claude_facts(
                 ..Default::default()
             },
             created_at: created,
-            effective_prompt_cache_options: None,
+            effective_prompt_cache_options: responses_cache_settings(
+                input,
+                r::PromptCachingMode::Explicit,
+            ),
         }
         .into(),
     }

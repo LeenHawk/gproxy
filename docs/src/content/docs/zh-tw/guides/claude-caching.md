@@ -9,12 +9,16 @@ description: "透過快取斷點規則或魔法字串配置提示快取，檢視
 
 在供應商的重寫規則中新增“快取斷點”，選擇上游協議和位置。位置包括全域性、系統和訊息；Claude 還支援工具。區域性位置可填寫索引，正數從 1 開始，負數從末尾計數，留空選擇最後一個可用位置。
 
-Claude 可選擇預設、5 分鐘或 1 小時 TTL；OpenAI 可選擇預設或 30 分鐘。實際生效方式取決於上游。規則中的協議是轉換後的上游協議，Gemini 不提供這個規則型別。
+Claude 可選擇預設、5 分鐘或 1 小時 TTL；OpenAI 局部斷點可選擇預設、30 分鐘或 12 小時；全域規則可選擇預設或 30 分鐘。實際生效方式取決於上游。規則中的協議是轉換後的上游協議，Gemini 不提供這個規則型別。
 
 透過 API 配置時使用 `action: "cache_breakpoint"`，`replacement` 是配置物件的 JSON 字串，例如：
 
 ```json
 {"dialect":"claude","target":"message","index":-1,"ttl":"5m"}
+```
+
+```json
+{"dialect":"openai","target":"message","index":-1,"ttl":"12h"}
 ```
 
 這條規則作用於請求正文，與其他重寫規則按配置順序執行。用戶端能自行提交快取標記時，也可以直接使用上游支援的欄位。
@@ -34,10 +38,14 @@ GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_1FAS5GV9R5H29T5Y2J9584K6O95M2NBVW52C9
 | 字串 | 在 Claude 目標上 | 在 OpenAI 目標上 |
 | --- | --- | --- |
 | …`7D9ASD…` | `cache_control`，用 API 的預設 TTL | 一個顯式斷點 |
-| …`49VA1S…` | `cache_control`，`"ttl": "5m"` | 一個顯式斷點 |
-| …`1FAS5G…` | `cache_control`，`"ttl": "1h"` | 一個顯式斷點 |
+| …`49VA1S…` | `cache_control`，`"ttl": "5m"` | `prompt_cache_breakpoint` (`"ttl": "30m"`) |
+| …`1FAS5G…` | `cache_control`，`"ttl": "1h"` | `prompt_cache_breakpoint` (`"ttl": "12h"`) |
 
-三個在 OpenAI 上產生同一個斷點，因為 OpenAI 沒有按塊的 TTL。
+同一組字串按目標協定選擇短期和長期快取：Claude 的 `5m` / `1h` 對應 OpenAI 的 `30m` / `12h`，預設字串不指定 TTL。局部規則將 TTL 寫在選中的斷點上，不修改整個請求的快取選項。
+
+原生快取欄位在 Claude ↔ OpenAI Chat/Responses 轉換中也使用同一雙向映射。有標記的系統提示、訊息、圖片/文件和工具結果保留區塊邊界。Claude 的自動快取策略在末尾區塊有目標協定表示時轉換為該區塊的顯式斷點；沒有 OpenAI 對應欄位的工具定義級標記仍由轉換報告列出。
+
+OpenAI 轉 Claude 時，只有明確傳入 `prompt_cache_options.mode: "implicit"` 才產生頂層 `cache_control`。省略整個選項物件或省略 `mode`（包括空物件、只傳 TTL）都不會啟用 Claude 自動快取；區塊上的顯式標記仍獨立轉換。
 
 它們是**凍結的**：它們是用戶端到代理之間協議的一部分，不隨版本變化。
 

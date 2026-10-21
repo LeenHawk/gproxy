@@ -157,9 +157,9 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
         {semantic ? select(t("fields.dialect"), dialect, kind === "system_text" ? ["openai", "openai_chat", "claude", "gemini", "openai_responses_websocket"] : ["openai", "openai_chat", "claude", "openai_responses_websocket"], value => { setDialect(value); setTtl("default"); if (value !== "claude" && cacheTarget === "tools") setCacheTarget("message") }, "rules.protocols") : null}
         {kind === "system_text" ? <>{select(t("rules.position"), position, ["prepend", "append"], setPosition)}{input(t("rules.text"), text, setText, true, true)}</> : null}
         {kind === "cache_breakpoint" ? <>
-          {select(t("rules.cacheTarget"), cacheTarget, dialect === "claude" ? ["global", "system", "message", "tools"] : ["global", "system", "message"], setCacheTarget)}
+          {select(t("rules.cacheTarget"), cacheTarget, dialect === "claude" ? ["global", "system", "message", "tools"] : ["global", "system", "message"], value => { setCacheTarget(value); if (value === "global" && dialect !== "claude" && ttl === "12h") setTtl("default") })}
           {cacheTarget !== "global" ? <>{input(t("rules.cacheIndex"), cacheIndex, setCacheIndex)}<FieldDescription>{t("rules.cacheIndexHelp")}</FieldDescription></> : null}
-          {select(t("rules.ttl"), ttl, dialect === "claude" ? ["default", "5m", "1h"] : ["default", "30m"], setTtl)}
+          {select(t("rules.ttl"), ttl, dialect === "claude" ? ["default", "5m", "1h"] : cacheTarget === "global" ? ["default", "30m"] : ["default", "30m", "12h"], setTtl)}
         </> : null}
         {kind === "rewrite" ? <>{select(t("fields.action"), action, ["set", "delete", "merge"], setAction)}{input(t("fields.paths"), paths, setPaths, true, true)}{action !== "delete" ? input(t("rules.jsonValue"), replacement, setReplacement, true, true) : null}</> : null}
         {kind === "header" ? <>{select(t("fields.action"), action, ["header_set", "header_merge"], setAction)}{input(t("fields.targetName"), targetName, setTargetName, false, true)}{input(t("fields.replacement"), replacement, setReplacement)}</> : null}

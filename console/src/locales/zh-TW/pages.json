@@ -480,7 +480,8 @@
       "query": "請求 Query",
       "request": "請求",
       "response": "回應",
-      "both": "請求和回應"
+      "both": "請求和回應",
+      "12h": "12 小時"
     },
     "selectSet": "選擇規則集，查看其中的規則。",
     "providerCount": "{{count}} 個供應商",

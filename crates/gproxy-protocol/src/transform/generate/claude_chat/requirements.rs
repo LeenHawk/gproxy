@@ -31,10 +31,7 @@ pub(super) fn claude(
             report.omitted(field, "field has no target representation");
         }
     }
-    for (present, field) in [
-        (input.cache_control.is_some(), "cache_control"),
-        (input.diagnostics.is_some(), "diagnostics"),
-    ] {
+    for (present, field) in [(input.diagnostics.is_some(), "diagnostics")] {
         if present {
             report.omitted(field, "Chat has no equivalent advisory field");
         }
@@ -117,7 +114,6 @@ pub(super) fn chat(
                 .is_some(),
             "prompt_cache_key",
         ),
-        (input.prompt_cache_options.is_some(), "prompt_cache_options"),
         (
             input.prompt_cache_retention.flatten().is_some(),
             "prompt_cache_retention",

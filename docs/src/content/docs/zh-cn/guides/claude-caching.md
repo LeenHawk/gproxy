@@ -9,12 +9,16 @@ description: "通过缓存断点规则或魔法字符串配置提示缓存，查
 
 在供应商的重写规则中新增“缓存断点”，选择上游协议和位置。位置包括全局、系统和消息；Claude 还支持工具。局部位置可填写索引，正数从 1 开始，负数从末尾计数，留空选择最后一个可用位置。
 
-Claude 可选择默认、5 分钟或 1 小时 TTL；OpenAI 可选择默认或 30 分钟。实际生效方式取决于上游。规则中的协议是转换后的上游协议，Gemini 不提供这个规则类型。
+Claude 可选择默认、5 分钟或 1 小时 TTL；OpenAI 局部断点可选择默认、30 分钟或 12 小时；全局规则可选择默认或 30 分钟。实际生效方式取决于上游。规则中的协议是转换后的上游协议，Gemini 不提供这个规则类型。
 
 通过 API 配置时使用 `action: "cache_breakpoint"`，`replacement` 是配置对象的 JSON 字符串，例如：
 
 ```json
 {"dialect":"claude","target":"message","index":-1,"ttl":"5m"}
+```
+
+```json
+{"dialect":"openai","target":"message","index":-1,"ttl":"12h"}
 ```
 
 这条规则作用于请求正文，与其他重写规则按配置顺序执行。客户端能自行提交缓存标记时，也可以直接使用上游支持的字段。
@@ -34,10 +38,14 @@ GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_1FAS5GV9R5H29T5Y2J9584K6O95M2NBVW52C9
 | 字符串 | 在 Claude 目标上 | 在 OpenAI 目标上 |
 | --- | --- | --- |
 | …`7D9ASD…` | `cache_control`，用 API 的默认 TTL | 一个显式断点 |
-| …`49VA1S…` | `cache_control`，`"ttl": "5m"` | 一个显式断点 |
-| …`1FAS5G…` | `cache_control`，`"ttl": "1h"` | 一个显式断点 |
+| …`49VA1S…` | `cache_control`，`"ttl": "5m"` | `prompt_cache_breakpoint` (`"ttl": "30m"`) |
+| …`1FAS5G…` | `cache_control`，`"ttl": "1h"` | `prompt_cache_breakpoint` (`"ttl": "12h"`) |
 
-三个在 OpenAI 上产生同一个断点，因为 OpenAI 没有按块的 TTL。
+同一组字符串按目标协议选择短期和长期缓存：Claude 的 `5m` / `1h` 对应 OpenAI 的 `30m` / `12h`，默认字符串不指定 TTL。局部规则将 TTL 写在选中的断点上，不修改整个请求的缓存选项。
+
+原生缓存字段在 Claude ↔ OpenAI Chat/Responses 转换中也使用同一双向映射。有标记的系统提示、消息、图片/文档和工具结果保留块边界。Claude 的自动缓存策略在末尾块有目标协议表示时转换为该块的显式断点；没有 OpenAI 对应字段的工具定义级标记仍由转换报告列出。
+
+OpenAI 转 Claude 时，只有明确传入 `prompt_cache_options.mode: "implicit"` 才生成顶层 `cache_control`。省略整个选项对象或省略 `mode`（包括空对象、只传 TTL）都不会启用 Claude 自动缓存；块上的显式标记仍独立转换。
 
 它们是**冻结的**：它们是客户端到代理之间协议的一部分，不随版本变化。
 

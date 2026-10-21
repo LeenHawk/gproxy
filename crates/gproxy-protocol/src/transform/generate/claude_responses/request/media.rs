@@ -1,11 +1,12 @@
+use crate::transform::generate::prompt_cache as cache;
 use crate::{
     transform::TransformError,
     wire::{claude::content as c, openai::responses::input as r},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 
-pub(super) fn image(source: c::ImageSource) -> Result<r::InputContent, TransformError> {
-    let url = match source {
+pub(super) fn image(block: c::ImageBlock) -> Result<r::InputContent, TransformError> {
+    let url = match block.source {
         c::ImageSource::Url(source) => source.url,
         c::ImageSource::Base64(source) => format!(
             "data:{};base64,{}",
@@ -29,6 +30,7 @@ pub(super) fn image(source: c::ImageSource) -> Result<r::InputContent, Transform
     )
     .build();
     value.image_url = Some(Some(url));
+    value.prompt_cache_breakpoint = block.cache_control.as_ref().map(cache::claude_to_responses);
     Ok(r::InputContent::Image(value))
 }
 
@@ -36,6 +38,7 @@ pub(super) fn document(block: c::DocumentBlock) -> Result<r::InputContent, Trans
     let mut value =
         r::ResponseInputFile::builder(r::ResponseInputFileType::ResponseInputFile).build();
     value.filename = block.title;
+    value.prompt_cache_breakpoint = block.cache_control.as_ref().map(cache::claude_to_responses);
     match block.source {
         c::DocumentSource::Url(source) => value.file_url = Some(source.url),
         c::DocumentSource::Base64(source) => {
@@ -74,6 +77,23 @@ pub(super) fn document(block: c::DocumentBlock) -> Result<r::InputContent, Trans
 }
 
 pub(super) fn to_claude(value: r::InputContent) -> Result<c::ContentBlock, TransformError> {
+    let marker = match &value {
+        r::InputContent::Text(part) => &part.prompt_cache_breakpoint,
+        r::InputContent::Image(part) => &part.prompt_cache_breakpoint,
+        r::InputContent::File(part) => &part.prompt_cache_breakpoint,
+    };
+    let control = marker.as_ref().map(cache::responses_to_claude);
+    let mut block = to_claude_content(value)?;
+    match &mut block {
+        c::ContentBlock::Text(block) => block.cache_control = control,
+        c::ContentBlock::Image(block) => block.cache_control = control,
+        c::ContentBlock::Document(block) => block.cache_control = control,
+        _ => {}
+    }
+    Ok(block)
+}
+
+fn to_claude_content(value: r::InputContent) -> Result<c::ContentBlock, TransformError> {
     Ok(match value {
         r::InputContent::Text(value) => {
             c::ContentBlock::Text(c::TextBlock::builder(c::TextBlockType::Tag, value.text).build())
@@ -182,15 +202,19 @@ pub(super) fn result_to_responses(
                 .map(|block| {
                     let part = match block {
                         c::ToolResultContentBlock::Text(text) => {
-                            return Ok(r::FunctionOutputContent::Text(
-                                r::FunctionOutputText::builder(
-                                    r::ResponseInputTextType::ResponseInputText,
-                                    text.text,
-                                )
-                                .build(),
-                            ));
+                            let mut target = r::FunctionOutputText::builder(
+                                r::ResponseInputTextType::ResponseInputText,
+                                text.text,
+                            )
+                            .build();
+                            target.prompt_cache_breakpoint = text
+                                .cache_control
+                                .as_ref()
+                                .map(cache::claude_to_responses)
+                                .map(Some);
+                            return Ok(r::FunctionOutputContent::Text(target));
                         }
-                        c::ToolResultContentBlock::Image(block) => image(block.source)?,
+                        c::ToolResultContentBlock::Image(block) => image(block)?,
                         c::ToolResultContentBlock::Document(doc) => document(doc)?,
                         c::ToolResultContentBlock::SearchResult(_)
                         | c::ToolResultContentBlock::BrowserState(_)
@@ -207,6 +231,8 @@ pub(super) fn result_to_responses(
                                 r::ResponseInputImageType::ResponseInputImage,
                             )
                             .build();
+                            target.prompt_cache_breakpoint =
+                                value.prompt_cache_breakpoint.map(Some);
                             target.image_url = value.image_url;
                             target.detail = Some(Some(value.detail));
                             r::FunctionOutputContent::Image(target)
@@ -216,6 +242,8 @@ pub(super) fn result_to_responses(
                                 r::ResponseInputFileType::ResponseInputFile,
                             )
                             .build();
+                            target.prompt_cache_breakpoint =
+                                value.prompt_cache_breakpoint.map(Some);
                             target.file_data = value.file_data.map(Some);
                             target.file_url = value.file_url.map(Some);
                             target.filename = value.filename.map(Some);
@@ -241,9 +269,14 @@ pub(super) fn result_to_claude(
                 .map(|part| {
                     let input = match part {
                         r::FunctionOutputContent::Text(text) => {
-                            return Ok(c::ToolResultContentBlock::Text(
-                                c::TextBlock::builder(c::TextBlockType::Tag, text.text).build(),
-                            ));
+                            let mut target =
+                                c::TextBlock::builder(c::TextBlockType::Tag, text.text).build();
+                            target.cache_control = text
+                                .prompt_cache_breakpoint
+                                .as_ref()
+                                .and_then(Option::as_ref)
+                                .map(cache::responses_to_claude);
+                            return Ok(c::ToolResultContentBlock::Text(target));
                         }
                         r::FunctionOutputContent::Image(value) => {
                             let mut input = r::ResponseInputImage::builder(
@@ -251,6 +284,7 @@ pub(super) fn result_to_claude(
                                 value.detail.flatten().unwrap_or(r::ImageDetail::Auto),
                             )
                             .build();
+                            input.prompt_cache_breakpoint = value.prompt_cache_breakpoint.flatten();
                             input.image_url = value.image_url;
                             input.file_id = value.file_id;
                             r::InputContent::Image(input)
@@ -260,6 +294,7 @@ pub(super) fn result_to_claude(
                                 r::ResponseInputFileType::ResponseInputFile,
                             )
                             .build();
+                            input.prompt_cache_breakpoint = value.prompt_cache_breakpoint.flatten();
                             input.file_data = value.file_data.flatten();
                             input.file_url = value.file_url.flatten();
                             input.file_id = value.file_id;
@@ -304,4 +339,37 @@ pub(super) fn result_to_claude(
                 .collect::<Result<Vec<_>, TransformError>>()?,
         ),
     })
+}
+
+/// An outer Claude tool-result marker ends after its final result part.
+pub(super) fn cache_result(output: &mut r::FunctionOutput, control: &c::CacheControl) {
+    let marker = cache::claude_to_responses(control);
+    match output {
+        r::FunctionOutput::Text(text) => {
+            let mut part = r::FunctionOutputText::builder(
+                r::ResponseInputTextType::ResponseInputText,
+                std::mem::take(text),
+            )
+            .build();
+            part.prompt_cache_breakpoint = Some(Some(marker));
+            *output = r::FunctionOutput::Content(vec![r::FunctionOutputContent::Text(part)]);
+        }
+        r::FunctionOutput::Content(parts) => {
+            let slot = match parts.last_mut() {
+                Some(r::FunctionOutputContent::Text(part)) => {
+                    Some(&mut part.prompt_cache_breakpoint)
+                }
+                Some(r::FunctionOutputContent::Image(part)) => {
+                    Some(&mut part.prompt_cache_breakpoint)
+                }
+                Some(r::FunctionOutputContent::File(part)) => {
+                    Some(&mut part.prompt_cache_breakpoint)
+                }
+                None => None,
+            };
+            if let Some(slot) = slot {
+                slot.get_or_insert(Some(marker));
+            }
+        }
+    }
 }

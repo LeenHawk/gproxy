@@ -1490,7 +1490,7 @@ fn magic_cache_strings_shape_responses_bodies_only_when_enabled() {
         assert_eq!(
             input[0],
             json!({"type": "message", "role": "developer", "content": [
-                {"type": "input_text", "text": " ", "prompt_cache_breakpoint": {"mode": "explicit"}}
+                {"type": "input_text", "text": " ", "prompt_cache_breakpoint": {"mode": "explicit", "ttl": "12h"}}
             ]})
         );
         assert_eq!(

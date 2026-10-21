@@ -13,6 +13,7 @@ pub mod gemini_responses;
 pub mod gemini_schema;
 pub(crate) mod openai_controls;
 
+pub(crate) mod prompt_cache;
 pub(crate) mod reasoning_details;
 pub mod signature;
 pub mod stream;

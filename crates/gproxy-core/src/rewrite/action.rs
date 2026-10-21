@@ -132,7 +132,7 @@ pub(super) fn compile(
                     let valid = if config.dialect == "claude" {
                         matches!(ttl.as_str(), "5m" | "1h")
                     } else {
-                        ttl == "30m"
+                        ttl == "30m" || (ttl == "12h" && config.target != "global")
                     };
                     if !valid {
                         return Err(invalid("unsupported cache TTL for dialect"));

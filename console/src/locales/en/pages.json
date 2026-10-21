@@ -480,7 +480,8 @@
       "query": "Request query",
       "request": "Request",
       "response": "Response",
-      "both": "Request and response"
+      "both": "Request and response",
+      "12h": "12 hours"
     },
     "selectSet": "Select a rule set to view its rules.",
     "providerCount": "{{count}} providers",

@@ -8,6 +8,14 @@ pub(super) fn apply(
     kind: Option<Dialect>,
     config: &CacheBreakpointConfig,
 ) -> bool {
+    if matches!(
+        kind,
+        Some(Dialect::OpenAi | Dialect::OpenAiChat | Dialect::OpenAiResponsesWebSocket)
+    ) && !matches!(config.target.as_str(), "global" | "top_level")
+        && openai_marker_count(body) >= 4
+    {
+        return false;
+    }
     match kind {
         Some(Dialect::Claude) => claude(body, config),
         Some(Dialect::OpenAiChat) => openai_chat(body, config),
@@ -225,9 +233,7 @@ fn openai_chat(body: &mut Value, config: &CacheBreakpointConfig) -> bool {
     let Some(location) = select(&locations, config.index) else {
         return false;
     };
-    let changed = stamp_openai(root, location, true);
-    set_openai_ttl(root, config, changed);
-    changed
+    stamp_openai(root, location, true, config.ttl.as_deref())
 }
 
 fn openai_responses(body: &mut Value, config: &CacheBreakpointConfig) -> bool {
@@ -274,9 +280,7 @@ fn openai_responses(body: &mut Value, config: &CacheBreakpointConfig) -> bool {
     let Some(location) = select(&locations, config.index) else {
         return false;
     };
-    let changed = stamp_openai(root, location, false);
-    set_openai_ttl(root, config, changed);
-    changed
+    stamp_openai(root, location, false, config.ttl.as_deref())
 }
 
 fn openai_content_locations(messages: &[Value], index: usize, chat: bool) -> Vec<OpenAiLocation> {
@@ -327,9 +331,14 @@ fn cacheable_openai(part: &Map<String, Value>, chat: bool) -> bool {
         }
 }
 
-fn stamp_openai(root: &mut Map<String, Value>, location: OpenAiLocation, chat: bool) -> bool {
+fn stamp_openai(
+    root: &mut Map<String, Value>,
+    location: OpenAiLocation,
+    chat: bool,
+    ttl: Option<&str>,
+) -> bool {
     match location {
-        OpenAiLocation::Instructions => prepend_anchor(root),
+        OpenAiLocation::Instructions => prepend_anchor(root, ttl),
         OpenAiLocation::InputString => {
             let Some(text) = root
                 .remove("input")
@@ -339,7 +348,7 @@ fn stamp_openai(root: &mut Map<String, Value>, location: OpenAiLocation, chat: b
             };
             root.insert(
                 "input".into(),
-                Value::Array(vec![openai_message("user", text, true)]),
+                Value::Array(vec![openai_message("user", text, true, ttl)]),
             );
             true
         }
@@ -363,7 +372,7 @@ fn stamp_openai(root: &mut Map<String, Value>, location: OpenAiLocation, chat: b
             } else {
                 "input_text"
             };
-            *content = Value::Array(vec![openai_part(kind, text, true)]);
+            *content = Value::Array(vec![openai_part(kind, text, true, ttl)]);
             true
         }
         OpenAiLocation::ContentPart(message, part) => {
@@ -378,47 +387,52 @@ fn stamp_openai(root: &mut Map<String, Value>, location: OpenAiLocation, chat: b
             else {
                 return false;
             };
-            part.entry("prompt_cache_breakpoint")
-                .or_insert_with(breakpoint);
+            if part.contains_key("prompt_cache_breakpoint") {
+                return false;
+            }
+            part.insert("prompt_cache_breakpoint".into(), breakpoint(ttl));
             true
         }
     }
 }
 
-fn prepend_anchor(root: &mut Map<String, Value>) -> bool {
+fn prepend_anchor(root: &mut Map<String, Value>, ttl: Option<&str>) -> bool {
     let mut input = match root.remove("input") {
         None | Some(Value::Null) => Vec::new(),
-        Some(Value::String(text)) => vec![openai_message("user", text, false)],
+        Some(Value::String(text)) => vec![openai_message("user", text, false, None)],
         Some(Value::Array(items)) => items,
         Some(other) => {
             root.insert("input".into(), other);
             return false;
         }
     };
-    input.insert(0, openai_message("developer", " ".into(), true));
+    input.insert(0, openai_message("developer", " ".into(), true, ttl));
     root.insert("input".into(), Value::Array(input));
     true
 }
 
-fn openai_message(role: &str, text: String, marked: bool) -> Value {
+fn openai_message(role: &str, text: String, marked: bool, ttl: Option<&str>) -> Value {
     let kind = if role == "assistant" {
         "output_text"
     } else {
         "input_text"
     };
-    json!({"type":"message","role":role,"content":[openai_part(kind,text,marked)]})
+    json!({"type":"message","role":role,"content":[openai_part(kind,text,marked,ttl)]})
 }
 
-fn openai_part(kind: &str, text: String, marked: bool) -> Value {
+fn openai_part(kind: &str, text: String, marked: bool, ttl: Option<&str>) -> Value {
     let mut part = json!({"type":kind,"text":text});
     if marked {
-        part["prompt_cache_breakpoint"] = breakpoint();
+        part["prompt_cache_breakpoint"] = breakpoint(ttl);
     }
     part
 }
 
-fn breakpoint() -> Value {
-    json!({"mode":"explicit"})
+fn breakpoint(ttl: Option<&str>) -> Value {
+    ttl.map_or_else(
+        || json!({"mode":"explicit"}),
+        |ttl| json!({"mode":"explicit","ttl":ttl}),
+    )
 }
 
 fn openai_global(root: &mut Map<String, Value>, config: &CacheBreakpointConfig) -> bool {
@@ -438,14 +452,14 @@ fn openai_global(root: &mut Map<String, Value>, config: &CacheBreakpointConfig) 
     true
 }
 
-fn set_openai_ttl(root: &mut Map<String, Value>, config: &CacheBreakpointConfig, changed: bool) {
-    if changed && config.ttl.as_deref() == Some("30m") {
-        let options = root
-            .entry("prompt_cache_options")
-            .or_insert_with(|| json!({}));
-        if let Some(options) = options.as_object_mut() {
-            options.insert("ttl".into(), json!("30m"));
+fn openai_marker_count(value: &Value) -> usize {
+    match value {
+        Value::Object(object) => {
+            usize::from(object.contains_key("prompt_cache_breakpoint"))
+                + object.values().map(openai_marker_count).sum::<usize>()
         }
+        Value::Array(items) => items.iter().map(openai_marker_count).sum(),
+        _ => 0,
     }
 }
 

@@ -116,10 +116,10 @@ pub(super) fn to_responses(
             report.omitted("output_format", "target requires an object schema");
         }
     }
-    if input.cache_control.is_some() || input.diagnostics.is_some() {
+    if input.diagnostics.is_some() {
         report.omitted(
             "advisory",
-            "Responses lacks Claude cache/diagnostic request metadata",
+            "Responses lacks Claude diagnostic request metadata",
         );
     }
     Ok(())
@@ -278,7 +278,6 @@ pub(super) fn to_claude(
         (input.metadata.is_some(), "metadata"),
         (input.include.is_some(), "include"),
         (input.prompt_cache_key.is_some(), "prompt_cache_key"),
-        (input.prompt_cache_options.is_some(), "prompt_cache_options"),
         (
             input.prompt_cache_retention.is_some(),
             "prompt_cache_retention",
