@@ -169,8 +169,10 @@ async fn upstream_cursor_and_detail_work_without_a_downstream_record() {
 #[tokio::test]
 async fn channel_requests_and_services_are_logs_while_management_reads_are_audited() {
     let host = instance().await;
-    host.client
-        .script(vec![Reply::Http(StatusCode::OK, json!({"ok":true}))]);
+    host.client.script(vec![Reply::Http(
+        StatusCode::OK,
+        json!({"content": [{"type": "text", "text": "hello"}]}),
+    )]);
     assert_eq!(
         host.send(keyed(
             post("/v1/messages", json!({"model":"p1/m1"})),
