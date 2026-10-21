@@ -9,6 +9,6 @@ export type QuotaAllowanceDto = { used: string | null, limit: string | null, rem
  */
 usedPercent: string | null, unlimited: boolean | null, unit: string | null, periodStartMs: number | null, periodEndMs: number | null, 
 /**
- * `periodic`, `recovering` or `unknown`.
+ * `periodic`, `recovering`, `expiring` or `unknown`.
  */
 resetBehavior: string, };

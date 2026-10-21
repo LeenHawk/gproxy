@@ -909,6 +909,9 @@
     "nextResetAvailable": "Следующий доступен: {{at}}",
     "fiveHourQuota": "Квота на 5 часов",
     "sevenDayQuota": "Квота на 7 дней",
+    "cloudSessionCredits": "Кредиты облачных сессий",
+    "remainingOfTotal": "Осталось {{remaining}} / {{total}}",
+    "expiresAt": "Истекает",
     "scopedWeeklyQuota": "{{scope}} · квота на 7 дней",
     "resetReasons": {
       "cli_version": "Версия клиента не подходит; число доступных сбросов неизвестно.",

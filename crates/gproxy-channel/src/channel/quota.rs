@@ -65,6 +65,8 @@ pub enum QuotaSubject {
 pub enum QuotaResetBehavior {
     Periodic,
     Recovering,
+    /// The allowance expires at `period_end_ms`; it does not replenish.
+    Expiring,
     #[default]
     Unknown,
 }

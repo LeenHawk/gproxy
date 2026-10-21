@@ -885,6 +885,9 @@
     "nextResetAvailable": "下次可用：{{at}}",
     "fiveHourQuota": "5小時額度",
     "sevenDayQuota": "7天額度",
+    "cloudSessionCredits": "雲端工作階段額度",
+    "remainingOfTotal": "剩餘 {{remaining}} / {{total}}",
+    "expiresAt": "到期",
     "scopedWeeklyQuota": "{{scope}} · 7天額度",
     "resetReasons": {
       "cli_version": "用戶端版本不符合資格，尚無法確定重置卡數量。",

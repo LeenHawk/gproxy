@@ -624,7 +624,7 @@ pub struct QuotaAllowanceDto {
     pub unit: Option<String>,
     pub period_start_ms: Option<i64>,
     pub period_end_ms: Option<i64>,
-    /// `periodic`, `recovering` or `unknown`.
+    /// `periodic`, `recovering`, `expiring` or `unknown`.
     pub reset_behavior: String,
 }
 
@@ -652,6 +652,7 @@ fn reset_behavior_name(behavior: QuotaResetBehavior) -> &'static str {
     match behavior {
         QuotaResetBehavior::Periodic => "periodic",
         QuotaResetBehavior::Recovering => "recovering",
+        QuotaResetBehavior::Expiring => "expiring",
         QuotaResetBehavior::Unknown => "unknown",
     }
 }

@@ -246,6 +246,41 @@ fn present(value: &Value, field: &str) -> bool {
     value.get(field).is_some_and(|value| !value.is_null())
 }
 
+/// Dollar-shaped `iguana_necktie` is Cloud session credits, whose
+/// `resets_at` is an expiry. See the live payload/UI comparison in
+/// https://github.com/router-for-me/Cli-Proxy-API-Management-Center/pull/466.
+/// Keep null-dollar/legacy shapes on the existing window path.
+fn cloud_session_credits(value: &Value) -> Option<QuotaEntry> {
+    let dollars = |field| value.get(field)?.as_number()?.to_string().parse::<Decimal>().ok();
+    let limit = dollars("limit_dollars");
+    let used = dollars("used_dollars");
+    let remaining = dollars("remaining_dollars");
+    if limit.is_none() && used.is_none() && remaining.is_none() {
+        return None;
+    }
+    let used = used.or_else(|| Some(limit?.saturating_sub(remaining?).max(Decimal::ZERO)));
+    let remaining = remaining.or_else(|| Some(limit?.saturating_sub(used?).max(Decimal::ZERO)));
+    let used_percent = percent(value.get("utilization").and_then(Value::as_f64))
+        .or_else(|| used?.checked_div(limit?)?.checked_mul(Decimal::ONE_HUNDRED));
+    Some(QuotaEntry {
+        id: "cloud_session_credits".into(),
+        source_id: "iguana_necktie".into(),
+        label: Some("Cloud session credits".into()),
+        subject: QuotaSubject::Account,
+        model_scope: QuotaScope::Unknown,
+        value: QuotaValue::Budget(QuotaAllowance {
+            used,
+            limit,
+            remaining,
+            used_percent,
+            unit: Some("USD".into()),
+            period_end_ms: value.get("resets_at").and_then(Value::as_str).and_then(iso_to_ms),
+            reset_behavior: QuotaResetBehavior::Expiring,
+            ..Default::default()
+        }),
+    })
+}
+
 /// One rolling window: `utilization` is a percentage (0–100), `resets_at`
 /// an ISO-8601 timestamp.
 #[derive(Deserialize)]
@@ -328,6 +363,10 @@ pub(super) fn usage_entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError
         serde_json::from_slice(body).map_err(|e| invalid_response(e.to_string()))?;
     let mut entries = Vec::new();
     for (key, value) in &usage.windows {
+        if key == "iguana_necktie" && let Some(credits) = cloud_session_credits(value) {
+            entries.push(credits);
+            continue;
+        }
         if key == "seven_day_breakdown" {
             let rows = value.get("rows").and_then(Value::as_array).into_iter().flatten()
                 .filter_map(|row| Some(QuotaBreakdownRow {

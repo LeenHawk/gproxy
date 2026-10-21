@@ -7,7 +7,7 @@ import { ChartNoAxesCombined } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { CredentialProviderDto } from "@/generated/app"
 import { credentialQuota, probeQuota } from "@/api/credentials"
-import { formatInstant, formatNumber, formatPercent, formatDurationMs } from "@/lib/format"
+import { formatCost, formatInstant, formatNumber, formatPercent, formatDurationMs } from "@/lib/format"
 import { EmptyNotice, ErrorNotice, LoadingRows, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,6 +42,7 @@ export function UpstreamQuota({ id, provider }: { id: string; provider: Credenti
     used: entry.allowance?.used, limit: entry.allowance?.limit, remaining: entry.allowance?.remaining ?? entry.balance?.remaining,
     unlimited: entry.allowance?.unlimited, unit: entry.allowance?.unit ?? entry.balance?.unit,
     usedPercent: entry.allowance?.usedPercent, resetsAtMs: entry.allowance?.periodEndMs,
+    resetBehavior: entry.allowance?.resetBehavior,
   })) : []
   // Without a live answer, each open cycle's last reading stands in for its
   // window; with one, a cycle the upstream does not report (a credential's
@@ -50,6 +51,7 @@ export function UpstreamQuota({ id, provider }: { id: string; provider: Credenti
     id: cycle.windowId, label: null, kind: "window", breakdown: null as QuotaBreakdownRowDto[] | null,
     startsAtMs: cycle.startsAtMs, used: cycle.sample?.used, limit: cycle.sample?.limit, remaining: undefined,
     unlimited: false, unit: undefined, usedPercent: cycle.sample?.usedPercent, resetsAtMs: cycle.endsAtMs,
+    resetBehavior: "periodic",
   }))]
   const latest = entries.filter((entry, index) => entries.findIndex(other => other.id === entry.id) === index)
   const windows = latest.filter(entry => entry.kind !== "breakdown" && entry.id !== "seven_day_breakdown")
@@ -66,7 +68,8 @@ export function UpstreamQuota({ id, provider }: { id: string; provider: Credenti
     return quotaWindowName(entry.id, t, entry.label) !== entry.id ? quotaWindowName(entry.id, t, entry.label) : entry.label ?? entry.id
   }
   const amount = (value: string | null | undefined, unit: string | null | undefined) => value == null ? "—"
-    : unit === "percent" ? formatPercent(Number(value) / 100, i18n.language)
+    : unit === "USD" ? formatCost(value, i18n.language)
+      : unit === "percent" ? formatPercent(Number(value) / 100, i18n.language)
       : `${formatNumber(value, i18n.language)}${unit ? ` ${unit === "credits" ? t("limits.creditUnit") : unit}` : ""}`
   const estimated = openCycles.some(cycle => cycle.estimatedAllowanceUsd != null)
   const resetTime = new Intl.DateTimeFormat(i18n.language, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
@@ -85,11 +88,12 @@ export function UpstreamQuota({ id, provider }: { id: string; provider: Credenti
           {hasTrend ? <Button type="button" size="icon-xs" variant={expanded ? "secondary" : "ghost"} className="shrink-0" title={t(expanded ? "limits.hideQuotaTrend" : "limits.showQuotaTrend")} aria-label={`${title(entry)} · ${t(expanded ? "limits.hideQuotaTrend" : "limits.showQuotaTrend")}`} aria-expanded={expanded} aria-controls={`${historyId}-${entry.id}`} onClick={() => setExpandedWindows(previous => expanded ? previous.filter(id => id !== entry.id) : [...previous, entry.id])}><ChartNoAxesCombined aria-hidden /></Button> : null}
         </div>
         {entry.usedPercent != null ? <Progress className="col-span-2 row-start-2 sm:col-span-1 sm:row-start-auto" tone={Number(entry.usedPercent) >= 100 ? "destructive" : Number(entry.usedPercent) >= 80 ? "warning" : "success"} value={Math.min(100, Math.max(0, Number(entry.usedPercent)))} aria-label={title(entry)} /> : <span className="hidden sm:block" />}
-        <Badge variant={entry.usedPercent != null ? Number(entry.usedPercent) >= 100 ? "destructive" : Number(entry.usedPercent) >= 80 ? "warning" : "success" : entry.remaining != null && Number(entry.remaining) <= 0 ? "destructive" : "secondary"} className="justify-self-end whitespace-nowrap tabular-nums">{entry.usedPercent != null ? formatPercent(Number(entry.usedPercent) / 100, i18n.language)
+        <Badge variant={entry.usedPercent != null ? Number(entry.usedPercent) >= 100 ? "destructive" : Number(entry.usedPercent) >= 80 ? "warning" : "success" : entry.remaining != null && Number(entry.remaining) <= 0 ? "destructive" : "secondary"} className="justify-self-end whitespace-nowrap tabular-nums">{entry.resetBehavior === "expiring" ? t("limits.remainingOfTotal", { remaining: amount(entry.remaining, entry.unit), total: amount(entry.limit, entry.unit) })
+          : entry.usedPercent != null ? formatPercent(Number(entry.usedPercent) / 100, i18n.language)
           : entry.kind === "balance" ? amount(entry.remaining, entry.unit)
             : entry.used == null && entry.limit == null ? entry.unlimited ? t("limits.unlimited") : "—"
               : `${amount(entry.used, entry.unit)} / ${entry.unlimited ? t("limits.unlimited") : amount(entry.limit, entry.unit)}`}</Badge>
-        {entry.resetsAtMs != null ? <time className="col-span-2 justify-self-end whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:col-span-1" dateTime={new Date(entry.resetsAtMs).toISOString()} title={`${t("limits.resetsAt")}: ${formatInstant(entry.resetsAtMs, i18n.language)}`}>{resetTime.format(entry.resetsAtMs)}</time> : <span className="hidden sm:block" />}
+        {entry.resetsAtMs != null ? <time className="col-span-2 justify-self-end whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:col-span-1" dateTime={new Date(entry.resetsAtMs).toISOString()} title={`${t(entry.resetBehavior === "expiring" ? "limits.expiresAt" : "limits.resetsAt")}: ${formatInstant(entry.resetsAtMs, i18n.language)}`}>{entry.resetBehavior === "expiring" ? `${t("limits.expiresAt")} ` : ""}{resetTime.format(entry.resetsAtMs)}</time> : <span className="hidden sm:block" />}
       </CardHeader>
       {open || closed.length ? <CardContent className="px-3"><UpstreamCycles open={open} closed={closed} /></CardContent> : null}
       {hasTrend ? <CardContent id={`${historyId}-${entry.id}`} hidden={!expanded} className="px-3">{expanded ? <Suspense fallback={<LoadingRows />}><QuotaTrend id={id} windowId={entry.id} title={title(entry)} cycle={open} /></Suspense> : null}</CardContent> : null}

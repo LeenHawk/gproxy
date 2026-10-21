@@ -885,6 +885,9 @@
     "nextResetAvailable": "Next available: {{at}}",
     "fiveHourQuota": "5-hour quota",
     "sevenDayQuota": "7-day quota",
+    "cloudSessionCredits": "Cloud session credits",
+    "remainingOfTotal": "Remaining {{remaining}} / {{total}}",
+    "expiresAt": "Expires",
     "scopedWeeklyQuota": "{{scope}} · 7-day quota",
     "resetReasons": {
       "cli_version": "The client version is not eligible; the number of grants is unknown.",
