@@ -16,7 +16,7 @@ import { UsageSummary } from "@/components/usage-summary"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { UsageRangeSelector } from "@/components/usage-range"
-import { usageWindow, type UsageRange, CACHE_TOKEN_FIELDS, formatCacheHitRate, formatUsageTokens } from "@/lib/usage"
+import { usageWindow, type UsageRange, CACHE_TOKEN_FIELDS, formatCacheCreation, formatCacheHitRate, formatUsageTokens } from "@/lib/usage"
 import type { UsageGroupDto } from "@/generated/sdk"
 import type { UsageGroupBy } from "@/generated/app"
 import { formatCost, formatCount } from "@/lib/format"
@@ -82,6 +82,7 @@ export function UsagePage({ global = false, renderRecords }: { global?: boolean;
                   { key: "inputTokens", cell: (row) => formatCount(row.summary.inputTokens, i18n.language) },
                   { key: "outputTokens", cell: (row) => formatCount(row.summary.outputTokens, i18n.language) },
                   ...CACHE_TOKEN_FIELDS.map(key => ({ key, cell: (row: UsageGroupDto) => formatUsageTokens(row.summary[key], i18n.language) })),
+                  { key: "cacheCreationTokens", cell: row => formatCacheCreation(row.summary.cacheCreation, i18n.language, t("usage.unknownTtl")) },
                   { key: "cacheHitRate", cell: (row) => formatCacheHitRate(row.summary, i18n.language) },
                   { key: "cost", cell: (row) => formatCost(row.summary.cost, i18n.language) },
                 ]}

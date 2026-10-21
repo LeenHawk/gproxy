@@ -50,6 +50,9 @@ pub struct Model {
         save_as = "decimal(20,0)"
     )]
     pub cache_read_per_million: Option<FixedDecimal>,
+    /// Dynamic cache-write prices as [{ttl_seconds, price}], per million tokens.
+    pub cache_creation_per_million: Option<Json>,
+    // Legacy columns retained for migration only.
     #[sea_orm(
         column_type = "BigInteger",
         select_as = "char(32)",

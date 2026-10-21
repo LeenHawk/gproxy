@@ -153,7 +153,9 @@ async fn running_the_migrator_twice_is_a_no_op() {
             "m20261005_000001_capture_storage",
             "m20261007_000001_rewrite_conditions",
             "m20261008_000001_usage_timing",
-            "m20261015_000001_usage_retention"
+            "m20261015_000001_usage_retention",
+            "m20261020_000001_retire_guardian",
+            "m20261021_000001_cache_retention"
         ]
     );
     let after_first = schema(store.connection()).await;
@@ -530,4 +532,106 @@ async fn usage_timing_upgrade_matches_fresh_columns() {
         columns(&older, "usage_records").await,
         columns(&fresh, "usage_records").await
     );
+}
+
+#[tokio::test]
+async fn cache_retention_migrates_prices_without_rewriting_usage_or_settled_cost() {
+    use gproxy_store::entity::{
+        pricing::{price_rate, price_rule, price_tier, price_unit::PriceUnit},
+        usage::usage_record,
+    };
+    use sea_orm::{EntityTrait, Set};
+    use serde_json::json;
+    let store = Store::new(connection().await);
+    store.install().await.unwrap();
+    let db = store.connection();
+    price_rule::Entity::insert(price_rule::ActiveModel {
+        id: Set("cache".into()),
+        model_pattern: Set("*".into()),
+        currency: Set("USD".into()),
+        enabled: Set(true),
+        priority: Set(0),
+        ..Default::default()
+    })
+    .exec(db)
+    .await
+    .unwrap();
+    price_tier::Entity::insert(price_tier::ActiveModel {
+        id: Set("tier".into()),
+        price_rule_id: Set("cache".into()),
+        cache_creation_5m_per_million: Set(Some("1.25".parse().unwrap())),
+        cache_creation_30m_per_million: Set(Some("2.5".parse().unwrap())),
+        cache_creation_1h_per_million: Set(Some("2".parse().unwrap())),
+        ..Default::default()
+    })
+    .exec(db)
+    .await
+    .unwrap();
+    price_rate::Entity::insert(price_rate::ActiveModel {
+        id: Set("rate".into()),
+        price_rule_id: Set("cache".into()),
+        metric: Set("cache_creation_1h_tokens".into()),
+        unit: Set(PriceUnit::Token),
+        unit_quantity: Set("1000000".parse().unwrap()),
+        value: Set("2".parse().unwrap()),
+        conditions: Set(Some(json!({"inference_geo": "us"}))),
+        priority: Set(0),
+    })
+    .exec(db)
+    .await
+    .unwrap();
+    usage_record::Entity::insert(usage_record::ActiveModel {
+        request_id: Set("old".into()),
+        started_at_ms: Set(1),
+        model: Set("m".into()),
+        operation: Set("generate_content".into()),
+        cache_creation_30m_tokens: Set(Some(123)),
+        cost: Set(Some("0.125".parse().unwrap())),
+        metrics: Set(json!({})),
+        ..Default::default()
+    })
+    .exec(db)
+    .await
+    .unwrap();
+    // Reconstruct the schema just before this migration, then exercise its DDL too.
+    for sql in [
+        "ALTER TABLE usage_records DROP COLUMN cache_creation",
+        "ALTER TABLE price_tiers DROP COLUMN cache_creation_per_million",
+        "DELETE FROM seaql_migrations WHERE version = 'm20261021_000001_cache_retention'",
+    ] {
+        db.execute_unprepared(sql).await.unwrap();
+    }
+    store.migrate().await.unwrap();
+    let tier = price_tier::Entity::find_by_id("tier")
+        .one(db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        tier.cache_creation_per_million,
+        Some(json!([
+            {"ttl_seconds": 300, "price": "1.25"},
+            {"ttl_seconds": null, "price": "2.5"},
+            {"ttl_seconds": 3600, "price": "2"},
+        ]))
+    );
+    let rate = price_rate::Entity::find_by_id("rate")
+        .one(db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(rate.metric, "cache_creation_tokens");
+    assert_eq!(
+        rate.conditions,
+        Some(json!({"inference_geo": "us", "ttl_seconds": 3600}))
+    );
+    let usage = usage_record::Entity::find_by_id("old")
+        .one(db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(usage.cache_creation, None);
+    assert_eq!(usage.cache_creation_30m_tokens, Some(123));
+    assert_eq!(usage.cost.unwrap().to_string(), "0.125");
+    assert!(store.migrate().await.unwrap().applied.is_empty());
 }

@@ -422,7 +422,7 @@ fn rate_model(
         }),
         unit_quantity: Set(crud::decimal(&rate.unit_size.to_string(), "unitSize")?),
         value: Set(price_decimal(&rate.price, "price")?),
-        conditions: Set(None),
+        conditions: Set(rate.conditions.clone()),
         priority: Set(i32::try_from(rate.priority).unwrap_or(i32::MAX)),
     })
 }
@@ -442,17 +442,8 @@ fn tier_model(rule_id: &str, tier: &DefaultModelTierDto) -> SdkResult<price_tier
         input_per_million: Set(money(&tier.input_price, "inputPrice")?),
         output_per_million: Set(money(&tier.output_price, "outputPrice")?),
         cache_read_per_million: Set(money(&tier.cache_read_price, "cacheReadPrice")?),
-        cache_creation_5m_per_million: Set(money(
-            &tier.cache_creation_5m_price,
-            "cacheCreation5mPrice",
-        )?),
-        cache_creation_30m_per_million: Set(money(
-            &tier.cache_creation_30m_price,
-            "cacheCreation30mPrice",
-        )?),
-        cache_creation_1h_per_million: Set(money(
-            &tier.cache_creation_1h_price,
-            "cacheCreation1hPrice",
+        cache_creation_per_million: Set(super::pricing::cache_creation_prices(
+            &tier.cache_creation_per_million,
         )?),
         image_output_per_million: Set(money(&tier.image_output_price, "imageOutputPrice")?),
         audio_input_per_million: Set(money(&tier.audio_input_price, "audioInputPrice")?),

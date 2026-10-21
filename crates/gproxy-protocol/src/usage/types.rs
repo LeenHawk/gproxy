@@ -19,10 +19,40 @@ pub struct TokenUsage {
     /// Total output including reasoning; reasoning is a subset, not additive.
     pub output_tokens: Option<u64>,
     pub cached_input_tokens: Option<u64>,
-    pub cache_creation_5m_tokens: Option<u64>,
-    pub cache_creation_30m_tokens: Option<u64>,
-    pub cache_creation_1h_tokens: Option<u64>,
+    /// Reported writes grouped by retention. Empty means unreported.
+    pub cache_creation: Vec<CacheCreation>,
     pub reasoning_tokens: Option<u64>,
+}
+
+/// One reported cache-write quantity. Unknown retention is not a default TTL.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct CacheCreation {
+    pub tokens: u64,
+    pub ttl_seconds: Option<u64>,
+}
+
+impl TokenUsage {
+    pub fn cache_creation_tokens(&self) -> u64 {
+        self.cache_creation
+            .iter()
+            .fold(0, |sum, entry| sum.saturating_add(entry.tokens))
+    }
+
+    pub fn add_cache_creation(&mut self, tokens: Option<u64>, ttl_seconds: Option<u64>) {
+        let Some(tokens) = tokens else { return };
+        if let Some(entry) = self
+            .cache_creation
+            .iter_mut()
+            .find(|entry| entry.ttl_seconds == ttl_seconds)
+        {
+            entry.tokens = entry.tokens.saturating_add(tokens);
+        } else {
+            self.cache_creation.push(CacheCreation {
+                tokens,
+                ttl_seconds,
+            });
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -83,18 +113,11 @@ impl NormalizedUsage {
                 &mut total.tokens.reasoning_tokens,
                 value.tokens.reasoning_tokens,
             );
-            add(
-                &mut total.tokens.cache_creation_5m_tokens,
-                value.tokens.cache_creation_5m_tokens,
-            );
-            add(
-                &mut total.tokens.cache_creation_30m_tokens,
-                value.tokens.cache_creation_30m_tokens,
-            );
-            add(
-                &mut total.tokens.cache_creation_1h_tokens,
-                value.tokens.cache_creation_1h_tokens,
-            );
+            for entry in &value.tokens.cache_creation {
+                total
+                    .tokens
+                    .add_cache_creation(Some(entry.tokens), entry.ttl_seconds);
+            }
             for (key, count) in &value.metrics {
                 // Saturating: upstream-reported amounts, and a Decimal
                 // overflow panics.

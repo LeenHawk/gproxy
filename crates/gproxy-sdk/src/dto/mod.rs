@@ -73,8 +73,8 @@ pub use logs::{
     LogBodyEncoding, LogDetailDto, LogEntryDto, LogPageDto, LogQuery,
 };
 pub use pricing::{
-    PriceRateDto, PriceRatePatch, PriceRateWrite, PriceRuleDto, PriceRulePatch, PriceRuleWrite,
-    PriceTierDto, PriceTierPatch, PriceTierWrite,
+    CacheCreationPriceDto, PriceRateDto, PriceRatePatch, PriceRateWrite, PriceRuleDto,
+    PriceRulePatch, PriceRuleWrite, PriceTierDto, PriceTierPatch, PriceTierWrite,
 };
 pub use profiles::{ConnectionProfileDto, ConnectionProfilePatch, ConnectionProfileWrite};
 pub use quota::{
@@ -102,9 +102,9 @@ pub use transfer::{
     ImportRequest, SealedSecretDto,
 };
 pub use usage::{
-    UsageExchangeDto, UsageGroupBy, UsageGroupDto, UsageGroupQuery, UsageQuery, UsageRecordDto,
-    UsageRecordPage, UsageRecordQuery, UsageSummaryDto, UsageTokensDto, UsageTrendPointDto,
-    UsageTrendQuery,
+    CacheCreationDto, UsageExchangeDto, UsageGroupBy, UsageGroupDto, UsageGroupQuery, UsageQuery,
+    UsageRecordDto, UsageRecordPage, UsageRecordQuery, UsageSummaryDto, UsageTokensDto,
+    UsageTrendPointDto, UsageTrendQuery,
 };
 
 // The tokenizer family's shapes are declared next to the operations that

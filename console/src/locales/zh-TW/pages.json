@@ -33,7 +33,8 @@
     "timeRange": "時間範圍",
     "trendData": "查看趨勢資料",
     "periodStart": "時段開始",
-    "trendMetric": "趨勢指標"
+    "trendMetric": "趨勢指標",
+    "unknownTtl": "TTL 未知"
   },
   "quota": {
     "emptyTitle": "沒有預算約束",
@@ -632,9 +633,6 @@
       "inputPerMillion": "輸入 Token / 百萬",
       "outputPerMillion": "輸出 Token / 百萬",
       "cacheReadPerMillion": "快取讀取 Token / 百萬",
-      "cacheCreation5mPerMillion": "5 分鐘快取寫入 / 百萬",
-      "cacheCreation30mPerMillion": "30 分鐘快取寫入 / 百萬",
-      "cacheCreation1hPerMillion": "1 小時快取寫入 / 百萬",
       "reasoningPerMillion": "推理 Token / 百萬",
       "imageInputPerMillion": "圖片輸入 Token / 百萬",
       "imageOutputPerMillion": "圖片輸出 Token / 百萬",
@@ -648,9 +646,6 @@
       "input_tokens": "輸入 Token",
       "output_tokens": "輸出 Token",
       "cached_input_tokens": "快取讀取 Token",
-      "cache_creation_5m_tokens": "5 分鐘快取寫入",
-      "cache_creation_30m_tokens": "30 分鐘快取寫入",
-      "cache_creation_1h_tokens": "1 小時快取寫入",
       "reasoning_tokens": "推理 Token",
       "image_input_tokens": "圖片輸入 Token",
       "image_output_tokens": "圖片輸出 Token",
@@ -670,7 +665,8 @@
       "file_searches": "檔案搜尋",
       "code_interpreter_sessions": "程式碼解譯器工作階段",
       "tool_calls": "工具呼叫",
-      "requests": "請求次數"
+      "requests": "請求次數",
+      "cache_creation_tokens": "快取寫入"
     },
     "units": {
       "token": "Token",
@@ -691,7 +687,13 @@
       "rule": "價格規則",
       "rate": "費率",
       "tier": "階梯"
-    }
+    },
+    "cacheWritePrices": "快取寫入價格",
+    "cacheWritePricesHelp": "TTL 單位為秒，留空表示預設價格；清空列表時繼承原價格。",
+    "cacheTtlSeconds": "TTL（秒）",
+    "cacheWritePerMillion": "寫入價格 / 百萬 Token",
+    "invalidCacheTtl": "TTL 必須為正整數秒。",
+    "cacheRateTtlHelp": "留空表示預設寫入價格。"
   },
   "proxy": {
     "inherit": "繼承上層",
@@ -738,9 +740,6 @@
       "inputPrice": "輸入",
       "outputPrice": "輸出",
       "cacheReadPrice": "快取讀取",
-      "cacheCreation5mPrice": "快取寫入 5 分鐘",
-      "cacheCreation30mPrice": "快取寫入 30 分鐘",
-      "cacheCreation1hPrice": "快取寫入 1 小時",
       "imageOutputPrice": "圖片輸出",
       "audioInputPrice": "音訊輸入",
       "audioOutputPrice": "音訊輸出",

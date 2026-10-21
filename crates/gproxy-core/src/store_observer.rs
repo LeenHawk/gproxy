@@ -605,8 +605,7 @@ fn usage_json(u: &NormalizedUsage) -> Value {
     let t = &u.tokens;
     json!({"tokens": {
         "input_tokens": t.input_tokens, "output_tokens": t.output_tokens,
-        "cached_input_tokens": t.cached_input_tokens, "cache_creation_5m_tokens": t.cache_creation_5m_tokens,
-        "cache_creation_30m_tokens": t.cache_creation_30m_tokens, "cache_creation_1h_tokens": t.cache_creation_1h_tokens,
+        "cached_input_tokens": t.cached_input_tokens, "cache_creation": t.cache_creation,
         "reasoning_tokens": t.reasoning_tokens,
     }, "metrics": u.metrics, "dimensions": u.dimensions, "actual_service_tier": u.actual_service_tier,
     "completeness": format!("{:?}", u.completeness).to_lowercase(),
@@ -630,18 +629,6 @@ fn usage_columns(u: &NormalizedUsage) -> usage_record::ActiveModel {
     let input_tokens = token("input_tokens", u.tokens.input_tokens);
     let output_tokens = token("output_tokens", u.tokens.output_tokens);
     let cached_input_tokens = token("cached_input_tokens", u.tokens.cached_input_tokens);
-    let cache_creation_5m_tokens = token(
-        "cache_creation_5m_tokens",
-        u.tokens.cache_creation_5m_tokens,
-    );
-    let cache_creation_30m_tokens = token(
-        "cache_creation_30m_tokens",
-        u.tokens.cache_creation_30m_tokens,
-    );
-    let cache_creation_1h_tokens = token(
-        "cache_creation_1h_tokens",
-        u.tokens.cache_creation_1h_tokens,
-    );
     let reasoning_tokens = token("reasoning_tokens", u.tokens.reasoning_tokens);
     if !overflow_tokens.is_empty() {
         extra.insert("tokens".into(), Value::Object(overflow_tokens));
@@ -696,9 +683,9 @@ fn usage_columns(u: &NormalizedUsage) -> usage_record::ActiveModel {
         input_tokens: reported(input_tokens),
         output_tokens: reported(output_tokens),
         cached_input_tokens: reported(cached_input_tokens),
-        cache_creation_5m_tokens: reported(cache_creation_5m_tokens),
-        cache_creation_30m_tokens: reported(cache_creation_30m_tokens),
-        cache_creation_1h_tokens: reported(cache_creation_1h_tokens),
+        cache_creation: reported(
+            (!u.tokens.cache_creation.is_empty()).then(|| json!(u.tokens.cache_creation)),
+        ),
         reasoning_tokens: reported(reasoning_tokens),
         image_input_tokens: reported(image_input_tokens),
         image_output_tokens: reported(image_output_tokens),

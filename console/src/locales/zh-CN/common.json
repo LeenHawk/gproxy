@@ -265,11 +265,9 @@
     "sessionAffinity": "路由会话亲和",
     "maxAttempts": "最大尝试次数",
     "currency": "币种",
-    "cacheCreation5mTokens": "缓存写入（5 分钟）",
-    "cacheCreation30mTokens": "缓存写入（30 分钟）",
-    "cacheCreation1hTokens": "缓存写入（1 小时）",
     "averageOutputTps": "平均输出 TPS",
-    "cacheHitRate": "缓存命中率"
+    "cacheHitRate": "缓存命中率",
+    "cacheCreationTokens": "缓存写入"
   },
   "oauthConsent": {
     "authorizeTitle": "授权访问",

@@ -1027,9 +1027,7 @@ impl<C: BatchConnectionTrait + Send + Sync> UsageMeter for CountedMeter<C> {
                     tokens.input_tokens,
                     tokens.output_tokens,
                     tokens.cached_input_tokens,
-                    tokens.cache_creation_5m_tokens,
-                    tokens.cache_creation_30m_tokens,
-                    tokens.cache_creation_1h_tokens,
+                    Some(tokens.cache_creation_tokens()),
                 ]
                 .into_iter()
                 .flatten()

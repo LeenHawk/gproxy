@@ -50,12 +50,17 @@ pub(super) fn from_usage(usage: &Value) -> Option<NormalizedUsage> {
         .filter(|value| value.is_object())
     {
         Some(cache) => {
-            normalized.tokens.cache_creation_5m_tokens = count(cache, "ephemeral_5m_input_tokens");
-            normalized.tokens.cache_creation_1h_tokens = count(cache, "ephemeral_1h_input_tokens");
+            normalized
+                .tokens
+                .add_cache_creation(count(cache, "ephemeral_5m_input_tokens"), Some(300));
+            normalized
+                .tokens
+                .add_cache_creation(count(cache, "ephemeral_1h_input_tokens"), Some(3600));
         }
         None => {
-            normalized.tokens.cache_creation_5m_tokens =
-                count(usage, "cache_creation_input_tokens");
+            normalized
+                .tokens
+                .add_cache_creation(count(usage, "cache_creation_input_tokens"), Some(300));
         }
     }
     normalized.tokens.reasoning_tokens = usage
@@ -346,8 +351,24 @@ mod tests {
         assert_eq!(usage.tokens.input_tokens, Some(10), "already exclusive");
         assert_eq!(usage.tokens.output_tokens, Some(4));
         assert_eq!(usage.tokens.cached_input_tokens, Some(30));
-        assert_eq!(usage.tokens.cache_creation_5m_tokens, Some(2));
-        assert_eq!(usage.tokens.cache_creation_1h_tokens, Some(3));
+        assert_eq!(
+            usage
+                .tokens
+                .cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds == Some(300))
+                .map(|entry| entry.tokens),
+            Some(2)
+        );
+        assert_eq!(
+            usage
+                .tokens
+                .cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds == Some(3600))
+                .map(|entry| entry.tokens),
+            Some(3)
+        );
         assert_eq!(usage.tokens.reasoning_tokens, Some(1));
         assert_eq!(usage.metrics["web_searches"], 2.into());
         assert_eq!(usage.metrics["web_fetches"], 1.into());
@@ -363,8 +384,23 @@ mod tests {
         let flat = buffered(&json!({"usage": {"input_tokens": 1, "output_tokens": 1,
             "cache_creation_input_tokens": 7}}))
         .unwrap();
-        assert_eq!(flat.tokens.cache_creation_5m_tokens, Some(7), "flat is 5m");
-        assert_eq!(flat.tokens.cache_creation_1h_tokens, None);
+        assert_eq!(
+            flat.tokens
+                .cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds == Some(300))
+                .map(|entry| entry.tokens),
+            Some(7),
+            "flat is 5m"
+        );
+        assert_eq!(
+            flat.tokens
+                .cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds == Some(3600))
+                .map(|entry| entry.tokens),
+            None
+        );
     }
 
     #[test]
@@ -407,11 +443,24 @@ mod tests {
         assert_eq!(expected.tokens.output_tokens, Some(12));
         assert_eq!(expected.tokens.cached_input_tokens, Some(10));
         assert_eq!(
-            expected.tokens.cache_creation_5m_tokens,
+            expected
+                .tokens
+                .cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds == Some(300))
+                .map(|entry| entry.tokens),
             Some(0),
             "message_start's breakdown survives the delta's flat restatement"
         );
-        assert_eq!(expected.tokens.cache_creation_1h_tokens, Some(20));
+        assert_eq!(
+            expected
+                .tokens
+                .cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds == Some(3600))
+                .map(|entry| entry.tokens),
+            Some(20)
+        );
         assert_eq!(expected.tokens.reasoning_tokens, Some(4));
         assert_eq!(expected.completeness, UsageCompleteness::Complete);
         assert_eq!(expected.attempts.len(), 2);
@@ -436,8 +485,24 @@ mod tests {
             let delta = json!({"type":"message_delta","usage":{"output_tokens":5,"cache_creation_input_tokens":20}});
             let wire = format!("data: {start}\n\ndata: {delta}\n\n");
             let merged = streamed(&wire, 11, UsageStreamEnd::Complete).unwrap();
-            assert_eq!(merged.tokens.cache_creation_5m_tokens, Some(five));
-            assert_eq!(merged.tokens.cache_creation_1h_tokens, Some(hour));
+            assert_eq!(
+                merged
+                    .tokens
+                    .cache_creation
+                    .iter()
+                    .find(|entry| entry.ttl_seconds == Some(300))
+                    .map(|entry| entry.tokens),
+                Some(five)
+            );
+            assert_eq!(
+                merged
+                    .tokens
+                    .cache_creation
+                    .iter()
+                    .find(|entry| entry.ttl_seconds == Some(3600))
+                    .map(|entry| entry.tokens),
+                Some(hour)
+            );
             let update = json!({"type":"message_delta","usage":{"output_tokens":6,
                 "cache_creation":{"ephemeral_5m_input_tokens":2,"ephemeral_1h_input_tokens":22}}});
             let merged = streamed(
@@ -446,8 +511,24 @@ mod tests {
                 UsageStreamEnd::Complete,
             )
             .unwrap();
-            assert_eq!(merged.tokens.cache_creation_5m_tokens, Some(2));
-            assert_eq!(merged.tokens.cache_creation_1h_tokens, Some(22));
+            assert_eq!(
+                merged
+                    .tokens
+                    .cache_creation
+                    .iter()
+                    .find(|entry| entry.ttl_seconds == Some(300))
+                    .map(|entry| entry.tokens),
+                Some(2)
+            );
+            assert_eq!(
+                merged
+                    .tokens
+                    .cache_creation
+                    .iter()
+                    .find(|entry| entry.ttl_seconds == Some(3600))
+                    .map(|entry| entry.tokens),
+                Some(22)
+            );
             assert_eq!(merged.tokens.output_tokens, Some(6));
         }
     }

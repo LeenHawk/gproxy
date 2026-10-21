@@ -70,6 +70,7 @@ mod m20261007_000001_rewrite_conditions;
 mod m20261008_000001_usage_timing;
 mod m20261015_000001_usage_retention;
 mod m20261020_000001_retire_guardian;
+mod m20261021_000001_cache_retention;
 
 /// Every migration this build carries, oldest first.
 ///
@@ -88,6 +89,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261008_000001_usage_timing::Migration),
             Box::new(m20261015_000001_usage_retention::Migration),
             Box::new(m20261020_000001_retire_guardian::Migration),
+            Box::new(m20261021_000001_cache_retention::Migration),
         ]
     }
 }

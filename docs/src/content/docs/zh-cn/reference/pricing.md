@@ -81,11 +81,13 @@ v4 每样只有一个。
 
 ```text
 input_tokens          output_tokens           cached_input_tokens
-cache_creation_5m_tokens  cache_creation_30m_tokens  cache_creation_1h_tokens
+cache_creation_tokens
 reasoning_tokens      image_input_tokens      image_output_tokens
 audio_input_tokens    cached_audio_input_tokens  audio_output_tokens
 video_input_tokens    video_tokens
 ```
+
+缓存写入统一使用 `cache_creation_tokens`。费率条件 `{"ttl_seconds":43200}` 匹配 12 小时写入，省略该条件则为默认价格；同一次请求中的各个写入桶分别计费。缓存读取仍是单一的 `cached_input_tokens` 计数，没有 TTL。阶梯价格使用 `cacheCreationPerMillion: [{"ttlSeconds":43200,"price":"5"}]`，其中 `ttlSeconds: null` 表示默认价格。价格按百万 Token 计，不能再乘 TTL。
 
 **计数、秒与字符：**
 
@@ -111,7 +113,7 @@ code_interpreter_sessions       tool_calls      requests
 | `multiplier` | 服务档位用：把继承来的价格乘以多少。仅上下文的行不设它 |
 | `*_per_million` | 某一类 token 的显式价格 |
 
-显式列有 `input`、`output`、`cache_read`、`cache_creation_5m` / `30m` / `1h`、
+显式列有 `input`、`output`、`cache_read`、`cache_creation_per_million`、
 `reasoning`、`image_input`、`image_output`、`audio_*` 和 `video_*`。
 
 **提示长度算的是 input 加缓存读加缓存写，各计一次。**

@@ -1,20 +1,18 @@
 import { formatCount, formatPercent } from "@/lib/format"
 
-export const CACHE_TOKEN_FIELDS = ["cachedInputTokens", "cacheCreation5mTokens", "cacheCreation30mTokens", "cacheCreation1hTokens"] as const
+export const CACHE_TOKEN_FIELDS = ["cachedInputTokens"] as const
 
 type CacheUsage = {
   inputTokens: number | null
   cachedInputTokens: number | null
   cacheCreationTokens?: number
-  cacheCreation5mTokens: number | null
-  cacheCreation30mTokens: number | null
-  cacheCreation1hTokens: number | null
+  cacheCreation: ReadonlyArray<{ tokens: number; ttlSeconds: number | null }>
 }
 
 /** Input is normalized uncached input. Cache reads and writes are disjoint from it. */
 export function cacheHitRate(tokens: CacheUsage): number | null {
   if (tokens.inputTokens == null || tokens.cachedInputTokens == null) return null
-  const writes = tokens.cacheCreationTokens ?? ((tokens.cacheCreation5mTokens ?? 0) + (tokens.cacheCreation30mTokens ?? 0) + (tokens.cacheCreation1hTokens ?? 0))
+  const writes = tokens.cacheCreationTokens ?? tokens.cacheCreation.reduce((sum, entry) => sum + entry.tokens, 0)
   const total = tokens.inputTokens + tokens.cachedInputTokens + writes
   return total > 0 ? tokens.cachedInputTokens / total : null
 }
@@ -43,4 +41,14 @@ export function usageWindow(range: UsageRange, filter: { fromMs?: number; toMs?:
     // All time has no known span; daily buckets from the first record.
     bucketMs: fromMs === undefined ? 86_400_000 : Math.max(1, Math.ceil((toMs - fromMs) / 24)),
   }
+}
+
+/** Each reported retention bucket is shown, including an explicit zero. */
+export function formatCacheCreation(entries: CacheUsage["cacheCreation"], locale: string, unknownTtl: string): string {
+  return entries.length ? entries.map(entry => `${formatCount(entry.tokens, locale)} (${entry.ttlSeconds === null ? unknownTtl : formatCacheTtl(entry.ttlSeconds, locale)})`).join(" · ") : "—"
+}
+
+export function formatCacheTtl(seconds: number, locale: string): string {
+  const [value, unit] = seconds % 3600 === 0 ? [seconds / 3600, "hour"] : seconds % 60 === 0 ? [seconds / 60, "minute"] : [seconds, "second"]
+  return new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "short" }).format(value)
 }

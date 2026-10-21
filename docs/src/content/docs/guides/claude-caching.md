@@ -138,9 +138,12 @@ rows:
 | What an upstream reports | The metric |
 | --- | --- |
 | cache read | `cached_input_tokens` |
-| 5-minute cache write | `cache_creation_5m_tokens` |
-| 30-minute cache write | `cache_creation_30m_tokens` |
-| 1-hour cache write | `cache_creation_1h_tokens` |
+| cache write, by retention | `cache_creation_tokens` + `ttl_seconds` |
+| cache write, unknown retention | `cache_creation_tokens` |
+
+Cache writes use `cache_creation_tokens`. A rate condition such as `{"ttl_seconds":43200}` selects a 12-hour write price; omit this condition for the fallback price. Each reported write bucket is priced separately. Cache reads remain a single `cached_input_tokens` count, with no TTL. Tier overrides use `cacheCreationPerMillion: [{"ttlSeconds":43200,"price":"5"}]`; an entry with `ttlSeconds: null` is the fallback. Prices are per million tokens, not per token-second.
+
+OpenAI Responses and Chat explicit breakpoints accept `prompt_cache_breakpoint: {"mode":"explicit","ttl":"12h"}` (or `"30m"`). The TTL survives Chat ↔ Responses conversion. The current [OpenAPI schema](https://github.com/openai/openai-openapi/blob/master/openapi.json) still limits request-wide `prompt_cache_options.ttl` to `"30m"`; `prompt_cache_retention` is a separate legacy policy. The per-call usage schema reports only a total `cache_write_tokens`, so GPROXY records its TTL as unknown rather than guessing a split for mixed breakpoints.
 
 `cached_input_tokens` is capped at `input_tokens`: the uncached remainder is
 priced at the input rate and the cached part at the cache-read rate, which

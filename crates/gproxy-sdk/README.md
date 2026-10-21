@@ -353,7 +353,7 @@ what a console would have listed.
 
 ```json
 {
-  "formatVersion": 5,
+  "formatVersion": 6,
   "exportedAtMs": 1758412800000,
   "secretsOmitted": false,
   "secrets": ["aes-gcm"],

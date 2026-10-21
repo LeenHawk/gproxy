@@ -15,7 +15,7 @@
 //! | input | `input_tokens` | `input_per_million` |
 //! | output | `output_tokens` minus reasoning when reasoning is priced | `output_per_million` |
 //! | cache read | `cached_input_tokens` | `cache_read_per_million` |
-//! | cache write 5m/30m/1h | `cache_creation_*_tokens` | `cache_creation_*_per_million` |
+//! | cache write | `cache_creation` entries | `cache_creation_per_million` |
 //! | reasoning | `reasoning_tokens` (a subset of output) | `reasoning_per_million` |
 //! | image in/out | `metrics["image_input_tokens"]`, `["image_output_tokens"]` | `image_*_per_million` |
 //! | audio in/cached/out | `metrics["audio_input_tokens"]`, `["cached_audio_input_tokens"]`, `["audio_output_tokens"]` | `audio_*_per_million` |
@@ -60,9 +60,6 @@ enum TokenKind {
     Input,
     Output,
     CacheRead,
-    Cache5m,
-    Cache30m,
-    Cache1h,
     Reasoning,
     ImageInput,
     ImageOutput,
@@ -73,13 +70,10 @@ enum TokenKind {
     Video,
 }
 
-const TOKEN_KINDS: [TokenKind; 14] = [
+const TOKEN_KINDS: [TokenKind; 11] = [
     TokenKind::Input,
     TokenKind::Output,
     TokenKind::CacheRead,
-    TokenKind::Cache5m,
-    TokenKind::Cache30m,
-    TokenKind::Cache1h,
     TokenKind::Reasoning,
     TokenKind::ImageInput,
     TokenKind::ImageOutput,
@@ -97,9 +91,6 @@ impl TokenKind {
             Self::Input => metric::INPUT_TOKENS,
             Self::Output => metric::OUTPUT_TOKENS,
             Self::CacheRead => metric::CACHED_INPUT_TOKENS,
-            Self::Cache5m => metric::CACHE_CREATION_5M_TOKENS,
-            Self::Cache30m => metric::CACHE_CREATION_30M_TOKENS,
-            Self::Cache1h => metric::CACHE_CREATION_1H_TOKENS,
             Self::Reasoning => metric::REASONING_TOKENS,
             Self::ImageInput => metric::IMAGE_INPUT_TOKENS,
             Self::ImageOutput => metric::IMAGE_OUTPUT_TOKENS,
@@ -117,9 +108,6 @@ impl TokenKind {
             Self::Input => t.input_tokens,
             Self::Output => t.output_tokens,
             Self::CacheRead => t.cached_input_tokens,
-            Self::Cache5m => t.cache_creation_5m_tokens,
-            Self::Cache30m => t.cache_creation_30m_tokens,
-            Self::Cache1h => t.cache_creation_1h_tokens,
             Self::Reasoning => t.reasoning_tokens,
             _ => None,
         };
@@ -146,7 +134,8 @@ struct Tier {
     priority: i32,
     multiplier: Option<Decimal>,
     /// Per-million prices indexed by `TokenKind`.
-    prices: [Option<Decimal>; 14],
+    prices: [Option<Decimal>; 11],
+    cache_creation: BTreeMap<Option<u64>, Decimal>,
 }
 
 #[derive(Clone, Debug)]
@@ -271,13 +260,21 @@ impl PriceBook {
                     min_prompt_tokens: t.min_prompt_tokens,
                     priority: t.priority,
                     multiplier: t.multiplier.map(decimal),
+                    cache_creation: t
+                        .cache_creation_per_million
+                        .as_ref()
+                        .and_then(|v| v.as_array())
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|entry| {
+                            let price = entry.get("price")?.as_str()?.parse::<Decimal>().ok()?;
+                            Some((entry.get("ttl_seconds").and_then(|v| v.as_u64()), price))
+                        })
+                        .collect(),
                     prices: [
                         t.input_per_million.map(decimal),
                         t.output_per_million.map(decimal),
                         t.cache_read_per_million.map(decimal),
-                        t.cache_creation_5m_per_million.map(decimal),
-                        t.cache_creation_30m_per_million.map(decimal),
-                        t.cache_creation_1h_per_million.map(decimal),
                         t.reasoning_per_million.map(decimal),
                         t.image_input_per_million.map(decimal),
                         t.image_output_per_million.map(decimal),
@@ -396,15 +393,28 @@ impl PriceRule {
     /// The rate row for `metric`: the first conditional row whose conditions
     /// all match the usage dimensions, else the first unconditional row.
     fn rate(&self, metric: &str, usage: &NormalizedUsage) -> Option<Decimal> {
+        self.rate_with_ttl(metric, usage, None)
+    }
+
+    fn rate_with_ttl(
+        &self,
+        metric: &str,
+        usage: &NormalizedUsage,
+        ttl: Option<u64>,
+    ) -> Option<Decimal> {
+        let ttl = ttl.map(|value| value.to_string());
         let rows = self.rates.iter().filter(|r| r.metric == metric);
         let mut fallback = None;
         for row in rows {
             match &row.conditions {
                 Some(conditions) => {
-                    if conditions
-                        .iter()
-                        .all(|(name, expected)| usage.dimensions.get(name) == Some(expected))
-                    {
+                    if conditions.iter().all(|(name, expected)| {
+                        if metric == metric::CACHE_CREATION_TOKENS && name == "ttl_seconds" {
+                            ttl.as_ref() == Some(expected)
+                        } else {
+                            usage.dimensions.get(name) == Some(expected)
+                        }
+                    }) {
                         return Some(row.per_unit);
                     }
                 }
@@ -459,9 +469,7 @@ impl PriceRule {
         };
         let prompt = quantity(TokenKind::Input)
             + quantity(TokenKind::CacheRead)
-            + quantity(TokenKind::Cache5m)
-            + quantity(TokenKind::Cache30m)
-            + quantity(TokenKind::Cache1h);
+            + Decimal::from(usage.tokens.cache_creation_tokens());
         let context = self.select_tier(None, prompt);
         let service = usage
             .actual_service_tier
@@ -520,9 +528,30 @@ impl PriceRule {
                 total = total.saturating_add(amount.saturating_mul(per_million) / MILLION);
             }
         }
+        for entry in &usage.tokens.cache_creation {
+            let tier_price = |tier: &Tier| {
+                tier.cache_creation
+                    .get(&entry.ttl_seconds)
+                    .or_else(|| tier.cache_creation.get(&None))
+                    .copied()
+            };
+            let base = context.and_then(tier_price).or_else(|| {
+                self.rate_with_ttl(metric::CACHE_CREATION_TOKENS, usage, entry.ttl_seconds)
+                    .map(|rate| rate * MILLION)
+            });
+            let price = service
+                .and_then(tier_price)
+                .or_else(|| base.map(|price| price * multiplier));
+            if let Some(price) = price {
+                total = total
+                    .saturating_add(Decimal::from(entry.tokens).saturating_mul(price) / MILLION);
+            }
+        }
         let mut requests_seen = false;
         for (name, amount) in &usage.metrics {
-            if TOKEN_KINDS.iter().any(|kind| kind.metric() == name) {
+            if name == metric::CACHE_CREATION_TOKENS
+                || TOKEN_KINDS.iter().any(|kind| kind.metric() == name)
+            {
                 continue;
             }
             if name == metric::REQUESTS {
@@ -626,6 +655,7 @@ mod tests {
             input_per_million: None,
             output_per_million: None,
             cache_read_per_million: None,
+            cache_creation_per_million: None,
             cache_creation_5m_per_million: None,
             cache_creation_30m_per_million: None,
             cache_creation_1h_per_million: None,
@@ -948,5 +978,85 @@ mod tests {
             .insert("token_modalities_in_totals".into(), "true".into());
         let cost = book.rules()[0].cost(&usage);
         assert_eq!(cost, Decimal::new(820, 6));
+    }
+    #[test]
+    fn cache_writes_price_each_retention_and_follow_context_and_service_tiers() {
+        use gproxy_protocol::usage::CacheCreation;
+        let rules = [rule("cache", None, "*", 0)];
+        let mut long = rate(
+            "long",
+            "cache",
+            metric::CACHE_CREATION_TOKENS,
+            PriceUnit::Token,
+            "1000000",
+            "5",
+        );
+        long.conditions = Some(serde_json::json!({"ttl_seconds": 43200}));
+        let rates = [
+            rate(
+                "input",
+                "cache",
+                metric::INPUT_TOKENS,
+                PriceUnit::Token,
+                "1000000",
+                "2",
+            ),
+            rate(
+                "read",
+                "cache",
+                metric::CACHED_INPUT_TOKENS,
+                PriceUnit::Token,
+                "1000000",
+                "0.2",
+            ),
+            rate(
+                "default",
+                "cache",
+                metric::CACHE_CREATION_TOKENS,
+                PriceUnit::Token,
+                "1000000",
+                "2.5",
+            ),
+            long,
+        ];
+        let mut usage = usage(1_000_000, 0);
+        usage.tokens.cached_input_tokens = Some(1_000_000);
+        usage.tokens.cache_creation = vec![
+            CacheCreation {
+                tokens: 1_000_000,
+                ttl_seconds: Some(300),
+            },
+            CacheCreation {
+                tokens: 1_000_000,
+                ttl_seconds: Some(43200),
+            },
+            CacheCreation {
+                tokens: 1_000_000,
+                ttl_seconds: None,
+            },
+        ];
+        // A request-wide qualifier cannot override a bucket's retention.
+        usage.dimensions.insert("ttl_seconds".into(), "300".into());
+        let cost = |tiers: &[price_tier::Model], usage: &NormalizedUsage| {
+            PriceBook::compile(&rules, &rates, tiers).rules()[0].cost(usage)
+        };
+        assert_eq!(cost(&[], &usage), Decimal::from_str_exact("12.2").unwrap());
+        let mut context = tier("context", "cache");
+        context.min_prompt_tokens = 5_000_000;
+        context.cache_creation_per_million = Some(serde_json::json!([
+            {"ttl_seconds": 43200, "price": "6"}
+        ]));
+        let mut service = tier("service", "cache");
+        service.service_tier = Some("priority".into());
+        service.multiplier = Some(fixed("2"));
+        service.cache_creation_per_million = Some(serde_json::json!([
+            {"ttl_seconds": 300, "price": "0"}
+        ]));
+        usage.actual_service_tier = Some("priority".into());
+        // Input 4 + read .4 + 5m 0 + 12h 12 + unknown 5, counted once.
+        assert_eq!(
+            cost(&[context, service], &usage),
+            Decimal::from_str_exact("21.4").unwrap()
+        );
     }
 }

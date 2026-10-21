@@ -49,8 +49,8 @@ mod types;
 
 pub use output::whole_output_characters;
 pub use types::{
-    NormalizedUsage, ResponseUsage, TokenUsage, UsageAttempt, UsageCompleteness, UsageStreamEnd,
-    UsageTransport,
+    CacheCreation, NormalizedUsage, ResponseUsage, TokenUsage, UsageAttempt, UsageCompleteness,
+    UsageStreamEnd, UsageTransport,
 };
 
 use crate::codec::{CodecLimits, JsonArrayDecoder, SseDecoder, SseFrame};

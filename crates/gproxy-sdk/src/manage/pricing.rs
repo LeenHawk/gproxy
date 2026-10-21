@@ -408,18 +408,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for PriceTiers<'_
                 write.cache_read_per_million,
                 "cacheReadPerMillion",
             )?),
-            cache_creation_5m_per_million: Set(optional_decimal(
-                write.cache_creation_5m_per_million,
-                "cacheCreation5mPerMillion",
+            cache_creation_per_million: Set(cache_creation_prices(
+                &write.cache_creation_per_million,
             )?),
-            cache_creation_30m_per_million: Set(optional_decimal(
-                write.cache_creation_30m_per_million,
-                "cacheCreation30mPerMillion",
-            )?),
-            cache_creation_1h_per_million: Set(optional_decimal(
-                write.cache_creation_1h_per_million,
-                "cacheCreation1hPerMillion",
-            )?),
+            cache_creation_5m_per_million: Set(None),
+            cache_creation_30m_per_million: Set(None),
+            cache_creation_1h_per_million: Set(None),
             reasoning_per_million: Set(optional_decimal(
                 write.reasoning_per_million,
                 "reasoningPerMillion",
@@ -477,6 +471,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for PriceTiers<'_
         if let Some(priority) = patch.priority {
             row.priority = Set(priority);
         }
+        if let Some(prices) = patch.cache_creation_per_million {
+            row.cache_creation_per_million = Set(cache_creation_prices(&prices)?);
+        }
         // One arm per column, because each is a distinct nullable decimal and
         // a loop would need the ActiveModel's fields by name anyway.
         macro_rules! decimals {
@@ -491,9 +488,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for PriceTiers<'_
             input_per_million => "inputPerMillion",
             output_per_million => "outputPerMillion",
             cache_read_per_million => "cacheReadPerMillion",
-            cache_creation_5m_per_million => "cacheCreation5mPerMillion",
-            cache_creation_30m_per_million => "cacheCreation30mPerMillion",
-            cache_creation_1h_per_million => "cacheCreation1hPerMillion",
             reasoning_per_million => "reasoningPerMillion",
             image_input_per_million => "imageInputPerMillion",
             image_output_per_million => "imageOutputPerMillion",
@@ -550,4 +544,29 @@ impl ModelPriceRules {
             })
             .collect()
     }
+}
+
+/// Validate exact prices once for every configuration entry point.
+pub(super) fn cache_creation_prices(
+    prices: &[crate::dto::CacheCreationPriceDto],
+) -> SdkResult<Option<serde_json::Value>> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut values = Vec::new();
+    for entry in prices {
+        if entry.ttl_seconds == Some(0) || !seen.insert(entry.ttl_seconds) {
+            return Err(SdkError::invalid(
+                "cacheCreationPerMillion requires positive, unique TTLs (or one fallback)",
+            ));
+        }
+        let price = crud::decimal(&entry.price, "cacheCreationPerMillion.price")?;
+        if price.decimal().is_sign_negative() {
+            return Err(SdkError::invalid(
+                "cacheCreationPerMillion.price must not be negative",
+            ));
+        }
+        values.push(
+            serde_json::json!({"ttl_seconds": entry.ttl_seconds, "price": price.to_string()}),
+        );
+    }
+    Ok((!values.is_empty()).then_some(serde_json::Value::Array(values)))
 }

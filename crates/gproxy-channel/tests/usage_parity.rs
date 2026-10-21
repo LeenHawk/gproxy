@@ -141,9 +141,27 @@ fn summary(usage: Option<&NormalizedUsage>) -> Value {
         ("input", t.input_tokens),
         ("output", t.output_tokens),
         ("cached", t.cached_input_tokens),
-        ("cache_5m", t.cache_creation_5m_tokens),
-        ("cache_30m", t.cache_creation_30m_tokens),
-        ("cache_1h", t.cache_creation_1h_tokens),
+        (
+            "cache_5m",
+            t.cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds == Some(300))
+                .map(|entry| entry.tokens),
+        ),
+        (
+            "cache_unknown",
+            t.cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds.is_none())
+                .map(|entry| entry.tokens),
+        ),
+        (
+            "cache_1h",
+            t.cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds == Some(3600))
+                .map(|entry| entry.tokens),
+        ),
         ("reasoning", t.reasoning_tokens),
     ] {
         if let Some(value) = value {
@@ -236,7 +254,7 @@ mod openai {
                 Dialect::OpenAiChat,
                 &chat,
             ),
-            json!({"tokens": {"input": 57, "output": 20, "cached": 40, "cache_30m": 3,
+            json!({"tokens": {"input": 57, "output": 20, "cached": 40, "cache_unknown": 3,
                 "reasoning": 7}, "metrics": {"audio_input_tokens": "5"},
                 "dimensions": {"service_tier": "flex"}, "tier": "flex",
                 "completeness": "Complete"}),
@@ -674,7 +692,7 @@ mod codex {
             let usage = json!({"input_tokens": 100, "output_tokens": 20,
                 details: {"cached_tokens": 40, "cache_write_tokens": 3}});
             let old = json!({"tokens": {"input": 57, "output": 20, "cached": 40,
-                "cache_30m": 3}, "completeness": "Complete"});
+                "cache_unknown": 3}, "completeness": "Complete"});
             let reply = body(&json!({"usage": usage}));
             check(
                 settled(&Codex, Operation::GenerateContent, Dialect::OpenAi, &reply),
@@ -850,7 +868,7 @@ mod vendor_usage {
                 "completeness": "Complete"}),
             |old| {
                 old["tokens"]["input"] = 57.into();
-                old["tokens"]["cache_30m"] = 3.into();
+                old["tokens"]["cache_unknown"] = 3.into();
                 old["metrics"] = json!({"audio_input_tokens": "5", "web_searches": "2"});
                 flag_modalities(old);
                 old["dimensions"]["service_tier"] = "priority".into();
@@ -1066,7 +1084,7 @@ mod compatible {
         let mut old = json!({"tokens": {"input": 60, "output": 20, "cached": 40},
             "completeness": "Complete"});
         old["tokens"]["input"] = 57.into();
-        old["tokens"]["cache_30m"] = 3.into();
+        old["tokens"]["cache_unknown"] = 3.into();
         old["metrics"] = json!({"audio_input_tokens": "5", "web_searches": "2"});
         flag_modalities(&mut old);
         old["dimensions"]["service_tier"] = "priority".into();

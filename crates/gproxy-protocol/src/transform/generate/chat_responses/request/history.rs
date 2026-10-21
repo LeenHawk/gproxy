@@ -16,39 +16,46 @@ fn role(
                 .build(),
         )),
         r::MessageRole::System | r::MessageRole::Developer | r::MessageRole::Assistant => {
-            let text = match content {
-                r::MessageContent::Text(text) => text,
-                r::MessageContent::Parts(parts) => parts
-                    .into_iter()
-                    .map(|part| match part {
-                        r::InputContent::Text(part) => Ok(part.text),
-                        r::InputContent::Image(_) | r::InputContent::File(_) => {
-                            Err(TransformError::unsupported(
-                                "input.content",
-                                "non-user Chat roles cannot carry image/file parts",
-                            ))
-                        }
-                    })
-                    .filter_map(|value| crate::transform::optional(value).transpose())
-                    .collect::<Result<Vec<_>, _>>()?
-                    .join(""),
-            };
+            let text = super::messages::text(match content {
+                r::MessageContent::Text(text) => c::TextContent::Text(text),
+                r::MessageContent::Parts(parts) => c::TextContent::Parts(
+                    parts
+                        .into_iter()
+                        .map(|part| match part {
+                            r::InputContent::Text(part) => Ok(super::media::to_chat_text(
+                                part.text,
+                                part.prompt_cache_breakpoint,
+                            )),
+                            r::InputContent::Image(_) | r::InputContent::File(_) => {
+                                Err(TransformError::unsupported(
+                                    "input.content",
+                                    "non-user Chat roles cannot carry image/file parts",
+                                ))
+                            }
+                        })
+                        .filter_map(|value| crate::transform::optional(value).transpose())
+                        .collect::<Result<Vec<_>, _>>()?,
+                ),
+            });
             Ok(match role {
                 r::MessageRole::System => c::ChatMessage::System(
-                    c::SystemMessage::builder(c::SystemRole::System, c::TextContent::Text(text))
-                        .build(),
+                    c::SystemMessage::builder(c::SystemRole::System, text).build(),
                 ),
                 r::MessageRole::Developer => c::ChatMessage::Developer(
-                    c::DeveloperMessage::builder(
-                        c::DeveloperRole::Developer,
-                        c::TextContent::Text(text),
-                    )
-                    .build(),
+                    c::DeveloperMessage::builder(c::DeveloperRole::Developer, text).build(),
                 ),
                 r::MessageRole::Assistant => {
                     let mut message =
                         c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
-                    message.content = Some(Some(c::AssistantContent::Text(text)));
+                    message.content = Some(Some(match text {
+                        c::TextContent::Text(text) => c::AssistantContent::Text(text),
+                        c::TextContent::Parts(parts) => c::AssistantContent::Parts(
+                            parts
+                                .into_iter()
+                                .map(c::AssistantContentPart::Text)
+                                .collect(),
+                        ),
+                    }));
                     c::ChatMessage::Assistant(message)
                 }
                 // The enclosing arm matched System | Developer | Assistant only.
@@ -58,11 +65,11 @@ fn role(
     }
 }
 
-fn tool(call_id: String, output: String) -> Result<c::ChatMessage, TransformError> {
+fn tool(call_id: String, output: c::TextContent) -> Result<c::ChatMessage, TransformError> {
     Ok(c::ChatMessage::Tool(
         c::ToolMessage::builder(
             c::ToolRole::Tool,
-            c::TextContent::Text(output),
+            super::messages::text(output),
             id(call_id)?,
         )
         .build(),
@@ -179,22 +186,28 @@ pub(super) fn to_chat(
                     continue;
                 }
                 let value = match output.output {
-                    r::FunctionOutput::Text(text) => text,
-                    r::FunctionOutput::Content(parts) => parts
-                        .into_iter()
-                        .map(|part| match part {
-                            r::FunctionOutputContent::Text(part) => Ok(part.text),
-                            r::FunctionOutputContent::Image(_)
-                            | r::FunctionOutputContent::File(_) => {
-                                Err(TransformError::unsupported(
-                                    "tool.output",
-                                    "Chat tool messages cannot carry images/files",
-                                ))
-                            }
-                        })
-                        .filter_map(|value| crate::transform::optional(value).transpose())
-                        .collect::<Result<Vec<_>, _>>()?
-                        .join(""),
+                    r::FunctionOutput::Text(text) => c::TextContent::Text(text),
+                    r::FunctionOutput::Content(parts) => c::TextContent::Parts(
+                        parts
+                            .into_iter()
+                            .map(|part| match part {
+                                r::FunctionOutputContent::Text(part) => {
+                                    Ok(super::media::to_chat_text(
+                                        part.text,
+                                        part.prompt_cache_breakpoint.flatten(),
+                                    ))
+                                }
+                                r::FunctionOutputContent::Image(_)
+                                | r::FunctionOutputContent::File(_) => {
+                                    Err(TransformError::unsupported(
+                                        "tool.output",
+                                        "Chat tool messages cannot carry images/files",
+                                    ))
+                                }
+                            })
+                            .filter_map(|value| crate::transform::optional(value).transpose())
+                            .collect::<Result<Vec<_>, _>>()?,
+                    ),
                 };
                 messages.push(tool(output.call_id, value)?);
             }
@@ -207,21 +220,25 @@ pub(super) fn to_chat(
                     continue;
                 }
                 let value = match output.output {
-                    r::CustomOutput::Text(text) => text,
-                    r::CustomOutput::Content(parts) => parts
-                        .into_iter()
-                        .map(|part| match part {
-                            r::InputContent::Text(part) => Ok(part.text),
-                            r::InputContent::Image(_) | r::InputContent::File(_) => {
-                                Err(TransformError::unsupported(
-                                    "tool.output",
-                                    "Chat tool messages cannot carry images/files",
-                                ))
-                            }
-                        })
-                        .filter_map(|value| crate::transform::optional(value).transpose())
-                        .collect::<Result<Vec<_>, _>>()?
-                        .join(""),
+                    r::CustomOutput::Text(text) => c::TextContent::Text(text),
+                    r::CustomOutput::Content(parts) => c::TextContent::Parts(
+                        parts
+                            .into_iter()
+                            .map(|part| match part {
+                                r::InputContent::Text(part) => Ok(super::media::to_chat_text(
+                                    part.text,
+                                    part.prompt_cache_breakpoint,
+                                )),
+                                r::InputContent::Image(_) | r::InputContent::File(_) => {
+                                    Err(TransformError::unsupported(
+                                        "tool.output",
+                                        "Chat tool messages cannot carry images/files",
+                                    ))
+                                }
+                            })
+                            .filter_map(|value| crate::transform::optional(value).transpose())
+                            .collect::<Result<Vec<_>, _>>()?,
+                    ),
                 };
                 messages.push(tool(output.call_id, value)?);
             }

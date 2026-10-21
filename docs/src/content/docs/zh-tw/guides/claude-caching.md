@@ -125,9 +125,12 @@ thinking 塊只在 assistant 輪次保留。
 | 上游報了什麼 | 指標 |
 | --- | --- |
 | 快取讀 | `cached_input_tokens` |
-| 5 分鐘快取寫 | `cache_creation_5m_tokens` |
-| 30 分鐘快取寫 | `cache_creation_30m_tokens` |
-| 1 小時快取寫 | `cache_creation_1h_tokens` |
+| 快取寫入，按 TTL 分組 | `cache_creation_tokens` + `ttl_seconds` |
+| 快取寫入，TTL 未知 | `cache_creation_tokens` |
+
+快取寫入統一使用 `cache_creation_tokens`。費率條件 `{"ttl_seconds":43200}` 匹配 12 小時寫入，省略該條件則為預設價格；同一次請求中的各個寫入桶分別計費。快取讀取仍是單一的 `cached_input_tokens` 計數，沒有 TTL。階梯價格使用 `cacheCreationPerMillion: [{"ttlSeconds":43200,"price":"5"}]`，其中 `ttlSeconds: null` 表示預設價格。價格按百萬 Token 計，不能再乘 TTL。
+
+OpenAI Responses 和 Chat 的顯式斷點支援 `prompt_cache_breakpoint: {"mode":"explicit","ttl":"12h"}`（也支援 `"30m"`），Chat ↔ Responses 轉換會保留這個 TTL。目前[官方 OpenAPI](https://github.com/openai/openai-openapi/blob/master/openapi.json) 的請求級 `prompt_cache_options.ttl` 仍只列出 `"30m"`；`prompt_cache_retention` 是獨立的舊策略。單次 usage 目前只宣告 `cache_write_tokens` 總量，因此 GPROXY 將其 TTL 記為未知，不猜測混合斷點的寫入分布。
 
 `cached_input_tokens` 以 `input_tokens` 為上限：未命中的餘量按 input 價計，命中部分按
 快取讀價計，而快取讀**沒有價時繼承 input 價**。沒有自己費率行的快取寫按 0 結算。見

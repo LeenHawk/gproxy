@@ -18,6 +18,7 @@ export * from "./AuthorizeOutcome";
 export * from "./AuthorizeQuery";
 export * from "./BatchItem";
 export * from "./BatchPatch";
+export * from "./CacheCreationDto";
 export * from "./ChannelCapabilities";
 export * from "./ConsentDecision";
 export * from "./CredentialOwnerOptionDto";

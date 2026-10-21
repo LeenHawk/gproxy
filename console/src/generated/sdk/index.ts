@@ -7,6 +7,8 @@ export * from "./AuthCodeStarted";
 export * from "./BatchItem";
 export * from "./BatchPatch";
 export * from "./BudgetStatusDto";
+export * from "./CacheCreationDto";
+export * from "./CacheCreationPriceDto";
 export * from "./CaptureDetailDto";
 export * from "./CaptureEventDto";
 export * from "./CaptureRecordDto";

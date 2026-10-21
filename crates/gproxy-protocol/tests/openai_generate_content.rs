@@ -22,7 +22,7 @@ fn full_request() -> Value {
         "previous_response_id":"resp",
         "prompt":{"id":"pmpt","variables":{
             "string":"hello",
-            "text":{"type":"input_text","text":"hello","prompt_cache_breakpoint":{"mode":"explicit"}},
+            "text":{"type":"input_text","text":"hello","prompt_cache_breakpoint":{"mode":"explicit","ttl":"12h"}},
             "image":{"type":"input_image","detail":"original","file_id":null,"image_url":"https://example.com/a.png"},
             "file":{"type":"input_file","detail":"high","file_id":"file","filename":"a.pdf"}
         },"version":"2"},
@@ -95,6 +95,10 @@ fn all_request_fields_are_typed_and_alias_keeps_five_http_elements() {
         PromptVariableValue::Text(v) => {
             assert!(v.rest.is_empty());
             assert!(v.prompt_cache_breakpoint.as_ref().unwrap().rest.is_empty());
+            assert_eq!(
+                v.prompt_cache_breakpoint.as_ref().unwrap().ttl,
+                Some(gproxy_protocol::wire::openai::responses::input::PromptCacheBreakpointTtl::TwelveHours)
+            );
         }
         _ => panic!(),
     }

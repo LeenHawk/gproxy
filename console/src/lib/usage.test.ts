@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { cacheHitRate, formatCacheHitRate, formatUsageTokens } from "./usage"
 
-const counts = { inputTokens: 10, cachedInputTokens: 50, cacheCreation5mTokens: 10, cacheCreation30mTokens: 20, cacheCreation1hTokens: 10 }
+const counts = { inputTokens: 10, cachedInputTokens: 50, cacheCreation: [{ tokens: 10, ttlSeconds: 300 }, { tokens: 20, ttlSeconds: null }, { tokens: 10, ttlSeconds: 43200 }] }
 describe("cache hit rate", () => {
   it("includes all cache writes in total input, without double counting the aggregate", () => {
     expect(cacheHitRate(counts)).toBe(0.5)

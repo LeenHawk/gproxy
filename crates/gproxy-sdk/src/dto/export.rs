@@ -36,6 +36,8 @@ macro_rules! exported {
 }
 
 exported!(
+    CacheCreationDto,
+    CacheCreationPriceDto,
     // the channel catalogue, defined in `gproxy-channel`
     ChannelCapabilities,
     ChannelDescriptor,

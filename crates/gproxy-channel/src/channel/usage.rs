@@ -15,8 +15,8 @@ use serde_json::Value;
 // The metering vocabulary is the protocol's, where the standard readers
 // produce it; it stays reachable at this path for every existing user.
 pub use gproxy_protocol::usage::{
-    NormalizedUsage, ResponseUsage, TokenUsage, UsageAttempt, UsageCompleteness, UsageStreamEnd,
-    UsageTransport,
+    CacheCreation, NormalizedUsage, ResponseUsage, TokenUsage, UsageAttempt, UsageCompleteness,
+    UsageStreamEnd, UsageTransport,
 };
 
 /// Where a vendor's own usage fields are read from.

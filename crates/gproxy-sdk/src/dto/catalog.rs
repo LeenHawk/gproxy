@@ -88,6 +88,9 @@ pub struct DefaultModelPricingDto {
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DefaultModelPriceRateDto {
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
+    pub conditions: Option<serde_json::Value>,
     pub metric: String,
     /// `1000000` for the token metrics, `1` for counted ones.
     pub unit_size: u64,
@@ -117,11 +120,7 @@ pub struct DefaultModelTierDto {
     #[serde(default)]
     pub cache_read_price: Option<String>,
     #[serde(default)]
-    pub cache_creation_5m_price: Option<String>,
-    #[serde(default)]
-    pub cache_creation_30m_price: Option<String>,
-    #[serde(default)]
-    pub cache_creation_1h_price: Option<String>,
+    pub cache_creation_per_million: Vec<super::CacheCreationPriceDto>,
     #[serde(default)]
     pub image_output_price: Option<String>,
     #[serde(default)]

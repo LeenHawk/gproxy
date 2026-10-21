@@ -45,8 +45,8 @@ pub use service::{
 };
 pub use state::{ChannelState, NoState};
 pub use usage::{
-    NormalizedUsage, ResponseUsage, TokenUsage, UsageAttempt, UsageCompleteness, UsageExtras,
-    UsageSource, UsageStreamEnd, UsageTransport, usage_object, with_extras,
+    CacheCreation, NormalizedUsage, ResponseUsage, TokenUsage, UsageAttempt, UsageCompleteness,
+    UsageExtras, UsageSource, UsageStreamEnd, UsageTransport, usage_object, with_extras,
 };
 
 pub use reason::{ResponseReason, ResponseReasonObserver, standard_reason_observer};

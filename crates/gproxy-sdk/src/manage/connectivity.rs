@@ -766,9 +766,13 @@ fn tokens(usage: &NormalizedUsage) -> UsageTokensDto {
         input_tokens: usage.tokens.input_tokens,
         output_tokens: usage.tokens.output_tokens,
         cached_input_tokens: usage.tokens.cached_input_tokens,
-        cache_creation_5m_tokens: usage.tokens.cache_creation_5m_tokens,
-        cache_creation_30m_tokens: usage.tokens.cache_creation_30m_tokens,
-        cache_creation_1h_tokens: usage.tokens.cache_creation_1h_tokens,
+        cache_creation: usage
+            .tokens
+            .cache_creation
+            .iter()
+            .cloned()
+            .map(Into::into)
+            .collect(),
         reasoning_tokens: usage.tokens.reasoning_tokens,
     }
 }

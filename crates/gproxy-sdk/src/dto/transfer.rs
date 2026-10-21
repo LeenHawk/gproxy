@@ -23,7 +23,7 @@ use super::{
 
 /// The only version this build writes, and the only one it accepts. It is not
 /// the schema version: it names the shape of the envelope below.
-pub const EXPORT_FORMAT_VERSION: u32 = 5;
+pub const EXPORT_FORMAT_VERSION: u32 = 6;
 
 /// Codec names as they appear in [`SealedSecretDto::codec`], read from the
 /// envelope byte the sealed blob starts with rather than from configuration:

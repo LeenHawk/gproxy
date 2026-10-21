@@ -89,11 +89,11 @@ test("maps v3 usage metrics and omits dynamic and unsupported price units", () =
   assert.equal(claude.max_output_tokens, 64000)
   assert.deepEqual(claude.input_modalities, ["image", "text"])
   assert(claude.pricing.rates.some((rate) =>
-    rate.metric === "cache_creation_5m_tokens" && rate.price === "3.75"))
+    rate.metric === "cache_creation_tokens" && rate.conditions?.ttl_seconds === 300 && rate.price === "3.75"))
   const openai = catalog.models.find((model) => model.model_id === "gpt-test")
   assert.deepEqual(openai.pricing.tiers, [{ min_prompt_tokens: 200000, input_price: "2.000000001" }])
   assert(openai.pricing.rates.some((rate) =>
-    rate.metric === "cache_creation_30m_tokens" && rate.unit_size === 1_000_000))
+    rate.metric === "cache_creation_tokens" && !rate.conditions && rate.unit_size === 1_000_000))
   assert(openai.pricing.rates.some((rate) =>
     rate.metric === "web_searches" && rate.unit_size === 1 && rate.price === "0.005"))
   assert.equal(catalog.models.find((model) => model.model_id === "auto").pricing, null)

@@ -6,7 +6,7 @@
 
 import { useTranslation } from "react-i18next"
 import type { UsageSummaryDto } from "@/generated/app"
-import { CACHE_TOKEN_FIELDS, formatCacheHitRate, formatUsageTokens } from "@/lib/usage"
+import { CACHE_TOKEN_FIELDS, formatCacheCreation, formatCacheHitRate, formatUsageTokens } from "@/lib/usage"
 import { formatCost, formatCount, formatNumber } from "@/lib/format"
 
 export function UsageSummary({ summary }: { summary: UsageSummaryDto }) {
@@ -19,6 +19,7 @@ export function UsageSummary({ summary }: { summary: UsageSummaryDto }) {
     ["averageOutputTps", summary.averageOutputTps == null ? "—" : `${formatNumber(summary.averageOutputTps, i18n.language)} token/s`],
     ["reasoningTokens", formatCount(summary.reasoningTokens, i18n.language)],
     ...CACHE_TOKEN_FIELDS.map(key => [key, formatUsageTokens(summary[key], i18n.language)] as [string, string]),
+    ["cacheCreationTokens", formatCacheCreation(summary.cacheCreation, i18n.language, t("usage.unknownTtl"))],
     ["cacheHitRate", formatCacheHitRate(summary, i18n.language)],
   ]
   return (

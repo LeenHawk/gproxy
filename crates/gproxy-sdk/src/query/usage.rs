@@ -318,9 +318,7 @@ struct Totals {
     timed_output_tokens: u64,
     output_duration_ms: u64,
     cached_input_tokens: u64,
-    cache_creation_5m_tokens: u64,
-    cache_creation_30m_tokens: u64,
-    cache_creation_1h_tokens: u64,
+    cache_creation: std::collections::BTreeMap<Option<u64>, u64>,
     reasoning_tokens: u64,
     cost: Decimal,
     priced: bool,
@@ -360,18 +358,10 @@ impl Totals {
         add(&mut self.input_tokens, tokens.input_tokens);
         add(&mut self.output_tokens, tokens.output_tokens);
         add(&mut self.cached_input_tokens, tokens.cached_input_tokens);
-        add(
-            &mut self.cache_creation_5m_tokens,
-            tokens.cache_creation_5m_tokens,
-        );
-        add(
-            &mut self.cache_creation_30m_tokens,
-            tokens.cache_creation_30m_tokens,
-        );
-        add(
-            &mut self.cache_creation_1h_tokens,
-            tokens.cache_creation_1h_tokens,
-        );
+        for entry in &tokens.cache_creation {
+            let total = self.cache_creation.entry(entry.ttl_seconds).or_default();
+            *total = total.saturating_add(entry.tokens);
+        }
         add(&mut self.reasoning_tokens, tokens.reasoning_tokens);
     }
 
@@ -389,12 +379,18 @@ impl Totals {
                 .then(|| self.timed_output_tokens as f64 * 1000.0 / self.output_duration_ms as f64),
             cached_input_tokens: self.cached_input_tokens,
             cache_creation_tokens: self
-                .cache_creation_5m_tokens
-                .saturating_add(self.cache_creation_30m_tokens)
-                .saturating_add(self.cache_creation_1h_tokens),
-            cache_creation_5m_tokens: self.cache_creation_5m_tokens,
-            cache_creation_30m_tokens: self.cache_creation_30m_tokens,
-            cache_creation_1h_tokens: self.cache_creation_1h_tokens,
+                .cache_creation
+                .values()
+                .copied()
+                .fold(0, u64::saturating_add),
+            cache_creation: self
+                .cache_creation
+                .into_iter()
+                .map(|(ttl_seconds, tokens)| crate::dto::CacheCreationDto {
+                    tokens,
+                    ttl_seconds,
+                })
+                .collect(),
             reasoning_tokens: self.reasoning_tokens,
             cost: self.cost.normalize().to_string(),
             currency: self.priced.then(|| "USD".into()),

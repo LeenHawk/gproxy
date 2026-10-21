@@ -213,8 +213,25 @@ pub struct ResponseInputFile {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PromptCacheBreakpoint {
     pub mode: PromptCacheMode,
+    /// Minimum lifetime of this breakpoint; omitted inherits the request TTL.
+    /// OpenAI OpenAPI: PromptCacheBreakpointParam (2026-10-21).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttl: Option<PromptCacheBreakpointTtl>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
+}
+
+/// Explicit cache-breakpoint lifetimes from OpenAI's PromptCacheBreakpointParam.
+/// Separate from the request-wide PromptCacheTTLEnum and legacy retention policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum PromptCacheBreakpointTtl {
+    #[serde(rename = "30m")]
+    ThirtyMinutes,
+    #[serde(rename = "12h")]
+    TwelveHours,
 }
 
 #[derive(

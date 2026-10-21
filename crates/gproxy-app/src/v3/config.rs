@@ -101,17 +101,18 @@ pub fn translate(
         fingerprints(data, &mut providers.rows, &mut credentials, &mut report);
     let (price_rules, mut price_tiers) = price_rules(data, &providers, &mut report);
     for tier in &mut price_tiers {
+        for entry in &mut tier.cache_creation_per_million {
+            entry.price = money(
+                &entry.price,
+                &format!("{}.cache_creation", tier.id),
+                &mut report,
+            )?;
+        }
         for (field, value) in [
             ("multiplier", &mut tier.multiplier),
             ("input", &mut tier.input_per_million),
             ("output", &mut tier.output_per_million),
             ("cache_read", &mut tier.cache_read_per_million),
-            ("cache_creation_5m", &mut tier.cache_creation_5m_per_million),
-            (
-                "cache_creation_30m",
-                &mut tier.cache_creation_30m_per_million,
-            ),
-            ("cache_creation_1h", &mut tier.cache_creation_1h_per_million),
             ("image_output", &mut tier.image_output_per_million),
         ] {
             if let Some(value) = value {
@@ -895,9 +896,19 @@ fn price_tiers(rule_id: &str, row: &document::PriceRule, report: &mut Report) ->
             input_per_million: money(entry, "input"),
             output_per_million: money(entry, "output"),
             cache_read_per_million: money(entry, "cache_read"),
-            cache_creation_5m_per_million: money(entry, "cache_creation_5m"),
-            cache_creation_30m_per_million: money(entry, "cache_creation_30m"),
-            cache_creation_1h_per_million: money(entry, "cache_creation_1h"),
+            cache_creation_per_million: [
+                ("cache_creation_5m", Some(300)),
+                ("cache_creation_30m", None),
+                ("cache_creation_1h", Some(3600)),
+            ]
+            .into_iter()
+            .filter_map(|(key, ttl_seconds)| {
+                Some(gproxy_sdk::dto::CacheCreationPriceDto {
+                    ttl_seconds,
+                    price: money(entry, key)?,
+                })
+            })
+            .collect(),
             reasoning_per_million: None,
             image_input_per_million: None,
             image_output_per_million: money(entry, "image_output"),
@@ -940,16 +951,28 @@ fn quota_limit(value: &str, row: &str, report: &mut Report) -> Result<String> {
 }
 
 fn price_rate(row: &document::PriceRate) -> PriceRateDto {
+    let (metric, ttl) = match row.metric.as_str() {
+        "cache_creation_5m_tokens" => ("cache_creation_tokens", Some(300)),
+        "cache_creation_30m_tokens" => ("cache_creation_tokens", None),
+        "cache_creation_1h_tokens" => ("cache_creation_tokens", Some(3600)),
+        other => (other, None),
+    };
+    let mut conditions = row.conditions.clone();
+    if let Some(ttl) = ttl {
+        let mut fields = conditions
+            .and_then(|v| v.as_object().cloned())
+            .unwrap_or_default();
+        fields.insert("ttl_seconds".into(), Value::from(ttl));
+        conditions = Some(Value::Object(fields));
+    }
     PriceRateDto {
         id: ids::id("price_rates", row.id),
         price_rule_id: ids::id("price_rules", row.rule_id),
-        // The metric keys are v3's, kept verbatim by v4 — see
-        // `gproxy_store::entity::pricing::metric`.
-        metric: row.metric.clone(),
+        metric: metric.into(),
         unit: price_unit(&row.metric).to_owned(),
         unit_quantity: row.unit_size.max(1).to_string(),
         value: row.price.clone(),
-        conditions: row.conditions.clone(),
+        conditions,
         priority: i32::try_from(row.priority).unwrap_or(i32::MAX),
     }
 }

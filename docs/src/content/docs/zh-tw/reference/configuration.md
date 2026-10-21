@@ -230,7 +230,7 @@ gproxy import --in  config.json --mode merge --source-master-key '…'
 `-` 表示標準輸出或標準輸入。文件就是管理 DTO 本身，所以匯出說的正是一次列表會說的：
 
 ```json
-{"formatVersion":5,"exportedAtMs":1789981723118,"secretsOmitted":true,
+{"formatVersion":6,"exportedAtMs":1789981723118,"secretsOmitted":true,
  "secrets":[],"data":{"connectionProfiles":[],"providers":[…],"credentials":[…],
  "models":[],"providerModels":[],"routes":[],"routeMembers":[],
  "operationRules":[],"operationEndpoints":[],

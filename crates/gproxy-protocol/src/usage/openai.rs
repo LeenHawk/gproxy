@@ -13,7 +13,7 @@
 //! compatible vendor reports one, the cache write (`cache_write_tokens`).
 //! The normalized input is the ordinary input alone, so both come back out
 //! of it and ride in the fields that name them; a cache write has no TTL on
-//! this wire and is carried in the 30-minute bucket. Per-modality details
+//! this wire and retains an unknown TTL. Per-modality details
 //! (`audio_tokens`, `text_tokens`, `image_tokens`, and the cached
 //! `cached_tokens_details` breakdown) are recorded as metrics that are
 //! subsets of the totals, and the reading says so with the
@@ -78,7 +78,7 @@ pub(super) fn from_usage(usage: &Value) -> Option<NormalizedUsage> {
     );
     normalized.tokens.output_tokens = Some(count(usage, completion).unwrap_or_default());
     normalized.tokens.cached_input_tokens = cached;
-    normalized.tokens.cache_creation_30m_tokens = cache_write;
+    normalized.tokens.add_cache_creation(cache_write, None);
     normalized.tokens.reasoning_tokens = count(output, "reasoning_tokens");
     for modality in MODALITIES {
         let tokens = format!("{modality}_tokens");
@@ -389,7 +389,15 @@ mod tests {
         assert_eq!(usage.tokens.input_tokens, Some(57));
         assert_eq!(usage.tokens.output_tokens, Some(20));
         assert_eq!(usage.tokens.cached_input_tokens, Some(40));
-        assert_eq!(usage.tokens.cache_creation_30m_tokens, Some(3));
+        assert_eq!(
+            usage
+                .tokens
+                .cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds.is_none())
+                .map(|entry| entry.tokens),
+            Some(3)
+        );
         assert_eq!(usage.tokens.reasoning_tokens, Some(7));
         assert_eq!(usage.metrics["audio_input_tokens"], 5.into());
         assert!(!usage.metrics.contains_key("audio_output_tokens"), "zero");
@@ -409,7 +417,14 @@ mod tests {
             "total_tokens is optional"
         );
         assert!(bare.dimensions.is_empty());
-        assert_eq!(bare.tokens.cache_creation_30m_tokens, None);
+        assert_eq!(
+            bare.tokens
+                .cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds.is_none())
+                .map(|entry| entry.tokens),
+            None
+        );
     }
 
     #[test]
@@ -425,7 +440,15 @@ mod tests {
             )
             .unwrap();
             assert_eq!(usage.tokens.input_tokens, Some(57));
-            assert_eq!(usage.tokens.cache_creation_30m_tokens, Some(3));
+            assert_eq!(
+                usage
+                    .tokens
+                    .cache_creation
+                    .iter()
+                    .find(|entry| entry.ttl_seconds.is_none())
+                    .map(|entry| entry.tokens),
+                Some(3)
+            );
             assert_eq!(usage.tokens.reasoning_tokens, Some(2));
             assert_eq!(usage.metrics["web_searches"], 3.into());
             assert_eq!(usage.actual_service_tier.as_deref(), Some("priority"));
@@ -437,7 +460,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            zero.tokens.cache_creation_30m_tokens,
+            zero.tokens
+                .cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds.is_none())
+                .map(|entry| entry.tokens),
             Some(0),
             "an explicit zero stays one"
         );

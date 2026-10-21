@@ -143,7 +143,7 @@ mod tests {
         .unwrap();
         assert_eq!(normalized.tokens.input_tokens, Some(10));
         assert_eq!(normalized.tokens.cached_input_tokens, Some(30));
-        assert_eq!(normalized.tokens.cache_creation_30m_tokens, Some(5));
+        assert_eq!(normalized.tokens.cache_creation.iter().find(|entry| entry.ttl_seconds.is_none()).map(|entry| entry.tokens), Some(5));
         assert_eq!(normalized.tokens.output_tokens, Some(7));
     }
 }

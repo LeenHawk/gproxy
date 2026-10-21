@@ -162,12 +162,26 @@ pub(crate) fn translate(row: &QueryResult) -> Result<(usage_record::ActiveModel,
             quantities.remove(key);
         }
     })*}; }
-    tokens!(
-        reasoning_tokens,
-        cache_creation_5m_tokens,
-        cache_creation_30m_tokens,
-        cache_creation_1h_tokens
-    );
+    tokens!(reasoning_tokens);
+    let mut cache_creation = Vec::new();
+    for (key, ttl_seconds) in [
+        ("cache_creation_5m_tokens", Some(300u64)),
+        ("cache_creation_30m_tokens", None),
+        ("cache_creation_1h_tokens", Some(3600)),
+    ] {
+        if let Some(tokens) = quantities
+            .get(key)
+            .and_then(decimal)
+            .filter(|v| v.fract().is_zero())
+            .and_then(|v| v.to_u64())
+        {
+            cache_creation.push(serde_json::json!({"tokens": tokens, "ttl_seconds": ttl_seconds}));
+            quantities.remove(key);
+        }
+    }
+    if !cache_creation.is_empty() {
+        out.cache_creation = Set(Some(serde_json::json!(cache_creation)));
+    }
     macro_rules! fixed { ($($field:ident),* $(,)?) => {$({
         let key = stringify!($field);
         if let Some(value) = quantities.get(key).and_then(decimal).and_then(|v| FixedDecimal::exact(v).ok()) {

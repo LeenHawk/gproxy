@@ -30,8 +30,7 @@ LABELS = {
 def summary(requests):
     return dict(requests=requests, inputTokens=requests * 1800, outputTokens=requests * 240,
                 cachedInputTokens=requests * 720, cacheCreationTokens=requests * 120,
-                cacheCreation5mTokens=requests * 120, cacheCreation30mTokens=0,
-                cacheCreation1hTokens=0, reasoningTokens=requests * 40, quantities={},
+                cacheCreation=[dict(tokens=requests * 120, ttlSeconds=300)], reasoningTokens=requests * 40, quantities={},
                 cost=f"{requests * .003:.3f}", currency="USD", truncated=False, scanned=requests)
 
 

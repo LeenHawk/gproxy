@@ -134,9 +134,12 @@ GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_1FAS5GV9R5H29T5Y2J9584K6O95M2NBVW52C9
 | Что сообщает провайдер | Метрика |
 | --- | --- |
 | чтение кэша | `cached_input_tokens` |
-| 5-минутная запись в кэш | `cache_creation_5m_tokens` |
-| 30-минутная запись в кэш | `cache_creation_30m_tokens` |
-| запись в кэш 1 час | `cache_creation_1h_tokens` |
+| запись в кэш по TTL | `cache_creation_tokens` + `ttl_seconds` |
+| запись с неизвестным TTL | `cache_creation_tokens` |
+
+Запись в кэш использует метрику `cache_creation_tokens`. Условие тарифа `{"ttl_seconds":43200}` выбирает цену записи на 12 часов; без этого условия действует базовая цена. Каждая группа записанных токенов тарифицируется отдельно. Чтение остается одним счетчиком `cached_input_tokens`, без TTL. Переопределения уровней: `cacheCreationPerMillion: [{"ttlSeconds":43200,"price":"5"}]`; `ttlSeconds: null` задает базовую цену. Цена указана за миллион токенов и не умножается на TTL.
+
+Явные точки кэша OpenAI Responses и Chat поддерживают `prompt_cache_breakpoint: {"mode":"explicit","ttl":"12h"}` и `"30m"`. TTL сохраняется при преобразовании Chat ↔ Responses. Текущая [схема OpenAPI](https://github.com/openai/openai-openapi/blob/master/openapi.json) по-прежнему ограничивает `prompt_cache_options.ttl` значением `"30m"`; `prompt_cache_retention` — отдельная устаревшая настройка. Схема usage возвращает лишь сумму `cache_write_tokens`, поэтому GPROXY оставляет TTL неизвестным и не предполагает распределение между точками с разными TTL.
 
 `cached_input_tokens` ограничен `input_tokens`: некэшированный остаток оценивается по скорости ввода, а кэшированная часть - по скорости чтения из кэша, которая ** возвращается к скорости ввода**, когда скорость чтения из кэша не существует. Записи в кэш без собственной строки скорости обнуляются. См. [Цены и уровни](/ru/reference/pricing/).
 

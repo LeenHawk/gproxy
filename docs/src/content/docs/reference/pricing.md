@@ -91,11 +91,13 @@ execution.
 
 ```text
 input_tokens          output_tokens           cached_input_tokens
-cache_creation_5m_tokens  cache_creation_30m_tokens  cache_creation_1h_tokens
+cache_creation_tokens
 reasoning_tokens      image_input_tokens      image_output_tokens
 audio_input_tokens    cached_audio_input_tokens  audio_output_tokens
 video_input_tokens    video_tokens
 ```
+
+Cache writes use `cache_creation_tokens`. A rate condition such as `{"ttl_seconds":43200}` selects a 12-hour write price; omit this condition for the fallback price. Each reported write bucket is priced separately. Cache reads remain a single `cached_input_tokens` count, with no TTL. Tier overrides use `cacheCreationPerMillion: [{"ttlSeconds":43200,"price":"5"}]`; an entry with `ttlSeconds: null` is the fallback. Prices are per million tokens, not per token-second.
 
 **Counts, seconds and characters:**
 
@@ -123,7 +125,7 @@ A `price_tiers` row overrides **token prices only**, always per million.
 | `*_per_million` | an explicit price for one token kind |
 
 The explicit columns are `input`, `output`, `cache_read`,
-`cache_creation_5m` / `30m` / `1h`, `reasoning`, `image_input`,
+`cache_creation_per_million`, `reasoning`, `image_input`,
 `image_output`, `audio_*` and `video_*`.
 
 **Prompt length counts input plus cache reads and cache writes, once.**

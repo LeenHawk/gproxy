@@ -185,9 +185,8 @@ pub struct PriceTierDto {
     pub input_per_million: Option<String>,
     pub output_per_million: Option<String>,
     pub cache_read_per_million: Option<String>,
-    pub cache_creation_5m_per_million: Option<String>,
-    pub cache_creation_30m_per_million: Option<String>,
-    pub cache_creation_1h_per_million: Option<String>,
+    #[serde(default)]
+    pub cache_creation_per_million: Vec<CacheCreationPriceDto>,
     pub reasoning_per_million: Option<String>,
     pub image_input_per_million: Option<String>,
     pub image_output_per_million: Option<String>,
@@ -211,9 +210,10 @@ impl From<price_tier::Model> for PriceTierDto {
             input_per_million: text(row.input_per_million),
             output_per_million: text(row.output_per_million),
             cache_read_per_million: text(row.cache_read_per_million),
-            cache_creation_5m_per_million: text(row.cache_creation_5m_per_million),
-            cache_creation_30m_per_million: text(row.cache_creation_30m_per_million),
-            cache_creation_1h_per_million: text(row.cache_creation_1h_per_million),
+            cache_creation_per_million: row
+                .cache_creation_per_million
+                .and_then(|value| serde_json::from_value(value).ok())
+                .unwrap_or_default(),
             reasoning_per_million: text(row.reasoning_per_million),
             image_input_per_million: text(row.image_input_per_million),
             image_output_per_million: text(row.image_output_per_million),
@@ -250,11 +250,7 @@ pub struct PriceTierWrite {
     #[serde(default)]
     pub cache_read_per_million: Option<String>,
     #[serde(default)]
-    pub cache_creation_5m_per_million: Option<String>,
-    #[serde(default)]
-    pub cache_creation_30m_per_million: Option<String>,
-    #[serde(default)]
-    pub cache_creation_1h_per_million: Option<String>,
+    pub cache_creation_per_million: Vec<CacheCreationPriceDto>,
     #[serde(default)]
     pub reasoning_per_million: Option<String>,
     #[serde(default)]
@@ -293,12 +289,8 @@ pub struct PriceTierPatch {
     pub output_per_million: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub cache_read_per_million: Option<Option<String>>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub cache_creation_5m_per_million: Option<Option<String>>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub cache_creation_30m_per_million: Option<Option<String>>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub cache_creation_1h_per_million: Option<Option<String>>,
+    #[serde(default)]
+    pub cache_creation_per_million: Option<Vec<CacheCreationPriceDto>>,
     #[serde(default, deserialize_with = "double_option")]
     pub reasoning_per_million: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
@@ -315,4 +307,16 @@ pub struct PriceTierPatch {
     pub video_input_per_million: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub video_per_million: Option<Option<String>>,
+}
+
+/// A cache-write price per million tokens. No TTL is the fallback price.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct CacheCreationPriceDto {
+    #[serde(default, alias = "ttl_seconds")]
+    pub ttl_seconds: Option<u64>,
+    pub price: String,
 }

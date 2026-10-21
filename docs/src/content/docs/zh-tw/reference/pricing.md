@@ -81,11 +81,13 @@ v4 每樣只有一個。
 
 ```text
 input_tokens          output_tokens           cached_input_tokens
-cache_creation_5m_tokens  cache_creation_30m_tokens  cache_creation_1h_tokens
+cache_creation_tokens
 reasoning_tokens      image_input_tokens      image_output_tokens
 audio_input_tokens    cached_audio_input_tokens  audio_output_tokens
 video_input_tokens    video_tokens
 ```
+
+快取寫入統一使用 `cache_creation_tokens`。費率條件 `{"ttl_seconds":43200}` 匹配 12 小時寫入，省略該條件則為預設價格；同一次請求中的各個寫入桶分別計費。快取讀取仍是單一的 `cached_input_tokens` 計數，沒有 TTL。階梯價格使用 `cacheCreationPerMillion: [{"ttlSeconds":43200,"price":"5"}]`，其中 `ttlSeconds: null` 表示預設價格。價格按百萬 Token 計，不能再乘 TTL。
 
 **計數、秒與字元：**
 
@@ -111,7 +113,7 @@ code_interpreter_sessions       tool_calls      requests
 | `multiplier` | 服務檔位用：把繼承來的價格乘以多少。僅上下文的行不設它 |
 | `*_per_million` | 某一類 token 的顯式價格 |
 
-顯式列有 `input`、`output`、`cache_read`、`cache_creation_5m` / `30m` / `1h`、
+顯式列有 `input`、`output`、`cache_read`、`cache_creation_per_million`、
 `reasoning`、`image_input`、`image_output`、`audio_*` 和 `video_*`。
 
 **提示長度算的是 input 加快取讀加快取寫，各計一次。**

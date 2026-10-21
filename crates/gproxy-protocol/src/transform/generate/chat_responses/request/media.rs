@@ -164,21 +164,54 @@ pub(super) fn to_chat(
     })
 }
 
-fn to_responses_cache(
+pub(super) fn to_responses_cache(
     value: chat::PromptCacheBreakpoint,
 ) -> responses::input::PromptCacheBreakpoint {
-    match value.mode {
-        chat::PromptCacheMode::Explicit => responses::input::PromptCacheBreakpoint::builder(
-            responses::input::PromptCacheMode::Explicit,
-        )
-        .build(),
-    }
+    let mut target = responses::input::PromptCacheBreakpoint::builder(
+        responses::input::PromptCacheMode::Explicit,
+    )
+    .build();
+    target.ttl = value.ttl.map(|ttl| match ttl {
+        chat::PromptCacheBreakpointTtl::ThirtyMinutes => {
+            responses::input::PromptCacheBreakpointTtl::ThirtyMinutes
+        }
+        chat::PromptCacheBreakpointTtl::TwelveHours => {
+            responses::input::PromptCacheBreakpointTtl::TwelveHours
+        }
+    });
+    target
 }
 
-fn to_chat_cache(value: responses::input::PromptCacheBreakpoint) -> chat::PromptCacheBreakpoint {
-    match value.mode {
-        responses::input::PromptCacheMode::Explicit => {
-            chat::PromptCacheBreakpoint::builder(chat::PromptCacheMode::Explicit).build()
+pub(super) fn to_chat_cache(
+    value: responses::input::PromptCacheBreakpoint,
+) -> chat::PromptCacheBreakpoint {
+    let mut target = chat::PromptCacheBreakpoint::builder(chat::PromptCacheMode::Explicit).build();
+    target.ttl = value.ttl.map(|ttl| match ttl {
+        responses::input::PromptCacheBreakpointTtl::ThirtyMinutes => {
+            chat::PromptCacheBreakpointTtl::ThirtyMinutes
         }
-    }
+        responses::input::PromptCacheBreakpointTtl::TwelveHours => {
+            chat::PromptCacheBreakpointTtl::TwelveHours
+        }
+    });
+    target
+}
+
+pub(super) fn to_responses_text(part: chat::TextPart) -> responses::input::ResponseInputText {
+    let mut target = responses::input::ResponseInputText::builder(
+        responses::input::ResponseInputTextType::ResponseInputText,
+        part.text,
+    )
+    .build();
+    target.prompt_cache_breakpoint = part.prompt_cache_breakpoint.map(to_responses_cache);
+    target
+}
+
+pub(super) fn to_chat_text(
+    text: String,
+    cache: Option<responses::input::PromptCacheBreakpoint>,
+) -> chat::TextPart {
+    let mut target = chat::TextPart::builder(chat::TextPartType::Text, text).build();
+    target.prompt_cache_breakpoint = cache.map(to_chat_cache);
+    target
 }

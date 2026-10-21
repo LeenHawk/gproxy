@@ -38,6 +38,9 @@ pub struct Model {
     pub input_tokens: Option<i64>,
     pub output_tokens: Option<i64>,
     pub cached_input_tokens: Option<i64>,
+    /// Cache writes as [{tokens, ttl_seconds}]; None means not reported.
+    pub cache_creation: Option<Json>,
+    /// Legacy columns, read only for records predating dynamic retention.
     pub cache_creation_5m_tokens: Option<i64>,
     pub cache_creation_30m_tokens: Option<i64>,
     pub cache_creation_1h_tokens: Option<i64>,

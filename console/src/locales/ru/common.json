@@ -265,11 +265,9 @@
     "sessionAffinity": "Привязка сеанса к маршруту",
     "maxAttempts": "Максимум попыток",
     "currency": "Валюта",
-    "cacheCreation5mTokens": "Запись в кэш (5 мин)",
-    "cacheCreation30mTokens": "Запись в кэш (30 мин)",
-    "cacheCreation1hTokens": "Запись в кэш (1 ч)",
     "averageOutputTps": "Средняя скорость вывода (токенов/с)",
-    "cacheHitRate": "Доля попаданий в кэш"
+    "cacheHitRate": "Доля попаданий в кэш",
+    "cacheCreationTokens": "Запись в кэш"
   },
   "oauthConsent": {
     "authorizeTitle": "Разрешить доступ",

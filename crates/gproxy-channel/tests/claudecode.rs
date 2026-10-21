@@ -1408,11 +1408,24 @@ fn messages_settle_from_sse_and_from_json() {
     assert_eq!(usage.tokens.output_tokens, Some(12));
     assert_eq!(usage.tokens.cached_input_tokens, Some(10));
     assert_eq!(
-        usage.tokens.cache_creation_5m_tokens,
+        usage
+            .tokens
+            .cache_creation
+            .iter()
+            .find(|entry| entry.ttl_seconds == Some(300))
+            .map(|entry| entry.tokens),
         Some(0),
         "message_start's breakdown wins over the flat delta count"
     );
-    assert_eq!(usage.tokens.cache_creation_1h_tokens, Some(20));
+    assert_eq!(
+        usage
+            .tokens
+            .cache_creation
+            .iter()
+            .find(|entry| entry.ttl_seconds == Some(3600))
+            .map(|entry| entry.tokens),
+        Some(20)
+    );
     assert_eq!(usage.tokens.reasoning_tokens, Some(4));
     assert_eq!(usage.attempts.len(), 2);
     assert_eq!(usage.attempts[0].model, "claude-fable-5");
@@ -1447,8 +1460,24 @@ fn messages_settle_from_sse_and_from_json() {
     assert_eq!(extracted.tokens.input_tokens, Some(10));
     assert_eq!(extracted.tokens.output_tokens, Some(4));
     assert_eq!(extracted.tokens.cached_input_tokens, Some(30));
-    assert_eq!(extracted.tokens.cache_creation_5m_tokens, Some(2));
-    assert_eq!(extracted.tokens.cache_creation_1h_tokens, Some(3));
+    assert_eq!(
+        extracted
+            .tokens
+            .cache_creation
+            .iter()
+            .find(|entry| entry.ttl_seconds == Some(300))
+            .map(|entry| entry.tokens),
+        Some(2)
+    );
+    assert_eq!(
+        extracted
+            .tokens
+            .cache_creation
+            .iter()
+            .find(|entry| entry.ttl_seconds == Some(3600))
+            .map(|entry| entry.tokens),
+        Some(3)
+    );
     assert_eq!(extracted.tokens.reasoning_tokens, Some(1));
     assert_eq!(extracted.metrics["web_searches"], 2.into());
     assert_eq!(extracted.metrics["web_fetches"], 1.into());

@@ -4,15 +4,37 @@ use crate::{
     wire::openai::{chat as c, responses::input as r},
 };
 
-fn text(value: c::TextContent) -> String {
+/// Preserve exact prefix boundaries whenever a text block carries a cache marker.
+pub(super) fn text(value: c::TextContent) -> c::TextContent {
     match value {
-        c::TextContent::Text(value) => value,
-        c::TextContent::Parts(parts) => parts
-            .into_iter()
-            .map(|part| part.text)
-            .collect::<Vec<_>>()
-            .join(""),
+        c::TextContent::Parts(parts)
+            if !parts
+                .iter()
+                .any(|part| part.prompt_cache_breakpoint.is_some()) =>
+        {
+            c::TextContent::Text(
+                parts
+                    .into_iter()
+                    .map(|part| part.text)
+                    .collect::<Vec<_>>()
+                    .join(""),
+            )
+        }
+        value => value,
     }
+}
+
+fn text_message(role: r::MessageRole, value: c::TextContent) -> r::InputItem {
+    let content = match text(value) {
+        c::TextContent::Text(text) => r::MessageContent::Text(text),
+        c::TextContent::Parts(parts) => r::MessageContent::Parts(
+            parts
+                .into_iter()
+                .map(|part| r::InputContent::Text(super::media::to_responses_text(part)))
+                .collect(),
+        ),
+    };
+    r::InputItem::Easy(r::EasyInputMessage::builder(content, role).build())
 }
 
 pub(super) fn id(value: String) -> Result<String, TransformError> {
@@ -21,10 +43,6 @@ pub(super) fn id(value: String) -> Result<String, TransformError> {
     } else {
         Ok(value)
     }
-}
-
-pub(super) fn easy(role: r::MessageRole, text: String) -> r::InputItem {
-    r::InputItem::Easy(r::EasyInputMessage::builder(r::MessageContent::Text(text), role).build())
 }
 
 pub(super) fn to_responses(
@@ -111,10 +129,10 @@ pub(super) fn to_responses(
     for message in messages {
         match message {
             c::ChatMessage::System(message) => {
-                items.push(easy(r::MessageRole::System, text(message.content)))
+                items.push(text_message(r::MessageRole::System, message.content))
             }
             c::ChatMessage::Developer(message) => {
-                items.push(easy(r::MessageRole::Developer, text(message.content)))
+                items.push(text_message(r::MessageRole::Developer, message.content))
             }
             c::ChatMessage::User(message) => {
                 items.push(super::media::user_message(message.content)?)
@@ -180,6 +198,18 @@ pub(super) fn to_responses(
                 if let Some(Some(content)) = message.content {
                     match content {
                         c::AssistantContent::Text(text) => parts.push(output_text(text)),
+                        c::AssistantContent::Parts(content)
+                            if content.iter().any(|part| matches!(part, c::AssistantContentPart::Text(part) if part.prompt_cache_breakpoint.is_some())) => {
+                            // Native input_text can carry a cache marker; output_text cannot.
+                            let content = content.into_iter().map(|part| match part {
+                                c::AssistantContentPart::Text(part) => Ok(part),
+                                c::AssistantContentPart::Refusal(_) => Err(TransformError::unsupported(
+                                    "messages.content.prompt_cache_breakpoint", "a cached assistant prefix cannot mix input_text and refusal parts",
+                                )),
+                            }).collect::<Result<Vec<_>, _>>()?;
+                            items.push(text_message(r::MessageRole::Assistant, c::TextContent::Parts(content)));
+                            logical_index += 1;
+                        }
                         c::AssistantContent::Parts(content) => {
                             for part in content {
                                 parts.push(match part {
@@ -285,7 +315,19 @@ pub(super) fn to_responses(
                         r::CustomToolCallOutput::builder(
                             r::CustomToolCallOutputType::CustomToolCallOutput,
                             call_id,
-                            r::CustomOutput::Text(output),
+                            match output {
+                                c::TextContent::Text(text) => r::CustomOutput::Text(text),
+                                c::TextContent::Parts(parts) => r::CustomOutput::Content(
+                                    parts
+                                        .into_iter()
+                                        .map(|part| {
+                                            r::InputContent::Text(super::media::to_responses_text(
+                                                part,
+                                            ))
+                                        })
+                                        .collect(),
+                                ),
+                            },
                         )
                         .build(),
                     )
@@ -294,7 +336,26 @@ pub(super) fn to_responses(
                         r::FunctionCallOutput::builder(
                             r::FunctionCallOutputType::FunctionCallOutput,
                             call_id,
-                            r::FunctionOutput::Text(output),
+                            match output {
+                                c::TextContent::Text(text) => r::FunctionOutput::Text(text),
+                                c::TextContent::Parts(parts) => r::FunctionOutput::Content(
+                                    parts
+                                        .into_iter()
+                                        .map(|part| {
+                                            let mut target = r::FunctionOutputText::builder(
+                                                r::ResponseInputTextType::ResponseInputText,
+                                                part.text,
+                                            )
+                                            .build();
+                                            target.prompt_cache_breakpoint = part
+                                                .prompt_cache_breakpoint
+                                                .map(super::media::to_responses_cache)
+                                                .map(Some);
+                                            r::FunctionOutputContent::Text(target)
+                                        })
+                                        .collect(),
+                                ),
+                            },
                         )
                         .build(),
                     )

@@ -82,11 +82,13 @@ description: "Расчёт стоимости запросов: выбор пр�
 
 ```text
 input_tokens          output_tokens           cached_input_tokens
-cache_creation_5m_tokens  cache_creation_30m_tokens  cache_creation_1h_tokens
+cache_creation_tokens
 reasoning_tokens      image_input_tokens      image_output_tokens
 audio_input_tokens    cached_audio_input_tokens  audio_output_tokens
 video_input_tokens    video_tokens
 ```
+
+Запись в кэш использует метрику `cache_creation_tokens`. Условие тарифа `{"ttl_seconds":43200}` выбирает цену записи на 12 часов; без этого условия действует базовая цена. Каждая группа записанных токенов тарифицируется отдельно. Чтение остается одним счетчиком `cached_input_tokens`, без TTL. Переопределения уровней: `cacheCreationPerMillion: [{"ttlSeconds":43200,"price":"5"}]`; `ttlSeconds: null` задает базовую цену. Цена указана за миллион токенов и не умножается на TTL.
 
 **Счетчики, секунды и символы:**
 
@@ -113,7 +115,7 @@ code_interpreter_sessions       tool_calls      requests
 | `multiplier` | для уровня обслуживания: на что умножить унаследованную цену. Для строк, предназначенных только для контекста, параметр не задан |
 | `*_per_million` | явная цена за один вид токена |
 
-Явные столбцы: `input`, `output`, `cache_read`, `cache_creation_5m` / `30m` / `1h`, `reasoning`, `image_input`, `image_output`, `audio_*` и `video_*`.
+Явные столбцы: `input`, `output`, `cache_read`, `cache_creation_per_million`, `reasoning`, `image_input`, `image_output`, `audio_*` и `video_*`.
 
 **Длина подсказки учитывает ввод, а также операции чтения и записи в кэш, однократно.**
 

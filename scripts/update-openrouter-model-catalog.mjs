@@ -40,10 +40,10 @@ function scaledPrice(value, shift) {
 export function perMillion(value) { return scaledPrice(value, 6) }
 export function roundPrice(value) { return scaledPrice(value, 0) }
 
-function tokenRate(metric, value, priority, required = false) {
+function tokenRate(metric, value, priority, required = false, ttlSeconds = null) {
   const price = perMillion(value)
   if (price == null || (!required && /^0(?:\.0+)?$/.test(value))) return null
-  return { metric, unit_size: TOKEN_UNIT, price, priority }
+  return { metric, unit_size: TOKEN_UNIT, price, priority, ...(ttlSeconds === null ? {} : { conditions: { ttl_seconds: ttlSeconds } }) }
 }
 
 function scalarRate(metric, value, priority) {
@@ -57,11 +57,13 @@ function rates(pricing, author) {
     tokenRate("output_tokens", pricing.completion, 1, true),
     tokenRate("cached_input_tokens", pricing.input_cache_read, 2),
     tokenRate(
-      author === "openai" ? "cache_creation_30m_tokens" : "cache_creation_5m_tokens",
+      "cache_creation_tokens",
       pricing.input_cache_write,
       3,
+      false,
+      author === "openai" ? null : 300,
     ),
-    tokenRate("cache_creation_1h_tokens", pricing.input_cache_write_1h, 4),
+    tokenRate("cache_creation_tokens", pricing.input_cache_write_1h, 4, false, 3600),
     tokenRate("image_output_tokens", pricing.image_output, 5),
     tokenRate("audio_input_tokens", pricing.audio, 6),
     tokenRate("audio_output_tokens", pricing.audio_output, 7),
@@ -84,11 +86,11 @@ function tiers(pricing, author, modelId) {
     assign("input_price", override.prompt)
     assign("output_price", override.completion)
     assign("cache_read_price", override.input_cache_read)
-    assign(
-      author === "openai" ? "cache_creation_30m_price" : "cache_creation_5m_price",
-      override.input_cache_write,
-    )
-    assign("cache_creation_1h_price", override.input_cache_write_1h)
+    const cachePrices = [
+      { ttl_seconds: author === "openai" ? null : 300, price: perMillion(override.input_cache_write) },
+      { ttl_seconds: 3600, price: perMillion(override.input_cache_write_1h) },
+    ].filter(entry => entry.price !== null)
+    if (cachePrices.length) result.cache_creation_per_million = cachePrices
     assign("image_output_price", override.image_output)
     assign("audio_input_price", override.audio)
     assign("audio_output_price", override.audio_output)

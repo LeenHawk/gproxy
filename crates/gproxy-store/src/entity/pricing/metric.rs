@@ -10,9 +10,7 @@
 pub const INPUT_TOKENS: &str = "input_tokens";
 pub const OUTPUT_TOKENS: &str = "output_tokens";
 pub const CACHED_INPUT_TOKENS: &str = "cached_input_tokens";
-pub const CACHE_CREATION_5M_TOKENS: &str = "cache_creation_5m_tokens";
-pub const CACHE_CREATION_30M_TOKENS: &str = "cache_creation_30m_tokens";
-pub const CACHE_CREATION_1H_TOKENS: &str = "cache_creation_1h_tokens";
+pub const CACHE_CREATION_TOKENS: &str = "cache_creation_tokens";
 pub const REASONING_TOKENS: &str = "reasoning_tokens";
 
 // Images: separate token billing from per-image billing.

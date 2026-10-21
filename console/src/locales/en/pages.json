@@ -33,7 +33,8 @@
     "timeRange": "Time range",
     "trendData": "View trend data",
     "periodStart": "Period start",
-    "trendMetric": "Trend metric"
+    "trendMetric": "Trend metric",
+    "unknownTtl": "Unknown TTL"
   },
   "quota": {
     "emptyTitle": "No budget applies",
@@ -632,9 +633,6 @@
       "inputPerMillion": "Input tokens / million",
       "outputPerMillion": "Output tokens / million",
       "cacheReadPerMillion": "Cache read tokens / million",
-      "cacheCreation5mPerMillion": "5-minute cache write / million",
-      "cacheCreation30mPerMillion": "30-minute cache write / million",
-      "cacheCreation1hPerMillion": "1-hour cache write / million",
       "reasoningPerMillion": "Reasoning tokens / million",
       "imageInputPerMillion": "Image input tokens / million",
       "imageOutputPerMillion": "Image output tokens / million",
@@ -648,9 +646,6 @@
       "input_tokens": "Input tokens",
       "output_tokens": "Output tokens",
       "cached_input_tokens": "Cache read tokens",
-      "cache_creation_5m_tokens": "5-minute cache write",
-      "cache_creation_30m_tokens": "30-minute cache write",
-      "cache_creation_1h_tokens": "1-hour cache write",
       "reasoning_tokens": "Reasoning tokens",
       "image_input_tokens": "Image input tokens",
       "image_output_tokens": "Image output tokens",
@@ -670,7 +665,8 @@
       "file_searches": "File searches",
       "code_interpreter_sessions": "Code interpreter sessions",
       "tool_calls": "Tool calls",
-      "requests": "Requests"
+      "requests": "Requests",
+      "cache_creation_tokens": "Cache writes"
     },
     "units": {
       "token": "tokens",
@@ -691,7 +687,13 @@
       "rule": "Price rule",
       "rate": "Rate",
       "tier": "Tier"
-    }
+    },
+    "cacheWritePrices": "Cache write prices",
+    "cacheWritePricesHelp": "TTL is in seconds. Leave TTL empty for the fallback price; leave the list empty to inherit.",
+    "cacheTtlSeconds": "TTL (seconds)",
+    "cacheWritePerMillion": "Write price / million tokens",
+    "invalidCacheTtl": "TTL must be a positive whole number of seconds.",
+    "cacheRateTtlHelp": "Leave empty for the fallback write price."
   },
   "proxy": {
     "inherit": "Inherit",
@@ -738,9 +740,6 @@
       "inputPrice": "Input",
       "outputPrice": "Output",
       "cacheReadPrice": "Cache read",
-      "cacheCreation5mPrice": "Cache write 5m",
-      "cacheCreation30mPrice": "Cache write 30m",
-      "cacheCreation1hPrice": "Cache write 1h",
       "imageOutputPrice": "Image output",
       "audioInputPrice": "Audio input",
       "audioOutputPrice": "Audio output",

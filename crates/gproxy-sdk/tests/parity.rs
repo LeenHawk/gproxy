@@ -245,7 +245,10 @@ async fn an_export_moves_a_configuration_between_two_master_keys() {
         })
         .await
         .unwrap();
-    assert_eq!(export.format_version, 5);
+    assert_eq!(
+        export.format_version,
+        gproxy_sdk::dto::EXPORT_FORMAT_VERSION
+    );
     assert!(!export.secrets_omitted);
     assert_eq!(export.secrets, vec!["aes-gcm".to_owned()]);
     assert_eq!(export.data.providers.len(), 1);

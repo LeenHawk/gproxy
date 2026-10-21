@@ -265,11 +265,9 @@
     "sessionAffinity": "路由工作階段親和",
     "maxAttempts": "最大嘗試次數",
     "currency": "幣別",
-    "cacheCreation5mTokens": "快取寫入（5 分鐘）",
-    "cacheCreation30mTokens": "快取寫入（30 分鐘）",
-    "cacheCreation1hTokens": "快取寫入（1 小時）",
     "averageOutputTps": "平均輸出 TPS",
-    "cacheHitRate": "快取命中率"
+    "cacheHitRate": "快取命中率",
+    "cacheCreationTokens": "快取寫入"
   },
   "oauthConsent": {
     "authorizeTitle": "授權存取",

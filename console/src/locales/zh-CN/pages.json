@@ -33,7 +33,8 @@
     "timeRange": "时间范围",
     "trendData": "查看趋势数据",
     "periodStart": "时段开始",
-    "trendMetric": "趋势指标"
+    "trendMetric": "趋势指标",
+    "unknownTtl": "TTL 未知"
   },
   "quota": {
     "emptyTitle": "没有预算约束",
@@ -632,9 +633,6 @@
       "inputPerMillion": "输入 Token / 百万",
       "outputPerMillion": "输出 Token / 百万",
       "cacheReadPerMillion": "缓存读取 Token / 百万",
-      "cacheCreation5mPerMillion": "5 分钟缓存写入 / 百万",
-      "cacheCreation30mPerMillion": "30 分钟缓存写入 / 百万",
-      "cacheCreation1hPerMillion": "1 小时缓存写入 / 百万",
       "reasoningPerMillion": "推理 Token / 百万",
       "imageInputPerMillion": "图片输入 Token / 百万",
       "imageOutputPerMillion": "图片输出 Token / 百万",
@@ -648,9 +646,6 @@
       "input_tokens": "输入 Token",
       "output_tokens": "输出 Token",
       "cached_input_tokens": "缓存读取 Token",
-      "cache_creation_5m_tokens": "5 分钟缓存写入",
-      "cache_creation_30m_tokens": "30 分钟缓存写入",
-      "cache_creation_1h_tokens": "1 小时缓存写入",
       "reasoning_tokens": "推理 Token",
       "image_input_tokens": "图片输入 Token",
       "image_output_tokens": "图片输出 Token",
@@ -670,7 +665,8 @@
       "file_searches": "文件搜索",
       "code_interpreter_sessions": "代码解释器会话",
       "tool_calls": "工具调用",
-      "requests": "请求次数"
+      "requests": "请求次数",
+      "cache_creation_tokens": "缓存写入"
     },
     "units": {
       "token": "Token",
@@ -691,7 +687,13 @@
       "rule": "价格规则",
       "rate": "费率",
       "tier": "阶梯"
-    }
+    },
+    "cacheWritePrices": "缓存写入价格",
+    "cacheWritePricesHelp": "TTL 单位为秒，留空表示默认价格；列表为空时继承原价格。",
+    "cacheTtlSeconds": "TTL（秒）",
+    "cacheWritePerMillion": "写入价格 / 百万 Token",
+    "invalidCacheTtl": "TTL 必须为正整数秒。",
+    "cacheRateTtlHelp": "留空表示默认写入价格。"
   },
   "proxy": {
     "inherit": "继承上级",
@@ -738,9 +740,6 @@
       "inputPrice": "输入",
       "outputPrice": "输出",
       "cacheReadPrice": "缓存读取",
-      "cacheCreation5mPrice": "缓存写入 5 分钟",
-      "cacheCreation30mPrice": "缓存写入 30 分钟",
-      "cacheCreation1hPrice": "缓存写入 1 小时",
       "imageOutputPrice": "图片输出",
       "audioInputPrice": "音频输入",
       "audioOutputPrice": "音频输出",

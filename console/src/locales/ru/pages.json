@@ -33,7 +33,8 @@
     "timeRange": "Период",
     "trendData": "Посмотреть данные графика",
     "periodStart": "Начало периода",
-    "trendMetric": "Метрика графика"
+    "trendMetric": "Метрика графика",
+    "unknownTtl": "TTL неизвестен"
   },
   "quota": {
     "emptyTitle": "Бюджет не задан",
@@ -636,9 +637,6 @@
       "inputPerMillion": "Входные токены / млн",
       "outputPerMillion": "Выходные токены / млн",
       "cacheReadPerMillion": "Чтение из кэша / млн токенов",
-      "cacheCreation5mPerMillion": "Запись в кэш на 5 мин / млн",
-      "cacheCreation30mPerMillion": "Запись в кэш на 30 мин / млн",
-      "cacheCreation1hPerMillion": "Запись в кэш на 1 ч / млн",
       "reasoningPerMillion": "Токены рассуждений / млн",
       "imageInputPerMillion": "Входные токены изображений / млн",
       "imageOutputPerMillion": "Выходные токены изображений / млн",
@@ -652,9 +650,6 @@
       "input_tokens": "Входные токены",
       "output_tokens": "Выходные токены",
       "cached_input_tokens": "Токены чтения из кэша",
-      "cache_creation_5m_tokens": "Запись в кэш на 5 мин",
-      "cache_creation_30m_tokens": "Запись в кэш на 30 мин",
-      "cache_creation_1h_tokens": "Запись в кэш на 1 ч",
       "reasoning_tokens": "Токены рассуждений",
       "image_input_tokens": "Входные токены изображений",
       "image_output_tokens": "Выходные токены изображений",
@@ -674,7 +669,8 @@
       "file_searches": "Поиск по файлам",
       "code_interpreter_sessions": "Сеансы интерпретатора кода",
       "tool_calls": "Вызовы инструментов",
-      "requests": "Запросы"
+      "requests": "Запросы",
+      "cache_creation_tokens": "Запись в кэш"
     },
     "units": {
       "token": "токены",
@@ -695,7 +691,13 @@
       "rule": "Правило тарификации",
       "rate": "Ставка",
       "tier": "Уровень"
-    }
+    },
+    "cacheWritePrices": "Цены записи в кэш",
+    "cacheWritePricesHelp": "TTL в секундах. Пустой TTL — базовая цена; пустой список — наследование.",
+    "cacheTtlSeconds": "TTL (секунды)",
+    "cacheWritePerMillion": "Цена записи / млн токенов",
+    "invalidCacheTtl": "TTL должен быть положительным целым числом секунд.",
+    "cacheRateTtlHelp": "Оставьте пустым для базовой цены записи."
   },
   "proxy": {
     "inherit": "Наследовать",
@@ -742,9 +744,6 @@
       "inputPrice": "Вход",
       "outputPrice": "Выход",
       "cacheReadPrice": "Чтение из кэша",
-      "cacheCreation5mPrice": "Запись в кэш на 5 мин",
-      "cacheCreation30mPrice": "Запись в кэш на 30 мин",
-      "cacheCreation1hPrice": "Запись в кэш на 1 ч",
       "imageOutputPrice": "Выходные изображения",
       "audioInputPrice": "Входное аудио",
       "audioOutputPrice": "Выходное аудио",

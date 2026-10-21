@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useId, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { directory, priceRules, priceRates, priceTiers } from "@/api/models"
@@ -8,21 +8,24 @@ import { DataTable } from "@/components/data-table"
 import { ConfirmButton } from "@/components/confirm"
 import { QueryState, ErrorNotice, EmptyNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { priceRuleFor } from "@/lib/model-pricing"
 import { object } from "@/components/providers/provider-model-state"
 const profiles: Record<string, string[]> = {
-  generation: ["input_tokens", "output_tokens", "cached_input_tokens", "cache_creation_5m_tokens", "cache_creation_30m_tokens", "cache_creation_1h_tokens", "reasoning_tokens"],
+  generation: ["input_tokens", "output_tokens", "cached_input_tokens", "cache_creation_tokens", "reasoning_tokens"],
   embedding: ["input_tokens"], rerank: ["search_units"], image: ["image_input_tokens", "image_output_tokens", "image_outputs"],
   audio: ["audio_input_tokens", "cached_audio_input_tokens", "audio_output_tokens", "audio_seconds", "audio_characters"],
   video: ["video_input_tokens", "video_tokens", "video_seconds", "video_outputs"],
   tools: ["web_searches", "web_fetches", "file_searches", "code_interpreter_sessions", "tool_calls", "requests"],
 }
-const tokenTiers = ["inputPerMillion", "outputPerMillion", "cacheReadPerMillion", "cacheCreation5mPerMillion", "cacheCreation30mPerMillion", "cacheCreation1hPerMillion", "reasoningPerMillion", "imageInputPerMillion", "imageOutputPerMillion", "audioInputPerMillion", "cachedAudioInputPerMillion", "audioOutputPerMillion", "videoInputPerMillion", "videoPerMillion"]
+const tokenTiers = ["inputPerMillion", "outputPerMillion", "cacheReadPerMillion", "reasoningPerMillion", "imageInputPerMillion", "imageOutputPerMillion", "audioInputPerMillion", "cachedAudioInputPerMillion", "audioOutputPerMillion", "videoInputPerMillion", "videoPerMillion"]
 export function ModelPricingDialog({ providerId, model, matchingRules = [], onClose }: { providerId: string | null; model: string; matchingRules?: readonly PriceRuleDto[]; onClose: () => void }) {
   const { t } = useTranslation(), client = useQueryClient()
+  const [cachePrices, setCachePrices] = useState<CachePriceRow[]>([])
   const [profile, setProfile] = useState("generation"), [selected, setSelected] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ kind: "rule" | "rate" | "tier"; row?: PriceRuleDto | PriceRateDto | PriceTierDto; metric?: string } | null>(null)
   const list = useQuery({ queryKey: ["admin", "/price-rules", providerId, model], queryFn: () => directory(priceRules, { modelPattern: model, ...(providerId ? { providerId } : { globalOnly: true }) }) })
@@ -36,19 +39,43 @@ export function ModelPricingDialog({ providerId, model, matchingRules = [], onCl
   const refresh = () => Promise.all([client.invalidateQueries({ queryKey: ["admin", "/models"] }), client.invalidateQueries({ queryKey: ["discover-models"] }), ...["/price-rules", "/price-rates", "/price-tiers", "/provider-models"].map(path => client.invalidateQueries({ queryKey: ["admin", path] }))])
   const save = useMutation({ mutationFn: async (body: Record<string, unknown>) => {
     if (editing!.kind === "rule") return editing!.row ? priceRules.update(editing!.row.id, body) : priceRules.create({ currency: "USD", ...body, providerId, modelPattern: model })
-    if (editing!.kind === "tier") return editing!.row ? priceTiers.update(editing!.row.id, body) : priceTiers.create({ ...body, priceRuleId: rule!.id })
+    if (editing!.kind === "tier") {
+      const prices = cachePrices.map(entry => {
+        const ttlSeconds = entry.ttl.trim() ? Number(entry.ttl) : null
+        if (ttlSeconds !== null && (!Number.isSafeInteger(ttlSeconds) || ttlSeconds <= 0)) throw new Error(t("modelUI.invalidCacheTtl"))
+        return { ttlSeconds, price: entry.price.trim() }
+      })
+      const previous = editing!.row as PriceTierDto | undefined
+      if (!previous || JSON.stringify(prices) !== JSON.stringify(previous.cacheCreationPerMillion)) body = { ...body, cacheCreationPerMillion: prices }
+      return previous ? priceTiers.update(previous.id, body) : priceTiers.create({ ...body, priceRuleId: rule!.id })
+    }
     if ("conditions" in body) {
       const pairs = (Array.isArray(body.conditions) ? body.conditions as string[] : []).map(line => { const i = line.indexOf("="); if (i < 1 || !line.slice(i + 1).trim()) throw new Error(t("modelUI.invalidCondition")); return [line.slice(0, i).trim(), line.slice(i + 1).trim()] })
       if (new Set(pairs.map(p => p[0])).size !== pairs.length) throw new Error(t("modelUI.invalidCondition"))
       body = { ...body, conditions: pairs.length ? Object.fromEntries(pairs) : null }
     }
+    if ("ttlSeconds" in body || (cacheRate && "conditions" in body)) {
+      const { ttlSeconds: rawTtl, ...rest } = body
+      const value = "ttlSeconds" in body ? rawTtl : object((editing!.row as PriceRateDto | undefined)?.conditions).ttl_seconds
+      const ttlSeconds = value == null ? null : Number(value)
+      if (ttlSeconds !== null && (!Number.isSafeInteger(ttlSeconds) || Number(ttlSeconds) <= 0)) throw new Error(t("modelUI.invalidCacheTtl"))
+      const conditions = { ...object("conditions" in rest ? rest.conditions : (editing!.row as PriceRateDto | undefined)?.conditions) }
+      delete conditions.ttl_seconds
+      if (ttlSeconds !== null) conditions.ttl_seconds = ttlSeconds
+      body = { ...rest, conditions: Object.keys(conditions).length ? conditions : null }
+    }
     return editing!.row ? priceRates.update(editing!.row.id, body) : priceRates.create({ ...body, priceRuleId: rule!.id })
   }, onSuccess: async row => { if (editing?.kind === "rule") setSelected(row.id); setEditing(null); await refresh() } })
   const remove = useMutation({ mutationFn: ({ kind, id }: { kind: "rule" | "rate" | "tier"; id: string }) => kind === "rule" ? priceRules.remove(id) : kind === "rate" ? priceRates.remove(id) : priceTiers.remove(id), onSuccess: refresh })
-  const open = (next: NonNullable<typeof editing>) => { save.reset(); setEditing(next) }
+  const open = (next: NonNullable<typeof editing>) => {
+    save.reset()
+    setCachePrices(next.kind === "tier" && next.row ? (next.row as PriceTierDto).cacheCreationPerMillion.map(entry => ({ ttl: entry.ttlSeconds?.toString() ?? "", price: entry.price })) : [])
+    setEditing(next)
+  }
   const field = (name: string, kind: FormField["kind"] = "text", nullable = true): FormField => ({ name, kind, nullable, label: t(`modelUI.priceFields.${name}`) })
-  const fields: FormField[] = editing?.kind === "rule" ? [field("operation"), field("priority", "number", false), field("enabled", "switch", false)] : editing?.kind === "tier" ? [field("serviceTier"), field("minPromptTokens", "number", false), field("priority", "number", false), field("multiplier"), ...tokenTiers.map(name => field(name))] : [{ ...field("metric"), required: true }, { ...field("unit", "select", false), choices: ["token", "count", "second", "character"].map(value => ({ value, label: t(`modelUI.units.${value}`) })), required: true }, { ...field("unitQuantity"), required: true }, { ...field("value"), required: true }, field("priority", "number", false), field("conditions", "lines")]
-  const original = editing?.row ? { ...editing.row, ...("conditions" in editing.row ? { conditions: Object.entries(object(editing.row.conditions)).map(([k, v]) => `${k}=${String(v)}`) } : {}) } : editing?.kind === "rate" ? { metric: editing.metric ?? "", unit: editing.metric?.includes("tokens") ? "token" : editing.metric?.endsWith("seconds") ? "second" : editing.metric?.endsWith("characters") ? "character" : "count", unitQuantity: editing.metric?.includes("tokens") ? "1000000" : "1", value: "", priority: 0, conditions: [] } : editing?.kind === "rule" ? { currency: "USD", enabled: true, priority: 0 } : { minPromptTokens: 0, priority: 0 }
+  const cacheRate = editing?.kind === "rate" && (editing.metric ?? (editing.row as PriceRateDto | undefined)?.metric) === "cache_creation_tokens"
+  const fields: FormField[] = editing?.kind === "rule" ? [field("operation"), field("priority", "number", false), field("enabled", "switch", false)] : editing?.kind === "tier" ? [field("serviceTier"), field("minPromptTokens", "number", false), field("priority", "number", false), field("multiplier"), ...tokenTiers.map(name => field(name))] : [{ ...field("metric"), required: true }, { ...field("unit", "select", false), choices: ["token", "count", "second", "character"].map(value => ({ value, label: t(`modelUI.units.${value}`) })), required: true }, { ...field("unitQuantity"), required: true }, { ...field("value"), required: true }, field("priority", "number", false), ...(cacheRate ? [{ ...field("ttlSeconds", "number"), label: t("modelUI.cacheTtlSeconds"), description: t("modelUI.cacheRateTtlHelp") }] : []), field("conditions", "lines")]
+  const original = editing?.row ? { ...editing.row, ...("conditions" in editing.row ? { conditions: Object.entries(object(editing.row.conditions)).filter(([k]) => !cacheRate || k !== "ttl_seconds").map(([k, v]) => `${k}=${String(v)}`), ...(cacheRate ? { ttlSeconds: object(editing.row.conditions).ttl_seconds ?? null } : {}) } : {}) } : editing?.kind === "rate" ? { metric: editing.metric ?? "", unit: editing.metric?.includes("tokens") ? "token" : editing.metric?.endsWith("seconds") ? "second" : editing.metric?.endsWith("characters") ? "character" : "count", unitQuantity: editing.metric?.includes("tokens") ? "1000000" : "1", value: "", priority: 0, conditions: [] } : editing?.kind === "rule" ? { currency: "USD", enabled: true, priority: 0 } : { minPromptTokens: 0, priority: 0 }
   const empty = <EmptyNotice title={t("state.emptyTitle")} />
   return <Dialog open onOpenChange={v => { if (!v && !save.isPending) onClose() }}><DialogContent className="sm:max-w-5xl" closeLabel={t("actions.close")} aria-describedby={undefined}>
     <DialogHeader><DialogTitle>{model} · {t("providers.models.pricing")}</DialogTitle></DialogHeader><DialogBody>
@@ -74,6 +101,24 @@ export function ModelPricingDialog({ providerId, model, matchingRules = [], onCl
         </div>}
       </QueryState>{remove.error ? <ErrorNotice error={remove.error} /> : null}
     </DialogBody>
-    {editing ? <RecordDialog open onOpenChange={v => { if (!v && !save.isPending) setEditing(null) }} title={t(`modelUI.edit.${editing.kind}`)} mode={editing.row ? "edit" : "create"} original={original} fields={fields} onSubmit={body => save.mutate(body)} pending={save.isPending} error={save.error} /> : null}
+    {editing ? <RecordDialog open onOpenChange={v => { if (!v && !save.isPending) setEditing(null) }} title={t(`modelUI.edit.${editing.kind}`)} mode={editing.row ? "edit" : "create"} original={original} fields={fields} onSubmit={body => save.mutate(body)} pending={save.isPending} error={save.error} extra={editing.kind === "tier" ? <CachePriceEditor rows={cachePrices} onChange={setCachePrices} disabled={save.isPending} /> : undefined} /> : null}
   </DialogContent></Dialog>
+}
+
+
+type CachePriceRow = { ttl: string; price: string }
+
+function CachePriceEditor({ rows, onChange, disabled }: { rows: CachePriceRow[]; onChange: (rows: CachePriceRow[]) => void; disabled: boolean }) {
+  const { t } = useTranslation(), id = useId()
+  const change = (index: number, patch: Partial<CachePriceRow>) => onChange(rows.map((row, i) => i === index ? { ...row, ...patch } : row))
+  return <FieldSet disabled={disabled}>
+    <FieldLegend>{t("modelUI.cacheWritePrices")}</FieldLegend>
+    <FieldDescription>{t("modelUI.cacheWritePricesHelp")}</FieldDescription>
+    {rows.map((row, index) => <FieldGroup key={index} className="flex flex-row flex-wrap items-end">
+      <Field className="min-w-32 flex-1"><FieldLabel htmlFor={`${id}-ttl-${index}`}>{t("modelUI.cacheTtlSeconds")}</FieldLabel><Input id={`${id}-ttl-${index}`} type="number" min={1} step={1} value={row.ttl} onChange={event => change(index, { ttl: event.target.value })} /></Field>
+      <Field className="min-w-32 flex-1"><FieldLabel htmlFor={`${id}-price-${index}`}>{t("modelUI.cacheWritePerMillion")}</FieldLabel><Input id={`${id}-price-${index}`} inputMode="decimal" value={row.price} onChange={event => change(index, { price: event.target.value })} /></Field>
+      <Button type="button" variant="outline" onClick={() => onChange(rows.filter((_, i) => i !== index))}>{t("actions.delete")}</Button>
+    </FieldGroup>)}
+    <Button type="button" variant="outline" className="self-start" onClick={() => onChange([...rows, { ttl: "", price: "" }])}>{t("actions.add")}</Button>
+  </FieldSet>
 }

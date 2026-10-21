@@ -262,3 +262,58 @@ fn selected_chat_model_does_not_require_a_source_model() {
         "selected-chat"
     );
 }
+
+#[test]
+fn cache_breakpoint_retention_survives_chat_responses_roundtrip() {
+    for ttl in ["30m", "12h"] {
+        let input: chat::GenerateContentRequestBody = serde_json::from_value(json!({
+            "model":"m", "messages":[{"role":"user","content":[
+                {"type":"text","text":"shared instructions","prompt_cache_breakpoint":{"mode":"explicit","ttl":ttl}},
+                {"type":"image_url","image_url":{"url":"https://example.com/a.png"},"prompt_cache_breakpoint":{"mode":"explicit","ttl":ttl}},
+                {"type":"file","file":{"file_id":"file-123"},"prompt_cache_breakpoint":{"mode":"explicit","ttl":ttl}}
+            ]}]
+        })).unwrap();
+        let converted = chat_to_responses_request(input, "m").unwrap().value;
+        let wire = serde_json::to_value(&converted).unwrap();
+        for part in wire["input"][0]["content"].as_array().unwrap() {
+            assert_eq!(part["prompt_cache_breakpoint"]["ttl"], ttl);
+        }
+        let back = responses_to_chat_request(converted, "m").unwrap().value;
+        let wire = serde_json::to_value(back).unwrap();
+        for part in wire["messages"][0]["content"].as_array().unwrap() {
+            assert_eq!(part["prompt_cache_breakpoint"]["ttl"], ttl);
+        }
+        let block = json!([{"type":"text","text":"shared prefix","prompt_cache_breakpoint":{"mode":"explicit","ttl":ttl}}]);
+        let input = serde_json::from_value(json!({"model":"m", "messages":[
+            {"role":"system","content":block},
+            {"role":"developer","content":block},
+            {"role":"assistant","content":block},
+            {"role":"assistant","tool_calls":[{"type":"function","id":"call-f","function":{"name":"lookup","arguments":"{}"}}]},
+            {"role":"tool","tool_call_id":"call-f","content":block},
+            {"role":"assistant","tool_calls":[{"type":"custom","id":"call-c","custom":{"name":"lookup","input":"query"}}]},
+            {"role":"tool","tool_call_id":"call-c","content":block}
+        ]})).unwrap();
+        let converted = chat_to_responses_request(input, "m").unwrap().value;
+        let wire = serde_json::to_value(&converted).unwrap();
+        for (index, field) in [
+            (0, "content"),
+            (1, "content"),
+            (2, "content"),
+            (4, "output"),
+            (6, "output"),
+        ] {
+            assert_eq!(
+                wire["input"][index][field][0]["prompt_cache_breakpoint"]["ttl"],
+                ttl
+            );
+        }
+        let back = responses_to_chat_request(converted, "m").unwrap().value;
+        let wire = serde_json::to_value(back).unwrap();
+        for index in [0, 1, 2, 4, 6] {
+            assert_eq!(
+                wire["messages"][index]["content"][0]["prompt_cache_breakpoint"]["ttl"],
+                ttl
+            );
+        }
+    }
+}

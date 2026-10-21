@@ -1209,18 +1209,12 @@ mod rows {
             input_per_million: Set(money(&dto.input_per_million, "inputPerMillion")?),
             output_per_million: Set(money(&dto.output_per_million, "outputPerMillion")?),
             cache_read_per_million: Set(money(&dto.cache_read_per_million, "cacheReadPerMillion")?),
-            cache_creation_5m_per_million: Set(money(
-                &dto.cache_creation_5m_per_million,
-                "cacheCreation5mPerMillion",
+            cache_creation_per_million: Set(super::super::pricing::cache_creation_prices(
+                &dto.cache_creation_per_million,
             )?),
-            cache_creation_30m_per_million: Set(money(
-                &dto.cache_creation_30m_per_million,
-                "cacheCreation30mPerMillion",
-            )?),
-            cache_creation_1h_per_million: Set(money(
-                &dto.cache_creation_1h_per_million,
-                "cacheCreation1hPerMillion",
-            )?),
+            cache_creation_5m_per_million: Set(None),
+            cache_creation_30m_per_million: Set(None),
+            cache_creation_1h_per_million: Set(None),
             reasoning_per_million: Set(money(&dto.reasoning_per_million, "reasoningPerMillion")?),
             image_input_per_million: Set(money(
                 &dto.image_input_per_million,

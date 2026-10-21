@@ -9,6 +9,26 @@ use serde_json::Value;
 
 use gproxy_store::entity::usage::usage_record;
 
+/// Reported cache writes for one retention duration. None means unknown TTL.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct CacheCreationDto {
+    pub tokens: u64,
+    pub ttl_seconds: Option<u64>,
+}
+
+impl From<gproxy_protocol::usage::CacheCreation> for CacheCreationDto {
+    fn from(value: gproxy_protocol::usage::CacheCreation) -> Self {
+        Self {
+            tokens: value.tokens,
+            ttl_seconds: value.ttl_seconds,
+        }
+    }
+}
+
 /// Token counts exactly as the upstream reported them.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -21,9 +41,7 @@ pub struct UsageTokensDto {
     /// Total output, reasoning included.
     pub output_tokens: Option<u64>,
     pub cached_input_tokens: Option<u64>,
-    pub cache_creation_5m_tokens: Option<u64>,
-    pub cache_creation_30m_tokens: Option<u64>,
-    pub cache_creation_1h_tokens: Option<u64>,
+    pub cache_creation: Vec<CacheCreationDto>,
     /// A subset of `output_tokens`, never additive with it.
     pub reasoning_tokens: Option<u64>,
 }
@@ -34,9 +52,33 @@ impl UsageTokensDto {
             input_tokens: row.input_tokens(),
             output_tokens: row.output_tokens(),
             cached_input_tokens: row.cached_input_tokens(),
-            cache_creation_5m_tokens: row.cache_creation_5m_tokens(),
-            cache_creation_30m_tokens: row.cache_creation_30m_tokens(),
-            cache_creation_1h_tokens: row.cache_creation_1h_tokens(),
+            cache_creation: match &row.cache_creation {
+                Some(value) => value
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|entry| {
+                        Some(CacheCreationDto {
+                            tokens: entry.get("tokens")?.as_u64()?,
+                            ttl_seconds: entry.get("ttl_seconds").and_then(Value::as_u64),
+                        })
+                    })
+                    .collect(),
+                None => [
+                    (row.cache_creation_5m_tokens(), Some(300)),
+                    // The old OpenAI bucket did not report a retention duration.
+                    (row.cache_creation_30m_tokens(), None),
+                    (row.cache_creation_1h_tokens(), Some(3600)),
+                ]
+                .into_iter()
+                .filter_map(|(tokens, ttl_seconds)| {
+                    Some(CacheCreationDto {
+                        tokens: tokens?,
+                        ttl_seconds,
+                    })
+                })
+                .collect(),
+            },
             reasoning_tokens: row.reasoning_tokens(),
         }
     }
@@ -166,11 +208,9 @@ pub struct UsageSummaryDto {
     /// Only records with reported output tokens, TTFT and positive generation time contribute.
     pub average_output_tps: Option<f64>,
     pub cached_input_tokens: u64,
-    /// Total cache writes across all three retention periods.
+    /// Total reported cache writes across all retention periods.
     pub cache_creation_tokens: u64,
-    pub cache_creation_5m_tokens: u64,
-    pub cache_creation_30m_tokens: u64,
-    pub cache_creation_1h_tokens: u64,
+    pub cache_creation: Vec<CacheCreationDto>,
     /// Part of `output_tokens`, listed rather than added.
     pub reasoning_tokens: u64,
     /// Totals of reported media/tool quantities; keys are billable metric names.

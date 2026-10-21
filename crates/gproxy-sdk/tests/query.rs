@@ -1765,6 +1765,15 @@ async fn cache_write_periods_survive_summary_groups_and_trend_while_metadata_ops
     }
     for row in &mut rows {
         row.provider_id = Set(Some("p".into()));
+        if row.request_id == Set("infer-b".to_owned()) {
+            // New data takes precedence over legacy columns; both schemas may coexist.
+            row.cache_creation = Set(Some(json!([
+                {"tokens": 11, "ttl_seconds": 300},
+                {"tokens": 22, "ttl_seconds": null},
+                {"tokens": 33, "ttl_seconds": 3600},
+                {"tokens": 44, "ttl_seconds": 43200},
+            ])));
+        }
     }
     store.usage_records().create_many(rows).await.unwrap();
     let query = gproxy.query();
@@ -1772,10 +1781,39 @@ async fn cache_write_periods_survive_summary_groups_and_trend_while_metadata_ops
     let summary = usage.summary(UsageQuery::default()).await.unwrap();
     assert_eq!(summary.requests, 2);
     assert_eq!(summary.cached_input_tokens, 100);
-    assert_eq!(summary.cache_creation_5m_tokens, 22);
-    assert_eq!(summary.cache_creation_30m_tokens, 44);
-    assert_eq!(summary.cache_creation_1h_tokens, 66);
-    assert_eq!(summary.cache_creation_tokens, 132);
+    assert_eq!(
+        summary
+            .cache_creation
+            .iter()
+            .find(|entry| entry.ttl_seconds == Some(300))
+            .map(|entry| entry.tokens),
+        Some(22)
+    );
+    assert_eq!(
+        summary
+            .cache_creation
+            .iter()
+            .find(|entry| entry.ttl_seconds.is_none())
+            .map(|entry| entry.tokens),
+        Some(44)
+    );
+    assert_eq!(
+        summary
+            .cache_creation
+            .iter()
+            .find(|entry| entry.ttl_seconds == Some(3600))
+            .map(|entry| entry.tokens),
+        Some(66)
+    );
+    assert_eq!(summary.cache_creation_tokens, 176);
+    assert_eq!(
+        summary
+            .cache_creation
+            .iter()
+            .find(|entry| entry.ttl_seconds == Some(43200))
+            .map(|entry| entry.tokens),
+        Some(44)
+    );
     for group_by in [UsageGroupBy::Model, UsageGroupBy::Provider] {
         let groups = usage
             .group(UsageGroupQuery {
@@ -1785,9 +1823,33 @@ async fn cache_write_periods_survive_summary_groups_and_trend_while_metadata_ops
             .await
             .unwrap();
         assert_eq!(groups.len(), 1);
-        assert_eq!(groups[0].summary.cache_creation_5m_tokens, 22);
-        assert_eq!(groups[0].summary.cache_creation_30m_tokens, 44);
-        assert_eq!(groups[0].summary.cache_creation_1h_tokens, 66);
+        assert_eq!(
+            groups[0]
+                .summary
+                .cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds == Some(300))
+                .map(|entry| entry.tokens),
+            Some(22)
+        );
+        assert_eq!(
+            groups[0]
+                .summary
+                .cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds.is_none())
+                .map(|entry| entry.tokens),
+            Some(44)
+        );
+        assert_eq!(
+            groups[0]
+                .summary
+                .cache_creation
+                .iter()
+                .find(|entry| entry.ttl_seconds == Some(3600))
+                .map(|entry| entry.tokens),
+            Some(66)
+        );
     }
     let trend = usage
         .trend(UsageTrendQuery {
@@ -1801,11 +1863,27 @@ async fn cache_write_periods_survive_summary_groups_and_trend_while_metadata_ops
         .await
         .unwrap();
     assert_eq!(trend[0].summary.requests, 2);
-    assert_eq!(trend[0].summary.cache_creation_tokens, 132);
-    assert_eq!(trend[0].summary.cache_creation_30m_tokens, 44);
+    assert_eq!(trend[0].summary.cache_creation_tokens, 176);
+    assert_eq!(
+        trend[0]
+            .summary
+            .cache_creation
+            .iter()
+            .find(|entry| entry.ttl_seconds.is_none())
+            .map(|entry| entry.tokens),
+        Some(44)
+    );
     let records = usage.records(UsageRecordQuery::default()).await.unwrap();
     assert_eq!(records.total, 2);
-    assert_eq!(records.items[0].tokens.cache_creation_1h_tokens, Some(33));
+    assert_eq!(
+        records.items[0]
+            .tokens
+            .cache_creation
+            .iter()
+            .find(|entry| entry.ttl_seconds == Some(3600))
+            .map(|entry| entry.tokens),
+        Some(33)
+    );
     let excluded = usage
         .summary(UsageQuery {
             operation: Some("list_models".into()),

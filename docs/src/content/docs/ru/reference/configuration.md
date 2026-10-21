@@ -208,7 +208,7 @@ gproxy import --in  config.json --mode merge --source-master-key '…'
 `-` означает стандартный вывод или стандартный ввод. Документ представляет собой сами управляющие DTO, поэтому экспорт говорит именно то, что было бы сказано в листинге, в порядке воспроизведения — ни одна строка не появляется перед строкой, на которую он указывает:
 
 ```json
-{"formatVersion":5,"exportedAtMs":1789981723118,"secretsOmitted":true,
+{"formatVersion":6,"exportedAtMs":1789981723118,"secretsOmitted":true,
  "secrets":[],"data":{"connectionProfiles":[],"providers":[…],"credentials":[…],
  "models":[],"providerModels":[],"routes":[],"routeMembers":[],
  "operationRules":[],"operationEndpoints":[],
