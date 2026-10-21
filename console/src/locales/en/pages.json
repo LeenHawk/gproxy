@@ -701,6 +701,7 @@
     "system": "System proxy",
     "explicit": "Custom proxy",
     "url": "Proxy URL",
+    "urlHelp": "URL-encode special characters in the username or password, e.g. @ → %40, # → %23, % → %25.",
     "test": "Check egress IP",
     "testing": "Checking egress IP…",
     "success": "Connected",

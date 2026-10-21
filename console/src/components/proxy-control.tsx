@@ -7,7 +7,7 @@ import type { ConnectivityResultDto } from "@/generated/sdk"
 import { ErrorNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 export type ProxySettings = { mode: "direct" } | { mode: "system" } | { mode: "explicit"; url: string } | null
@@ -22,7 +22,7 @@ export function ProxyControl({ id, value, onChange, scope }: { id: string; value
         <SelectItem value="direct">{t("proxy.direct")}</SelectItem><SelectItem value="system">{t("proxy.system")}</SelectItem><SelectItem value="explicit">{t("proxy.explicit")}</SelectItem>
       </SelectGroup></SelectContent>
     </Select></div>{value?.mode !== "explicit" ? <EgressTest scope={scope} proxy={value} /> : null}</div>
-    {value?.mode === "explicit" ? <Field><FieldLabel htmlFor={`${id}-url`}>{t("proxy.url")}</FieldLabel><InputGroup><InputGroupInput id={`${id}-url`} type="url" required placeholder="http://127.0.0.1:10808" value={value.url} onChange={e => onChange({ mode: "explicit", url: e.target.value })} /><InputGroupAddon align="inline-end"><EgressTest inset scope={scope} proxy={value} disabled={!value.url.trim()} /></InputGroupAddon></InputGroup></Field> : null}
+    {value?.mode === "explicit" ? <Field><FieldLabel htmlFor={`${id}-url`}>{t("proxy.url")}</FieldLabel><InputGroup><InputGroupInput id={`${id}-url`} aria-describedby={`${id}-url-help`} type="url" required placeholder="http://127.0.0.1:10808" value={value.url} onChange={e => onChange({ mode: "explicit", url: e.target.value })} /><InputGroupAddon align="inline-end"><EgressTest inset scope={scope} proxy={value} disabled={!value.url.trim()} /></InputGroupAddon></InputGroup><FieldDescription id={`${id}-url-help`}>{t("proxy.urlHelp")}</FieldDescription></Field> : null}
   </div>
 }
 export function EgressTest({ scope, proxy, disabled, inset = false }: { scope: ProxyScope; proxy?: ProxySettings; disabled?: boolean; inset?: boolean }) {
