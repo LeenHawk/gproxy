@@ -176,3 +176,47 @@ fn image_file_data_becomes_a_claude_image_in_messages_and_tool_results() {
         .unwrap();
     assert_eq!(result["content"][0], image, "{wire}");
 }
+
+#[test]
+fn request_cache_lifetime_is_inherited_unless_a_breakpoint_overrides_it() {
+    for (ttl, expected) in [("30m", "5m"), ("12h", "1h")] {
+        let request: r::GenerateContentRequestBody = serde_json::from_value(json!({
+            "max_output_tokens": 32,
+            "prompt_cache_options": {"ttl": ttl},
+            "input": [{"role":"user", "content":[
+                {"type":"input_text","text":"shared","prompt_cache_breakpoint":{"mode":"explicit"}},
+                {"type":"input_text","text":"short","prompt_cache_breakpoint":{"mode":"explicit","ttl":"30m"}},
+                {"type":"input_text","text":"question"}
+            ]}]
+        })).unwrap();
+        let converted =
+            responses_to_claude_request(request.clone(), "claude", ClaudeRequestContext::default())
+                .unwrap();
+        let wire = serde_json::to_value(converted.value).unwrap();
+        assert_eq!(wire["cache_control"]["ttl"], expected);
+        assert_eq!(
+            wire["messages"][0]["content"][0]["cache_control"]["ttl"],
+            expected
+        );
+        assert_eq!(
+            wire["messages"][0]["content"][1]["cache_control"]["ttl"],
+            "5m"
+        );
+        assert!(
+            wire["messages"][0]["content"][2]
+                .get("cache_control")
+                .is_none()
+        );
+        if ttl == "12h" {
+            let error =
+                gproxy_protocol::transform::generate::chat_responses::responses_to_chat_request(
+                    request, "chat",
+                )
+                .unwrap_err();
+            assert_eq!(
+                error.kind(),
+                gproxy_protocol::transform::TransformErrorKind::Unsupported
+            );
+        }
+    }
+}

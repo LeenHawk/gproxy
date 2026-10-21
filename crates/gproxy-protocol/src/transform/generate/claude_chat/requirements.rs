@@ -31,10 +31,8 @@ pub(super) fn claude(
             report.omitted(field, "field has no target representation");
         }
     }
-    for (present, field) in [(input.diagnostics.is_some(), "diagnostics")] {
-        if present {
-            report.omitted(field, "Chat has no equivalent advisory field");
-        }
+    if input.diagnostics.is_some() {
+        report.omitted("diagnostics", "Chat has no equivalent advisory field");
     }
 
     Ok(())

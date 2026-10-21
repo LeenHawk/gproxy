@@ -61,6 +61,14 @@ pub(super) fn to_chat(
     input: &r::GenerateContentRequestBody,
     out: &mut c::GenerateContentRequestBody,
 ) -> Result<(), TransformError> {
+    if input.prompt_cache_options.as_ref().and_then(|v| v.ttl)
+        == Some(r::PromptCacheTtl::TwelveHours)
+    {
+        return Err(TransformError::unsupported(
+            "prompt_cache_options.ttl",
+            "Chat Completions has no request-wide 12h cache lifetime",
+        ));
+    }
     out.prompt_cache_retention = input.prompt_cache_retention.map(|v| {
         v.map(|v| match v {
             r::PromptCacheRetention::InMemory => c::PromptCacheRetention::InMemory,
@@ -75,6 +83,7 @@ pub(super) fn to_chat(
         });
         target.ttl = value.ttl.map(|v| match v {
             r::PromptCacheTtl::ThirtyMinutes => c::PromptCacheTtl::ThirtyMinutes,
+            r::PromptCacheTtl::TwelveHours => unreachable!("checked above"),
         });
         target
     });

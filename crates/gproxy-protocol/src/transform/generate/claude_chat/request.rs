@@ -167,7 +167,8 @@ pub fn claude_to_openai(
             user: input
                 .metadata
                 .as_ref()
-                .and_then(|metadata| metadata.user_id.clone()),
+                .and_then(|metadata| metadata.user_id.clone())
+                .map(Some),
             verbosity: None,
             web_search_options: None,
             rest: Rest::new(),
@@ -300,7 +301,7 @@ pub fn openai_to_claude(
             fallbacks: None,
             inference_geo: None,
             mcp_servers: None,
-            metadata: input.user.as_ref().map(|user| {
+            metadata: input.user.as_ref().and_then(Option::as_ref).map(|user| {
                 let mut metadata = cg::Metadata::builder().build();
                 metadata.user_id = Some(user.clone());
                 metadata

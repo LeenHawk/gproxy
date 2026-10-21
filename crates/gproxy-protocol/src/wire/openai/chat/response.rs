@@ -279,6 +279,10 @@ pub struct Usage {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PromptTokensDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_tokens: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_tokens: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_write_tokens: Option<i64>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -296,6 +300,8 @@ pub struct PromptTokensDetails {
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CompletionTokensDetails {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_tokens: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accepted_prediction_tokens: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]

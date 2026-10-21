@@ -126,8 +126,15 @@ pub(crate) fn to_gemini(
                 vec![super::identity::function(call)?],
             ),
             r::InputItem::FunctionCallOutput(output) => {
+                let call_id = output
+                    .call_id
+                    .flatten()
+                    .filter(|id| !id.is_empty())
+                    .ok_or_else(|| {
+                        TransformError::missing_metadata("function_call_output.call_id")
+                    })?;
                 let name = names
-                    .get(&output.call_id)
+                    .get(&call_id)
                     .cloned()
                     .or_else(|| output.name.flatten())
                     .ok_or_else(|| TransformError::missing_metadata("function_response.name"))?;
@@ -144,7 +151,7 @@ pub(crate) fn to_gemini(
                     vec![super::media::output_to_gemini(
                         output.output,
                         name,
-                        output.call_id,
+                        call_id,
                     )?],
                 )
             }

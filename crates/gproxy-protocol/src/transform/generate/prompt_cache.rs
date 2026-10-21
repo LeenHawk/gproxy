@@ -74,17 +74,74 @@ pub(crate) fn chat_options(value: &chat::PromptCacheOptions) -> Option<c::CacheC
 }
 
 pub(crate) fn responses_options(value: &r::PromptCacheOptions) -> Option<c::CacheControl> {
-    if value.mode != Some(r::PromptCachingMode::Implicit) {
+    if value.mode == Some(r::PromptCachingMode::Explicit) {
         return None;
     }
     let mut cache = c::CacheControl::builder(c::CacheControlType::Ephemeral).build();
-    cache.ttl = value.ttl.map(|_| c::CacheTtl::FiveMinutes);
+    cache.ttl = value.ttl.map(|ttl| match ttl {
+        r::PromptCacheTtl::ThirtyMinutes => c::CacheTtl::FiveMinutes,
+        r::PromptCacheTtl::TwelveHours => c::CacheTtl::OneHour,
+    });
     Some(cache)
+}
+
+/// Resolve the request default before converting breakpoints to another wire.
+/// An explicit per-block lifetime always wins over the request default.
+pub(crate) fn responses_breakpoint_defaults(input: &mut r::GenerateContentRequestBody) {
+    let Some(ttl) = input.prompt_cache_options.as_ref().and_then(|v| v.ttl) else {
+        return;
+    };
+    let ttl = match ttl {
+        r::PromptCacheTtl::ThirtyMinutes => r::PromptCacheBreakpointTtl::ThirtyMinutes,
+        r::PromptCacheTtl::TwelveHours => r::PromptCacheBreakpointTtl::TwelveHours,
+    };
+    let Some(r::Input::Items(items)) = &mut input.input else {
+        return;
+    };
+    for item in items {
+        let parts = match item {
+            r::InputItem::Message(v) => Some(&mut v.content),
+            r::InputItem::Easy(v) => match &mut v.content {
+                r::MessageContent::Parts(parts) => Some(parts),
+                r::MessageContent::Text(_) => None,
+            },
+            r::InputItem::CustomToolCallOutput(v) => match &mut v.output {
+                r::CustomOutput::Content(parts) => Some(parts),
+                r::CustomOutput::Text(_) => None,
+            },
+            r::InputItem::FunctionCallOutput(v) => {
+                if let r::FunctionOutput::Content(parts) = &mut v.output {
+                    for part in parts {
+                        let marker = match part {
+                            r::FunctionOutputContent::Text(v) => &mut v.prompt_cache_breakpoint,
+                            r::FunctionOutputContent::Image(v) => &mut v.prompt_cache_breakpoint,
+                            r::FunctionOutputContent::File(v) => &mut v.prompt_cache_breakpoint,
+                        };
+                        if let Some(Some(marker)) = marker {
+                            marker.ttl.get_or_insert(ttl);
+                        }
+                    }
+                }
+                None
+            }
+            _ => None,
+        };
+        for part in parts.into_iter().flatten() {
+            let marker = match part {
+                r::InputContent::Text(v) => &mut v.prompt_cache_breakpoint,
+                r::InputContent::Image(v) => &mut v.prompt_cache_breakpoint,
+                r::InputContent::File(v) => &mut v.prompt_cache_breakpoint,
+            };
+            if let Some(marker) = marker {
+                marker.ttl.get_or_insert(ttl);
+            }
+        }
+    }
 }
 
 /// Claude automatic caching ends at the last block. Make that boundary explicit
 /// before converting, so a 1h policy can become a 12h OpenAI block TTL without
-/// inventing an unsupported request-wide TTL or moving a cache boundary.
+/// moving a cache boundary or changing the lifetime of other breakpoints.
 pub(crate) fn prepare_claude(
     input: &mut cg::GenerateContentRequestBody,
     report: &mut Report,

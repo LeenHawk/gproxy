@@ -11,6 +11,8 @@ pub(super) fn request(
     request.store = Some(Some(false));
     request.max_output_tokens = None;
     request.metadata = None;
+    // The ChatGPT backend's CLI wire has no public-API cache options. Keep
+    // its block breakpoints; API support does not establish backend support.
     request.prompt_cache_options = None;
     request.temperature = None;
     request.top_p = None;
@@ -42,6 +44,7 @@ pub(super) fn request(
     if let Some(Input::Items(items)) = request.input.as_mut() {
         let mut retained = Vec::with_capacity(items.len());
         for mut item in std::mem::take(items) {
+            preserve_system_breakpoints(&mut item);
             if let Some(text) = system_text(&item) {
                 if !text.is_empty() {
                     let instructions = request
@@ -88,6 +91,34 @@ pub(super) fn request(
     })
     .map_err(invalid)?;
     Ok((Bytes::from(bytes), aliases))
+}
+
+// A cached system prefix must stay in input: flattening it into instructions
+// discards the cache boundary and its TTL. Codex accepts developer messages.
+fn preserve_system_breakpoints(item: &mut InputItem) {
+    match item {
+        InputItem::Message(message)
+            if message.role == InputMessageRole::System
+                && has_breakpoint(&message.content) =>
+        {
+            message.role = InputMessageRole::Developer;
+        }
+        InputItem::Easy(message)
+            if message.role == MessageRole::System
+                && matches!(&message.content, MessageContent::Parts(parts) if has_breakpoint(parts)) =>
+        {
+            message.role = MessageRole::Developer;
+        }
+        _ => {}
+    }
+}
+
+fn has_breakpoint(parts: &[InputContent]) -> bool {
+    parts.iter().any(|part| match part {
+        InputContent::Text(v) => v.prompt_cache_breakpoint.is_some(),
+        InputContent::Image(v) => v.prompt_cache_breakpoint.is_some(),
+        InputContent::File(v) => v.prompt_cache_breakpoint.is_some(),
+    })
 }
 
 fn system_text(item: &InputItem) -> Option<String> {

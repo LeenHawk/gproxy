@@ -883,7 +883,7 @@ mod tests {
         assert_eq!(
             plain["input"],
             json!([{"type": "message", "role": "user", "content": [
-                {"type": "input_text", "text": "just ", "prompt_cache_breakpoint": {"mode": "explicit"}}
+                {"type": "input_text", "text": "just ", "prompt_cache_breakpoint": {"mode": "explicit", "ttl": "30m"}}
             ]}])
         );
     }

@@ -600,8 +600,8 @@ fn every_output_field_has_its_documented_required_optional_and_null_contract() {
                 "name",
                 "namespace",
             ],
-            &["id", "call_id", "output", "status", "type"],
-            &["caller", "created_by", "name", "namespace"],
+            &["id", "output", "status", "type"],
+            &["call_id", "caller", "created_by", "name", "namespace"],
             &["caller"],
         ),
         (

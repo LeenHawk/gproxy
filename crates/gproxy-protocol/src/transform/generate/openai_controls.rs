@@ -51,6 +51,12 @@ pub(crate) fn project_request(
     input: &mut r::GenerateContentRequestBody,
     report: &mut Report,
 ) -> Result<(), TransformError> {
+    if input.access_programs.take().is_some() {
+        report.omitted(
+            "access_programs",
+            "access programs are specific to the OpenAI upstream",
+        );
+    }
     if input.multi_agent.take().flatten().is_some() {
         report.omitted(
             "multi_agent",

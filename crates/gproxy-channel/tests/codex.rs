@@ -1747,6 +1747,7 @@ async fn client_supplied_identity_is_kept_verbatim() {
     let client = Arc::new(ScriptClient::new(vec![
         reply(StatusCode::OK, json!({})),
         reply(StatusCode::OK, json!({})),
+        reply(StatusCode::OK, json!({})),
     ]));
     let body = prompt("conv-1", json!([{"role": "user", "content": "hi"}]));
 
@@ -1796,6 +1797,24 @@ async fn client_supplied_identity_is_kept_verbatim() {
     let metadata = turn_metadata(sent);
     assert_eq!(metadata["session_id"], "client-session");
     assert_eq!(metadata["window_id"], "client-session:0");
+    // A thread id remains the session identity even with a custom cache key.
+    let mut headers = HeaderMap::new();
+    headers.insert("thread-id", HeaderValue::from_static("thread-only"));
+    responses_call(
+        &config,
+        &client,
+        &state,
+        Operation::StreamGenerateContent,
+        headers,
+        prompt(
+            "separate-accounting",
+            json!([{"role":"user","content":"hi"}]),
+        ),
+    )
+    .await;
+    let sent = &client.sent()[2];
+    assert_eq!(header(sent, "session-id").unwrap(), "thread-only");
+    assert_eq!(header(sent, "thread-id").unwrap(), "thread-only");
 }
 
 #[tokio::test]
@@ -2877,4 +2896,24 @@ async fn reset_refuses_a_selection_from_another_channel_without_sending() {
         .await;
     assert!(matches!(result, Err(ChannelError::InvalidConfig(_))));
     assert!(client.sent().is_empty());
+}
+
+#[test]
+fn cached_system_prefix_keeps_its_breakpoint_in_codex_input() {
+    let body = prepared_body(
+        json!({}),
+        Operation::GenerateContent,
+        json!({
+            "model":"gpt-6.1-sol", "instructions":"base",
+            "input":[{"role":"system", "content":[
+                {"type":"input_text", "text":"shared", "prompt_cache_breakpoint":{"mode":"explicit","ttl":"12h"}}
+            ]}, {"role":"user", "content":"hello"}]
+        }),
+    );
+    assert_eq!(body["instructions"], "base");
+    assert_eq!(body["input"][0]["role"], "developer");
+    assert_eq!(
+        body["input"][0]["content"][0]["prompt_cache_breakpoint"]["ttl"],
+        "12h"
+    );
 }

@@ -66,6 +66,7 @@ impl GeminiResponseContext {
             }
         }
         Ok(r::GenerateContentResponseBody {
+            access_programs: None,
             prompt_cache_diagnostics: None,
             id,
             created_at,
@@ -101,7 +102,7 @@ impl GeminiResponseContext {
             top_logprobs: request.top_logprobs,
             truncation: request.truncation,
             usage: None,
-            user: request.user.map(Some),
+            user: request.user,
             rest: Default::default(),
         })
     }

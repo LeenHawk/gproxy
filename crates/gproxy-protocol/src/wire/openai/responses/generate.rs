@@ -1,5 +1,5 @@
 //! OpenAI Responses generation request body (`POST /responses`).
-//! Source: Create a model response.md, Body Parameters (lines 15-5760).
+//! Source: upstream_docs/openai/docs/Create a model response.md, Body Parameters.
 use super::input::{
     ConversationParam, Input, ReasoningConfig, ResponseInputFile, ResponseInputImage,
     ResponseInputText, TextConfig, present_nullable, present_optional,
@@ -17,6 +17,12 @@ use std::collections::BTreeMap;
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GenerateContentRequestBody {
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub access_programs: Option<AccessPrograms>,
     #[serde(
         default,
         deserialize_with = "present_nullable",
@@ -205,12 +211,55 @@ pub struct GenerateContentRequestBody {
     pub truncation: Option<Option<GenerateTruncation>>,
     #[serde(
         default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub user: Option<Option<String>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+/// Source: upstream_docs/openai/docs/Create a model response.md, access_programs.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct AccessPrograms {
+    #[serde(
+        default,
         deserialize_with = "present_optional",
         skip_serializing_if = "Option::is_none"
     )]
-    pub user: Option<String>,
+    pub cyber: Option<CyberAccessProgram>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum CyberAccessProgram {
+    Standard,
+    DaybreakBlue,
+    DaybreakRed,
 }
 
 #[derive(
@@ -512,7 +561,8 @@ pub enum PromptVariableValue {
     File(ResponseInputFile),
 }
 
-/// `ttl` has exactly one documented value (source line 4459).
+/// Request-wide lifetimes from upstream_docs/openai/docs/Prompt caching.md.
+/// The 2026-10-20 release predates the reference's request-level TTL enum update.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -520,4 +570,6 @@ pub enum PromptVariableValue {
 pub enum PromptCacheTtl {
     #[serde(rename = "30m")]
     ThirtyMinutes,
+    #[serde(rename = "12h")]
+    TwelveHours,
 }

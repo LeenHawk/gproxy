@@ -74,7 +74,12 @@ pub(super) fn result(
         }
     };
     if source.is_error {
-        call.error = Some(Some(text));
+        call.error = Some(Some(r::McpToolCallError::Detailed(
+            r::McpToolCallErrorDetails::Execution {
+                content: serde_json::Value::String(text),
+                rest: Default::default(),
+            },
+        )));
         call.status = Some(r::McpCallStatus::Failed);
     } else {
         call.output = Some(Some(text));
@@ -115,7 +120,7 @@ pub(crate) fn to_claude(
             "Claude requires an object",
         ));
     };
-    let error = source.error.flatten();
+    let error = source.error.flatten().map(error_text).transpose()?;
     let output = source.output.flatten();
     if error.is_some() && output.is_some() {
         return Err(TransformError::unsupported(
@@ -170,4 +175,15 @@ pub(crate) fn to_claude(
         );
     }
     Ok(blocks)
+}
+
+pub(crate) fn error_text(error: r::McpToolCallError) -> Result<String, TransformError> {
+    match error {
+        r::McpToolCallError::Legacy(text) => Ok(text),
+        r::McpToolCallError::Detailed(r::McpToolCallErrorDetails::Execution {
+            content: serde_json::Value::String(text),
+            ..
+        }) => Ok(text),
+        error => Ok(serde_json::to_string(&error)?),
+    }
 }

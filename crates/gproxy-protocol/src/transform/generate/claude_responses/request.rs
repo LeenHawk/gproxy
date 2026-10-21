@@ -145,6 +145,7 @@ pub fn responses_to_claude_request(
         .ok_or_else(|| TransformError::missing_metadata("max_output_tokens"))?;
     let mut out = c::GenerateContentRequestBody::builder(max, Vec::new(), model).build();
     let mut report = Report::default();
+    cache::responses_breakpoint_defaults(&mut input);
     crate::transform::generate::openai_controls::project_request(&mut input, &mut report)?;
     super::super::client_tools::Bindings::for_target(&input, crate::Dialect::Claude)?
         .lower(&mut input, &mut report)?;

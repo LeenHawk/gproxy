@@ -26,14 +26,13 @@ fn tool_references_preserve_names_schema_and_mixed_result_order() {
         let converted = claude_chat::claude_to_openai(&input, "target").unwrap();
         let wire = serde_json::to_value(converted.value).unwrap();
         let reference = json!({"type":"tool_reference","tool_name":"lookup"}).to_string();
-        assert_eq!(
-            wire["messages"][1]["content"],
-            if mixed {
-                format!("Found: {reference}; use it.")
-            } else {
-                reference
-            }
-        );
+        let mut expected = vec![json!({"type":"text","text":reference,
+            "prompt_cache_breakpoint":{"mode":"explicit"}})];
+        if mixed {
+            expected.insert(0, json!({"type":"text","text":"Found: "}));
+            expected.push(json!({"type":"text","text":"; use it."}));
+        }
+        assert_eq!(wire["messages"][1]["content"], json!(expected));
         assert_eq!(wire["messages"][1]["tool_call_id"], "call-search");
         assert_eq!(wire["tools"][0]["function"]["name"], "lookup");
         assert_eq!(

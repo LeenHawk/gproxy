@@ -89,6 +89,7 @@ pub(crate) fn to_responses(
         input_tokens_details: r::ResponseInputTokensDetails {
             cache_write_tokens: written,
             cached_tokens: cached,
+            cache_write_tokens_details: None,
             rest: Default::default(),
         },
         output_tokens: output,

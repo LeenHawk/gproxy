@@ -49,6 +49,18 @@ pub(crate) fn to_responses(
 
     for (present, field) in [
         (
+            prompt.as_ref().is_some_and(|d| d.text_tokens.is_some()),
+            "usage.prompt_tokens_details.text_tokens",
+        ),
+        (
+            prompt.as_ref().is_some_and(|d| d.image_tokens.is_some()),
+            "usage.prompt_tokens_details.image_tokens",
+        ),
+        (
+            completion.as_ref().is_some_and(|d| d.text_tokens.is_some()),
+            "usage.completion_tokens_details.text_tokens",
+        ),
+        (
             prompt.as_ref().is_some_and(|d| d.audio_tokens.is_some()),
             "usage.prompt_tokens_details.audio_tokens",
         ),
@@ -82,6 +94,7 @@ pub(crate) fn to_responses(
         input_tokens_details: r::ResponseInputTokensDetails {
             cached_tokens: cached,
             cache_write_tokens: written,
+            cache_write_tokens_details: None,
             rest: Default::default(),
         },
         output_tokens_details: r::ResponseOutputTokensDetails {
@@ -98,12 +111,15 @@ pub(crate) fn to_chat(source: r::ResponseUsage) -> Result<c::Usage, TransformErr
         completion_tokens: source.output_tokens,
         total_tokens: source.total_tokens,
         prompt_tokens_details: Some(c::PromptTokensDetails {
+            text_tokens: None,
+            image_tokens: None,
             cache_write_tokens: Some(source.input_tokens_details.cache_write_tokens),
             cached_tokens: Some(source.input_tokens_details.cached_tokens),
             audio_tokens: None,
             rest: Default::default(),
         }),
         completion_tokens_details: Some(c::CompletionTokensDetails {
+            text_tokens: None,
             reasoning_tokens: Some(source.output_tokens_details.reasoning_tokens),
             audio_tokens: None,
             accepted_prediction_tokens: None,

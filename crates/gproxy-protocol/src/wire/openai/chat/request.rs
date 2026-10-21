@@ -177,8 +177,12 @@ pub struct GenerateContentRequestBody {
         skip_serializing_if = "Option::is_none"
     )]
     pub top_p: Option<Option<f64>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub user: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub user: Option<Option<String>>,
     #[serde(
         default,
         deserialize_with = "present_nullable",

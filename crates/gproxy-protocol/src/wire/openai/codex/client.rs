@@ -858,13 +858,4 @@ pub struct AccessPrograms {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[derive(gproxy_protocol_macros::DeclaredFields)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub enum CyberAccessProgram {
-    Standard,
-    DaybreakBlue,
-    DaybreakRed,
-}
+pub use super::super::responses::CyberAccessProgram;

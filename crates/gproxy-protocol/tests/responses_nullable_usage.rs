@@ -53,7 +53,7 @@ fn absent_null_and_present_usage_and_user_remain_distinct() {
     assert!(matches!(null.usage, Some(None)));
     assert!(matches!(null.user, Some(None)));
     assert_eq!(serde_json::to_value(null).unwrap(), value);
-    value["usage"] = json!({"input_tokens":5,"output_tokens":7,"total_tokens":12,"input_tokens_details":{"cached_tokens":1,"cache_write_tokens":0},"output_tokens_details":{"reasoning_tokens":2}});
+    value["usage"] = json!({"input_tokens":5,"output_tokens":7,"total_tokens":12,"input_tokens_details":{"cached_tokens":1,"cache_write_tokens":0,"cache_write_tokens_details":{"ttl_30m_tokens":0,"ttl_12h_tokens":0}},"output_tokens_details":{"reasoning_tokens":2}});
     value["user"] = json!("actual-user");
     let present: r::GenerateContentResponseBody = serde_json::from_value(value.clone()).unwrap();
     assert_eq!(

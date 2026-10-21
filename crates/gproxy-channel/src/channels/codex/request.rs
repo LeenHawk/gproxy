@@ -103,6 +103,7 @@ impl Codex {
         let account_key =
             identity::account_key(account.account_id.as_deref(), account.access_token);
         let session_id = client_header(headers, "session-id")
+            .or_else(|| client_header(headers, "thread-id"))
             .unwrap_or_else(|| identity::session_id(&account_key, &facts.session_key));
         let thread_id = client_header(headers, "thread-id").unwrap_or_else(|| session_id.clone());
         let turn_id = identity::turn_id(&session_id, facts.user_text_turns);

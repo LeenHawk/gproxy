@@ -100,7 +100,14 @@ pub(crate) fn to_claude(
                 )
             }
             r::InputItem::FunctionCallOutput(output) => {
-                if output.call_id.is_empty()
+                let call_id = output
+                    .call_id
+                    .flatten()
+                    .filter(|id| !id.is_empty())
+                    .ok_or_else(|| {
+                        TransformError::missing_metadata("function_call_output.call_id")
+                    })?;
+                if call_id.is_empty()
                     || output.namespace.flatten().is_some()
                     || output
                         .caller
@@ -113,7 +120,7 @@ pub(crate) fn to_claude(
                 (
                     r::MessageRole::User,
                     vec![c::ContentBlock::ToolResult(
-                        c::ToolResultBlock::builder(c::ToolResultBlockType::Tag, output.call_id)
+                        c::ToolResultBlock::builder(c::ToolResultBlockType::Tag, call_id)
                             .content(result)
                             .build(),
                     )],
@@ -150,7 +157,12 @@ pub(crate) fn to_claude(
                     ));
                 }
                 let is_error = call.error.as_ref().and_then(Option::as_ref).is_some();
-                let text = call.error.flatten().or(call.output.flatten());
+                let text = call
+                    .error
+                    .flatten()
+                    .map(super::super::response::mcp::error_text)
+                    .transpose()?
+                    .or(call.output.flatten());
                 if let Some(text) = text {
                     blocks.push(c::ContentBlock::McpToolResult(
                         c::McpToolResultBlock::builder(c::McpToolResultType::Tag, call.id)

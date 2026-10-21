@@ -40,7 +40,11 @@ pub(super) fn to_responses(
     out.stream = input.stream.map(Some);
     out.temperature = number(input.temperature)?;
     out.top_p = number(input.top_p)?;
-    out.user = input.metadata.as_ref().and_then(|v| v.user_id.clone());
+    out.user = input
+        .metadata
+        .as_ref()
+        .and_then(|v| v.user_id.clone())
+        .map(Some);
     out.service_tier = input.service_tier.map(|v| {
         Some(match v {
             c::ServiceTier::Auto => r::ServiceTier::Auto,
@@ -203,7 +207,7 @@ pub(super) fn to_claude(
             None
         }
     };
-    if let Some(user) = &input.user {
+    if let Some(Some(user)) = &input.user {
         out.metadata = Some(c::Metadata::builder().user_id(user.clone()).build());
     }
     if let Some(config) = input.reasoning.as_ref().and_then(Option::as_ref) {

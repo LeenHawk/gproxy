@@ -177,6 +177,13 @@ pub(super) fn to_chat(
                 messages.push(c::ChatMessage::Assistant(message));
             }
             r::InputItem::FunctionCallOutput(output) => {
+                let call_id = output
+                    .call_id
+                    .flatten()
+                    .filter(|id| !id.is_empty())
+                    .ok_or_else(|| {
+                        TransformError::missing_metadata("function_call_output.call_id")
+                    })?;
                 if output.namespace.flatten().is_some()
                     || output
                         .caller
@@ -209,7 +216,7 @@ pub(super) fn to_chat(
                             .collect::<Result<Vec<_>, _>>()?,
                     ),
                 };
-                messages.push(tool(output.call_id, value)?);
+                messages.push(tool(call_id, value)?);
             }
             r::InputItem::CustomToolCallOutput(output) => {
                 if output

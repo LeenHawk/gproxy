@@ -621,7 +621,12 @@ pub struct FunctionCallOutput {
     pub agent: Option<Option<super::multi_agent::Agent>>,
     #[serde(rename = "type")]
     pub type_: FunctionCallOutputType,
-    pub call_id: String,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub call_id: Option<Option<String>>,
     pub output: FunctionOutput,
     #[serde(
         default,
@@ -1153,7 +1158,7 @@ pub enum WebSearchSourceType {
     Url,
 }
 action_struct!(WebSearchOpenPage { #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub url: Option<Option<String>>, });
-action_struct!(WebSearchFindInPage { pub pattern: String, pub url: String, });
+action_struct!(WebSearchFindInPage { pub pattern: String, #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub url: Option<Option<String>>, });
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -1345,6 +1350,12 @@ pub struct FileSearchResult {
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ImageGenerationCall {
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub error: Option<super::errors::ImageGenerationCallError>,
     #[serde(
         default,
         deserialize_with = "present_nullable",
@@ -1654,7 +1665,7 @@ simple_item!(McpCall {
     #[serde(rename = "type")] pub type_: McpCallType,
     pub id: String, pub arguments: String, pub name: String, pub server_label: String,
     #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub approval_request_id: Option<Option<String>>,
-    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub error: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub error: Option<Option<super::errors::McpToolCallError>>,
     #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub output: Option<Option<String>>,
     #[serde(default, deserialize_with = "present_optional", skip_serializing_if = "Option::is_none")] pub status: Option<McpCallStatus>,
 });
@@ -2552,6 +2563,7 @@ pub enum WebSearchStatus {
     Searching,
     Completed,
     Failed,
+    Incomplete,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

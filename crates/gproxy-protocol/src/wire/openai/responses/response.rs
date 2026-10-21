@@ -1,6 +1,6 @@
-//! OpenAI Responses response, Create a model response.md:5768-14778.
-//! Nullable usage/user also follow the native created/in_progress examples at
-//! Create a model response.md:15512-15515 and Responses.md:33257-33260.
+//! OpenAI Responses response, upstream_docs/openai/docs/Create a model response.md.
+//! Nullable usage/user also follow the native created/in_progress examples in
+//! that reference and Responses.md.
 use super::generate;
 use super::input::{self, present_nullable, present_optional, required_nullable};
 use super::tools;
@@ -19,6 +19,13 @@ pub type ResponseInstructions = input::Input;
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct GenerateContentResponseBody {
+    /// Newer API responses report this even when null; older responses omit it.
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub access_programs: Option<Option<ResponseAccessPrograms>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_cache_diagnostics: Option<super::diagnostics::PromptCacheDiagnostics>,
 
@@ -180,6 +187,24 @@ pub struct GenerateContentResponseBody {
         skip_serializing_if = "Option::is_none"
     )]
     pub user: Option<Option<String>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct ResponseAccessPrograms {
+    pub cyber: generate::CyberAccessProgram,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -446,6 +471,29 @@ pub struct ResponseUsage {
 pub struct ResponseInputTokensDetails {
     pub cache_write_tokens: i64,
     pub cached_tokens: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write_tokens_details: Option<CacheWriteTokensDetails>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+/// Non-overlapping write counts by lifetime; their sum is `cache_write_tokens`.
+/// Source: upstream_docs/openai/docs/Prompt caching.md, Monitor cache performance.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct CacheWriteTokensDetails {
+    pub ttl_30m_tokens: i64,
+    pub ttl_12h_tokens: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -518,7 +566,12 @@ pub struct ResponseFunctionCallOutput {
     )]
     pub agent: Option<Option<super::multi_agent::Agent>>,
     pub id: String,
-    pub call_id: String,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub call_id: Option<String>,
     pub output: input::CustomOutput,
     pub status: input::ItemStatus,
     #[serde(rename = "type")]

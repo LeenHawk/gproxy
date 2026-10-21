@@ -153,8 +153,8 @@ pub(super) fn context_window_id(thread_id: &str, window_number: u64) -> String {
 /// What a Responses body says about its conversation.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(super) struct BodyFacts {
-    /// The session key ladder, most stable first: `prompt_cache_key`,
-    /// `conversation_id`, the first user text (a conversation replayed in
+    /// The session key ladder, most stable first: `conversation_id`,
+    /// `prompt_cache_key`, the first user text (a conversation replayed in
     /// full keeps it), `previous_response_id` (server-side state sends only
     /// the new items, so the text ladder would churn; the root of the chain
     /// is not resolved, that needs the response body), else a fixed
@@ -180,10 +180,12 @@ pub(super) fn body_facts(body: &[u8]) -> BodyFacts {
             .map(str::trim)
             .filter(|s| !s.is_empty())
     };
-    let session_key = if let Some(key) = string("prompt_cache_key") {
-        format!("prompt_cache_key:{key}")
-    } else if let Some(id) = string("conversation_id") {
+    // A caller-selected cache accounting key is independent of conversation
+    // identity (Codex core/src/client.rs::session_derived_cache_key).
+    let session_key = if let Some(id) = string("conversation_id") {
         format!("conversation_id:{id}")
+    } else if let Some(key) = string("prompt_cache_key") {
+        format!("prompt_cache_key:{key}")
     } else if let Some(text) = texts.first() {
         format!("text:{}", hex(&Sha256::digest(text)))
     } else if let Some(id) = string("previous_response_id") {
@@ -368,7 +370,8 @@ mod tests {
     #[test]
     fn session_key_ladder_and_user_text_turns() {
         let facts = body_facts(br#"{"prompt_cache_key":"k","conversation_id":"c","input":"hi"}"#);
-        assert_eq!(facts.session_key, "prompt_cache_key:k");
+        assert_eq!(facts.session_key, "conversation_id:c");
+        assert_eq!(body_facts(br#"{"prompt_cache_key":"k"}"#).session_key, "prompt_cache_key:k");
         assert_eq!(facts.user_text_turns, 1);
         let facts =
             body_facts(br#"{"conversation_id":"c","input":[{"role":"user","content":"hi"}]}"#);

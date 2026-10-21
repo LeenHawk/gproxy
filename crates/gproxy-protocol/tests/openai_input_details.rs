@@ -445,9 +445,9 @@ fn optional_nullable_fields_preserve_absent_null_and_value() {
         "caller",
         json!({"type":"direct"}),
     );
-    for field in ["id", "name", "namespace"] {
+    for field in ["id", "call_id", "name", "namespace"] {
         three::<FunctionCallOutput>(
-            json!({"type":"function_call_output","call_id":"c","output":"x"}),
+            json!({"type":"function_call_output","output":"x"}),
             field,
             json!("x"),
         );

@@ -354,7 +354,7 @@ pub fn build_request(
                         .build(),
                 ))
                 .build();
-            body.user = v.user;
+            body.user = v.user.map(Some);
             body.parallel_tool_calls = Some(Some(false));
             body.max_tool_calls = Some(Some(1));
             body.stream = Some(Some(false));

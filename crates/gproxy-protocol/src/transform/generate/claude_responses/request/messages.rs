@@ -4,7 +4,7 @@ use crate::{
         Report, TransformError,
         identity::{IdentityFlow, IdentityRole, OutputItemKind, SourceIdentity, TargetIdPolicy},
     },
-    wire::{claude::content as c, openai::responses::input as r},
+    wire::{claude::content as c, openai::responses as r},
 };
 
 fn easy(role: r::MessageRole, content: r::MessageContent) -> r::InputItem {
@@ -186,9 +186,9 @@ pub(crate) fn to_responses(
                     out.push(r::InputItem::FunctionCallOutput(
                         r::FunctionCallOutput::builder(
                             r::FunctionCallOutputType::FunctionCallOutput,
-                            call_id,
                             output,
                         )
+                        .call_id(Some(call_id))
                         .build(),
                     ));
                 }
@@ -241,10 +241,14 @@ pub(crate) fn to_responses(
                             .join(""),
                     });
                     if result.is_error == Some(true) {
-                        call.error =
-                            Some(Some(text.ok_or_else(|| {
-                                TransformError::missing_metadata("MCP error text")
-                            })?));
+                        let text =
+                            text.ok_or_else(|| TransformError::missing_metadata("MCP error text"))?;
+                        call.error = Some(Some(r::McpToolCallError::Detailed(
+                            r::McpToolCallErrorDetails::Execution {
+                                content: serde_json::Value::String(text),
+                                rest: Default::default(),
+                            },
+                        )));
                         call.status = Some(r::McpCallStatus::Failed);
                     } else {
                         call.output = text.map(Some);

@@ -175,9 +175,9 @@ pub(crate) fn to_responses(
                 out.push(r::InputItem::FunctionCallOutput(
                     r::FunctionCallOutput::builder(
                         r::FunctionCallOutputType::FunctionCallOutput,
-                        id,
                         output,
                     )
+                    .call_id(Some(id))
                     .build(),
                 ));
             }

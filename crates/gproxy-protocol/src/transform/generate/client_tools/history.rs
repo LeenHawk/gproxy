@@ -31,9 +31,9 @@ fn result(call_id: String, value: impl serde::Serialize) -> Result<r::InputItem,
     Ok(r::InputItem::FunctionCallOutput(
         r::FunctionCallOutput::builder(
             r::FunctionCallOutputType::FunctionCallOutput,
-            call_id,
             r::FunctionOutput::Text(text),
         )
+        .call_id(Some(call_id))
         .build(),
     ))
 }
@@ -100,9 +100,9 @@ impl Bindings {
                         r::InputItem::FunctionCallOutput(
                             r::FunctionCallOutput::builder(
                                 r::FunctionCallOutputType::FunctionCallOutput,
-                                item.call_id,
                                 serde_json::from_value(serde_json::to_value(item.output)?)?,
                             )
+                            .call_id(Some(item.call_id))
                             .build(),
                         )
                     }

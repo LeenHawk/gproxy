@@ -302,10 +302,12 @@ pub(super) async fn responses<S: StateStore>(
                     ids.insert(b.call_id.clone());
                 }
                 r::InputItem::FunctionCallOutput(b) => {
-                    if let Some(Some(value)) = &b.name {
-                        name(&mut names, &b.call_id, value)?;
+                    if let Some(Some(call_id)) = &b.call_id {
+                        if let Some(Some(value)) = &b.name {
+                            name(&mut names, call_id, value)?;
+                        }
+                        ids.insert(call_id.clone());
                     }
-                    ids.insert(b.call_id.clone());
                 }
                 r::InputItem::CustomToolCallOutput(b) => {
                     ids.insert(b.call_id.clone());
@@ -327,11 +329,13 @@ pub(super) async fn responses<S: StateStore>(
                     restore(&mut b.call_id, &replay);
                 }
                 r::InputItem::FunctionCallOutput(b) => {
-                    kind(&replay, &b.call_id, super::ToolCallKind::Function)?;
-                    if let Some(value) = replay.names.get(&b.call_id) {
-                        b.name = Some(Some(value.clone()));
+                    if let Some(Some(call_id)) = &mut b.call_id {
+                        kind(&replay, call_id, super::ToolCallKind::Function)?;
+                        if let Some(value) = replay.names.get(call_id) {
+                            b.name = Some(Some(value.clone()));
+                        }
+                        restore(call_id, &replay);
                     }
-                    restore(&mut b.call_id, &replay);
                 }
                 r::InputItem::CustomToolCallOutput(b) => {
                     kind(&replay, &b.call_id, super::ToolCallKind::Custom)?;

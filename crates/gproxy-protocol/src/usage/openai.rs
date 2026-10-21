@@ -12,8 +12,8 @@
 //! Both prompt totals include the cached read (`cached_tokens`) and, where a
 //! compatible vendor reports one, the cache write (`cache_write_tokens`).
 //! The normalized input is the ordinary input alone, so both come back out
-//! of it and ride in the fields that name them; a cache write has no TTL on
-//! this wire and retains an unknown TTL. Per-modality details
+//! of it and ride in the fields that name them. Responses reports write TTLs
+//! in `cache_write_tokens_details`; older replies retain an unknown TTL. Per-modality details
 //! (`audio_tokens`, `text_tokens`, `image_tokens`, and the cached
 //! `cached_tokens_details` breakdown) are recorded as metrics that are
 //! subsets of the totals, and the reading says so with the
@@ -65,7 +65,14 @@ pub(super) fn from_usage(usage: &Value) -> Option<NormalizedUsage> {
     let input = details(input_names);
     let output = details(output_names);
     let cached = count(input, "cached_tokens");
-    let cache_write = count(input, "cache_write_tokens");
+    let breakdown = input.get("cache_write_tokens_details").and_then(|details| {
+        Some((
+            count(details, "ttl_30m_tokens")?,
+            count(details, "ttl_12h_tokens")?,
+        ))
+    });
+    let cache_write = count(input, "cache_write_tokens")
+        .or_else(|| breakdown.map(|(short, long)| short.saturating_add(long)));
     let mut normalized = NormalizedUsage {
         completeness: UsageCompleteness::Complete,
         ..NormalizedUsage::default()
@@ -78,7 +85,18 @@ pub(super) fn from_usage(usage: &Value) -> Option<NormalizedUsage> {
     );
     normalized.tokens.output_tokens = Some(count(usage, completion).unwrap_or_default());
     normalized.tokens.cached_input_tokens = cached;
-    normalized.tokens.add_cache_creation(cache_write, None);
+    if let Some((short, long)) = breakdown
+        && Some(short.saturating_add(long)) == cache_write
+    {
+        normalized
+            .tokens
+            .add_cache_creation(Some(short), Some(1800));
+        normalized
+            .tokens
+            .add_cache_creation(Some(long), Some(43200));
+    } else {
+        normalized.tokens.add_cache_creation(cache_write, None);
+    }
     normalized.tokens.reasoning_tokens = count(output, "reasoning_tokens");
     for modality in MODALITIES {
         let tokens = format!("{modality}_tokens");
@@ -374,6 +392,42 @@ mod tests {
             dialect,
             body.to_string().as_bytes(),
         )
+    }
+
+    #[test]
+    fn responses_cache_write_lifetimes_survive_buffered_and_streamed_metering() {
+        let response = json!({"id":"r", "usage":{
+            "input_tokens":12000,"output_tokens":1,
+            "input_tokens_details":{"cached_tokens":4000,"cache_write_tokens":7000,
+                "cache_write_tokens_details":{"ttl_30m_tokens":3000,"ttl_12h_tokens":4000}}
+        }});
+        let expected = buffered(Dialect::OpenAi, &response).unwrap();
+        assert_eq!(expected.tokens.input_tokens, Some(1000));
+        assert_eq!(expected.tokens.cached_input_tokens, Some(4000));
+        assert_eq!(expected.tokens.cache_creation_tokens(), 7000);
+        assert_eq!(
+            expected.tokens.cache_creation,
+            vec![
+                super::super::types::CacheCreation {
+                    tokens: 3000,
+                    ttl_seconds: Some(1800)
+                },
+                super::super::types::CacheCreation {
+                    tokens: 4000,
+                    ttl_seconds: Some(43200)
+                },
+            ]
+        );
+        let event = json!({"type":"response.completed", "response":response});
+        let wire = format!("data: {event}\n\n");
+        let streamed = feed_sse(
+            Operation::StreamGenerateContent,
+            Dialect::OpenAi,
+            &chunked(&wire, 7),
+            UsageStreamEnd::Complete,
+        )
+        .unwrap();
+        assert_eq!(streamed.tokens, expected.tokens);
     }
 
     #[test]

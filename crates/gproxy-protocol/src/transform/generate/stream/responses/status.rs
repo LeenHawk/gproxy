@@ -49,7 +49,7 @@ pub(super) fn item(
                 v.status,
                 i::WebSearchStatus::InProgress | i::WebSearchStatus::Searching
             ),
-            false,
+            v.status == i::WebSearchStatus::Incomplete,
         ),
         r::ResponseOutputItem::ImageGenerationCall(v) => (
             matches!(

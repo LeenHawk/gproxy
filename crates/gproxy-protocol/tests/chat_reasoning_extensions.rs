@@ -21,8 +21,13 @@ fn deepseek_and_openrouter_reasoning_roundtrip_and_collect() {
         collector.push(chunk).unwrap();
     }
     collector.push(serde_json::from_value(json!({"id":"chat1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"content":"answer"},"finish_reason":"stop"}]})).unwrap()).unwrap();
+    let usage = json!({"prompt_tokens":10,"completion_tokens":2,"total_tokens":12,
+        "prompt_tokens_details":{"text_tokens":7,"image_tokens":3},
+        "completion_tokens_details":{"text_tokens":2}});
+    collector.push(serde_json::from_value(json!({"id":"chat1","object":"chat.completion.chunk","created":1,"model":"m","choices":[],"usage":usage})).unwrap()).unwrap();
     collector.push_done().unwrap();
     let response = collector.finish().unwrap().value;
+    assert_eq!(serde_json::to_value(&response.usage).unwrap(), usage);
     let message = &response.choices[0].message;
     assert_eq!(message.reasoning_content, Some(Some("think more".into())));
     assert_eq!(message.reasoning, Some(Some("think more".into())));
@@ -47,6 +52,11 @@ fn deepseek_and_openrouter_reasoning_roundtrip_and_collect() {
     let chunks = synthesize_chat_stream(response, ChatStreamLimits::default())
         .unwrap()
         .value;
+    let usage_chunk = chunks
+        .iter()
+        .find_map(|chunk| chunk.usage.as_ref())
+        .unwrap();
+    assert_eq!(serde_json::to_value(usage_chunk).unwrap(), usage);
     assert_eq!(
         chunks[0].choices[0].delta.reasoning_content,
         Some(Some("think more".into()))

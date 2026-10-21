@@ -335,7 +335,6 @@ pub(super) fn to_responses(
                     r::InputItem::FunctionCallOutput(
                         r::FunctionCallOutput::builder(
                             r::FunctionCallOutputType::FunctionCallOutput,
-                            call_id,
                             match output {
                                 c::TextContent::Text(text) => r::FunctionOutput::Text(text),
                                 c::TextContent::Parts(parts) => r::FunctionOutput::Content(
@@ -357,6 +356,7 @@ pub(super) fn to_responses(
                                 ),
                             },
                         )
+                        .call_id(Some(call_id))
                         .build(),
                     )
                 });
@@ -374,9 +374,9 @@ pub(super) fn to_responses(
                 items.push(r::InputItem::FunctionCallOutput(
                     r::FunctionCallOutput::builder(
                         r::FunctionCallOutputType::FunctionCallOutput,
-                        call_id,
                         r::FunctionOutput::Text(output),
                     )
+                    .call_id(Some(call_id))
                     .build(),
                 ));
             }
