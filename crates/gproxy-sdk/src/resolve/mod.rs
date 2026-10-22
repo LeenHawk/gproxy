@@ -32,7 +32,8 @@ use std::{
 };
 
 use gproxy_core::{
-    CoreData, CredentialBlocks, CredentialData, CredentialStatus, ProviderData, keys,
+    CoreData, CredentialBlocks, CredentialData, CredentialStatus, CredentialStrategy, ProviderData,
+    keys,
 };
 use gproxy_protocol::OperationKey;
 use gproxy_store::entity::routing::route::RouteStrategy;
@@ -60,9 +61,8 @@ pub struct ResolveRequest<'a> {
     pub allowed_credentials: Option<&'a BTreeSet<String>>,
     /// Restrict to one channel id, as an ingress mount does.
     pub channel: Option<&'a str>,
-    /// A stable session key. When the provider pins credentials to sessions,
-    /// its credentials are ordered by a stable hash of this key, so the same
-    /// session keeps offering core the same first choice.
+    /// A stable session key. Sticky providers order credentials by its hash,
+    /// using the same mapping as Core. Round-robin affinity is assigned by Core.
     pub affinity_key: Option<&'a str>,
 }
 
@@ -477,11 +477,9 @@ impl<C> Gproxy<C> {
         }
     }
 
-    /// Offer a session-pinned provider its credentials in an order that
-    /// depends only on the session and the provider, so every instance
-    /// proposes the same first choice. Core still owns the actual pin — it
-    /// reads the durable affinity from the cache and only falls back to the
-    /// order it was handed.
+    /// Offer sticky credentials in the same deterministic order used by Core.
+    /// Core rechecks eligibility before choosing; round-robin affinity is
+    /// assigned and cached there, without session-hash ordering here.
     fn apply_affinity(
         &self,
         candidate: &Candidate,
@@ -489,13 +487,13 @@ impl<C> Gproxy<C> {
         credentials: &mut [Arc<CredentialData>],
     ) {
         let Some(key) = affinity_key else { return };
-        if !candidate.provider.session_affinity {
+        if candidate.provider.credential_strategy != CredentialStrategy::Sticky {
             return;
         }
         if credentials.len() < 2 {
             return;
         }
-        let slot = balance::stable_slot(key, &candidate.provider.entity.id);
+        let slot = gproxy_core::sticky_slot(key, &candidate.provider.entity.id);
         let offset = usize::try_from(slot % credentials.len() as u64).unwrap_or(0);
         credentials.rotate_left(offset);
     }

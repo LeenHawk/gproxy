@@ -110,7 +110,6 @@ fn context_for_channel(
         operation_urls: Default::default(),
         rewrite_rule_sets: vec![],
         credential_strategy: old.credential_strategy,
-        session_affinity: false,
     });
     ctx.target.upstream_model = Some("claude-fable-5".into());
     ctx.target.credentials = ctx

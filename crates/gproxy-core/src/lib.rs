@@ -63,6 +63,7 @@ pub use publication::*;
 pub use rewrite::RewriteCompileError;
 pub use runtime::*;
 pub use secret::*;
+pub use select::sticky_slot;
 pub use service::{CallerRole, ServiceRequest, ServiceView, TargetCaller};
 
 use arc_swap::ArcSwap;

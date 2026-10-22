@@ -131,7 +131,7 @@ impl ConfigKey {
 /// Read from the `config` JSON for every channel, by the host rather than by
 /// the channel itself: `credential_strategy` selects among the provider's
 /// credentials, `allowed_headers` adds to the global and channel header sets.
-pub const HOST_CONFIG_KEYS: [ConfigKey; 4] = [
+pub const HOST_CONFIG_KEYS: [ConfigKey; 3] = [
     ConfigKey::optional(
         "forward_thinking",
         ConfigKeyKind::Bool,
@@ -141,11 +141,6 @@ pub const HOST_CONFIG_KEYS: [ConfigKey; 4] = [
         "credential_strategy",
         ConfigKeyKind::String,
         "How the host picks among this provider's credentials.",
-    ),
-    ConfigKey::optional(
-        "session_affinity",
-        ConfigKeyKind::Bool,
-        "Reuse a session credential while usable; defaults on for legacy sticky strategies.",
     ),
     ConfigKey::optional(
         "allowed_headers",

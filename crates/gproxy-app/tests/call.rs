@@ -483,7 +483,7 @@ async fn an_app_starts_blind_and_publishes_what_it_reads() {
 }
 
 #[tokio::test]
-async fn app_preserves_inferred_affinity_and_managed_reset_selection() {
+async fn app_preserves_session_identity_while_reset_strategy_reselects() {
     use gproxy_sdk::dto::{CredentialPatch, ProviderPatch};
     use gproxy_store::entity::limits::credential_cycle::{self, CycleBoundary, CycleOpening};
     use sea_orm::Set;
@@ -496,9 +496,7 @@ async fn app_preserves_inferred_affinity_and_managed_reset_selection() {
         .update(
             "p1",
             ProviderPatch {
-                config: Some(
-                    json!({"credential_strategy":"earliest_reset", "session_affinity":true}),
-                ),
+                config: Some(json!({"credential_strategy":"earliest_reset"})),
                 ..Default::default()
             },
         )
@@ -607,7 +605,7 @@ async fn app_preserves_inferred_affinity_and_managed_reset_selection() {
     assert_ne!(ids[0], ids[2]);
     assert_eq!(
         *client.authorizations.lock().unwrap(),
-        ["Bearer k-c-shared", "Bearer k-c-shared", "Bearer k-c-later"]
+        ["Bearer k-c-shared", "Bearer k-c-later", "Bearer k-c-later"]
     );
 }
 

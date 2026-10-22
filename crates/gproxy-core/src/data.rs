@@ -73,8 +73,6 @@ pub struct ProviderData {
     /// Read from the provider config JSON field `credential_strategy`; absent
     /// means round-robin.
     pub credential_strategy: CredentialStrategy,
-    /// Independent affinity switch; legacy sticky strategies default to true.
-    pub session_affinity: bool,
 }
 
 impl ProviderData {
@@ -141,6 +139,8 @@ pub enum CredentialStrategy {
     RoundRobin,
     /// Prefer the eligible credential whose applicable quota resets first.
     EarliestReset,
+    /// Map a stable session to the sorted eligible set by a deterministic hash.
+    /// Without a stable session, use ordinary round-robin.
     Sticky,
     /// Rotate when assigning an unbound session; reuse its eligible credential
     /// on later requests. Reassign when the pin is missing, expired or no longer

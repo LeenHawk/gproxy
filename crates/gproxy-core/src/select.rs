@@ -62,8 +62,8 @@ impl<C> Core<C> {
 impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
     /// Pick one credential from `request.target.credentials` minus `excluded`.
     /// Eligibility: enabled, Active, not retired, not blocked for this
-    /// model/operation now. Affinity honours an existing eligible pin before
-    /// strategy ordering. Unbound selections rotate among the best candidates.
+    /// model/operation now. Sticky hashes stable sessions; round-robin affinity
+    /// reuses an eligible pin. Other selections rotate among the best candidates.
     pub(crate) async fn select_credential(
         &self,
         request: &RequestContext,
@@ -124,8 +124,8 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
                 },
                 provider_id: provider.entity.id.clone(),
             });
-        let pinned = match (&affinity_key, provider.session_affinity) {
-            (Some(key), true) => self
+        let pinned = match (&affinity_key, provider.credential_strategy) {
+            (Some(key), CredentialStrategy::RoundRobinAffinity) => self
                 .cache
                 .get(&keys::credential_affinity(key))
                 .await?
@@ -146,21 +146,28 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
                     }
                 }
                 ids.sort_unstable();
-                let signature = ids.join(",");
-                let counter = match self
-                    .cache
-                    .increment(
-                        &keys::credential_selection(&provider.entity.id, &signature),
-                        1,
-                        i64::MAX as u64,
-                        ROTATION_TTL,
-                    )
-                    .await?
+                let position = if let (CredentialStrategy::Sticky, Some(key)) =
+                    (provider.credential_strategy, &affinity_key)
                 {
-                    gproxy_cache::IncrementOutcome::Applied(counter) => counter.value,
-                    gproxy_cache::IncrementOutcome::Limited { current } => current,
+                    sticky_slot(&key.scope.session_id, &key.provider_id) % ids.len() as u64
+                } else {
+                    let signature = ids.join(",");
+                    let counter = match self
+                        .cache
+                        .increment(
+                            &keys::credential_selection(&provider.entity.id, &signature),
+                            1,
+                            i64::MAX as u64,
+                            ROTATION_TTL,
+                        )
+                        .await?
+                    {
+                        gproxy_cache::IncrementOutcome::Applied(counter) => counter.value,
+                        gproxy_cache::IncrementOutcome::Limited { current } => current,
+                    };
+                    (counter - 1) % ids.len() as u64
                 };
-                let position = usize::try_from((counter - 1) % ids.len() as u64).unwrap_or(0);
+                let position = usize::try_from(position).unwrap_or(0);
                 let chosen = ids[position];
                 eligible
                     .iter()
@@ -195,7 +202,7 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
         let Some(session) = request.session.as_ref().filter(|s| s.is_stable()) else {
             return Ok(());
         };
-        if !request.target.provider.session_affinity {
+        if request.target.provider.credential_strategy != CredentialStrategy::RoundRobinAffinity {
             return Ok(());
         }
         let key = CredentialAffinityKey {
@@ -229,4 +236,25 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
             .await?;
         Ok(())
     }
+}
+
+/// A stable slot for a session on one provider: the same session keeps the
+/// same credential across processes and restarts, and two sessions spread
+/// across the credential set. splitmix64's finalizer over an FNV-1a hash of
+/// both inputs, which is v3's `stable_slot` with string ids.
+pub fn sticky_slot(affinity_key: &str, provider_id: &str) -> u64 {
+    let mut value = fnv1a(affinity_key) ^ fnv1a(provider_id).rotate_left(32);
+    value ^= value >> 30;
+    value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 27;
+    value.wrapping_mul(0x94d0_49bb_1331_11eb) ^ (value >> 31)
+}
+
+fn fnv1a(value: &str) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    for byte in value.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
 }

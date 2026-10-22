@@ -62,11 +62,14 @@ Cookie 登录及 Cookie 重新换取令牌、Claude Web 使用浏览器伪装的
 scope 与操作分别记录，坏掉的模型既不藏在健康模型后面，也不拖累它。见
 [凭证可用性](../../design/core-credential-availability.md)。
 
-`CredentialStrategy` 支持 `round_robin` 和 `earliest_reset`；后者按适用于当前请求的
-已观测额度窗口，优先选择最早重置的可用凭证。同时间轮询，缺失有效观测时退回轮询，
-阻断凭证不参与选择。独立配置 `session_affinity` 开启时优先复用成功绑定。
-旧 `sticky`／`round_robin_affinity` 默认保持“轮询＋亲和”，显式亲和开关可覆盖此默认值。
-pin 按调用方 scope 与供应商隔离。详见[会话识别与选择](../../design/session-identity.md)。
+`CredentialStrategy` 支持 `round_robin`、`earliest_reset`、`sticky` 和
+`round_robin_affinity`。默认 `round_robin` 逐次轮询；`earliest_reset` 按适用于当前
+请求的已观测额度窗口，优先选择最早重置的可用凭证，同时间轮询，缺失有效观测时退回轮询。
+`sticky` 将会话与供应商标识确定性地哈希映射到按 ID 排序的可用凭证集合，不依赖请求顺序
+或缓存绑定。`round_robin_affinity` 为未绑定会话轮询分配，成功后复用可用绑定，按调用方
+scope 与供应商隔离，空闲 TTL 为 24 小时。两种亲和策略在没有稳定会话时均退回普通轮询。
+阻断及无权限的凭证不参与选择，不再提供独立的供应商 `session_affinity` 开关。
+详见[会话识别与选择](../../design/session-identity.md)。
 
 所有渠道均提供供应商配置 `forward_thinking`（默认 `true`，Console 中为“传递思考块”）。
 设为 `false` 后，在协议转换和发送上游前，移除 Claude、Responses（含 WebSocket）、Chat、

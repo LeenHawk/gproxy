@@ -365,6 +365,7 @@ fn custom_describes_an_api_key_upstream() {
     );
     // The host's own keys ride along on every channel.
     assert!(descriptor.config_key("credential_strategy").is_some());
+    assert!(descriptor.config_key("session_affinity").is_none());
     assert_eq!(
         descriptor.config_key("allowed_headers").unwrap().kind,
         ConfigKeyKind::HeaderList

@@ -360,7 +360,6 @@
   "Required, unlike every other family: the id *is* the `client_id` a third-party binary was built with, so it cannot be generated here.": "此字段必填，与其他分类不同：ID 就是第三方程序内置的 `client_id`，不能在此自动生成。",
   "Resealed and version-bumped; peers then reload this credential alone.": "重新密封并递增版本号；其他实例随后只重新加载此凭证。",
   "Restrict price rules to the global scope.": "将价格规则限定在全局范围。",
-  "Reuse a session credential while usable; defaults on for legacy sticky strategies.": "会话凭证仍可用时复用它；对旧版 sticky 策略默认开启。",
   "Reuse after an uncertain reply to avoid consuming another grant.": "响应结果不确定时复用，以免再次消耗授权。",
   "Rewrite OpenAI's service_tier `fast` into OpenRouter's `priority`; on by default.": "把 OpenAI 的 service_tier `fast` 改写为 OpenRouter 的 `priority`，默认开启。",
   "Rewrites that hide one client application's identity from the upstream.": "向上游隐藏某个客户端应用身份的改写规则。",

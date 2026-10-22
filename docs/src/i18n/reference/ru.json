@@ -360,7 +360,6 @@
   "Required, unlike every other family: the id *is* the `client_id` a third-party binary was built with, so it cannot be generated here.": "В отличие от любого другого семейства обязателен: идентификатор *является* `client_id`, с помощью которого был собран сторонний двоичный файл, поэтому его нельзя сгенерировать здесь.",
   "Resealed and version-bumped; peers then reload this credential alone.": "Секрет перешифрован, версия увеличена; другие узлы перечитывают только эту запись учётных данных.",
   "Restrict price rules to the global scope.": "Ограничьте ценовые правила глобальной областью действия.",
-  "Reuse a session credential while usable; defaults on for legacy sticky strategies.": "Повторно использовать учётные данные сеанса, пока они пригодны. Для устаревших стратегий с постоянной привязкой включено по умолчанию.",
   "Reuse after an uncertain reply to avoid consuming another grant.": "Используйте повторно после неопределенного ответа, чтобы не использовать еще один грант.",
   "Rewrite OpenAI's service_tier `fast` into OpenRouter's `priority`; on by default.": "Перепишите service_tier `fast` OpenAI в `priority` OpenRouter; включен по умолчанию.",
   "Rewrites that hide one client application's identity from the upstream.": "Переписывает, скрывая личность одного клиентского приложения от провайдера.",

@@ -151,7 +151,6 @@
     "console_base_url": "Базовый URL консоли",
     "context_window": "Контекстное окно",
     "control_base_url": "Базовый URL управления",
-    "session_affinity": "Привязка сеанса",
     "credential_strategy": "Стратегия выбора учётных данных",
     "deployment": "Развёртывание",
     "device_authorization_url": "URL авторизации устройства",

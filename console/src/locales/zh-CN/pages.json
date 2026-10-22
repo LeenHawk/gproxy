@@ -151,7 +151,6 @@
     "console_base_url": "控制台地址",
     "context_window": "上下文长度",
     "control_base_url": "管理服务地址",
-    "session_affinity": "会话亲和",
     "credential_strategy": "凭证选择策略",
     "deployment": "部署名称",
     "device_authorization_url": "设备授权地址",

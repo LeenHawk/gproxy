@@ -160,24 +160,3 @@ pub(crate) fn order(
     run.append(&mut fallback);
     run.into_iter().map(|candidate| candidate.target).collect()
 }
-
-/// A stable slot for a session on one provider: the same session keeps the
-/// same credential across processes and restarts, and two sessions spread
-/// across the credential set. splitmix64's finalizer over an FNV-1a hash of
-/// both inputs, which is v3's `stable_slot` with string ids.
-pub(crate) fn stable_slot(affinity_key: &str, provider_id: &str) -> u64 {
-    let mut value = fnv1a(affinity_key) ^ fnv1a(provider_id).rotate_left(32);
-    value ^= value >> 30;
-    value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
-    value ^= value >> 27;
-    value.wrapping_mul(0x94d0_49bb_1331_11eb) ^ (value >> 31)
-}
-
-fn fnv1a(value: &str) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325u64;
-    for byte in value.as_bytes() {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    hash
-}
