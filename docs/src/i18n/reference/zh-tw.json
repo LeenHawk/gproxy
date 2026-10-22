@@ -894,5 +894,10 @@
   "Source: `openai/types/realtime/realtime_transcription_session_create_response.py`, `Audio`.": "來源：`openai/types/realtime/realtime_transcription_session_create_response.py`, `Audio`。",
   "Source: `openai/types/realtime/realtime_transcription_session_create_response.py`, `RealtimeTranscriptionSessionCreateResponse`.": "來源：`openai/types/realtime/realtime_transcription_session_create_response.py`, `RealtimeTranscriptionSessionCreateResponse`。",
   "Source: `openai/types/realtime/realtime_transcription_session_turn_detection.py`, `RealtimeTranscriptionSessionTurnDetection`.": "來源：`openai/types/realtime/realtime_transcription_session_turn_detection.py`, `RealtimeTranscriptionSessionTurnDetection`。",
-  "Successful response without a body": "成功回應，不含本文。"
+  "Successful response without a body": "成功回應，不含本文。",
+  "Earlier Responses references represented MCP errors as strings.": "早期 Responses 參考文件將 MCP 錯誤表示為字串。",
+  "Newer API responses report this even when null; older responses omit it.": "新版 API 回應即使值為 null 也會傳回此欄位；舊版回應會省略它。",
+  "Non-overlapping write counts by lifetime; their sum is `cache_write_tokens`. Source: upstream_docs/openai/docs/Prompt caching.md, Monitor cache performance.": "依有效期劃分、互不重疊的寫入計數，總和為 `cache_write_tokens`。來源：upstream_docs/openai/docs/Prompt caching.md，Monitor cache performance。",
+  "Request-wide lifetimes from upstream_docs/openai/docs/Prompt caching.md. The 2026-10-20 release predates the reference's request-level TTL enum update.": "請求層級有效期取自 upstream_docs/openai/docs/Prompt caching.md。2026-10-20 版本早於參考文件中請求層級 TTL 列舉的更新。",
+  "Source: upstream_docs/openai/docs/Create a model response.md, access_programs.": "來源：upstream_docs/openai/docs/Create a model response.md，access_programs。"
 }

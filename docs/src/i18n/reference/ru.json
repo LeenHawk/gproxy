@@ -894,5 +894,10 @@
   "Source: `openai/types/realtime/realtime_transcription_session_create_response.py`, `Audio`.": "Источник: `openai/types/realtime/realtime_transcription_session_create_response.py`, `Audio`.",
   "Source: `openai/types/realtime/realtime_transcription_session_create_response.py`, `RealtimeTranscriptionSessionCreateResponse`.": "Источник: `openai/types/realtime/realtime_transcription_session_create_response.py`, `RealtimeTranscriptionSessionCreateResponse`.",
   "Source: `openai/types/realtime/realtime_transcription_session_turn_detection.py`, `RealtimeTranscriptionSessionTurnDetection`.": "Источник: `openai/types/realtime/realtime_transcription_session_turn_detection.py`, `RealtimeTranscriptionSessionTurnDetection`.",
-  "Successful response without a body": "Успешный ответ без тела"
+  "Successful response without a body": "Успешный ответ без тела",
+  "Earlier Responses references represented MCP errors as strings.": "В ранних версиях справочной документации Responses ошибки MCP представлялись строками.",
+  "Newer API responses report this even when null; older responses omit it.": "Новые ответы API содержат это поле даже при значении null; старые ответы его опускают.",
+  "Non-overlapping write counts by lifetime; their sum is `cache_write_tokens`. Source: upstream_docs/openai/docs/Prompt caching.md, Monitor cache performance.": "Непересекающиеся счётчики записи по сроку хранения; их сумма равна `cache_write_tokens`. Источник: upstream_docs/openai/docs/Prompt caching.md, Monitor cache performance.",
+  "Request-wide lifetimes from upstream_docs/openai/docs/Prompt caching.md. The 2026-10-20 release predates the reference's request-level TTL enum update.": "Сроки хранения на уровне запроса из upstream_docs/openai/docs/Prompt caching.md. Версия от 2026-10-20 предшествует обновлению перечисления TTL на уровне запроса в справочной документации.",
+  "Source: upstream_docs/openai/docs/Create a model response.md, access_programs.": "Источник: upstream_docs/openai/docs/Create a model response.md, access_programs."
 }
