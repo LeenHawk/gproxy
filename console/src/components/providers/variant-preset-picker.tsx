@@ -52,7 +52,7 @@ export function VariantPresetPicker({ modelId, channel, initialActions, onApply,
     return { suffix, actions: [...actions, ...initial.preserved.filter((action) => !paths.has(action.path))] }
   }, [groups, initial.preserved, picks, upstream, upstreamPath])
 
-  return <div className="grid gap-3 rounded-md border bg-muted p-3">
+  return <div className="grid grid-cols-1 gap-3 rounded-md border bg-muted p-3">
     <Field>
       <FieldLabel htmlFor={`${id}-protocol`}>{t("providers.models.variantPicker.protocol")}</FieldLabel>
       <Select value={protocol} onValueChange={(value) => { setProtocol(value as VariantProtocol); setPicks({}) }}>
@@ -81,7 +81,7 @@ export function VariantPresetPicker({ modelId, channel, initialActions, onApply,
       }} />
       <FieldDescription id={`${id}-upstreams-description`}>{t("providers.models.variantPicker.upstreamHint")}</FieldDescription>
     </Field> : null}
-    <div className="rounded-md border bg-background p-3 text-xs">
+    <div className="rounded-md border bg-background p-3 text-xs wrap-anywhere">
       <p className="text-muted-foreground">{t("providers.models.variantPicker.suggestedName")}</p>
       <p className="font-mono mt-1">{selection.suffix ? `${modelId}${selection.suffix}` : (modelId || "—")}</p>
       {selection.actions.length > 0 ? <div className="mt-3 grid gap-1">

@@ -28,7 +28,7 @@ export function ProviderModelVariants({ modelId, channel, rows, exposeBase, onRo
     <FieldDescription>{t("providers.models.variantsHint")}</FieldDescription>
     <FieldGroup className="gap-3 sm:grid-cols-1">
       {rows.length === 0 ? <FieldDescription>{t("providers.models.variantsEmpty")}</FieldDescription> : null}
-      {rows.map((row, index) => <div key={index} className="grid gap-2 rounded-md border bg-muted p-3">
+      {rows.map((row, index) => <div key={index} className="grid grid-cols-1 gap-2 rounded-md border bg-muted p-3">
         <Field orientation="horizontal">
           <Input id={`${id}-variant-${index}`} name="model-variant" className="font-mono text-xs" value={row.name} placeholder={placeholder} aria-label={t("providers.models.variantName")} onChange={(event) => setName(index, event.target.value)} />
           <Button type="button" size="icon-sm" variant="ghost" aria-label={t("providers.models.variantRemove")} onClick={() => remove(index)}><XIcon aria-hidden /></Button>
