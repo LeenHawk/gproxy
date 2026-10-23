@@ -7,9 +7,9 @@ use crate::channel::{ChannelError, ProviderView};
 
 /// The region AWS gives every account by default.
 pub const DEFAULT_REGION: &str = "us-east-1";
-/// The `anthropic_version` Bedrock's InvokeModel envelope expects for
-/// Anthropic models; it is not the anthropic.com Messages version.
-pub const DEFAULT_ANTHROPIC_VERSION: &str = "bedrock-2023-05-31";
+/// API version written into Bedrock's InvokeModel envelope. Legacy
+/// ARN-versioned models do not support the 2026-10-21 contract.
+pub const DEFAULT_ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 
 #[derive(Debug, Deserialize)]
 #[serde(default)]

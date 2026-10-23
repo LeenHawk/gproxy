@@ -134,7 +134,9 @@ pub async fn collect_claude<U: Upstream>(
         next.query = query::encode(&pairs);
         let page: c::ListModelsResponseBody = progress.page(upstream, target, next).await?;
         if let (Some(first), Some(last)) = (page.data.first(), page.data.last()) {
-            if first.id != page.first_id || last.id != page.last_id {
+            if page.first_id.as_deref() != Some(first.id.as_str())
+                || page.last_id.as_deref() != Some(last.id.as_str())
+            {
                 return Err(progress.invalid(
                     "pagination",
                     "Claude page boundary IDs disagree with model data",
@@ -144,21 +146,18 @@ pub async fn collect_claude<U: Upstream>(
             return Err(progress.invalid("pagination", "empty Claude page claims continuation"));
         }
         if first_id.is_none() {
-            first_id = Some(page.first_id);
+            first_id = page.first_id;
         }
         for model in page.data {
             progress.item(&model.id)?;
             data.push(model);
         }
         if !page.has_more {
-            let last_id = data
-                .last()
-                .map(|model| model.id.clone())
-                .unwrap_or(page.last_id);
+            let last_id = data.last().map(|model| model.id.clone()).or(page.last_id);
             return Ok(ModelDirectory {
                 value: c::ListModelsResponseBody {
                     data,
-                    first_id: first_id.expect("first page was decoded"),
+                    first_id,
                     last_id,
                     has_more: false,
                     rest: Default::default(),
@@ -166,13 +165,16 @@ pub async fn collect_claude<U: Upstream>(
                 completed_calls: progress.calls,
             });
         }
-        if page.last_id.is_empty() || !cursors.insert(page.last_id.clone()) {
+        let next_cursor = page.last_id.filter(|id| !id.is_empty()).ok_or_else(|| {
+            progress.invalid("pagination.last_id", "missing or empty continuation cursor")
+        })?;
+        if !cursors.insert(next_cursor.clone()) {
             return Err(progress.invalid(
                 "pagination.last_id",
                 "empty or repeated continuation cursor",
             ));
         }
-        cursor = Some(page.last_id);
+        cursor = Some(next_cursor);
     }
 }
 

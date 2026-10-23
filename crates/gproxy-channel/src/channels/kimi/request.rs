@@ -7,7 +7,7 @@ use crate::channels::shared::compatible::http::{insert_configured, strip_query_a
 use gproxy_protocol::{Dialect, HttpBody, WireRequest};
 use http::{HeaderName, HeaderValue, header};
 
-const ANTHROPIC_VERSION: &str = "2023-06-01";
+const ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 
 pub(super) fn build(
     ctx: PrepareContext<'_>,
@@ -41,9 +41,10 @@ pub(super) fn build(
             HeaderName::from_static("x-api-key"),
             HeaderValue::from_str(token).map_err(|_| ChannelError::InvalidCredential)?,
         );
-        headers
-            .entry(HeaderName::from_static("anthropic-version"))
-            .or_insert_with(|| HeaderValue::from_static(ANTHROPIC_VERSION));
+        headers.insert(
+            HeaderName::from_static("anthropic-version"),
+            HeaderValue::from_static(ANTHROPIC_VERSION),
+        );
     } else {
         headers.insert(
             header::AUTHORIZATION,

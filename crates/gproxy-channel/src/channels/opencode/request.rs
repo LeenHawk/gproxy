@@ -151,7 +151,7 @@ pub(super) fn build(
         );
         headers.insert(
             HeaderName::from_static("anthropic-version"),
-            HeaderValue::from_static("2023-06-01"),
+            HeaderValue::from_static(gproxy_protocol::claude::API_VERSION),
         );
     } else {
         headers.insert(

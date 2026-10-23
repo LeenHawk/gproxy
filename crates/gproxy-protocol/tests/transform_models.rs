@@ -35,11 +35,13 @@ fn caps() -> ClaudeCapabilities {
         pdf_input: false,
         structured_outputs: true,
         server_tools: None,
+        compaction: None,
         thinking: ClaudeThinking {
             supported: true,
             adaptive: true,
             enabled: true,
             disabled: None,
+            between_tools: None,
         },
     }
 }
@@ -53,6 +55,9 @@ fn claude_supplement() -> ClaudeModelSupplement {
         max_input_tokens: Some(1000),
         max_tokens: Some(100),
         created_at: Some("2024-01-01T00:00:00Z".into()),
+        lifecycle: None,
+        deprecated_at: None,
+        retires_at: None,
     }
 }
 
@@ -60,8 +65,8 @@ fn claude_model() -> claude_models::ModelInfo {
     {
         let mut fixture = claude_models::ModelInfo::builder(
             "claude-1".into(),
-            vec!["source-fallback".into()],
-            {
+            Some(vec!["source-fallback".into()]),
+            Some({
                 let mut fixture = claude_models::ModelCapabilities::builder(
                     {
                         let mut fixture = claude_models::CapabilitySupport::builder(true).build();
@@ -80,24 +85,24 @@ fn claude_model() -> claude_models::ModelInfo {
                     },
                     {
                         let mut fixture = claude_models::ContextManagementCapability::builder(
-                            {
+                            Some({
                                 let mut fixture =
                                     claude_models::CapabilitySupport::builder(false).build();
                                 fixture.rest = Rest::new();
                                 fixture
-                            },
-                            {
+                            }),
+                            Some({
                                 let mut fixture =
                                     claude_models::CapabilitySupport::builder(false).build();
                                 fixture.rest = Rest::new();
                                 fixture
-                            },
-                            {
+                            }),
+                            Some({
                                 let mut fixture =
                                     claude_models::CapabilitySupport::builder(false).build();
                                 fixture.rest = Rest::new();
                                 fixture
-                            },
+                            }),
                             false,
                         )
                         .build();
@@ -131,12 +136,12 @@ fn claude_model() -> claude_models::ModelInfo {
                                 fixture
                             },
                             false,
-                            {
+                            Some({
                                 let mut fixture =
                                     claude_models::CapabilitySupport::builder(false).build();
                                 fixture.rest = Rest::new();
                                 fixture
-                            },
+                            }),
                         )
                         .build();
                         fixture.rest = Rest::new();
@@ -185,11 +190,11 @@ fn claude_model() -> claude_models::ModelInfo {
                 .build();
                 fixture.rest = Rest::new();
                 fixture
-            },
+            }),
             "2024-01-01T00:00:00Z".into(),
             "Source display".into(),
-            1000,
-            100,
+            Some(1000),
+            Some(100),
             claude_models::ModelType::Model,
         )
         .build();
@@ -302,8 +307,16 @@ fn source_rest_is_not_tunneled_and_nested_rest_is_empty() {
         .unwrap()
         .value;
     assert!(converted.rest.is_empty());
-    assert!(converted.capabilities.rest.is_empty());
-    assert!(converted.capabilities.batch.rest.is_empty());
+    assert!(converted.capabilities.as_ref().unwrap().rest.is_empty());
+    assert!(
+        converted
+            .capabilities
+            .as_ref()
+            .unwrap()
+            .batch
+            .rest
+            .is_empty()
+    );
 }
 
 #[test]
@@ -339,7 +352,7 @@ fn required_metadata_and_time_fail_without_fabrication() {
 }
 
 #[test]
-fn pagination_requires_facts_and_complete_empty_list_needs_ids() {
+fn pagination_requires_facts_and_complete_empty_list_has_null_ids() {
     let body = {
         let mut fixture = openai_models::ListModelsResponseBody::builder(
             vec![openai_model()],
@@ -362,7 +375,7 @@ fn pagination_requires_facts_and_complete_empty_list_needs_ids() {
     )
     .unwrap()
     .value;
-    assert_eq!(converted.first_id, "openai-1");
+    assert_eq!(converted.first_id.as_deref(), Some("openai-1"));
     assert!(!converted.has_more);
 
     let empty = {
@@ -372,7 +385,7 @@ fn pagination_requires_facts_and_complete_empty_list_needs_ids() {
         fixture.rest = Rest::new();
         fixture
     };
-    assert!(openai_to_claude_list(empty, &BTreeMap::new(), &ListPageFacts::complete()).is_err());
+    assert!(openai_to_claude_list(empty, &BTreeMap::new(), &ListPageFacts::complete()).is_ok());
 }
 
 #[test]
@@ -395,9 +408,9 @@ fn all_list_directions_require_source_and_target_pagination_facts() {
     let claude_body = {
         let mut fixture = claude_models::ListModelsResponseBody::builder(
             vec![claude_model()],
-            "claude-1".into(),
+            Some("claude-1".into()),
             false,
-            "claude-1".into(),
+            Some("claude-1".into()),
         )
         .build();
         fixture.rest = Rest::new();
@@ -660,5 +673,66 @@ fn gemini_to_claude_requires_valid_supplied_timestamp() {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.field == "model.capabilities.thinking.types")
+    );
+}
+
+#[test]
+fn nullable_claude_model_facts_are_not_invented_by_conversion() {
+    use serde_json::json;
+    let source = json!({
+        "id": "retired-model", "type": "model", "created_at": "2024-01-01T00:00:00Z",
+        "display_name": "Retired model", "line": null, "allowed_fallback_models": null,
+        "capabilities": null, "max_input_tokens": null, "max_tokens": null,
+        "lifecycle": "retired", "deprecated_at": "2025-01-01T00:00:00Z", "retires_at": null
+    });
+    let model: claude_models::ModelInfo = serde_json::from_value(source.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&model).unwrap(), source);
+    let chat = claude_to_openai(
+        model.clone(),
+        &OpenAiModelSupplement {
+            owned_by: "anthropic".into(),
+            created: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(chat.value.context_window, None);
+    assert_eq!(chat.value.thinking_supported, None);
+    assert!(
+        chat.report
+            .diagnostics
+            .iter()
+            .any(|item| item.field == "model.lifecycle")
+    );
+    let gemini = claude_to_gemini(model, &gemini_supplement()).unwrap();
+    assert_eq!(gemini.value.input_token_limit, None);
+    assert_eq!(gemini.value.output_token_limit, None);
+    assert_eq!(gemini.value.thinking, None);
+
+    let mut supplement = claude_supplement();
+    supplement.capabilities.thinking.between_tools = Some(true);
+    let claude = openai_to_claude(openai_model(), &supplement).unwrap();
+    assert!(
+        claude
+            .value
+            .capabilities
+            .unwrap()
+            .thinking
+            .types
+            .between_tools
+            .unwrap()
+            .supported
+    );
+}
+
+#[test]
+fn empty_complete_model_directory_has_null_claude_boundaries() {
+    let input = serde_json::from_value(serde_json::json!({"object":"list", "data":[]})).unwrap();
+    let converted =
+        openai_to_claude_list(input, &BTreeMap::new(), &ListPageFacts::complete()).unwrap();
+    assert_eq!(
+        serde_json::to_value(converted.value).unwrap(),
+        serde_json::json!({
+            "data":[], "first_id":null, "last_id":null, "has_more":false
+        })
     );
 }

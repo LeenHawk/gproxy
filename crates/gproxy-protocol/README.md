@@ -254,3 +254,32 @@ Text/summary fragments append; encrypted data and signatures are snapshots, so r
 snapshots do not concatenate ciphertext. Plain Chat reasoning without matching signed details
 still produces an empty Claude signature. Direct Responses/Claude conversions keep their
 existing original-bound state restoration path.
+
+
+## Claude API 2026-10-21
+
+`claude::API_VERSION` is the current contract and the default version used by
+Claude channels, including the `anthropic_version` body field on Vertex and
+Bedrock. Bedrock's legacy ARN-versioned models do not support this version;
+use a model supported by the new API before upgrading those workloads.
+
+The Claude wire types no longer declare `temperature`, `top_p` or `top_k`.
+Chat, Responses and Gemini conversions omit those parameters and report the
+loss, regardless of the client's headers. Generation and token-count conversions
+move direct assistant documents into user messages in their original order and
+omit user-text citations while retaining document/search-result citation settings.
+System messages may omit `content`; their control updates are applied before the
+empty message is omitted during conversion.
+
+Core also applies `adapt::generate::claude_compat` to native Messages and token-count
+requests before channel dispatch. Legacy client sampling fields are ignored;
+assistant documents and user-text citations are adapted to the current contract.
+This path preserves unknown provider fields, tool inputs and unchanged request
+bytes, and buffers streaming request bodies within the configured request limit.
+A request carrying a fallback credit is left untouched because the credit binds
+its original payload. Format compatibility cannot restore removed sampling
+semantics or make legacy Bedrock models support the new API.
+
+Claude model metadata declares `between_tools`, compaction capabilities and
+lifecycle dates. Nullable capabilities, token limits and empty-page boundaries
+remain unknown or null during conversion instead of becoming fabricated facts.

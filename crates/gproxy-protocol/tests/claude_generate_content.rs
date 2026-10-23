@@ -21,7 +21,7 @@ fn generate_request_full_fixture_round_trips_and_keeps_http_metadata_outside_bod
         "tools":[{"name":"search","input_schema":{"type":"object","properties":{"query":{"type":"string"}}},"description":"Search"}],
         "output_config":{"effort":"high","task_budget":{"type":"tokens","total":100}},
         "service_tier":"auto","speed":"fast","stop_sequences":["END"],"stream":false,
-        "system":"be helpful","temperature":0.2,"top_k":20,"top_p":0.9,
+        "system":"be helpful",
         "future": {"x": true}
     });
     let body: GenerateContentRequestBody = serde_json::from_value(json.clone()).unwrap();
@@ -372,4 +372,21 @@ fn typed_builders_emit_tags_and_preserve_explicit_null_without_rest() {
         serde_json::to_value(pending).unwrap(),
         json!({"cache_miss_reason":null})
     );
+}
+
+#[test]
+fn system_controls_can_omit_content_without_accepting_empty_user_or_null_content() {
+    use gproxy_protocol::claude::content::Message;
+    use serde_json::json;
+    let message = round_trip_known::<Message>(json!({
+        "role": "system", "output_config": {"effort": "high"}
+    }));
+    assert!(message.content.is_absent());
+    for value in [
+        json!({"role":"user"}),
+        json!({"role":"assistant"}),
+        json!({"role":"system", "content":null}),
+    ] {
+        assert!(serde_json::from_value::<Message>(value).is_err());
+    }
 }

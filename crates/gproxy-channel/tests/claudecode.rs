@@ -222,7 +222,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     );
     let h = request.headers();
     assert_eq!(h["authorization"], "Bearer at-1");
-    assert_eq!(h["anthropic-version"], "2023-06-01");
+    assert_eq!(h["anthropic-version"], "2026-10-21");
     assert_eq!(
         h["anthropic-beta"], "oauth-2025-04-20,feature-x,fast-mode-2026-02-01",
         "oauth beta first, client betas kept, context-1m stripped, fast mode derived"
@@ -1594,7 +1594,7 @@ async fn catalog_routes_forward_under_every_view_with_the_cli_identity() {
     );
     assert_eq!(h["authorization"], "Bearer at");
     assert_eq!(h["anthropic-beta"], "oauth-2025-04-20");
-    assert_eq!(h["anthropic-version"], "2023-06-01");
+    assert_eq!(h["anthropic-version"], "2026-10-21");
     assert_eq!(h["user-agent"], "claude-cli/2.1.302 (external, sdk-cli)");
     assert_eq!(h["x-app"], "cli");
     assert_eq!(h["cache-control"], "no-cache");

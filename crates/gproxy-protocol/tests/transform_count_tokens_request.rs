@@ -268,3 +268,37 @@ fn count_image_constraints_and_tool_exclusion_use_the_same_native_rules() {
     let required:o::CountTokensRequestBody=serde_json::from_value(json!({"input":"task","tools":[{"type":"image_generation"},{"type":"function","name":"f","parameters":{},"strict":false}],"tool_choice":"required"})).unwrap();
     assert!(openai_to_gemini(required, "selected", Default::default()).is_ok());
 }
+
+#[test]
+fn system_control_only_updates_are_applied_before_counting() {
+    let input: c::CountTokensRequestBody = serde_json::from_value(json!({
+        "model":"source", "messages":[{"role":"user", "content":"hello"},
+            {"role":"system", "output_config":{"effort":"high"}}]
+    }))
+    .unwrap();
+    let openai =
+        claude_to_openai(input.clone(), "gpt", &mut flow(), &policy(Dialect::OpenAi)).unwrap();
+    let gemini = claude_to_gemini(
+        input,
+        "gemini",
+        Default::default(),
+        &mut flow(),
+        &policy(Dialect::Gemini),
+    )
+    .unwrap();
+    let openai = serde_json::to_value(openai.value).unwrap();
+    let gemini = serde_json::to_value(gemini.value).unwrap();
+    assert_eq!(openai["input"].as_array().unwrap().len(), 1);
+    assert_eq!(openai["reasoning"]["effort"], "high");
+    assert_eq!(
+        gemini["generateContentRequest"]["contents"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        gemini["generateContentRequest"]["generationConfig"]["thinkingConfig"]["thinkingLevel"],
+        "HIGH"
+    );
+}

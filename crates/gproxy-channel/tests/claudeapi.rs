@@ -182,7 +182,7 @@ fn routes_every_native_dialect_and_injects_the_api_key() {
     );
     let headers = messages.headers();
     assert_eq!(headers["x-api-key"], "sk-ant-upstream", "trimmed");
-    assert_eq!(headers["anthropic-version"], "2023-06-01");
+    assert_eq!(headers["anthropic-version"], "2026-10-21");
     assert!(
         headers.get("authorization").is_none(),
         "source authentication never reaches the upstream"
@@ -359,11 +359,11 @@ fn shapes_messages_bodies_and_derives_the_body_triggered_betas() {
         )
         .unwrap(),
     );
-    assert_eq!(tolerant["temperature"], 0.5);
-    assert_eq!(tolerant["top_k"], 8);
+    assert!(tolerant.get("temperature").is_none());
+    assert!(tolerant.get("top_k").is_none());
     assert!(
         tolerant.get("top_p").is_none(),
-        "temperature and top_p together are still refused"
+        "API 2026-10-21 rejects sampling parameters even on older models"
     );
     assert_eq!(
         tolerant["messages"][0]["role"], "assistant",
@@ -625,7 +625,7 @@ async fn reads_the_organization_cost_report_with_the_admin_key() {
         headers["x-api-key"], "sk-ant-admin",
         "the Admin key, not the inference key"
     );
-    assert_eq!(headers["anthropic-version"], "2023-06-01");
+    assert_eq!(headers["anthropic-version"], "2026-10-21");
 
     assert_eq!(snapshot.entries.len(), 1);
     support::assert_quota_contract(None, &[], &snapshot.entries, OBSERVE_ONLY);

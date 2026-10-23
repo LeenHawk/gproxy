@@ -71,7 +71,7 @@ fn claude_controls_and_opaque_blocks_do_not_veto_supported_content() {
         .value,
     );
     has_text(&gemini);
-    assert_eq!(gemini["generationConfig"]["topK"], 17);
+    assert!(gemini["generationConfig"].get("topK").is_none());
     assert_eq!(
         gemini["generationConfig"]["thinkingConfig"]["thinkingBudget"],
         12

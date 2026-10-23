@@ -291,7 +291,7 @@ fn anthropic_models_move_to_raw_predict_and_lose_the_body_model() {
     // requires its own version in the body instead.
     assert!(generate.headers().get("anthropic-version").is_none());
     let body = body_of(generate);
-    assert_eq!(body["anthropic_version"], "vertex-2023-10-16");
+    assert_eq!(body["anthropic_version"], "2026-10-21");
     assert!(body.get("model").is_none(), "the URL already names it");
     assert_eq!(body["max_tokens"], 16);
 

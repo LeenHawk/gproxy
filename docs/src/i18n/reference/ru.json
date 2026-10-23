@@ -584,7 +584,6 @@
   "The answer to `reveal`, for a key whose secret the instance was asked to retain. Separate from [`ApiKeyDto`] so a plaintext can never ride along with an ordinary read.": "Ответ на `reveal` для ключа, секрет которого экземпляру было предложено сохранить. Отдельно от [`ApiKeyDto`], чтобы открытый текст никогда не мог сопровождать обычное чтение.",
   "The answer to a reveal. Separate from [`PortalKeyDto`] so a plaintext can never ride along with an ordinary read.": "Ответ на запрос раскрытия секрета. Отделён от [`PortalKeyDto`], чтобы открытый текст никогда не попадал в обычные ответы чтения.",
   "The answer to an apply or a rollback.": "Результат установки обновления или отката.",
-  "The anthropic_version written into every Anthropic request body; defaults to bedrock-2023-05-31.": "Значение anthropic_version в теле каждого запроса Anthropic; по умолчанию bedrock-2023-05-31.",
   "The artifact key the manifest was searched for, e.g. `x86_64-unknown-linux-gnu`.": "Ключ артефакта, который был найден в манифесте, например, `x86_64-unknown-linux-gnu`.",
   "The bare authorization code, for a caller that already parsed it.": "Простой код авторизации для клиента API, который уже проанализировал его.",
   "The base64url SHA-256 of the client's verifier (RFC 7636 §4.2).": "Base64url SHA-256 верификатора клиента (RFC 7636 §4.2).",
@@ -898,5 +897,9 @@
   "Newer API responses report this even when null; older responses omit it.": "Новые ответы API содержат это поле даже при значении null; старые ответы его опускают.",
   "Non-overlapping write counts by lifetime; their sum is `cache_write_tokens`. Source: upstream_docs/openai/docs/Prompt caching.md, Monitor cache performance.": "Непересекающиеся счётчики записи по сроку хранения; их сумма равна `cache_write_tokens`. Источник: upstream_docs/openai/docs/Prompt caching.md, Monitor cache performance.",
   "Request-wide lifetimes from upstream_docs/openai/docs/Prompt caching.md. The 2026-10-20 release predates the reference's request-level TTL enum update.": "Сроки хранения на уровне запроса из upstream_docs/openai/docs/Prompt caching.md. Версия от 2026-10-20 предшествует обновлению перечисления TTL на уровне запроса в справочной документации.",
-  "Source: upstream_docs/openai/docs/Create a model response.md, access_programs.": "Источник: upstream_docs/openai/docs/Create a model response.md, access_programs."
+  "Source: upstream_docs/openai/docs/Create a model response.md, access_programs.": "Источник: upstream_docs/openai/docs/Create a model response.md, access_programs.",
+  "A system message can change controls without sending content.": "Сообщение system может изменять параметры управления без передачи содержимого.",
+  "The lifecycle is authoritative; a past scheduled retirement date alone does not mean that a model has retired.": "Определяющим является состояние жизненного цикла: прошедшая плановая дата вывода из эксплуатации сама по себе не означает, что модель уже выведена из эксплуатации.",
+  "Required for user and assistant messages; system messages may omit it.": "Обязательно для сообщений user и assistant; в сообщениях system поле можно опустить.",
+  "The anthropic_version written into every Anthropic request body; defaults to 2026-10-21.": "Значение anthropic_version в теле каждого запроса Anthropic; по умолчанию 2026-10-21."
 }

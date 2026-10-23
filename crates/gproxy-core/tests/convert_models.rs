@@ -344,3 +344,56 @@ async fn chat_client_count_tokens_is_unsupported_without_an_upstream_call() {
     assert!(matches!(error, CoreError::Transform(_)), "{error:?}");
     assert!(h.client.seen.lines().is_empty());
 }
+
+#[tokio::test]
+async fn native_legacy_claude_requests_are_upgraded_before_channel_dispatch() {
+    for operation in [
+        Operation::GenerateContent,
+        Operation::StreamGenerateContent,
+        Operation::CountTokens,
+    ] {
+        let h = harness(full(), "round_robin").await;
+        h.script(vec![json_reply(StatusCode::OK, json!({"input_tokens":2}))]);
+        let ctx = h.context_for("claude", key(operation, Dialect::Claude), "legacy", 1, None);
+        let mut source = json!({"model":"m1", "max_tokens":32, "temperature":0.2,
+        "x-extension":{"keep":true}, "messages":[{"role":"assistant", "content":[
+            {"type":"document", "source":{"type":"text", "media_type":"text/plain", "data":"doc"}, "citations":{"enabled":true}}
+        ]}]});
+        let path = if operation == Operation::CountTokens {
+            source.as_object_mut().unwrap().remove("max_tokens");
+            "/v1/messages/count_tokens"
+        } else {
+            if operation == Operation::StreamGenerateContent {
+                source["stream"] = json!(true);
+            }
+            "/v1/messages"
+        };
+        let mut wire = post(path, source.clone());
+        // One attempt and a streaming request body exercise native buffering,
+        // rather than relying on the conversion path to collect it first.
+        wire.body = HttpBody::Stream(Box::pin(futures_util::stream::iter([Ok(Bytes::from(
+            source.to_string(),
+        ))])));
+        let execution = match operation {
+            Operation::GenerateContent => h.core.generate_content(ctx, wire).await,
+            Operation::StreamGenerateContent => h.core.stream_generate_content(ctx, wire).await,
+            Operation::CountTokens => h.core.count_tokens(ctx, wire).await,
+            _ => unreachable!(),
+        }
+        .unwrap();
+        let (response, completion) = execution.into_parts();
+        assert_eq!(response.status, StatusCode::OK);
+        read(response.body).await;
+        completion.await.unwrap();
+        let seen = h.client.seen.lines();
+        let body: serde_json::Value =
+            serde_json::from_str(seen[0].split_once(" body=").unwrap().1).unwrap();
+        assert!(body.get("temperature").is_none());
+        assert_eq!(body["messages"][0]["role"], "user");
+        assert_eq!(
+            body["messages"][0]["content"][0]["citations"]["enabled"],
+            true
+        );
+        assert_eq!(body["x-extension"], source["x-extension"]);
+    }
+}

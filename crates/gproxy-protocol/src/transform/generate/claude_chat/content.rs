@@ -408,6 +408,7 @@ pub(crate) fn openai_message_to_claude(
 
 fn claude_text(content: &c::MessageContent) -> Result<chat::TextContent, TransformError> {
     Ok(match content {
+        c::MessageContent::Absent => chat::TextContent::Parts(Vec::new()),
         c::MessageContent::Text(text) => chat::TextContent::Text(text.clone()),
         c::MessageContent::Blocks(blocks) => {
             let parts = blocks
@@ -523,6 +524,7 @@ fn claude_blocks(
     content: &c::MessageContent,
 ) -> Result<Cow<'_, [c::ContentBlock]>, TransformError> {
     Ok(match content {
+        c::MessageContent::Absent => Cow::Borrowed(&[]),
         c::MessageContent::Text(text) => Cow::Owned(vec![text_block(text.clone())]),
         c::MessageContent::Blocks(blocks) => Cow::Borrowed(blocks),
     })

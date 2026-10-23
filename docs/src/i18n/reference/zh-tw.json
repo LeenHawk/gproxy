@@ -584,7 +584,6 @@
   "The answer to `reveal`, for a key whose secret the instance was asked to retain. Separate from [`ApiKeyDto`] so a plaintext can never ride along with an ordinary read.": "對已要求例項保留秘密的金鑰執行 `reveal` 的結果。與 [`ApiKeyDto`] 分離，確保普通讀取不會攜帶明文。",
   "The answer to a reveal. Separate from [`PortalKeyDto`] so a plaintext can never ride along with an ordinary read.": "顯式讀取秘密的結果。與 [`PortalKeyDto`] 分離，確保普通讀取不會攜帶明文。",
   "The answer to an apply or a rollback.": "應用更新或回滾的結果。",
-  "The anthropic_version written into every Anthropic request body; defaults to bedrock-2023-05-31.": "寫入每個 Anthropic 請求體的 anthropic_version，預設為 bedrock-2023-05-31。",
   "The artifact key the manifest was searched for, e.g. `x86_64-unknown-linux-gnu`.": "在清單中查詢的產物鍵，例如 `x86_64-unknown-linux-gnu`。",
   "The bare authorization code, for a caller that already parsed it.": "已自行解析回撥的呼叫者可直接提供授權碼。",
   "The base64url SHA-256 of the client's verifier (RFC 7636 §4.2).": "客戶端 verifier 的 SHA-256，以 base64url 編碼（RFC 7636 §4.2）。",
@@ -898,5 +897,9 @@
   "Newer API responses report this even when null; older responses omit it.": "新版 API 回應即使值為 null 也會傳回此欄位；舊版回應會省略它。",
   "Non-overlapping write counts by lifetime; their sum is `cache_write_tokens`. Source: upstream_docs/openai/docs/Prompt caching.md, Monitor cache performance.": "依有效期劃分、互不重疊的寫入計數，總和為 `cache_write_tokens`。來源：upstream_docs/openai/docs/Prompt caching.md，Monitor cache performance。",
   "Request-wide lifetimes from upstream_docs/openai/docs/Prompt caching.md. The 2026-10-20 release predates the reference's request-level TTL enum update.": "請求層級有效期取自 upstream_docs/openai/docs/Prompt caching.md。2026-10-20 版本早於參考文件中請求層級 TTL 列舉的更新。",
-  "Source: upstream_docs/openai/docs/Create a model response.md, access_programs.": "來源：upstream_docs/openai/docs/Create a model response.md，access_programs。"
+  "Source: upstream_docs/openai/docs/Create a model response.md, access_programs.": "來源：upstream_docs/openai/docs/Create a model response.md，access_programs。",
+  "A system message can change controls without sending content.": "system 訊息可以只更新控制欄位，不傳送內文。",
+  "The lifecycle is authoritative; a past scheduled retirement date alone does not mean that a model has retired.": "模型是否退役以生命週期狀態為準；預定退役日期已過，並不單獨表示模型已經退役。",
+  "Required for user and assistant messages; system messages may omit it.": "user 和 assistant 訊息必須包含此欄位，system 訊息可以省略。",
+  "The anthropic_version written into every Anthropic request body; defaults to 2026-10-21.": "寫入每個 Anthropic 請求體的 anthropic_version，預設為 2026-10-21。"
 }

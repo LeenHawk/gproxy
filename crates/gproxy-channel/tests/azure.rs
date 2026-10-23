@@ -139,7 +139,7 @@ fn v1_surface_mounts_each_family_under_its_prefix() {
         "https://contoso.openai.azure.com/anthropic/v1/messages"
     );
     assert_eq!(messages.headers()["x-api-key"], "azure-secret");
-    assert_eq!(messages.headers()["anthropic-version"], "2023-06-01");
+    assert_eq!(messages.headers()["anthropic-version"], "2026-10-21");
     assert!(messages.headers().get("api-key").is_none());
     // A vendor header the client sent still rides along.
     assert_eq!(messages.headers()["anthropic-beta"], "files-api");

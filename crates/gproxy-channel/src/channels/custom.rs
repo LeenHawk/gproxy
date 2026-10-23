@@ -10,8 +10,7 @@
 
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
-    forwardable,
+    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable,
 };
 use crate::channels::shared::cache;
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily, WireRequest};
@@ -19,7 +18,7 @@ use http::{HeaderName, HeaderValue, header};
 use serde::Deserialize;
 
 pub const ID: &str = "custom";
-const DEFAULT_ANTHROPIC_VERSION: &str = "2023-06-01";
+const DEFAULT_ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 
 /// Provider `config` JSON understood by this channel. Unknown keys are ignored.
 #[derive(Debug, Default, Deserialize)]
@@ -120,9 +119,6 @@ impl Custom {
                     HeaderName::from_static("x-api-key"),
                     HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
                 );
-                headers
-                    .entry(HeaderName::from_static("anthropic-version"))
-                    .or_insert_with(|| HeaderValue::from_static(DEFAULT_ANTHROPIC_VERSION));
             }
             (None, WireFamily::Gemini) => {
                 headers.insert(
@@ -130,6 +126,12 @@ impl Custom {
                     HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
                 );
             }
+        }
+        if family == WireFamily::Claude {
+            headers.insert(
+                HeaderName::from_static("anthropic-version"),
+                HeaderValue::from_static(DEFAULT_ANTHROPIC_VERSION),
+            );
         }
         for (name, value) in &config.headers {
             headers.insert(
@@ -237,7 +239,10 @@ impl BaseChannel for Custom {
             HttpBody::Bytes(bytes) => {
                 let bytes = cache::shape(bytes, rules);
                 if operation.dialect == Dialect::Claude
-                    && matches!(operation.operation, Operation::GenerateContent | Operation::StreamGenerateContent)
+                    && matches!(
+                        operation.operation,
+                        Operation::GenerateContent | Operation::StreamGenerateContent
+                    )
                     && let Ok(mut body) = serde_json::from_slice::<serde_json::Value>(&bytes)
                 {
                     // `None` when the builder already holds an error, such as a
@@ -246,12 +251,16 @@ impl BaseChannel for Custom {
                         ChannelError::InvalidConfig("custom request could not be built".into())
                     })?;
                     crate::channels::shared::claude_fallback::fallbacks(
-                        &mut body, headers,
-                        &config.fallback_mode, &config.fallback_models,
+                        &mut body,
+                        headers,
+                        &config.fallback_mode,
+                        &config.fallback_models,
                     );
                     HttpBody::Bytes(gproxy_protocol::connection::Bytes::from(body.to_string()))
-                } else { HttpBody::Bytes(bytes) }
-            },
+                } else {
+                    HttpBody::Bytes(bytes)
+                }
+            }
             other => other,
         };
         builder

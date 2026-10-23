@@ -29,6 +29,7 @@ pub(crate) fn to_responses(
             c::Role::System => r::MessageRole::System,
         };
         let blocks = match message.content {
+            c::MessageContent::Absent => continue,
             c::MessageContent::Text(text) => {
                 out.push(easy(role, r::MessageContent::Text(text)));
                 continue;

@@ -151,6 +151,7 @@ pub(crate) fn prepare_claude(
     };
     let applied = if let Some(message) = input.messages.last_mut() {
         match &mut message.content {
+            c::MessageContent::Absent => false,
             c::MessageContent::Text(text) => {
                 let mut block =
                     c::TextBlock::builder(c::TextBlockType::Tag, std::mem::take(text)).build();
@@ -214,7 +215,7 @@ fn has_claude_markers(input: &cg::GenerateContentRequestBody) -> bool {
         return true;
     }
     input.messages.iter().any(|message| match &message.content {
-        c::MessageContent::Text(_) => false,
+        c::MessageContent::Absent | c::MessageContent::Text(_) => false,
         c::MessageContent::Blocks(blocks) => blocks.iter().any(|block| match block {
             c::ContentBlock::Text(block) => block.cache_control.is_some(),
             c::ContentBlock::Image(block) => block.cache_control.is_some(),

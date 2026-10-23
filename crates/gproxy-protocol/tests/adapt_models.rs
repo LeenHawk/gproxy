@@ -206,10 +206,18 @@ fn claude_pages_preserve_boundaries_and_clear_nested_extensions() {
         limits(),
     ))
     .unwrap();
-    assert_eq!(result.value.first_id, "a");
-    assert_eq!(result.value.last_id, "b");
+    assert_eq!(result.value.first_id.as_deref(), Some("a"));
+    assert_eq!(result.value.last_id.as_deref(), Some("b"));
     assert!(!result.value.has_more);
-    assert!(result.value.data[0].capabilities.batch.rest.is_empty());
+    assert!(
+        result.value.data[0]
+            .capabilities
+            .as_ref()
+            .unwrap()
+            .batch
+            .rest
+            .is_empty()
+    );
     assert_eq!(
         host.sent.lock().unwrap()[1].query.as_deref(),
         Some("limit=1&after_id=a")
@@ -235,7 +243,7 @@ fn catalogues_accept_omitted_fallbacks_and_model_version() {
         limits(),
     ))
     .unwrap();
-    assert!(result.value.data[0].allowed_fallback_models.is_empty());
+    assert!(result.value.data[0].allowed_fallback_models.is_none());
 
     let host = pages(vec![json!({"models": [{
         "name": "models/gemini-3-flash", "baseModelId": "gemini-3-flash",
@@ -433,7 +441,7 @@ fn openai_unpaged_directory_is_called_once_and_uses_real_gemini_facts() {
 fn empty_terminal_claude_page_keeps_last_collected_model_boundary() {
     let host = pages(vec![
         json!({"data":[cm("a")],"first_id":"a","last_id":"a","has_more":true}),
-        json!({"data":[],"first_id":"","last_id":"","has_more":false}),
+        json!({"data":[],"first_id":null,"last_id":null,"has_more":false}),
     ]);
     let result = ready(collect_claude(
         &host,
@@ -445,6 +453,6 @@ fn empty_terminal_claude_page_keeps_last_collected_model_boundary() {
     .unwrap();
     assert_eq!(result.completed_calls, 2);
     assert_eq!(result.value.data.len(), 1);
-    assert_eq!(result.value.first_id, "a");
-    assert_eq!(result.value.last_id, "a");
+    assert_eq!(result.value.first_id.as_deref(), Some("a"));
+    assert_eq!(result.value.last_id.as_deref(), Some("a"));
 }

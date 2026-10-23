@@ -2,8 +2,8 @@
 //! Messages bodies so the OAuth surface accepts them: content canonicalized
 //! to block arrays, empty text blocks removed with their `cache_control`
 //! re-attached to the nearest cacheable block, thinking blocks kept only on
-//! assistant turns, sampling parameters and trailing assistant prefills
-//! removed for models that reject them, feature betas derived from the body,
+//! assistant turns, all sampling parameters removed for API 2026-10-21,
+//! unsupported assistant prefills removed, feature betas derived from the body,
 //! and the CLI's billing system block plus `metadata.user_id`
 //! (v3 `shared/claude/{cache,hygiene}.rs` and `claudecode/cch.rs`). The
 //! canonicalize/empty-block pass lives in `channels::shared::cache`, where the
@@ -19,21 +19,6 @@ const CONTEXT_1M_BETA: &str = "context-1m-2025-08-07";
 const THINKING_DISPLAY_UPDATES_BETA: &str = "thinking-display-updates-2026-08-18";
 /// Salt of the CLI's `cc_version` build suffix (v3 `cch.rs`).
 const SUFFIX_SALT: &str = "59cf53e54c78";
-
-/// Models that accept `temperature`/`top_k` (v3 `shared/claude/hygiene.rs`).
-const SAMPLING_TOLERANT: &[&str] = &[
-    "claude-sonnet-4-6",
-    "claude-haiku-4-5",
-    "claude-sonnet-4-5",
-    "claude-opus-4-5",
-    "claude-opus-4-1",
-    "claude-sonnet-4-0",
-    "claude-sonnet-4-20",
-    "claude-opus-4-0",
-    "claude-opus-4-20",
-    "claude-3-opus",
-    "claude-3-haiku",
-];
 
 /// Models that still accept an assistant prefill.
 const PREFILL_TOLERANT: &[&str] = &[
@@ -339,27 +324,7 @@ fn version_suffix(text: &str) -> String {
 // -------------------------------------------------------------- sampling
 
 fn strip_sampling(body: &mut Value) {
-    let Some(root) = body.as_object_mut() else {
-        return;
-    };
-    let tolerant = root
-        .get("thinking")
-        .and_then(|thinking| thinking.get("type"))
-        .and_then(Value::as_str)
-        != Some("enabled")
-        && root
-            .get("model")
-            .and_then(Value::as_str)
-            .is_some_and(|model| {
-                SAMPLING_TOLERANT
-                    .iter()
-                    .any(|prefix| model.starts_with(prefix))
-            });
-    if tolerant {
-        if root.contains_key("temperature") {
-            root.remove("top_p");
-        }
-    } else {
+    if let Some(root) = body.as_object_mut() {
         for name in ["temperature", "top_p", "top_k"] {
             root.remove(name);
         }

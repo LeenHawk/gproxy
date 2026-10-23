@@ -145,7 +145,11 @@ impl BaseChannel for Vercel {
             ctx.provider,
             crate::channel::ChannelHeaders::native(ctx.operation.dialect),
         )?;
-        let mut headers = forwardable(&ctx.request.headers, allowlist.as_ref(), &[]);
+        let mut headers = forwardable(
+            &ctx.request.headers,
+            allowlist.as_ref(),
+            &["anthropic-version"],
+        );
         for (name, value) in &config.headers {
             insert_configured(&mut headers, name, value)?;
         }
@@ -164,7 +168,9 @@ impl BaseChannel for Vercel {
         if ctx.operation.dialect == Dialect::Claude {
             headers
                 .entry(HeaderName::from_static("anthropic-version"))
-                .or_insert(HeaderValue::from_static("2023-06-01"));
+                .or_insert(HeaderValue::from_static(
+                    gproxy_protocol::claude::API_VERSION,
+                ));
         }
         // The native path is supplied by ingress or conversion. Only explicit
         // method URLs may contain a model placeholder.

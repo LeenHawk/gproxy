@@ -5,6 +5,7 @@ pub mod chat_claude;
 pub mod chat_gemini;
 pub mod chat_responses;
 mod claude_chat_ids;
+pub mod claude_compat;
 pub mod claude_gemini;
 pub mod claude_responses;
 pub mod fanout;

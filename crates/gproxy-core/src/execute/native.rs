@@ -48,6 +48,7 @@ impl NativeCall {
         self,
         mut wire: WireRequest<HttpBody>,
     ) -> Result<WireResponse<HttpBody>, ChannelError> {
+        gproxy_protocol::adapt::generate::claude_compat::prepare(self.operation, &mut wire);
         let injected = super::chat_usage::opt_in(self.operation, &mut wire);
         let response = super::fallback::run(self, wire).await?;
         Ok(if injected {

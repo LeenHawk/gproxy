@@ -3,7 +3,7 @@
 //!
 //! Wire facts follow the v3 channel (`crates/gproxy-channels/src/claudeapi`
 //! and `shared/claude/*` on `main`) and Anthropic's API reference. The key
-//! travels in `x-api-key` with `anthropic-version: 2023-06-01`; the routes are
+//! travels in `x-api-key` with `anthropic-version: 2026-10-21`; the routes are
 //! `/v1/models`, `/v1/models/{model}`, `/v1/messages`,
 //! `/v1/messages/count_tokens`, `/v1/files` and file item/content routes,
 //! and, on the OpenAI SDK compatibility layer,

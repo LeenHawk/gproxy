@@ -22,7 +22,6 @@ pub(super) fn to_responses(
         (input.fallbacks.is_some(), "fallbacks"),
         (input.inference_geo.is_some(), "inference_geo"),
         (input.speed.is_some(), "speed"),
-        (input.top_k.is_some(), "top_k"),
         (
             input
                 .output_config
@@ -38,8 +37,6 @@ pub(super) fn to_responses(
 
     out.max_output_tokens = Some(Some(input.max_tokens));
     out.stream = input.stream.map(Some);
-    out.temperature = number(input.temperature)?;
-    out.top_p = number(input.top_p)?;
     out.user = input
         .metadata
         .as_ref()
@@ -190,8 +187,24 @@ pub(super) fn to_claude(
         }
     }
     out.stream = input.stream.flatten();
-    out.temperature = float(&input.temperature)?;
-    out.top_p = float(&input.top_p)?;
+    for (field, present) in [
+        (
+            "temperature",
+            input
+                .temperature
+                .as_ref()
+                .and_then(Option::as_ref)
+                .is_some(),
+        ),
+        (
+            "top_p",
+            input.top_p.as_ref().and_then(Option::as_ref).is_some(),
+        ),
+    ] {
+        if present {
+            report.omitted(field, "Claude API 2026-10-21 rejects sampling parameters");
+        }
+    }
     out.service_tier = match input.service_tier.flatten() {
         None => None,
         Some(r::ServiceTier::Auto) => Some(c::ServiceTier::Auto),
@@ -297,14 +310,4 @@ pub(super) fn to_claude(
         }
     }
     Ok(())
-}
-
-fn number(v: Option<f64>) -> Result<Option<Option<serde_json::Number>>, TransformError> {
-    Ok(v.and_then(serde_json::Number::from_f64).map(Some))
-}
-
-fn float(v: &Option<Option<serde_json::Number>>) -> Result<Option<f64>, TransformError> {
-    Ok(v.as_ref()
-        .and_then(Option::as_ref)
-        .and_then(serde_json::Number::as_f64))
 }

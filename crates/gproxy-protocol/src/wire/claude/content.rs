@@ -17,9 +17,7 @@ where
     Option::<String>::deserialize(deserializer).map(Some)
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -31,6 +29,11 @@ pub struct Message {
     pub output_config: Option<SystemMessageOutputConfig>,
 
     pub role: Role,
+    /// Required for user and assistant messages; system messages may omit it.
+    #[serde(
+        default = "MessageContent::absent",
+        skip_serializing_if = "MessageContent::is_absent"
+    )]
     pub content: MessageContent,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -53,8 +56,48 @@ pub enum Role {
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum MessageContent {
+    /// A system message can change controls without sending content.
+    #[serde(skip)]
+    Absent,
     Text(String),
     Blocks(Vec<ContentBlock>),
+}
+
+impl MessageContent {
+    fn absent() -> Self {
+        Self::Absent
+    }
+
+    pub fn is_absent(&self) -> bool {
+        matches!(self, Self::Absent)
+    }
+}
+
+impl<'de> Deserialize<'de> for Message {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Fields {
+            clear_at: Option<SystemMessageClearAt>,
+            output_config: Option<SystemMessageOutputConfig>,
+            role: Role,
+            // Only a missing field is absent; explicit null is not message content.
+            #[serde(default = "MessageContent::absent")]
+            content: MessageContent,
+            #[serde(default, flatten)]
+            rest: Rest,
+        }
+        let fields = Fields::deserialize(deserializer)?;
+        if fields.content.is_absent() && fields.role != Role::System {
+            return Err(serde::de::Error::missing_field("content"));
+        }
+        Ok(Self {
+            clear_at: fields.clear_at,
+            output_config: fields.output_config,
+            role: fields.role,
+            content: fields.content,
+            rest: fields.rest,
+        })
+    }
 }
 
 #[allow(clippy::large_enum_variant)]

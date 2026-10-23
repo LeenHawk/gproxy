@@ -48,7 +48,8 @@ fn gemini_38_controls_apply_to_all_conversion_sources_and_preserve_older_models(
         serde_json::from_value(json!({"model":"client","max_tokens":64,"messages":[{"role":"user","content":"hello"}],"temperature":0.2,"top_p":0.9,"top_k":10,"thinking":{"type":"disabled"}})).unwrap(),
         "gemini-3.8-flash", Default::default(), &mut identity().0, &TargetIdPolicy::new(Dialect::Gemini),
     ).unwrap();
-    for converted in [chat, responses, claude] {
+    // Claude sampling fields are no longer declared; rest is not conversion input.
+    for (converted, had_sampling) in [(chat, true), (responses, true), (claude, false)] {
         let config = converted.value.generation_config.unwrap();
         assert!(config.temperature.is_none());
         assert!(config.top_p.is_none());
@@ -57,12 +58,13 @@ fn gemini_38_controls_apply_to_all_conversion_sources_and_preserve_older_models(
         let thinking = config.thinking_config.unwrap();
         assert!(thinking.thinking_budget.is_none());
         assert_eq!(thinking.thinking_level, Some(gemini::ThinkingLevel::Low));
-        assert!(
+        assert_eq!(
             converted
                 .report
                 .diagnostics
                 .iter()
-                .any(|d| d.field == "temperature")
+                .any(|d| d.field == "temperature"),
+            had_sampling
         );
         assert!(
             converted

@@ -22,7 +22,7 @@
 //! - Anthropic's models live at `/v1/projects/{project}/locations/{location}/
 //!   publishers/anthropic/models/{model}:rawPredict`, `:streamRawPredict` for
 //!   a stream, and the token counter is the literal model `count-tokens`.
-//!   Their body carries `anthropic_version: "vertex-2023-10-16"` and must not
+//!   Their body carries `anthropic_version: "2026-10-21"` and must not
 //!   carry `model`, which the URL already names.
 //! - The OpenAI-compatible Chat surface is
 //!   `/v1beta1/projects/{project}/locations/{location}/endpoints/openapi/chat/completions`.

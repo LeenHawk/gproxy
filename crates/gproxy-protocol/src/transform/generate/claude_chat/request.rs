@@ -159,11 +159,11 @@ pub fn claude_to_openai(
             store: None,
             stream: input.stream.map(Some),
             stream_options: None,
-            temperature: input.temperature.map(Some),
+            temperature: None,
             tool_choice,
             tools: claude_tools_to_openai(input.tools.as_ref(), &mut report)?,
             top_logprobs: None,
-            top_p: input.top_p.map(Some),
+            top_p: None,
             user: input
                 .metadata
                 .as_ref()
@@ -344,7 +344,6 @@ pub fn openai_to_claude(
                     )
                 }
             }),
-            temperature: input.temperature.flatten(),
             thinking,
             tool_choice,
             tools: if let Some(functions) = input.functions.as_ref() {
@@ -352,13 +351,12 @@ pub fn openai_to_claude(
             } else {
                 openai_tools_to_claude(input.tools.as_ref())?
             },
-            top_k: None,
-            top_p: input.top_p.flatten(),
             rest: Rest::new(),
         },
         report,
     };
     super::super::claude_controls::target(
+        &mut converted.value.messages,
         &converted.value.model,
         &mut converted.value.thinking,
         &mut converted.value.tool_choice,

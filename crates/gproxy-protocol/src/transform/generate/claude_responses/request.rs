@@ -212,6 +212,7 @@ pub fn responses_to_claude_request(
         out.system = Some(crate::claude::count_tokens::SystemPrompt::Blocks(system));
     }
     crate::transform::generate::claude_controls::target(
+        &mut out.messages,
         &out.model,
         &mut out.thinking,
         &mut out.tool_choice,

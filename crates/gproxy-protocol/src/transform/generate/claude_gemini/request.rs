@@ -59,6 +59,7 @@ pub fn claude_to_gemini_request(
     for (index, message) in input.messages.into_iter().enumerate() {
         let leading = position.leading(message.role == c::Role::System);
         let blocks = match message.content {
+            c::MessageContent::Absent => continue,
             c::MessageContent::Text(text) => vec![c::ContentBlock::Text(
                 c::TextBlock::builder(c::TextBlockType::Tag, text).build(),
             )],
@@ -178,6 +179,7 @@ pub fn gemini_to_claude_request(
     crate::transform::instructions::claude(&mut out.messages, &out.model, &mut report);
     *flow = ids;
     crate::transform::generate::claude_controls::target(
+        &mut out.messages,
         &out.model,
         &mut out.thinking,
         &mut out.tool_choice,

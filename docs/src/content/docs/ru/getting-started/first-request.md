@@ -40,7 +40,7 @@ curl -sS http://127.0.0.1:8787/v1/responses \
 ```sh
 curl -sS http://127.0.0.1:8787/v1/messages \
   -H "x-api-key: $GPROXY_KEY" \
-  -H 'anthropic-version: 2023-06-01' \
+  -H 'anthropic-version: 2026-10-21' \
   -H 'content-type: application/json' \
   -d '{"model":"fast","max_tokens":256,
        "messages":[{"role":"user","content":"Say hello."}]}'

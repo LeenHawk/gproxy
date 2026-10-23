@@ -212,7 +212,9 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
             .as_deref()
             .is_some_and(|model| request.attribution.model.as_deref() != Some(model));
     let strip_thinking = super::thinking::enabled(&provider.entity.config, operation);
+    let claude_compat = gproxy_protocol::adapt::generate::claude_compat::applies_to(operation);
     let want_replay = strip_thinking
+        || claude_compat
         || provider.channel.claude_fallback().is_some()
         || converting
         || local
@@ -221,7 +223,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
         || !request_rules.body.is_empty();
     let (mut wire, replayable) =
         prepare::buffer_request(wire, want_replay, limits.max_request_body_bytes).await;
-    if (converting || remap_model || local || strip_thinking) && !replayable {
+    if (converting || remap_model || local || strip_thinking || claude_compat) && !replayable {
         return Err(CoreError::Transform(TransformError::new(
             TransformErrorKind::Limit,
             "client.body",

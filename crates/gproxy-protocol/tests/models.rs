@@ -27,10 +27,12 @@ fn claude_models_round_trip_pagination_and_capabilities() {
                 "context_management": {"clear_thinking_20251015": {"supported": true}, "clear_tool_uses_20250919": {"supported": false}, "compact_20260112": {"supported": true}, "supported": true},
                 "effort": {"high": {"supported": true}, "low": {"supported": true}, "max": {"supported": false}, "medium": {"supported": true}, "supported": true, "xhigh": {"supported": false}},
                 "image_input": {"supported": true}, "pdf_input": {"supported": true}, "structured_outputs": {"supported": true},
-                "thinking": {"supported": true, "types": {"adaptive": {"supported": true}, "enabled": {"supported": true}}}
+                "compaction": {"supported": true, "summarize": {"supported": true}},
+                "thinking": {"supported": true, "types": {"adaptive": {"supported": true}, "enabled": {"supported": true}, "between_tools": {"supported": false}}}
             },
             "created_at": "2026-02-04T00:00:00Z", "display_name": "Claude Opus 4.6",
-            "max_input_tokens": 200000, "max_tokens": 32000, "type": "model", "new_capability": "future"
+            "max_input_tokens": 200000, "max_tokens": 32000, "type": "model", "new_capability": "future",
+            "lifecycle": "active", "deprecated_at": null, "retires_at": null
         }],
         "first_id": "first", "has_more": true, "last_id": "last"
     });
@@ -38,6 +40,17 @@ fn claude_models_round_trip_pagination_and_capabilities() {
         serde_json::from_value(value.clone()).unwrap();
     assert_eq!(serde_json::to_value(&parsed).unwrap(), value);
     assert!(parsed.has_more);
+    use gproxy_protocol::wire::DeclaredFields;
+    let declared = serde_json::to_value(parsed.clone().into_declared()).unwrap();
+    assert_eq!(declared["data"][0]["lifecycle"], "active");
+    assert_eq!(
+        declared["data"][0]["capabilities"]["thinking"]["types"]["between_tools"]["supported"],
+        false
+    );
+    assert_eq!(
+        declared["data"][0]["capabilities"]["compaction"]["summarize"]["supported"],
+        true
+    );
     let output = serde_json::to_value(parsed).unwrap();
     assert_eq!(output["data"][0]["new_capability"], "future");
     assert_eq!(

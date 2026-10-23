@@ -55,17 +55,11 @@ pub struct GenerateContentRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system: Option<SystemPrompt>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub thinking: Option<ThinkingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<ToolChoice>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<ToolUnion>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub top_k: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub top_p: Option<f64>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }

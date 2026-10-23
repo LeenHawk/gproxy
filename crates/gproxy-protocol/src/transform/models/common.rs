@@ -159,17 +159,20 @@ pub(crate) fn claude_model(
     id: String,
     created_at: String,
     display_name: String,
-    max_input_tokens: i64,
-    max_tokens: i64,
+    max_input_tokens: Option<i64>,
+    max_tokens: Option<i64>,
     supplement: ClaudeModelSupplement,
 ) -> claude_models::ModelInfo {
     claude_models::ModelInfo {
         id,
-        allowed_fallback_models: supplement.allowed_fallback_models,
-        capabilities: supplement.capabilities.into_wire(),
+        allowed_fallback_models: Some(supplement.allowed_fallback_models),
+        capabilities: Some(supplement.capabilities.into_wire()),
         created_at,
         display_name,
         line: Some(supplement.line),
+        lifecycle: supplement.lifecycle,
+        deprecated_at: supplement.deprecated_at.map(Some),
+        retires_at: supplement.retires_at.map(Some),
         max_input_tokens,
         max_tokens,
         type_: claude_models::ModelType::Model,
@@ -192,6 +195,7 @@ pub(crate) fn report_claude_loss(report: &mut Report) {
         "code_execution",
         "server_tools",
         "context_management",
+        "compaction",
         "pdf_input",
         "structured_outputs",
         "thinking.types",
@@ -357,4 +361,21 @@ pub(crate) fn reconcile_openai_capabilities(
         )?;
     }
     Ok(supplement)
+}
+
+/// Lifecycle has no equivalent in the other model directories; do not infer
+/// availability from a retirement date or turn it into a generation capability.
+pub(crate) fn report_claude_lifecycle(model: &claude_models::ModelInfo, report: &mut Report) {
+    for (field, present) in [
+        ("lifecycle", model.lifecycle.is_some()),
+        ("deprecated_at", model.deprecated_at.is_some()),
+        ("retires_at", model.retires_at.is_some()),
+    ] {
+        if present {
+            report.omitted(
+                format!("model.{field}"),
+                "target has no Claude lifecycle field",
+            );
+        }
+    }
 }

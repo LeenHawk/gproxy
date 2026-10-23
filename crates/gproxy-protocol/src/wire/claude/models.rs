@@ -37,9 +37,11 @@ pub type GetModelRequest = crate::WireRequest<()>;
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ListModelsResponseBody {
     pub data: Vec<ModelInfo>,
-    pub first_id: String,
+    #[wire(required)]
+    pub first_id: Option<String>,
     pub has_more: bool,
-    pub last_id: String,
+    #[wire(required)]
+    pub last_id: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -57,8 +59,10 @@ pub type GetModelResponse = crate::WireResponse<ModelInfo>;
 pub struct ModelInfo {
     pub id: String,
     #[serde(default)]
-    pub allowed_fallback_models: Vec<String>,
-    pub capabilities: ModelCapabilities,
+    #[wire(required)]
+    pub allowed_fallback_models: Option<Vec<String>>,
+    #[wire(required)]
+    pub capabilities: Option<ModelCapabilities>,
     pub created_at: String,
     pub display_name: String,
     /// Provider-reported model line; new lines are allowed without inferring from IDs.
@@ -68,8 +72,24 @@ pub struct ModelInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub line: Option<Option<String>>,
-    pub max_input_tokens: i64,
-    pub max_tokens: i64,
+    #[wire(required)]
+    pub max_input_tokens: Option<i64>,
+    #[wire(required)]
+    pub max_tokens: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lifecycle: Option<ModelLifecycle>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub deprecated_at: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub retires_at: Option<Option<String>>,
     #[serde(rename = "type")]
     pub type_: ModelType,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -96,6 +116,12 @@ pub struct ModelCapabilities {
     pub batch: CapabilitySupport,
     pub citations: CapabilitySupport,
     pub code_execution: CapabilitySupport,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub compaction: Option<Option<CompactionCapability>>,
     pub context_management: ContextManagementCapability,
     pub effort: EffortCapability,
     pub image_input: CapabilitySupport,
@@ -129,9 +155,12 @@ pub struct CapabilitySupport {
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContextManagementCapability {
-    pub clear_thinking_20251015: CapabilitySupport,
-    pub clear_tool_uses_20250919: CapabilitySupport,
-    pub compact_20260112: CapabilitySupport,
+    #[wire(required)]
+    pub clear_thinking_20251015: Option<CapabilitySupport>,
+    #[wire(required)]
+    pub clear_tool_uses_20250919: Option<CapabilitySupport>,
+    #[wire(required)]
+    pub compact_20260112: Option<CapabilitySupport>,
     pub supported: bool,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -150,7 +179,8 @@ pub struct EffortCapability {
     pub max: CapabilitySupport,
     pub medium: CapabilitySupport,
     pub supported: bool,
-    pub xhigh: CapabilitySupport,
+    #[wire(required)]
+    pub xhigh: Option<CapabilitySupport>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -181,6 +211,8 @@ pub struct ThinkingTypes {
     pub enabled: CapabilitySupport,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disabled: Option<CapabilitySupport>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub between_tools: Option<CapabilitySupport>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -207,4 +239,44 @@ where
     T: Deserialize<'de>,
 {
     Option::<T>::deserialize(d).map(Some)
+}
+
+/// The lifecycle is authoritative; a past scheduled retirement date alone does
+/// not mean that a model has retired.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum ModelLifecycle {
+    Active,
+    Deprecated,
+    Retired,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct CompactionCapability {
+    pub supported: bool,
+    pub summarize: CapabilitySupport,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
 }

@@ -24,6 +24,12 @@ pub struct ClaudeModelSupplement {
     pub max_input_tokens: Option<i64>,
     pub max_tokens: Option<i64>,
     pub created_at: Option<String>,
+    #[serde(default)]
+    pub lifecycle: Option<claude_models::ModelLifecycle>,
+    #[serde(default)]
+    pub deprecated_at: Option<String>,
+    #[serde(default)]
+    pub retires_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -38,6 +44,8 @@ pub struct ClaudeCapabilities {
     pub structured_outputs: bool,
     #[serde(default)]
     pub server_tools: Option<ClaudeServerTools>,
+    #[serde(default)]
+    pub compaction: Option<ClaudeCompaction>,
     pub thinking: ClaudeThinking,
 }
 
@@ -66,6 +74,8 @@ pub struct ClaudeThinking {
     pub enabled: bool,
     #[serde(default)]
     pub disabled: Option<bool>,
+    #[serde(default)]
+    pub between_tools: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -73,6 +83,12 @@ pub struct ClaudeServerTools {
     pub supported: bool,
     pub web_search: bool,
     pub code_execution: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClaudeCompaction {
+    pub supported: bool,
+    pub summarize: bool,
 }
 
 impl ClaudeCapabilities {
@@ -85,10 +101,21 @@ impl ClaudeCapabilities {
             batch: support(self.batch),
             citations: support(self.citations),
             code_execution: support(self.code_execution),
+            compaction: self.compaction.map(|value| {
+                Some(claude_models::CompactionCapability {
+                    supported: value.supported,
+                    summarize: support(value.summarize),
+                    rest: Default::default(),
+                })
+            }),
             context_management: claude_models::ContextManagementCapability {
-                clear_thinking_20251015: support(self.context_management.clear_thinking_20251015),
-                clear_tool_uses_20250919: support(self.context_management.clear_tool_uses_20250919),
-                compact_20260112: support(self.context_management.compact_20260112),
+                clear_thinking_20251015: Some(support(
+                    self.context_management.clear_thinking_20251015,
+                )),
+                clear_tool_uses_20250919: Some(support(
+                    self.context_management.clear_tool_uses_20250919,
+                )),
+                compact_20260112: Some(support(self.context_management.compact_20260112)),
                 supported: self.context_management.supported,
                 rest: Default::default(),
             },
@@ -98,7 +125,7 @@ impl ClaudeCapabilities {
                 max: support(self.effort.max),
                 medium: support(self.effort.medium),
                 supported: self.effort.supported,
-                xhigh: support(self.effort.xhigh),
+                xhigh: Some(support(self.effort.xhigh)),
                 rest: Default::default(),
             },
             image_input: support(self.image_input),
@@ -118,6 +145,7 @@ impl ClaudeCapabilities {
                     adaptive: support(self.thinking.adaptive),
                     enabled: support(self.thinking.enabled),
                     disabled: self.thinking.disabled.map(support),
+                    between_tools: self.thinking.between_tools.map(support),
                     rest: Default::default(),
                 },
                 rest: Default::default(),

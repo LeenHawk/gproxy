@@ -159,6 +159,7 @@ pub fn openai_to_claude(
         out.system = Some(c::SystemPrompt::Blocks(system));
     }
     crate::transform::generate::claude_controls::target(
+        &mut out.messages,
         &out.model,
         &mut out.thinking,
         &mut out.tool_choice,

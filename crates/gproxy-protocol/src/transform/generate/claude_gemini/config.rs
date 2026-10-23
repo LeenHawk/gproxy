@@ -37,9 +37,6 @@ pub(super) fn to_gemini(
     let mut config = g::GenerationConfig::builder()
         .max_output_tokens(input.max_tokens)
         .build();
-    config.temperature = input.temperature;
-    config.top_p = input.top_p;
-    config.top_k = input.top_k;
     config.stop_sequences = input.stop_sequences.clone();
     let effort = input.output_config.as_ref().and_then(|v| v.effort);
     config.thinking_config = match &input.thinking {
@@ -199,9 +196,15 @@ pub(super) fn to_claude(
     {
         report.omitted("response_modalities", "field has no target representation");
     }
-    out.temperature = config.temperature;
-    out.top_p = config.top_p;
-    out.top_k = config.top_k;
+    for (field, present) in [
+        ("temperature", config.temperature.is_some()),
+        ("top_p", config.top_p.is_some()),
+        ("top_k", config.top_k.is_some()),
+    ] {
+        if present {
+            report.omitted(field, "Claude API 2026-10-21 rejects sampling parameters");
+        }
+    }
     out.stop_sequences = config.stop_sequences.clone();
     if let Some(thinking) = &config.thinking_config {
         let display = thinking.include_thoughts.map(|v| {

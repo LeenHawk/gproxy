@@ -22,8 +22,8 @@
 //! top level of the secret so a refresh can re-mint tokens without a refresh
 //! token.
 
-mod cookie;
 mod cch;
+mod cookie;
 mod hygiene;
 mod quota;
 mod reset;
@@ -41,8 +41,8 @@ use crate::channel::{
     OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel,
     QuotaQuery, QuotaReset, RefreshContext, forwardable,
 };
-use crate::channels::shared::{cache, claude_fallback};
 pub use crate::channels::shared::claude_fallback::FallbackMode;
+use crate::channels::shared::{cache, claude_fallback};
 use futures_util::StreamExt;
 use gproxy_client::{Backend, ConnectionConfig};
 use gproxy_protocol::{
@@ -78,7 +78,7 @@ pub const OAUTH_BETA: &str = "oauth-2025-04-20";
 /// `design/claudecode-2.1.302.md` against the installed binary and local capture.
 pub const CLI_VERSION: &str = "2.1.302";
 pub const CLI_USER_AGENT: &str = "claude-cli/2.1.302 (external, cli)";
-pub const ANTHROPIC_VERSION: &str = "2023-06-01";
+pub const ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 /// Optional scopes a refresh preserves when the credential already has them.
 const PRESERVED_SCOPES: &[&str] = &["user:projects:read", "user:projects:write"];
 /// Bodies the channel reads itself (login, refresh, usage) are small.
@@ -622,7 +622,10 @@ impl BaseChannel for Claudecode {
         Some(default_connection())
     }
 
-    fn default_connection_for(&self, purpose: crate::channel::ConnectionPurpose) -> Option<ConnectionConfig> {
+    fn default_connection_for(
+        &self,
+        purpose: crate::channel::ConnectionPurpose,
+    ) -> Option<ConnectionConfig> {
         Some(match purpose {
             crate::channel::ConnectionPurpose::Request => default_connection(),
             crate::channel::ConnectionPurpose::CookieLogin => super::shared::browser_connection(),
@@ -673,7 +676,9 @@ impl BaseChannel for Claudecode {
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
-    fn quota_reset(&self) -> Option<&dyn QuotaReset> { Some(self) }
+    fn quota_reset(&self) -> Option<&dyn QuotaReset> {
+        Some(self)
+    }
     fn quota_model(&self) -> Option<&dyn QuotaModel> {
         Some(self)
     }
@@ -790,7 +795,11 @@ impl Claudecode {
         )?;
         usage_limit::set_mode(
             &mut headers,
-            if is_messages(operation) { usage_mode } else { None },
+            if is_messages(operation) {
+                usage_mode
+            } else {
+                None
+            },
         );
         let mut builder = http::Request::builder().method(method).uri(uri);
         if let Some(map) = builder.headers_mut() {
@@ -1246,8 +1255,13 @@ impl OAuthAuthorizationCode for Claudecode {
 }
 
 impl CredentialRefresh for Claudecode {
-    fn connection_purpose(&self, credential: &CredentialView<'_>) -> crate::channel::ConnectionPurpose {
-        if non_empty(credential.secret.get("refresh_token")).is_none() && non_empty(credential.secret.get("cookie")).is_some() {
+    fn connection_purpose(
+        &self,
+        credential: &CredentialView<'_>,
+    ) -> crate::channel::ConnectionPurpose {
+        if non_empty(credential.secret.get("refresh_token")).is_none()
+            && non_empty(credential.secret.get("cookie")).is_some()
+        {
             crate::channel::ConnectionPurpose::CookieLogin
         } else {
             crate::channel::ConnectionPurpose::Request

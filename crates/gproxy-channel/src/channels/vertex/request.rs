@@ -4,21 +4,20 @@
 
 use super::config::VertexConfig;
 use super::endpoint;
-use crate::channels::shared::google_model;
 use super::{ID, Vertex, auth};
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, OperationContext, OperationFuture,
     PrepareContext, ProviderView, forwardable,
 };
+use crate::channels::shared::google_model;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
 use http::{HeaderValue, header};
 use serde_json::Value;
 
 /// The `anthropic_version` Vertex's Anthropic publisher requires; it replaces
 /// the `anthropic-version` header the direct API uses.
-const VERTEX_ANTHROPIC_VERSION: &str = "vertex-2023-10-16";
-
+const VERTEX_ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 
 impl BaseChannel for Vertex {
     fn claude_fallback(&self) -> Option<crate::channel::ClaudeFallback> {
@@ -235,9 +234,10 @@ fn body(body: HttpBody, operation: OperationKey) -> Result<HttpBody, ChannelErro
     let object = value.as_object_mut().ok_or_else(|| {
         ChannelError::InvalidConfig("a Claude request body must be a JSON object".into())
     })?;
-    object
-        .entry("anthropic_version")
-        .or_insert_with(|| Value::String(VERTEX_ANTHROPIC_VERSION.into()));
+    object.insert(
+        "anthropic_version".into(),
+        Value::String(VERTEX_ANTHROPIC_VERSION.into()),
+    );
     if operation.operation != Operation::CountTokens {
         object.remove("model");
     } else if let Some(model) = object.get("model").and_then(Value::as_str) {

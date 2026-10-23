@@ -308,7 +308,7 @@ pub fn gemini_to_claude_list(
 fn claude_page(
     models: &[claude_models::ModelInfo],
     facts: &ListPageFacts,
-) -> Result<(String, String, bool), TransformError> {
+) -> Result<(Option<String>, Option<String>, bool), TransformError> {
     let derived_first = models.first().map(|model| model.id.clone());
     let derived_last = models.last().map(|model| model.id.clone());
     let first_id = match (&facts.first_id, derived_first) {
@@ -319,8 +319,8 @@ fn claude_page(
                 "page fact disagrees with converted list",
             ));
         }
-        (Some(supplied), _) => supplied.clone(),
-        (None, Some(derived)) if facts.complete => derived,
+        (Some(supplied), _) => Some(supplied.clone()),
+        (None, derived) if facts.complete => derived,
         _ => {
             return Err(missing_pagination(
                 "Claude first_id requires complete list or explicit page facts (NeedsPagination)",
@@ -335,8 +335,8 @@ fn claude_page(
                 "page fact disagrees with converted list",
             ));
         }
-        (Some(supplied), _) => supplied.clone(),
-        (None, Some(derived)) if facts.complete => derived,
+        (Some(supplied), _) => Some(supplied.clone()),
+        (None, derived) if facts.complete => derived,
         _ => {
             return Err(missing_pagination(
                 "Claude last_id requires complete list or explicit page facts (NeedsPagination)",

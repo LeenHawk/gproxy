@@ -25,7 +25,7 @@
 //!   inference profiles over them, and ARNs naming either) take Claude
 //!   Messages on `InvokeModel` inside a Bedrock envelope: `model` and
 //!   `stream` move out of the body into the URL and `anthropic_version`
-//!   names Bedrock's own version, `bedrock-2023-05-31`. They do not take
+//!   defaults to `2026-10-21` (supported by Claude 4.7 and later). They do not take
 //!   Chat Completions on Bedrock, so an OpenAI client's request to one is
 //!   converted to Messages first.
 //! - **Everything else** is sent to Bedrock's OpenAI-compatible Chat
@@ -89,7 +89,8 @@ use http::{HeaderMap, HeaderValue, StatusCode, header};
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CredentialView, HOST_CONFIG_KEYS, LoginMode, OperationContext, OperationFuture, PrepareContext,
-    ProviderView, };
+    ProviderView,
+};
 use crate::channels::shared::cache;
 use endpoint::Plane;
 
@@ -286,7 +287,7 @@ impl BaseChannel for AwsBedrock {
                 ConfigKey::optional(
                     "anthropic_version",
                     ConfigKeyKind::String,
-                    "The anthropic_version written into every Anthropic request body; defaults to bedrock-2023-05-31.",
+                    "The anthropic_version written into every Anthropic request body; defaults to 2026-10-21.",
                 ),
                 ConfigKey::optional(
                     "enable_claude_magic_cache",

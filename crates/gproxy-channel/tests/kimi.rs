@@ -115,7 +115,7 @@ fn the_subscription_answers_claude_messages_on_its_own_wire() {
     .unwrap();
     assert_eq!(claude.uri(), "https://api.kimi.com/coding/v1/messages");
     assert_eq!(claude.headers()["x-api-key"], SUBSCRIPTION);
-    assert_eq!(claude.headers()["anthropic-version"], "2023-06-01");
+    assert_eq!(claude.headers()["anthropic-version"], "2026-10-21");
     assert!(claude.headers().get("authorization").is_none());
 }
 

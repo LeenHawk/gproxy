@@ -18,7 +18,6 @@ pub(super) fn claude(
         (input.inference_geo.is_some(), "inference_geo"),
         (input.mcp_servers.is_some(), "mcp_servers"),
         (input.speed.is_some(), "speed"),
-        (input.top_k.is_some(), "top_k"),
         (
             input
                 .output_config
@@ -43,6 +42,8 @@ pub(super) fn chat(
     report: &mut Report,
 ) -> Result<(), TransformError> {
     for (present, field) in [
+        (input.temperature.flatten().is_some(), "temperature"),
+        (input.top_p.flatten().is_some(), "top_p"),
         (
             input.audio.as_ref().and_then(Option::as_ref).is_some(),
             "audio",

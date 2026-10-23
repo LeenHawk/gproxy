@@ -13,8 +13,7 @@ use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily};
 use http::{HeaderName, HeaderValue};
 
 /// Azure's Anthropic surface expects the same version header as Anthropic's.
-const DEFAULT_ANTHROPIC_VERSION: &str = "2023-06-01";
-
+const DEFAULT_ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 
 impl BaseChannel for Azure {
     fn claude_fallback(&self) -> Option<crate::channel::ClaudeFallback> {
@@ -156,9 +155,10 @@ impl BaseChannel for Azure {
                     HeaderName::from_static("x-api-key"),
                     HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
                 );
-                headers
-                    .entry(HeaderName::from_static("anthropic-version"))
-                    .or_insert_with(|| HeaderValue::from_static(DEFAULT_ANTHROPIC_VERSION));
+                headers.insert(
+                    HeaderName::from_static("anthropic-version"),
+                    HeaderValue::from_static(DEFAULT_ANTHROPIC_VERSION),
+                );
             }
             // Gemini never reaches here: `method_url` rejects it first.
             _ => {

@@ -8,7 +8,7 @@ pub const ID: &str = "claudeapi";
 pub const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 /// Where the organization cost report lives when nothing else is configured.
 pub const QUOTA_DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
-pub const ANTHROPIC_VERSION: &str = "2023-06-01";
+pub const ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 
 pub use crate::channels::shared::claude_fallback::FallbackMode;
 

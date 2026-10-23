@@ -32,44 +32,52 @@ pub fn claude_to_openai(
         );
     }
     common::report_claude_loss(&mut report);
+    common::report_claude_lifecycle(&input, &mut report);
     let mut value = common::openai_model(
         common::openai_model_id(&input.id)?,
         created,
         supplement.owned_by.clone(),
     );
     value.display_name = Some(input.display_name);
-    value.context_window = Some(
-        u64::try_from(input.max_input_tokens)
-            .map_err(|_| TransformError::shape("model.max_input_tokens", "negative limit"))?,
-    );
-    value.max_output_tokens = Some(
-        u64::try_from(input.max_tokens)
-            .map_err(|_| TransformError::shape("model.max_tokens", "negative limit"))?,
-    );
-    value.thinking_supported = Some(input.capabilities.thinking.supported);
-    let mut modalities = vec!["text".to_owned()];
-    if input.capabilities.image_input.supported {
-        modalities.push("image".to_owned());
+    value.context_window = input
+        .max_input_tokens
+        .map(u64::try_from)
+        .transpose()
+        .map_err(|_| TransformError::shape("model.max_input_tokens", "negative limit"))?;
+    value.max_output_tokens = input
+        .max_tokens
+        .map(u64::try_from)
+        .transpose()
+        .map_err(|_| TransformError::shape("model.max_tokens", "negative limit"))?;
+    if let Some(capabilities) = input.capabilities {
+        value.thinking_supported = Some(capabilities.thinking.supported);
+        let mut modalities = vec!["text".to_owned()];
+        if capabilities.image_input.supported {
+            modalities.push("image".to_owned());
+        }
+        value.input_modalities = Some(modalities);
+        let effort = &capabilities.effort;
+        use openai_models::ModelReasoningEffort as Effort;
+        value.supported_reasoning_levels = Some(
+            [
+                (Effort::Low, effort.low.supported),
+                (Effort::Medium, effort.medium.supported),
+                (Effort::High, effort.high.supported),
+                (
+                    Effort::Xhigh,
+                    effort.xhigh.as_ref().is_some_and(|value| value.supported),
+                ),
+                (Effort::Max, effort.max.supported),
+            ]
+            .into_iter()
+            .filter(|(_, supported)| effort.supported && *supported)
+            .map(|(effort, _)| openai_models::ModelReasoningLevel {
+                effort,
+                description: String::new(),
+            })
+            .collect(),
+        );
     }
-    value.input_modalities = Some(modalities);
-    let effort = &input.capabilities.effort;
-    use openai_models::ModelReasoningEffort as Effort;
-    value.supported_reasoning_levels = Some(
-        [
-            (Effort::Low, effort.low.supported),
-            (Effort::Medium, effort.medium.supported),
-            (Effort::High, effort.high.supported),
-            (Effort::Xhigh, effort.xhigh.supported),
-            (Effort::Max, effort.max.supported),
-        ]
-        .into_iter()
-        .filter(|(_, supported)| effort.supported && *supported)
-        .map(|(effort, _)| openai_models::ModelReasoningLevel {
-            effort,
-            description: String::new(),
-        })
-        .collect(),
-    );
     Ok(common::converted(value, report))
 }
 
@@ -124,12 +132,27 @@ pub fn claude_to_gemini(
     if input.line.is_some() {
         report.omitted("model.line", "Gemini has no model line field");
     }
-    if input.capabilities.server_tools.is_some() {
+    if input
+        .capabilities
+        .as_ref()
+        .is_some_and(|caps| caps.server_tools.is_some())
+    {
         report.omitted(
             "model.capabilities.server_tools",
             "Gemini has no server-tool capability fields",
         );
     }
+    if input
+        .capabilities
+        .as_ref()
+        .is_some_and(|caps| caps.compaction.is_some())
+    {
+        report.omitted(
+            "model.capabilities.compaction",
+            "Gemini has no Claude compaction capability",
+        );
+    }
+    common::report_claude_lifecycle(&input, &mut report);
     report.omitted("model.created_at", "Gemini has no model creation timestamp");
     report.omitted("model.type", "Gemini has no model type field");
     let value = gemini_models::Model {
@@ -138,10 +161,10 @@ pub fn claude_to_gemini(
         version,
         display_name: Some(input.display_name),
         description: None,
-        input_token_limit: Some(input.max_input_tokens),
-        output_token_limit: Some(input.max_tokens),
+        input_token_limit: input.max_input_tokens,
+        output_token_limit: input.max_tokens,
         supported_generation_methods: None,
-        thinking: Some(input.capabilities.thinking.supported),
+        thinking: input.capabilities.map(|caps| caps.thinking.supported),
         temperature: None,
         max_temperature: None,
         top_p: None,
@@ -192,12 +215,13 @@ pub fn openai_to_claude(
         .map(i64::try_from)
         .transpose()
         .map_err(|e| TransformError::shape("model.max_output_tokens", e.to_string()))?;
-    let max_input_tokens = common::choose(
+    let max_input_tokens = common::choose_optional(
         source_input,
         supplement.max_input_tokens,
         "model.max_input_tokens",
     )?;
-    let max_tokens = common::choose(source_output, supplement.max_tokens, "model.max_tokens")?;
+    let max_tokens =
+        common::choose_optional(source_output, supplement.max_tokens, "model.max_tokens")?;
     let mut report = Report::default();
     common::report_openai_extensions(&input, &mut report);
     if input.description.is_some() {
@@ -358,12 +382,12 @@ pub fn gemini_to_claude(
         supplement.display_name.clone(),
         "model.display_name",
     )?;
-    let max_input_tokens = common::choose(
+    let max_input_tokens = common::choose_optional(
         input.input_token_limit,
         supplement.max_input_tokens,
         "model.max_input_tokens",
     )?;
-    let max_tokens = common::choose(
+    let max_tokens = common::choose_optional(
         input.output_token_limit,
         supplement.max_tokens,
         "model.max_tokens",

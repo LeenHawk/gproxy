@@ -579,7 +579,7 @@ fn the_body_becomes_bedrocks_invoke_envelope() {
         panic!("a signed Bedrock body is always buffered")
     };
     let body: Value = serde_json::from_slice(body).unwrap();
-    assert_eq!(body["anthropic_version"], "bedrock-2023-05-31");
+    assert_eq!(body["anthropic_version"], "2026-10-21");
     assert!(body.get("model").is_none(), "the model moved into the URL");
     assert!(body.get("stream").is_none(), "the path implies streaming");
     assert_eq!(body["anthropic_beta"], json!(["a-beta", "b-beta"]));

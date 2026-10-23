@@ -342,6 +342,7 @@ fn claude_request(
     }
     for message in messages {
         match &message.content {
+            MessageContent::Absent => {}
             MessageContent::Text(text) => out.push(text),
             MessageContent::Blocks(blocks) => blocks.iter().for_each(|b| claude_block(b, out)),
         }

@@ -122,8 +122,9 @@ fn request_controls_tools_schema_system_and_rest_are_direct() {
     .unwrap()
     .value;
     assert_eq!(back.max_tokens, 128);
-    assert_eq!(back.top_k, Some(20));
-    assert_eq!(back.temperature, Some(0.4));
+    let back_wire = serde_json::to_value(&back).unwrap();
+    assert!(back_wire.get("top_k").is_none());
+    assert!(back_wire.get("temperature").is_none());
     assert_eq!(
         serde_json::to_value(back).unwrap()["messages"][1]["content"][0]["is_error"],
         true

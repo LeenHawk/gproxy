@@ -153,7 +153,7 @@ fn the_claude_surface_takes_the_same_key_the_way_anthropic_does() {
     )
     .unwrap();
     assert_eq!(claude.headers()["x-api-key"], "oc-key");
-    assert_eq!(claude.headers()["anthropic-version"], "2023-06-01");
+    assert_eq!(claude.headers()["anthropic-version"], "2026-10-21");
     assert!(claude.headers().get("authorization").is_none());
 
     let chat = prepare(
