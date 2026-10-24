@@ -7,8 +7,8 @@ use crate::channels::shared::compatible::http::read_body;
 use crate::{
     OutboundClient,
     channel::{
-        AcquiredCredential, ChannelError, CookieLogin, CredentialRefresh, CredentialUpdate,
-        CredentialView, LoginContext, OAuthCredential, OperationFuture, RefreshContext,
+        ChannelError, CredentialRefresh, CredentialUpdate, CredentialView, OAuthCredential,
+        OperationFuture, RefreshContext,
     },
 };
 use gproxy_protocol::HttpBody;
@@ -276,22 +276,6 @@ pub(super) fn tokens(response: &Value) -> Result<OAuthCredential, ChannelError> 
     })
 }
 
-impl CookieLogin for OrcaTerm {
-    fn exchange_cookie<'a>(
-        &'a self,
-        ctx: LoginContext<'a>,
-        cookie: &'a str,
-    ) -> OperationFuture<'a, AcquiredCredential> {
-        Box::pin(async move {
-            let config = OrcaTermConfig::from_view(ctx.provider)?;
-            let secret = json!({"cookie":cookie});
-            token(&secret)?;
-            let fields = identity(ctx.client, &config, &secret).await?;
-            Ok(renew(ctx.client, &config, &secret, fields).await?.into())
-        })
-    }
-}
-
 impl CredentialRefresh for OrcaTerm {
     fn supports(&self, credential: &CredentialView<'_>) -> bool {
         token(credential.secret).is_ok()
@@ -314,14 +298,22 @@ impl CredentialRefresh for OrcaTerm {
             }
             let mut updated = renew(ctx.client, &config, ctx.credential.secret, fields).await?;
             if !updated.provider_fields.contains_key("user_id") {
-                updated.provider_fields = identity(
-                    ctx.client,
-                    &config,
-                    &json!({"access_token":updated.access_token}),
-                )
-                .await?;
+                let renewed = serde_json::to_value(&updated).map_err(|e| invalid(e.to_string()))?;
+                updated
+                    .provider_fields
+                    .extend(identity(ctx.client, &config, &renewed).await?);
             }
             Ok(CredentialUpdate {
+                metadata: Some({
+                    let mut metadata = ctx
+                        .credential
+                        .metadata
+                        .as_object()
+                        .cloned()
+                        .unwrap_or_default();
+                    metadata.extend(updated.provider_fields.clone());
+                    Value::Object(metadata)
+                }),
                 expires_at_ms: updated.expires_at_ms,
                 secret: serde_json::to_value(updated).map_err(|e| invalid(e.to_string()))?,
             })

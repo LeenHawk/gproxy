@@ -638,11 +638,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
         }
 
         if patch.secret.is_some()
+            || patch.metadata.is_some()
+            || patch.expires_at_ms.is_some()
             || patch.user_id.is_some()
             || patch.team_id.is_some()
             || patch.organization_id.is_some()
         {
-            // Ownership changes invalidate in-flight refresh/status CAS too.
+            // Material, metadata and ownership edits invalidate in-flight CAS writes.
             row.version = Set(current.version.saturating_add(1));
         }
         let mut initial_expiry = None;

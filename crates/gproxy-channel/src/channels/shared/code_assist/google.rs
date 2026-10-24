@@ -276,6 +276,7 @@ pub(crate) async fn refresh(
     }
     let credential = credential(tokens, Some(refresh_token.to_owned()), fields);
     Ok(CredentialUpdate {
+        metadata: None,
         expires_at_ms: credential.expires_at_ms,
         secret: encode_secret(&credential)?,
     })

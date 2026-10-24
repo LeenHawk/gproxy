@@ -27,8 +27,6 @@ pub enum LoginMode {
     AuthorizationCode,
     /// User code shown, host polls; `OAuthDeviceCode`.
     DeviceCode,
-    /// A browser session cookie exchanged for a credential; `CookieLogin`.
-    Cookie,
     /// A key the operator pastes. No channel trait is involved: the secret is
     /// stored as given and the channel injects it at request time.
     ApiKey,

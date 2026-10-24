@@ -5,8 +5,8 @@ use std::time::Duration;
 use gproxy_sdk::{
     Gproxy,
     dto::{
-        AuthCodeComplete, AuthCodeStart, AuthCodeStarted, CookieExchange, CredentialCreated,
-        CredentialOwner, DevicePollOutcome, DeviceStart, DeviceStarted,
+        AuthCodeComplete, AuthCodeStart, AuthCodeStarted, CredentialCreated, CredentialOwner,
+        DevicePollOutcome, DeviceStart, DeviceStarted,
     },
 };
 use gproxy_seaorm::BatchConnectionTrait;
@@ -161,11 +161,6 @@ impl<'a, C: BatchConnectionTrait + Send + Sync + 'static> CredentialLogin<'a, C>
             self.gproxy.cache().delete(&Self::key(id)).await?;
         }
         Ok(result)
-    }
-
-    pub async fn cookie_exchange(&self, request: CookieExchange) -> Result<CredentialCreated> {
-        self.admit(&request.provider_id, &request.owner)?;
-        Ok(self.gproxy.login().cookie_exchange(request).await?)
     }
 }
 

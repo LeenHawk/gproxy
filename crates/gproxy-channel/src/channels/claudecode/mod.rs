@@ -18,7 +18,7 @@
 //! The credential secret is an `OAuthCredential`; account facts a login
 //! discovers (`account_uuid`, `device_id`, plan tiers, email) travel in
 //! `provider_fields` and, once the host persists them, in the credential's
-//! metadata. A cookie login additionally keeps the normalized `cookie` at the
+//! metadata. A cookie initialization additionally keeps the normalized `cookie` at the
 //! top level of the secret so a refresh can re-mint tokens without a refresh
 //! token.
 
@@ -36,10 +36,10 @@ use crate::OutboundClient;
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, BaseChannel, ChannelCapabilities,
     ChannelDescriptor, ChannelError, ChannelHeaders, ChannelServices, ConfigKey, ConfigKeyKind,
-    CookieLogin, CredentialRefresh, CredentialUpdate, CredentialView, HOST_CONFIG_KEYS,
-    HeaderAllowlist, LoginContext, LoginMode, OAuthAuthorizationCode, OAuthCredential,
-    OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel,
-    QuotaQuery, QuotaReset, RefreshContext, forwardable,
+    CredentialRefresh, CredentialUpdate, CredentialView, HOST_CONFIG_KEYS, HeaderAllowlist,
+    LoginContext, LoginMode, OAuthAuthorizationCode, OAuthCredential, OperationContext,
+    OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel, QuotaQuery,
+    QuotaReset, RefreshContext, forwardable,
 };
 pub use crate::channels::shared::claude_fallback::FallbackMode;
 use crate::channels::shared::{cache, claude_fallback};
@@ -51,13 +51,13 @@ use gproxy_protocol::{
 };
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 pub const ID: &str = "claudecode";
 pub const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
-/// The claude.ai origin the cookie login bootstraps against (v3 `auth.rs`).
+/// The claude.ai origin the cookie initialization bootstraps against (v3 `auth.rs`).
 pub const DEFAULT_CLAUDE_AI_URL: &str = "https://claude.ai";
 /// v3 `login.rs` and the CLI's `AUTHORIZE_URL`.
 pub const DEFAULT_AUTHORIZE_URL: &str = "https://claude.com/cai/oauth/authorize";
@@ -93,7 +93,7 @@ const SESSION_WINDOW_MS: i64 = 20 * 60 * 1000;
 pub struct ClaudecodeConfig {
     pub authorize_url: String,
     pub token_url: String,
-    /// The claude.ai origin the cookie login talks to.
+    /// The claude.ai origin the cookie initialization talks to.
     pub claude_ai_url: String,
     /// Static headers added to every backend request.
     pub headers: BTreeMap<String, String>,
@@ -550,8 +550,8 @@ impl BaseChannel for Claudecode {
         ChannelDescriptor {
             id: ID,
             display_name: "Claude Code (Claude.ai)",
-            credential_kinds: vec!["oauth", "cookie"],
-            login_modes: vec![LoginMode::AuthorizationCode, LoginMode::Cookie],
+            credential_kinds: vec!["oauth"],
+            login_modes: vec![LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
                 refresh: true,
                 quota_query: true,
@@ -579,7 +579,7 @@ impl BaseChannel for Claudecode {
                 ConfigKey::optional(
                     "claude_ai_url",
                     ConfigKeyKind::String,
-                    "The claude.ai origin the cookie login talks to.",
+                    "The claude.ai origin the cookie initialization talks to.",
                 ).with_placeholder(DEFAULT_CLAUDE_AI_URL),
                 ConfigKey::optional(
                     "headers",
@@ -628,7 +628,7 @@ impl BaseChannel for Claudecode {
     ) -> Option<ConnectionConfig> {
         Some(match purpose {
             crate::channel::ConnectionPurpose::Request => default_connection(),
-            crate::channel::ConnectionPurpose::CookieLogin => super::shared::browser_connection(),
+            crate::channel::ConnectionPurpose::Browser => super::shared::browser_connection(),
         })
     }
 
@@ -664,13 +664,31 @@ impl BaseChannel for Claudecode {
         Box::pin(self.messages_http(Operation::StreamGenerateContent, context))
     }
 
+    fn validate_credential_secret(&self, secret: &Value) -> Result<(), ChannelError> {
+        if non_empty(secret.get("access_token")).is_some()
+            || non_empty(secret.get("refresh_token")).is_some()
+            || non_empty(secret.get("cookie"))
+                .and_then(cookie::normalize)
+                .is_some()
+        {
+            Ok(())
+        } else {
+            Err(ChannelError::InvalidCredential)
+        }
+    }
+
+    fn initial_credential_expiry(&self, secret: &Value) -> Option<i64> {
+        if non_empty(secret.get("access_token")).is_none() {
+            Some(0)
+        } else {
+            secret.get("expires_at_ms").and_then(Value::as_i64)
+        }
+    }
+
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
         Some(self)
     }
     fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
-        Some(self)
-    }
-    fn cookie_login(&self) -> Option<&dyn CookieLogin> {
         Some(self)
     }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
@@ -1021,7 +1039,7 @@ pub(super) fn credential_from_tokens(
 }
 
 /// The secret persisted for this channel: the OAuth credential plus, after a
-/// cookie login, the normalized claude.ai cookie.
+/// cookie initialization, the normalized claude.ai cookie.
 pub(super) fn secret_json(
     credential: &OAuthCredential,
     cookie: Option<&str>,
@@ -1255,6 +1273,11 @@ impl OAuthAuthorizationCode for Claudecode {
 }
 
 impl CredentialRefresh for Claudecode {
+    fn supports(&self, credential: &CredentialView<'_>) -> bool {
+        non_empty(credential.secret.get("refresh_token")).is_some()
+            || non_empty(credential.secret.get("cookie")).is_some()
+    }
+
     fn connection_purpose(
         &self,
         credential: &CredentialView<'_>,
@@ -1262,7 +1285,7 @@ impl CredentialRefresh for Claudecode {
         if non_empty(credential.secret.get("refresh_token")).is_none()
             && non_empty(credential.secret.get("cookie")).is_some()
         {
-            crate::channel::ConnectionPurpose::CookieLogin
+            crate::channel::ConnectionPurpose::Browser
         } else {
             crate::channel::ConnectionPurpose::Request
         }
@@ -1334,34 +1357,18 @@ impl CredentialRefresh for Claudecode {
                 previous_fields(secret),
             )?;
             Ok(CredentialUpdate {
+                metadata: Some({
+                    let mut metadata = context
+                        .credential
+                        .metadata
+                        .as_object()
+                        .cloned()
+                        .unwrap_or_default();
+                    metadata.extend(credential.provider_fields.clone());
+                    Value::Object(metadata)
+                }),
                 expires_at_ms: credential.expires_at_ms,
                 secret: secret_json(&credential, cookie)?,
-            })
-        })
-    }
-}
-
-impl CookieLogin for Claudecode {
-    fn exchange_cookie<'a>(
-        &'a self,
-        context: LoginContext<'a>,
-        cookie: &'a str,
-    ) -> OperationFuture<'a, crate::channel::AcquiredCredential> {
-        Box::pin(async move {
-            let config = ClaudecodeConfig::from_view(context.provider)?;
-            let (credential, cookie) =
-                cookie::exchange(context.client, context.provider, &config, cookie).await?;
-            let metadata = Value::Object(
-                credential
-                    .provider_fields
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect::<Map<_, _>>(),
-            );
-            Ok(crate::channel::AcquiredCredential {
-                expires_at_ms: credential.expires_at_ms,
-                secret: secret_json(&credential, Some(&cookie))?,
-                metadata,
             })
         })
     }

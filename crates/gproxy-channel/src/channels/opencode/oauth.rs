@@ -379,6 +379,7 @@ impl CredentialRefresh for super::OpenCode {
             }
             object.insert(CONSOLE_FIELD.into(), json!(base));
             Ok(CredentialUpdate {
+                metadata: None,
                 secret,
                 expires_at_ms,
             })

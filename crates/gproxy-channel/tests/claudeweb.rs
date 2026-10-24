@@ -6,8 +6,8 @@ use futures_util::StreamExt;
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
-        ChannelState, CredentialContext, CredentialView, LoginContext, OperationContext,
-        ProviderView, QuotaScope, QuotaValue,
+        ChannelState, CredentialContext, CredentialView, OperationContext, ProviderView,
+        QuotaScope, QuotaValue,
     },
     channels::claudeweb::{ClaudeWeb, SessionState, continuation_key},
 };
@@ -743,7 +743,7 @@ async fn non_streaming_generate_collects_one_message() {
 const BOOTSTRAP: &str = r#"{"account":{"email_address":"user@example.com","memberships":[{"organization":{"uuid":"org-api","capabilities":["api"]}},{"organization":{"uuid":"org-chat","capabilities":["chat","claude_pro"],"rate_limit_tier":"default_claude_pro","claude_ai_bootstrap_models_config":{"claude-z":{"displayName":"Claude Z"},"nested":[{"model_id":"claude-a","label":"Claude A"},"{\"model\":\"claude-z\"}",{"model":"not-claude"}]}}}]}}"#;
 
 #[tokio::test]
-async fn cookie_login_bootstraps_the_account() {
+async fn cookie_import_bootstraps_the_account() {
     let config = json!({});
     let client = ScriptClient::new(vec![WireResponse {
         status: StatusCode::OK,
@@ -751,18 +751,18 @@ async fn cookie_login_bootstraps_the_account() {
         body: HttpBody::Bytes(Bytes::from_static(BOOTSTRAP.as_bytes())),
     }]);
     let channel = ClaudeWeb::new();
+    let imported = json!({"cookie": "Cookie: cf_clearance=clear; sessionKey=sk-ant-sid01-example"});
     let acquired = channel
-        .cookie_login()
+        .credential_refresh()
         .unwrap()
-        .exchange_cookie(
-            LoginContext {
-                provider: provider(&config, Some("https://claude.example")),
-                client: &*client,
-            },
-            "Cookie: cf_clearance=clear; sessionKey=sk-ant-sid01-example",
-        )
+        .refresh(CredentialContext {
+            provider: provider(&config, Some("https://claude.example")),
+            credential: credential(&imported, &Value::Null),
+            client: &*client,
+        })
         .await
         .unwrap();
+    let metadata = acquired.metadata.as_ref().unwrap();
     let sent = client.sent();
     assert_eq!(sent[0].0, Method::GET);
     assert_eq!(sent[0].1, "https://claude.example/api/bootstrap");
@@ -784,15 +784,15 @@ async fn cookie_login_bootstraps_the_account() {
         acquired.secret["capabilities"],
         json!(["chat", "claude_pro"])
     );
-    assert_eq!(acquired.metadata["organization_uuid"], "org-chat");
-    assert_eq!(acquired.metadata["user_email"], "user@example.com");
-    assert_eq!(acquired.metadata["pro"], true);
-    assert_eq!(acquired.metadata["rate_limit_tier"], "default_claude_pro");
+    assert_eq!(metadata["organization_uuid"], "org-chat");
+    assert_eq!(metadata["user_email"], "user@example.com");
+    assert_eq!(metadata["pro"], true);
+    assert_eq!(metadata["rate_limit_tier"], "default_claude_pro");
     assert_eq!(
-        acquired.metadata["models"],
+        metadata["models"],
         json!([{"id": "claude-a", "display_name": "Claude A"}, {"id": "claude-z", "display_name": "Claude Z"}])
     );
-    let validated = acquired.metadata["validated_at_ms"].as_i64().unwrap();
+    let validated = metadata["validated_at_ms"].as_i64().unwrap();
     assert_eq!(
         acquired.expires_at_ms,
         Some(validated + 12 * 60 * 60 * 1000)
@@ -801,7 +801,7 @@ async fn cookie_login_bootstraps_the_account() {
     let listed = channel
         .list_models(OperationContext {
             provider: provider(&config, None),
-            credential: credential(&acquired.secret, &acquired.metadata),
+            credential: credential(&acquired.secret, metadata),
             dialect: Dialect::Claude,
             request: WireRequest {
                 method: Method::GET,
@@ -823,23 +823,10 @@ async fn cookie_login_bootstraps_the_account() {
     assert_eq!(list["first_id"], "claude-a");
     assert_eq!(list["has_more"], false);
     assert_eq!(client.sent().len(), 1, "the model list is local");
-    assert!(
-        matches!(
-            channel
-                .cookie_login()
-                .unwrap()
-                .exchange_cookie(
-                    LoginContext {
-                        provider: provider(&config, None),
-                        client: &*client
-                    },
-                    "not a cookie",
-                )
-                .await,
-            Err(ChannelError::InvalidCredential)
-        ),
-        "a cookie without sessionKey is refused before any call"
-    );
+    assert!(matches!(
+        channel.validate_credential_secret(&json!({"cookie": "not a cookie"})),
+        Err(ChannelError::InvalidCredential)
+    ));
 }
 
 #[tokio::test]

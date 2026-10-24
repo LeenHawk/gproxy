@@ -5,8 +5,8 @@ use std::sync::{
 
 use futures_util::{StreamExt, stream};
 use gproxy_channel::channel::{
-    AcquiredCredential, CookieLogin, CredentialRefresh, CredentialUpdate, CredentialView,
-    LoginContext, OperationFuture, PrepareContext, ProviderView, RefreshContext,
+    CredentialRefresh, CredentialUpdate, CredentialView, PrepareContext, ProviderView,
+    RefreshContext,
 };
 use gproxy_channel::{
     BaseChannel, ChannelBinding, ChannelCapabilities, ChannelError, LoginMode, OutboundClient,
@@ -216,6 +216,7 @@ impl CredentialRefresh for Refreshable {
         Box::pin(async move {
             assert_eq!(ctx.credential.version, 0);
             Ok(CredentialUpdate {
+                metadata: None,
                 secret: json!({"api_key": "rotated"}),
                 expires_at_ms: Some(1234),
             })
@@ -280,36 +281,6 @@ async fn transport_failure_remains_distinct_from_http_error_response() {
     assert_eq!(error.stage(), CapabilityErrorStage::Start);
 }
 
-/// A cookie channel that can also renew itself: two capabilities the default
-/// descriptor has to find on its own.
-struct Cookied;
-impl BaseChannel for Cookied {
-    fn id(&self) -> &'static str {
-        "cookied"
-    }
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(&Refreshable)
-    }
-    fn cookie_login(&self) -> Option<&dyn CookieLogin> {
-        Some(self)
-    }
-}
-impl CookieLogin for Cookied {
-    fn exchange_cookie<'a>(
-        &'a self,
-        _: LoginContext<'a>,
-        _: &'a str,
-    ) -> OperationFuture<'a, AcquiredCredential> {
-        Box::pin(async {
-            Ok(AcquiredCredential {
-                secret: json!({"session_key": "s"}),
-                expires_at_ms: None,
-                metadata: Value::Null,
-            })
-        })
-    }
-}
-
 #[test]
 fn the_default_descriptor_is_derived_from_the_capability_accessors() {
     let minimal = Minimal.descriptor();
@@ -328,15 +299,6 @@ fn the_default_descriptor_is_derived_from_the_capability_accessors() {
     assert!(
         refreshable.login_modes.is_empty(),
         "refreshing is not a way to log in"
-    );
-
-    let cookied = Cookied.descriptor();
-    assert_eq!(cookied.login_modes, [LoginMode::Cookie]);
-    assert!(cookied.capabilities.refresh);
-    assert!(!cookied.capabilities.services);
-    assert!(
-        !cookied.capabilities.websocket,
-        "no accessor describes transport"
     );
 }
 
@@ -414,13 +376,10 @@ fn codex_describes_both_oauth_flows_and_its_websocket() {
 
 #[cfg(feature = "claudecode")]
 #[test]
-fn claudecode_describes_pkce_and_cookie_login() {
+fn claudecode_describes_pkce_and_oauth_credentials() {
     let descriptor = gproxy_channel::channels::claudecode::Claudecode.descriptor();
     assert_eq!(descriptor.id, "claudecode");
-    assert_eq!(
-        descriptor.login_modes,
-        [LoginMode::AuthorizationCode, LoginMode::Cookie]
-    );
+    assert_eq!(descriptor.login_modes, [LoginMode::AuthorizationCode]);
     assert!(descriptor.capabilities.services);
     assert!(!descriptor.capabilities.websocket);
     assert_eq!(
@@ -438,7 +397,7 @@ fn claudecode_describes_pkce_and_cookie_login() {
 fn claudeweb_describes_a_cookie_only_session() {
     let descriptor = gproxy_channel::channels::claudeweb::ClaudeWeb::default().descriptor();
     assert_eq!(descriptor.id, "claudeweb");
-    assert_eq!(descriptor.login_modes, [LoginMode::Cookie]);
+    assert!(descriptor.login_modes.is_empty());
     assert!(descriptor.capabilities.quota_query);
     assert!(
         !descriptor.capabilities.services,

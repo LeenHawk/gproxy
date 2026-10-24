@@ -52,7 +52,7 @@ with their original target and restricted credentials.
 
 `CredentialData` carries the resolved HTTP client, the same profile forced to
 HTTP/1.1 for WebSocket upgrades, the `QuotaDimension`s the channel declared for
-this credential, and a shared `CredentialState`: secret, expiry, lifecycle status
+this credential, and a shared `CredentialState`: secret, metadata, expiry, lifecycle status
 and Store version publish atomically as one `CredentialVersion`, each attempt
 pins one, and only a newer version replaces it. `Dead` credentials are never
 selected or refreshed; `status_reason` says why, and `CoreError::CredentialDead`
@@ -66,7 +66,7 @@ provider's → the Setting's default profile → the channel's
 fails the whole assembly.
 
 Codex defaults to reqwest; Claude Code API calls use wreq without emulation.
-Claude Code cookie login (including cookie-based token recovery) and Claude Web
+Claude Code cookie initialization (including cookie-based token recovery) and Claude Web
 use browser-emulated wreq. Explicit credential/provider/global profiles still win.
 
 Availability is one `CredentialBlocks` cache payload per credential, rebuilt

@@ -47,12 +47,14 @@ use gproxy_protocol::{
 };
 use http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use serde::Deserialize;
+use serde_json::Value;
 
-use crate::channel::{UsageExtras, 
+use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CookieLogin, CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OperationContext, OperationFuture,
-    ProviderView, QuotaModel, QuotaQuery, };
-use gproxy_client::{ConnectionConfig};
+    CredentialRefresh, HOST_CONFIG_KEYS, OperationContext, OperationFuture, ProviderView,
+    QuotaModel, QuotaQuery, UsageExtras,
+};
+use gproxy_client::ConnectionConfig;
 
 pub const ID: &str = "claudeweb";
 /// Bootstrap replies carry the whole front-end configuration.
@@ -206,7 +208,7 @@ impl BaseChannel for ClaudeWeb {
             id: ID,
             display_name: "Claude Web (claude.ai session)",
             credential_kinds: vec!["cookie"],
-            login_modes: vec![LoginMode::Cookie],
+            login_modes: vec![],
             capabilities: ChannelCapabilities {
                 refresh: true,
                 quota_query: true,
@@ -249,7 +251,9 @@ impl BaseChannel for ClaudeWeb {
         Some(default_connection())
     }
 
-    fn local_operations(&self) -> &'static [Operation] { &[Operation::ListModels] }
+    fn local_operations(&self) -> &'static [Operation] {
+        &[Operation::ListModels]
+    }
 
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
@@ -330,10 +334,19 @@ impl BaseChannel for ClaudeWeb {
         })
     }
 
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
+    fn validate_credential_secret(&self, secret: &Value) -> Result<(), ChannelError> {
+        auth::field(secret, "cookie")
+            .or_else(|| auth::field(secret, "session_key"))
+            .and_then(auth::normalize_cookie)
+            .map(|_| ())
+            .ok_or(ChannelError::InvalidCredential)
     }
-    fn cookie_login(&self) -> Option<&dyn CookieLogin> {
+
+    fn initial_credential_expiry(&self, _secret: &Value) -> Option<i64> {
+        Some(0)
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
         Some(self)
     }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {

@@ -351,6 +351,7 @@ impl CredentialRefresh for OAuth {
                 secret["refresh_expires_at_ms"] = result["RefreshExpireAt"].clone();
             }
             Ok(CredentialUpdate {
+                metadata: None,
                 secret,
                 expires_at_ms,
             })

@@ -307,6 +307,7 @@ impl CredentialRefresh for super::Cline {
                 object.insert(name.clone(), value.clone());
             }
             Ok(CredentialUpdate {
+                metadata: None,
                 secret,
                 expires_at_ms: rotated.expires_at_ms,
             })

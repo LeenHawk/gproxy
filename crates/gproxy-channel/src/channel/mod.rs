@@ -25,7 +25,7 @@ pub use headers::{
     ChannelHeaders, HeaderAllowlist, forwardable, insert_configured, strip_query_auth,
 };
 pub use oauth::{
-    AcquiredCredential, AuthorizationCode, AuthorizationRequest, AuthorizationStart, CookieLogin,
+    AcquiredCredential, AuthorizationCode, AuthorizationRequest, AuthorizationStart,
     DeviceAuthorization, DevicePoll, LoginContext, OAuthAuthorizationCode, OAuthCredential,
     OAuthDeviceCode,
 };
@@ -143,11 +143,11 @@ pub struct PrepareContext<'a, B = HttpBody> {
     pub endpoint_override: Option<&'a str>,
 }
 
-/// Transport defaults vary between API calls and browser cookie login.
+/// Transport defaults vary between API calls and browser session exchanges.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConnectionPurpose {
     Request,
-    CookieLogin,
+    Browser,
 }
 
 /// Channel identity plus independently overridable operation methods.
@@ -173,9 +173,7 @@ pub trait BaseChannel: Send + Sync {
         if self.oauth_device_code().is_some() {
             login_modes.push(LoginMode::DeviceCode);
         }
-        if self.cookie_login().is_some() {
-            login_modes.push(LoginMode::Cookie);
-        }
+
         ChannelDescriptor {
             id: self.id(),
             display_name: self.id(),
@@ -185,7 +183,6 @@ pub trait BaseChannel: Send + Sync {
                     let kind = match mode {
                         LoginMode::ApiKey => "api_key",
                         LoginMode::AuthorizationCode | LoginMode::DeviceCode => "oauth",
-                        LoginMode::Cookie => "cookie",
                     };
                     if !kinds.contains(&kind) {
                         kinds.push(kind);
@@ -639,10 +636,6 @@ pub trait BaseChannel: Send + Sync {
     }
 
     fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        None
-    }
-
-    fn cookie_login(&self) -> Option<&dyn CookieLogin> {
         None
     }
 

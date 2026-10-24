@@ -1,7 +1,7 @@
 import { api, json, query } from "@/api/client"
 import type { Page, QuotaObservationDto, QuotaObservationQuery } from "@/generated/sdk"
 import type { CredentialProviderDto } from "@/generated/app"
-import type { AuthCodeStart, AuthCodeStarted, AuthCodeComplete, CredentialCreated, DeviceStart, DeviceStarted, DevicePollOutcome, CookieExchange, CredentialDto, CredentialSummaryDto, CredentialQuotaDto, CredentialLimitStatusDto, QuotaSnapshotDto, QuotaResetCreditsDto, QuotaResetWrite, QuotaResetDto, DiscoveredModelDto, ModelTestResultDto } from "@/generated/sdk"
+import type { AuthCodeStart, AuthCodeStarted, AuthCodeComplete, CredentialCreated, DeviceStart, DeviceStarted, DevicePollOutcome, CredentialDto, CredentialSummaryDto, CredentialQuotaDto, CredentialLimitStatusDto, QuotaSnapshotDto, QuotaResetCreditsDto, QuotaResetWrite, QuotaResetDto, DiscoveredModelDto, ModelTestResultDto } from "@/generated/sdk"
 export const credentialDirectory = () => api<CredentialProviderDto[]>("/admin/api/credentials/providers")
 const path = (id: string, action: string) => `/admin/api/credentials/${encodeURIComponent(id)}/${action}`
 export const revealCredential = (id: string) => api<unknown>(path(id, "reveal"), { method: "POST" })
@@ -21,4 +21,3 @@ export const startAuthCode = (body: AuthCodeStart) => login<AuthCodeStarted>("au
 export const completeAuthCode = (body: AuthCodeComplete) => login<CredentialCreated>("authcode/complete", body)
 export const startDevice = (body: DeviceStart) => login<DeviceStarted>("device/start", body)
 export const pollDevice = (loginSessionId: string) => login<DevicePollOutcome>("device/poll", { loginSessionId })
-export const exchangeCookie = (body: CookieExchange) => login<CredentialCreated>("cookie/exchange", body)

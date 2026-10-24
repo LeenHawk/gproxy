@@ -142,9 +142,6 @@ impl BaseChannel for Demo {
     fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
         Some(self)
     }
-    fn cookie_login(&self) -> Option<&dyn CookieLogin> {
-        Some(self)
-    }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
@@ -167,7 +164,6 @@ fn existing_channels_need_no_optional_implementations() {
     let channel: &dyn BaseChannel = &Bare;
     assert!(channel.oauth_authorization_code().is_none());
     assert!(channel.oauth_device_code().is_none());
-    assert!(channel.cookie_login().is_none());
     assert!(channel.credential_refresh().is_none());
     assert!(channel.quota_query().is_none());
     assert!(channel.quota_reset().is_none());
@@ -244,21 +240,6 @@ impl OAuthDeviceCode for Demo {
         })
     }
 }
-impl CookieLogin for Demo {
-    fn exchange_cookie<'a>(
-        &'a self,
-        ctx: LoginContext<'a>,
-        cookie: &'a str,
-    ) -> OperationFuture<'a, AcquiredCredential> {
-        Box::pin(async move {
-            let credential: OAuthCredential = serde_json::from_value(payload(
-                login_call(ctx, "/cookie", json!({"cookie":cookie})).await?,
-            ))
-            .unwrap();
-            Ok(credential.into())
-        })
-    }
-}
 
 #[tokio::test]
 async fn oauth_flows_preserve_pkce_state_tokens_and_host_driven_device_polling() {
@@ -275,7 +256,6 @@ async fn oauth_flows_preserve_pkce_state_tokens_and_host_driven_device_polling()
         reply(StatusCode::OK, token_json()),
         reply(StatusCode::FORBIDDEN, json!({})),
         reply(StatusCode::GONE, json!({})),
-        reply(StatusCode::OK, token_json()),
     ]);
     let ctx = LoginContext {
         provider: provider(&config),
@@ -341,17 +321,8 @@ async fn oauth_flows_preserve_pkce_state_tokens_and_host_driven_device_polling()
         device.poll(ctx, &session).await.unwrap(),
         DevicePoll::Expired
     ));
-    assert_eq!(
-        base.cookie_login()
-            .unwrap()
-            .exchange_cookie(ctx, "test-cookie")
-            .await
-            .unwrap()
-            .secret["access_token"],
-        "test-access"
-    );
     let requests = client.requests.lock().unwrap();
-    assert_eq!(requests.len(), 8);
+    assert_eq!(requests.len(), 7);
     assert!(
         requests
             .iter()

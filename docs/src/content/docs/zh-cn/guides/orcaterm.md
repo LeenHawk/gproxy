@@ -12,7 +12,7 @@ description: "通过 OrcaTerm 桌面端的 LightAI 协议接入账号，支持�
 3. 刷新供应商的模型目录。模型来自桌面端使用的动态 Rainbow 配置，请保留返回的完整模型 ID，包括 `TokenHub/`、`Hunyuan3/` 等前缀。
 4. 为导入的模型分配访问权限，即可通过 GPROXY 发送请求。
 
-凭证是 OrcaTerm 账号会话，不是腾讯云 SecretId 或某个模型厂商的 API 密钥。Cookie 登录仍可用于可选导入：粘贴包含 `ot_session=...` 的 Cookie；若有 `skey`，一并保留。直接导入 OAuth 数据时可提供 `access_token`，缺少的账号身份会在生成请求前查询。
+已有凭证通过 `POST /admin/api/credentials`（或批量接口）导入，再通过 `POST /admin/api/credentials/{id}/refresh` 初始化。控制台保存后自动刷新待初始化的记录；失败后保留已保存记录，可在详情中重试。Claude Web 使用 `authKind: "cookie"`；Claude Code 和 OrcaTerm 使用 `authKind: "oauth"`，也可提交 `secret: {"cookie": "..."}`。历史类型标签继续兼容读取。初始化和刷新将 secret、到期时间及可选公开 metadata 一起按版本 CAS 保存，无需数据库迁移或历史回填。 `secret: {"cookie": "ot_session=...; skey=..."}` / `secret: {"access_token": "..."}`.
 
 令牌刷新与客户端一致：调用 `OAuthRefreshToken` 并传入当前访问令牌，不虚构独立的 refresh-token 授权流程。
 

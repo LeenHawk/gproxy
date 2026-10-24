@@ -170,13 +170,3 @@ impl From<OAuthCredential> for AcquiredCredential {
         }
     }
 }
-
-/// ClaudeCode and Claude Web acquire a credential from an existing browser
-/// cookie; what comes back is the channel's own secret shape.
-pub trait CookieLogin: Send + Sync {
-    fn exchange_cookie<'a>(
-        &'a self,
-        context: LoginContext<'a>,
-        cookie: &'a str,
-    ) -> OperationFuture<'a, AcquiredCredential>;
-}

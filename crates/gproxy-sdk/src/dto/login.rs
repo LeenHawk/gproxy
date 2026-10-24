@@ -161,20 +161,3 @@ pub enum DevicePollOutcome {
     /// The user code outlived its window. The session is gone.
     Expired,
 }
-
-/// Exchange a browser session cookie for a credential. One call: there is no
-/// pending state to park.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub struct CookieExchange {
-    pub provider_id: String,
-    /// The cookie as the browser holds it; the channel normalizes it.
-    pub cookie: String,
-    #[serde(default)]
-    pub label: Option<String>,
-    #[serde(default)]
-    pub owner: CredentialOwner,
-}

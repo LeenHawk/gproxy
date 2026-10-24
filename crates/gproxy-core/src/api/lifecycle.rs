@@ -238,6 +238,7 @@ impl<C: BatchConnectionTrait> Core<C> {
                     version: row.version,
                     expires_at_ms: row.expires_at_ms,
                     secret,
+                    metadata: row.metadata.clone(),
                     status: row.status,
                     status_reason: row.status_reason.clone(),
                 }));

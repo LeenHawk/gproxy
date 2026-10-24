@@ -16,6 +16,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { QuotasPanel } from "@/pages/quotas"
+import { initializeCredentials } from "./initialize"
 import { CredentialForm } from "./form"
 import { CredentialExpiry } from "./expiry"
 import { UpstreamQuota } from "./upstream"
@@ -33,7 +34,7 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
   const [revealing, setRevealing] = useState(false)
   const [revealError, setRevealError] = useState<unknown>(null)
   const refresh = () => client.invalidateQueries({ queryKey: ["admin", "/credentials"] })
-  const save = useMutation({ mutationFn: (body: Record<string, unknown>) => credentials.update(id, body), onSuccess: async () => { setSecret(null); await refresh(); toast.success(t("toast.saved")) } })
+  const save = useMutation({ mutationFn: (body: Record<string, unknown>) => credentials.update(id, body), onSuccess: async row => { setSecret(null); await initializeCredentials([row]); await refresh(); toast.success(t("toast.saved")) } })
   const action = useMutation({ mutationFn: async (kind: "refresh" | "health" | "status") => {
     if (kind === "refresh") await actions.refreshCredential(id, true)
     if (kind === "health") await actions.resetHealth(id)
@@ -60,7 +61,7 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
       <Tabs value={tab} onValueChange={value => setTab(value as typeof tab)}><TabsList variant="line" className="max-w-full"><TabsTrigger value="basic" disabled={busy}>{t("limits.basic")}</TabsTrigger><TabsTrigger value="limits" disabled={busy}>{t("limits.local")}</TabsTrigger><TabsTrigger value="upstream" disabled={busy}>{t("limits.upstream")}</TabsTrigger></TabsList>
         <TabsContent value="basic" forceMount hidden={tab !== "basic"}>
           <dl className="mb-4 grid gap-3 sm:grid-cols-2">
-            <div><dt className="text-sm text-muted-foreground">{t("management.accessTokenExpiry")}</dt><dd><CredentialExpiry value={current.expiresAtMs} pendingRefresh={provider.channel === "vertex"} /></dd></div>
+            <div><dt className="text-sm text-muted-foreground">{t("management.accessTokenExpiry")}</dt><dd><CredentialExpiry value={current.expiresAtMs} pendingRefresh={provider.capabilities.refresh} /></dd></div>
             <div><dt className="text-sm text-muted-foreground">{t("management.refreshTokenExpiry")}</dt><dd><CredentialExpiry value={current.refreshExpiresAtMs} /></dd></div>
           </dl>
           <CredentialForm secretActions={<div className="flex flex-col gap-3">

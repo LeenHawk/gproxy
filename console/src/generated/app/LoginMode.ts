@@ -3,4 +3,4 @@
 /**
  * How a credential for this channel comes into existence.
  */
-export type LoginMode = "authorization_code" | "device_code" | "cookie" | "api_key";
+export type LoginMode = "authorization_code" | "device_code" | "api_key";

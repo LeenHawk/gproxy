@@ -1,4 +1,4 @@
-//! Cookie login and the twelve-hourly re-validation, both against
+//! Cookie initialization and twelve-hourly re-validation against
 //! `GET /api/bootstrap` (v3 `claudeweb/login.rs` and `auth.rs::refresh`).
 
 use gproxy_protocol::connection::Bytes;
@@ -12,8 +12,8 @@ use super::{
 use crate::{
     OutboundClient,
     channel::{
-        AcquiredCredential, ChannelError, CookieLogin, CredentialRefresh, CredentialUpdate,
-        LoginContext, OperationFuture, ProviderView, RefreshContext,
+        ChannelError, CredentialRefresh, CredentialUpdate, OperationFuture, ProviderView,
+        RefreshContext,
     },
 };
 
@@ -43,42 +43,9 @@ fn validity_ms(now: i64) -> Option<i64> {
     now.checked_add(auth::VALIDATION_SECS * 1000)
 }
 
-impl CookieLogin for ClaudeWeb {
-    /// A pasted cookie (or bare sessionKey) becomes a credential once the
-    /// bootstrap reply names a logged-in account with a chat organization.
-    /// A fresh device id is minted so every call looks like one browser.
-    fn exchange_cookie<'a>(
-        &'a self,
-        context: LoginContext<'a>,
-        cookie: &'a str,
-    ) -> OperationFuture<'a, AcquiredCredential> {
-        Box::pin(async move {
-            let cookie = auth::normalize_cookie(cookie).ok_or(ChannelError::InvalidCredential)?;
-            let device_id = id::uuid()?;
-            let (status, body) =
-                fetch_bootstrap(context.client, context.provider, &cookie, Some(&device_id))
-                    .await?;
-            if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
-            }
-            let bootstrap = bootstrap::parse(&body).map_err(|failure| match failure {
-                BootstrapFailure::LoggedOut => ChannelError::InvalidCredential,
-                BootstrapFailure::Malformed(message) => ChannelError::InvalidResponse(message),
-            })?;
-            let now = now_ms()?;
-            Ok(AcquiredCredential {
-                secret: bootstrap::secret(&cookie, Some(&device_id), &bootstrap, now),
-                expires_at_ms: validity_ms(now),
-                metadata: bootstrap::metadata(&bootstrap, now),
-            })
-        })
-    }
-}
-
 impl CredentialRefresh for ClaudeWeb {
     /// Re-validate the cookie. A 401/403 or a logged-out bootstrap is final;
-    /// other failures are transient. Model lists learned here cannot be
-    /// persisted (`CredentialUpdate` carries no metadata), only the secret.
+    /// other failures are transient. Persist public account and model metadata.
     fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let secret = context.credential.secret;
@@ -87,9 +54,14 @@ impl CredentialRefresh for ClaudeWeb {
                 .ok_or_else(|| {
                     ChannelError::RefreshRejected("credential has no session cookie".into())
                 })?;
-            let device_id = auth::field(secret, "device_id");
+            let cookie = auth::normalize_cookie(cookie).ok_or(ChannelError::InvalidCredential)?;
+            let device_id = match auth::field(secret, "device_id") {
+                Some(value) => value.to_owned(),
+                None => id::uuid()?,
+            };
+            let device_id = Some(device_id.as_str());
             let (status, body) =
-                fetch_bootstrap(context.client, context.provider, cookie, device_id).await?;
+                fetch_bootstrap(context.client, context.provider, &cookie, device_id).await?;
             if matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) {
                 return Err(ChannelError::RefreshRejected(format!(
                     "claude.ai session rejected with http {}",
@@ -106,14 +78,24 @@ impl CredentialRefresh for ClaudeWeb {
                 BootstrapFailure::Malformed(message) => ChannelError::InvalidResponse(message),
             })?;
             let now = now_ms()?;
-            let mut updated = bootstrap::secret(cookie, device_id, &bootstrap, now);
+            let mut updated = bootstrap::secret(&cookie, device_id, &bootstrap, now);
             // Keep any extra fields a host or operator stored on the secret.
             if let (Some(previous), Some(next)) = (secret.as_object(), updated.as_object_mut()) {
                 for (key, value) in previous {
                     next.entry(key.clone()).or_insert_with(|| value.clone());
                 }
             }
+            let mut metadata = context
+                .credential
+                .metadata
+                .as_object()
+                .cloned()
+                .unwrap_or_default();
+            if let Some(fields) = bootstrap::metadata(&bootstrap, now).as_object() {
+                metadata.extend(fields.clone());
+            }
             Ok(CredentialUpdate {
+                metadata: Some(metadata.into()),
                 secret: updated,
                 expires_at_ms: validity_ms(now),
             })

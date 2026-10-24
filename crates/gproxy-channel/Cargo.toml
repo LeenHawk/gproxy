@@ -60,7 +60,7 @@ codex = ["dep:time", "dep:url", "dep:base64", "dep:futures-util", "dep:sha2", "d
 # OpenAI SDK compatibility layer, anthropic-ratelimit-* headers and the
 # organization cost report.
 claudeapi = ["dep:futures-util", "dep:time", "dep:web-time"]
-# Claude Code (Claude.ai subscription) upstream: PKCE and cookie login,
+# Claude Code (Claude.ai subscription) upstream: PKCE and cookie initialization,
 # refresh, Messages over HTTP with the CLI's request hygiene, unified
 # rate-limit headers and /api/oauth/usage.
 claudecode = [
@@ -74,7 +74,7 @@ claudecode = [
     "dep:tokio",
     "dep:gloo-timers",
 ]
-# Claude Web (claude.ai browser session) upstream: cookie login against
+# Claude Web (claude.ai browser session) upstream: cookie initialization against
 # /api/bootstrap, multi-call conversation turns translated into Claude
 # Messages SSE, /api/organizations/{org}/usage quota windows.
 claudeweb = [

@@ -318,6 +318,7 @@ impl CredentialRefresh for super::Kimi {
             object.insert("expires_at_ms".into(), json!(expires_at_ms));
             object.insert("device_id".into(), json!(device));
             Ok(CredentialUpdate {
+                metadata: None,
                 secret: updated,
                 expires_at_ms: Some(expires_at_ms),
             })

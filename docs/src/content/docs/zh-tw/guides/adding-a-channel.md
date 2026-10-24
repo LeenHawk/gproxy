@@ -78,10 +78,9 @@ description: "一個 v4 渠道的結構：BaseChannel 契約、可選能力 trai
 
 | 訪問器 | 用途 |
 | --- | --- |
-| `credential_refresh` | 產出一份**完整替換**的金鑰與過期時間；宿主以 `version` 上的 CAS 寫回 |
+| `credential_refresh` | 產出一份**完整替換**的金鑰、過期時間與可選公開 metadata；宿主以 `version` 上的 CAS 寫回 |
 | `oauth_authorization_code` | 用宿主提供的 PKCE challenge 與 state 構造授權 URL；把 code 換成憑證 |
 | `oauth_device_code` | `start` 與一步 `poll`。節奏是宿主的事 |
-| `cookie_login` | 把貼上來的 cookie 換成一份憑證加它的公開後設資料 |
 | `quota_model` | 同步且純：從 `auth_kind` 與 metadata 推出這把憑證有哪些配額維度 |
 | `quota_query` | 從上游的用量端點讀一份配額快照 |
 | `quota_headers` | 把回應 header 變成配額條目；空表示什麼都沒報 |
@@ -90,6 +89,8 @@ description: "一個 v4 渠道的結構：BaseChannel 契約、可選能力 trai
 | `response_reason_observer` | 給原始上游回應分類（限流、過載、拒絕……）。預設實現解析標準 JSON 與 SSE；只有私有 wire 格式才需要覆寫 |
 | `websocket_response_reason` | 同上，針對一條完整的入站 WebSocket 訊息 |
 | `services` | 廠商控制面路由——見 [CLI 用戶端](/zh-tw/guides/cli-clients/) |
+
+已有材料走一般憑證新增／更新介面。用 `validate_credential_secret` 驗證格式，需要連網初始化時由 `initial_credential_expiry` 回傳 `Some(0)`，初始化邏輯重用 `CredentialRefresh`。重新整理回傳完整 secret、到期時間及可選公開 metadata（`None` 保留原值），宿主一起按版本 CAS 儲存。秘密欄位不得放入 metadata。
 
 用量本身不需要任何能力：宿主從渠道整形出的標準回應裡讀取它，一個什麼都沒報的渠道是
 **未報告**，不是 0。

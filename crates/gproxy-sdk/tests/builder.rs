@@ -49,7 +49,7 @@ async fn lists_only_the_registered_channels() {
             .contains(&LoginMode::AuthorizationCode)
     );
     assert!(descriptor.login_modes.contains(&LoginMode::DeviceCode));
-    assert!(descriptor.login_modes.contains(&LoginMode::Cookie));
+    assert_eq!(descriptor.login_modes.len(), 3);
     assert!(descriptor.capabilities.refresh);
     assert!(descriptor.capabilities.quota_query);
     assert!(!descriptor.capabilities.services);

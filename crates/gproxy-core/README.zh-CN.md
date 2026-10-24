@@ -44,7 +44,7 @@
 
 `CredentialData` 带有解析好的 HTTP client、强制 HTTP/1.1 用于 WebSocket 升级的同一
 profile、渠道为该凭证声明的 `QuotaDimension`，以及共享的 `CredentialState`：秘密、
-到期、生命周期状态与 Store 版本作为一个 `CredentialVersion` 原子发布，每个 attempt
+公开 metadata、到期、生命周期状态与 Store 版本作为一个 `CredentialVersion` 原子发布，每个 attempt
 固定一个版本，只有更新的版本才能替换。`Dead` 凭证永不被选择或刷新；`status_reason`
 说明原因，`CoreError::CredentialDead` 告诉调用方需要有人重新登录。
 

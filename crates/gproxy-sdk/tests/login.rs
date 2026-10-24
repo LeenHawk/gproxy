@@ -10,12 +10,12 @@ mod support;
 use std::{collections::BTreeMap, sync::Arc};
 
 use base64::Engine as _;
-use gproxy_channel::channel::{AcquiredCredential, AuthorizationStart, DevicePoll};
+use gproxy_channel::channel::{AuthorizationStart, DevicePoll};
 use gproxy_sdk::{
     ClientPool, Gproxy, GproxyBuilder, SdkError, SyncMode,
     dto::{
-        AuthCodeComplete, AuthCodeStart, CookieExchange, CredentialOwner, DevicePollOutcome,
-        DeviceStart, ProviderWrite,
+        AuthCodeComplete, AuthCodeStart, CredentialOwner, DevicePollOutcome, DeviceStart,
+        ProviderWrite,
     },
 };
 use gproxy_store::entity::identity::{organization, user};
@@ -738,91 +738,29 @@ async fn an_expired_device_login_is_over_too() {
 }
 
 #[tokio::test]
-async fn a_cookie_exchange_creates_a_cookie_credential() {
-    let (gproxy, channel) = sealed_sdk().await;
-    let provider_id = provider(&gproxy, "test").await;
-    channel
-        .cookie_exchanges
-        .lock()
-        .unwrap()
-        .push_back(Ok(AcquiredCredential {
-            secret: json!({ "cookie": "sessionKey=sk-ant-0123456789" }),
-            expires_at_ms: Some(1_800_000_000_000),
-            metadata: json!({ "user_email": "person@example.com", "rate_limit_tier": "max" }),
-        }));
-
-    let before = durable(&gproxy).await;
-    let created = gproxy
-        .login()
-        .cookie_exchange(CookieExchange {
-            provider_id: provider_id.clone(),
-            cookie: "sessionKey=sk-ant-0123456789".into(),
-            label: None,
-            owner: CredentialOwner::default(),
-        })
-        .await
-        .unwrap();
-    assert_eq!(durable(&gproxy).await, before + 1);
-
-    let row = gproxy
-        .store()
-        .credentials()
-        .get_many(std::slice::from_ref(&created.credential_id))
-        .await
-        .unwrap()
-        .remove(0)
-        .unwrap();
-    assert_eq!(row.auth_kind, "cookie");
-    assert_eq!(row.expires_at_ms, Some(1_800_000_000_000));
-    // The metadata is public and stays readable; the cookie itself does not.
-    assert_eq!(row.metadata["user_email"], "person@example.com");
-    assert!(
-        !row.secret
-            .windows(b"sk-ant-0123456789".len())
-            .any(|window| window == b"sk-ant-0123456789")
-    );
-    // The default label names the channel and the account it identified.
-    assert_eq!(
-        row.label.as_deref(),
-        Some("test person@example.com max"),
-        "the default label carries the channel and the account"
-    );
-
-    // A blank cookie never reaches the channel.
-    assert!(matches!(
-        gproxy
-            .login()
-            .cookie_exchange(CookieExchange {
-                provider_id,
-                cookie: "   ".into(),
-                ..Default::default()
-            })
-            .await
-            .unwrap_err(),
-        SdkError::Invalid(_)
-    ));
-}
-
-#[tokio::test]
 async fn default_labels_do_not_collide_on_one_provider() {
     let (gproxy, channel, _) = support::sdk_parts().await;
     let provider_id = provider(&gproxy, "test").await;
     let mut labels = Vec::new();
     for index in 0..3 {
-        channel
-            .cookie_exchanges
-            .lock()
-            .unwrap()
-            .push_back(Ok(AcquiredCredential {
-                secret: json!({ "cookie": format!("cookie-{index}") }),
-                expires_at_ms: None,
-                metadata: Value::Null,
-            }));
+        let started = gproxy
+            .login()
+            .authcode_start(AuthCodeStart {
+                provider_id: provider_id.clone(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let parked = session(&gproxy, &started.login_session_id).await.unwrap();
+        let mut tokens = support::oauth_credential(&format!("token-{index}"));
+        tokens.provider_fields.clear();
+        channel.code_exchanges.lock().unwrap().push_back(Ok(tokens));
         let created = gproxy
             .login()
-            .cookie_exchange(CookieExchange {
-                provider_id: provider_id.clone(),
-                cookie: format!("cookie-{index}"),
+            .authcode_complete(AuthCodeComplete {
+                login_session_id: started.login_session_id,
+                code: Some("code".into()),
+                state: Some(parked["state"].as_str().unwrap().into()),
                 ..Default::default()
             })
             .await
@@ -844,7 +782,7 @@ async fn default_labels_do_not_collide_on_one_provider() {
 
 #[tokio::test]
 async fn a_channel_without_the_flow_says_so() {
-    // `AltChannel` implements none of the three login traits.
+    // `AltChannel` implements none of the two login traits.
     let (gproxy, _, _) = support::seed::handle().await;
     support::seed::provider(&gproxy, "p-alt", "alt", &[]).await;
     support::seed::publish(&gproxy).await;
@@ -861,14 +799,6 @@ async fn a_channel_without_the_flow_says_so() {
         login
             .device_start(DeviceStart {
                 provider_id: "p-alt".into(),
-                ..Default::default()
-            })
-            .await
-            .unwrap_err(),
-        login
-            .cookie_exchange(CookieExchange {
-                provider_id: "p-alt".into(),
-                cookie: "whatever".into(),
                 ..Default::default()
             })
             .await

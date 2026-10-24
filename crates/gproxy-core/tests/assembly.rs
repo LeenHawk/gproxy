@@ -489,6 +489,7 @@ async fn reload_reuses_credential_slots_and_a_bad_rule_keeps_the_old_snapshot() 
     core.store()
         .credentials()
         .refresh_many(vec![CredentialRefresh {
+            metadata: None,
             id: "c1".into(),
             expected_version: 0,
             secret: PlaintextCodec
@@ -549,6 +550,7 @@ async fn reload_credentials_publishes_material_and_retires_deleted_rows() {
     core.store()
         .credentials()
         .refresh_many(vec![CredentialRefresh {
+            metadata: None,
             id: "c2".into(),
             expected_version: 0,
             secret: PlaintextCodec

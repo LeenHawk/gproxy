@@ -17,11 +17,11 @@ use futures_util::StreamExt;
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
-        AcquiredCredential, AuthorizationCode, AuthorizationRequest, AuthorizationStart,
-        ChannelCapabilities, ChannelDescriptor, CookieLogin, CredentialContext, CredentialRefresh,
-        CredentialUpdate, CredentialView, DeviceAuthorization, DevicePoll, LoginContext, LoginMode,
-        OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, OperationFuture, PrepareContext,
-        ProviderView, QuotaQuery, QuotaSnapshot,
+        AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelCapabilities,
+        ChannelDescriptor, CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView,
+        DeviceAuthorization, DevicePoll, LoginContext, LoginMode, OAuthAuthorizationCode,
+        OAuthCredential, OAuthDeviceCode, OperationFuture, PrepareContext, ProviderView,
+        QuotaQuery, QuotaSnapshot,
     },
 };
 use gproxy_protocol::{
@@ -71,7 +71,6 @@ pub struct TestChannel {
     pub exchanged_provider_state: Mutex<Vec<BTreeMap<String, Value>>>,
     pub device_authorizations: Mutex<VecDeque<DeviceAuthorization>>,
     pub device_polls: Mutex<VecDeque<DevicePoll>>,
-    pub cookie_exchanges: Mutex<VecDeque<Result<AcquiredCredential, &'static str>>>,
     /// What each login step was given, in order.
     pub login_calls: Arc<Log>,
 }
@@ -94,7 +93,6 @@ impl BaseChannel for TestChannel {
                 LoginMode::ApiKey,
                 LoginMode::AuthorizationCode,
                 LoginMode::DeviceCode,
-                LoginMode::Cookie,
             ],
             capabilities: ChannelCapabilities {
                 refresh: self.credential_refresh().is_some(),
@@ -118,9 +116,7 @@ impl BaseChannel for TestChannel {
     fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
         Some(self)
     }
-    fn cookie_login(&self) -> Option<&dyn CookieLogin> {
-        Some(self)
-    }
+
     /// `{"dialects": ["claude", …]}` on the provider, or everything.
     fn native_dialects(&self, provider: ProviderView<'_>, _: Operation) -> Vec<Dialect> {
         let configured: Vec<Dialect> = provider
@@ -253,23 +249,6 @@ impl OAuthDeviceCode for TestChannel {
     }
 }
 
-impl CookieLogin for TestChannel {
-    fn exchange_cookie<'a>(
-        &'a self,
-        _: LoginContext<'a>,
-        cookie: &'a str,
-    ) -> OperationFuture<'a, AcquiredCredential> {
-        self.login_calls.push(format!("cookie {cookie}"));
-        let reply = self
-            .cookie_exchanges
-            .lock()
-            .unwrap()
-            .pop_front()
-            .expect("scripted cookie exchange");
-        Box::pin(async move { reply.map_err(|reason| ChannelError::InvalidConfig(reason.into())) })
-    }
-}
-
 impl CredentialRefresh for TestChannel {
     fn refresh<'a>(
         &'a self,
@@ -291,6 +270,7 @@ impl CredentialRefresh for TestChannel {
                     api_key,
                     expires_at_ms,
                 } => Ok(CredentialUpdate {
+                    metadata: None,
                     secret: json!({ "api_key": api_key }),
                     expires_at_ms,
                 }),

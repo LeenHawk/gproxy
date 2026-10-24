@@ -123,7 +123,6 @@ fn context_for_channel(
                 label: None,
                 auth_kind: old.auth_kind.clone(),
                 enabled: true,
-                metadata: old.metadata.clone(),
                 client: client.clone(),
                 websocket_client: client.clone(),
                 state: old.state.clone(),

@@ -5,9 +5,9 @@ use gproxy_app::{App, AppConfig};
 use gproxy_channel::{
     BaseChannel,
     channel::{
-        AcquiredCredential, AuthorizationCode, AuthorizationRequest, AuthorizationStart,
-        CookieLogin, DeviceAuthorization, DevicePoll, LoginContext, OAuthAuthorizationCode,
-        OAuthCredential, OAuthDeviceCode, OperationFuture,
+        AuthorizationCode, AuthorizationRequest, AuthorizationStart, DeviceAuthorization,
+        DevicePoll, LoginContext, OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode,
+        OperationFuture,
     },
 };
 use gproxy_host_axum::HostState;
@@ -33,9 +33,6 @@ impl BaseChannel for LoginChannel {
         Some(self)
     }
     fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        Some(self)
-    }
-    fn cookie_login(&self) -> Option<&dyn CookieLogin> {
         Some(self)
     }
 }
@@ -102,21 +99,7 @@ impl OAuthDeviceCode for LoginChannel {
         Box::pin(async move { Ok(result) })
     }
 }
-impl CookieLogin for LoginChannel {
-    fn exchange_cookie<'a>(
-        &'a self,
-        _: LoginContext<'a>,
-        cookie: &'a str,
-    ) -> OperationFuture<'a, AcquiredCredential> {
-        Box::pin(async move {
-            Ok(AcquiredCredential {
-                secret: json!({ "cookie": cookie }),
-                expires_at_ms: None,
-                metadata: json!({}),
-            })
-        })
-    }
-}
+
 async fn instance() -> (Host, Arc<LoginChannel>) {
     let channel = Arc::new(LoginChannel::default());
     let client = Arc::new(ScriptClient::default());
@@ -259,8 +242,8 @@ async fn authorization_binds_user_scope_owner_and_requires_state() {
     let cross = login(
         &host,
         "k-a",
-        "cookie/exchange",
-        json!({"providerId":"p","cookie":"private","owner":{"organizationId":"b"}}),
+        "authcode/start",
+        json!({"providerId":"p","owner":{"organizationId":"b"}}),
     )
     .await;
     assert_eq!(cross.status, StatusCode::FORBIDDEN);
@@ -304,7 +287,7 @@ async fn device_flow_preserves_poll_cadence_and_terminal_results() {
 }
 
 #[tokio::test]
-async fn wrong_state_invalidates_authorization_and_cookie_login_stays_scoped() {
+async fn wrong_state_invalidates_authorization_and_import_stays_scoped() {
     let (host, _) = instance().await;
     let start = login(
         &host,
@@ -322,16 +305,12 @@ async fn wrong_state_invalidates_authorization_and_cookie_login_stays_scoped() {
     )
     .await;
     assert_eq!(result.status, StatusCode::BAD_REQUEST);
-    let result = login(
-        &host,
-        "k-a",
-        "cookie/exchange",
-        json!({"providerId":"p","cookie":"private-cookie","owner":{"teamId":"child"}}),
-    )
-    .await;
-    assert_eq!(result.status, StatusCode::OK, "{}", result.text());
-    assert!(!result.text().contains("private-cookie"));
-    let id = result.json()["credentialId"].as_str().unwrap().to_owned();
+    let result = host.send(keyed(post("/admin/api/credentials", json!({
+        "providerId":"p", "authKind":"oauth", "secret":{"access_token":"private-token"}, "teamId":"child"
+    })), "k-a")).await;
+    assert!(result.status.is_success(), "{}", result.text());
+    assert!(!result.text().contains("private-token"));
+    let id = result.json()["id"].as_str().unwrap().to_owned();
     let row = host
         .send(keyed(get(&format!("/admin/api/credentials/{id}")), "k-a"))
         .await;
@@ -439,8 +418,8 @@ async fn disabled_providers_cannot_start_or_complete_an_upstream_login() {
         login(
             &host,
             "k-a",
-            "cookie/exchange",
-            json!({"providerId":"p","cookie":"private","owner":{"organizationId":"a"}})
+            "authcode/start",
+            json!({"providerId":"p","owner":{"organizationId":"a"}})
         )
         .await
         .status,

@@ -412,7 +412,6 @@ ipc_table! {
         authcode_complete(request: sdk::AuthCodeComplete);
         device_start(request: sdk::DeviceStart);
         device_poll[login_session_id];
-        cookie_exchange(request: sdk::CookieExchange);
     }
 
     @manual {

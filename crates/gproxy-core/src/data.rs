@@ -155,12 +155,11 @@ pub struct CredentialData {
     pub label: Option<String>,
     pub auth_kind: String,
     pub enabled: bool,
-    pub metadata: serde_json::Value,
     /// Already resolved effective client, shared by equal connection parameters.
     pub client: Arc<dyn OutboundClient>,
     /// Same profile forced to HTTP/1.1 for RFC 6455 upgrades.
     pub websocket_client: Arc<dyn OutboundClient>,
-    /// Secret, expiry and lifecycle status, versioned together. Reused across
+    /// Secret, metadata, expiry and lifecycle status, versioned together. Reused across
     /// configuration reloads for the same live credential.
     pub state: Arc<CredentialState>,
     /// Declared once at assembly by the channel's `QuotaModel` from this

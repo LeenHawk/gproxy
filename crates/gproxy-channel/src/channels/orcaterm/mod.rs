@@ -33,7 +33,7 @@ pub use request::CLIENT_HEADERS;
 
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CookieLogin, CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, OperationContext,
+    CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, OperationContext,
     OperationFuture, PrepareContext, ProviderView, QuotaQuery,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
@@ -50,8 +50,8 @@ impl BaseChannel for OrcaTerm {
         ChannelDescriptor {
             id: ID,
             display_name: "OrcaTerm",
-            credential_kinds: vec!["oauth", "cookie"],
-            login_modes: vec![LoginMode::DeviceCode, LoginMode::Cookie],
+            credential_kinds: vec!["oauth"],
+            login_modes: vec![LoginMode::DeviceCode],
             capabilities: ChannelCapabilities { refresh: true, quota_query: true, ..Default::default() },
             config_keys: [
                 ConfigKey::optional("base_url", ConfigKeyKind::String,
@@ -60,7 +60,7 @@ impl BaseChannel for OrcaTerm {
                 ConfigKey::optional("international", ConfigKeyKind::Bool,
                     "Use OrcaTerm's international account and LightAI endpoints. Defaults to false."),
                 ConfigKey::optional("site_url", ConfigKeyKind::String,
-                    "Override the OrcaTerm account origin used for OAuth, cookie login and token refresh."),
+                    "Override the OrcaTerm account origin used for OAuth, cookie initialization and token refresh."),
                 ConfigKey::optional("oauth_provider", ConfigKeyKind::String,
                     "OAuth login provider: wechat, txcloud, google or github. Defaults to wechat in China and google internationally."),
                 ConfigKey::optional("headers", ConfigKeyKind::HeaderList,
@@ -118,13 +118,17 @@ impl BaseChannel for OrcaTerm {
     ) -> OperationFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::list(ctx))
     }
-
-    fn cookie_login(&self) -> Option<&dyn CookieLogin> {
-        Some(self)
-    }
     fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
         Some(self)
     }
+    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), ChannelError> {
+        auth::headers(secret).map(|_| ())
+    }
+
+    fn initial_credential_expiry(&self, _secret: &serde_json::Value) -> Option<i64> {
+        Some(0)
+    }
+
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
         Some(self)
     }

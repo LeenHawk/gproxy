@@ -30,8 +30,6 @@ use crate::{
 /// The `auth_kind` of the two OAuth flows. It is what tells a channel which
 /// shape to read the secret back in.
 pub(crate) const OAUTH: &str = "oauth";
-/// The `auth_kind` of a cookie exchange.
-pub(crate) const COOKIE: &str = "cookie";
 
 /// Insert the credential a login produced and return its id.
 pub(crate) async fn credential<C>(

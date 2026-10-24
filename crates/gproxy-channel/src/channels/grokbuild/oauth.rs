@@ -295,6 +295,7 @@ impl CredentialRefresh for super::GrokBuild {
                 }
             }
             Ok(CredentialUpdate {
+                metadata: None,
                 secret: updated,
                 expires_at_ms: Some(expires_at_ms),
             })

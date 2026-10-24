@@ -13,6 +13,7 @@ pub struct CredentialRefresh {
     pub id: String,
     pub expected_version: i64,
     pub secret: Vec<u8>,
+    pub metadata: Option<serde_json::Value>,
     pub expires_at_ms: Option<i64>,
 }
 
@@ -46,7 +47,11 @@ impl<C: BatchConnectionTrait> Repository<'_, C, credential::Entity> {
                     .expected_version
                     .checked_add(1)
                     .ok_or_else(|| invalid("credential version overflow"))?;
-                Ok(credential::Entity::update_many()
+                let mut query = credential::Entity::update_many();
+                if let Some(metadata) = update.metadata {
+                    query = query.col_expr(credential::Column::Metadata, Expr::val(metadata));
+                }
+                Ok(query
                     .col_expr(credential::Column::Secret, Expr::val(update.secret))
                     .col_expr(
                         credential::Column::ExpiresAtMs,

@@ -17,6 +17,7 @@ import { CredentialForm } from "./form"
 import { CredentialExpiry } from "./expiry"
 import { CredentialBulkImport } from "./bulk-import"
 import { CredentialTest } from "./test"
+import { initializeCredentials } from "./initialize"
 
 export function ProviderCredentials({ providerId }: { providerId: string }) {
   const providers = useQuery({ queryKey: ["credential-providers"], queryFn: credentialDirectory })
@@ -40,11 +41,13 @@ function CredentialCollection({ provider }: { provider: CredentialProviderDto })
     <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={!provider.enabled} onClick={() => setImporting(true)}>{t("credentialImport.title")}</Button>
     {provider.enabled && provider.loginModes.some(mode => mode !== "api_key") ? <Button className="self-start" onClick={() => setLogin(true)}>{t("management.loginAdd")}</Button> : null}</div>
     {health.error || toggle.error ? <ErrorNotice error={health.error || toggle.error} /> : null}
-    <CollectionPage creatable={provider.enabled} embedded id="credentials" family={credentials} filter={{ providerId: provider.id }} create={body => {
+    <CollectionPage creatable={provider.enabled} embedded id="credentials" family={credentials} filter={{ providerId: provider.id }} create={async body => {
       if (!provider.enabled) return Promise.reject(new Error(t("management.disabled")))
-      return credentials.create({ ...body, providerId: provider.id })
+      const row = await credentials.create({ ...body, providerId: provider.id })
+      await initializeCredentials([row])
+      return row
     }} rowId={row => row.id} rowLabel={row => row.label ?? row.id} searchable
-      columns={[{ key: "label", cell: row => row.label ?? row.id }, { key: "authKind", cell: row => t(`credentialKinds.${row.authKind}`, { defaultValue: row.authKind }) }, { key: "connectionProfileId", cell: row => <ProfileName id={row.connectionProfileId} /> }, { key: "expiresAtMs", header: t("management.accessTokenExpiry"), cell: row => <CredentialExpiry value={row.expiresAtMs} pendingRefresh={provider.channel === "vertex"} /> }, { key: "refreshExpiresAtMs", header: t("management.refreshTokenExpiry"), cell: row => <InstantCell value={row.refreshExpiresAtMs} /> }, { key: "status", cell: row => <Button size="sm" variant={row.status === "dead" ? "destructive" : "secondary"} title={t("management.healthReset")} aria-label={`${t("management.healthReset")}: ${row.label ?? row.id}`} disabled={busy} onClick={() => health.mutate(row.id)}>{t(`values.${row.status}`)}</Button> }, { key: "enabled", cell: row => <Button size="sm" variant={row.enabled ? "secondary" : "outline"} aria-label={`${t("fields.enabled")}: ${row.label ?? row.id}`} aria-pressed={row.enabled} disabled={busy} onClick={() => toggle.mutate(row)}>{t(row.enabled ? "fields.enabled" : "management.disabled")}</Button> }]}
+      columns={[{ key: "label", cell: row => row.label ?? row.id }, { key: "authKind", cell: row => t(`credentialKinds.${row.authKind}`, { defaultValue: row.authKind }) }, { key: "connectionProfileId", cell: row => <ProfileName id={row.connectionProfileId} /> }, { key: "expiresAtMs", header: t("management.accessTokenExpiry"), cell: row => <CredentialExpiry value={row.expiresAtMs} pendingRefresh={provider.capabilities.refresh} /> }, { key: "refreshExpiresAtMs", header: t("management.refreshTokenExpiry"), cell: row => <InstantCell value={row.refreshExpiresAtMs} /> }, { key: "status", cell: row => <Button size="sm" variant={row.status === "dead" ? "destructive" : "secondary"} title={t("management.healthReset")} aria-label={`${t("management.healthReset")}: ${row.label ?? row.id}`} disabled={busy} onClick={() => health.mutate(row.id)}>{t(`values.${row.status}`)}</Button> }, { key: "enabled", cell: row => <Button size="sm" variant={row.enabled ? "secondary" : "outline"} aria-label={`${t("fields.enabled")}: ${row.label ?? row.id}`} aria-pressed={row.enabled} disabled={busy} onClick={() => toggle.mutate(row)}>{t(row.enabled ? "fields.enabled" : "management.disabled")}</Button> }]}
       fields={credentialFields} renderForm={props => <CredentialForm {...props} providerId={provider.id} channel={provider.channel} credentialKinds={provider.credentialKinds} paidUsage={provider.capabilities.paidUsage} />} onOpen={row => setDetail({ row, tab: "basic" })} onEdit={row => setDetail({ row, tab: "basic" })}
       rowActions={row => <><Button variant="ghost" size="sm" onClick={() => setDetail({ row, tab: "upstream" })}>{t("limits.upstream")}</Button><Button variant="ghost" size="sm" disabled={!provider.enabled || !row.hasSecret} onClick={() => setTesting(row)}>{t("providers.models.test")}</Button></>}
     />

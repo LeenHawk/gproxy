@@ -759,6 +759,7 @@
   "management": {
     "accessTokenExpiry": "憑證 / 存取權杖到期時間",
     "refreshTokenExpiry": "更新權杖到期時間",
+    "savedRefreshFailed": "憑證已儲存（{{label}}），但初始化失敗。請開啟詳情檢查。",
     "pendingInitialRefresh": "待首次更新",
     "credentialRegionHint": "覆蓋供應商預設區域。留空時繼承供應商設定（或憑證密鑰中的 location）。",
     "allowPaidUsage": "允許使用積分餘額",

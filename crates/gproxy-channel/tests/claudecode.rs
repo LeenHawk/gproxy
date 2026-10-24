@@ -144,14 +144,14 @@ fn messages_request(headers: HeaderMap, body: Value) -> WireRequest {
 }
 
 #[test]
-fn default_connections_separate_api_requests_and_cookie_login() {
+fn default_connections_separate_api_requests_and_browser_initialization() {
     use gproxy_channel::channel::ConnectionPurpose;
     use gproxy_client::{Backend, EmulationConfig};
     let api = Claudecode.default_connection().expect("channel default");
     assert_eq!(api.backend, Backend::Wreq);
     assert!(api.emulation.is_none());
     let cookie = Claudecode
-        .default_connection_for(ConnectionPurpose::CookieLogin)
+        .default_connection_for(ConnectionPurpose::Browser)
         .unwrap();
     assert_eq!(cookie.backend, Backend::Wreq);
     assert!(matches!(
@@ -762,7 +762,7 @@ async fn authorize_url_and_code_exchange_follow_the_cli() {
 }
 
 #[tokio::test]
-async fn cookie_login_bootstraps_authorizes_and_exchanges() {
+async fn cookie_import_bootstraps_authorizes_and_exchanges() {
     let config = json!({});
     let client = ScriptClient::new(vec![
         raw_reply(StatusCode::FORBIDDEN, "<title>Just a moment...</title>"),
@@ -784,18 +784,18 @@ async fn cookie_login_bootstraps_authorizes_and_exchanges() {
                    "organization": {"uuid": "org-sub", "organization_type": "claude_max"}}),
         ),
     ]);
+    let imported = json!({"cookie": "Cookie: cf_clearance=clear; sessionKey=sk-ant-sid01-example"});
     let acquired = Claudecode
-        .cookie_login()
+        .credential_refresh()
         .unwrap()
-        .exchange_cookie(
-            LoginContext {
-                provider: provider(&config, None),
-                client: &client,
-            },
-            "Cookie: cf_clearance=clear; sessionKey=sk-ant-sid01-example",
-        )
+        .refresh(CredentialContext {
+            provider: provider(&config, None),
+            credential: credential(&imported, &Value::Null),
+            client: &client,
+        })
         .await
         .unwrap();
+    let metadata = acquired.metadata.as_ref().unwrap();
     assert_eq!(acquired.secret["access_token"], "fresh");
     assert!(acquired.secret.get("refresh_token").unwrap().is_null());
     assert_eq!(
@@ -803,13 +803,10 @@ async fn cookie_login_bootstraps_authorizes_and_exchanges() {
         "cf_clearance=clear; sessionKey=sk-ant-sid01-example"
     );
     assert!(acquired.expires_at_ms.unwrap() > now_ms());
-    assert_eq!(acquired.metadata["account_uuid"], "account-1");
-    assert_eq!(acquired.metadata["organization_uuid"], "org-sub");
-    assert_eq!(acquired.metadata["user_email"], "user@example.com");
-    assert!(
-        acquired.metadata.get("cookie").is_none(),
-        "the cookie is secret"
-    );
+    assert_eq!(metadata["account_uuid"], "account-1");
+    assert_eq!(metadata["organization_uuid"], "org-sub");
+    assert_eq!(metadata["user_email"], "user@example.com");
+    assert!(metadata.get("cookie").is_none(), "the cookie is secret");
     let sent = client.sent();
     assert_eq!(sent.len(), 5);
     assert_eq!(sent[0].1, "https://claude.ai/api/bootstrap");
@@ -886,17 +883,7 @@ async fn cookie_login_bootstraps_authorizes_and_exchanges() {
     assert_eq!(client.sent().len(), 4);
 
     assert!(matches!(
-        Claudecode
-            .cookie_login()
-            .unwrap()
-            .exchange_cookie(
-                LoginContext {
-                    provider: provider(&config, None),
-                    client: &client,
-                },
-                "not a cookie",
-            )
-            .await,
+        Claudecode.validate_credential_secret(&json!({"cookie": "not a cookie"})),
         Err(ChannelError::InvalidCredential)
     ));
 }

@@ -18,8 +18,8 @@ Cargo feature：
 | `aws_bedrock` | `aws_bedrock` | AWS Bedrock：`bedrock-runtime` 上经 SigV4 签名的 `InvokeModel`（Anthropic 模型），AWS event-stream 响应翻译成 Claude Messages SSE，控制面的基础模型目录 | AWS 访问密钥对（可为临时）或 Bedrock API key |
 | `azure` | `azure` | Azure OpenAI 以及 Azure AI Foundry 同时托管的 Anthropic 模型：资源下的 v1 面或 deployment 面，`api-key` 与 `x-api-key` | `{"api_key"}` |
 | `claudeapi` | `claudeapi` | Anthropic 自家 API：`x-api-key` 的 Messages，含该 API 要求的请求 hygiene 与服务端 fallback、OpenAI SDK 兼容层、`anthropic-ratelimit-*` 头、`/v1/organizations/cost_report` | `{"api_key", "quota_api_key"}` |
-| `claudecode` | `claudecode` | 经 Claude Code CLI 的 Messages 请求使用的 Claude.ai 订阅：PKCE 与 cookie 登录、刷新、统一限速头、`/api/oauth/usage`、CLI 服务 | `OAuthCredential` |
-| `claudeweb` | `claudeweb` | claude.ai 浏览器会话：对 `/api/bootstrap` 的 cookie 登录、多次调用组成的对话轮次翻译成 Claude Messages SSE、组织级用量窗口 | 会话 cookie + 组织 |
+| `claudecode` | `claudecode` | 经 Claude Code CLI 的 Messages 请求使用的 Claude.ai 订阅：PKCE 与 cookie 导入、刷新、统一限速头、`/api/oauth/usage`、CLI 服务 | `OAuthCredential` |
+| `claudeweb` | `claudeweb` | claude.ai 浏览器会话：对 `/api/bootstrap` 的 cookie 导入、多次调用组成的对话轮次翻译成 Claude Messages SSE、组织级用量窗口 | 会话 cookie + 组织 |
 | `cline` | `cline` | `api.cline.bot` 上 Cline 自己的账号：WorkOS 设备登录后再向 Cline 注册、带 `workos:` 前缀的 bearer、SDK 的归属头、响应外面那层 `{success, data}` 信封、它自己的推荐模型分组、套餐窗口与信用点余额 | `{"api_key"}` 或 `OAuthCredential` |
 | `codex` | `codex` | 经 Codex 后端使用的 ChatGPT 账号：OAuth（PKCE 与 device code）、HTTP SSE 与 WebSocket 上的 Responses、`x-codex-*` 限额头、`/wham/usage`、CLI 后端服务 | `OAuthCredential` |
 | `copilotcli` | `copilotcli` | 经 `copilot` CLI 使用的 GitHub Copilot：GitHub 设备登录拿到的长期令牌由 `CredentialRefresh` 换成短期 Copilot 令牌、CLI 的编辑器身份头、按席位决定的 origin、`copilot_internal/user` 的额度快照 | GitHub OAuth 令牌（+ 换来的 Copilot 令牌） |
@@ -217,10 +217,9 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
 
 | 访问器 | trait | 用途 |
 |---|---|---|
-| `credential_refresh` | `CredentialRefresh` | 产出完整的替换 secret 与过期时间；宿主以 `version` 做 CAS 持久化 |
+| `credential_refresh` | `CredentialRefresh` | 产出完整的替换 secret、过期时间与可选公开 metadata；宿主以 `version` 做 CAS 持久化 |
 | `oauth_authorization_code` | `OAuthAuthorizationCode` | `authorize` 用宿主给的 PKCE challenge 与 state 组 URL；`exchange` 把 code 换成 `OAuthCredential` |
 | `oauth_device_code` | `OAuthDeviceCode` | `start` 与单步 `poll`；调度归宿主 |
-| `cookie_login` | `CookieLogin` | 把粘贴的 cookie 换成 `AcquiredCredential`（secret 加公开 metadata） |
 | `quota_model` | `QuotaModel` | 同步纯函数：凭证具有的 `QuotaDimension`，由 `auth_kind` 与 metadata 推出 |
 | `quota_query` | `QuotaQuery` | 从上游用量端点读 `QuotaSnapshot` |
 | `quota_headers` | `QuotaHeaders` | 把响应头变成 `QuotaEntry`；空表示没有报告 |
@@ -289,7 +288,7 @@ Kimi 的订阅与 Moonshot API、OpenCode Go 与 Zen 是独立产品，没有用
      mod.rs        ID、单元结构体、重导出、写明 wire 事实来源的模块文档
      config.rs     AcmeConfig：供应商 `config` JSON，serde(default)，忽略未知键
      request.rs    impl BaseChannel：prepare / prepare_connect / 覆写的操作
-     oauth.rs      OAuthAuthorizationCode、OAuthDeviceCode、CookieLogin、CredentialRefresh
+     oauth.rs      OAuthAuthorizationCode、OAuthDeviceCode、CredentialRefresh
      quota.rs      QuotaModel、QuotaQuery、QuotaHeaders
      usage.rs      UsageExtras、UsageSource
      services.rs   ChannelServices 路由与处理

@@ -205,7 +205,6 @@ offer is `SdkError::Unsupported`.
 |---|---|---|
 | Authorization code | `authcode_start` → `authcode_complete` | A browser redirect with PKCE |
 | Device code | `device_start` → `device_poll`, repeatedly | A code typed on another device |
-| Cookie exchange | `cookie_exchange` | A session cookie the person already has |
 
 The SDK owns everything that is not the upstream's business. **PKCE**: the
 verifier is 32 random bytes minted here, never sent, and only its S256 digest
@@ -255,8 +254,8 @@ primitive a management write uses: one revision, one reload, one notification.
 The secret is sealed with the configured codec **before** the statement is
 built, so nothing between the channel and the database sees it in the clear and
 nothing sends it back — the answer is the credential's id and nothing else.
-`auth_kind` is `oauth` for the two OAuth flows and `cookie` for the cookie
-exchange, the owner columns are copied through untouched, and a caller that
+`auth_kind` is `oauth` for both OAuth flows; the owner columns are copied
+through untouched, and a caller that
 supplied no label gets one derived from the channel and whatever account the
 upstream named, made unique among that provider's labels.
 

@@ -196,7 +196,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                 provider_id: &credential.provider_id,
                 auth_kind: &credential.auth_kind,
                 secret: &row_version.secret,
-                metadata: &credential.metadata,
+                metadata: &row_version.metadata,
                 version: row_version.version,
                 expires_at_ms: row_version.expires_at_ms,
             },
@@ -206,13 +206,13 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             return Err(CoreError::Channel(ChannelError::UnsupportedService));
         }
         let cookie_client = if refresher.connection_purpose(&context.credential)
-            == gproxy_channel::channel::ConnectionPurpose::CookieLogin
+            == gproxy_channel::channel::ConnectionPurpose::Browser
             && row.connection_profile_id.is_none()
         {
             Some(
                 self.provider_client_for_proxy(
                     &provider.entity.id,
-                    gproxy_channel::channel::ConnectionPurpose::CookieLogin,
+                    gproxy_channel::channel::ConnectionPurpose::Browser,
                     row.proxy.as_ref(),
                 )
                 .await?,
@@ -243,6 +243,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             .credentials()
             .refresh_many_where(
                 vec![RefreshRow {
+                    metadata: update.metadata.clone(),
                     id: credential_id.to_owned(),
                     expected_version: row.version,
                     secret: sealed,
@@ -257,6 +258,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                     version: row.version + 1,
                     expires_at_ms: update.expires_at_ms,
                     secret: update.secret,
+                    metadata: update.metadata.unwrap_or_else(|| row.metadata.clone()),
                     status: CredentialStatus::Active,
                     status_reason: None,
                 });
@@ -311,6 +313,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                     version: current.version + 1,
                     expires_at_ms: current.expires_at_ms,
                     secret: current.secret.clone(),
+                    metadata: current.metadata.clone(),
                     status: CredentialStatus::Dead,
                     status_reason: Some(reason),
                 });
@@ -389,6 +392,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             version: row.version,
             expires_at_ms: row.expires_at_ms,
             secret,
+            metadata: row.metadata.clone(),
             status: row.status,
             status_reason: row.status_reason.clone(),
         });

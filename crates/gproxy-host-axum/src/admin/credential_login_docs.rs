@@ -35,9 +35,4 @@ pub(crate) fn document(api: &mut Api) {
         "/admin/api/credential-login/device/poll",
         "credentials",
     );
-    api.json::<d::CookieExchange, d::CredentialCreated>(
-        "post",
-        "/admin/api/credential-login/cookie/exchange",
-        "credentials",
-    );
 }

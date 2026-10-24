@@ -26,7 +26,6 @@ export * from "./ConnectivityProbeDto";
 export * from "./ConnectivityResultDto";
 export * from "./ConnectivityScope";
 export * from "./ConnectivityTest";
-export * from "./CookieExchange";
 export * from "./CountedWindowDto";
 export * from "./CredentialBlockDto";
 export * from "./CredentialCreated";

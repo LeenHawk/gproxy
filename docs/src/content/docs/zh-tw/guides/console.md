@@ -60,13 +60,12 @@ Application 全新實例先顯示三步設定精靈，完成後進入應用內�
   註冊的本機回撥頁面可能無法開啟，仍可複製位址列中的回撥地址。控制台不會啟動本機回撥監聽服務。
 - 裝置碼：開啟驗證連結，輸入頁面顯示的驗證碼。控制台按後端返回的間隔輪詢；成功、拒絕、過期或
   關閉視窗後停止輪詢。
-- Cookie 交換：提交已有的瀏覽器會話 Cookie，由渠道換取憑證。
 
 登入會話繫結發起使用者、管理範圍和憑證歸屬。完成後只返回憑證 ID，不返回金鑰。關閉未完成流程會
 停止介面操作，後端快取會話自然過期；重新整理頁面不會恢復登入精靈。
 
 上游登入介面均為 `/admin/api/credential-login` 下的 POST：`/authcode/start`、
-`/authcode/complete`、`/device/start`、`/device/poll`、`/cookie/exchange`，沿用憑證管理的範圍檢查。
+`/authcode/complete`、`/device/start`、`/device/poll`，沿用憑證管理的範圍檢查。
 按憑證發現和測試模型分別使用 `/admin/api/credentials/{id}/models/discover` 和 `/models/test`。
 
 ## 配額與價格

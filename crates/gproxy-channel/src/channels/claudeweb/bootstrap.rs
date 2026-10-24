@@ -1,6 +1,6 @@
 //! `GET /api/bootstrap`: the logged-in account, its organizations and the
 //! chat organization's capabilities and model configuration
-//! (v3 `claudeweb/bootstrap.rs`). The same reply serves cookie login and
+//! (v3 `claudeweb/bootstrap.rs`). The same reply serves cookie initialization and
 //! the twelve-hourly re-validation.
 
 use serde_json::{Map, Value, json};

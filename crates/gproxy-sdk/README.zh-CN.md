@@ -169,7 +169,7 @@ core 已经在单个供应商的凭证之间重试。`send` 是另一个维度�
 
 ## 凭证登录
 
-`gproxy.login()` 把一个人的浏览器会话变成一行凭证。三种流程，取决于该供应商的渠道
+`gproxy.login()` 把一个人的浏览器会话变成一行凭证。两种流程，取决于该供应商的渠道
 实现了哪几种——`Gproxy::channels()` 会报出每个渠道的 `login_modes`，向渠道要一个它没有
 的流程就是 `SdkError::Unsupported`。
 
@@ -177,7 +177,6 @@ core 已经在单个供应商的凭证之间重试。`send` 是另一个维度�
 |---|---|---|
 | 授权码 | `authcode_start` → `authcode_complete` | 带 PKCE 的浏览器跳转 |
 | 设备码 | `device_start` → 反复 `device_poll` | 在另一台设备上输入的验证码 |
-| Cookie 交换 | `cookie_exchange` | 用户手上已有的会话 cookie |
 
 凡是不属于上游的事都由 sdk 自己负责。**PKCE**：verifier 是这里生成的 32 字节随机数，
 永不外发，只有它的 S256 摘要进授权 URL——没有 verifier，被截获的授权码毫无用处。
@@ -220,7 +219,7 @@ println!("credential {}", created.credential_id);
 登录成功就是一次普通的凭证插入，走的是管理写入的同一个原语：一个 revision、一次重载、
 一次通知。密钥在语句构造**之前**就用配置好的 codec 密封，渠道与数据库之间没有任何一环
 见过明文，也没有任何东西把它送回去——返回的只有凭证 id。两种 OAuth 流程的 `auth_kind`
-是 `oauth`，cookie 交换是 `cookie`；归属三列原样透传；调用方没给标签时，默认标签由渠道
+是 `oauth`；归属三列原样透传；调用方没给标签时，默认标签由渠道
 名与上游报出的账号拼成，并在该供应商的既有标签里去重。
 
 ## 管理面

@@ -73,6 +73,7 @@ fn concurrent_reload_never_regresses_and_inflight_snapshot_stays_pinned() {
 fn refreshed_material_is_atomic_and_old_attempt_cannot_observe_half_a_version() {
     let material = |version| {
         Arc::new(CredentialVersion {
+            metadata: serde_json::json!({"version": version}),
             version,
             expires_at_ms: Some(version * 100),
             secret: serde_json::json!({"version": version}),
@@ -95,8 +96,10 @@ fn refreshed_material_is_atomic_and_old_attempt_cannot_observe_half_a_version() 
     assert_eq!(current.version, 16);
     assert_eq!(current.expires_at_ms, Some(1600));
     assert_eq!(current.secret["version"], 16);
+    assert_eq!(current.metadata["version"], 16);
     assert_eq!(pinned.version, 0);
     assert_eq!(pinned.secret["version"], 0);
+    assert_eq!(pinned.metadata["version"], 0);
     assert!(!state.publish_if_newer(material(1)));
     assert!(!state.publish_if_newer(material(16)));
     assert!(Arc::ptr_eq(&current, &state.load()));

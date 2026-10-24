@@ -180,7 +180,7 @@ commit.
 | Field | Meaning |
 | --- | --- |
 | `label` | Optional. Derived from the channel and the account when a login creates one. |
-| `authKind` | `api_key`, `oauth` or `cookie` — how the secret was obtained. |
+| `authKind` | `api_key`, `oauth`, `cookie` — The stored credential type is independent of how it was obtained. |
 | `secret` | The channel's declared fields. Never returned; a listing reports only `hasSecret`. |
 | `organizationId` / `teamId` / `userId` | The owner. Exactly one, or none for a shared credential. |
 | `connectionProfileId` | Overrides the provider's outbound stack. |
@@ -214,7 +214,7 @@ Visibility only narrows the live credential set; it never adds to it.
 
 ## Acquiring a Credential by Logging In
 
-Channels that hold an account rather than a key offer one or more of three
+Channels that hold an account rather than a key offer one or more of two
 flows. `GET /admin/api/channels` reports each channel's `loginModes`, and
 asking for one a channel does not offer is refused.
 
@@ -222,11 +222,12 @@ asking for one a channel does not offer is refused.
 | --- | --- | --- |
 | Authorization code | start → complete | A browser redirect with PKCE |
 | Device code | start → poll, repeatedly | A code typed on another device |
-| Cookie exchange | exchange | A session cookie the person already has |
+
+Import an existing credential through `POST /admin/api/credentials` (or its batch endpoint), then initialize it through `POST /admin/api/credentials/{id}/refresh`. The Console refreshes pending imports after saving; a failed initialization leaves the saved row available for retry. Claude Web uses `authKind: "cookie"`; Claude Code and OrcaTerm use `authKind: "oauth"`, including imports with `secret: {"cookie": "..."}`. Existing legacy kind labels remain readable. Initialization and refresh persist secret, expiry and optional public metadata together under version CAS; no database migration or historical backfill is needed.
 
 In the Console, open the provider's Credentials tab and choose **Add by signing in**.
 The browser flow accepts the full callback URL; device-code polling is automatic.
-The five POST operations live under `/admin/api/credential-login` and bind the
+The four POST operations live under `/admin/api/credential-login` and bind the
 pending session to its initiating user and administrative scope. See
 [Console administration](/guides/console/#credentials-and-upstream-sign-in).
 

@@ -78,7 +78,6 @@ times; generation tests make a real upstream request.
 - Device code: open the verification link and enter the displayed code. The
   Console polls at the interval returned by the backend and stops on success,
   denial, expiry or closing the window.
-- Cookie exchange: submit an existing browser session cookie to the channel.
 
 Login sessions are bound to the initiating user, administrative scope and
 credential owner. Completion returns a credential ID, not its secret. Closing
@@ -86,8 +85,7 @@ an unfinished flow stops the UI; cached sessions expire naturally. Refreshing
 the page does not restore the login wizard.
 
 All upstream login routes are POSTs under `/admin/api/credential-login`:
-`/authcode/start`, `/authcode/complete`, `/device/start`, `/device/poll` and
-`/cookie/exchange`. They use the credentials section's scope checks. Scoped
+`/authcode/start`, `/authcode/complete`, `/device/start`, `/device/poll`. They use the credentials section's scope checks. Scoped
 credential discovery and testing use
 `/admin/api/credentials/{id}/models/discover` and `/models/test` respectively.
 

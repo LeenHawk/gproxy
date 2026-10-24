@@ -9,10 +9,12 @@ use super::{ChannelError, ConnectionPurpose, CredentialContext, CredentialView};
 pub type RefreshContext<'a> = CredentialContext<'a>;
 
 /// A full replacement, never a partial secret merge. Intentionally no Debug or
-/// Serialize. Persist secret + expiry with a CAS on the input credential version;
+/// Serialize. Persist secret + expiry + optional metadata with a CAS on the input credential version;
 /// rotating refresh tokens must be durable before the new credential is used.
 pub struct CredentialUpdate {
     pub secret: Value,
+    /// Full public metadata replacement; None preserves existing metadata.
+    pub metadata: Option<Value>,
     pub expires_at_ms: Option<i64>,
 }
 

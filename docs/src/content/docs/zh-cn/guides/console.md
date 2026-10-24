@@ -60,13 +60,12 @@ Application 全新实例先显示三步设置向导，完成后进入应用内�
   注册的本机回调页面可能无法打开，仍可复制地址栏中的回调地址。控制台不会启动本机回调监听服务。
 - 设备码：打开验证链接，输入页面显示的验证码。控制台按后端返回的间隔轮询；成功、拒绝、过期或
   关闭窗口后停止轮询。
-- Cookie 交换：提交已有的浏览器会话 Cookie，由渠道换取凭证。
 
 登录会话绑定发起用户、管理范围和凭证归属。完成后只返回凭证 ID，不返回密钥。关闭未完成流程会
 停止界面操作，后端缓存会话自然过期；刷新页面不会恢复登录向导。
 
 上游登录接口均为 `/admin/api/credential-login` 下的 POST：`/authcode/start`、
-`/authcode/complete`、`/device/start`、`/device/poll`、`/cookie/exchange`，沿用凭证管理的范围检查。
+`/authcode/complete`、`/device/start`、`/device/poll`，沿用凭证管理的范围检查。
 按凭证发现和测试模型分别使用 `/admin/api/credentials/{id}/models/discover` 和 `/models/test`。
 
 ## 配额与价格

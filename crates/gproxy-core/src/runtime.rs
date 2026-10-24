@@ -12,13 +12,14 @@ use std::sync::{
 };
 
 /// One coherent decrypted version: everything the Store changes under the
-/// credential's version CAS (secret, expiry, lifecycle status). Never
+/// credential's version CAS (secret, metadata, expiry, lifecycle status). Never
 /// Debug/Serialize and never a cache notification payload. Persist the whole
 /// replacement before publishing it.
 pub struct CredentialVersion {
     pub version: i64,
     pub expires_at_ms: Option<i64>,
     pub secret: serde_json::Value,
+    pub metadata: serde_json::Value,
     /// Dead is never selected and never refreshed: a person must log in again.
     pub status: CredentialStatus,
     pub status_reason: Option<String>,

@@ -99,10 +99,9 @@ report quota windows without offering a reset.
 
 | Accessor | Purpose |
 | --- | --- |
-| `credential_refresh` | Produce a **full replacement** secret and expiry; the host persists it under a compare-and-swap on `version` |
+| `credential_refresh` | Produce a **full replacement** secret, expiry and optional public metadata; the host persists it under a compare-and-swap on `version` |
 | `oauth_authorization_code` | Build the authorize URL for a host-supplied PKCE challenge and state; exchange the code |
 | `oauth_device_code` | `start` and one `poll` step. Scheduling belongs to the host |
-| `cookie_login` | Exchange a pasted cookie for a credential plus its public metadata |
 | `quota_model` | Synchronous and pure: which quota dimensions a credential has, from its `auth_kind` and metadata |
 | `quota_query` | Read a quota snapshot from the upstream's usage endpoint |
 | `quota_headers` | Turn response headers into quota entries; empty means nothing reported |
@@ -111,6 +110,8 @@ report quota windows without offering a reset.
 | `response_reason_observer` | Classify a raw upstream response (rate limit, overload, refusal…). The default parses standard JSON and SSE; override only for a private wire format |
 | `websocket_response_reason` | The same, for one complete incoming WebSocket message |
 | `services` | Vendor control-plane routes — see [CLI Clients](/guides/cli-clients/) |
+
+Existing secrets use the ordinary credential create/update API. Validate their format in `validate_credential_secret`; return `Some(0)` from `initial_credential_expiry` when network initialization is required, then implement it through `CredentialRefresh`. A refresh returns a full secret replacement and expiry, plus optional public metadata (`None` preserves it). The host persists all three under the same version CAS; channels must keep secrets out of metadata.
 
 Usage itself needs no ability: the host reads it from the standard response the
 channel shapes, and a channel that reports none is **unreported**, not zero.

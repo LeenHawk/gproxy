@@ -7,7 +7,7 @@
 //! plugins and skills, onboarding and billing controls, desktop update
 //! redirects and the Claude Design (`frame`) surface. `ANALYSIS.md` records
 //! that all of them resolve against `BASE_API_URL` (`api.anthropic.com`);
-//! `claude.ai` only serves the cookie login, so `claude_ai_url` is not
+//! `claude.ai` only serves the cookie initialization, so `claude_ai_url` is not
 //! consulted here. MCP discovery and public directory routes were verified
 //! against `samples/claude-code-2.1.294/readable/`.
 //!

@@ -1,4 +1,4 @@
-//! Cookie login: a claude.ai `sessionKey` cookie is turned into the same
+//! Cookie initialization: a claude.ai `sessionKey` cookie is turned into the same
 //! OAuth tokens the CLI holds (v3 `claudecode/cookie.rs`). The organization
 //! with a subscription is read from `claude.ai/api/bootstrap`, an
 //! authorization code is minted at `{base}/v1/oauth/{org}/authorize` with a
@@ -120,6 +120,16 @@ pub(super) async fn refresh(
         credential.scopes = previous_scopes(secret);
     }
     Ok(CredentialUpdate {
+        metadata: Some({
+            let mut metadata = context
+                .credential
+                .metadata
+                .as_object()
+                .cloned()
+                .unwrap_or_default();
+            metadata.extend(credential.provider_fields.clone());
+            Value::Object(metadata)
+        }),
         expires_at_ms: credential.expires_at_ms,
         secret: secret_json(&credential, Some(&cookie))?,
     })

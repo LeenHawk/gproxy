@@ -144,7 +144,7 @@ URL 里的 `{model}` 会被替换成 upstream 模型名（按一个路径段做�
 | 字段 | 含义 |
 | --- | --- |
 | `label` | 可选。登录创建时会从渠道和账号推导一个。 |
-| `authKind` | `api_key`、`oauth` 或 `cookie`——密钥是怎么得到的。 |
+| `authKind` | `api_key`, `oauth`, `cookie` — 保存的凭证类型，与获取方式无关。 |
 | `secret` | 该渠道声明的字段。从不返回；列表里只有 `hasSecret`。 |
 | `organizationId` / `teamId` / `userId` | 归属。恰好一个，或都没有（共享凭证）。 |
 | `connectionProfileId` | 覆盖供应商的出站栈。 |
@@ -175,17 +175,18 @@ key 能比它的持有人更窄。
 
 ## 通过登录获取凭证
 
-持有账号而非 key 的渠道提供三种流程中的一种或多种。
+持有账号而非 key 的渠道提供两种流程中的一种或多种。
 `GET /admin/api/channels` 报告每个渠道的 `loginModes`，要一个它不提供的方式会被拒绝。
 
 | 流程 | 步骤 | 适用 |
 | --- | --- | --- |
 | 授权码 | start → complete | 带 PKCE 的浏览器跳转 |
 | 设备码 | start → 反复 poll | 在另一台设备上敲码 |
-| Cookie 交换 | exchange | 用户已经有的会话 cookie |
+
+已有凭证通过 `POST /admin/api/credentials`（或批量接口）导入，再通过 `POST /admin/api/credentials/{id}/refresh` 初始化。控制台保存后自动刷新待初始化的记录；失败后保留已保存记录，可在详情中重试。Claude Web 使用 `authKind: "cookie"`；Claude Code 和 OrcaTerm 使用 `authKind: "oauth"`，也可提交 `secret: {"cookie": "..."}`。历史类型标签继续兼容读取。初始化和刷新将 secret、到期时间及可选公开 metadata 一起按版本 CAS 保存，无需数据库迁移或历史回填。
 
 在控制台打开供应商的凭证标签，选择“登录添加凭证”。浏览器授权使用完整回调 URL 完成，
-设备码流程由页面自动轮询。五个 POST 操作位于 `/admin/api/credential-login`，待完成会话绑定
+设备码流程由页面自动轮询。四个 POST 操作位于 `/admin/api/credential-login`，待完成会话绑定
 发起用户和管理范围。参见[控制台管理](/zh-cn/guides/console/#凭证与上游登录)。
 
 GPROXY 拥有一切不属于上游的部分。**PKCE verifier** 是本地生成的 32 个随机字节，永不外发，

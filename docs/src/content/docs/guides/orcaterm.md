@@ -25,10 +25,10 @@ uses its normal conversions for Responses, Claude Messages and Gemini.
 4. Assign access to the imported models and call GPROXY normally.
 
 The credential is an OrcaTerm account session, not a Tencent Cloud SecretId or
-an API key from an individual model vendor. Cookie login remains available as
-an optional import: paste a Cookie header containing `ot_session=...`, keeping
-`skey` if present. Raw OAuth imports can supply an `access_token`; missing
-account identity is fetched before generation.
+an API key from an individual model vendor. Existing sessions use the normal credential import with `authKind: "oauth"` and
+`secret: {"cookie": "ot_session=...; skey=..."}` (retain `skey` when present),
+or `secret: {"access_token": "..."}`. The Console initializes the saved record
+through the standard refresh action and records its public account identity.
 Refresh uses `OAuthRefreshToken` with the current access token, matching the
 client, rather than inventing a separate refresh-token grant.
 

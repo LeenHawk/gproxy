@@ -436,6 +436,7 @@ impl CredentialRefresh for Codex {
             let secret =
                 serde_json::to_value(&credential).map_err(|e| invalid_response(e.to_string()))?;
             Ok(CredentialUpdate {
+                metadata: None,
                 secret,
                 expires_at_ms,
             })

@@ -536,6 +536,7 @@ impl CredentialRefresh for super::Kiro {
                 }
             }
             Ok(CredentialUpdate {
+                metadata: None,
                 secret: updated,
                 expires_at_ms: Some(expires_at_ms),
             })

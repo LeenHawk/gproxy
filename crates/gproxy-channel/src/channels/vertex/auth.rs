@@ -137,6 +137,7 @@ fn rotate(secret: &Value, token: &Value) -> Result<CredentialUpdate, ChannelErro
     object.insert("access_token".into(), Value::String(access.to_owned()));
     object.insert("expires_at_ms".into(), Value::from(expires_at_ms));
     Ok(CredentialUpdate {
+        metadata: None,
         secret,
         expires_at_ms: Some(expires_at_ms),
     })

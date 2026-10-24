@@ -21,8 +21,8 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `aws_bedrock` | `aws_bedrock` | AWS Bedrock: SigV4-signed (or API-key) calls on `bedrock-runtime` with the wire chosen per model — `InvokeModel` for Anthropic models, event-stream replies translated into Claude Messages SSE, and the OpenAI-compatible Chat Completions for the rest — plus the control plane's foundation-model directory | AWS access key pair (optionally temporary) or a Bedrock API key |
 | `azure` | `azure` | Azure OpenAI and the Anthropic models Azure AI Foundry hosts: the v1 or the deployment-scoped surface under a resource, `api-key` and `x-api-key` | `{"api_key"}` |
 | `claudeapi` | `claudeapi` | Anthropic's own API: `x-api-key` Messages with the API's request hygiene and server-side fallback, the OpenAI SDK compatibility layer, `anthropic-ratelimit-*` headers, `/v1/organizations/cost_report` | `{"api_key", "quota_api_key"}` |
-| `claudecode` | `claudecode` | Claude.ai subscription through the Claude Code CLI's Messages requests: PKCE and cookie login, refresh, unified rate-limit headers, `/api/oauth/usage`, CLI services | `OAuthCredential` |
-| `claudeweb` | `claudeweb` | claude.ai browser session: cookie login against `/api/bootstrap`, multi-call conversation turns rendered as Claude Messages SSE, organization usage windows | session cookie + organization |
+| `claudecode` | `claudecode` | Claude.ai subscription through the Claude Code CLI's Messages requests: PKCE and cookie import, refresh, unified rate-limit headers, `/api/oauth/usage`, CLI services | `OAuthCredential` |
+| `claudeweb` | `claudeweb` | claude.ai browser session: cookie import against `/api/bootstrap`, multi-call conversation turns rendered as Claude Messages SSE, organization usage windows | session cookie + organization |
 | `cline` | `cline` | Cline's own account at `api.cline.bot`: a WorkOS device login registered with Cline, a `workos:`-prefixed bearer, the SDK's attribution headers, the `{success, data}` envelope its replies arrive in, its recommended-model groups, plan windows and credit balance | `{"api_key"}` or `OAuthCredential` |
 | `cloudflare_ai_gateway` | `cloudflare_ai_gateway` | Cloudflare AI Gateway through the Cloudflare REST API: `/client/v4/accounts/{account}/ai` with the account and `cf-aig-gateway-id` taken from the credential, one bearer on Chat, Responses and Claude Messages, the account's credit balance | `{"api_key", "account_id", "gateway_id"?}` |
 | `codex` | `codex` | ChatGPT account through the Codex backend: OAuth (PKCE and device code), Responses over HTTP SSE and WebSocket, `x-codex-*` limit headers, `/wham/usage`, CLI backend services | `OAuthCredential` |
@@ -248,10 +248,9 @@ offering a reset).
 
 | Accessor | Trait | Purpose |
 |---|---|---|
-| `credential_refresh` | `CredentialRefresh` | Produce a full replacement secret and expiry; the host persists it with a CAS on `version` |
+| `credential_refresh` | `CredentialRefresh` | Produce a full replacement secret, expiry and optional public metadata; the host persists it with a CAS on `version` |
 | `oauth_authorization_code` | `OAuthAuthorizationCode` | `authorize` builds the URL for a host-supplied PKCE challenge and state; `exchange` turns the code into an `OAuthCredential` |
 | `oauth_device_code` | `OAuthDeviceCode` | `start` and one `poll` step; scheduling belongs to the host |
-| `cookie_login` | `CookieLogin` | Exchange a pasted cookie for an `AcquiredCredential` (secret plus public metadata) |
 | `quota_model` | `QuotaModel` | Synchronous, pure: the `QuotaDimension`s a credential has, derived from `auth_kind` and metadata |
 | `quota_query` | `QuotaQuery` | Read a `QuotaSnapshot` from the upstream's usage endpoint |
 | `quota_headers` | `QuotaHeaders` | Turn response headers into `QuotaEntry`s; empty means nothing reported |
@@ -336,7 +335,7 @@ behind its own feature. The steps, using `custom` (API key) and `codex`
      mod.rs        ID, the unit struct, re-exports, module doc with wire facts
      config.rs     AcmeConfig: provider `config` JSON, serde(default), unknown keys ignored
      request.rs    impl BaseChannel: prepare / prepare_connect / overridden operations
-     oauth.rs      OAuthAuthorizationCode, OAuthDeviceCode, CookieLogin, CredentialRefresh
+     oauth.rs      OAuthAuthorizationCode, OAuthDeviceCode, CredentialRefresh
      quota.rs      QuotaModel, QuotaQuery, QuotaHeaders
      usage.rs      UsageExtras, UsageSource
      services.rs   ChannelServices routes and handlers

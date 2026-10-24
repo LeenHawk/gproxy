@@ -101,7 +101,6 @@ exported!(
     AuthCodeComplete,
     AuthCodeStart,
     AuthCodeStarted,
-    CookieExchange,
     CredentialCreated,
     CredentialOwner,
     DevicePollOutcome,

@@ -528,6 +528,7 @@ impl CredentialRefresh for TestChannel {
                     api_key,
                     expires_at_ms,
                 } => Ok(CredentialUpdate {
+                    metadata: None,
                     secret: json!({"api_key": api_key}),
                     expires_at_ms,
                 }),
@@ -945,7 +946,6 @@ impl Harness {
                     label: None,
                     auth_kind: c.auth_kind.clone(),
                     enabled: c.enabled,
-                    metadata: c.metadata.clone(),
                     client: self.client.clone(),
                     websocket_client: self.client.clone(),
                     state: c.state.clone(),

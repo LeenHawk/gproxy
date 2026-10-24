@@ -23,7 +23,6 @@ fn the_upstream_login_surface_is_the_handles_own_family() {
         "authcode_complete",
         "device_start",
         "device_poll",
-        "cookie_exchange",
     ] {
         assert!(
             upstream.iter().any(|operation| operation.method == method),

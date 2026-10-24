@@ -144,7 +144,7 @@ URL 裡的 `{model}` 會被替換成 upstream 模型名（按一個路徑段做�
 | 欄位 | 含義 |
 | --- | --- |
 | `label` | 可選。登入建立時會從渠道和帳號推導一個。 |
-| `authKind` | `api_key`、`oauth` 或 `cookie`——金鑰是怎麼得到的。 |
+| `authKind` | `api_key`, `oauth`, `cookie` — 儲存的憑證類型，與取得方式無關。 |
 | `secret` | 該渠道宣告的欄位。從不返回；列表裡只有 `hasSecret`。 |
 | `organizationId` / `teamId` / `userId` | 歸屬。恰好一個，或都沒有（共享憑證）。 |
 | `connectionProfileId` | 覆蓋供應商的出站棧。 |
@@ -175,17 +175,18 @@ key 能比它的持有人更窄。
 
 ## 透過登入獲取憑證
 
-持有帳號而非 key 的渠道提供三種流程中的一種或多種。
+持有帳號而非 key 的渠道提供兩種流程中的一種或多種。
 `GET /admin/api/channels` 報告每個渠道的 `loginModes`，要一個它不提供的方式會被拒絕。
 
 | 流程 | 步驟 | 適用 |
 | --- | --- | --- |
 | 授權碼 | start → complete | 帶 PKCE 的瀏覽器跳轉 |
 | 裝置碼 | start → 反覆 poll | 在另一臺裝置上敲碼 |
-| Cookie 交換 | exchange | 使用者已經有的會話 cookie |
+
+已有憑證透過 `POST /admin/api/credentials`（或批次介面）匯入，再透過 `POST /admin/api/credentials/{id}/refresh` 初始化。控制台儲存後自動重新整理待初始化的記錄；失敗後保留已儲存記錄，可在詳情中重試。Claude Web 使用 `authKind: "cookie"`；Claude Code 和 OrcaTerm 使用 `authKind: "oauth"`，也可提交 `secret: {"cookie": "..."}`。歷史類型標籤繼續相容讀取。初始化和重新整理將 secret、到期時間及可選公開 metadata 一起按版本 CAS 儲存，無需資料庫遷移或歷史回填。
 
 在控制台開啟供應商的憑證標籤，選擇“登入新增憑證”。瀏覽器授權使用完整回撥 URL 完成，
-裝置碼流程由頁面自動輪詢。五個 POST 操作位於 `/admin/api/credential-login`，待完成會話繫結
+裝置碼流程由頁面自動輪詢。四個 POST 操作位於 `/admin/api/credential-login`，待完成會話繫結
 發起使用者和管理範圍。參見[控制台管理](/zh-tw/guides/console/#憑證與上游登入)。
 
 GPROXY 擁有一切不屬於上游的部分。**PKCE verifier** 是本地生成的 32 個隨機位元組，永不外發，

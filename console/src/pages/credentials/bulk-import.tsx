@@ -12,6 +12,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ownerColumns, useOwnerChoices } from "./ownership"
+import { initializeCredentials } from "./initialize"
 import { parseBulkCredentials, type BulkFormat } from "./bulk-parse"
 
 export function CredentialBulkImport({ provider, onClose }: { provider: CredentialProviderDto; onClose: () => void }) {
@@ -32,6 +33,7 @@ export function CredentialBulkImport({ provider, onClose }: { provider: Credenti
     ...ownerColumns(owner),
   } }))), onSuccess: async rows => {
     setInput("")
+    await initializeCredentials(rows)
     await invalidateConfiguration(client, credentials.path)
     toast.success(t("credentialImport.imported", { count: rows.length }))
     onClose()

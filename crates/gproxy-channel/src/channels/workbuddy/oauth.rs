@@ -341,6 +341,7 @@ impl CredentialRefresh for super::WorkBuddy {
                 }
             }
             Ok(CredentialUpdate {
+                metadata: None,
                 secret: updated,
                 expires_at_ms,
             })

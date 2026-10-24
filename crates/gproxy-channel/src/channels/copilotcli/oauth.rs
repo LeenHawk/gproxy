@@ -17,7 +17,7 @@
 //! straight away.
 
 use super::auth;
-use super::config::{DEFAULT_CLIENT_ID, CopilotCliConfig, ID};
+use super::config::{CopilotCliConfig, DEFAULT_CLIENT_ID, ID};
 use crate::OutboundClient;
 use crate::channel::{
     ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
@@ -255,6 +255,7 @@ impl CredentialRefresh for super::CopilotCli {
                 object.insert("copilot_expires_at_ms".into(), json!(expires_at_ms));
             }
             Ok(CredentialUpdate {
+                metadata: None,
                 secret,
                 expires_at_ms: Some(expires_at_ms),
             })

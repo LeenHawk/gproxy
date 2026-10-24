@@ -6,7 +6,7 @@ import { copyText } from "@/lib/copy-text"
 import { useTranslation } from "react-i18next"
 import type { CredentialProviderDto } from "@/generated/app"
 import type { AuthCodeStarted, DeviceStarted } from "@/generated/sdk"
-import { startAuthCode, completeAuthCode, startDevice, pollDevice, exchangeCookie } from "@/api/credentials"
+import { startAuthCode, completeAuthCode, startDevice, pollDevice } from "@/api/credentials"
 import { ManagementDialog } from "@/components/management-dialog"
 import { ErrorNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
@@ -26,19 +26,17 @@ export function CredentialLoginDialog({ provider, onClose }: { provider: Credent
   const traeCallback = provider.channel === "trae"
   const modes = provider.loginModes.filter(mode => mode !== "api_key")
   const [mode, setMode] = useState(modes[0])
-  const [cookie, setCookie] = useState("")
   const [callback, setCallback] = useState("")
   const [auth, setAuth] = useState<AuthCodeStarted | null>(null)
   const [device, setDevice] = useState<DeviceStarted | null>(null)
   const [polling, setPolling] = useState(false)
   const [pollError, setPollError] = useState<Error | null>(null)
   const [terminal, setTerminal] = useState<string | null>(null)
-  const finish = async () => { setCookie(""); setCallback(""); await client.invalidateQueries({ queryKey: ["admin", "/credentials"] }); onClose() }
+  const finish = async () => { setCallback(""); await client.invalidateQueries({ queryKey: ["admin", "/credentials"] }); onClose() }
   const start = useMutation({ mutationFn: async () => {
     const request = { providerId: provider.id, label: label.trim() || null, owner: ownerColumns(owner) }
     if (mode === "authorization_code") { setAuth(await startAuthCode({ ...request, redirectUri: null })); return }
     if (mode === "device_code") { setDevice(await startDevice(request)); setPolling(true); return }
-    await exchangeCookie({ ...request, cookie }); await finish()
   } })
   const complete = useMutation({ mutationFn: async () => { await completeAuthCode({ loginSessionId: auth!.loginSessionId, callbackUrl: auth!.redirectUri ? callback.trim() : null, code: auth!.redirectUri ? null : callback.trim(), state: auth!.redirectUri ? null : new URL(auth!.authorizeUrl).searchParams.get("state") }); await finish() } })
   const poll = useMutation({ mutationFn: pollDevice })
@@ -78,8 +76,7 @@ export function CredentialLoginDialog({ provider, onClose }: { provider: Credent
         <Field><FieldLabel htmlFor="login-mode">{t("management.loginMode")}</FieldLabel><Select value={mode} onValueChange={value => setMode(value as typeof mode)} disabled={busy}><SelectTrigger id="login-mode"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{modes.map(value => <SelectItem key={value} value={value}>{t(`management.${value}`)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
         <Field><FieldLabel htmlFor="login-label">{t("fields.label")}</FieldLabel><Input id="login-label" value={label} onChange={e => setLabel(e.target.value)} disabled={busy} /></Field>
         <Field><FieldLabel htmlFor="login-owner">{t("management.owner")}</FieldLabel><Select value={owner} onValueChange={setOwner} disabled={busy}><SelectTrigger id="login-owner"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{ownership.choices.map(entry => <SelectItem key={entry.value} value={entry.value}>{entry.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-        {mode === "cookie" ? <Field><FieldLabel htmlFor="login-cookie">Cookie</FieldLabel><Input id="login-cookie" type="password" autoComplete="off" value={cookie} onChange={e => setCookie(e.target.value)} disabled={busy} /></Field> : null}
-        <Button className="self-start" disabled={busy || (mode === "cookie" && !cookie.trim())} onClick={() => start.mutate()}>{t("management.startLogin")}</Button>
+        <Button className="self-start" disabled={busy} onClick={() => start.mutate()}>{t("management.startLogin")}</Button>
       </> : null}
       {authorizationUrl ? <Field>
         <FieldLabel htmlFor="login-authorization-url">{t("management.authorizationUrl")}</FieldLabel>

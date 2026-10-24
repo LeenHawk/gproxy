@@ -999,6 +999,7 @@ async fn concurrent_settlement_and_credential_cas_have_one_winner() {
         entry.amount
     );
     let refresh = CredentialRefresh {
+        metadata: Some(serde_json::json!({"plan": "pro"})),
         id: "c1".into(),
         expected_version: 0,
         secret: b"new".to_vec(),
@@ -1017,6 +1018,14 @@ async fn concurrent_settlement_and_credential_cas_have_one_winner() {
             .count(),
         1
     );
+    let row = store
+        .credentials()
+        .get_many(&["c1".into()])
+        .await
+        .unwrap()
+        .remove(0)
+        .unwrap();
+    assert_eq!(row.metadata, serde_json::json!({"plan": "pro"}));
 }
 
 #[tokio::test]
@@ -1065,6 +1074,7 @@ async fn status_cas_marks_dead_with_reason_and_refresh_restores_active() {
     store
         .credentials()
         .refresh_many(vec![CredentialRefresh {
+            metadata: None,
             id: "c1".into(),
             expected_version: 1,
             secret: b"relogin".to_vec(),

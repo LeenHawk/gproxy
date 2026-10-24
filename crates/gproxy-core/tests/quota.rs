@@ -387,6 +387,7 @@ async fn quota_query_refreshes_expired_material_before_querying() {
         .credentials()
         .refresh_many(vec![
             gproxy_store::operations::credentials::CredentialRefresh {
+                metadata: None,
                 id: "a".into(),
                 expected_version: 0,
                 secret: gproxy_core::PlaintextCodec

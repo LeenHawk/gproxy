@@ -759,6 +759,7 @@
   "management": {
     "accessTokenExpiry": "Credential / access token expires",
     "refreshTokenExpiry": "Refresh token expires",
+    "savedRefreshFailed": "Credential saved ({{label}}), but initialization failed. Open its details to review.",
     "pendingInitialRefresh": "Pending initial refresh",
     "credentialRegionHint": "Overrides the provider region. Leave empty to inherit the provider setting (or the location in the credential secret).",
     "allowPaidUsage": "Allow credit balance usage",
