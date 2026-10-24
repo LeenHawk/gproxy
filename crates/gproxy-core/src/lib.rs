@@ -35,6 +35,7 @@ pub mod realtime;
 pub mod responses;
 pub use responses::{ResponsesBinding, ResponsesHttpExecutor, ResponsesSession};
 mod refresh;
+mod response_refresh;
 pub mod rewrite;
 mod rt;
 pub mod runtime;

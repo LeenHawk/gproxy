@@ -1,15 +1,21 @@
 //! OrcaTerm 1.6.6's LightAI account transport, recovered from the official
 //! Windows x64 installer (SHA-256 f42940c099bc32fbe668adfea25fd5353f2b711b1e705536638aa1f78b28c173).
 //! Wire sources: samples/orcaterm-1.6.6/modules/{2481,26196,82025,92054}.js;
-//! the full audit and source locations are in docs/src/content/docs/guides/orcaterm.md.
+//! additional protocol evidence is in samples/orcaterm-1.6.6/CAPABILITY-AUDIT.md.
+//! The official Global 1.6.6 installer (SHA-256
+//! b561d528f6dfb1e05ee0763de4eb76be0c2a2d31780535291558ed522a7ace6d)
+//! embeds __OT_SITE__=intl and confirms orcaterm.ai / lightai.tencentcloud.com.
+//! Catalog language is independent of region (Global features.js:866).
 //!
 //! The desktop SDK sends /assistant/chat with historyMessages and parses an
 //! Agent JSON object inside each SSE message's content: completion answers
 //! are taskCompletion, questions are question, and thinking is separate.
-//! It is not an OpenAI-compatible upstream. This channel exposes text Chat
-//! Completions, including streamed reasoning and multi-turn history, to the
-//! host's normal converters. Unsupported client tools and media are rejected,
-//! never silently dropped or executed as OrcaTerm's built-in terminal tools.
+//! It is not an OpenAI-compatible upstream. This channel exposes Chat
+//! Completions with text/image input, streamed reasoning and multi-turn history
+//! to the host's normal converters. Unsupported request options are ignored;
+//! the channel does not execute OrcaTerm's built-in terminal tools.
+//! Image uploads follow readable/features.js:32684 and 38122; thinking kwargs
+//! follow the model catalog and readable/features.js:14727 and 14918.
 //! Token counts are not present in the audited wire and remain unreported.
 //!
 //! Browser OAuth follows the desktop authorize/session_id exchange and uses
@@ -22,6 +28,8 @@
 
 mod auth;
 mod config;
+mod image_processing;
+mod images;
 mod models;
 mod oauth;
 mod quota;
@@ -34,7 +42,7 @@ pub use request::CLIENT_HEADERS;
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, OperationContext,
-    OperationFuture, PrepareContext, ProviderView, QuotaQuery,
+    OperationFuture, ProviderView, QuotaQuery,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
 
@@ -92,10 +100,6 @@ impl BaseChannel for OrcaTerm {
                 operation: source.operation,
                 dialect: Dialect::OpenAiChat,
             })
-    }
-
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
-        request::prepare(ctx)
     }
 
     fn generate_content<'a>(

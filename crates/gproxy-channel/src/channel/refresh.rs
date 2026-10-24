@@ -19,6 +19,18 @@ pub struct CredentialUpdate {
 }
 
 pub trait CredentialRefresh: Send + Sync {
+    /// Consume an upstream credential-rotation header. The host seals and
+    /// version-CAS persists the replacement before publishing it. This hook
+    /// must remove secret response headers even when no update is accepted.
+    fn response_update(
+        &self,
+        _credential: CredentialView<'_>,
+        _request: &http::Request<()>,
+        _headers: &mut http::HeaderMap,
+    ) -> Option<CredentialUpdate> {
+        None
+    }
+
     /// Whether this credential can be renewed. Channels that also accept
     /// static API keys must distinguish those from renewable login material.
     fn supports(&self, _credential: &CredentialView<'_>) -> bool {

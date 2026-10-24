@@ -183,7 +183,7 @@ opencode = [
     "dep:web-time",
 ]
 # OrcaTerm desktop account: LightAI Agent JSON/SSE, browser OAuth, refresh, live models and AI quota.
-orcaterm = ["dep:futures-util", "dep:getrandom", "dep:time", "dep:url", "dep:web-time"]
+orcaterm = ["dep:image", "dep:sha2", "dep:base64", "dep:futures-util", "dep:getrandom", "dep:time", "dep:url", "dep:web-time"]
 # OpenRouter: provider routing preferences, app attribution headers,
 # upstream-priced usage and the /v1/auth/key budget probe.
 openrouter = ["dep:futures-util"]
@@ -223,6 +223,7 @@ workbuddy = [
 xai = ["dep:futures-util"]
 
 [dependencies]
+image = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 p256 = { workspace = true, optional = true }
 percent-encoding = { workspace = true, optional = true }

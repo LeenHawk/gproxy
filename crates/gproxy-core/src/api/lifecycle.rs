@@ -24,12 +24,15 @@ impl<C: BatchConnectionTrait> Core<C> {
     /// above; no schema sync happens here either. Live credential blocks are
     /// warmed into the cache as a side effect so the snapshot can be served
     /// immediately after publication.
-    pub async fn load_data(&self) -> CoreResult<Arc<CoreData>> {
+    pub async fn load_data(&self) -> CoreResult<Arc<CoreData>>
+    where
+        C: Send + Sync + 'static,
+    {
         let control = self.store.load_control_data().await?;
         let previous = self.snapshot();
         let now = now_ms();
         let vocabularies = self.load_vocabularies(&control, &previous).await?;
-        let assembly = crate::assemble::assemble(
+        let mut assembly = crate::assemble::assemble(
             &control,
             &self.channels,
             self.codec.as_ref(),
@@ -39,6 +42,7 @@ impl<C: BatchConnectionTrait> Core<C> {
             now,
         )
         .await?;
+        self.bind_response_refresh(&mut assembly.data);
         for (credential_id, blocks) in assembly.blocks {
             let Some(credential) = assembly.data.credentials.get(&credential_id) else {
                 continue;
@@ -113,7 +117,10 @@ impl<C: BatchConnectionTrait> Core<C> {
 
     /// Load/assemble through Store, then monotonically publish. Failure leaves
     /// the previous snapshot active; existing requests retain their pinned view.
-    pub async fn reload_data(&self) -> CoreResult<ReloadOutcome> {
+    pub async fn reload_data(&self) -> CoreResult<ReloadOutcome>
+    where
+        C: Send + Sync + 'static,
+    {
         let next = self.load_data().await?;
         let loaded_revision = next.revision;
         let published = self.publish_snapshot(next);

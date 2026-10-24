@@ -112,6 +112,7 @@ futures-util = "0.3"
 futures-executor = "0.3"
 form_urlencoded = "1"
 http = "1"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 hmac = "0.13"
 # The Android host's way in from Java. `0.21` rather than the newer line
 # because that is what `wry` resolves for Tauri's own Android binding, and two

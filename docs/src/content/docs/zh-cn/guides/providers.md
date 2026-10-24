@@ -43,7 +43,7 @@ description: "选择渠道、添加供应商与凭证，配置登录、额度查
 | `openai` | OpenAI 官方平台：完整 surface、套接字上的 Responses 与 Realtime | `{"api_key", "quota_api_key"}` |
 | `opencodego` | OpenCode Go：订阅制、开源模型、用量窗口 | `{"api_key"}` |
 | `opencodezen` | OpenCode Zen：从 Console 余额按量付费 | `{"api_key"}` 或 OAuth |
-| [`orcaterm`](/zh-cn/guides/orcaterm/) | OrcaTerm 账号：LightAI 文本多轮、流式思考、动态内置模型和 AI 问答额度 | 浏览器 OAuth（微信／腾讯云／Google／GitHub），可选 Cookie 导入 |
+| [`orcaterm`](#orcaterm) | OrcaTerm 账号：LightAI 图文多轮、流式思考、动态内置模型和 AI 问答额度 | 浏览器 OAuth（微信／腾讯云／Google／GitHub），可选 Cookie 导入 |
 | `openrouter` | OpenRouter：body 里的路由偏好、应答里报出的价格 | `{"api_key"}` |
 | `vercel` | Vercel AI Gateway：模型调用与团队余额查询 | `{"api_key"}` |
 | `vertex` | Google Vertex AI：Google、Anthropic 与 OpenAI 兼容发布者 | 服务账号密钥 |
@@ -66,6 +66,13 @@ description: "选择渠道、添加供应商与凭证，配置登录、额度查
 ```
 
 NVIDIA NIM、Vercel AI Gateway 和 Cloudflare AI Gateway 提供专用渠道，优先使用对应渠道以获得专用的认证和额度查询功能。
+
+### OrcaTerm
+
+`orcaterm` 使用桌面端 LightAI 协议，支持图文对话和模型专属思考参数。新建供应商后使用浏览器 OAuth，或导入 OAuth 凭证。国际站设置 `international=true`，账号地址为 `https://orcaterm.ai`，LightAI 地址为 `https://lightai.tencentcloud.com`。
+
+图片使用 Base64 data URL（PNG、JPEG、WebP、GIF），支持历史图片及纯图片消息。过大的静态图片在上传前自动缩放压缩；相同图片在预览链接有效期内复用同一凭证下的上传结果。模型与思考档位来自动态模型目录。不支持的请求选项忽略。token 数量保持未报告，账号额度查询返回 AI 问答次数。
+
 
 ## 供应商配置
 

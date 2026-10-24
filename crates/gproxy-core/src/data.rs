@@ -29,7 +29,7 @@ pub struct ConfigRevision(pub u64);
 
 /// No Debug/Serialize: provider configuration may contain sensitive data.
 /// Routing, model aliases, identity and business policies belong to the upper layer.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct CoreData {
     pub revision: ConfigRevision,
     pub observation: crate::ObservationSettings,
@@ -149,13 +149,14 @@ pub enum CredentialStrategy {
 }
 /// Immutable credential execution configuration, separate from mutable secret
 /// material. No stale second copy of secret/version/expiry in a Store Model.
+#[derive(Clone)]
 pub struct CredentialData {
     pub id: String,
     pub provider_id: String,
     pub label: Option<String>,
     pub auth_kind: String,
     pub enabled: bool,
-    /// Already resolved effective client, shared by equal connection parameters.
+    /// Resolved pooled client, with credential-scoped response rotation when refresh is supported.
     pub client: Arc<dyn OutboundClient>,
     /// Same profile forced to HTTP/1.1 for RFC 6455 upgrades.
     pub websocket_client: Arc<dyn OutboundClient>,

@@ -1,13 +1,13 @@
 use super::{
     OrcaTerm, auth,
     config::{OrcaTermConfig, new_id},
-    models,
+    images,
 };
 use crate::channel::{
     BaseChannel, ChannelError, ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable,
 };
 use crate::channels::shared::compatible::http::insert_configured;
-use gproxy_protocol::{HttpBody, Operation};
+use gproxy_protocol::HttpBody;
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde_json::{Value, json};
 
@@ -43,7 +43,7 @@ pub(super) fn configured_headers(config: &OrcaTermConfig) -> Result<HeaderMap, C
     Ok(headers)
 }
 
-fn bad(message: &str) -> ChannelError {
+pub(super) fn bad(message: &str) -> ChannelError {
     ChannelError::InvalidConfig(format!("OrcaTerm request: {message}"))
 }
 
@@ -68,44 +68,17 @@ fn text(value: &Value) -> Result<String, ChannelError> {
     Ok(out)
 }
 
-fn envelope(input: Value, user_id: &str) -> Result<Value, ChannelError> {
+pub(super) struct ChatRequest {
+    pub body: Value,
+    pub uploads: Vec<images::Upload>,
+    pub effort: Option<String>,
+}
+
+pub(super) fn build(input: &Value) -> Result<ChatRequest, ChannelError> {
     let model = input["model"]
         .as_str()
         .filter(|m| !m.trim().is_empty())
         .ok_or_else(|| bad("missing model"))?;
-    for name in ["tools", "functions"] {
-        if input
-            .get(name)
-            .is_some_and(|v| !v.is_null() && v.as_array().is_none_or(|a| !a.is_empty()))
-        {
-            return Err(bad(
-                "client function tools are not supported by the audited OrcaTerm wire",
-            ));
-        }
-    }
-    if input
-        .get("tool_choice")
-        .is_some_and(|v| !v.is_null() && v != "none" && v != "auto")
-        || input
-            .get("function_call")
-            .is_some_and(|v| !v.is_null() && v != "none")
-    {
-        return Err(bad("forced tool choice is not supported"));
-    }
-    if input.get("n").is_some_and(|v| !v.is_null() && v != 1)
-        || input
-            .get("response_format")
-            .is_some_and(|v| !v.is_null() && v["type"] != "text")
-    {
-        return Err(bad("only one text completion is supported"));
-    }
-    if input.get("audio").is_some_and(|v| !v.is_null())
-        || input.get("modalities").is_some_and(|v| {
-            !v.is_null() && v.as_array().is_none_or(|a| a.iter().any(|v| v != "text"))
-        })
-    {
-        return Err(bad("audio output is not supported"));
-    }
     let messages = input["messages"]
         .as_array()
         .filter(|a| !a.is_empty())
@@ -113,34 +86,33 @@ fn envelope(input: Value, user_id: &str) -> Result<Value, ChannelError> {
     let mut history = Vec::new();
     let mut system = Vec::new();
     let mut last = None;
+    let mut files = Vec::new();
+    let mut uploads = Vec::new();
     for (index, message) in messages.iter().enumerate() {
-        if message
-            .get("tool_calls")
-            .is_some_and(|v| !v.is_null() && v.as_array().is_none_or(|a| !a.is_empty()))
-            || message.get("function_call").is_some_and(|v| !v.is_null())
-        {
-            return Err(bad("tool history is not supported"));
-        }
-        let content = text(&message["content"])?;
         match message["role"].as_str() {
-            Some("system" | "developer") => system.push(content),
-            Some("user") if index + 1 == messages.len() => last = Some(content),
-            Some("user") => history.push(json!({"id":new_id()?,"type":"human","content":content})),
+            Some("system" | "developer") => system.push(text(&message["content"])?),
+            Some("user") => {
+                let current = index + 1 == messages.len();
+                let target = if current { "/input/files".to_owned() } else { format!("/input/historyMessages/{}/files", history.len()) };
+                let (content, images) = images::content(&message["content"], &target, &mut uploads)?;
+                if current {
+                    last = Some(content);
+                    files = images;
+                } else {
+                    history.push(json!({"id":new_id()?,"type":"human","content":content,"files":images}));
+                }
+            }
+            Some("tool" | "function") => continue,
+            Some("assistant") if message["content"].is_null() => continue,
             Some("assistant") => history.push(json!({"id":new_id()?,"type":"ai","content":json!({
-                "action":"completion","thinking":message["reasoning_content"].as_str().unwrap_or_default(),"taskCompletion":content
+                "action":"completion","thinking":message["reasoning_content"].as_str().unwrap_or_default(),"taskCompletion":text(&message["content"])?
             }).to_string()})),
             _ => return Err(bad("unsupported message role")),
         }
     }
     let last = last.ok_or_else(|| bad("the last message must be a user message"))?;
     let mut kwargs = serde_json::Map::new();
-    for key in [
-        "temperature",
-        "top_p",
-        "max_tokens",
-        "stop",
-        "reasoning_effort",
-    ] {
+    for key in ["temperature", "top_p", "max_tokens", "stop"] {
         if let Some(value) = input.get(key) {
             kwargs.insert(key.into(), value.clone());
         }
@@ -148,32 +120,38 @@ fn envelope(input: Value, user_id: &str) -> Result<Value, ChannelError> {
     if let Some(value) = input.get("max_completion_tokens") {
         kwargs.insert("max_tokens".into(), value.clone());
     }
-    let thinking = input.get("reasoning_effort").is_none_or(|v| v != "none");
-    if !thinking {
-        kwargs.remove("reasoning_effort");
-    }
-    Ok(json!({
-        "conversationId":format!("cid-{}-orcaterm", new_id()?),
-        "user":{"id":user_id,"setting":{
-            "model":model,"modelDesc":{"kwargs":kwargs},"mcpServers":[],"uiServers":[],"tools":[],
-            "approvedTools":[],"approvedMCPTools":[],"selectedMCPTools":{},"selectedUITools":{},
-            "enableAutoSubtaskExecution":false,"env":[],"extra":{},"language":"zh",
-            "multimodal":false,"enableThinking":thinking
-        }},
-        "input":{"id":new_id()?,"type":"start","input":last,"historyMessages":history,
-            "emphasisPrompt":system.join("\n\n"),"files":[]},"stream":true
-    }))
+    let effort = match input.get("reasoning_effort") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(effort)) => Some(effort.clone()),
+        _ => None,
+    };
+    let multimodal = !uploads.is_empty();
+    Ok(ChatRequest {
+        uploads,
+        effort,
+        body: json!({
+            "conversationId":format!("cid-{}-orcaterm", new_id()?),
+            "user":{"id":"","setting":{
+                "model":model,"modelDesc":{"kwargs":kwargs},"mcpServers":[],"uiServers":[],"tools":[],
+                "approvedTools":[],"approvedMCPTools":[],"selectedMCPTools":{},"selectedUITools":{},
+                "enableAutoSubtaskExecution":false,"env":[],"extra":{},"language":"zh",
+                "multimodal":multimodal
+            }},
+            "input":{"id":new_id()?,"type":"start","input":last,"historyMessages":history,
+                "emphasisPrompt":system.join("\n\n"),"files":files},"stream":true
+        }),
+    })
 }
 
-pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+pub(super) fn prepare(
+    ctx: PrepareContext<'_>,
+    body: Value,
+) -> Result<http::Request<HttpBody>, ChannelError> {
     if !OrcaTerm
         .native_dialects(ctx.provider, ctx.operation.operation)
         .contains(&ctx.operation.dialect)
     {
         return Err(ChannelError::UnsupportedOperation(ctx.operation));
-    }
-    if ctx.operation.operation == Operation::ListModels {
-        return models::prepare(ctx);
     }
     let config = OrcaTermConfig::from_view(ctx.provider)?;
     let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLIENT_HEADERS)?;
@@ -184,12 +162,6 @@ pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>
         header::ACCEPT,
         HeaderValue::from_static("text/event-stream"),
     );
-    let HttpBody::Bytes(bytes) = ctx.request.body else {
-        return Err(bad("requires a buffered JSON request"));
-    };
-    let input = serde_json::from_slice(&bytes).map_err(|_| bad("invalid JSON"))?;
-    let user_id = auth::fact(ctx.credential, "user_id").ok_or(ChannelError::InvalidCredential)?;
-    let body = envelope(input, user_id)?;
     insert(
         &mut headers,
         "x-seqid",

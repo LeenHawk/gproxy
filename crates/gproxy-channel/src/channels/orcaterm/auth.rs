@@ -11,6 +11,7 @@ use crate::{
         OperationFuture, RefreshContext,
     },
 };
+use base64::Engine as _;
 use gproxy_protocol::HttpBody;
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde_json::{Value, json};
@@ -276,7 +277,69 @@ pub(super) fn tokens(response: &Value) -> Result<OAuthCredential, ChannelError> 
     })
 }
 
+fn token_expiry(token: &str) -> Option<i64> {
+    let mut parts = token.split('.');
+    parts.next()?;
+    let payload = parts.next()?;
+    parts.next()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload)
+        .ok()?;
+    let claims: Value = serde_json::from_slice(&bytes).ok()?;
+    claims["exp"].as_i64()?.checked_mul(1000)
+}
+
 impl CredentialRefresh for OrcaTerm {
+    fn response_update(
+        &self,
+        credential: CredentialView<'_>,
+        request: &http::Request<()>,
+        headers: &mut HeaderMap,
+    ) -> Option<CredentialUpdate> {
+        let next = headers.remove("x-ot-token-refreshed")?;
+        // An explicit refresh persists its own response body. Public catalog
+        // calls have no bound bearer and must never rotate an account.
+        if request.uri().query().is_some_and(|query| {
+            query
+                .split('&')
+                .any(|pair| pair == "action=OAuthRefreshToken")
+        }) {
+            return None;
+        }
+        let current = token(credential.secret).ok()?;
+        let sent = request
+            .headers()
+            .get(header::AUTHORIZATION)?
+            .to_str()
+            .ok()?
+            .strip_prefix("Bearer ")?;
+        if sent != current {
+            return None;
+        }
+        let next = next.to_str().ok()?;
+        let expires = token_expiry(next)?;
+        let previous = credential
+            .expires_at_ms
+            .unwrap_or(0)
+            .max(token_expiry(current).unwrap_or(0));
+        if expires <= previous.max(now_ms()) || next == current {
+            return None;
+        }
+        let mut secret = credential.secret.clone();
+        secret
+            .as_object_mut()?
+            .insert("access_token".into(), json!(next));
+        secret["expires_at_ms"] = json!(expires);
+        Some(CredentialUpdate {
+            secret,
+            expires_at_ms: Some(expires),
+            metadata: None,
+        })
+    }
+
     fn supports(&self, credential: &CredentialView<'_>) -> bool {
         token(credential.secret).is_ok()
     }

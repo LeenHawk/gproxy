@@ -1,7 +1,7 @@
 use super::{
     auth,
     config::{OrcaTermConfig, invalid, new_id, now_ms},
-    request,
+    images, models, request,
 };
 use crate::channel::{ChannelError, CredentialView, OperationContext, PrepareContext};
 use futures_util::StreamExt;
@@ -391,6 +391,36 @@ pub(super) async fn invoke(
     ctx: OperationContext<'_>,
     streaming: bool,
 ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    if ctx.dialect != gproxy_protocol::Dialect::OpenAiChat {
+        return Err(ChannelError::UnsupportedOperation(OperationKey {
+            operation: if streaming {
+                Operation::StreamGenerateContent
+            } else {
+                Operation::GenerateContent
+            },
+            dialect: ctx.dialect,
+        }));
+    }
+    let HttpBody::Bytes(bytes) = &ctx.request.body else {
+        return Err(request::bad("requires a buffered JSON request"));
+    };
+    let input = serde_json::from_slice(bytes).map_err(|_| request::bad("invalid JSON"))?;
+    let mut chat = request::build(&input)?;
+    drop(input);
+    let model = chat.body["user"]["setting"]["model"]
+        .as_str()
+        .expect("validated model")
+        .to_owned();
+    let settings = models::settings(ctx.client.as_ref(), ctx.state.as_ref(), &model).await?;
+    if !chat.uploads.is_empty() && !settings.images {
+        return Err(request::bad("this model does not support images"));
+    }
+    let (thinking, params) = settings.reasoning(chat.effort.as_deref())?;
+    chat.body["user"]["setting"]["enableThinking"] = json!(thinking);
+    chat.body["user"]["setting"]["modelDesc"]["kwargs"]
+        .as_object_mut()
+        .expect("built kwargs")
+        .extend(params);
     // OAuth handoff tokens must not be lost when the post-login profile call
     // fails. Retry that independent lookup using the already saved token.
     let discovered = if auth::fact(ctx.credential, "user_id").is_none() {
@@ -409,27 +439,34 @@ pub(super) async fn invoke(
         },
         None => ctx.credential,
     };
-    let prepared = request::prepare(PrepareContext {
-        provider: ctx.provider,
+    chat.body["user"]["id"] =
+        json!(auth::fact(credential, "user_id").ok_or(ChannelError::InvalidCredential)?);
+    images::upload_all(
+        &mut chat.body,
+        chat.uploads,
+        ctx.provider,
         credential,
-        operation: OperationKey {
-            operation: if streaming {
-                Operation::StreamGenerateContent
-            } else {
-                Operation::GenerateContent
+        ctx.client.as_ref(),
+        ctx.state.as_ref(),
+    )
+    .await?;
+    let prepared = request::prepare(
+        PrepareContext {
+            provider: ctx.provider,
+            credential,
+            operation: OperationKey {
+                operation: if streaming {
+                    Operation::StreamGenerateContent
+                } else {
+                    Operation::GenerateContent
+                },
+                dialect: ctx.dialect,
             },
-            dialect: ctx.dialect,
+            request: ctx.request,
+            endpoint_override: ctx.endpoint_override,
         },
-        request: ctx.request,
-        endpoint_override: ctx.endpoint_override,
-    })?;
-    let model = match prepared.body() {
-        HttpBody::Bytes(bytes) => serde_json::from_slice::<Value>(bytes)
-            .ok()
-            .and_then(|body| body["user"]["setting"]["model"].as_str().map(str::to_owned))
-            .unwrap_or_default(),
-        _ => unreachable!("prepared body is JSON"),
-    };
+        chat.body,
+    )?;
     let mut response = ctx.client.send(prepared).await?;
     if !response.status.is_success() {
         return Ok(response);

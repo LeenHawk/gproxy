@@ -49,7 +49,7 @@ provider form should render.
 | `openai` | OpenAI's own platform: the full surface, Responses and Realtime over a socket | `{"api_key", "quota_api_key"}` |
 | `opencodego` | OpenCode Go: the subscription, open models, usage windows | `{"api_key"}` |
 | `opencodezen` | OpenCode Zen: pay-as-you-go from the Console balance | `{"api_key"}` or OAuth |
-| [`orcaterm`](/guides/orcaterm/) | OrcaTerm account: LightAI text conversations, streamed reasoning, live built-in models and AI question quota | Browser OAuth (WeChat/Tencent Cloud/Google/GitHub), optional Cookie import |
+| [`orcaterm`](#orcaterm) | OrcaTerm account: LightAI text and image conversations, streamed reasoning, live built-in models and AI question quota | Browser OAuth (WeChat/Tencent Cloud/Google/GitHub), optional Cookie import |
 | `openrouter` | OpenRouter: routing preferences in the body, the price the reply reports | `{"api_key"}` |
 | `vercel` | Vercel AI Gateway: Chat, Responses, Claude Messages, embeddings and team credit balance | `{"api_key"}` |
 | `vertex` | Google Vertex AI: the Google, Anthropic and OpenAI-compatible publishers | service-account key |
@@ -75,6 +75,13 @@ difference is an origin and a header is a `custom` provider:
 
 NVIDIA NIM, Vercel AI Gateway and Cloudflare AI Gateway used to be served this
 way; each has a channel now, because a row could not say everything they need.
+
+### OrcaTerm
+
+`orcaterm` uses the desktop LightAI protocol for text/image conversations and model-specific thinking settings. Create the provider, then use browser OAuth or import an OAuth credential. Set `international=true` for the international service; its account origin is `https://orcaterm.ai` and LightAI origin is `https://lightai.tencentcloud.com`.
+
+Image input uses Base64 data URLs (PNG, JPEG, WebP or GIF), including history and image-only user messages. Oversized static images are resized/compressed before upload; identical images reuse a credential-scoped upload while its preview URL is fresh. Supported models and thinking levels follow the dynamic model catalog. Unsupported request options are ignored. Token counts remain unreported; the account quota reports AI question counts.
+
 
 ## Provider configuration
 

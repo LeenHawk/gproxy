@@ -1,20 +1,29 @@
-use super::{auth, config::invalid};
-use crate::channel::{ChannelError, OperationContext, PrepareContext};
+use super::{
+    auth,
+    config::{invalid, now_ms},
+};
 use crate::channels::shared::compatible::http::read_body;
-use gproxy_protocol::{HttpBody, Operation, OperationKey, WireResponse};
+use crate::{
+    OutboundClient,
+    channel::{ChannelError, ChannelState, OperationContext},
+};
+use gproxy_protocol::{HttpBody, WireResponse, capability::StateWrite};
 use http::{HeaderValue, Method, header};
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    time::{Duration, SystemTime},
+};
 
 const URL: &str = "https://dnspod.cloud.tencent.com/ajax/rainbow?action=getRainbowConfig";
 const GROUP: &str = "orcaterm.内置模型";
 
-pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+pub(super) fn prepare(endpoint: Option<&str>) -> Result<http::Request<HttpBody>, ChannelError> {
     // Public configuration, independently verified without cookies. Never send
     // an account credential or caller headers to this separate DNSPod origin.
     http::Request::builder()
         .method(Method::POST)
-        .uri(ctx.endpoint_override.unwrap_or(URL))
+        .uri(endpoint.unwrap_or(URL))
         .header(header::CONTENT_TYPE, "application/json")
         .header(header::ACCEPT, "application/json")
         .body(HttpBody::Bytes(
@@ -32,15 +41,126 @@ fn number(value: &Value) -> f64 {
         .unwrap_or(0.0)
 }
 
-fn catalog(root: &Value, user_id: &str) -> Result<Value, ChannelError> {
+fn rows(root: &Value) -> Result<&Vec<Value>, ChannelError> {
     if root["code"] != 0 {
         return Err(invalid("model configuration request failed"));
     }
-    let rows = root["data"]
+    root["data"]
         .as_array()
         .and_then(|groups| groups.iter().find(|g| g["group"] == GROUP))
         .and_then(|group| group["rows"].as_array())
-        .ok_or_else(|| invalid("model configuration has no group rows"))?;
+        .ok_or_else(|| invalid("model configuration has no group rows"))
+}
+
+fn flag(value: &Value) -> bool {
+    value == true || value == "1" || value == 1
+}
+
+pub(super) struct ModelSettings {
+    pub images: bool,
+    thinking: bool,
+    levels: Vec<Value>,
+}
+
+impl ModelSettings {
+    fn from_row(row: &Value) -> Result<Self, ChannelError> {
+        let levels = match &row["thinkingLevels"] {
+            Value::Null => vec![],
+            Value::String(s) if s.trim().is_empty() => vec![],
+            Value::String(s) => {
+                serde_json::from_str(s).map_err(|_| invalid("invalid thinkingLevels JSON"))?
+            }
+            Value::Array(levels) => levels.clone(),
+            _ => return Err(invalid("thinkingLevels must be an array")),
+        };
+        Ok(Self {
+            images: flag(&row["supportImg"]),
+            thinking: flag(&row["showThinking"]),
+            levels,
+        })
+    }
+
+    pub fn reasoning(
+        &self,
+        effort: Option<&str>,
+    ) -> Result<(bool, serde_json::Map<String, Value>), ChannelError> {
+        let effort = effort.map(|e| if e == "none" { "off" } else { e });
+        if self.levels.is_empty() {
+            return match effort {
+                None => Ok((self.thinking, Default::default())),
+                Some("off") if !self.thinking => Ok((false, Default::default())),
+                _ => Ok((self.thinking, Default::default())),
+            };
+        }
+        let selected = effort
+            .and_then(|effort| self.levels.iter().find(|level| level["value"] == effort))
+            .or_else(|| self.levels.iter().find(|level| flag(&level["default"])))
+            .or_else(|| self.levels.iter().find(|level| level["value"] != "off"))
+            .unwrap_or(&self.levels[0]);
+        let level = selected["value"]
+            .as_str()
+            .ok_or_else(|| invalid("thinking level has no value"))?;
+        let params = selected["requestParams"]
+            .as_object()
+            .ok_or_else(|| invalid("thinking level has no requestParams object"))?;
+        Ok((level != "off", params.clone()))
+    }
+}
+
+const CACHE_KEY: &str = "orcaterm:models:v1";
+
+async fn remember(state: &dyn ChannelState, root: &Value) -> Result<(), ChannelError> {
+    let current = state.get(CACHE_KEY).await?;
+    // This cache is an optimization; a stateless host can fetch the public configuration.
+    let _ = state
+        .compare_exchange(
+            CACHE_KEY,
+            current.map(|entry| entry.version),
+            Some(StateWrite {
+                payload: root.to_string().into(),
+                expires_at: Some(
+                    SystemTime::UNIX_EPOCH
+                        + Duration::from_millis(now_ms().max(0) as u64)
+                        + Duration::from_secs(300),
+                ),
+            }),
+        )
+        .await;
+    Ok(())
+}
+
+pub(super) async fn settings(
+    client: &dyn OutboundClient,
+    state: &dyn ChannelState,
+    model: &str,
+) -> Result<ModelSettings, ChannelError> {
+    let root = if let Some(entry) = state.get(CACHE_KEY).await? {
+        serde_json::from_slice(&entry.payload)
+            .map_err(|_| invalid("invalid cached model configuration"))?
+    } else {
+        let response = client.send(prepare(None)?).await?;
+        let bytes = read_body(response.body).await?;
+        if !response.status.is_success() {
+            return Err(ChannelError::UpstreamResponse {
+                status: response.status,
+                body: bytes,
+            });
+        }
+        let root = serde_json::from_slice(&bytes)
+            .map_err(|_| invalid("invalid model configuration JSON"))?;
+        rows(&root)?;
+        remember(state, &root).await?;
+        root
+    };
+    let row = rows(&root)?
+        .iter()
+        .find(|row| number(&row["weight"]) > 0.0 && row["model"] == model)
+        .ok_or_else(|| super::request::bad("model is not in the enabled OrcaTerm catalog"))?;
+    ModelSettings::from_row(row)
+}
+
+fn catalog(root: &Value, user_id: &str) -> Result<Value, ChannelError> {
+    let rows = rows(root)?;
     let mut sorted = rows
         .iter()
         .filter(|row| number(&row["weight"]) > 0.0)
@@ -104,7 +224,7 @@ fn catalog(root: &Value, user_id: &str) -> Result<Value, ChannelError> {
         }
         data.push(json!({"id":id,"object":"model","created":0,"owned_by":"orcaterm",
             "name":row.get("displayName").filter(|v| v.as_str().is_some_and(|s| !s.is_empty())).unwrap_or(&row["text"]),
-            "description":row["description"],"input_modalities":["text"],"output_modalities":["text"]}));
+            "description":row["description"],"input_modalities":if flag(&row["supportImg"]) { vec!["text", "image"] } else { vec!["text"] },"output_modalities":["text"]}));
     }
     Ok(json!({"object":"list","data":data}))
 }
@@ -112,22 +232,17 @@ fn catalog(root: &Value, user_id: &str) -> Result<Value, ChannelError> {
 pub(super) async fn list(
     ctx: OperationContext<'_>,
 ) -> Result<WireResponse<HttpBody>, ChannelError> {
-    let request = super::request::prepare(PrepareContext {
-        provider: ctx.provider,
-        credential: ctx.credential,
-        operation: OperationKey {
-            operation: Operation::ListModels,
-            dialect: ctx.dialect,
-        },
-        request: ctx.request,
-        endpoint_override: ctx.endpoint_override,
-    })?;
+    let request = prepare(ctx.endpoint_override)?;
     let mut response = ctx.client.send(request).await?;
     if !response.status.is_success() {
         return Ok(response);
     }
     let bytes = read_body(response.body).await?;
     let root = serde_json::from_slice(&bytes).map_err(|e| invalid(e.to_string()))?;
+    rows(&root)?;
+    if ctx.endpoint_override.is_none() {
+        remember(ctx.state.as_ref(), &root).await?;
+    }
     response.body = HttpBody::Bytes(
         catalog(
             &root,

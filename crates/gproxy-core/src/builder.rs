@@ -121,7 +121,7 @@ impl<C> CoreBuilder<C> {
         let observer = self
             .observer
             .unwrap_or_else(|| Arc::new(crate::StoreObserver::new(self.store.clone())));
-        Ok(Core {
+        let core = Core {
             store: self.store,
             cache: self.cache.ok_or(BuildError::MissingCache)?,
             observer,
@@ -138,6 +138,17 @@ impl<C> CoreBuilder<C> {
                 .unwrap_or_else(|| Arc::from(crate::ids::random_id())),
             data: ArcSwap::from(self.data.unwrap_or_default()),
             detached_observations: Arc::default(),
-        })
+        };
+        let mut initial = core.snapshot();
+        if initial.credentials.values().any(|credential| {
+            initial
+                .providers
+                .get(&credential.provider_id)
+                .is_some_and(|provider| provider.channel.credential_refresh().is_some())
+        }) {
+            core.bind_response_refresh(Arc::make_mut(&mut initial));
+            core.data.store(initial);
+        }
+        Ok(core)
     }
 }

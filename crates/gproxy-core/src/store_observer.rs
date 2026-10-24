@@ -515,6 +515,7 @@ fn sensitive(name: &str) -> bool {
             | "password"
             | "secret"
             | "x_goog_api_key"
+            | "x_ot_token_refreshed"
     )
 }
 fn headers_json(headers: &http::HeaderMap, redact: bool) -> Value {
