@@ -80,11 +80,14 @@ impl Bindings {
             let mapped = (|| -> Result<Option<r::InputItem>, TransformError> {
                 Ok(Some(match item {
                     r::InputItem::CustomToolCall(item)
-                        if self.entries.contains_key(&custom_alias(&item.name)) =>
+                        if self.entries.contains_key(&custom_binding_alias(
+                            item.namespace.as_deref(),
+                            &item.name,
+                        )) =>
                     {
                         caller(&item.caller)?;
                         call(
-                            &custom_alias(&item.name),
+                            &custom_binding_alias(item.namespace.as_deref(), &item.name),
                             item.call_id,
                             item.id,
                             json!({"input":item.input}),

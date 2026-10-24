@@ -318,7 +318,7 @@ pub(super) fn gemini_content_to_chat(
             }
         }
         if let Some(response) = part.function_response {
-            if role != "user" {
+            if role == "system" {
                 continue;
             }
             if response.parts.is_some()
@@ -353,6 +353,18 @@ pub(super) fn gemini_content_to_chat(
                 ));
             }
         }
+    }
+    // Some Gemini clients place functionResponse parts in model content.
+    // Their bound call ID still makes them tool results; do not drop them or
+    // append an empty assistant prefix after a result-only message.
+    if role == "model"
+        && !result.is_empty()
+        && call_messages.is_empty()
+        && assistant.is_empty()
+        && reasoning.is_empty()
+        && details.is_empty()
+    {
+        return Ok(result);
     }
     if role == "model" {
         if call_messages.is_empty() {

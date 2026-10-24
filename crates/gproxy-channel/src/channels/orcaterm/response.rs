@@ -2,8 +2,12 @@ use super::{
     auth,
     config::{OrcaTermConfig, invalid, new_id, now_ms},
     images, models, request,
+    tools::{Pending, Tools, json_content},
 };
-use crate::channel::{ChannelError, CredentialView, OperationContext, PrepareContext};
+use crate::channel::{
+    ChannelError, ChannelState, CredentialView, OperationContext, PrepareContext,
+};
+use crate::channels::shared::compatible::http::read_body;
 use futures_util::StreamExt;
 use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireResponse,
@@ -12,7 +16,7 @@ use gproxy_protocol::{
 };
 use http::{HeaderValue, header};
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 const MAX_MESSAGE: usize = 4 * 1024 * 1024;
 const LIMITS: CodecLimits = CodecLimits {
@@ -141,10 +145,22 @@ struct Translator {
     collect: bool,
     text: String,
     reasoning: String,
+    tools: Tools,
+    tool_calls: Vec<Value>,
+    pending: Option<(String, Pending)>,
+    capture_web: bool,
+    web_results: BTreeMap<String, (Value, String)>,
+    input_tokens: u64,
+    output_characters: u64,
 }
 
 impl Translator {
-    fn new(model: String, collect: bool) -> Result<Self, ChannelError> {
+    fn new(
+        model: String,
+        collect: bool,
+        tools: Tools,
+        input_tokens: u64,
+    ) -> Result<Self, ChannelError> {
         Ok(Self {
             decoder: SseDecoder::new(LIMITS),
             id: format!("chatcmpl-{}", new_id()?),
@@ -161,6 +177,13 @@ impl Translator {
             collect,
             text: String::new(),
             reasoning: String::new(),
+            tools,
+            tool_calls: Vec::new(),
+            pending: None,
+            capture_web: false,
+            web_results: BTreeMap::new(),
+            input_tokens,
+            output_characters: 0,
         })
     }
 
@@ -174,6 +197,7 @@ impl Translator {
         if text.is_empty() {
             return;
         }
+        self.output_characters += text.chars().count() as u64;
         if !self.started {
             self.chunk(json!({"role":"assistant","content":""}), None, out);
             self.started = true;
@@ -196,8 +220,8 @@ impl Translator {
         );
     }
 
-    fn project(&mut self, out: &mut Vec<u8>) -> Result<(), ChannelError> {
-        let fields = partial_strings(&self.current);
+    fn project(&mut self, committed: bool, out: &mut Vec<u8>) -> Result<(), ChannelError> {
+        let fields = partial_strings(json_content(&self.current));
         if !self.native_reasoning
             && let Some(thinking) = fields.get("thinking")
         {
@@ -207,6 +231,11 @@ impl Translator {
                 .to_owned();
             self.delta(true, &delta, out);
             self.emitted_thinking = thinking.clone();
+        }
+        // The Agent may retract and regenerate an answer. Keep answer text
+        // pending until it is committed, since Chat has no retraction event.
+        if !committed {
+            return Ok(());
         }
         let key = match fields.get("action").map(String::as_str) {
             Some("completion") => "taskCompletion",
@@ -228,22 +257,40 @@ impl Translator {
         if self.current.is_empty() {
             return Ok(());
         }
-        let value: Value = serde_json::from_str(&self.current)
+        let value: Value = serde_json::from_str(json_content(&self.current))
             .map_err(|_| invalid("incomplete or invalid Agent JSON in SSE content"))?;
         let key = match value["action"].as_str() {
             Some("completion") => "taskCompletion",
             Some("ask") => "question",
             Some("review") => {
-                return Err(invalid(
-                    "upstream requested a tool; this channel does not execute OrcaTerm tools",
+                self.project(false, out)?;
+                let (call, pending) = self.tools.review(&value["tool"], &self.current_id)?;
+                if !self.started {
+                    self.chunk(json!({"role":"assistant","content":""}), None, out);
+                    self.started = true;
+                }
+                let mut delta = call.clone();
+                delta["index"] = json!(0);
+                self.chunk(json!({"tool_calls":[delta]}), None, out);
+                self.output_characters += call["function"]["arguments"]
+                    .as_str()
+                    .expect("serialized arguments")
+                    .chars()
+                    .count() as u64;
+                self.pending = Some((
+                    call["id"].as_str().expect("generated call ID").to_owned(),
+                    pending,
                 ));
+                self.tool_calls = vec![call];
+                self.saw_answer = true;
+                return Ok(());
             }
             _ => return Err(invalid("unsupported Agent response action")),
         };
         if !value[key].is_string() {
             return Err(invalid("Agent response has no text answer"));
         }
-        self.project(out)?;
+        self.project(true, out)?;
         self.saw_answer = true;
         Ok(())
     }
@@ -253,6 +300,10 @@ impl Translator {
             return Ok(());
         }
         let SseFrame::Event(event) = frame else {
+            if self.capture_web {
+                self.done = true;
+                return Ok(());
+            }
             self.finish_message(out)?;
             if !self.saw_answer {
                 return Err(invalid("stream completed without an answer"));
@@ -261,7 +312,10 @@ impl Translator {
                 self.chunk(json!({"role":"assistant","content":""}), None, out);
                 self.started = true;
             }
-            self.chunk(json!({}), Some("stop"), out);
+            self.chunk(json!({}), Some(self.finish_reason()), out);
+            let usage = json!({"id":self.id,"object":"chat.completion.chunk","created":self.created,
+                "model":self.model,"choices":[],"usage":self.usage()});
+            out.extend_from_slice(format!("data: {usage}\n\n").as_bytes());
             out.extend_from_slice(b"data: [DONE]\n\n");
             self.done = true;
             return Ok(());
@@ -286,14 +340,41 @@ impl Translator {
         if id.starts_with("heartbeat-") {
             return Ok(());
         }
-        if id.starts_with("remove-") {
-            return Err(invalid("upstream retracted an Agent message"));
+        if let Some(removed) = id.strip_prefix("remove-") {
+            if removed == self.current_id {
+                self.current.clear();
+                self.emitted_text.clear();
+                self.emitted_thinking.clear();
+                self.native_reasoning = false;
+            }
+            return Ok(());
         }
         if value["type"] == "tool" {
-            return Err(invalid("unexpected server tool output"));
+            // Server-executed OrcaTerm tools are not client function calls.
+            // Their result is consumed by the Agent before its final answer.
+            if self.capture_web
+                && matches!(
+                    value["tool"]["name"].as_str(),
+                    Some("fetch" | "cloud_ai_assistant_search")
+                )
+            {
+                let entry = self
+                    .web_results
+                    .entry(id)
+                    .or_insert_with(|| (value["tool"].clone(), String::new()));
+                if let Some(content) = value["content"].as_str() {
+                    if entry.1.len().saturating_add(content.len()) > MAX_MESSAGE {
+                        return Err(invalid("web tool result exceeds the size limit"));
+                    }
+                    entry.1.push_str(content);
+                }
+            }
+            return Ok(());
+        }
+        if self.capture_web {
+            return Ok(());
         }
         if !id.is_empty() && id != self.current_id {
-            self.finish_message(out)?;
             self.current.clear();
             self.emitted_text.clear();
             self.emitted_thinking.clear();
@@ -316,7 +397,7 @@ impl Translator {
             if self.current.starts_with("{ERROR}:") {
                 return Err(invalid("upstream reported an Agent error"));
             }
-            self.project(out)?;
+            self.project(false, out)?;
         }
         Ok(())
     }
@@ -333,10 +414,27 @@ impl Translator {
         Ok(out.into())
     }
 
-    fn finish(&mut self) -> Result<(), ChannelError> {
+    fn finish(&mut self) -> Result<Bytes, ChannelError> {
+        // OrcaTerm ends with `data: [DONE]` without a line terminator. Its
+        // desktop client flushes the last line at EOF; do the same locally
+        // while retaining the shared decoder's strict SSE framing.
+        let mut out = if self.done {
+            Vec::new()
+        } else {
+            self.push(b"\n\n")?.to_vec()
+        };
         self.decoder.finish().map_err(|e| invalid(e.to_string()))?;
         if !self.done {
-            return Err(invalid("stream ended without [DONE]"));
+            // The desktop also accepts clean EOF after a complete Agent
+            // object. event() still validates the entire JSON and action.
+            self.event(SseFrame::Done, &mut out)?;
+        }
+        Ok(out.into())
+    }
+
+    async fn persist(&mut self, state: &dyn ChannelState) -> Result<(), ChannelError> {
+        if let Some((id, pending)) = self.pending.take() {
+            pending.save(state, &id).await?;
         }
         Ok(())
     }
@@ -346,8 +444,25 @@ impl Translator {
         if !self.reasoning.is_empty() {
             message["reasoning_content"] = json!(self.reasoning);
         }
+        if !self.tool_calls.is_empty() {
+            message["tool_calls"] = json!(self.tool_calls);
+        }
         json!({"id":self.id,"object":"chat.completion","created":self.created,"model":self.model,
-            "choices":[{"index":0,"message":message,"finish_reason":"stop"}]})
+            "choices":[{"index":0,"message":message,"finish_reason":self.finish_reason()}],"usage":self.usage()})
+    }
+
+    fn usage(&self) -> Value {
+        let output_tokens = self.output_characters.div_ceil(2);
+        json!({"prompt_tokens":self.input_tokens,"completion_tokens":output_tokens,
+            "total_tokens":self.input_tokens + output_tokens})
+    }
+
+    fn finish_reason(&self) -> &'static str {
+        if self.tool_calls.is_empty() {
+            "stop"
+        } else {
+            "tool_calls"
+        }
     }
 }
 
@@ -358,28 +473,39 @@ fn byte_stream(body: HttpBody) -> ByteStream {
     }
 }
 
-fn translate(body: HttpBody, translator: Translator) -> ByteStream {
+fn translate(body: HttpBody, translator: Translator, state: Arc<dyn ChannelState>) -> ByteStream {
     Box::pin(futures_util::stream::unfold(
-        Some((byte_stream(body), translator)),
-        |state| async move {
-            let (mut upstream, mut translator) = state?;
+        Some((byte_stream(body), translator, state)),
+        |slot| async move {
+            let (mut upstream, mut translator, state) = slot?;
             loop {
                 match upstream.next().await {
-                    Some(Ok(chunk)) => match translator.push(&chunk) {
-                        Ok(bytes) if translator.done => return Some((Ok(bytes), None)),
-                        Ok(bytes) if bytes.is_empty() => continue,
-                        Ok(bytes) => return Some((Ok(bytes), Some((upstream, translator)))),
-                        Err(error) => return Some((Err(error.to_string().into()), None)),
-                    },
+                    Some(Ok(chunk)) => {
+                        let bytes = match translator.push(&chunk) {
+                            Ok(bytes) => bytes,
+                            Err(error) => return Some((Err(error.to_string().into()), None)),
+                        };
+                        if let Err(error) = translator.persist(state.as_ref()).await {
+                            return Some((Err(error.to_string().into()), None));
+                        }
+                        if translator.done {
+                            return Some((Ok(bytes), None));
+                        }
+                        if bytes.is_empty() {
+                            continue;
+                        }
+                        return Some((Ok(bytes), Some((upstream, translator, state))));
+                    }
                     Some(Err(error)) => return Some((Err(error), None)),
                     None => {
-                        return Some((
-                            translator
-                                .finish()
-                                .map(|()| Bytes::new())
-                                .map_err(|e| e.to_string().into()),
-                            None,
-                        ));
+                        let bytes = match translator.finish() {
+                            Ok(bytes) => bytes,
+                            Err(error) => return Some((Err(error.to_string().into()), None)),
+                        };
+                        if let Err(error) = translator.persist(state.as_ref()).await {
+                            return Some((Err(error.to_string().into()), None));
+                        }
+                        return Some((Ok(bytes), None));
                     }
                 }
             }
@@ -405,8 +531,48 @@ pub(super) async fn invoke(
         return Err(request::bad("requires a buffered JSON request"));
     };
     let input = serde_json::from_slice(bytes).map_err(|_| request::bad("invalid JSON"))?;
-    let mut chat = request::build(&input)?;
+    let chat = request::build(&input)?;
     drop(input);
+    let state = ctx.state.clone();
+    let (mut response, tools, model, input_tokens) = send_chat(ctx, chat, streaming).await?;
+    if !response.status.is_success() {
+        return Ok(response);
+    }
+    let mut translator = Translator::new(model, !streaming, tools, input_tokens)?;
+    response.body = if streaming {
+        HttpBody::Stream(translate(response.body, translator, state))
+    } else {
+        let mut upstream = byte_stream(response.body);
+        while let Some(chunk) = upstream.next().await {
+            translator.push(&chunk.map_err(|e| invalid(e.to_string()))?)?;
+            if translator.done {
+                break;
+            }
+        }
+        translator.finish()?;
+        translator.persist(state.as_ref()).await?;
+        HttpBody::Bytes(translator.message().to_string().into())
+    };
+    response.headers.remove(header::CONTENT_LENGTH);
+    response.headers.remove(header::CONTENT_ENCODING);
+    response.headers.remove(header::SET_COOKIE);
+    response.headers.remove("x-ot-token-refreshed");
+    response.headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static(if streaming {
+            "text/event-stream"
+        } else {
+            "application/json"
+        }),
+    );
+    Ok(response)
+}
+
+async fn send_chat(
+    ctx: OperationContext<'_>,
+    mut chat: request::ChatRequest,
+    streaming: bool,
+) -> Result<(WireResponse<HttpBody>, Tools, String, u64), ChannelError> {
     let model = chat.body["user"]["setting"]["model"]
         .as_str()
         .expect("validated model")
@@ -441,6 +607,12 @@ pub(super) async fn invoke(
     };
     chat.body["user"]["id"] =
         json!(auth::fact(credential, "user_id").ok_or(ChannelError::InvalidCredential)?);
+    let origin = OrcaTermConfig::from_view(ctx.provider)?
+        .base_url(ctx.provider)
+        .to_owned();
+    chat.tools
+        .prepare(ctx.state.as_ref(), &mut chat.body, chat.tool_result, origin)
+        .await?;
     images::upload_all(
         &mut chat.body,
         chat.uploads,
@@ -450,6 +622,11 @@ pub(super) async fn invoke(
         ctx.state.as_ref(),
     )
     .await?;
+    if chat.body["input"]["type"] == "review" {
+        let input = chat.body["input"].as_object_mut().expect("built input");
+        input.remove("historyMessages");
+        input.remove("input");
+    }
     let prepared = request::prepare(
         PrepareContext {
             provider: ctx.provider,
@@ -460,7 +637,7 @@ pub(super) async fn invoke(
                 } else {
                     Operation::GenerateContent
                 },
-                dialect: ctx.dialect,
+                dialect: gproxy_protocol::Dialect::OpenAiChat,
             },
             request: ctx.request,
             endpoint_override: ctx.endpoint_override,
@@ -468,34 +645,111 @@ pub(super) async fn invoke(
         chat.body,
     )?;
     let mut response = ctx.client.send(prepared).await?;
+    response.headers.remove(header::SET_COOKIE);
+    response.headers.remove("x-ot-token-refreshed");
+    // LightAI's RPM limiter returns HTTP 200 with a JSON error, instead of
+    // opening an SSE stream. Surface the actual status before conversion so
+    // the host and client can apply their normal rate-limit backoff.
+    if response.status.is_success()
+        && response.headers.get(header::CONTENT_TYPE).is_some_and(|v| {
+            v.to_str()
+                .is_ok_and(|v| v.split(';').next() == Some("application/json"))
+        })
+    {
+        let bytes = read_body(response.body).await?;
+        let error: Value =
+            serde_json::from_slice(&bytes).map_err(|_| invalid("invalid JSON error response"))?;
+        let status = error["code"]
+            .as_u64()
+            .and_then(|code| u16::try_from(code).ok())
+            .and_then(|code| http::StatusCode::from_u16(code).ok())
+            .filter(|status| status.is_client_error() || status.is_server_error())
+            .ok_or_else(|| invalid("expected an Agent SSE stream"))?;
+        response.status = status;
+        response.body = HttpBody::Bytes(json!({"error":{
+            "message":error["message"].as_str().unwrap_or("OrcaTerm upstream error"),
+            "code":error["code"],
+            "type":if status == http::StatusCode::TOO_MANY_REQUESTS {"rate_limit_error"} else {"upstream_error"}
+        }}).to_string().into());
+        response.headers.remove(header::CONTENT_LENGTH);
+        if status == http::StatusCode::TOO_MANY_REQUESTS
+            && let Some(reset) = response.headers.get("x-ratelimit-reset").cloned()
+        {
+            response.headers.insert(header::RETRY_AFTER, reset);
+        }
+    }
+    Ok((response, chat.tools, model, chat.input_tokens))
+}
+
+/// Codex's standalone web operation uses OrcaTerm's read-only server tools.
+/// Return their actual result text, not an unverified model-generated answer.
+pub(super) async fn search(
+    ctx: OperationContext<'_>,
+) -> Result<WireResponse<HttpBody>, ChannelError> {
+    let HttpBody::Bytes(bytes) = &ctx.request.body else {
+        return Err(request::bad("requires a buffered search request"));
+    };
+    let input: gproxy_protocol::wire::openai::web_search::WebSearchRequestBody =
+        serde_json::from_slice(bytes).map_err(|_| request::bad("invalid search request"))?;
+    let model = input.model.clone();
+    let prompt = gproxy_protocol::transform::web_search::to_generation(input, model.clone())
+        .map_err(|error| request::bad(&error.to_string()))?;
+    let content = match prompt.input {
+        Some(gproxy_protocol::wire::openai::responses::Input::Text(content)) => content,
+        _ => unreachable!("web search converter emits text"),
+    };
+    let instructions = prompt.instructions.flatten().unwrap_or_default();
+    let mut chat = request::build(&json!({"model":model,"messages":[
+        {"role":"system","content":instructions},
+        {"role":"user","content":content}
+    ]}))?;
+    chat.body["input"]["emphasisPrompt"] = json!(instructions);
+    chat.body["user"]["setting"]["approvedTools"] = json!(["cloud_ai_assistant_search"]);
+    chat.body["user"]["setting"]["approvedMCPTools"] = json!(["mcp-server-web-fetch/fetch"]);
+    let (mut response, tools, model, input_tokens) = send_chat(ctx, chat, false).await?;
     if !response.status.is_success() {
         return Ok(response);
     }
-    let mut translator = Translator::new(model, !streaming)?;
-    response.body = if streaming {
-        HttpBody::Stream(translate(response.body, translator))
-    } else {
-        let mut upstream = byte_stream(response.body);
-        while let Some(chunk) = upstream.next().await {
-            translator.push(&chunk.map_err(|e| invalid(e.to_string()))?)?;
-            if translator.done {
-                break;
-            }
+    let mut translator = Translator::new(model, false, tools, input_tokens)?;
+    translator.capture_web = true;
+    let mut upstream = byte_stream(response.body);
+    while let Some(chunk) = upstream.next().await {
+        translator.push(&chunk.map_err(|error| invalid(error.to_string()))?)?;
+        if translator.done {
+            break;
         }
-        translator.finish()?;
-        HttpBody::Bytes(translator.message().to_string().into())
-    };
+    }
+    translator.finish()?;
+    if translator.web_results.is_empty() {
+        return Err(invalid(
+            "web request completed without executing a search or fetch tool",
+        ));
+    }
+    let results = translator
+        .web_results
+        .into_values()
+        .map(|(tool, content)| {
+            let result = serde_json::from_str::<Value>(&content).unwrap_or(json!(content));
+            json!({"tool":tool,"result":result})
+        })
+        .collect::<Vec<_>>();
+    let output = results
+        .iter()
+        .map(Value::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    response.body = HttpBody::Bytes(
+        json!({"output":output,"results":results})
+            .to_string()
+            .into(),
+    );
     response.headers.remove(header::CONTENT_LENGTH);
     response.headers.remove(header::CONTENT_ENCODING);
     response.headers.remove(header::SET_COOKIE);
     response.headers.remove("x-ot-token-refreshed");
     response.headers.insert(
         header::CONTENT_TYPE,
-        HeaderValue::from_static(if streaming {
-            "text/event-stream"
-        } else {
-            "application/json"
-        }),
+        HeaderValue::from_static("application/json"),
     );
     Ok(response)
 }

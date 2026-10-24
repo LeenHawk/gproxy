@@ -76,10 +76,13 @@ pub struct StreamInvocation<B: StreamBridge> {
     /// The output lane a WebSocket start chose, so an HTTP start is refused
     /// afterwards and a retried WebSocket start cannot switch lanes.
     pub(super) websocket_lane: Option<Option<String>>,
-    pub(super) bridge: Option<B>,
+    // Keep protocol collectors and conversion state off the caller's stack.
+    // The invocation crosses several async preparation layers before boxing
+    // by a host, and debug builds otherwise duplicate these large values.
+    pub(super) bridge: Option<Box<B>>,
     pub(super) flow: IdentityFlow,
-    pub(super) source: Option<<B::NativeEvent as NativeEvent>::Collector>,
-    pub(super) client: Option<<B::ClientEvent as NativeEvent>::Collector>,
+    pub(super) source: Option<Box<<B::NativeEvent as NativeEvent>::Collector>>,
+    pub(super) client: Option<Box<<B::ClientEvent as NativeEvent>::Collector>>,
     pub(super) reader: Option<NativeReader>,
     pub(super) encoder: output::Encoder,
     pub(super) queued: VecDeque<(B::ClientEvent, u64)>,
@@ -141,10 +144,10 @@ impl<B: StreamBridge> StreamInvocation<B> {
             settings,
             binding: StateBinding::new(state),
             websocket_lane: None,
-            bridge: Some(bridge),
+            bridge: Some(Box::new(bridge)),
             flow,
-            source: Some(source),
-            client: Some(client),
+            source: Some(Box::new(source)),
+            client: Some(Box::new(client)),
             reader: None,
             encoder: output::Encoder::new(settings.client_framing, settings.codec),
             queued: VecDeque::new(),

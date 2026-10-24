@@ -71,7 +71,9 @@ NVIDIA NIM、Vercel AI Gateway 和 Cloudflare AI Gateway 提供專用渠道，�
 
 `orcaterm` 使用桌面端 LightAI 協定，支援圖文對話與模型專屬思考參數。新增供應商後使用瀏覽器 OAuth，或匯入 OAuth 憑證。國際站設定 `international=true`，帳號位址為 `https://orcaterm.ai`，LightAI 位址為 `https://lightai.tencentcloud.com`。
 
-圖片使用 Base64 data URL（PNG、JPEG、WebP、GIF），支援歷史圖片及純圖片訊息。過大的靜態圖片在上傳前自動縮放壓縮；相同圖片在預覽連結有效期內重用同一憑證下的上傳結果。模型與思考檔位來自動態模型目錄。不支援的請求選項會忽略。token 數量維持未報告，帳號額度查詢回傳 AI 問答次數。
+圖片使用 Base64 data URL（PNG、JPEG、WebP、GIF），支援歷史圖片及純圖片訊息。過大的靜態圖片在上傳前自動縮放壓縮；相同圖片在預覽連結有效期內重用同一憑證下的上傳結果。模型與思考檔位來自動態模型目錄。不支援的請求選項會忽略。token 數量使用本機字元估算，並在計量中標記為估算及非完整用量；帳號額度查詢回傳 AI 問答次數。
+
+可辨識的用戶端終端、檔案與網頁擷取工具透過 OrcaTerm 原生 review/reportToolResult 協定適配，呼叫由原用戶端依其權限規則執行。工具續輪使用同一供應商、憑證與模型；不支援任意函式註冊。正文與工具參數在 Agent 完成回應修訂後輸出。Codex 獨立網路請求呼叫 OrcaTerm 伺服器端搜尋／擷取工具，並回傳實際工具結果。
 
 
 ## 供應商配置

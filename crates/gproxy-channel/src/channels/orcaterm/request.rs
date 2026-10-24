@@ -2,6 +2,7 @@ use super::{
     OrcaTerm, auth,
     config::{OrcaTermConfig, new_id},
     images,
+    tools::Tools,
 };
 use crate::channel::{
     BaseChannel, ChannelError, ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable,
@@ -72,6 +73,9 @@ pub(super) struct ChatRequest {
     pub body: Value,
     pub uploads: Vec<images::Upload>,
     pub effort: Option<String>,
+    pub tools: Tools,
+    pub input_tokens: u64,
+    pub tool_result: Option<(String, String)>,
 }
 
 pub(super) fn build(input: &Value) -> Result<ChatRequest, ChannelError> {
@@ -88,25 +92,75 @@ pub(super) fn build(input: &Value) -> Result<ChatRequest, ChannelError> {
     let mut last = None;
     let mut files = Vec::new();
     let mut uploads = Vec::new();
+    let mut tool_result = None;
+    let tools = Tools::from_request(input)?;
+    // Converters may append system instructions after the user's message.
+    // Tool-result turns resume the client conversation in exactly the same way.
+    let current = messages
+        .iter()
+        .rposition(|message| matches!(message["role"].as_str(), Some("user" | "tool" | "function")))
+        .ok_or_else(|| bad("messages have no user input or tool result"))?;
     for (index, message) in messages.iter().enumerate() {
         match message["role"].as_str() {
             Some("system" | "developer") => system.push(text(&message["content"])?),
-            Some("user") => {
-                let current = index + 1 == messages.len();
-                let target = if current { "/input/files".to_owned() } else { format!("/input/historyMessages/{}/files", history.len()) };
-                let (content, images) = images::content(&message["content"], &target, &mut uploads)?;
-                if current {
+            Some("user" | "tool" | "function") => {
+                let is_current = index == current;
+                let target = if is_current {
+                    "/input/files".to_owned()
+                } else {
+                    format!("/input/historyMessages/{}/files", history.len())
+                };
+                let (mut content, images) =
+                    images::content(&message["content"], &target, &mut uploads)?;
+                if message["role"] != "user" {
+                    if is_current && let Some(id) = message["tool_call_id"].as_str() {
+                        tool_result = Some((id.to_owned(), content.clone()));
+                    }
+                    content = json!({"role":"tool","tool_call_id":message["tool_call_id"],
+                        "name":message["name"],"content":content})
+                    .to_string();
+                }
+                if is_current {
                     last = Some(content);
                     files = images;
                 } else {
-                    history.push(json!({"id":new_id()?,"type":"human","content":content,"files":images}));
+                    history.push(
+                        json!({"id":new_id()?,"type":"human","content":content,"files":images}),
+                    );
                 }
             }
-            Some("tool" | "function") => continue,
-            Some("assistant") if message["content"].is_null() => continue,
-            Some("assistant") => history.push(json!({"id":new_id()?,"type":"ai","content":json!({
-                "action":"completion","thinking":message["reasoning_content"].as_str().unwrap_or_default(),"taskCompletion":text(&message["content"])?
-            }).to_string()})),
+            Some("assistant") => {
+                let content = if message["content"].is_null() {
+                    String::new()
+                } else {
+                    text(&message["content"])?
+                };
+                if index > current {
+                    if !content.is_empty() {
+                        system.push(format!(
+                            "Continue the assistant response after this prefix: {content}"
+                        ));
+                    }
+                    continue;
+                }
+                let completion = if let Some(calls) = message["tool_calls"]
+                    .as_array()
+                    .filter(|calls| !calls.is_empty())
+                {
+                    let calls = calls.iter().map(|call| json!({
+                        "id":call["id"],"name":call["function"]["name"],
+                        "arguments":call["function"]["arguments"].as_str().and_then(|s| serde_json::from_str::<Value>(s).ok()).unwrap_or_else(|| call["function"]["arguments"].clone())
+                    })).collect::<Vec<_>>();
+                    json!({"content":content,"tool_calls":calls}).to_string()
+                } else if tools.enabled() {
+                    json!({"content":content}).to_string()
+                } else {
+                    content
+                };
+                history.push(json!({"id":new_id()?,"type":"ai","content":json!({
+                    "action":"completion","thinking":message["reasoning_content"].as_str().unwrap_or_default(),"taskCompletion":completion
+                }).to_string()}));
+            }
             _ => return Err(bad("unsupported message role")),
         }
     }
@@ -126,9 +180,27 @@ pub(super) fn build(input: &Value) -> Result<ChatRequest, ChannelError> {
         _ => None,
     };
     let multimodal = !uploads.is_empty();
-    Ok(ChatRequest {
+    if tools.enabled() {
+        system.push(tools.prompt());
+    } else {
+        system.push("Client transport: this request declares no executable client functions. Use action=\"completion\" and put the answer to the client's request in taskCompletion. Do not invoke OrcaTerm's built-in tools. Follow the client system instructions when interpreting quoted text or conversation transcripts.".to_owned());
+    }
+    let input_characters = system
+        .iter()
+        .map(|text| text.chars().count())
+        .sum::<usize>()
+        + last.chars().count()
+        + history
+            .iter()
+            .filter_map(|message| message["content"].as_str())
+            .map(|text| text.chars().count())
+            .sum::<usize>();
+    let mut chat = ChatRequest {
         uploads,
         effort,
+        tools,
+        input_tokens: (input_characters as u64).div_ceil(2),
+        tool_result,
         body: json!({
             "conversationId":format!("cid-{}-orcaterm", new_id()?),
             "user":{"id":"","setting":{
@@ -140,7 +212,9 @@ pub(super) fn build(input: &Value) -> Result<ChatRequest, ChannelError> {
             "input":{"id":new_id()?,"type":"start","input":last,"historyMessages":history,
                 "emphasisPrompt":system.join("\n\n"),"files":files},"stream":true
         }),
-    })
+    };
+    chat.tools.configure(&mut chat.body);
+    Ok(chat)
 }
 
 pub(super) fn prepare(

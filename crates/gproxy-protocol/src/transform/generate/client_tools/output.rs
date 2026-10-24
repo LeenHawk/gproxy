@@ -43,14 +43,18 @@ impl Bindings {
             .map_err(|e| TransformError::invalid_result("client_tools.arguments", e.to_string()))?;
         let id = call.id;
         let wire = match kind {
-            Kind::Custom { name } => {
+            Kind::Custom { namespace, name } => {
                 let input = value.get("input").and_then(Value::as_str).ok_or_else(|| {
                     TransformError::unsupported(
                         "custom_tool.input",
                         "expected the raw tool input string",
                     )
                 })?;
-                json!({"type":"custom_tool_call","id":id,"call_id":call.call_id,"name":name,"input":input})
+                let mut output = json!({"type":"custom_tool_call","id":id,"call_id":call.call_id,"name":name,"input":input});
+                if let Some(namespace) = namespace {
+                    output["namespace"] = json!(namespace);
+                }
+                output
             }
             Kind::Shell => {
                 let action: r::ShellAction = serde_json::from_value(value)

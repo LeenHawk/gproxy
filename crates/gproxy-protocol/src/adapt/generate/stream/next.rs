@@ -350,7 +350,8 @@ impl<B: StreamBridge> StreamInvocation<B> {
     }
     fn finish_source(&mut self) -> Result<(), TransformError> {
         let native = B::NativeEvent::collected(
-            self.source
+            *self
+                .source
                 .take()
                 .ok_or_else(|| super::invalid("native collector consumed"))?,
         )?;
@@ -386,7 +387,8 @@ impl<B: StreamBridge> StreamInvocation<B> {
             )?;
         }
         let client = B::ClientEvent::collected(
-            self.client
+            *self
+                .client
                 .take()
                 .ok_or_else(|| super::invalid("client collector consumed"))?,
         )?;

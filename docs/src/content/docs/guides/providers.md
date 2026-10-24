@@ -80,7 +80,9 @@ way; each has a channel now, because a row could not say everything they need.
 
 `orcaterm` uses the desktop LightAI protocol for text/image conversations and model-specific thinking settings. Create the provider, then use browser OAuth or import an OAuth credential. Set `international=true` for the international service; its account origin is `https://orcaterm.ai` and LightAI origin is `https://lightai.tencentcloud.com`.
 
-Image input uses Base64 data URLs (PNG, JPEG, WebP or GIF), including history and image-only user messages. Oversized static images are resized/compressed before upload; identical images reuse a credential-scoped upload while its preview URL is fresh. Supported models and thinking levels follow the dynamic model catalog. Unsupported request options are ignored. Token counts remain unreported; the account quota reports AI question counts.
+Image input uses Base64 data URLs (PNG, JPEG, WebP or GIF), including history and image-only user messages. Oversized static images are resized/compressed before upload; identical images reuse a credential-scoped upload while its preview URL is fresh. Supported models and thinking levels follow the dynamic model catalog. Unsupported request options are ignored. Token counts are local character estimates, marked estimated and partial in metering; the account quota reports AI question counts.
+
+Recognized client terminal, file and web-fetch tools are bound to OrcaTerm’s native review/reportToolResult protocol. The original client executes each call with its normal permission checks. Tool continuations use the same provider, credential and model; arbitrary function registration is not supported. Answer text and tool arguments are released after the Agent finishes revising its response. Codex standalone web requests use OrcaTerm’s server search/fetch tools and return their actual results.
 
 
 ## Provider configuration

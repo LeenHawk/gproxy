@@ -19,8 +19,14 @@ pub(crate) const SEARCH: &str = "gproxy_client_tool_search";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Kind {
-    Namespace { namespace: String, name: String },
-    Custom { name: String },
+    Namespace {
+        namespace: String,
+        name: String,
+    },
+    Custom {
+        namespace: Option<String>,
+        name: String,
+    },
     Shell,
     Patch,
     Search,
@@ -47,6 +53,15 @@ pub(crate) fn qualified(namespace: &str, name: &str) -> String {
 
 pub(crate) fn custom_alias(name: &str) -> String {
     qualified("custom", name).replacen("gproxy_namespace_", "gproxy_custom_", 1)
+}
+
+fn custom_binding_alias(namespace: Option<&str>, name: &str) -> String {
+    namespace.map_or_else(
+        || custom_alias(name),
+        |namespace| {
+            qualified(namespace, name).replacen("gproxy_namespace_", "gproxy_custom_namespace_", 1)
+        },
+    )
 }
 
 fn unsupported(detail: &str) -> TransformError {
@@ -129,8 +144,13 @@ impl Bindings {
                 }
                 r::Tool::Namespace(ns) => {
                     for tool in &ns.tools {
-                        if let r::NamespaceToolDefinition::Function(tool) = tool {
-                            active.insert(qualified(&ns.name, &tool.name));
+                        match tool {
+                            r::NamespaceToolDefinition::Function(tool) => {
+                                active.insert(qualified(&ns.name, &tool.name));
+                            }
+                            r::NamespaceToolDefinition::Custom(tool) => {
+                                active.insert(custom_binding_alias(Some(&ns.name), &tool.name));
+                            }
                         }
                     }
                 }
@@ -177,51 +197,75 @@ impl Bindings {
         }
         Ok(out)
     }
+    fn add_custom(
+        &mut self,
+        namespace: Option<String>,
+        tool: r::CustomTool,
+        active: &BTreeSet<String>,
+    ) -> Result<(), TransformError> {
+        direct(&tool.allowed_callers)?;
+        let alias = custom_binding_alias(namespace.as_deref(), &tool.name);
+        self.bind(
+            alias.clone(),
+            Kind::Custom {
+                namespace,
+                name: tool.name.clone(),
+            },
+        )?;
+        if tool.defer_loading == Some(true) && !self.keep_deferred && !active.contains(&alias) {
+            self.hidden.insert(alias);
+            return Ok(());
+        }
+        let description = format!(
+            "Execute the client's {} tool. Put its complete raw tool input in the input string.\nTool instructions: {}\nInput format: {}",
+            tool.name,
+            tool.description.unwrap_or_default(),
+            serde_json::to_string(&tool.format)?,
+        );
+        self.tools.push(function(
+            &alias,
+            &description,
+            json!({
+                "type":"object", "properties":{"input":{"type":"string"}},
+                "required":["input"], "additionalProperties":false
+            }),
+        )?);
+        Ok(())
+    }
     fn add(&mut self, tool: r::Tool, active: &BTreeSet<String>) -> Result<(), TransformError> {
         match tool {
             r::Tool::Custom(tool)
                 if matches!(
                     self.target,
-                    Some(crate::Dialect::Claude | crate::Dialect::Gemini)
+                    Some(
+                        crate::Dialect::OpenAiChat
+                            | crate::Dialect::Claude
+                            | crate::Dialect::Gemini
+                    )
                 ) =>
             {
-                direct(&tool.allowed_callers)?;
-                let alias = custom_alias(&tool.name);
-                self.bind(
-                    alias.clone(),
-                    Kind::Custom {
-                        name: tool.name.clone(),
-                    },
-                )?;
-                if tool.defer_loading == Some(true)
-                    && !self.keep_deferred
-                    && !active.contains(&alias)
-                {
-                    self.hidden.insert(alias);
-                    return Ok(());
-                }
-                let description = format!(
-                    "Execute the client's {} tool. Put its complete raw tool input in the input string.\nTool instructions: {}\nInput format: {}",
-                    tool.name,
-                    tool.description.unwrap_or_default(),
-                    serde_json::to_string(&tool.format)?,
-                );
-                self.tools.push(function(
-                    &alias,
-                    &description,
-                    json!({
-                        "type":"object", "properties":{"input":{"type":"string"}},
-                        "required":["input"], "additionalProperties":false
-                    }),
-                )?);
+                self.add_custom(None, tool, active)?;
             }
             r::Tool::Namespace(ns) => {
                 if ns.name.is_empty() {
                     return Err(unsupported("empty namespace"));
                 }
                 for tool in ns.tools {
-                    let r::NamespaceToolDefinition::Function(tool) = tool else {
-                        continue;
+                    let tool = match tool {
+                        r::NamespaceToolDefinition::Function(tool) => tool,
+                        r::NamespaceToolDefinition::Custom(tool) => {
+                            let mut custom = r::CustomTool::builder(tool.name).build();
+                            custom.allowed_callers = tool.allowed_callers;
+                            custom.defer_loading = tool.defer_loading;
+                            custom.description = Some(format!(
+                                "{}\n{}",
+                                ns.description,
+                                tool.description.unwrap_or_default()
+                            ));
+                            custom.format = tool.format;
+                            self.add_custom(Some(ns.name.clone()), custom, active)?;
+                            continue;
+                        }
                     };
                     direct(&tool.allowed_callers)?;
                     if tool.name.is_empty() {

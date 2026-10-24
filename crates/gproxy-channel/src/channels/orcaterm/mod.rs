@@ -16,7 +16,8 @@
 //! the channel does not execute OrcaTerm's built-in terminal tools.
 //! Image uploads follow readable/features.js:32684 and 38122; thinking kwargs
 //! follow the model catalog and readable/features.js:14727 and 14918.
-//! Token counts are not present in the audited wire and remain unreported.
+//! Token counts are character estimates, marked estimated/partial for metering;
+//! the upstream does not report token counts.
 //!
 //! Browser OAuth follows the desktop authorize/session_id exchange and uses
 //! the host's device-flow polling UI; no cookie or callback needs copying.
@@ -35,14 +36,16 @@ mod oauth;
 mod quota;
 mod request;
 mod response;
+mod tools;
 
 pub use config::{DEFAULT_BASE_URL, ID, OrcaTermConfig};
 pub use request::CLIENT_HEADERS;
 
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, OperationContext,
-    OperationFuture, ProviderView, QuotaQuery,
+    CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, NormalizedUsage, OAuthDeviceCode,
+    OperationContext, OperationFuture, ProviderView, QuotaQuery, UsageCompleteness, UsageExtras,
+    UsageSource,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
 
@@ -80,6 +83,7 @@ impl BaseChannel for OrcaTerm {
     fn native_dialects(&self, _: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::ListModels => vec![Dialect::OpenAi],
+            Operation::WebSearch => vec![Dialect::OpenAi],
             Operation::GenerateContent | Operation::StreamGenerateContent => {
                 vec![Dialect::OpenAiChat]
             }
@@ -122,6 +126,13 @@ impl BaseChannel for OrcaTerm {
     ) -> OperationFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::list(ctx))
     }
+
+    fn web_search<'a>(
+        &'a self,
+        ctx: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(response::search(ctx))
+    }
     fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
         Some(self)
     }
@@ -138,5 +149,23 @@ impl BaseChannel for OrcaTerm {
     }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
+    }
+    fn usage_extras(&self) -> Option<&dyn UsageExtras> {
+        Some(self)
+    }
+}
+
+impl UsageExtras for OrcaTerm {
+    fn read(&self, source: UsageSource<'_>, usage: &mut NormalizedUsage) {
+        if matches!(
+            source.operation.operation,
+            Operation::GenerateContent | Operation::StreamGenerateContent
+        ) && *usage != NormalizedUsage::default()
+        {
+            usage.completeness = UsageCompleteness::Partial;
+            usage
+                .dimensions
+                .insert("estimated".to_owned(), "true".to_owned());
+        }
     }
 }
