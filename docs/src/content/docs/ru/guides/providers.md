@@ -42,6 +42,7 @@ description: "Выберите канал, добавьте провайдеро
 | `openai` | Собственная платформа OpenAI: полная поверхность, ответы и режим реального времени через сокет. | `{"api_key", "quota_api_key"}` |
 | `opencodego` | OpenCode Go: подписка, открытые модели, окна использования | `{"api_key"}` |
 | `opencodezen` | OpenCode Zen: оплата по мере использования с баланса консоли | `{"api_key"}` или OAuth |
+| [`orcaterm`](/ru/guides/orcaterm/) | Учётная запись OrcaTerm: текстовые диалоги LightAI, потоковые рассуждения, динамический каталог встроенных моделей и квота вопросов к ИИ | OAuth в браузере (WeChat/Tencent Cloud/Google/GitHub), необязательный импорт Cookie |
 | `openrouter` | OpenRouter: настройки маршрутизации в теле, цена, указанная в ответе. | `{"api_key"}` |
 | `vercel` | Vercel AI Шлюз: чат, ответы, сообщения Claude, встраивания и кредитный баланс команды | `{"api_key"}` |
 | `vertex` | Google Vertex AI: издатели, совместимые с Google, Anthropic и OpenAI. | ключ сервис-аккаунта |

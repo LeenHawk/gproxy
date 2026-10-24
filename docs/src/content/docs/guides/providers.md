@@ -49,6 +49,7 @@ provider form should render.
 | `openai` | OpenAI's own platform: the full surface, Responses and Realtime over a socket | `{"api_key", "quota_api_key"}` |
 | `opencodego` | OpenCode Go: the subscription, open models, usage windows | `{"api_key"}` |
 | `opencodezen` | OpenCode Zen: pay-as-you-go from the Console balance | `{"api_key"}` or OAuth |
+| [`orcaterm`](/guides/orcaterm/) | OrcaTerm account: LightAI text conversations, streamed reasoning, live built-in models and AI question quota | Browser OAuth (WeChat/Tencent Cloud/Google/GitHub), optional Cookie import |
 | `openrouter` | OpenRouter: routing preferences in the body, the price the reply reports | `{"api_key"}` |
 | `vercel` | Vercel AI Gateway: Chat, Responses, Claude Messages, embeddings and team credit balance | `{"api_key"}` |
 | `vertex` | Google Vertex AI: the Google, Anthropic and OpenAI-compatible publishers | service-account key |

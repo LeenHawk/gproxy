@@ -49,6 +49,7 @@ pub(crate) mod code_assist;
     feature = "volcengine",
     feature = "kimi",
     feature = "opencode",
+    feature = "orcaterm",
     feature = "openrouter",
     feature = "vercel",
     feature = "xai"

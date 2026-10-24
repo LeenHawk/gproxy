@@ -70,7 +70,7 @@ export function UpstreamQuota({ id, provider }: { id: string; provider: Credenti
   const amount = (value: string | null | undefined, unit: string | null | undefined) => value == null ? "—"
     : unit === "USD" ? formatCost(value, i18n.language)
       : unit === "percent" ? formatPercent(Number(value) / 100, i18n.language)
-      : `${formatNumber(value, i18n.language)}${unit ? ` ${unit === "credits" ? t("limits.creditUnit") : unit}` : ""}`
+      : `${formatNumber(value, i18n.language)}${unit ? ` ${unit === "credits" ? t("limits.creditUnit") : unit === "requests" ? t("limits.requestUnit") : unit}` : ""}`
   const estimated = openCycles.some(cycle => cycle.estimatedAllowanceUsd != null)
   const resetTime = new Intl.DateTimeFormat(i18n.language, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
   return <div className="flex flex-col gap-4">

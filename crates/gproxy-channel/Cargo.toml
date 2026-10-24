@@ -182,6 +182,8 @@ opencode = [
     "dep:time",
     "dep:web-time",
 ]
+# OrcaTerm desktop account: LightAI Agent JSON/SSE, browser OAuth, refresh, live models and AI quota.
+orcaterm = ["dep:futures-util", "dep:getrandom", "dep:time", "dep:url", "dep:web-time"]
 # OpenRouter: provider routing preferences, app attribution headers,
 # upstream-priced usage and the /v1/auth/key budget probe.
 openrouter = ["dep:futures-util"]

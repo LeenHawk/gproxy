@@ -43,6 +43,7 @@ description: "選擇渠道、新增供應商與憑證，配置登入、額度查
 | `openai` | OpenAI 官方平台：完整 surface、套接字上的 Responses 與 Realtime | `{"api_key", "quota_api_key"}` |
 | `opencodego` | OpenCode Go：訂閱制、開源模型、用量視窗 | `{"api_key"}` |
 | `opencodezen` | OpenCode Zen：從 Console 餘額按量付費 | `{"api_key"}` 或 OAuth |
+| [`orcaterm`](/zh-tw/guides/orcaterm/) | OrcaTerm 帳號：LightAI 文字多輪、串流思考、動態內建模型和 AI 問答額度 | 瀏覽器 OAuth（微信／騰訊雲／Google／GitHub），可選 Cookie 匯入 |
 | `openrouter` | OpenRouter：body 裡的路由偏好、應答裡報出的價格 | `{"api_key"}` |
 | `vercel` | Vercel AI Gateway：模型呼叫與團隊餘額查詢 | `{"api_key"}` |
 | `vertex` | Google Vertex AI：Google、Anthropic 與 OpenAI 相容釋出者 | 服務帳號金鑰 |

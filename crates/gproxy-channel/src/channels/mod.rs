@@ -65,6 +65,7 @@ channels! {
     "nvidia" => nvidia, nvidia::Nvidia;
     "openai" => openai, openai::OpenAi;
     "opencode" => opencode, opencode::OpenCode::ZEN, opencode::OpenCode::GO;
+    "orcaterm" => orcaterm, orcaterm::OrcaTerm;
     "openrouter" => openrouter, openrouter::OpenRouter;
     "vercel" => vercel, vercel::Vercel;
     "volcengine" => volcengine, volcengine::Volcengine::AGENT, volcengine::Volcengine::CODING;
@@ -103,6 +104,7 @@ channels! {
     feature = "nvidia",
     feature = "openai",
     feature = "opencode",
+    feature = "orcaterm",
     feature = "openrouter",
     feature = "vercel",
     feature = "volcengine",
