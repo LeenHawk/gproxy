@@ -84,7 +84,10 @@ What the host hands over is borrowed and public where it can be:
   refresh, quota) and for an intermediate exchange inside a multi-call
   override, where the failing reply is not the response being returned.
 - **`RefreshRejected` means the upstream definitively refused the credential**
-  (`invalid_grant`, revoked) and the host marks it dead. A transient transport
+  (`invalid_grant`, revoked). The host marks it dead by default; a channel may
+  override `persist_rejection` to remember the failure only for the current
+  in-memory credential version, reloading durable material before another try.
+  A transient transport
   failure or a 5xx must surface as a transport error so the host retries later.
   Getting this wrong kills a working account.
 - **`ContinuationElsewhere`** says a live upstream connection is held by
@@ -112,6 +115,11 @@ report quota windows without offering a reset.
 | `services` | Vendor control-plane routes — see [CLI Clients](/guides/cli-clients/) |
 
 Existing secrets use the ordinary credential create/update API. Validate their format in `validate_credential_secret`; return `Some(0)` from `initial_credential_expiry` when network initialization is required, then implement it through `CredentialRefresh`. A refresh returns a full secret replacement and expiry, plus optional public metadata (`None` preserves it). The host persists all three under the same version CAS; channels must keep secrets out of metadata.
+
+`CredentialRefresh::proactive_refresh_reason` controls request-time renewal.
+The default checks access expiry within five minutes or refresh expiry within
+one day. A channel may override this for its upstream's schedule, and implement
+`refresh_with_reason` when its token endpoint accepts the reason for renewal.
 
 Usage itself needs no ability: the host reads it from the standard response the
 channel shapes, and a channel that reports none is **unreported**, not zero.

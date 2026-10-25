@@ -240,6 +240,18 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
             (handle, None) => handle,
         };
         let version = credential.state.load();
+        if crate::refresh::needs_refresh(&provider, &credential, &version, now)
+            && crate::refresh::can_refresh(&provider, &credential, &version)
+        {
+            let _ = core
+                .refresh_credential(
+                    &credential.provider_id,
+                    &credential.id,
+                    crate::RefreshMode::IfNeeded,
+                )
+                .await;
+        }
+        let version = credential.state.load();
         let attempt = Arc::new(AttemptContext {
             attempt_id: format!("{}-{ordinal}", request.request_id),
             request: request.clone(),
@@ -477,7 +489,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                         .refresh_credential(
                             &credential.provider_id,
                             &credential.id,
-                            crate::RefreshMode::Force,
+                            crate::RefreshMode::UnauthorizedRecovery,
                         )
                         .await
                         .is_err()

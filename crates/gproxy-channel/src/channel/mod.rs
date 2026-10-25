@@ -51,7 +51,7 @@ pub use usage::{
 
 pub use reason::{ResponseReason, ResponseReasonObserver, standard_reason_observer};
 
-pub use refresh::{CredentialRefresh, CredentialUpdate, RefreshContext};
+pub use refresh::{CredentialRefresh, CredentialUpdate, RefreshContext, RefreshReason};
 
 use gproxy_client::{ConnectionConfig, OutboundClient};
 use gproxy_protocol::{
@@ -81,7 +81,8 @@ pub enum ChannelError {
     InvalidCredential,
     /// The upstream definitively refused to refresh this credential
     /// (invalid_grant, revoked or expired refresh token). Retrying later does
-    /// not help; the host marks the credential dead until a person logs in again.
+    /// not help; the host remembers the failure according to the channel's
+    /// rejection policy until the credential changes.
     /// Transient transport or 5xx failures must not use this variant.
     #[error("credential refresh rejected: {0}")]
     RefreshRejected(String),

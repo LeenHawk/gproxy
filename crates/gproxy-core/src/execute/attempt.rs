@@ -338,7 +338,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
         // Material about to expire is refreshed before it is pinned; a failed
         // refresh still lets this attempt try the current material.
         let version = credential.state.load();
-        if crate::refresh::needs_refresh(&version, now)
+        if crate::refresh::needs_refresh(&provider, &credential, &version, now)
             && crate::refresh::can_refresh(&provider, &credential, &version)
         {
             let _ = core
@@ -709,7 +709,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                     .refresh_credential(
                         &credential.provider_id,
                         &credential.id,
-                        crate::RefreshMode::Force,
+                        crate::RefreshMode::UnauthorizedRecovery,
                     )
                     .await
                 {

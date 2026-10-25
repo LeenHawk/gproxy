@@ -895,7 +895,7 @@ impl<C: BatchConnectionTrait> Core<C> {
             None => credential.state.load(),
         };
         if crate::refresh::can_refresh(&provider, &credential, &version)
-            && crate::refresh::needs_refresh(&version, now_ms())
+            && crate::refresh::needs_refresh(&provider, &credential, &version, now_ms())
         {
             self.refresh_credential_with_filter(
                 provider_id,
@@ -931,7 +931,7 @@ impl<C: BatchConnectionTrait> Core<C> {
                 self.refresh_credential_with_filter(
                     provider_id,
                     credential_id,
-                    crate::RefreshMode::Force,
+                    crate::RefreshMode::UnauthorizedRecovery,
                     filter,
                 )
                 .await?;

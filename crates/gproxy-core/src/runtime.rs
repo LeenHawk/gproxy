@@ -7,7 +7,7 @@ use gproxy_channel::channel::QuotaScope;
 use gproxy_protocol::Operation;
 use serde::{Deserialize, Serialize};
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
 
@@ -27,17 +27,36 @@ pub struct CredentialVersion {
 pub struct CredentialState {
     current: ArcSwap<CredentialVersion>,
     retired: AtomicBool,
+    refresh_rejection: Mutex<Option<(i64, String)>>,
 }
 impl CredentialState {
     pub fn new(current: Arc<CredentialVersion>) -> Self {
         Self {
             current: ArcSwap::from(current),
             retired: AtomicBool::new(false),
+            refresh_rejection: Mutex::new(None),
         }
     }
     /// Each attempt pins this Arc; a concurrent refresh cannot change it in place.
     pub fn load(&self) -> Arc<CredentialVersion> {
         self.current.load_full()
+    }
+    pub(crate) fn refresh_rejection(&self, version: i64) -> Option<String> {
+        self.refresh_rejection
+            .lock()
+            .expect("credential refresh rejection lock")
+            .as_ref()
+            .filter(|(rejected_version, _)| *rejected_version == version)
+            .map(|(_, reason)| reason.clone())
+    }
+    pub(crate) fn reject_refresh(&self, version: i64, reason: String) {
+        let mut rejection = self
+            .refresh_rejection
+            .lock()
+            .expect("credential refresh rejection lock");
+        if self.current.load().version == version {
+            *rejection = Some((version, reason));
+        }
     }
     /// The Store row is gone. In-flight attempts keep their pinned version;
     /// selection stops offering this slot until a reload replaces it.

@@ -448,7 +448,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             // failed refresh still lets the call try the current material.
             let version = credential.state.load();
             if wanted
-                && crate::refresh::needs_refresh(&version, now)
+                && crate::refresh::needs_refresh(&target.provider, credential, &version, now)
                 && crate::refresh::can_refresh(&target.provider, credential, &version)
             {
                 let _ = self

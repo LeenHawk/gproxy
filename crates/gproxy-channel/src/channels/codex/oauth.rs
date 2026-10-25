@@ -2,11 +2,12 @@
 
 use super::common::{invalid_response, send_json};
 use super::{Codex, CodexConfig, DEFAULT_CLIENT_ID};
+use crate::channels::shared::services_common::unix_now_ms;
 use crate::OutboundClient;
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, CredentialRefresh,
     CredentialUpdate, DeviceAuthorization, DevicePoll, LoginContext, OAuthAuthorizationCode,
-    OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
+    CredentialView, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext, RefreshReason,
 };
 use base64::Engine;
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
@@ -77,7 +78,7 @@ fn credential_from_tokens(
     OAuthCredential {
         expires_at_ms: jwt_expiry_ms(&access_token),
         provider_fields: provider_fields(id_token.as_deref()),
-        provider_secrets: BTreeMap::new(),
+        provider_secrets: BTreeMap::from([("last_refresh_ms".into(), json!(unix_now_ms()))]),
         access_token,
         refresh_token,
         id_token,
@@ -358,7 +359,53 @@ impl OAuthDeviceCode for Codex {
 }
 
 impl CredentialRefresh for Codex {
+    fn proactive_refresh_reason(
+        &self,
+        credential: CredentialView<'_>,
+        now_ms: i64,
+    ) -> Option<RefreshReason> {
+        // Match login/src/auth/manager.rs: JWT expiry takes precedence over
+        // the eight-day fallback, which is only for tokens without an expiry.
+        if let Some(expires) = credential
+            .secret
+            .get("access_token")
+            .and_then(Value::as_str)
+            .and_then(jwt_expiry_ms)
+        {
+            return (expires <= now_ms.saturating_add(300_000))
+                .then_some(RefreshReason::ProactiveExpiry);
+        }
+        let last_refresh = credential
+            .secret
+            .pointer("/provider_secrets/last_refresh_ms")
+            .and_then(Value::as_i64)
+            .or_else(|| {
+                // Also accept the timestamp from an imported Codex auth.json.
+                let value = credential.secret.get("last_refresh")?.as_str()?;
+                let timestamp = time::OffsetDateTime::parse(
+                    value,
+                    &time::format_description::well_known::Rfc3339,
+                )
+                .ok()?;
+                i64::try_from(timestamp.unix_timestamp_nanos() / 1_000_000).ok()
+            })?;
+        (last_refresh < now_ms.saturating_sub(8 * 86_400_000))
+            .then_some(RefreshReason::Scheduled)
+    }
+
+    fn persist_rejection(&self) -> bool {
+        false
+    }
+
     fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+        self.refresh_with_reason(context, RefreshReason::Forced)
+    }
+
+    fn refresh_with_reason<'a>(
+        &'a self,
+        context: RefreshContext<'a>,
+        reason: RefreshReason,
+    ) -> OperationFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let config = CodexConfig::from_view(context.provider)?;
             let secret = context.credential.secret;
@@ -374,6 +421,12 @@ impl CredentialRefresh for Codex {
                 "client_id": DEFAULT_CLIENT_ID,
                 "grant_type": "refresh_token",
                 "refresh_token": refresh_token,
+                "refresh_reason": match reason {
+                    RefreshReason::ProactiveExpiry => "proactive_expiry",
+                    RefreshReason::Scheduled => "scheduled",
+                    RefreshReason::UnauthorizedRecovery => "unauthorized_recovery",
+                    RefreshReason::Forced => "forced",
+                },
             });
             let (status, _, bytes) = send_json(
                 context.client,
@@ -408,33 +461,37 @@ impl CredentialRefresh for Codex {
             }
             let tokens: TokenResponse =
                 serde_json::from_slice(&bytes).map_err(|e| invalid_response(e.to_string()))?;
-            let access_token = tokens
-                .access_token
-                .filter(|t| !t.is_empty())
-                .ok_or_else(|| invalid_response("refresh returned no access_token"))?;
-            let refresh_token = tokens
-                .refresh_token
-                .filter(|t| !t.is_empty())
-                .or_else(|| Some(refresh_token.to_owned()));
-            let id_token = tokens.id_token.filter(|t| !t.is_empty()).or_else(|| {
-                secret
-                    .get("id_token")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned)
-            });
-            let mut credential = credential_from_tokens(access_token, refresh_token, id_token);
-            // Keep account facts a login recorded that the new id token lacks.
-            if let Some(Value::Object(previous)) = secret.get("provider_fields") {
-                for (key, value) in previous {
-                    credential
-                        .provider_fields
-                        .entry(key.clone())
-                        .or_insert_with(|| value.clone());
+            // A successful response may rotate only some tokens. Preserve all
+            // other material, including a refresh token omitted by the issuer.
+            let mut secret = secret.clone();
+            for (key, token) in [
+                ("access_token", tokens.access_token),
+                ("refresh_token", tokens.refresh_token),
+                ("id_token", tokens.id_token),
+            ] {
+                if let Some(token) = token {
+                    secret[key] = Value::String(token);
                 }
             }
-            let expires_at_ms = credential.expires_at_ms;
-            let secret =
-                serde_json::to_value(&credential).map_err(|e| invalid_response(e.to_string()))?;
+            let expires_at_ms = secret
+                .get("access_token")
+                .and_then(Value::as_str)
+                .and_then(jwt_expiry_ms);
+            secret["expires_at_ms"] = json!(expires_at_ms);
+            let mut fields = secret
+                .get("provider_fields")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            fields.extend(provider_fields(secret.get("id_token").and_then(Value::as_str)));
+            secret["provider_fields"] = Value::Object(fields);
+            let mut provider_secrets = secret
+                .get("provider_secrets")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            provider_secrets.insert("last_refresh_ms".into(), json!(unix_now_ms()));
+            secret["provider_secrets"] = Value::Object(provider_secrets);
             Ok(CredentialUpdate {
                 metadata: None,
                 secret,

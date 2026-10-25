@@ -10,6 +10,9 @@
 //! `services.rs`. The credential secret is an `OAuthCredential`;
 //! the account id and plan discovered at login travel in `provider_fields`
 //! and, once the host persists them, in the credential's metadata.
+//! Refresh scheduling, partial token updates and failure recovery follow
+//! `codex-rs/login/src/auth/manager.rs`; request reasons follow
+//! `codex-rs/login/src/oauth/client.rs` in the same sample tree.
 
 mod agent;
 mod common;

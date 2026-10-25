@@ -167,4 +167,6 @@ pub enum RefreshMode {
     #[default]
     IfNeeded,
     Force,
+    /// One recovery attempt after an upstream authentication rejection.
+    UnauthorizedRecovery,
 }

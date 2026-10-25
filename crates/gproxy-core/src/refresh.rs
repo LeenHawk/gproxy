@@ -1,8 +1,8 @@
 //! Explicit credential refresh: one lease per credential across instances,
 //! the channel's `CredentialRefresh` as the only source of new material, and
 //! version-CAS persistence before publication. A peer's newer durable version
-//! satisfies `IfNeeded`; a definitive rejection persists `Dead` with its
-//! reason and is surfaced as `CredentialDead`.
+//! satisfies `IfNeeded`; the channel decides whether a definitive rejection
+//! persists `Dead` or is remembered only for the current in-memory version.
 
 use crate::{
     Core, CoreError, CoreResult, CredentialData, CredentialStatus, CredentialSummary,
@@ -10,7 +10,7 @@ use crate::{
 };
 use gproxy_channel::{
     ChannelError,
-    channel::{CredentialContext, CredentialView},
+    channel::{CredentialContext, CredentialView, RefreshReason},
 };
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::{
@@ -28,10 +28,6 @@ const LEASE_TTL: Duration = Duration::from_secs(30);
 /// Waiting for a peer's refresh: poll interval and total patience.
 const LEASE_POLL: Duration = Duration::from_millis(100);
 const LEASE_WAIT: Duration = Duration::from_secs(10);
-/// `IfNeeded` refreshes when the access token expires within five minutes.
-pub const REFRESH_MARGIN_MS: i64 = 300_000;
-/// Also refresh when the OAuth refresh token expires within one day.
-const REFRESH_TOKEN_MARGIN_MS: i64 = 86_400_000;
 
 pub(crate) fn can_refresh(
     provider: &crate::ProviderData,
@@ -49,15 +45,23 @@ pub(crate) fn can_refresh(
 }
 
 /// Whether `IfNeeded` should act on this version now.
-pub(crate) fn needs_refresh(version: &CredentialVersion, now_ms: i64) -> bool {
-    version
-        .expires_at_ms
-        .is_some_and(|expires| expires <= now_ms + REFRESH_MARGIN_MS)
-        || version
-            .secret
-            .get("refresh_expires_at_ms")
-            .and_then(serde_json::Value::as_i64)
-            .is_some_and(|expires| expires <= now_ms + REFRESH_TOKEN_MARGIN_MS)
+pub(crate) fn needs_refresh(
+    provider: &crate::ProviderData,
+    credential: &CredentialData,
+    version: &CredentialVersion,
+    now_ms: i64,
+) -> bool {
+    provider
+        .channel
+        .credential_refresh()
+        .is_some_and(|refresher| {
+            refresher
+                .proactive_refresh_reason(
+                    crate::execute::prepare::credential_view(credential, version),
+                    now_ms,
+                )
+                .is_some()
+        })
 }
 
 fn summary(credential_id: &str, version: &CredentialVersion) -> CredentialSummary {
@@ -75,9 +79,10 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
     /// provider ownership, coordinates a shared refresh lease, reads current
     /// Store material, invokes the channel capability, then seals and
     /// CAS-persists before publishing. A peer's newer durable version may
-    /// satisfy `IfNeeded`. A definitive rejection is persisted as Dead with its
-    /// reason and returned as `CredentialDead`; a Dead credential is not
-    /// refreshed again, even with `Force`. The upper layer must authorize.
+    /// satisfy `IfNeeded`. Definitive rejection follows the channel policy:
+    /// durable Dead or an in-memory failure scoped to the credential version.
+    /// A durable Dead credential is not refreshed again, even with `Force`.
+    /// The upper layer must authorize.
     pub async fn refresh_credential(
         &self,
         provider_id: &str,
@@ -125,7 +130,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             return Err(dead(credential_id, &current));
         }
         let now = now_ms();
-        if mode == RefreshMode::IfNeeded && !needs_refresh(&current, now) {
+        if mode == RefreshMode::IfNeeded && !needs_refresh(&provider, &credential, &current, now) {
             return Ok(summary(credential_id, &current));
         }
         let Some(refresher) = provider.channel.credential_refresh() else {
@@ -185,9 +190,19 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             // A peer refreshed while we waited for the lease.
             return finish_peer(credential_id, &row_version);
         }
-        if mode == RefreshMode::IfNeeded && !needs_refresh(&row_version, now_ms()) {
-            return Ok(summary(credential_id, &row_version));
-        }
+        let reason = match mode {
+            RefreshMode::IfNeeded => {
+                match refresher.proactive_refresh_reason(
+                    crate::execute::prepare::credential_view(credential, &row_version),
+                    now_ms(),
+                ) {
+                    Some(reason) => reason,
+                    None => return Ok(summary(credential_id, &row_version)),
+                }
+            }
+            RefreshMode::Force => RefreshReason::Forced,
+            RefreshMode::UnauthorizedRecovery => RefreshReason::UnauthorizedRecovery,
+        };
 
         let mut context = CredentialContext {
             provider: provider.view(),
@@ -204,6 +219,13 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         };
         if !refresher.supports(&context.credential) {
             return Err(CoreError::Channel(ChannelError::UnsupportedService));
+        }
+        // Reload the durable row before consulting a version-scoped rejection:
+        // another process may have replaced the failed login material.
+        if !refresher.persist_rejection()
+            && let Some(reason) = credential.state.refresh_rejection(row.version)
+        {
+            return Err(CoreError::Channel(ChannelError::RefreshRejected(reason)));
         }
         let cookie_client = if refresher.connection_purpose(&context.credential)
             == gproxy_channel::channel::ConnectionPurpose::Browser
@@ -223,9 +245,13 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         if let Some(client) = &cookie_client {
             context.client = client.as_ref();
         }
-        let update = match refresher.refresh(context).await {
+        let update = match refresher.refresh_with_reason(context, reason).await {
             Ok(update) => update,
             Err(ChannelError::RefreshRejected(reason)) => {
+                if !refresher.persist_rejection() {
+                    credential.state.reject_refresh(row.version, reason.clone());
+                    return Err(CoreError::Channel(ChannelError::RefreshRejected(reason)));
+                }
                 return Err(self
                     .mark_dead(credential, &row_version, reason, filter)
                     .await
