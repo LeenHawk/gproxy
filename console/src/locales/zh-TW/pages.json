@@ -210,8 +210,7 @@
     "title": "應用名稱",
     "token_url": "令牌位址",
     "usage_accounting": "上游費用統計",
-    "usage_base_url": "用量查詢位址",
-    "vscode_version": "VS Code 版本"
+    "usage_base_url": "用量查詢位址"
   },
   "providerOption": {
     "round_robin": "輪詢",

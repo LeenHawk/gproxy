@@ -8,34 +8,28 @@ use std::collections::BTreeMap;
 pub const ID: &str = "copilotcli";
 
 /// The inference origin for each kind of Copilot seat (v3
-/// `copilotcli/auth.rs::account_base`).
+/// `copilotcli/auth.rs::account_base`). An operator override only: the CLI
+/// itself reads the origin from `copilot_internal/user` (`endpoints.api`).
 pub const INDIVIDUAL_BASE_URL: &str = "https://api.githubcopilot.com";
 pub const BUSINESS_BASE_URL: &str = "https://api.business.githubcopilot.com";
 pub const ENTERPRISE_BASE_URL: &str = "https://api.enterprise.githubcopilot.com";
-/// Where the GitHub token is spent: the Copilot token mint and the account
-/// probe both live here (v3 `copilotcli/auth.rs`, `copilotcli/quota.rs`).
+/// Where the account probe `copilot_internal/user` lives.
 pub const DEFAULT_GITHUB_API_URL: &str = "https://api.github.com";
-/// The GitHub device flow the CLI uses (v3 `copilotcli/login.rs`).
+/// The GitHub device flow the CLI uses (Copilot CLI 1.0.77 `runtime.node`).
 pub const DEFAULT_DEVICE_AUTHORIZATION_URL: &str = "https://github.com/login/device/code";
 pub const DEFAULT_TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
-/// The Copilot OAuth app the CLI ships; an identifier, not a secret.
-pub const DEFAULT_CLIENT_ID: &str = "Iv1.b507a08c87ecfe98";
-/// The only scope the CLI asks for.
-pub const DEFAULT_SCOPE: &str = "read:user";
+/// The OAuth app the Copilot CLI ships; an identifier, not a secret. The
+/// strings run `client_id Ov23ctDVkRmgkPke0Mmm
+/// read:user,read:org,repo,gist,codespace /login/device/code` in 1.0.77's
+/// `runtime.node`.
+pub const DEFAULT_CLIENT_ID: &str = "Ov23ctDVkRmgkPke0Mmm";
+/// The CLI's device-flow scope, comma-separated as it sends it.
+pub const DEFAULT_SCOPE: &str = "read:user,read:org,repo,gist,codespace";
 
 /// The banner the CLI sends on every call, to GitHub and to Copilot alike.
 pub const CLI_USER_AGENT: &str = "copilot/1.0.77 (linux v24.16.0) term/unknown";
-/// `editor-version` on an inference call: the CLI names itself.
-pub const CLI_EDITOR_VERSION: &str = "copilot/1.0.77";
-/// `editor-version` on a GitHub call: the CLI claims the editor whose
-/// entitlement mints Copilot tokens.
-pub const DEFAULT_VSCODE_VERSION: &str = "1.95.3";
-pub const EDITOR_PLUGIN_VERSION: &str = "copilot-chat/0.43.0";
-/// `x-github-api-version` on api.github.com.
-pub const GITHUB_API_VERSION: &str = "2025-04-01";
-/// `x-github-api-version` on the Copilot inference origin, which pins a
-/// different date from the REST API.
-pub const COPILOT_API_VERSION: &str = "2026-06-01";
+/// The media type the CLI's GitHub REST client asks for.
+pub const GITHUB_ACCEPT: &str = "application/vnd.github.v3+json";
 /// Which Copilot client the request is billed as.
 pub const INTEGRATION_ID: &str = "copilot-developer-cli";
 /// What the CLI says the completion is for.
@@ -59,33 +53,21 @@ impl AccountType {
             Self::Enterprise => ENTERPRISE_BASE_URL,
         }
     }
-
-    pub(super) fn parse(value: &str) -> Option<Self> {
-        match value.trim() {
-            "business" => Some(Self::Business),
-            "enterprise" => Some(Self::Enterprise),
-            "individual" => Some(Self::Individual),
-            _ => None,
-        }
-    }
 }
 
 /// Provider `config` JSON understood by this channel. Unknown keys ignored.
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct CopilotCliConfig {
-    /// The seat this provider fronts. v3 read it off the secret and no login
-    /// ever wrote it, so in v4 it is the operator's to state; a host that
-    /// later records one on the credential is read first.
+    /// An operator override for the seat's origin. Without one the origin
+    /// the account probe reported (`endpoints.api`) is used.
     pub account_type: Option<AccountType>,
-    /// Where the Copilot token is minted and the account probed.
+    /// Where the account is probed.
     pub github_api_url: String,
     pub device_authorization_url: String,
     pub token_url: String,
     /// The scope the device login asks for.
     pub scope: String,
-    /// The editor release named in `editor-version` on GitHub calls.
-    pub vscode_version: String,
     /// Static headers added to every inference request.
     pub headers: BTreeMap<String, String>,
 }
@@ -98,7 +80,6 @@ impl Default for CopilotCliConfig {
             device_authorization_url: DEFAULT_DEVICE_AUTHORIZATION_URL.into(),
             token_url: DEFAULT_TOKEN_URL.into(),
             scope: DEFAULT_SCOPE.into(),
-            vscode_version: DEFAULT_VSCODE_VERSION.into(),
             headers: BTreeMap::new(),
         }
     }
@@ -132,9 +113,5 @@ impl CopilotCliConfig {
 
     pub(super) fn scope(&self) -> &str {
         Self::or_default(&self.scope, DEFAULT_SCOPE)
-    }
-
-    pub(super) fn vscode_version(&self) -> &str {
-        Self::or_default(&self.vscode_version, DEFAULT_VSCODE_VERSION)
     }
 }

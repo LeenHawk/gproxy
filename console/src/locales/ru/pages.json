@@ -210,8 +210,7 @@
     "title": "Заголовок",
     "token_url": "URL токена",
     "usage_accounting": "Учёт использования",
-    "usage_base_url": "Базовый URL использования",
-    "vscode_version": "Версия VS Code"
+    "usage_base_url": "Базовый URL использования"
   },
   "providerOption": {
     "round_robin": "По кругу",

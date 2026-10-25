@@ -1,33 +1,35 @@
-//! The GitHub device login, and the token exchange that keeps a credential
-//! usable.
+//! The GitHub device login, and the account probe that keeps a credential
+//! current.
 //!
 //! Signing in is GitHub's ordinary device flow with the Copilot CLI's own
-//! OAuth app (v3 `copilotcli/login.rs`); what it grants is a long-lived
-//! GitHub token, which Chat Completions does not accept. The short-lived
-//! Copilot token comes from `POST
-//! {github_api}/copilot_internal/v2/token`, which answers `{"token",
-//! "expires_at"}` with `expires_at` in Unix seconds (v3
-//! `copilotcli/auth.rs`).
+//! OAuth app: `POST /login/device/code` with `client_id` and `scope`, then
+//! `POST /login/oauth/access_token` with the device-code grant, both
+//! form-encoded (Copilot CLI 1.0.77 `runtime.node`). What it grants is a
+//! GitHub OAuth token, and that token is the whole credential: the CLI reads
+//! only the reply's token (`app.js` `EMr`: `if (u.token) return u.token`),
+//! so no refresh token or expiry is kept.
 //!
-//! That exchange is this channel's `CredentialRefresh`: it mints a
-//! short-lived credential from a long-lived one, which is exactly what a
-//! refresh is, and `prepare` — being synchronous and pure — would otherwise
-//! re-mint on every request. `poll` performs the first mint as the final
-//! exchange of the login, so the credential the host persists is usable
-//! straight away.
+//! The CLI then asks `GET {github_api}/copilot_internal/user` who signed in
+//! (`app.js` `vQ`: `githubFetchCopilotUser(e, s, 15e3)).login`), and that
+//! reply names the inference origin in `endpoints.api` (`runtime.node`
+//! `CopilotUserResponse`, `endpoints.api`). The login records it; the
+//! refresh is the same probe again, which re-reads the origin and finds out
+//! whether GitHub still honours the token.
 
 use super::auth;
-use super::config::{CopilotCliConfig, DEFAULT_CLIENT_ID, ID};
+use super::config::{CLI_USER_AGENT, CopilotCliConfig, DEFAULT_CLIENT_ID, ID};
 use crate::OutboundClient;
 use crate::channel::{
-    ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
-    LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
+    ChannelError, CredentialRefresh, CredentialUpdate, CredentialView, DeviceAuthorization,
+    DevicePoll, LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
+    RefreshReason,
 };
 use crate::channels::shared::compatible::ability::send;
 use crate::channels::shared::compatible::http::invalid_response;
+use gproxy_protocol::connection::Bytes;
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 fn percent_encode(value: &str) -> String {
@@ -60,6 +62,7 @@ fn form_headers() -> HeaderMap {
         HeaderValue::from_static("application/x-www-form-urlencoded"),
     );
     headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
+    headers.insert(header::USER_AGENT, HeaderValue::from_static(CLI_USER_AGENT));
     headers
 }
 
@@ -81,13 +84,50 @@ struct AccessTokenReply {
     access_token: Option<String>,
     #[serde(default)]
     error: Option<String>,
+    /// The interval a `slow_down` asks for.
+    #[serde(default)]
+    interval: Option<u64>,
 }
 
-/// The Copilot token mint's reply. `expires_at` is Unix seconds.
+/// The facts of `copilot_internal/user` this channel keeps.
 #[derive(Deserialize)]
-struct CopilotTokenReply {
-    token: String,
-    expires_at: i64,
+struct CopilotUser {
+    #[serde(default)]
+    login: Option<String>,
+    #[serde(default)]
+    copilot_plan: Option<String>,
+    #[serde(default)]
+    access_type_sku: Option<String>,
+    #[serde(default)]
+    endpoints: Option<Endpoints>,
+}
+
+#[derive(Deserialize)]
+struct Endpoints {
+    #[serde(default)]
+    api: Option<String>,
+}
+
+impl CopilotUser {
+    /// The public facts, as credential metadata.
+    fn fields(self) -> BTreeMap<String, Value> {
+        let mut fields = BTreeMap::new();
+        let api = self
+            .endpoints
+            .and_then(|endpoints| endpoints.api)
+            .and_then(|api| auth::api_origin(&api));
+        for (name, value) in [
+            ("login", self.login),
+            ("copilot_plan", self.copilot_plan),
+            ("access_type_sku", self.access_type_sku),
+            (auth::API_URL, api),
+        ] {
+            if let Some(value) = value.filter(|value| !value.trim().is_empty()) {
+                fields.insert(name.to_owned(), Value::String(value));
+            }
+        }
+        fields
+    }
 }
 
 fn unix_now_ms() -> i64 {
@@ -110,42 +150,24 @@ fn rate_limited(headers: &HeaderMap, body: &[u8]) -> bool {
             .contains("rate limit")
 }
 
-/// Exchange the GitHub token for a Copilot token. Shared by the login's final
-/// step and by every later refresh, because they are the same exchange.
-async fn mint(
+/// `GET copilot_internal/user` with the GitHub token, as the CLI asks it.
+async fn probe(
     client: &dyn OutboundClient,
     config: &CopilotCliConfig,
     github_token: &str,
-) -> Result<(String, i64), ChannelError> {
-    let (status, headers, body) = send(
+) -> Result<(StatusCode, HeaderMap, Bytes), ChannelError> {
+    send(
         client,
         Method::GET,
-        &format!("{}/copilot_internal/v2/token", config.github_api_url()),
-        auth::github_headers(config, github_token)?,
+        &format!("{}/copilot_internal/user", config.github_api_url()),
+        auth::github_headers(github_token)?,
         None,
     )
-    .await?;
-    if !status.is_success() {
-        // GitHub refusing the token itself is definitive: the OAuth grant was
-        // revoked or the account lost its Copilot seat. A 5xx is not, and
-        // neither is a 403 that is GitHub's rate limit rather than a refusal.
-        let definitive = match status {
-            StatusCode::UNAUTHORIZED | StatusCode::NOT_FOUND => true,
-            StatusCode::FORBIDDEN => !rate_limited(&headers, &body),
-            _ => false,
-        };
-        return Err(if definitive {
-            ChannelError::RefreshRejected(format!("http {}", status.as_u16()))
-        } else {
-            ChannelError::UpstreamResponse { status, body }
-        });
-    }
-    let reply: CopilotTokenReply = serde_json::from_slice(&body)
-        .map_err(|error| invalid_response(format!("{ID} token: {error}")))?;
-    if reply.token.trim().is_empty() {
-        return Err(invalid_response(format!("{ID} token: empty token")));
-    }
-    Ok((reply.token, reply.expires_at.saturating_mul(1_000)))
+    .await
+}
+
+fn user(body: &[u8]) -> Result<CopilotUser, ChannelError> {
+    serde_json::from_slice(body).map_err(|error| invalid_response(format!("{ID} account: {error}")))
 }
 
 impl OAuthDeviceCode for super::CopilotCli {
@@ -215,27 +237,35 @@ impl OAuthDeviceCode for super::CopilotCli {
             else {
                 return Ok(match reply.error.as_deref() {
                     Some("authorization_pending") => DevicePoll::Pending,
+                    // The CLI waits the interval GitHub names plus five
+                    // seconds, never more than a minute (`app.js` `EMr`).
                     Some("slow_down") => DevicePoll::SlowDown {
-                        interval_secs: authorization.interval_secs.saturating_mul(2).max(5),
+                        interval_secs: reply
+                            .interval
+                            .unwrap_or(authorization.interval_secs)
+                            .saturating_add(5)
+                            .min(60),
                     },
                     Some("access_denied") => DevicePoll::Denied,
                     Some("expired_token") => DevicePoll::Expired,
                     _ => return Err(ChannelError::UpstreamResponse { status, body }),
                 });
             };
-            // The GitHub token is not what inference accepts, so the login
-            // spends it once here; every later mint is the refresh.
-            let (copilot, expires_at_ms) = mint(context.client, &config, github).await?;
+            // Then who signed in, and where their seat is served.
+            let (status, _, body) = probe(context.client, &config, github).await?;
+            if !status.is_success() {
+                return Err(ChannelError::UpstreamResponse { status, body });
+            }
             Ok(DevicePoll::Ready(OAuthCredential {
-                access_token: copilot,
-                refresh_token: Some(github.to_owned()),
+                access_token: github.to_owned(),
+                refresh_token: None,
                 id_token: None,
                 token_type: Some("Bearer".into()),
-                scopes: vec![config.scope().to_owned()],
-                expires_at_ms: Some(expires_at_ms),
-                // The GitHub token has no stated lifetime of its own.
+                scopes: config.scope().split(',').map(str::to_owned).collect(),
+                // A GitHub OAuth app token has no stated lifetime.
+                expires_at_ms: None,
                 refresh_expires_at_ms: None,
-                provider_fields: BTreeMap::new(),
+                provider_fields: user(&body)?.fields(),
                 provider_secrets: BTreeMap::new(),
             }))
         })
@@ -243,35 +273,65 @@ impl OAuthDeviceCode for super::CopilotCli {
 }
 
 impl CredentialRefresh for super::CopilotCli {
+    /// Nothing expires on a schedule; a credential from the channel's earlier
+    /// design is sent to the refresh at once, which refuses it, so it is
+    /// marked for a new login rather than half-working.
+    fn proactive_refresh_reason(
+        &self,
+        credential: CredentialView<'_>,
+        _now_ms: i64,
+    ) -> Option<RefreshReason> {
+        auth::legacy(credential.secret).then_some(RefreshReason::ProactiveExpiry)
+    }
+
     fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
         Box::pin(async move {
+            if auth::legacy(context.credential.secret) {
+                return Err(ChannelError::RefreshRejected(auth::LEGACY_REASON.into()));
+            }
             let config = CopilotCliConfig::from_view(context.provider)?;
             let github = auth::github_token(&context.credential).map_err(|_| {
                 ChannelError::RefreshRejected("credential has no GitHub token".into())
             })?;
-            let (copilot, expires_at_ms) = mint(context.client, &config, github).await?;
-            // A full replacement that keeps what the mint did not name: the
-            // GitHub token above all, and any seat the host recorded.
+            let (status, headers, body) = probe(context.client, &config, github).await?;
+            if !status.is_success() {
+                // GitHub refusing the token is definitive: the grant was
+                // revoked or the account has no Copilot seat. A 5xx is not,
+                // and neither is a 403 that is GitHub's rate limit.
+                let definitive = match status {
+                    StatusCode::UNAUTHORIZED | StatusCode::NOT_FOUND => true,
+                    StatusCode::FORBIDDEN => !rate_limited(&headers, &body),
+                    _ => false,
+                };
+                return Err(if definitive {
+                    ChannelError::RefreshRejected(format!("http {}", status.as_u16()))
+                } else {
+                    ChannelError::UpstreamResponse { status, body }
+                });
+            }
+            let fields = user(&body)?.fields();
+            // A full replacement that keeps everything the probe did not name.
             let mut secret = context.credential.secret.clone();
             let object = secret
                 .as_object_mut()
                 .ok_or(ChannelError::InvalidCredential)?;
-            // v3's names are kept in step when the secret still uses them, so
-            // a v3 credential never ends up holding two disagreeing pairs.
-            let v3_names =
-                object.contains_key("copilot_token") || object.contains_key("github_token");
-            object.insert("access_token".into(), json!(copilot));
-            object.insert("refresh_token".into(), json!(github));
-            object.insert("expires_at_ms".into(), json!(expires_at_ms));
-            if v3_names {
-                object.insert("copilot_token".into(), json!(copilot));
-                object.insert("github_token".into(), json!(github));
-                object.insert("copilot_expires_at_ms".into(), json!(expires_at_ms));
+            let stored = object
+                .entry("provider_fields")
+                .or_insert_with(|| Value::Object(serde_json::Map::new()));
+            if let Some(stored) = stored.as_object_mut() {
+                stored.extend(fields.clone());
             }
+            let mut metadata = context
+                .credential
+                .metadata
+                .as_object()
+                .cloned()
+                .unwrap_or_default();
+            metadata.extend(fields);
             Ok(CredentialUpdate {
-                metadata: None,
                 secret,
-                expires_at_ms: Some(expires_at_ms),
+                metadata: Some(Value::Object(metadata)),
+                expires_at_ms: None,
             })
         })
     }
@@ -285,19 +345,28 @@ mod tests {
     fn the_device_grant_is_form_encoded_with_its_colons_escaped() {
         assert_eq!(
             String::from_utf8(form(&[
-                ("client_id", "Iv1.b507a08c87ecfe98"),
+                ("client_id", "Ov23ctDVkRmgkPke0Mmm"),
                 ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
             ]))
             .unwrap(),
-            "client_id=Iv1.b507a08c87ecfe98\
+            "client_id=Ov23ctDVkRmgkPke0Mmm\
              &grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code"
         );
     }
 
     #[test]
-    fn the_mint_reports_seconds_and_the_channel_stores_milliseconds() {
-        let reply: CopilotTokenReply =
-            serde_json::from_str(r#"{"token":"tid=x","expires_at":1800000000}"#).unwrap();
-        assert_eq!(reply.expires_at.saturating_mul(1_000), 1_800_000_000_000);
+    fn the_probe_names_the_origin_only_when_it_is_https() {
+        let fields = user(
+            br#"{"login":"octo","copilot_plan":"business",
+                "endpoints":{"api":"https://api.business.githubcopilot.com/"}}"#,
+        )
+        .unwrap()
+        .fields();
+        assert_eq!(fields["login"], "octo");
+        assert_eq!(fields["api_url"], "https://api.business.githubcopilot.com");
+        let fields = user(br#"{"endpoints":{"api":"http://evil.example"}}"#)
+            .unwrap()
+            .fields();
+        assert!(!fields.contains_key("api_url"));
     }
 }

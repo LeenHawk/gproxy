@@ -210,8 +210,7 @@
     "title": "应用名称",
     "token_url": "令牌地址",
     "usage_accounting": "上游费用统计",
-    "usage_base_url": "用量查询地址",
-    "vscode_version": "VS Code 版本"
+    "usage_base_url": "用量查询地址"
   },
   "providerOption": {
     "round_robin": "轮询",

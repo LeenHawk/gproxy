@@ -210,8 +210,7 @@
     "title": "Title",
     "token_url": "Token url",
     "usage_accounting": "Usage accounting",
-    "usage_base_url": "Usage base url",
-    "vscode_version": "Vscode version"
+    "usage_base_url": "Usage base url"
   },
   "providerOption": {
     "round_robin": "Round robin",

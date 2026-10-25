@@ -1,29 +1,26 @@
 //! GitHub Copilot CLI: a GitHub account's Copilot seat, reached the way the
 //! `copilot` CLI reaches it.
 //!
-//! Wire facts follow the v3 channel (`crates/gproxy-channels/src/copilotcli`
-//! on `main`). The credential a person acquires is a GitHub OAuth token from
-//! GitHub's device flow, and it is *not* what the Copilot backend accepts:
-//! Chat Completions wants a Copilot token, minted from the GitHub one at
-//! `POST api.github.com/copilot_internal/v2/token` and good for minutes.
-//! That exchange is modelled as `CredentialRefresh` (`oauth.rs`) — a mint of
-//! a short-lived credential from a long-lived one is a refresh, and
-//! `prepare`, being synchronous and pure, would otherwise re-mint on every
-//! request. The login's final step performs the first mint so the persisted
-//! credential is usable at once.
+//! Wire facts follow Copilot CLI 1.0.77 (`@github/copilot-linux-x64`:
+//! `app.js` and the strings of its `runtime.node`). The credential a person
+//! acquires is a GitHub OAuth token from GitHub's device flow with the CLI's
+//! own OAuth app, and that token is what every call presents as its bearer:
+//! the account probe on api.github.com and Chat Completions on the Copilot
+//! origin alike. The CLI mints no short-lived Copilot token.
 //!
-//! The secret is therefore `{access_token: <copilot>, refresh_token:
-//! <github>}`; v3's `copilot_token` / `github_token` names are still read, and
-//! a refresh keeps them in step when it finds them.
+//! The secret is therefore `{access_token: <github>}`. The login asks
+//! `copilot_internal/user` who signed in and where the seat is served
+//! (`endpoints.api`), and records those as public facts; the refresh is the
+//! same probe, which also learns when GitHub stops honouring the token
+//! (`oauth.rs`). A credential from the channel's earlier design — the VS Code
+//! Copilot Chat app's GitHub token beside a minted Copilot token, under v4's
+//! or v3's names — is refused with a request to sign in again.
 //!
-//! Two origins, two identities. Calls to `api.github.com` carry the
-//! long-lived `token` scheme with the editor fingerprint whose entitlement
-//! mints Copilot tokens (`auth.rs`); calls to the Copilot backend carry the
-//! short-lived bearer with the CLI's own identity — integration id, editor
-//! version, intent, a machine id derived from the credential and a fresh
-//! interaction id, plus `x-initiator`, which says whether a person or the
-//! agent itself is asking (`identity.rs`). Which inference origin is reached
-//! follows the seat: individual, business or enterprise.
+//! Calls to the Copilot backend carry the CLI's identity — integration id,
+//! intent, a machine id derived from the credential and a fresh interaction
+//! id, plus `x-initiator`, which says whether a person or the agent itself
+//! is asking (`identity.rs`). The origin is the one the probe reported,
+//! unless the operator names one.
 //!
 //! **v3 infrastructure that has no v4 counterpart.** v3's `routes.rs`
 //! (`SurfaceTable` written with the `route!` macro) is replaced by
@@ -55,7 +52,8 @@ pub use quota::QUOTA_SOURCE;
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, PrepareContext, ProviderView,
-    QuotaQuery, };
+    QuotaQuery,
+};
 use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
 use gproxy_protocol::{Dialect, HttpBody, Operation};
 
@@ -119,17 +117,17 @@ impl BaseChannel for CopilotCli {
                 ConfigKey::optional(
                     "base_url",
                     ConfigKeyKind::String,
-                    "Copilot inference origin; defaults to the one the seat implies. Provider column, not config JSON.",
+                    "Copilot inference origin; defaults to the one GitHub reports for the account. Provider column, not config JSON.",
                 ),
                 ConfigKey::optional(
                     "account_type",
                     ConfigKeyKind::String,
-                    "`individual`, `business` or `enterprise`. Decides the inference origin when base_url names none.",
+                    "`individual`, `business` or `enterprise`. Overrides the inference origin GitHub reports when base_url names none.",
                 ),
                 ConfigKey::optional(
                     "github_api_url",
                     ConfigKeyKind::String,
-                    "Where the Copilot token is minted and the seat probed; defaults to https://api.github.com.",
+                    "Where the account is probed (copilot_internal/user); defaults to https://api.github.com.",
                 ).with_placeholder(config::DEFAULT_GITHUB_API_URL),
                 ConfigKey::optional(
                     "device_authorization_url",
@@ -144,12 +142,7 @@ impl BaseChannel for CopilotCli {
                 ConfigKey::optional(
                     "scope",
                     ConfigKeyKind::String,
-                    "Scope the device login asks for; defaults to read:user.",
-                ),
-                ConfigKey::optional(
-                    "vscode_version",
-                    ConfigKeyKind::String,
-                    "Editor release named in editor-version on GitHub calls.",
+                    "Scope the device login asks for; defaults to the CLI's read:user,read:org,repo,gist,codespace.",
                 ),
                 ConfigKey::optional(
                     "headers",
@@ -176,6 +169,15 @@ impl BaseChannel for CopilotCli {
             | Operation::ListModels => vec![Dialect::OpenAiChat],
             _ => Vec::new(),
         }
+    }
+
+    /// A credential from the channel's earlier design cannot be used: its
+    /// GitHub token belongs to another OAuth app.
+    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), ChannelError> {
+        if auth::legacy(secret) {
+            return Err(ChannelError::InvalidConfig(auth::LEGACY_REASON.into()));
+        }
+        Ok(())
     }
 
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {

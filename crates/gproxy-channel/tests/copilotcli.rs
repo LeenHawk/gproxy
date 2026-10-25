@@ -1,7 +1,7 @@
 #![cfg(feature = "copilotcli")]
 
-//! Copilot CLI: the two tokens a credential holds, the mint that turns one
-//! into the other, the editor identity the backend expects, and the seat's
+//! Copilot CLI: the GitHub token a credential holds, the account probe that
+//! names its origin, the CLI identity the backend expects, and the seat's
 //! metered features.
 
 use gproxy_channel::channel::{
@@ -17,11 +17,10 @@ use serde_json::{Value, json};
 mod support;
 use support::{OneShot, credential, provider, request};
 
-const COPILOT: &str = "tid=short-lived";
 const GITHUB: &str = "gho_long_lived";
 
 fn secret() -> Value {
-    json!({"access_token": COPILOT, "refresh_token": GITHUB})
+    json!({"access_token": GITHUB})
 }
 
 fn prepare(
@@ -45,7 +44,7 @@ fn prepare(
 }
 
 #[test]
-fn the_seat_decides_the_origin_and_the_short_lived_token_is_what_inference_sees() {
+fn the_probed_origin_serves_and_the_github_token_is_the_bearer() {
     let secret = secret();
     let individual = prepare(
         &json!({}),
@@ -62,8 +61,8 @@ fn the_seat_decides_the_origin_and_the_short_lived_token_is_what_inference_sees(
     );
     assert_eq!(
         individual.headers()["authorization"],
-        format!("Bearer {COPILOT}"),
-        "the GitHub token never reaches the inference origin"
+        format!("Bearer {GITHUB}"),
+        "the CLI presents the GitHub token itself"
     );
 
     let business = prepare(
@@ -84,7 +83,7 @@ fn the_seat_decides_the_origin_and_the_short_lived_token_is_what_inference_sees(
         &json!({}),
         None,
         &secret,
-        &json!({"account_type": "enterprise"}),
+        &json!({"api_url": "https://api.enterprise.githubcopilot.com"}),
         Operation::ListModels,
         request("/v1/models", Some("limit=2&api_key=leaked")),
     )
@@ -97,38 +96,55 @@ fn the_seat_decides_the_origin_and_the_short_lived_token_is_what_inference_sees(
     assert_eq!(recorded.method(), http::Method::GET);
 }
 
-#[test]
-fn a_v3_secret_still_names_the_same_pair() {
-    let v3 = json!({"copilot_token": COPILOT, "github_token": GITHUB});
-    let prepared = prepare(
-        &json!({}),
-        None,
-        &v3,
-        &Value::Null,
-        Operation::GenerateContent,
-        request("/v1/chat/completions", None),
-    )
-    .unwrap();
-    assert_eq!(
-        prepared.headers()["authorization"],
-        format!("Bearer {COPILOT}")
+#[tokio::test]
+async fn a_credential_from_the_old_app_must_sign_in_again() {
+    let config = json!({});
+    for old in [
+        json!({"access_token": "tid=short-lived", "refresh_token": GITHUB}),
+        json!({"copilot_token": "tid=short-lived", "github_token": GITHUB}),
+    ] {
+        assert!(matches!(
+            prepare(
+                &config,
+                None,
+                &old,
+                &Value::Null,
+                Operation::GenerateContent,
+                request("/v1/chat/completions", None)
+            ),
+            Err(ChannelError::InvalidCredential)
+        ));
+        assert!(CopilotCli.validate_credential_secret(&old).is_err());
+        let refresh = CopilotCli.credential_refresh().unwrap();
+        assert!(
+            refresh
+                .proactive_refresh_reason(credential("oauth", &old, &Value::Null), 0)
+                .is_some(),
+            "sent to the refresh at once"
+        );
+        let client = OneShot::new(StatusCode::OK, "{}".into());
+        let outcome = refresh
+            .refresh(CredentialContext {
+                provider: provider("copilotcli", &config, None),
+                credential: credential("oauth", &old, &Value::Null),
+                client: &client,
+            })
+            .await;
+        assert!(
+            matches!(&outcome, Err(ChannelError::RefreshRejected(reason)) if reason.contains("re-login")),
+            "refused without asking GitHub"
+        );
+    }
+    let current = secret();
+    assert!(CopilotCli.validate_credential_secret(&current).is_ok());
+    assert!(
+        CopilotCli
+            .credential_refresh()
+            .unwrap()
+            .proactive_refresh_reason(credential("oauth", &current, &Value::Null), 0)
+            .is_none(),
+        "a GitHub OAuth token has no schedule"
     );
-}
-
-#[test]
-fn a_credential_that_has_not_been_minted_yet_is_refused() {
-    let unminted = json!({"refresh_token": GITHUB});
-    assert!(matches!(
-        prepare(
-            &json!({}),
-            None,
-            &unminted,
-            &Value::Null,
-            Operation::GenerateContent,
-            request("/v1/chat/completions", None)
-        ),
-        Err(ChannelError::InvalidCredential)
-    ));
 }
 
 #[test]
@@ -137,7 +153,6 @@ fn the_cli_identity_is_the_channels_and_a_client_cannot_forge_it() {
     let mut caller = request("/v1/chat/completions", None);
     for (name, value) in [
         ("copilot-integration-id", "not-the-cli"),
-        ("editor-version", "vim/9"),
         ("x-initiator", "agent"),
         ("x-client-machine-id", "someone-elses-machine"),
         ("user-agent", "curl/8"),
@@ -161,9 +176,10 @@ fn the_cli_identity_is_the_channels_and_a_client_cannot_forge_it() {
     .unwrap();
     let headers = prepared.headers();
     assert_eq!(headers["copilot-integration-id"], "copilot-developer-cli");
-    assert_eq!(headers["editor-version"], "copilot/1.0.77");
     assert_eq!(headers["openai-intent"], "conversation-agent");
-    assert_eq!(headers["x-github-api-version"], "2026-06-01");
+    for absent in ["editor-version", "x-github-api-version"] {
+        assert!(!headers.contains_key(absent), "the CLI sends no {absent}");
+    }
     assert_eq!(
         headers["user-agent"],
         "copilot/1.0.77 (linux v24.16.0) term/unknown"
@@ -183,7 +199,7 @@ fn the_cli_identity_is_the_channels_and_a_client_cannot_forge_it() {
 }
 
 #[test]
-fn the_machine_is_stable_across_mints_and_the_interaction_is_not() {
+fn the_machine_is_stable_for_a_credential_and_the_interaction_is_not() {
     let first = prepare(
         &json!({}),
         None,
@@ -193,13 +209,10 @@ fn the_machine_is_stable_across_mints_and_the_interaction_is_not() {
         request("/v1/chat/completions", None),
     )
     .unwrap();
-    // The Copilot token rotates on every refresh; the machine id is derived
-    // from the GitHub token, which does not.
-    let rotated = json!({"access_token": "tid=another", "refresh_token": GITHUB});
     let second = prepare(
         &json!({}),
         None,
-        &rotated,
+        &secret(),
         &Value::Null,
         Operation::GenerateContent,
         request("/v1/chat/completions", None),
@@ -262,14 +275,15 @@ async fn the_seat_probe_presents_the_github_token_and_skips_unmetered_features()
         .unwrap();
     let (url, headers, _) = client.call(0);
     assert_eq!(url, "https://api.github.com/copilot_internal/user");
-    assert_eq!(
-        headers["authorization"],
-        format!("token {GITHUB}"),
-        "GitHub's own surface takes the long-lived token, not the bearer"
-    );
-    assert_eq!(headers["editor-version"], "vscode/1.95.3");
-    assert_eq!(headers["editor-plugin-version"], "copilot-chat/0.43.0");
-    assert_eq!(headers["x-github-api-version"], "2025-04-01");
+    assert_eq!(headers["authorization"], format!("Bearer {GITHUB}"));
+    assert_eq!(headers["accept"], "application/vnd.github.v3+json");
+    for absent in [
+        "editor-version",
+        "editor-plugin-version",
+        "x-github-api-version",
+    ] {
+        assert!(!headers.contains_key(absent), "the CLI sends no {absent}");
+    }
 
     assert_eq!(
         snapshot.entries.len(),
@@ -351,12 +365,12 @@ async fn premium_exhaustion_only_covers_models_the_catalog_bills_for() {
     assert!(!dimension.scope.matches("included-model"));
     assert_eq!(
         client.models.call(0).1["authorization"],
-        format!("Bearer {COPILOT}")
+        format!("Bearer {GITHUB}")
     );
 }
 
 #[tokio::test]
-async fn the_device_login_ends_by_minting_the_first_copilot_token() {
+async fn the_device_login_keeps_the_github_token_and_the_probed_origin() {
     let config = json!({});
     let start_client = OneShot::new(
         StatusCode::OK,
@@ -378,7 +392,7 @@ async fn the_device_login_ends_by_minting_the_first_copilot_token() {
     assert_eq!(headers["accept"], "application/json");
     assert_eq!(
         String::from_utf8(body).unwrap(),
-        "client_id=Iv1.b507a08c87ecfe98&scope=read%3Auser"
+        "client_id=Ov23ctDVkRmgkPke0Mmm&scope=read%3Auser%2Cread%3Aorg%2Crepo%2Cgist%2Ccodespace"
     );
     assert_eq!(started.user_code, "ABCD-1234");
 
@@ -402,10 +416,15 @@ async fn the_device_login_ends_by_minting_the_first_copilot_token() {
     ));
 
     let granted = TwoShot::new(vec![
-        (StatusCode::OK, json!({"access_token": GITHUB}).to_string()),
         (
             StatusCode::OK,
-            json!({"token": COPILOT, "expires_at": 1_800_000_000_i64}).to_string(),
+            json!({"access_token": GITHUB, "token_type": "bearer"}).to_string(),
+        ),
+        (
+            StatusCode::OK,
+            json!({"login": "octocat", "copilot_plan": "business",
+                   "endpoints": {"api": "https://api.business.githubcopilot.com"}})
+            .to_string(),
         ),
     ]);
     let DevicePoll::Ready(acquired) = CopilotCli
@@ -424,31 +443,25 @@ async fn the_device_login_ends_by_minting_the_first_copilot_token() {
     let urls = granted.urls();
     assert_eq!(urls[0], "https://github.com/login/oauth/access_token");
     assert_eq!(
-        urls[1], "https://api.github.com/copilot_internal/v2/token",
-        "the login spends the GitHub token once so the credential is usable"
+        urls[1], "https://api.github.com/copilot_internal/user",
+        "the login asks who signed in, and mints nothing"
     );
+    assert_eq!(acquired.access_token, GITHUB);
+    assert_eq!(acquired.refresh_token, None);
+    assert_eq!(acquired.expires_at_ms, None);
+    assert_eq!(acquired.provider_fields["login"], "octocat");
     assert_eq!(
-        acquired.access_token, COPILOT,
-        "the short-lived token is the access token"
+        acquired.provider_fields["api_url"],
+        "https://api.business.githubcopilot.com"
     );
-    assert_eq!(
-        acquired.refresh_token.as_deref(),
-        Some(GITHUB),
-        "the long-lived GitHub token is what mints the next one"
-    );
-    assert_eq!(acquired.expires_at_ms, Some(1_800_000_000_000));
 }
 
 #[tokio::test]
-async fn the_mint_is_the_refresh_and_a_revoked_grant_is_definitive() {
+async fn the_probe_is_the_refresh_and_a_revoked_token_is_definitive() {
     let config = json!({});
     let secret = secret();
 
-    for status in [
-        StatusCode::UNAUTHORIZED,
-        StatusCode::FORBIDDEN,
-        StatusCode::NOT_FOUND,
-    ] {
+    for status in [StatusCode::UNAUTHORIZED, StatusCode::NOT_FOUND] {
         let refused = OneShot::new(status, "revoked".into());
         let outcome = CredentialRefresh::refresh(
             &CopilotCli,
@@ -480,51 +493,34 @@ async fn the_mint_is_the_refresh_and_a_revoked_grant_is_definitive() {
         "a gateway failure is not a dead credential"
     );
 
-    let minted = OneShot::new(
+    let probed = OneShot::new(
         StatusCode::OK,
-        json!({"token": "tid=fresh", "expires_at": 1_900_000_000_i64}).to_string(),
+        json!({"login": "octocat",
+               "endpoints": {"api": "https://api.enterprise.githubcopilot.com"}})
+        .to_string(),
     );
-    let update = CredentialRefresh::refresh(&CopilotCli, context(&minted))
+    let update = CredentialRefresh::refresh(&CopilotCli, context(&probed))
         .await
         .unwrap();
-    assert_eq!(update.secret["access_token"], "tid=fresh");
+    assert_eq!(update.secret["access_token"], GITHUB);
     assert_eq!(
-        update.secret["refresh_token"], GITHUB,
-        "a full replacement that keeps the long-lived token"
+        update.secret["provider_fields"]["api_url"],
+        "https://api.enterprise.githubcopilot.com"
     );
-    assert_eq!(update.expires_at_ms, Some(1_900_000_000_000));
-    let (url, headers, _) = minted.call(0);
-    assert_eq!(url, "https://api.github.com/copilot_internal/v2/token");
-    assert_eq!(headers["authorization"], format!("token {GITHUB}"));
-
-    // A v3-shaped secret keeps both name pairs in step.
-    let v3 = json!({"copilot_token": COPILOT, "github_token": GITHUB});
-    let minted = OneShot::new(
-        StatusCode::OK,
-        json!({"token": "tid=fresh", "expires_at": 1_900_000_000_i64}).to_string(),
-    );
-    let update = CredentialRefresh::refresh(
-        &CopilotCli,
-        CredentialContext {
-            provider: provider("copilotcli", &config, None),
-            credential: credential("oauth", &v3, &Value::Null),
-            client: &minted,
-        },
-    )
-    .await
-    .unwrap();
-    assert_eq!(update.secret["copilot_token"], "tid=fresh");
-    assert_eq!(update.secret["access_token"], "tid=fresh");
     assert_eq!(
-        update.secret["copilot_expires_at_ms"],
-        1_900_000_000_000_i64
+        update.metadata.as_ref().unwrap()["api_url"],
+        "https://api.enterprise.githubcopilot.com"
     );
+    assert_eq!(update.expires_at_ms, None);
+    let (url, headers, _) = probed.call(0);
+    assert_eq!(url, "https://api.github.com/copilot_internal/user");
+    assert_eq!(headers["authorization"], format!("Bearer {GITHUB}"));
 }
 
 #[tokio::test]
 async fn a_credential_with_no_github_token_cannot_be_refreshed() {
     let config = json!({});
-    let secret = json!({"access_token": COPILOT});
+    let secret = json!({});
     let client = OneShot::new(StatusCode::OK, "{}".into());
     assert!(matches!(
         CredentialRefresh::refresh(
@@ -547,7 +543,7 @@ fn the_descriptor_states_the_one_way_in_and_the_captured_client() {
     assert_eq!(descriptor.login_modes, [LoginMode::DeviceCode]);
     assert!(descriptor.capabilities.refresh);
     assert!(descriptor.capabilities.quota_query);
-    for key in ["account_type", "github_api_url", "vscode_version"] {
+    for key in ["account_type", "github_api_url", "scope"] {
         assert!(descriptor.config_key(key).is_some(), "{key}");
     }
     let connection = CopilotCli
@@ -568,7 +564,7 @@ fn the_descriptor_states_the_one_way_in_and_the_captured_client() {
 // ------------------------------------------------ a two-step scripted client
 
 /// A scripted client that answers a different reply to each call, for the
-/// login's device grant followed by its Copilot-token mint.
+/// login's device grant followed by its account probe.
 struct TwoShot {
     replies: Vec<(StatusCode, String)>,
     seen: std::sync::Mutex<Vec<String>>,

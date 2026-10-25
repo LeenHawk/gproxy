@@ -1,7 +1,7 @@
 //! The Copilot seat's metered features.
 //!
 //! `GET {github_api}/copilot_internal/user`, presented with the GitHub token
-//! rather than the Copilot one, answers a `quota_snapshots` object with one
+//! as a bearer, answers a `quota_snapshots` object with one
 //! entry per metered feature — `chat`, `completions`,
 //! `premium_interactions` — each carrying an `entitlement`, a `remaining`
 //! count and a `percent_remaining`. `unlimited: true` means the feature is
@@ -218,14 +218,12 @@ impl crate::channel::QuotaQuery for super::CopilotCli {
     fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = CopilotCliConfig::from_view(context.provider)?;
-            // The account surface is GitHub's, so it takes the GitHub token;
-            // the Copilot bearer is only good against the inference origin.
             let github = auth::github_token(&context.credential)?;
             let (status, _, body) = send(
                 context.client,
                 Method::GET,
                 &format!("{}/copilot_internal/user", config.github_api_url()),
-                auth::github_headers(&config, github)?,
+                auth::github_headers(github)?,
                 None,
             )
             .await?;

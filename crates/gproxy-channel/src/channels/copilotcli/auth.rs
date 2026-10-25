@@ -1,21 +1,23 @@
-//! The two tokens a Copilot credential holds and the GitHub calls that spend
-//! the long-lived one.
+//! The one token a Copilot credential holds and where it is spent.
 //!
-//! The credential a person acquires is a GitHub OAuth token. It is not what
-//! Chat Completions accepts: that wants a Copilot token, minted from the
-//! GitHub one at `POST api.github.com/copilot_internal/v2/token` and good for
-//! minutes (v3 `copilotcli/auth.rs`). The GitHub token is therefore the
-//! refresh token of this channel and the Copilot token its access token; the
-//! mint is `CredentialRefresh`, and `prepare` only ever reads back what the
-//! last refresh wrote.
+//! The Copilot CLI (1.0.77) signs in with GitHub's device flow and keeps the
+//! GitHub OAuth token it is granted. That token is the bearer on every call:
+//! the account probe at `api.github.com/copilot_internal/user` and the
+//! Copilot inference origin alike (`app.js`: `Authorization: Bearer ${await
+//! CFe(e)}`, where `CFe` resolves `authManagerTokenForInfo`, the stored GitHub
+//! token). No short-lived Copilot token is minted: `copilot_internal/v2/token`
+//! appears nowhere in the CLI.
 //!
-//! v3 stored the pair as `github_token` and `copilot_token`; both names are
-//! still read so a v3 secret works unchanged.
+//! The inference origin is the one the account probe reports in
+//! `endpoints.api`, recorded on the credential as `api_url`.
 
-use super::config::{AccountType, CopilotCliConfig};
+use super::config::{AccountType, CopilotCliConfig, GITHUB_ACCEPT};
 use crate::channel::{ChannelError, CredentialView, ProviderView};
-use http::{HeaderMap, HeaderName, HeaderValue, header};
+use http::{HeaderMap, HeaderValue, header};
 use serde_json::Value;
+
+/// The public fact naming the inference origin the account probe reported.
+pub(super) const API_URL: &str = "api_url";
 
 fn text(value: Option<&Value>) -> Option<&str> {
     value
@@ -24,25 +26,41 @@ fn text(value: Option<&Value>) -> Option<&str> {
         .filter(|value| !value.is_empty())
 }
 
-/// The long-lived GitHub OAuth token, under either name.
+/// Whether this secret came from the channel's earlier design: the VS Code
+/// Copilot Chat app's GitHub token beside a minted Copilot token (v4 before
+/// it followed the CLI) or v3's names for the same pair. Neither can be
+/// carried over: the GitHub token belongs to another OAuth app.
+pub(super) fn legacy(secret: &Value) -> bool {
+    ["refresh_token", "github_token", "copilot_token"]
+        .into_iter()
+        .any(|name| text(secret.get(name)).is_some())
+}
+
+/// The message a credential from the earlier design is refused with.
+pub(super) const LEGACY_REASON: &str =
+    "re-login required: credential from the old Copilot Chat app";
+
+/// The GitHub OAuth token. A legacy secret has none this channel may use.
 pub(super) fn github_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, ChannelError> {
-    ["refresh_token", "github_token"]
-        .into_iter()
-        .find_map(|name| text(credential.secret.get(name)))
-        .ok_or(ChannelError::InvalidCredential)
+    if legacy(credential.secret) {
+        return Err(ChannelError::InvalidCredential);
+    }
+    text(credential.secret.get("access_token")).ok_or(ChannelError::InvalidCredential)
 }
 
-/// The short-lived Copilot token, under either name. A credential that has
-/// none is not usable yet: the host's first refresh mints it.
-pub(super) fn copilot_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, ChannelError> {
-    ["access_token", "copilot_token"]
-        .into_iter()
-        .find_map(|name| text(credential.secret.get(name)))
-        .ok_or(ChannelError::InvalidCredential)
+/// A public fact: host metadata first, then the secret's `provider_fields`.
+pub(super) fn fact<'a>(credential: &CredentialView<'a>, name: &str) -> Option<&'a str> {
+    text(credential.metadata.get(name)).or_else(|| {
+        text(
+            credential
+                .secret
+                .pointer(&format!("/provider_fields/{name}")),
+        )
+    })
 }
 
-/// The seat this request is served from: the provider column, then the
-/// operator's stated seat, then one a host recorded on the credential, then
+/// The origin this request is served from: the provider column, then the
+/// operator's stated seat, then the origin the account probe reported, then
 /// an individual's.
 pub(super) fn base_url(
     config: &CopilotCliConfig,
@@ -52,62 +70,43 @@ pub(super) fn base_url(
     if let Some(base) = provider.base_url.map(str::trim).filter(|b| !b.is_empty()) {
         return base.trim_end_matches('/').to_owned();
     }
-    config
-        .account_type
-        .or_else(|| {
-            text(credential.metadata.get("account_type"))
-                .or_else(|| text(credential.secret.pointer("/provider_fields/account_type")))
-                .or_else(|| text(credential.secret.get("account_type")))
-                .and_then(AccountType::parse)
-        })
-        .unwrap_or_default()
-        .base_url()
+    if let Some(seat) = config.account_type {
+        return seat.base_url().to_owned();
+    }
+    fact(credential, API_URL)
+        .unwrap_or(AccountType::default().base_url())
+        .trim_end_matches('/')
         .to_owned()
 }
 
-/// The headers a call to api.github.com carries: the long-lived `token`
-/// scheme (not the Copilot bearer) plus the editor fingerprint that makes
-/// GitHub treat the caller as an entitled Copilot client.
-pub(super) fn github_headers(
-    config: &CopilotCliConfig,
-    github_token: &str,
-) -> Result<HeaderMap, ChannelError> {
+/// Accept an `endpoints.api` only when it is an https origin.
+pub(super) fn api_origin(value: &str) -> Option<String> {
+    let value = value.trim().trim_end_matches('/');
+    let uri = value.parse::<http::Uri>().ok()?;
+    (uri.scheme_str() == Some("https") && uri.authority().is_some()).then(|| value.to_owned())
+}
+
+/// The headers a call to api.github.com carries: the GitHub token as a
+/// bearer (the CLI's `ZO` request builder: `Authorization: Bearer ${t}`),
+/// the REST media type and the CLI's banner.
+pub(super) fn github_headers(github_token: &str) -> Result<HeaderMap, ChannelError> {
     let mut headers = HeaderMap::new();
     headers.insert(
         header::AUTHORIZATION,
-        HeaderValue::from_str(&format!("token {github_token}"))
+        HeaderValue::from_str(&format!("Bearer {github_token}"))
             .map_err(|_| ChannelError::InvalidCredential)?,
     );
-    headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
+    headers.insert(header::ACCEPT, HeaderValue::from_static(GITHUB_ACCEPT));
     headers.insert(
         header::USER_AGENT,
         HeaderValue::from_static(super::config::CLI_USER_AGENT),
     );
-    for (name, value) in [
-        (
-            "editor-version",
-            format!("vscode/{}", config.vscode_version()),
-        ),
-        (
-            "editor-plugin-version",
-            super::config::EDITOR_PLUGIN_VERSION.to_owned(),
-        ),
-        (
-            "x-github-api-version",
-            super::config::GITHUB_API_VERSION.to_owned(),
-        ),
-    ] {
-        headers.insert(
-            HeaderName::from_static(name),
-            HeaderValue::from_str(&value)
-                .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
-        );
-    }
     Ok(headers)
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::config::INDIVIDUAL_BASE_URL;
     use super::*;
     use serde_json::json;
 
@@ -124,23 +123,23 @@ mod tests {
     }
 
     #[test]
-    fn both_the_v4_and_the_v3_names_read_the_same_pair() {
-        let v4 = json!({"access_token": "copilot", "refresh_token": "github"});
-        let v3 = json!({"copilot_token": "copilot", "github_token": "github"});
+    fn a_minted_pair_is_legacy_and_a_bare_github_token_is_not() {
         let metadata = Value::Null;
-        for secret in [&v4, &v3] {
-            let credential = view(secret, &metadata);
-            assert_eq!(copilot_token(&credential).unwrap(), "copilot");
-            assert_eq!(github_token(&credential).unwrap(), "github");
+        let current = json!({"access_token": "gho_x", "refresh_token": null});
+        assert_eq!(github_token(&view(&current, &metadata)).unwrap(), "gho_x");
+        for old in [
+            json!({"access_token": "tid=x", "refresh_token": "gho_x"}),
+            json!({"copilot_token": "tid=x", "github_token": "gho_x"}),
+        ] {
+            assert!(legacy(&old));
+            assert!(github_token(&view(&old, &metadata)).is_err());
         }
-        let empty = json!({});
-        assert!(copilot_token(&view(&empty, &metadata)).is_err());
     }
 
     #[test]
-    fn the_seat_decides_the_origin_and_the_provider_column_decides_it_first() {
-        let secret = json!({"access_token": "t", "refresh_token": "g"});
-        let metadata = json!({"account_type": "enterprise"});
+    fn the_operator_then_the_probe_decides_the_origin() {
+        let secret = json!({"access_token": "gho_x",
+            "provider_fields": {"api_url": "https://api.business.githubcopilot.com"}});
         let config = Value::Object(Default::default());
         let provider = |base| ProviderView {
             id: "p",
@@ -149,36 +148,35 @@ mod tests {
             config: &config,
         };
         let stated = CopilotCliConfig {
-            account_type: Some(AccountType::Business),
+            account_type: Some(AccountType::Enterprise),
             ..CopilotCliConfig::default()
         };
+        let credential = view(&secret, &Value::Null);
         assert_eq!(
-            base_url(&stated, provider(None), &view(&secret, &Value::Null)),
-            "https://api.business.githubcopilot.com"
-        );
-        assert_eq!(
-            base_url(
-                &CopilotCliConfig::default(),
-                provider(None),
-                &view(&secret, &metadata)
-            ),
+            base_url(&stated, provider(None), &credential),
             "https://api.enterprise.githubcopilot.com"
         );
         assert_eq!(
+            base_url(&CopilotCliConfig::default(), provider(None), &credential),
+            "https://api.business.githubcopilot.com"
+        );
+        let bare = json!({"access_token": "gho_x"});
+        assert_eq!(
             base_url(
                 &CopilotCliConfig::default(),
                 provider(None),
-                &view(&secret, &Value::Null)
+                &view(&bare, &Value::Null)
             ),
-            "https://api.githubcopilot.com"
+            INDIVIDUAL_BASE_URL
         );
         assert_eq!(
             base_url(
                 &stated,
                 provider(Some("https://proxy.example/")),
-                &view(&secret, &metadata)
+                &credential
             ),
             "https://proxy.example"
         );
+        assert_eq!(api_origin("http://evil.example"), None);
     }
 }
