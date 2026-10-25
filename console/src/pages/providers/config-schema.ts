@@ -20,6 +20,7 @@ export const choices: Record<string, Array<string>> = {
   product: ["platform", "code"],
   tier: ["zen", "go"],
   login_provider: ["github", "google"],
+  oauth_provider: ["wechat", "txcloud", "google", "github"],
 }
 
 export const dialects = ["openai", "openai_chat", "claude", "gemini", "openai_responses_websocket"]

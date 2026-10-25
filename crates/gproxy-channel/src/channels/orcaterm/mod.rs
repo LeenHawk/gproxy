@@ -71,7 +71,8 @@ impl BaseChannel for OrcaTerm {
                 ConfigKey::optional("international", ConfigKeyKind::Bool,
                     "Use OrcaTerm's international account and LightAI endpoints. Defaults to false."),
                 ConfigKey::optional("site_url", ConfigKeyKind::String,
-                    "Override the OrcaTerm account origin used for OAuth, cookie initialization and token refresh."),
+                    "Override the OrcaTerm account origin used for OAuth, cookie initialization and token refresh.")
+                    .with_placeholder("https://orcaterm.com"),
                 ConfigKey::optional("oauth_provider", ConfigKeyKind::String,
                     "OAuth login provider: wechat, txcloud, google or github. Defaults to wechat in China and google internationally."),
                 ConfigKey::optional("headers", ConfigKeyKind::HeaderList,
