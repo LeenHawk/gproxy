@@ -47,9 +47,10 @@ pub trait CredentialRefresh: Send + Sync {
     }
 
     /// Most channels persist definitive rejection as Dead. A channel matching
-    /// an in-memory auth manager may instead remember it for this version only,
-    /// leaving durable credentials untouched and reloading before another try.
-    fn persist_rejection(&self) -> bool {
+    /// an in-memory auth manager may instead remember a rejection `reason` for
+    /// this version only, leaving durable credentials untouched and reloading
+    /// before another try.
+    fn persist_rejection(&self, _reason: &str) -> bool {
         true
     }
 

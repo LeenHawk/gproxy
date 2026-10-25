@@ -393,7 +393,7 @@ impl CredentialRefresh for Codex {
             .then_some(RefreshReason::Scheduled)
     }
 
-    fn persist_rejection(&self) -> bool {
+    fn persist_rejection(&self, _reason: &str) -> bool {
         false
     }
 

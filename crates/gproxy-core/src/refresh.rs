@@ -222,9 +222,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         }
         // Reload the durable row before consulting a version-scoped rejection:
         // another process may have replaced the failed login material.
-        if !refresher.persist_rejection()
-            && let Some(reason) = credential.state.refresh_rejection(row.version)
-        {
+        if let Some(reason) = credential.state.refresh_rejection(row.version) {
             return Err(CoreError::Channel(ChannelError::RefreshRejected(reason)));
         }
         let cookie_client = if refresher.connection_purpose(&context.credential)
@@ -248,7 +246,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         let update = match refresher.refresh_with_reason(context, reason).await {
             Ok(update) => update,
             Err(ChannelError::RefreshRejected(reason)) => {
-                if !refresher.persist_rejection() {
+                if !refresher.persist_rejection(&reason) {
                     credential.state.reject_refresh(row.version, reason.clone());
                     return Err(CoreError::Channel(ChannelError::RefreshRejected(reason)));
                 }

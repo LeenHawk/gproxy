@@ -85,8 +85,8 @@ What the host hands over is borrowed and public where it can be:
   override, where the failing reply is not the response being returned.
 - **`RefreshRejected` means the upstream definitively refused the credential**
   (`invalid_grant`, revoked). The host marks it dead by default; a channel may
-  override `persist_rejection` to remember the failure only for the current
-  in-memory credential version, reloading durable material before another try.
+  override `persist_rejection` to remember a given rejection reason only for
+  the current in-memory credential version, reloading durable material before another try.
   A transient transport
   failure or a 5xx must surface as a transport error so the host retries later.
   Getting this wrong kills a working account.

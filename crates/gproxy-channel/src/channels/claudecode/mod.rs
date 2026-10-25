@@ -78,7 +78,14 @@ pub const OAUTH_BETA: &str = "oauth-2025-04-20";
 /// `design/claudecode-2.1.302.md` against the installed binary and local capture.
 pub const CLI_VERSION: &str = "2.1.302";
 pub const CLI_USER_AGENT: &str = "claude-cli/2.1.302 (external, cli)";
+/// The profile and roles calls use the CLI's axios client with this agent.
+const PROFILE_USER_AGENT: &str = "claude-code/2.1.302";
 pub const ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
+/// The CLI posts to the token endpoint through axios (2.1.302 capture).
+const TOKEN_USER_AGENT: &str = "axios/1.15.2";
+/// Grant-error description for a suspended account. The CLI keeps the refresh
+/// token for an appeal instead of discarding it (2.1.302 `NUr`).
+const ACCOUNT_ON_HOLD: &str = "account_on_hold";
 /// Optional scopes a refresh preserves when the credential already has them.
 const PRESERVED_SCOPES: &[&str] = &["user:projects:read", "user:projects:write"];
 /// Bodies the channel reads itself (login, refresh, usage) are small.
@@ -942,14 +949,34 @@ pub(super) async fn send(
     Ok((status, headers, read_body(body).await?))
 }
 
-fn json_headers() -> HeaderMap {
+/// Token endpoint headers as axios sends them in CLI 2.1.302.
+fn token_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
+    headers.insert(
+        header::ACCEPT,
+        HeaderValue::from_static("application/json, text/plain, */*"),
+    );
     headers.insert(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/json"),
     );
-    headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
+    headers.insert(header::USER_AGENT, HeaderValue::from_static(TOKEN_USER_AGENT));
+    headers.insert(
+        header::ACCEPT_ENCODING,
+        HeaderValue::from_static("gzip, compress, deflate, br"),
+    );
     headers
+}
+
+/// A JSON object of string fields in the given order; `json!` would sort the
+/// keys, while the CLI sends them in insertion order.
+fn ordered_json(fields: &[(&str, &str)]) -> Vec<u8> {
+    let body = fields
+        .iter()
+        .map(|(name, value)| format!("{}:{}", Value::from(*name), Value::from(*value)))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{{{body}}}").into_bytes()
 }
 
 /// Percent-encode a query or form component; spaces become `%20` (v3
@@ -985,6 +1012,21 @@ pub(super) struct TokenResponse {
     /// Sent by the token endpoint on refresh (CLI 2.1.252 route inventory).
     pub refresh_token_expires_in: Option<i64>,
     pub scope: Option<String>,
+    /// Account facts the token endpoint returns with the tokens; the CLI
+    /// falls back to them when the profile is unavailable.
+    pub account: Option<TokenAccount>,
+    pub organization: Option<TokenOrganization>,
+}
+
+#[derive(Deserialize)]
+pub(super) struct TokenAccount {
+    pub uuid: Option<String>,
+    pub email_address: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub(super) struct TokenOrganization {
+    pub uuid: Option<String>,
 }
 
 fn expiry_ms(seconds: Option<i64>, default: Option<i64>) -> Option<i64> {
@@ -1015,6 +1057,29 @@ pub(super) fn credential_from_tokens(
     };
     let expires_at_ms = expiry_ms(tokens.expires_in, Some(DEFAULT_EXPIRES_IN_SECS));
     let refresh_expires_at_ms = expiry_ms(tokens.refresh_token_expires_in, None);
+    for (name, value) in [
+        (
+            "account_uuid",
+            tokens.account.as_ref().and_then(|a| a.uuid.as_deref()),
+        ),
+        (
+            "user_email",
+            tokens
+                .account
+                .as_ref()
+                .and_then(|a| a.email_address.as_deref()),
+        ),
+        (
+            "organization_uuid",
+            tokens.organization.as_ref().and_then(|o| o.uuid.as_deref()),
+        ),
+    ] {
+        if let Some(value) = value.map(str::trim).filter(|v| !v.is_empty()) {
+            fields
+                .entry(name.into())
+                .or_insert_with(|| Value::String(value.into()));
+        }
+    }
     if !fields.contains_key("device_id") {
         let seed = json!({
             "refresh_token": refresh_token,
@@ -1077,8 +1142,12 @@ pub(super) async fn enrich_profile(
         header::ACCEPT_ENCODING,
         HeaderValue::from_static("gzip, compress, deflate, br"),
     );
-    // The CLI fetches its profile through axios, not the Anthropic SDK.
-    headers.insert(header::USER_AGENT, HeaderValue::from_static("axios/1.13.6"));
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    // axios with the CLI's own user agent (2.1.302 capture).
+    headers.insert(
+        header::USER_AGENT,
+        HeaderValue::from_static(PROFILE_USER_AGENT),
+    );
     let Ok((status, _, bytes)) = send(
         client,
         Method::GET,
@@ -1174,19 +1243,60 @@ fn previous_scopes(secret: &Value) -> Vec<String> {
         .collect()
 }
 
-/// The token endpoint's error code, at `error` (string), `error.code` or
-/// `error.type`.
-fn token_error_code(body: &[u8]) -> Option<String> {
-    let value: Value = serde_json::from_slice(body).ok()?;
-    match value.get("error")? {
-        Value::String(code) => Some(code.clone()),
-        Value::Object(error) => error
+/// The token endpoint's lowercased error code, at `error` (string),
+/// `error.code` or `error.type`, and its `error_description`.
+fn token_error(body: &[u8]) -> (Option<String>, Option<String>) {
+    let Ok(value) = serde_json::from_slice::<Value>(body) else {
+        return (None, None);
+    };
+    let code = match value.get("error") {
+        Some(Value::String(code)) => Some(code.clone()),
+        Some(Value::Object(error)) => error
             .get("code")
             .or_else(|| error.get("type"))
             .and_then(Value::as_str)
             .map(str::to_owned),
         _ => None,
+    };
+    let description = value
+        .get("error_description")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    (code.map(|c| c.to_ascii_lowercase()), description)
+}
+
+/// A failed refresh classified as CLI 2.1.302 does (`nQ`, `NUr`): an
+/// `account_on_hold` grant error (400/401/403) and a 400/401 `invalid_grant`
+/// are definitive; anything else is a failed attempt the host retries later.
+fn refresh_failure(status: StatusCode, body: Bytes) -> ChannelError {
+    let (code, description) = token_error(&body);
+    if matches!(status.as_u16(), 400 | 401 | 403)
+        && matches!(code.as_deref(), Some("invalid_grant" | "access_denied"))
+        && description.as_deref() == Some(ACCOUNT_ON_HOLD)
+    {
+        return ChannelError::RefreshRejected(ACCOUNT_ON_HOLD.into());
     }
+    if matches!(status.as_u16(), 400 | 401) && code.as_deref() == Some("invalid_grant") {
+        return ChannelError::RefreshRejected("invalid_grant".into());
+    }
+    ChannelError::UpstreamResponse { status, body }
+}
+
+/// One JSON `refresh_token` grant with the given scope.
+async fn request_refresh(
+    client: &dyn OutboundClient,
+    token_url: &str,
+    refresh_token: &str,
+    scope: &str,
+) -> Result<(StatusCode, Bytes), ChannelError> {
+    let body = ordered_json(&[
+        ("grant_type", "refresh_token"),
+        ("refresh_token", refresh_token),
+        ("client_id", DEFAULT_CLIENT_ID),
+        ("scope", scope),
+    ]);
+    let (status, _, bytes) = send(client, Method::POST, token_url, token_headers(), Some(body)).await?;
+    Ok((status, bytes))
 }
 
 impl OAuthAuthorizationCode for Claudecode {
@@ -1232,20 +1342,20 @@ impl OAuthAuthorizationCode for Claudecode {
     ) -> OperationFuture<'a, OAuthCredential> {
         Box::pin(async move {
             let config = ClaudecodeConfig::from_view(context.provider)?;
-            let body = json!({
-                "grant_type": "authorization_code",
-                "client_id": DEFAULT_CLIENT_ID,
-                "code": grant.code,
-                "redirect_uri": grant.redirect_uri,
-                "code_verifier": grant.code_verifier,
-                "state": grant.state,
-            });
+            let body = ordered_json(&[
+                ("grant_type", "authorization_code"),
+                ("code", grant.code),
+                ("redirect_uri", grant.redirect_uri),
+                ("client_id", DEFAULT_CLIENT_ID),
+                ("code_verifier", grant.code_verifier),
+                ("state", grant.state),
+            ]);
             let (status, _, bytes) = send(
                 context.client,
                 Method::POST,
                 &config.token_url,
-                json_headers(),
-                Some(body.to_string().into_bytes()),
+                token_headers(),
+                Some(body),
             )
             .await?;
             if !status.is_success() {
@@ -1273,6 +1383,12 @@ impl OAuthAuthorizationCode for Claudecode {
 }
 
 impl CredentialRefresh for Claudecode {
+    /// A suspended account keeps its refresh token for an appeal: remember
+    /// the rejection for this version only, as the CLI does in memory.
+    fn persist_rejection(&self, reason: &str) -> bool {
+        reason != ACCOUNT_ON_HOLD
+    }
+
     fn supports(&self, credential: &CredentialView<'_>) -> bool {
         non_empty(credential.secret.get("refresh_token")).is_some()
             || non_empty(credential.secret.get("cookie")).is_some()
@@ -1317,36 +1433,29 @@ impl CredentialRefresh for Claudecode {
                     scopes.push(scope);
                 }
             }
-            let body = json!({
-                "grant_type": "refresh_token",
-                "client_id": DEFAULT_CLIENT_ID,
-                "refresh_token": refresh_token,
-                "scope": scopes.join(" "),
-            });
-            let (status, _, bytes) = send(
+            let (mut status, mut bytes) = request_refresh(
                 context.client,
-                Method::POST,
                 &config.token_url,
-                json_headers(),
-                Some(body.to_string().into_bytes()),
+                refresh_token,
+                &scopes.join(" "),
             )
             .await?;
+            // CLI 2.1.302: a credential granted `user:inference` retries an
+            // `invalid_scope` rejection with exactly the scopes it holds.
+            if status == StatusCode::BAD_REQUEST
+                && stored.iter().any(|scope| scope == "user:inference")
+                && token_error(&bytes).0.as_deref() == Some("invalid_scope")
+            {
+                (status, bytes) = request_refresh(
+                    context.client,
+                    &config.token_url,
+                    refresh_token,
+                    &stored.join(" "),
+                )
+                .await?;
+            }
             if !status.is_success() {
-                let code = token_error_code(&bytes).map(|c| c.to_ascii_lowercase());
-                // The CLI treats `invalid_grant` as "log in again"
-                // (`samples/claude-code-2.1.252/ANALYSIS.md`); a bare 401
-                // means the refresh token itself was refused.
-                let definitive = status == StatusCode::UNAUTHORIZED
-                    || (status.is_client_error() && code.as_deref() == Some("invalid_grant"));
-                if definitive {
-                    return Err(ChannelError::RefreshRejected(
-                        code.unwrap_or_else(|| format!("http {}", status.as_u16())),
-                    ));
-                }
-                return Err(ChannelError::UpstreamResponse {
-                    status,
-                    body: bytes,
-                });
+                return Err(refresh_failure(status, bytes));
             }
             let tokens: TokenResponse =
                 serde_json::from_slice(&bytes).map_err(|e| invalid_response(e.to_string()))?;
