@@ -17,7 +17,7 @@
 //! weekly bucket keeps blocking.
 //!
 //! Which models belong to a family comes from the catalogue call,
-//! `POST {base}/v1internal:fetchAvailableModels` with `{}`, whose entries
+//! `POST {base}/v1internal:fetchAvailableModels` with `{"project": ...}`, whose entries
 //! name their `modelProvider` and carry a `quotaInfo` for the family's
 //! tightest window. When the summary is not served (404/405/501, no
 //! project, or no bucket read), that `quotaInfo` stands in: the window is
@@ -331,7 +331,7 @@ impl QuotaQuery for Antigravity {
             if let Some(project) = fact(&context.credential, "project_id") {
                 let token = super::access_token(&context.credential)?;
                 let mut headers = HeaderMap::new();
-                apply_headers(&mut headers, &config, token, true)?;
+                apply_headers(&mut headers, &config, token)?;
                 let (status, _, summary) = code_assist::send(
                     context.client,
                     Method::POST,

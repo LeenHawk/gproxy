@@ -15,14 +15,14 @@
 //! credential row and `prepare` reads them back from the metadata. Nothing
 //! here is called per request.
 
-use super::{encode, invalid_request, invalid_response, send, text, unix_now_ms};
+use super::{invalid_response, send, text, unix_now_ms};
 use crate::OutboundClient;
 use crate::channel::{
     AuthorizationRequest, AuthorizationStart, ChannelError, CredentialUpdate, OAuthCredential,
 };
 use crate::channels::shared::timer::sleep;
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::collections::BTreeMap;
 use std::time::Duration;
 
@@ -38,9 +38,15 @@ pub(crate) struct GoogleTool<'a> {
     /// Where Google sends the code back when the host names no redirect.
     pub redirect_uri: &'a str,
     pub scope: &'a str,
-    /// Whether the consent URL carries `prompt=consent`: the Antigravity IDE
-    /// asks for it, the Gemini CLI does not.
-    pub prompt_consent: bool,
+    /// The consent URL's parameters, in the order the tool's
+    /// google-auth-library `generateAuthUrl` emits them: the keys the tool
+    /// passes first, then `response_type`, `client_id` (and `redirect_uri`
+    /// when it came from the client's constructor). Known keys are
+    /// `redirect_uri`, `access_type`, `scope`, `prompt`,
+    /// `code_challenge_method`, `code_challenge`, `state`, `response_type`
+    /// and `client_id`. A tool that lists `code_challenge` uses PKCE, and its
+    /// code exchange carries the verifier; one that does not sends neither.
+    pub authorize_params: &'a [&'a str],
     /// The google-auth-library banner its token calls carry as their whole
     /// `User-Agent` (`google-api-nodejs-client/<version>`).
     pub auth_library: &'a str,
@@ -50,6 +56,10 @@ pub(crate) struct GoogleTool<'a> {
     /// `x-goog-api-client` on `loadCodeAssist`/`onboardUser`, for a tool that
     /// sends them through google-auth-library's `OAuth2Client.request`.
     pub code_assist_api_client: Option<&'a str>,
+    /// `Accept` on `loadCodeAssist`/`onboardUser`: gaxios asks for
+    /// `application/json` only when the caller sets `responseType: 'json'`,
+    /// and node-fetch's `*/*` stands otherwise.
+    pub code_assist_accept: &'static str,
     /// What the tool sends beside `Authorization` on its `userinfo` call.
     pub userinfo_headers: &'a [(&'static str, &'a str)],
     /// What the tool does when `loadCodeAssist` names no project: use the
@@ -59,12 +69,13 @@ pub(crate) struct GoogleTool<'a> {
     /// How long the tool waits between polls of a running onboarding
     /// operation.
     pub onboard_poll: Duration,
-    /// The tool's user agent, which the Code Assist host uses to tell the
-    /// tools apart.
+    /// The user agent of the tool's `loadCodeAssist`/`onboardUser` calls,
+    /// which the Code Assist host uses to tell the tools apart.
     pub user_agent: &'a str,
-    /// `ClientMetadata` for `loadCodeAssist`/`onboardUser`; the two tools
-    /// identify themselves differently.
-    pub metadata: fn(Option<&str>) -> Value,
+    /// `ClientMetadata` for `loadCodeAssist`/`onboardUser`, already encoded
+    /// as a JSON object in the tool's own key order (`serde_json` would sort
+    /// it); the two tools identify themselves differently.
+    pub metadata: fn(Option<&str>) -> String,
 }
 
 /// A tool's answer to an account `loadCodeAssist` found without a project.
@@ -155,7 +166,7 @@ fn form_headers(tool: &GoogleTool<'_>) -> Result<HeaderMap, ChannelError> {
 }
 
 /// The browser step. The host owns the PKCE verifier and `state`; only the
-/// S256 challenge reaches Google.
+/// S256 challenge reaches Google, and only for a tool that uses PKCE.
 pub(crate) fn authorize(
     tool: &GoogleTool<'_>,
     authorize_url: &str,
@@ -165,21 +176,25 @@ pub(crate) fn authorize(
         "" => tool.redirect_uri,
         given => given,
     };
-    let mut pairs = vec![
-        ("response_type", "code"),
-        ("client_id", tool.client_id),
-        ("redirect_uri", redirect_uri),
-        ("scope", tool.scope),
-        ("access_type", "offline"),
-    ];
-    if tool.prompt_consent {
-        pairs.push(("prompt", "consent"));
-    }
-    pairs.extend([
-        ("code_challenge_method", "S256"),
-        ("code_challenge", request.code_challenge),
-        ("state", request.state),
-    ]);
+    let pairs = tool
+        .authorize_params
+        .iter()
+        .filter_map(|&name| {
+            let value = match name {
+                "redirect_uri" => redirect_uri,
+                "access_type" => "offline",
+                "scope" => tool.scope,
+                "prompt" => "consent",
+                "code_challenge_method" => "S256",
+                "code_challenge" => request.code_challenge,
+                "state" => request.state,
+                "response_type" => "code",
+                "client_id" => tool.client_id,
+                _ => return None,
+            };
+            Some((name, value))
+        })
+        .collect::<Vec<_>>();
     let query = form_encode(&pairs);
     AuthorizationStart {
         authorize_url: format!("{}?{query}", authorize_url.trim_end_matches('?')),
@@ -273,21 +288,19 @@ pub(crate) async fn exchange(
         given => given,
     };
     // google-auth-library `getTokenAsync` field order, the secret appended
-    // last (`ClientSecretPost`).
-    let tokens = token_request(
-        client,
-        tool,
-        &[
-            ("client_id", tool.client_id),
-            ("code_verifier", code_verifier),
-            ("code", code),
-            ("grant_type", "authorization_code"),
-            ("redirect_uri", redirect_uri),
-            ("client_secret", tool.client_secret),
-        ],
-        false,
-    )
-    .await?;
+    // last (`ClientSecretPost`); `code_verifier` is dropped when undefined,
+    // as it is for a tool without PKCE.
+    let mut pairs = vec![("client_id", tool.client_id)];
+    if tool.authorize_params.contains(&"code_challenge") {
+        pairs.push(("code_verifier", code_verifier));
+    }
+    pairs.extend([
+        ("code", code),
+        ("grant_type", "authorization_code"),
+        ("redirect_uri", redirect_uri),
+        ("client_secret", tool.client_secret),
+    ]);
+    let tokens = token_request(client, tool, &pairs, false).await?;
     if tokens.refresh_token.is_none() {
         return Err(invalid_response(
             "Google token response has no refresh_token; the consent screen must be re-approved",
@@ -416,7 +429,10 @@ async fn code_assist_call(
     body: Option<Vec<u8>>,
 ) -> Result<Value, ChannelError> {
     let mut headers = HeaderMap::new();
-    headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
+    headers.insert(
+        header::ACCEPT,
+        HeaderValue::from_static(tool.code_assist_accept),
+    );
     headers.insert(
         header::AUTHORIZATION,
         header_value(&format!("Bearer {access_token}"))?,
@@ -553,17 +569,23 @@ async fn discover(
 ) -> Result<(), ChannelError> {
     let hint = hint.map(str::trim).filter(|hint| !hint.is_empty());
     let metadata = (tool.metadata)(hint);
-    let mut load = json!({ "metadata": metadata });
+    // `{cloudaicompanionProject?, metadata}`: gemini-cli's object literal and
+    // the IDE's `LoadCodeAssistRequest` field order agree.
+    let mut load = String::from("{");
     if let Some(project) = hint {
-        load["cloudaicompanionProject"] = Value::String(project.into());
+        load.push_str(&format!(
+            "\"cloudaicompanionProject\":{},",
+            Value::String(project.into())
+        ));
     }
+    load.push_str(&format!("\"metadata\":{metadata}}}"));
     let loaded = code_assist_call(
         client,
         tool,
         base,
         access_token,
         "/v1internal:loadCodeAssist",
-        Some(encode(&load, invalid_request)?.to_vec()),
+        Some(load.into_bytes()),
     )
     .await?;
     if let Some(tier) = subscription_tier(&loaded) {

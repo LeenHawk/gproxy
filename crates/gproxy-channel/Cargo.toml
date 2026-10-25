@@ -19,8 +19,8 @@ ts = ["dep:ts-rs"]
 # the /v1beta/openai compatibility layer off one origin, SSE and JSON-array
 # streams, usageMetadata metering.
 aistudio = []
-# Antigravity (Google account through the Antigravity editor's Code Assist
-# host): PKCE login that discovers the Cloud project and tier, refresh, the
+# Antigravity (Google account through the Antigravity IDE's Code Assist
+# host): IDE login that discovers the Cloud project and tier, refresh, the
 # Code Assist request envelope, the fetchAvailableModels catalogue and the
 # per-family quota windows of retrieveUserQuotaSummary.
 antigravity = [

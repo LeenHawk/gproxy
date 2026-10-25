@@ -9,7 +9,8 @@ use gproxy_channel::channel::{
     ProviderView, QuotaEntry, QuotaScope, QuotaValue, QuotaWindow,
 };
 use gproxy_channel::channels::antigravity::{
-    Antigravity, CLI_USER_AGENT, DEFAULT_CLIENT_ID, DEFAULT_REDIRECT_URI,
+    Antigravity, DEFAULT_CLIENT_ID, DEFAULT_REDIRECT_URI, EDITOR_USER_AGENT, IDE_VERSION,
+    USER_AGENT,
 };
 use gproxy_channel::{ChannelDescriptor, LoginMode, OutboundClient};
 use gproxy_protocol::{
@@ -246,7 +247,7 @@ fn prepare_sends_the_editor_identity_and_a_client_cannot_spoof_it() {
     .expect("prepared");
     assert_eq!(
         prepared.headers()["user-agent"],
-        HeaderValue::from_static(CLI_USER_AGENT)
+        HeaderValue::from_static(USER_AGENT)
     );
     assert_eq!(prepared.headers()["content-type"], "application/json");
     assert!(!prepared.headers().contains_key("cookie"));
@@ -280,7 +281,7 @@ fn a_provider_allowlist_keeps_the_client_headers_it_names() {
     assert!(!prepared.headers().contains_key("x-not-allowed"));
     assert_eq!(
         prepared.headers()["user-agent"],
-        HeaderValue::from_static(CLI_USER_AGENT)
+        HeaderValue::from_static(USER_AGENT)
     );
 }
 
@@ -839,11 +840,11 @@ async fn the_model_directory_harvests_every_role_field() {
         .expect("model");
     assert_eq!(response.status, StatusCode::NOT_FOUND);
 
-    // The catalogue call posts an empty body and carries no project.
+    // The catalogue call names the account's project, as the IDE does.
     let (method, uri, _, body) = client.sent()[0].clone();
     assert_eq!(method, Method::POST);
     assert!(uri.ends_with("/v1internal:fetchAvailableModels"), "{uri}");
-    assert_eq!(body, b"{}");
+    assert_eq!(body, br#"{"project":"proj-secret"}"#);
 }
 
 // ------------------------------------------------------------------ quota
@@ -1169,10 +1170,14 @@ async fn authorize_uses_antigravitys_own_client_and_scopes() {
             .authorize_url
             .contains(&format!("client_id={DEFAULT_CLIENT_ID}"))
     );
-    // The three scopes beyond the Gemini CLI's.
-    for scope in ["cclog", "experimentsandconfigs", "aicode"] {
+    // The IDE's two scopes beyond the Gemini CLI's, and nothing more.
+    for scope in ["cclog", "experimentsandconfigs"] {
         assert!(start.authorize_url.contains(scope), "{scope} missing");
     }
+    assert!(!start.authorize_url.contains("aicode"));
+    // The IDE asks for consent and uses no PKCE.
+    assert!(start.authorize_url.contains("prompt=consent"));
+    assert!(!start.authorize_url.contains("code_challenge"));
 }
 
 #[tokio::test]
@@ -1222,10 +1227,16 @@ async fn the_exchange_discovers_the_project_and_reports_antigravity_as_the_ide()
     assert!(sent[1].1.ends_with("/v1internal:loadCodeAssist"));
     let load: Value = serde_json::from_slice(&sent[1].3).unwrap();
     assert_eq!(load["metadata"]["ideType"], "ANTIGRAVITY");
+    assert_eq!(load["metadata"]["ideVersion"], IDE_VERSION);
+    assert_eq!(load["metadata"]["ideName"], "antigravity");
+    assert!(load["metadata"].get("pluginType").is_none());
     assert_eq!(
         sent[1].2["user-agent"],
-        HeaderValue::from_static(CLI_USER_AGENT)
+        HeaderValue::from_static(EDITOR_USER_AGENT)
     );
+    // The exchange carries no PKCE verifier.
+    let form = String::from_utf8(sent[0].3.clone()).unwrap();
+    assert!(!form.contains("code_verifier"), "{form}");
 }
 
 #[tokio::test]

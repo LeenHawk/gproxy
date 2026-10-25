@@ -18,21 +18,24 @@ use crate::channel::{
 };
 use crate::channels::shared::code_assist::google::{self, GoogleTool, Onboarding};
 use gproxy_protocol::capability::CapabilityFuture;
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::time::Duration;
 
 /// `ClientMetadata` for `loadCodeAssist`/`onboardUser`: the CLI reports no
 /// IDE and no platform, and identifies its plugin as `GEMINI`; a project
 /// hint is repeated as `duetProject` (v3 `geminicli/login.rs::metadata`).
-fn metadata(project: Option<&str>) -> Value {
-    let mut metadata = json!({
-        "ideType": "IDE_UNSPECIFIED",
-        "platform": "PLATFORM_UNSPECIFIED",
-        "pluginType": "GEMINI",
-    });
+/// Key order is `setup.ts`'s: `{...coreClientMetadata, duetProject}`.
+fn metadata(project: Option<&str>) -> String {
+    let mut metadata = String::from(
+        r#"{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI""#,
+    );
     if let Some(project) = project {
-        metadata["duetProject"] = Value::String(project.into());
+        metadata.push_str(&format!(
+            r#","duetProject":{}"#,
+            Value::String(project.into())
+        ));
     }
+    metadata.push('}');
     metadata
 }
 
@@ -80,13 +83,26 @@ fn tool(config: &GeminiCliConfig) -> GoogleTool<'_> {
         token_url: non_empty(&config.token_url, super::DEFAULT_TOKEN_URL),
         redirect_uri: DEFAULT_REDIRECT_URI,
         scope: OAUTH_SCOPE,
-        // `authWithUserCode` builds its URL without `prompt` (`oauth2.ts`).
-        prompt_consent: false,
+        // `authWithUserCode` (`oauth2.ts`): `generateAuthUrl({redirect_uri,
+        // access_type, scope, code_challenge_method, code_challenge, state})`,
+        // to which google-auth-library appends `response_type`, `client_id`.
+        authorize_params: &[
+            "redirect_uri",
+            "access_type",
+            "scope",
+            "code_challenge_method",
+            "code_challenge",
+            "state",
+            "response_type",
+            "client_id",
+        ],
         auth_library: AUTH_LIBRARY,
         node_client: super::GOOG_API_CLIENT,
         // `setupUser` goes through `OAuth2Client.request`, whose interceptor
         // adds the runtime banner (`authclient.js`).
         code_assist_api_client: Some(super::GOOG_API_CLIENT),
+        // `CodeAssistServer.requestPost` sets `responseType: 'json'`.
+        code_assist_accept: "application/json",
         userinfo_headers: USERINFO_HEADERS,
         onboarding,
         // gemini-cli `setup.ts`: `setTimeout(f, 5000)` between polls.

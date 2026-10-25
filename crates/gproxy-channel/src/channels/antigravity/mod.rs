@@ -1,20 +1,28 @@
 //! Antigravity: a Google account used against the Code Assist host the
 //! Antigravity editor's agent talks to, rather than a Gemini API key.
 //!
-//! Wire facts follow the v3 channel
-//! (`crates/gproxy-channels/src/antigravity` on `main`) and the reverse
-//! engineered client in
-//! `samples/CLIProxyAPI/internal/runtime/executor/antigravity_executor_request.go`:
-//! the same Google installed-app authorization code login as the Gemini CLI
-//! but with Antigravity's own client id, secret, loopback redirect and the
-//! three extra scopes (`cclog`, `experimentsandconfigs`, `aicode`), and the
-//! same `loadCodeAssist`/`onboardUser` project discovery reporting
-//! `ideType: ANTIGRAVITY`. Requests go to `daily-cloudcode-pa.googleapis.com`
-//! as `POST /v1internal:generateContent`,
-//! `:streamGenerateContent?alt=sse` and `:countTokens` carrying the Code
-//! Assist envelope; the catalogue comes from
-//! `POST /v1internal:fetchAvailableModels` with an empty JSON body, and the
-//! quota windows from `:retrieveUserQuotaSummary` (see `quota`).
+//! The channel presents itself as the Antigravity IDE (2.5.5, the official
+//! Linux x64 build), whose traffic leaves from two places:
+//!
+//! - The Electron main process (`resources/app/out/main.js`) logs in with
+//!   google-auth-library 10.3.0: the IDE's own installed-app client id and
+//!   secret, the `localhost:51121/oauth-callback` redirect, its five scopes
+//!   (`cclog` and `experimentsandconfigs` beyond the Gemini CLI's),
+//!   `access_type=offline`, `prompt=consent` and no PKCE. It also runs the
+//!   `loadCodeAssist`/`onboardUser` project discovery with
+//!   `{ideType: ANTIGRAVITY, ideVersion, ideName: "antigravity"}` and the
+//!   editor user agent (`oauth`).
+//! - The Go language server (`extensions/antigravity/bin/language_server_*`)
+//!   makes the model calls against `daily-cloudcode-pa.googleapis.com`:
+//!   `POST /v1internal:generateContent`, `:streamGenerateContent?alt=sse`
+//!   and `:countTokens` carrying the Code Assist envelope, the catalogue
+//!   from `POST /v1internal:fetchAvailableModels` with the account's
+//!   project, and the quota windows from `:retrieveUserQuotaSummary` (see
+//!   `quota`), all with the language server's user agent.
+//!
+//! The envelope shape follows the v3 channel and the reverse engineered
+//! client in
+//! `samples/CLIProxyAPI/internal/runtime/executor/antigravity_executor_request.go`.
 //!
 //! The credential secret is an `OAuthCredential`. The project and the tier
 //! are facts a login discovers: they travel in `provider_fields`, the host
@@ -72,19 +80,54 @@ pub const DEFAULT_CLIENT_ID: &str =
 pub const DEFAULT_CLIENT_SECRET: &str = "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";
 /// The loopback callback the editor listens on (v3 `login.rs`).
 pub const DEFAULT_REDIRECT_URI: &str = "http://localhost:51121/oauth-callback";
-/// Antigravity asks for three scopes beyond the Gemini CLI's (v3 `login.rs`).
+/// The IDE's scope list, exactly (`main.js` `Ats=[…]`): the Gemini CLI's
+/// three plus `cclog` and `experimentsandconfigs`.
 pub const OAUTH_SCOPE: &str = concat!(
     "https://www.googleapis.com/auth/cloud-platform ",
     "https://www.googleapis.com/auth/userinfo.email ",
     "https://www.googleapis.com/auth/userinfo.profile ",
     "https://www.googleapis.com/auth/cclog ",
-    "https://www.googleapis.com/auth/experimentsandconfigs ",
-    "https://www.googleapis.com/auth/aicode"
+    "https://www.googleapis.com/auth/experimentsandconfigs"
 );
-/// Captured from the Linux amd64 CLI 1.2.16 Code Assist requests (2026-10-03).
-pub const CLI_USER_AGENT: &str = concat!(
-    "antigravity/cli/1.2.16 ",
-    "(aidev_client; os_type=linux; arch=amd64; cl=992658124; auth_method=consumer)"
+
+/// The Antigravity IDE release this channel impersonates: `product.json`
+/// `"ideVersion": "2.5.5"` of the official Linux x64 build
+/// (`antigravity/stable/2.5.5-4923483625488384`).
+macro_rules! ide_version {
+    () => {
+        "2.5.5"
+    };
+}
+pub const IDE_VERSION: &str = ide_version!();
+/// The google-auth-library the IDE bundles
+/// (`resources/app/node_modules/google-auth-library` 10.3.0), as the
+/// Electron side's requests name it.
+pub const AUTH_LIBRARY: &str = "google-api-nodejs-client/10.3.0";
+/// The Node inside the IDE's Electron 39.2.3 (the binary carries `v22.21.1`),
+/// as google-auth-library reports it in `x-goog-api-client`.
+pub const NODE_CLIENT: &str = "gl-node/22.21.1";
+/// The user agent of the IDE's Electron main process
+/// (`cloudCodeMainService.userAgent`: `` `${"antigravity"}/${ideVersion}
+/// ${platform}/${arch}` ``, `x64` written `amd64`), to which
+/// google-auth-library's request interceptor appends its banner. It carries
+/// the login's `loadCodeAssist`/`onboardUser` and the profile call.
+pub const EDITOR_USER_AGENT: &str = concat!(
+    "antigravity/",
+    ide_version!(),
+    " linux/amd64 google-api-nodejs-client/10.3.0"
+);
+/// The user agent of the IDE's language server, which makes the catalogue,
+/// quota and generation calls (`language_server_linux_x64`,
+/// `codeassistclient.(*CodeAssistClient).setHeaders`): `%s/%s/%s (%s)` of
+/// `IDEAuthProvider.GetUserAgentName()` (`antigravity`), the
+/// `--subclient_type` the extension passes (`ide`), the metadata's
+/// `ide_version`, and `aidev_client; os_type=<GOOS>; arch=<GOARCH>` joined by
+/// `; `. The IDE provider reports no auth method, and the binary never sets
+/// `host_path`/`proxy_client`, so neither part appears.
+pub const USER_AGENT: &str = concat!(
+    "antigravity/ide/",
+    ide_version!(),
+    " (aidev_client; os_type=linux; arch=amd64)"
 );
 /// The model Antigravity exposes as its own high reasoning tier; its
 /// catalogue supplies this thinking budget as the default (v3
@@ -123,8 +166,7 @@ impl AntigravityConfig {
 pub struct Antigravity;
 
 /// What the Antigravity client itself sends: only its user agent, which is
-/// how the Code Assist host tells it apart from the Gemini CLI (v3
-/// `policy::ANTIGRAVITY` forwarded exactly `user-agent` and nothing else).
+/// how the Code Assist host tells it apart from the Gemini CLI.
 /// The channel sets it from the credential and the provider configuration,
 /// so a provider allow-list can never hide the identity being impersonated;
 /// a client's own copy is dropped by `CHANNEL_HEADERS`.
@@ -143,9 +185,10 @@ const CHANNEL_HEADERS: &[&str] = &[
     "x-goog-user-project",
 ];
 
-/// The CLI 1.2.16 Code Assist transport: no ALPN or GREASE, TLS 1.2 floor,
-/// Go's cipher preferences and its extension order. BoringSSL puts TLS 1.3
-/// suites first even though the CLI advertises them last.
+/// The Go Code Assist transport the IDE's language server shares with the
+/// Antigravity CLI (captured from CLI 1.2.16): no ALPN or GREASE, TLS 1.2
+/// floor, Go's cipher preferences and its extension order. BoringSSL puts TLS
+/// 1.3 suites first even though Go advertises them last.
 /// BoringSSL lacks the captured SecP256r1MLKEM768/SecP384r1MLKEM1024 groups
 /// and signature_algorithms_cert extension; keep the
 /// supported subset rather than configuring algorithms it cannot negotiate.
@@ -247,15 +290,15 @@ fn header_value(value: &str) -> Result<HeaderValue, ChannelError> {
     HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)
 }
 
-/// Headers every Code Assist call carries (v3 `prepare.rs`, `quota.rs`):
-/// the bearer token, JSON content type and the editor's user agent. Unlike
-/// the Gemini CLI, Antigravity sends no `x-goog-api-client`, and it asks for
-/// `application/json` on the catalogue and quota call.
+/// Headers every language-server Code Assist call carries (catalogue, quota,
+/// generation): the bearer token, the JSON content type and the language
+/// server's user agent (`CodeAssistClient.setHeaders`), and no `Accept` or
+/// `x-goog-api-client`. Go's transport adds `Accept-Encoding: gzip` itself,
+/// which the connection's `gzip` reproduces.
 pub(super) fn apply_headers(
     headers: &mut HeaderMap,
     config: &AntigravityConfig,
     access_token: &str,
-    json_only: bool,
 ) -> Result<(), ChannelError> {
     headers.insert(
         header::AUTHORIZATION,
@@ -265,10 +308,7 @@ pub(super) fn apply_headers(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/json"),
     );
-    if json_only {
-        headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
-    }
-    headers.insert(header::USER_AGENT, HeaderValue::from_static(CLI_USER_AGENT));
+    headers.insert(header::USER_AGENT, HeaderValue::from_static(USER_AGENT));
     for (name, value) in &config.headers {
         headers.insert(
             HeaderName::from_bytes(name.as_bytes()).map_err(|_| {
@@ -445,8 +485,7 @@ impl Antigravity {
         let model = code_assist::request_model(&path, parsed.as_ref()).unwrap_or_default();
 
         let (body, stream) = match operation {
-            // The catalogue call takes an empty body and no project.
-            Operation::ListModels | Operation::GetModel => (Bytes::from_static(b"{}"), false),
+            Operation::ListModels | Operation::GetModel => (catalog_body(&ctx.credential), false),
             Operation::CountTokens => (code_assist::count_envelope(&buffered, &model)?, false),
             Operation::GenerateContent | Operation::StreamGenerateContent => {
                 let project = project(&ctx.credential)?;
@@ -488,12 +527,7 @@ impl Antigravity {
         };
 
         let mut headers = forwardable(&source, allowlist.as_ref(), CHANNEL_HEADERS);
-        apply_headers(
-            &mut headers,
-            &config,
-            token,
-            matches!(operation, Operation::ListModels | Operation::GetModel),
-        )?;
+        apply_headers(&mut headers, &config, token)?;
         let mut builder = http::Request::builder().method(Method::POST).uri(uri);
         if let Some(map) = builder.headers_mut() {
             *map = headers;
@@ -548,8 +582,8 @@ impl BaseChannel for Antigravity {
         ID
     }
 
-    /// A Google account through the Antigravity editor: a PKCE login that
-    /// also discovers the Cloud project, a refreshable token, and the
+    /// A Google account through the Antigravity IDE: an authorization code
+    /// login that also discovers the Cloud project, a refreshable token, and the
     /// 5-hour and weekly quota windows each model family shares.
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
@@ -652,8 +686,22 @@ impl BaseChannel for Antigravity {
     }
 }
 
-/// The catalogue and quota calls send the same empty body to the same
-/// endpoint; unlike the Gemini CLI's, this one needs no project.
+/// `fetchAvailableModels` names the account's project, as the IDE's
+/// `getAvailableModels` (`{project: this._cloudAiCompanionProject}`) and the
+/// Go client's captured request do; a credential without one sends `{}`,
+/// which the endpoint also answers.
+fn catalog_body(credential: &CredentialView<'_>) -> Bytes {
+    match fact(credential, "project_id") {
+        Some(project) => Bytes::from(
+            serde_json::json!({ "project": project })
+                .to_string()
+                .into_bytes(),
+        ),
+        None => Bytes::from_static(b"{}"),
+    }
+}
+
+/// The catalogue call the quota query also makes.
 pub(super) fn catalog_request(
     config: &AntigravityConfig,
     provider: ProviderView<'_>,
@@ -661,7 +709,7 @@ pub(super) fn catalog_request(
 ) -> Result<(String, HeaderMap, Bytes), ChannelError> {
     let token = access_token(credential)?;
     let mut headers = HeaderMap::new();
-    apply_headers(&mut headers, config, token, true)?;
+    apply_headers(&mut headers, config, token)?;
     Ok((
         format!(
             "{}{}",
@@ -669,6 +717,6 @@ pub(super) fn catalog_request(
             "/v1internal:fetchAvailableModels"
         ),
         headers,
-        Bytes::from_static(b"{}"),
+        catalog_body(credential),
     ))
 }
