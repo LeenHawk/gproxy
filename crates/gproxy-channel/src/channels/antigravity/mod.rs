@@ -81,10 +81,6 @@ pub const OAUTH_SCOPE: &str = concat!(
     "https://www.googleapis.com/auth/experimentsandconfigs ",
     "https://www.googleapis.com/auth/aicode"
 );
-/// Tier used for onboarding when `loadCodeAssist` names no default; unlike
-/// the Gemini CLI's `legacy-tier`, Antigravity spells it in upper case
-/// (v3 `login.rs`).
-const FALLBACK_TIER: &str = "LEGACY";
 /// Captured from the Linux amd64 CLI 1.2.16 Code Assist requests (2026-10-03).
 pub const CLI_USER_AGENT: &str = concat!(
     "antigravity/cli/1.2.16 ",

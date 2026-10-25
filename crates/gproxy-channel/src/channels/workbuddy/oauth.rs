@@ -23,8 +23,9 @@ use super::config::{ID, WorkBuddyConfig};
 use super::envelope::{self, ACCOUNT_PENDING, AUTH_PENDING};
 use super::{encode_component, json_headers, send, unix_now_ms};
 use crate::channel::{
-    ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
-    LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
+    ChannelError, CredentialRefresh, CredentialUpdate, CredentialView, DeviceAuthorization,
+    DevicePoll, LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
+    RefreshReason,
 };
 use http::{HeaderName, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
@@ -33,6 +34,14 @@ use std::collections::BTreeMap;
 
 /// What the upstream grants when it does not say (v3 `login.rs`).
 const DEFAULT_EXPIRES_IN_SECS: i64 = 3_600;
+/// When the last token was issued, in unix milliseconds, under the sealed
+/// `provider_secrets` pocket (the plugin's `auth.lastRefreshTime`).
+const LAST_REFRESH_MS: &str = "last_refresh_ms";
+/// The plugin's refresh cadence (`AuthenticationManagerImpl
+/// .scheduleRefreshSession`): once a day, or every five minutes once the
+/// token's expiry is unknown or less than a day away.
+const DAY_MS: i64 = 86_400_000;
+const NEAR_EXPIRY_INTERVAL_MS: i64 = 300_000;
 /// The browser step is a redirect, not a code a person types.
 const NO_USER_CODE: &str = "No code required";
 
@@ -226,13 +235,52 @@ impl OAuthDeviceCode for super::WorkBuddy {
                     .or_else(|| relative(Some(DEFAULT_EXPIRES_IN_SECS))),
                 refresh_expires_at_ms: tokens.refresh_expires_at_ms(),
                 provider_fields: fields,
-                provider_secrets: BTreeMap::new(),
+                provider_secrets: BTreeMap::from([(
+                    LAST_REFRESH_MS.to_owned(),
+                    Value::from(unix_now_ms()),
+                )]),
             }))
         })
     }
 }
 
 impl CredentialRefresh for super::WorkBuddy {
+    /// The plugin's schedule rather than the default margin: it refreshes a
+    /// day after the last refresh, and every five minutes when the expiry is
+    /// unknown or within a day, so a token whose lifetime the gateway never
+    /// stated is still renewed before a 401 logs the account out. A
+    /// credential with no recorded refresh counts as never refreshed, as the
+    /// plugin's `lastRefreshTime || 0` does.
+    fn proactive_refresh_reason(
+        &self,
+        credential: CredentialView<'_>,
+        now_ms: i64,
+    ) -> Option<RefreshReason> {
+        let refreshable = credential
+            .secret
+            .get("refresh_token")
+            .and_then(Value::as_str)
+            .is_some_and(|token| !token.trim().is_empty());
+        if !refreshable {
+            return None;
+        }
+        let expires = credential.expires_at_ms;
+        if expires.is_some_and(|expires| expires <= now_ms.saturating_add(NEAR_EXPIRY_INTERVAL_MS))
+        {
+            return Some(RefreshReason::ProactiveExpiry);
+        }
+        let interval = match expires {
+            Some(expires) if expires.saturating_sub(DAY_MS) >= now_ms => DAY_MS,
+            _ => NEAR_EXPIRY_INTERVAL_MS,
+        };
+        let last_refresh = credential
+            .secret
+            .pointer(&format!("/provider_secrets/{LAST_REFRESH_MS}"))
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        (last_refresh.saturating_add(interval) < now_ms).then_some(RefreshReason::Scheduled)
+    }
+
     fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let config = WorkBuddyConfig::from_view(context.provider)?;
@@ -339,6 +387,12 @@ impl CredentialRefresh for super::WorkBuddy {
             }
             if let Some(expires) = tokens.refresh_expires_at_ms() {
                 object.insert("refresh_expires_at_ms".into(), Value::from(expires));
+            }
+            let secrets = object
+                .entry("provider_secrets")
+                .or_insert_with(|| Value::Object(serde_json::Map::new()));
+            if let Some(secrets) = secrets.as_object_mut() {
+                secrets.insert(LAST_REFRESH_MS.into(), Value::from(unix_now_ms()));
             }
             if let Some(domain) = tokens.domain.as_deref().filter(|d| !d.trim().is_empty()) {
                 let fields = object

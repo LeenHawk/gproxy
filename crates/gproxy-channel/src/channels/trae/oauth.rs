@@ -9,7 +9,7 @@ use super::{
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, CredentialRefresh,
     CredentialUpdate, CredentialView, LoginContext, OAuthAuthorizationCode, OAuthCredential,
-    OperationFuture, RefreshContext,
+    OperationFuture, RefreshContext, RefreshReason,
 };
 use crate::channels::shared::compatible::ability::{require_success, send};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -25,6 +25,11 @@ pub(super) struct OAuth;
 
 const TOKEN_PATH: &str = "/trae/api/v3/oauth/ExchangeToken";
 const CALLBACK: &str = "http://127.0.0.1:1457/authorize";
+/// authUtil.js X8: renew once a day or less remains (`b$`)...
+const REFRESH_WINDOW_MS: i64 = 24 * 60 * 60 * 1000;
+/// ...or a third of the lifetime since `tokenReleaseAt`. Kept with the sealed
+/// login material so a refresh replaces it without touching public metadata.
+const RELEASED_AT: &str = "token_release_at_ms";
 
 fn private_key(value: &Value) -> Result<SigningKey, ChannelError> {
     let bytes = STANDARD
@@ -292,13 +297,40 @@ impl OAuthAuthorizationCode for OAuth {
                 expires_at_ms: expiry(&result),
                 refresh_expires_at_ms: result["RefreshExpireAt"].as_i64(),
                 provider_fields: fields,
-                provider_secrets: BTreeMap::from([("device_key".into(), key_value.clone())]),
+                provider_secrets: BTreeMap::from([
+                    ("device_key".into(), key_value.clone()),
+                    (RELEASED_AT.into(), json!(now_ms())),
+                ]),
             })
         })
     }
 }
 
 impl CredentialRefresh for OAuth {
+    /// X8: refresh when a day or less remains, or less than a third of the
+    /// token's lifetime. Credentials without a release time use the day rule.
+    fn proactive_refresh_reason(
+        &self,
+        credential: CredentialView<'_>,
+        now_ms: i64,
+    ) -> Option<RefreshReason> {
+        let due = credential.expires_at_ms.is_some_and(|expires| {
+            let remaining = expires.saturating_sub(now_ms);
+            remaining <= REFRESH_WINDOW_MS
+                || credential
+                    .secret
+                    .get("provider_secrets")
+                    .and_then(|secrets| secrets.get(RELEASED_AT))
+                    .and_then(Value::as_i64)
+                    .is_some_and(|released| expires.saturating_sub(released) / 3 > remaining)
+        }) || credential
+            .secret
+            .get("refresh_expires_at_ms")
+            .and_then(Value::as_i64)
+            .is_some_and(|expires| expires <= now_ms.saturating_add(REFRESH_WINDOW_MS));
+        due.then_some(RefreshReason::ProactiveExpiry)
+    }
+
     fn supports(&self, credential: &CredentialView<'_>) -> bool {
         credential.secret["refresh_token"]
             .as_str()
@@ -346,6 +378,12 @@ impl CredentialRefresh for OAuth {
             .await?;
             let expires_at_ms = expiry(&result);
             let mut secret = credential.secret.clone();
+            if let Some(secrets) = secret
+                .get_mut("provider_secrets")
+                .and_then(Value::as_object_mut)
+            {
+                secrets.insert(RELEASED_AT.into(), json!(now_ms()));
+            }
             secret["access_token"] = result["Token"].clone();
             if let Some(token) = result["RefreshToken"].as_str().filter(|s| !s.is_empty()) {
                 secret["refresh_token"] = json!(token);

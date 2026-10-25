@@ -650,7 +650,12 @@ async fn the_refresh_rotates_and_a_refusal_of_the_token_is_definitive() {
         Err(ChannelError::RefreshRejected(_))
     ));
 
-    let transient = ScriptClient::new(vec![raw_reply(StatusCode::BAD_GATEWAY, "down")]);
+    // The CLI tries a gateway failure three times before giving up.
+    let transient = ScriptClient::new(vec![
+        raw_reply(StatusCode::BAD_GATEWAY, "down"),
+        raw_reply(StatusCode::BAD_GATEWAY, "down"),
+        raw_reply(StatusCode::BAD_GATEWAY, "down"),
+    ]);
     assert!(
         matches!(
             CredentialRefresh::refresh(
@@ -666,6 +671,7 @@ async fn the_refresh_rotates_and_a_refusal_of_the_token_is_definitive() {
         ),
         "a gateway failure is not a dead credential"
     );
+    assert_eq!(transient.sent().len(), 3);
 
     let no_token = json!({"access_token": "a"});
     assert!(matches!(

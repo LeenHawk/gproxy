@@ -9,16 +9,17 @@
 
 use super::{
     Antigravity, AntigravityConfig, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET, DEFAULT_REDIRECT_URI,
-    DEFAULT_TOKEN_URL, FALLBACK_TIER, OAUTH_SCOPE, base_url,
+    DEFAULT_TOKEN_URL, OAUTH_SCOPE, base_url,
 };
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, CredentialRefresh,
     CredentialUpdate, LoginContext, OAuthAuthorizationCode, OAuthCredential, OperationFuture,
     RefreshContext,
 };
-use crate::channels::shared::code_assist::google::{self, GoogleTool};
+use crate::channels::shared::code_assist::google::{self, GoogleTool, Onboarding};
 use gproxy_protocol::capability::CapabilityFuture;
 use serde_json::{Value, json};
+use std::time::Duration;
 
 /// `ClientMetadata` for `loadCodeAssist`/`onboardUser`. Antigravity names
 /// itself as the IDE, which is how the Code Assist host distinguishes it
@@ -32,6 +33,26 @@ fn metadata(_project: Option<&str>) -> Value {
     })
 }
 
+/// The tier the Antigravity IDE onboards every consumer account on.
+const FREE_TIER: &str = "free-tier";
+
+/// The Antigravity IDE (`antigravityAuthMainService.confirmUserForService`):
+/// a consumer account is onboarded on the literal `free-tier` when that tier
+/// is allowed or carries no ineligibility reason
+/// (`const s=!!n||!i; … onboardUser("free-tier",t)`); otherwise it is
+/// ineligible, with the free tier's `reasonMessage`.
+fn onboarding(loaded: &Value, _hint: Option<&str>) -> Result<Onboarding, ChannelError> {
+    let reason = google::ineligible_reason(loaded, FREE_TIER);
+    match reason {
+        Some(reason) if !google::tier_allowed(loaded, FREE_TIER) => {
+            Err(ChannelError::InvalidResponse(format!(
+                "Antigravity: account is not eligible: {reason}"
+            )))
+        }
+        _ => Ok(Onboarding::Tier(FREE_TIER.to_owned())),
+    }
+}
+
 fn tool(config: &AntigravityConfig) -> GoogleTool<'_> {
     GoogleTool {
         client_id: DEFAULT_CLIENT_ID,
@@ -39,7 +60,9 @@ fn tool(config: &AntigravityConfig) -> GoogleTool<'_> {
         token_url: non_empty(&config.token_url, DEFAULT_TOKEN_URL),
         redirect_uri: DEFAULT_REDIRECT_URI,
         scope: OAUTH_SCOPE,
-        fallback_tier: FALLBACK_TIER,
+        onboarding,
+        // The IDE's `_ss=500` between polls of the onboarding operation.
+        onboard_poll: Duration::from_millis(500),
         user_agent: super::CLI_USER_AGENT,
         metadata,
     }

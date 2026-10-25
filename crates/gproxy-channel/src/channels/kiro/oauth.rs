@@ -49,6 +49,13 @@ const CLIENT_ID: &str = "client_id";
 /// Its secret, in `provider_state` and then in `provider_secrets` — never in
 /// `provider_fields`, which the host publishes as metadata.
 const CLIENT_SECRET: &str = "client_secret";
+/// When that secret stops working, in unix milliseconds: a public fact that
+/// travels beside the id. The Q Developer CLI drops a registration past this
+/// stamp and stops refreshing (`builder_id.rs` `load_from_secret_store`),
+/// since no refresh can renew the client itself.
+const CLIENT_SECRET_EXPIRES_AT_MS: &str = "client_secret_expires_at_ms";
+/// The same CLI's margin for a stamp that might pass in transit.
+const EXPIRY_MARGIN_MS: i64 = 60_000;
 /// What the upstream grants when it does not say.
 const DEFAULT_EXPIRES_IN_SECS: i64 = 3_600;
 
@@ -111,9 +118,15 @@ struct DeviceCodeReply {
     verification_uri: Option<String>,
     #[serde(default)]
     verification_uri_complete: Option<String>,
-    /// The desktop app states its polling interval in milliseconds.
+    /// The desktop service states its timings in milliseconds (KiroCrew
+    /// `login/device.py`: `expiresInMilliseconds`, `intervalInMilliseconds`);
+    /// the second-based names are read when those are absent.
     #[serde(default)]
     interval_in_milliseconds: Option<u64>,
+    #[serde(default)]
+    interval: Option<u64>,
+    #[serde(default)]
+    expires_in_milliseconds: Option<i64>,
     #[serde(default)]
     expires_in: Option<i64>,
 }
@@ -148,8 +161,8 @@ struct TokenReply {
     expires_in: Option<i64>,
 }
 
-/// What `RegisterClient` answers (v3 `login.rs`); the timestamps it also
-/// returns say nothing this channel acts on.
+/// What `RegisterClient` answers (v3 `login.rs`). `clientSecretExpiresAt` is
+/// unix seconds and bounds every refresh the credential can make.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RegisteredClient {
@@ -157,6 +170,15 @@ struct RegisteredClient {
     client_id: Option<String>,
     #[serde(default)]
     client_secret: Option<String>,
+    #[serde(default)]
+    client_secret_expires_at: Option<i64>,
+}
+
+/// A registered client: id, secret, and the secret's expiry when stated.
+struct Registration {
+    id: String,
+    secret: String,
+    expires_at_ms: Option<i64>,
 }
 
 impl OAuthDeviceCode for super::Kiro {
@@ -191,12 +213,20 @@ impl OAuthDeviceCode for super::Kiro {
                 verification_uri: verification,
                 verification_uri_complete: reply.verification_uri_complete,
                 expires_at_ms: reply
-                    .expires_in
-                    .filter(|seconds| *seconds > 0)
-                    .map(|seconds| unix_now_ms().saturating_add(seconds.saturating_mul(1_000))),
+                    .expires_in_milliseconds
+                    .filter(|milliseconds| *milliseconds > 0)
+                    .or_else(|| {
+                        reply
+                            .expires_in
+                            .filter(|seconds| *seconds > 0)
+                            .map(|seconds| seconds.saturating_mul(1_000))
+                    })
+                    .map(|milliseconds| unix_now_ms().saturating_add(milliseconds)),
                 interval_secs: reply
                     .interval_in_milliseconds
-                    .map(|milliseconds| (milliseconds / 1_000).max(1))
+                    .map(|milliseconds| milliseconds / 1_000)
+                    .or(reply.interval)
+                    .map(|seconds| seconds.max(1))
                     .unwrap_or(5),
                 provider_state: BTreeMap::new(),
             })
@@ -275,7 +305,7 @@ impl OAuthAuthorizationCode for super::Kiro {
                 "" => DEFAULT_REDIRECT_URI,
                 uri => uri,
             };
-            let (client_id, client_secret) =
+            let registration =
                 register_client(context.client, &region, redirect_uri, config.start_url())
                     .await?
                     .ok_or_else(|| {
@@ -284,8 +314,12 @@ impl OAuthAuthorizationCode for super::Kiro {
                         )
                     })?;
             let mut provider_state = BTreeMap::new();
-            provider_state.insert(CLIENT_ID.into(), Value::String(client_id.clone()));
-            provider_state.insert(CLIENT_SECRET.into(), Value::String(client_secret));
+            provider_state.insert(CLIENT_ID.into(), Value::String(registration.id.clone()));
+            provider_state.insert(CLIENT_SECRET.into(), Value::String(registration.secret));
+            if let Some(expires) = registration.expires_at_ms {
+                provider_state.insert(CLIENT_SECRET_EXPIRES_AT_MS.into(), Value::from(expires));
+            }
+            let client_id = registration.id;
             let query = form_encode(&[
                 ("response_type", "code"),
                 ("client_id", &client_id),
@@ -355,6 +389,13 @@ impl OAuthAuthorizationCode for super::Kiro {
             field(&mut fields, "profile_arn", reply.profile_arn);
             let mut secrets = BTreeMap::new();
             fields.insert(CLIENT_ID.into(), Value::String(client_id));
+            if let Some(expires) = grant
+                .provider_state
+                .get(CLIENT_SECRET_EXPIRES_AT_MS)
+                .and_then(Value::as_i64)
+            {
+                fields.insert(CLIENT_SECRET_EXPIRES_AT_MS.into(), Value::from(expires));
+            }
             secrets.insert(CLIENT_SECRET.into(), Value::String(client_secret));
             Ok(credential(
                 access,
@@ -377,7 +418,7 @@ async fn register_client(
     region: &str,
     redirect_uri: &str,
     start_url: &str,
-) -> Result<Option<(String, String)>, ChannelError> {
+) -> Result<Option<Registration>, ChannelError> {
     let body = json!({
         "clientName": CLIENT_NAME,
         "clientType": "public",
@@ -399,10 +440,14 @@ async fn register_client(
     }
     let reply: RegisteredClient = serde_json::from_slice(&bytes)
         .map_err(|error| invalid_response(format!("client registration: {error}")))?;
-    Ok(Some((
-        required(reply.client_id, "clientId")?,
-        required(reply.client_secret, "clientSecret")?,
-    )))
+    Ok(Some(Registration {
+        id: required(reply.client_id, "clientId")?,
+        secret: required(reply.client_secret, "clientSecret")?,
+        expires_at_ms: reply
+            .client_secret_expires_at
+            .filter(|seconds| *seconds > 0)
+            .map(|seconds| seconds.saturating_mul(1_000)),
+    }))
 }
 
 /// The pair `authorize` registered, as the login session parked it. Both halves
@@ -431,6 +476,21 @@ fn own_client(credential: &CredentialView<'_>) -> Option<(String, String)> {
     .or_else(|| non_empty(credential.secret.get(CLIENT_SECRET)))
     .map(str::to_owned);
     id.zip(secret)
+}
+
+/// When the credential's registered client stops working, if it was told.
+/// Read like `fact`: host metadata, then `provider_fields`, then flat.
+fn client_secret_expires_at_ms(credential: &CredentialView<'_>) -> Option<i64> {
+    [
+        credential.metadata.get(CLIENT_SECRET_EXPIRES_AT_MS),
+        credential
+            .secret
+            .pointer(&format!("/provider_fields/{CLIENT_SECRET_EXPIRES_AT_MS}")),
+        credential.secret.get(CLIENT_SECRET_EXPIRES_AT_MS),
+    ]
+    .into_iter()
+    .flatten()
+    .find_map(Value::as_i64)
 }
 
 /// An Identity Center credential is one that names a registered client, in
@@ -525,6 +585,15 @@ impl CredentialRefresh for super::Kiro {
                 })?;
             let social = !is_identity_center(&context.credential);
             let (url, body) = if !social {
+                // An expired registration cannot redeem anything; asking AWS
+                // only earns an InvalidClient, so the refusal is local.
+                if client_secret_expires_at_ms(&context.credential).is_some_and(|expires| {
+                    expires <= unix_now_ms().saturating_add(EXPIRY_MARGIN_MS)
+                }) {
+                    return Err(ChannelError::RefreshRejected(
+                        "the registered Identity Center client has expired".into(),
+                    ));
+                }
                 let (client_id, client_secret) =
                     own_client(&context.credential).ok_or(ChannelError::InvalidCredential)?;
                 let region = fact(&context.credential, "region")

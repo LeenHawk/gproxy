@@ -14,18 +14,47 @@
 use super::auth;
 use super::config::{DEFAULT_CLIENT_ID, DEFAULT_CODE_BASE_URL, ID, KimiConfig};
 use crate::channel::{
-    ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
-    LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
+    ChannelError, CredentialRefresh, CredentialUpdate, CredentialView, DeviceAuthorization,
+    DevicePoll, LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
+    RefreshReason,
 };
 use crate::channels::shared::compatible::ability::send;
 use crate::channels::shared::compatible::http::invalid_response;
+use crate::channels::shared::timer;
+use gproxy_protocol::capability::CapabilityErrorKind;
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 /// What the upstream grants when it does not say.
 const DEFAULT_EXPIRES_IN_SECS: i64 = 3_600;
+/// Where the token lifetime the upstream stated is kept: on the secret after
+/// a refresh, among the login's sealed `provider_secrets` before the first.
+const LIFETIME_FIELD: &str = "expires_in";
+/// The CLI refreshes once less than `max(300 s, expires_in / 2)` remains
+/// (kimi-code `oauth-manager.ts` `defaultRefreshThreshold`).
+const MIN_REFRESH_MARGIN_MS: i64 = 300_000;
+/// Refresh attempts before a transient failure is surfaced.
+const REFRESH_ATTEMPTS: u32 = 3;
+/// The statuses a refresh is retried on (kimi-code `oauth.ts`).
+const RETRYABLE_STATUSES: [u16; 5] = [429, 500, 502, 503, 504];
+
+/// The lifetime the upstream stated for the current access token, if one was
+/// recorded; credentials from before it was kept have none.
+fn lifetime_secs(credential: &CredentialView<'_>) -> Option<i64> {
+    credential
+        .secret
+        .get(LIFETIME_FIELD)
+        .or_else(|| {
+            credential
+                .secret
+                .pointer(&format!("/provider_secrets/{LIFETIME_FIELD}"))
+        })
+        .and_then(Value::as_i64)
+        .filter(|seconds| *seconds > 0)
+}
 
 pub(super) fn unix_now_ms() -> i64 {
     web_time::SystemTime::now()
@@ -129,6 +158,11 @@ impl TokenReply {
         let access = self.access_token.as_deref().filter(|t| !t.is_empty())?;
         let refresh = self.refresh_token.as_deref().filter(|t| !t.is_empty())?;
         Some((access, refresh))
+    }
+
+    /// The lifetime the upstream stated, not the default standing in for it.
+    fn stated_lifetime(&self) -> Option<i64> {
+        self.expires_in.filter(|seconds| *seconds > 0)
     }
 
     fn expires_at_ms(&self) -> i64 {
@@ -236,7 +270,11 @@ impl OAuthDeviceCode for super::Kimi {
                     expires_at_ms: Some(reply.expires_at_ms()),
                     refresh_expires_at_ms: None,
                     provider_fields,
-                    provider_secrets: BTreeMap::new(),
+                    provider_secrets: reply
+                        .stated_lifetime()
+                        .map(|seconds| (LIFETIME_FIELD.to_owned(), json!(seconds)))
+                        .into_iter()
+                        .collect(),
                 }));
             }
             match reply.error.as_deref() {
@@ -253,6 +291,29 @@ impl OAuthDeviceCode for super::Kimi {
 }
 
 impl CredentialRefresh for super::Kimi {
+    /// The CLI's schedule: refresh once less than `max(300 s, expires_in /
+    /// 2)` remains. A credential with no recorded lifetime keeps the
+    /// five-minute margin, which is that same floor.
+    fn proactive_refresh_reason(
+        &self,
+        credential: CredentialView<'_>,
+        now_ms: i64,
+    ) -> Option<RefreshReason> {
+        // A credential without a machine is refused before it reaches the
+        // upstream, so no 401 would ever ask for the refresh that mints one.
+        if auth::device_id(&credential).is_none() && self.supports(&credential) {
+            return Some(RefreshReason::ProactiveExpiry);
+        }
+        let margin = lifetime_secs(&credential)
+            .map(|seconds| seconds.saturating_mul(500))
+            .unwrap_or(0)
+            .max(MIN_REFRESH_MARGIN_MS);
+        credential
+            .expires_at_ms
+            .is_some_and(|expires| expires <= now_ms.saturating_add(margin))
+            .then_some(RefreshReason::ProactiveExpiry)
+    }
+
     fn supports(&self, credential: &crate::channel::CredentialView<'_>) -> bool {
         credential
             .secret
@@ -273,23 +334,55 @@ impl CredentialRefresh for super::Kimi {
                 .ok_or_else(|| {
                     ChannelError::RefreshRejected("credential has no refresh token".into())
                 })?;
-            // Refreshing from a different machine than the one that logged in
-            // is what the upstream is watching for; without the id, do not ask.
-            let device = auth::device_id(&context.credential).ok_or_else(|| {
-                ChannelError::RefreshRejected("credential has no device id".into())
-            })?;
-            let (status, _, body) = send(
-                context.client,
-                Method::POST,
-                &format!("{}/api/oauth/token", config.oauth_host()),
-                login_headers(&config, &device)?,
-                Some(form(&[
-                    ("client_id", DEFAULT_CLIENT_ID),
-                    ("grant_type", "refresh_token"),
-                    ("refresh_token", refresh_token),
-                ])),
-            )
-            .await?;
+            // The CLI never refreshes without a device id: it mints one into
+            // its home the first time any is asked for (kimi-code
+            // `identity.ts` `createKimiDeviceId`). A credential that arrived
+            // without one gets one here, kept by the update below, rather than
+            // a perfectly good refresh token being thrown away.
+            let device = match auth::device_id(&context.credential) {
+                Some(device) => device,
+                None => device_id()?,
+            };
+            let url = format!("{}/api/oauth/token", config.oauth_host());
+            let headers = login_headers(&config, &device)?;
+            let grant = form(&[
+                ("client_id", DEFAULT_CLIENT_ID),
+                ("grant_type", "refresh_token"),
+                ("refresh_token", refresh_token),
+            ]);
+            // Three attempts, one and then two seconds apart, on a transport
+            // failure or a 429/5xx; a refusal is answered at once (kimi-code
+            // `oauth.ts` `refreshAccessToken`, `RETRYABLE_STATUSES`).
+            let mut attempt = 0;
+            let (status, body) = loop {
+                let last = attempt + 1 >= REFRESH_ATTEMPTS;
+                match send(
+                    context.client,
+                    Method::POST,
+                    &url,
+                    headers.clone(),
+                    Some(grant.clone()),
+                )
+                .await
+                {
+                    Err(ChannelError::Transport(error))
+                        if !last && error.kind() == CapabilityErrorKind::Transport => {}
+                    Err(error) => return Err(error),
+                    Ok((status, _, body)) => {
+                        let retryable = RETRYABLE_STATUSES.contains(&status.as_u16())
+                            && serde_json::from_slice::<TokenReply>(&body)
+                                .ok()
+                                .and_then(|reply| reply.error)
+                                .as_deref()
+                                != Some("invalid_grant");
+                        if last || !retryable {
+                            break (status, body);
+                        }
+                    }
+                }
+                timer::sleep(Duration::from_secs(1 << attempt)).await;
+                attempt += 1;
+            };
             let reply = serde_json::from_slice::<TokenReply>(&body).ok();
             if !status.is_success() || reply.as_ref().is_none_or(|reply| reply.token().is_none()) {
                 let code = reply.as_ref().and_then(|reply| reply.error.clone());
@@ -311,8 +404,9 @@ impl CredentialRefresh for super::Kimi {
             let reply = reply.expect("a token reply was just confirmed");
             let (access, refresh) = reply.token().expect("a token pair was just confirmed");
             let expires_at_ms = reply.expires_at_ms();
-            // A rotation replaces the two tokens and the expiry, and keeps the
-            // rest of the secret — the device id above all.
+            // A rotation replaces the two tokens, the expiry and the lifetime
+            // the refresh schedule reads, and keeps the rest of the secret —
+            // the device id above all.
             let mut updated = secret.clone();
             let object = updated
                 .as_object_mut()
@@ -321,6 +415,22 @@ impl CredentialRefresh for super::Kimi {
             object.insert("refresh_token".into(), json!(refresh));
             object.insert("expires_at_ms".into(), json!(expires_at_ms));
             object.insert("device_id".into(), json!(device));
+            // The login's copy is superseded either way: a lifetime this reply
+            // did not state must not linger from an earlier token.
+            if let Some(secrets) = object
+                .get_mut("provider_secrets")
+                .and_then(Value::as_object_mut)
+            {
+                secrets.remove(LIFETIME_FIELD);
+            }
+            match reply.stated_lifetime() {
+                Some(seconds) => {
+                    object.insert(LIFETIME_FIELD.into(), json!(seconds));
+                }
+                None => {
+                    object.remove(LIFETIME_FIELD);
+                }
+            }
             Ok(CredentialUpdate {
                 metadata: None,
                 secret: updated,

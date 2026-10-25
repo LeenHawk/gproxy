@@ -5,6 +5,7 @@
 //! All paths are under samples/claude-code-2.1.302/.
 
 use super::{ClaudecodeConfig, unix_now_ms};
+use crate::channels::shared::timer::sleep;
 use crate::{
     OutboundClient,
     channel::{ChannelError, ChannelState, CredentialView},
@@ -275,16 +276,6 @@ impl Wait {
             .min(left),
         )
     }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-async fn sleep(duration: Duration) {
-    tokio::time::sleep(duration).await;
-}
-#[cfg(target_arch = "wasm32")]
-async fn sleep(duration: Duration) {
-    gloo_timers::future::TimeoutFuture::new(duration.as_millis().min(u128::from(u32::MAX)) as u32)
-        .await;
 }
 
 fn overloaded_json(bytes: &[u8]) -> bool {

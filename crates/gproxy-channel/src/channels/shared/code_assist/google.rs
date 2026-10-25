@@ -20,9 +20,11 @@ use crate::OutboundClient;
 use crate::channel::{
     AuthorizationRequest, AuthorizationStart, ChannelError, CredentialUpdate, OAuthCredential,
 };
+use crate::channels::shared::timer::sleep;
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 /// One tool's Google identity and Code Assist host. Borrowed for the
 /// duration of one login or refresh; a provider may override any of it.
@@ -36,8 +38,13 @@ pub(crate) struct GoogleTool<'a> {
     /// Where Google sends the code back when the host names no redirect.
     pub redirect_uri: &'a str,
     pub scope: &'a str,
-    /// Tier id used for onboarding when `loadCodeAssist` names no default.
-    pub fallback_tier: &'a str,
+    /// What the tool does when `loadCodeAssist` names no project: use the
+    /// hint, onboard on some tier, or refuse. The two tools disagree, so the
+    /// rule is theirs (`loaded`, then the project hint).
+    pub onboarding: fn(&Value, Option<&str>) -> Result<Onboarding, ChannelError>,
+    /// How long the tool waits between polls of a running onboarding
+    /// operation.
+    pub onboard_poll: Duration,
     /// The tool's user agent, which the Code Assist host uses to tell the
     /// tools apart.
     pub user_agent: &'a str,
@@ -45,6 +52,18 @@ pub(crate) struct GoogleTool<'a> {
     /// identify themselves differently.
     pub metadata: fn(Option<&str>) -> Value,
 }
+
+/// A tool's answer to an account `loadCodeAssist` found without a project.
+pub(crate) enum Onboarding {
+    /// Use this project as is; no onboarding call.
+    Project(String),
+    /// `onboardUser` on this tier.
+    Tier(String),
+}
+
+/// The longest a login waits on a running onboarding operation before it
+/// gives up; both tools poll without a limit, a login request cannot.
+const ONBOARD_POLL_BUDGET: Duration = Duration::from_secs(60);
 
 fn header_value(value: &str) -> Result<HeaderValue, ChannelError> {
     HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)
@@ -329,13 +348,13 @@ pub(crate) fn previous_fields(secret: &Value) -> BTreeMap<String, Value> {
     fields
 }
 
-async fn code_assist_post(
+async fn code_assist_call(
     client: &dyn OutboundClient,
     tool: &GoogleTool<'_>,
     base: &str,
     access_token: &str,
     path: &str,
-    body: &Value,
+    body: Option<&Value>,
 ) -> Result<Value, ChannelError> {
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -348,12 +367,16 @@ async fn code_assist_post(
     );
     headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     headers.insert(header::USER_AGENT, header_value(tool.user_agent)?);
+    let (method, body) = match body {
+        Some(body) => (Method::POST, Some(encode(body, invalid_request)?.to_vec())),
+        None => (Method::GET, None),
+    };
     let (status, _, bytes) = send(
         client,
-        Method::POST,
+        method,
         &format!("{}{path}", base.trim_end_matches('/')),
         headers,
-        Some(encode(body, invalid_request)?.to_vec()),
+        body,
     )
     .await?;
     if !status.is_success() {
@@ -375,7 +398,8 @@ fn project_id(value: &Value) -> Option<String> {
         .map(str::to_owned)
 }
 
-fn default_tier<'a>(loaded: &'a Value, fallback: &'a str) -> &'a str {
+/// The id of the tier `loadCodeAssist` marks `isDefault` among `allowedTiers`.
+pub(crate) fn default_tier(loaded: &Value) -> Option<&str> {
     loaded
         .get("allowedTiers")
         .and_then(Value::as_array)
@@ -383,30 +407,76 @@ fn default_tier<'a>(loaded: &'a Value, fallback: &'a str) -> &'a str {
         .flatten()
         .find(|tier| tier.get("isDefault").and_then(Value::as_bool) == Some(true))
         .and_then(|tier| text(tier, "id"))
-        .unwrap_or(fallback)
 }
 
-/// The plan name the account is on, folded onto the three names the rest of
-/// gproxy uses (v3 `subscription_tier`).
-fn subscription_tier(loaded: &Value) -> Option<String> {
-    let raw = ["paidTier", "currentTier"]
+/// Whether `tier_id` is among `allowedTiers`.
+pub(crate) fn tier_allowed(loaded: &Value, tier_id: &str) -> bool {
+    loaded
+        .get("allowedTiers")
+        .and_then(Value::as_array)
         .into_iter()
-        .find_map(|name| loaded.get(name).and_then(|tier| text(tier, "id")))?;
-    Some(match raw.to_ascii_lowercase().as_str() {
+        .flatten()
+        .any(|tier| text(tier, "id") == Some(tier_id))
+}
+
+/// The `reasonMessage` of the `ineligibleTiers` entry for `tier_id`.
+pub(crate) fn ineligible_reason<'a>(loaded: &'a Value, tier_id: &str) -> Option<&'a str> {
+    loaded
+        .get("ineligibleTiers")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|tier| text(tier, "tierId") == Some(tier_id))
+        .and_then(|tier| text(tier, "reasonMessage"))
+}
+
+/// The refusal for an account that has no project and none can be had:
+/// the server's ineligibility reasons when it gives any, else a request for
+/// a project (gemini-cli `setup.ts::throwIneligibleOrProjectIdError`).
+pub(crate) fn project_required(loaded: &Value) -> ChannelError {
+    let reasons = loaded
+        .get("ineligibleTiers")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|tier| text(tier, "reasonMessage"))
+        .collect::<Vec<_>>();
+    if reasons.is_empty() {
+        invalid_response(
+            "Code Assist returned no project for this account; set project_id on the provider",
+        )
+    } else {
+        invalid_response(format!(
+            "Code Assist: account is not eligible: {}",
+            reasons.join(", ")
+        ))
+    }
+}
+
+/// A tier id folded onto the three plan names the rest of gproxy uses (v3
+/// `subscription_tier`).
+fn fold_tier(raw: &str) -> String {
+    match raw.to_ascii_lowercase().as_str() {
         "g1-ultra-tier" | "ws-ai-ultra-business-tier" => "ultra".into(),
         "free-tier" => "free".into(),
         _ => "pro".into(),
-    })
+    }
 }
 
-/// `loadCodeAssist`, then `onboardUser` when the account has no project yet.
-///
-/// v3 polled the long-running onboarding operation every five seconds for up
-/// to five minutes. A v4 channel has no timer (and `LoginContext` gives it
-/// none), so a still-running operation is reported rather than spun on: the
-/// operator retries the login, or sets `project_id` on the provider, and in
-/// the meantime the next `CredentialRefresh` finishes the discovery, since
-/// the operation completes server side.
+/// The plan name the account is on.
+fn subscription_tier(loaded: &Value) -> Option<String> {
+    ["paidTier", "currentTier"]
+        .into_iter()
+        .find_map(|name| loaded.get(name).and_then(|tier| text(tier, "id")))
+        .map(fold_tier)
+}
+
+/// `loadCodeAssist`, then, when the account has no project, whatever the
+/// tool's `onboarding` rule asks for. An `onboardUser` that answers with a
+/// running operation is polled (`GET {base}/v1internal/{name}`) the way both
+/// tools do (gemini-cli `setup.ts` every 5 s, the Antigravity IDE every
+/// 500 ms), within `ONBOARD_POLL_BUDGET`; an operation still running after
+/// that fails the login, which the operator retries.
 async fn discover(
     client: &dyn OutboundClient,
     tool: &GoogleTool<'_>,
@@ -421,13 +491,13 @@ async fn discover(
     if let Some(project) = hint {
         load["cloudaicompanionProject"] = Value::String(project.into());
     }
-    let loaded = code_assist_post(
+    let loaded = code_assist_call(
         client,
         tool,
         base,
         access_token,
         "/v1internal:loadCodeAssist",
-        &load,
+        Some(&load),
     )
     .await?;
     if let Some(tier) = subscription_tier(&loaded) {
@@ -437,27 +507,64 @@ async fn discover(
         fields.insert("project_id".into(), Value::String(project));
         return Ok(());
     }
+    let tier = match (tool.onboarding)(&loaded, hint)? {
+        Onboarding::Project(project) => {
+            fields.insert("project_id".into(), Value::String(project));
+            return Ok(());
+        }
+        Onboarding::Tier(tier) => tier,
+    };
     let mut onboard = json!({
-        "tierId": default_tier(&loaded, tool.fallback_tier),
+        "tierId": tier,
         "metadata": metadata,
     });
     if let Some(project) = hint {
         onboard["cloudaicompanionProject"] = Value::String(project.into());
     }
-    let onboarded = code_assist_post(
+    let mut operation = code_assist_call(
         client,
         tool,
         base,
         access_token,
         "/v1internal:onboardUser",
-        &onboard,
+        Some(&onboard),
     )
     .await?;
-    let project = onboarded
+    let polls = (ONBOARD_POLL_BUDGET.as_millis() / tool.onboard_poll.as_millis().max(1)) as usize;
+    for _ in 0..polls {
+        if operation.get("done").and_then(Value::as_bool) != Some(false) {
+            break;
+        }
+        let Some(name) = text(&operation, "name").map(str::to_owned) else {
+            break;
+        };
+        sleep(tool.onboard_poll).await;
+        operation = code_assist_call(
+            client,
+            tool,
+            base,
+            access_token,
+            &format!("/v1internal/{}", name.trim_start_matches('/')),
+            None,
+        )
+        .await?;
+    }
+    if operation.get("done").and_then(Value::as_bool) == Some(false) {
+        return Err(invalid_response(
+            "Code Assist onboarding is still running; retry the login once it completes, \
+             or set project_id on the provider",
+        ));
+    }
+    // The tier the account was just onboarded on is its tier from now on
+    // (gemini-cli `setup.ts`: `userTier: tier.id`).
+    fields
+        .entry("rate_limit_tier".into())
+        .or_insert_with(|| Value::String(fold_tier(&tier)));
+    let project = operation
         .pointer("/response/cloudaicompanionProject")
         .and_then(project_id)
         .or_else(|| {
-            onboarded
+            operation
                 .get("cloudaicompanionProject")
                 .and_then(project_id)
         })
@@ -467,15 +574,7 @@ async fn discover(
             fields.insert("project_id".into(), Value::String(project));
             Ok(())
         }
-        None if onboarded.get("done").and_then(Value::as_bool) == Some(false) => {
-            Err(invalid_response(
-                "Code Assist onboarding is still running; retry the login once it completes, \
-                 or set project_id on the provider",
-            ))
-        }
-        None => Err(invalid_response(
-            "Code Assist returned no project; retry the login or set project_id on the provider",
-        )),
+        None => Err(project_required(&loaded)),
     }
 }
 

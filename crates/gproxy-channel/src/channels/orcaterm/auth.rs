@@ -8,7 +8,7 @@ use crate::{
     OutboundClient,
     channel::{
         ChannelError, CredentialRefresh, CredentialUpdate, CredentialView, OAuthCredential,
-        OperationFuture, RefreshContext,
+        OperationFuture, RefreshContext, RefreshReason,
     },
 };
 use base64::Engine as _;
@@ -300,7 +300,21 @@ fn token_expiry(token: &str) -> Option<i64> {
     claims["exp"].as_i64()?.checked_mul(1000)
 }
 
+/// TokenManager renews ten minutes before expiry (features.js:88121, `d = 6e5`).
+const REFRESH_MARGIN_MS: i64 = 600_000;
+
 impl CredentialRefresh for OrcaTerm {
+    fn proactive_refresh_reason(
+        &self,
+        credential: CredentialView<'_>,
+        now_ms: i64,
+    ) -> Option<RefreshReason> {
+        credential
+            .expires_at_ms
+            .is_some_and(|expires| expires <= now_ms.saturating_add(REFRESH_MARGIN_MS))
+            .then_some(RefreshReason::ProactiveExpiry)
+    }
+
     fn response_update(
         &self,
         credential: CredentialView<'_>,

@@ -25,6 +25,8 @@ use gproxy_protocol::connection::Bytes;
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 
 fn unix_now_ms() -> i64 {
     web_time::SystemTime::now()
@@ -134,8 +136,12 @@ fn credential(data: &Value) -> Result<OAuthCredential, ChannelError> {
         id_token: None,
         token_type: Some("Bearer".into()),
         scopes: Vec::new(),
-        // Nothing on the wire dates the token; its own JWT payload does.
-        expires_at_ms: auth::token_expires_at_ms(access),
+        // The SDK dates the token by the reply's `expiresAt`
+        // (`toClineCredentials`); its own JWT payload is the fallback.
+        expires_at_ms: text(data.get("expiresAt"))
+            .and_then(|at| OffsetDateTime::parse(at, &Rfc3339).ok())
+            .and_then(|at| i64::try_from(at.unix_timestamp_nanos() / 1_000_000).ok())
+            .or_else(|| auth::token_expires_at_ms(access)),
         refresh_expires_at_ms: None,
         provider_fields,
         provider_secrets: std::collections::BTreeMap::new(),
@@ -265,7 +271,15 @@ impl OAuthDeviceCode for super::Cline {
             if !status.is_success() {
                 return Err(ChannelError::UpstreamResponse { status, body });
             }
-            Ok(DevicePoll::Ready(credential(&envelope(&body)?)?))
+            let acquired = credential(&envelope(&body)?)?;
+            // A registration that cannot be renewed is a failed login, as
+            // the SDK's `toClineCredentials` refuses it.
+            if acquired.refresh_token.is_none() {
+                return Err(invalid_response(format!(
+                    "{ID}: the registration returned no refreshToken"
+                )));
+            }
+            Ok(DevicePoll::Ready(acquired))
         })
     }
 }

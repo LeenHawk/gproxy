@@ -30,6 +30,8 @@ antigravity = [
     "dep:sha2",
     "dep:time",
     "dep:web-time",
+    "dep:tokio",
+    "dep:gloo-timers",
 ]
 # AWS Bedrock: every request is SigV4-signed. Anthropic models are invoked
 # through bedrock-runtime InvokeModel with the Bedrock Claude Messages
@@ -138,6 +140,8 @@ geminicli = [
     "dep:percent-encoding",
     "dep:time",
     "dep:web-time",
+    "dep:tokio",
+    "dep:gloo-timers",
 ]
 # Grok Build (grok-shell): an xAI account granted through the CLI's device
 # login and used against the Grok Build chat proxy rather than api.x.ai. The
@@ -149,10 +153,19 @@ grokbuild = [
     "dep:getrandom",
     "dep:time",
     "dep:web-time",
+    "dep:tokio",
+    "dep:gloo-timers",
 ]
 # Moonshot Kimi: an API key against api.moonshot.cn or a Kimi Code device
 # login against api.kimi.com, with the CLI's x-msh-* identity headers.
-kimi = ["dep:futures-util", "dep:getrandom", "dep:time", "dep:web-time"]
+kimi = [
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
+    "dep:web-time",
+    "dep:tokio",
+    "dep:gloo-timers",
+]
 # Kiro (AWS CodeWhisperer through the Kiro desktop app): a Builder ID or IAM
 # Identity Center token against the CodeWhisperer Smithy surface. The OpenAI
 # Responses request becomes a conversation envelope, the AWS event-stream

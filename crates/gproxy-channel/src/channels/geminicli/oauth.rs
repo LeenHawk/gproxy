@@ -16,9 +16,10 @@ use crate::channel::{
     CredentialUpdate, LoginContext, OAuthAuthorizationCode, OAuthCredential, OperationFuture,
     RefreshContext,
 };
-use crate::channels::shared::code_assist::google::{self, GoogleTool};
+use crate::channels::shared::code_assist::google::{self, GoogleTool, Onboarding};
 use gproxy_protocol::capability::CapabilityFuture;
 use serde_json::{Value, json};
+use std::time::Duration;
 
 /// `ClientMetadata` for `loadCodeAssist`/`onboardUser`: the CLI reports no
 /// IDE and no platform, and identifies its plugin as `GEMINI`; a project
@@ -35,6 +36,28 @@ fn metadata(project: Option<&str>) -> Value {
     metadata
 }
 
+/// gemini-cli `setup.ts::_doSetupUser`: an account that already has a tier
+/// (`currentTier`) is never onboarded again; without a project it needs the
+/// hint, or it is refused with the server's ineligibility reasons. Only an
+/// account with no tier is onboarded, on the default allowed tier, else
+/// `legacy-tier`.
+fn onboarding(loaded: &Value, hint: Option<&str>) -> Result<Onboarding, ChannelError> {
+    if loaded
+        .get("currentTier")
+        .is_some_and(|tier| !tier.is_null())
+    {
+        return match hint {
+            Some(project) => Ok(Onboarding::Project(project.to_owned())),
+            None => Err(google::project_required(loaded)),
+        };
+    }
+    Ok(Onboarding::Tier(
+        google::default_tier(loaded)
+            .unwrap_or(FALLBACK_TIER)
+            .to_owned(),
+    ))
+}
+
 fn tool(config: &GeminiCliConfig) -> GoogleTool<'_> {
     GoogleTool {
         client_id: DEFAULT_CLIENT_ID,
@@ -42,7 +65,9 @@ fn tool(config: &GeminiCliConfig) -> GoogleTool<'_> {
         token_url: non_empty(&config.token_url, super::DEFAULT_TOKEN_URL),
         redirect_uri: DEFAULT_REDIRECT_URI,
         scope: OAUTH_SCOPE,
-        fallback_tier: FALLBACK_TIER,
+        onboarding,
+        // gemini-cli `setup.ts`: `setTimeout(f, 5000)` between polls.
+        onboard_poll: Duration::from_secs(5),
         user_agent: super::CLI_USER_AGENT,
         metadata,
     }

@@ -60,6 +60,16 @@ pub(crate) mod compatible;
 /// own service surface. Shared by `claudecode` and `codex`.
 #[cfg(any(feature = "codex", feature = "claudecode"))]
 pub(crate) mod services_common;
+/// A timer that runs on native hosts and on Cloudflare Workers, for the
+/// channels that wait between upstream retries.
+#[cfg(any(
+    feature = "antigravity",
+    feature = "claudecode",
+    feature = "geminicli",
+    feature = "grokbuild",
+    feature = "kimi"
+))]
+pub(crate) mod timer;
 
 #[cfg(any(feature = "claudecode", feature = "claudeweb"))]
 pub(crate) fn browser_connection() -> gproxy_client::ConnectionConfig {
