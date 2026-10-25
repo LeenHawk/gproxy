@@ -13,7 +13,7 @@ RUN GPROXY_BUILD_HASH="$GPROXY_BUILD_HASH" pnpm build
 FROM scratch AS console-dist
 COPY --from=console /source/console/dist/ /
 
-FROM docker.io/library/rust:1.99.0-trixie@sha256:81015672d6939b0265f09adf96d5de125482bb1330106076956b0518e74edc90 AS builder
+FROM docker.io/library/rust:1.99.1-trixie@sha256:931c2c0531a8b143e044f0f3914dfe802f15bb3d1955f0b657e9359327ac2ffc AS builder
 
 ARG CARGO_NET_OFFLINE=false
 ARG GPROXY_UPDATE_PUBKEY
