@@ -2,13 +2,14 @@
 
 use super::common::{invalid_response, send_json};
 use super::{Codex, CodexConfig, DEFAULT_CLIENT_ID};
-use crate::channels::shared::services_common::unix_now_ms;
 use crate::OutboundClient;
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, CredentialRefresh,
-    CredentialUpdate, DeviceAuthorization, DevicePoll, LoginContext, OAuthAuthorizationCode,
-    CredentialView, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext, RefreshReason,
+    CredentialUpdate, CredentialView, DeviceAuthorization, DevicePoll, LoginContext,
+    OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
+    RefreshReason,
 };
+use crate::channels::shared::services_common::unix_now_ms;
 use base64::Engine;
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
@@ -49,6 +50,8 @@ fn provider_fields(id_token: Option<&str>) -> BTreeMap<String, Value> {
             ("chatgpt_account_id", "chatgpt_account_id"),
             ("chatgpt_plan_type", "chatgpt_plan_type"),
             ("chatgpt_user_id", "chatgpt_user_id"),
+            // Routes the workspace through the FedRAMP edge (token_data.rs).
+            ("chatgpt_account_is_fedramp", "chatgpt_account_is_fedramp"),
         ] {
             if let Some(value) = auth.get(from).filter(|v| !v.is_null()) {
                 fields.insert(to.to_owned(), value.clone());
@@ -135,14 +138,18 @@ struct TokenResponse {
     id_token: Option<String>,
 }
 
-/// The token endpoint's error code, at `error.code`, `error` or `code`.
+/// The token endpoint's error code: the first non-empty of `error`,
+/// `error.code` and top-level `code` (login/src/oauth/error.rs).
 fn token_error_code(body: &[u8]) -> Option<String> {
     let value: Value = serde_json::from_slice(body).ok()?;
-    match value.get("error") {
-        Some(Value::Object(error)) => error.get("code").and_then(Value::as_str).map(str::to_owned),
-        Some(Value::String(code)) => Some(code.clone()),
-        _ => value.get("code").and_then(Value::as_str).map(str::to_owned),
-    }
+    let text = |v: Option<&Value>| {
+        v.and_then(Value::as_str)
+            .filter(|s| !s.trim().is_empty())
+            .map(str::to_owned)
+    };
+    text(value.get("error"))
+        .or_else(|| text(value.pointer("/error/code")))
+        .or_else(|| text(value.get("code")))
 }
 
 async fn exchange_code(
@@ -389,8 +396,7 @@ impl CredentialRefresh for Codex {
                 .ok()?;
                 i64::try_from(timestamp.unix_timestamp_nanos() / 1_000_000).ok()
             })?;
-        (last_refresh < now_ms.saturating_sub(8 * 86_400_000))
-            .then_some(RefreshReason::Scheduled)
+        (last_refresh < now_ms.saturating_sub(8 * 86_400_000)).then_some(RefreshReason::Scheduled)
     }
 
     fn persist_rejection(&self, _reason: &str) -> bool {
@@ -483,7 +489,9 @@ impl CredentialRefresh for Codex {
                 .and_then(Value::as_object)
                 .cloned()
                 .unwrap_or_default();
-            fields.extend(provider_fields(secret.get("id_token").and_then(Value::as_str)));
+            fields.extend(provider_fields(
+                secret.get("id_token").and_then(Value::as_str),
+            ));
             secret["provider_fields"] = Value::Object(fields);
             let mut provider_secrets = secret
                 .get("provider_secrets")

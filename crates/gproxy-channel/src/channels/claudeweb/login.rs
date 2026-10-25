@@ -39,13 +39,50 @@ async fn fetch_bootstrap(
     Ok((response.status, body))
 }
 
+/// The claude.ai error message, whether a string or a structured value.
+fn error_message(body: &[u8]) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_slice(body).ok()?;
+    let message = value.pointer("/error/message")?;
+    Some(match message.as_str() {
+        Some(text) => text.to_owned(),
+        None => message.to_string(),
+    })
+}
+
+/// Only a 401, an OAuth-forbidden 403 or a disabled organization retires the
+/// cookie (clewdr `check_claude`). Any other 403 may be a Cloudflare or region
+/// block in front of a still-valid session.
+fn definitive_rejection(status: StatusCode, body: &[u8]) -> Option<String> {
+    let message = error_message(body);
+    let rejected = match status {
+        StatusCode::UNAUTHORIZED => true,
+        StatusCode::FORBIDDEN => message.as_deref().is_some_and(|message| {
+            message
+                .to_ascii_lowercase()
+                .contains("oauth authentication is currently not allowed for this organization")
+        }),
+        StatusCode::BAD_REQUEST => {
+            message.as_deref() == Some("This organization has been disabled.")
+        }
+        _ => false,
+    };
+    rejected.then(|| match message {
+        Some(message) => format!(
+            "claude.ai session rejected with http {}: {message}",
+            status.as_u16()
+        ),
+        None => format!("claude.ai session rejected with http {}", status.as_u16()),
+    })
+}
+
 fn validity_ms(now: i64) -> Option<i64> {
     now.checked_add(auth::VALIDATION_SECS * 1000)
 }
 
 impl CredentialRefresh for ClaudeWeb {
-    /// Re-validate the cookie. A 401/403 or a logged-out bootstrap is final;
-    /// other failures are transient. Persist public account and model metadata.
+    /// Re-validate the cookie. A definitive rejection, a logged-out bootstrap
+    /// or a banned organization is final; other failures are transient.
+    /// Persist public account and model metadata.
     fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let secret = context.credential.secret;
@@ -62,11 +99,8 @@ impl CredentialRefresh for ClaudeWeb {
             let device_id = Some(device_id.as_str());
             let (status, body) =
                 fetch_bootstrap(context.client, context.provider, &cookie, device_id).await?;
-            if matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) {
-                return Err(ChannelError::RefreshRejected(format!(
-                    "claude.ai session rejected with http {}",
-                    status.as_u16()
-                )));
+            if let Some(reason) = definitive_rejection(status, &body) {
+                return Err(ChannelError::RefreshRejected(reason));
             }
             if !status.is_success() {
                 return Err(ChannelError::UpstreamResponse { status, body });
@@ -78,6 +112,11 @@ impl CredentialRefresh for ClaudeWeb {
                 BootstrapFailure::Malformed(message) => ChannelError::InvalidResponse(message),
             })?;
             let now = now_ms()?;
+            if bootstrap::banned(&bootstrap, now) {
+                return Err(ChannelError::RefreshRejected(
+                    "claude.ai account is banned".into(),
+                ));
+            }
             let mut updated = bootstrap::secret(&cookie, device_id, &bootstrap, now);
             // Keep any extra fields a host or operator stored on the secret.
             if let (Some(previous), Some(next)) = (secret.as_object(), updated.as_object_mut()) {

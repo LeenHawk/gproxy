@@ -22,7 +22,7 @@ use crate::channel::{
 };
 use crate::channels::shared::compatible::ability::{bearer, send};
 use crate::channels::shared::compatible::http::invalid_response;
-use http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, header};
+use http::{HeaderMap, HeaderValue, Method, Uri, header};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -340,11 +340,12 @@ impl CredentialRefresh for super::OpenCode {
                 .map(str::to_owned);
             if !status.is_success() || granted.is_none() {
                 let code = reply.as_ref().and_then(|reply| reply.error.clone());
-                // `invalid_grant` is the upstream saying this refresh token is
-                // finished; anything else may be transient.
-                if status == StatusCode::UNAUTHORIZED
-                    || matches!(code.as_deref(), Some("invalid_grant" | "invalid_client"))
-                {
+                // Only `invalid_grant` says this refresh token is finished: the
+                // Console answers a spent single-use token with it (opencode
+                // `test/account/service.test.ts`), and neither client treats
+                // any other refusal as final (`account.ts` `refreshToken`,
+                // `plugin/provider/opencode.ts` `refresh`), a bare 401 included.
+                if code.as_deref() == Some("invalid_grant") {
                     return Err(ChannelError::RefreshRejected(
                         code.unwrap_or_else(|| format!("http {}", status.as_u16())),
                     ));

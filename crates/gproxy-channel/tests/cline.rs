@@ -543,8 +543,8 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_r
     };
 
     let refused = OneShot::new(
-        StatusCode::OK,
-        json!({"success": false, "error": "expired"}).to_string(),
+        StatusCode::UNAUTHORIZED,
+        json!({"error": "invalid_grant"}).to_string(),
     );
     assert!(matches!(
         CredentialRefresh::refresh(&Cline, context(&refused)).await,
@@ -554,7 +554,16 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_r
     let unauthorized = OneShot::new(StatusCode::UNAUTHORIZED, "{}".into());
     assert!(matches!(
         CredentialRefresh::refresh(&Cline, context(&unauthorized)).await,
-        Err(ChannelError::RefreshRejected(_))
+        Err(ChannelError::UpstreamResponse { .. })
+    ));
+
+    let malformed = OneShot::new(
+        StatusCode::OK,
+        json!({"success": false, "error": "expired"}).to_string(),
+    );
+    assert!(matches!(
+        CredentialRefresh::refresh(&Cline, context(&malformed)).await,
+        Err(ChannelError::InvalidResponse(_))
     ));
 
     let transient = OneShot::new(StatusCode::BAD_GATEWAY, "upstream down".into());

@@ -979,10 +979,10 @@ async fn refresh_rotates_tokens_and_classifies_rejections() {
         matches!(error, ChannelError::UpstreamResponse { status, .. } if status == StatusCode::BAD_GATEWAY),
         "a 5xx is transient"
     );
-    let error = refresher.refresh(context()).await.err().expect("rejected");
+    let error = refresher.refresh(context()).await.err().expect("transient");
     assert!(
-        matches!(&error, ChannelError::RefreshRejected(code) if code == "authentication_error"),
-        "401 is final: {error}"
+        matches!(error, ChannelError::UpstreamResponse { status, .. } if status == StatusCode::UNAUTHORIZED),
+        "a 401 without invalid_grant is transient"
     );
     let error = refresher.refresh(context()).await.err().expect("transient");
     assert!(

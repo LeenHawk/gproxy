@@ -85,7 +85,8 @@ async fn exchange(
         Some(body.to_string().into_bytes()),
     )
     .await?;
-    // Only the native client's explicit invalid/revoked token codes are final.
+    // Only the native client's explicit invalid/revoked token codes are final
+    // (marscode/request.js T$, forced logout on RefreshTokenInvalid).
     // HTTP 403 alone may be a device/risk policy refusal, not revocation.
     if refreshing
         && !status.is_server_error()
@@ -96,7 +97,10 @@ async fn exchange(
                 .map(str::to_owned)
                 .unwrap_or_else(|| v.to_string())
         });
-        if matches!(code.as_deref(), Some("20324" | "20101" | "20315" | "20126")) {
+        if matches!(
+            code.as_deref(),
+            Some("20324" | "20101" | "20315" | "20125" | "20126" | "20401" | "20403")
+        ) {
             return Err(ChannelError::RefreshRejected(
                 "Trae rejected the refresh token".into(),
             ));

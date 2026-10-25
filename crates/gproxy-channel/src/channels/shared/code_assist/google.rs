@@ -115,20 +115,17 @@ pub(crate) fn authorize(
     }
 }
 
-/// Google's token endpoint answers `{"error": "invalid_grant", ...}`; that,
-/// and a 401, mean the grant is gone for good rather than temporarily
-/// unavailable.
+/// Only `{"error": "invalid_grant", ...}` means this grant is gone for good
+/// (revoked, expired, or a reauth demand). The Antigravity IDE logs out on
+/// exactly that (`e?.response?.data?.error==="invalid_grant"`), and
+/// google-auth-library singles out no other code. `invalid_client`,
+/// `unauthorized_client` and a bare 401 concern the tool's shared client, not
+/// this account, so they stay retryable rather than killing every credential.
 fn token_error(status: StatusCode, body: &[u8]) -> Option<String> {
     let code = serde_json::from_slice::<Value>(body)
         .ok()
-        .and_then(|value| text(&value, "error").map(str::to_ascii_lowercase));
-    let definitive = status == StatusCode::UNAUTHORIZED
-        || (status.is_client_error()
-            && matches!(
-                code.as_deref(),
-                Some("invalid_grant" | "invalid_client" | "unauthorized_client")
-            ));
-    definitive.then(|| code.unwrap_or_else(|| format!("http {}", status.as_u16())))
+        .and_then(|value| text(&value, "error").map(str::to_ascii_lowercase))?;
+    (status.is_client_error() && code == "invalid_grant").then_some(code)
 }
 
 struct Tokens {
@@ -262,17 +259,26 @@ pub(crate) async fn refresh(
     let mut fields = previous_fields(secret);
     // A login that ended before the Code Assist onboarding operation
     // finished leaves no project behind; the first refresh completes it, so
-    // discovery stays out of the synchronous, per-request `prepare`.
+    // discovery stays out of the synchronous, per-request `prepare`. A failed
+    // discovery must not cost the token just minted: the CLI and the IDE
+    // persist refreshed tokens independently of their Code Assist setup, so
+    // the update is returned without `project_id` and the next refresh tries
+    // again.
     if !fields.contains_key("project_id") {
-        discover(
+        let mut discovered = fields.clone();
+        if discover(
             client,
             tool,
             code_assist_base,
             &tokens.access_token,
             project_hint,
-            &mut fields,
+            &mut discovered,
         )
-        .await?;
+        .await
+        .is_ok()
+        {
+            fields = discovered;
+        }
     }
     let credential = credential(tokens, Some(refresh_token.to_owned()), fields);
     Ok(CredentialUpdate {

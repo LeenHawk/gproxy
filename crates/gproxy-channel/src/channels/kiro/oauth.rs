@@ -35,7 +35,7 @@ use crate::channel::{
     CredentialUpdate, CredentialView, DeviceAuthorization, DevicePoll, LoginContext,
     OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
 };
-use http::{Method, StatusCode};
+use http::{HeaderMap, Method, StatusCode};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -439,26 +439,75 @@ fn is_identity_center(credential: &CredentialView<'_>) -> bool {
     fact(credential, CLIENT_ID).is_some() || fact(credential, "region").is_some()
 }
 
-/// AWS names a definitive refusal in `__type` or `error`; anything else may
-/// be transient and must not kill the credential.
-fn definitive(status: StatusCode, body: &[u8]) -> Option<String> {
-    if status == StatusCode::UNAUTHORIZED {
-        return Some(format!("http {}", status.as_u16()));
-    }
+/// The refusal codes that end a grant. AWS SSO-OIDC states one as the
+/// exception name (`x-amzn-errortype`, `__type`) and as the OAuth code in
+/// `error` (aws-sdk-rust `ssooidc` error shapes: `expired_token`,
+/// `invalid_client`, `access_denied`, ...), so both spellings are listed.
+const REFUSALS: &[&str] = &[
+    "invalid_grant",
+    "invalidgrant",
+    "invalid_client",
+    "invalidclient",
+    "expired_token",
+    "expiredtoken",
+    "access_denied",
+    "accessdenied",
+    "unauthorized_client",
+    "unauthorizedclient",
+    "unauthorized",
+];
+
+/// Codes that only ask the caller to slow down.
+const THROTTLES: &[&str] = &["slow_down", "slowdown", "throttl", "too_many", "toomany"];
+
+/// Whether a refresh failure is definitive. Throttling never is. The Kiro
+/// desktop service's `/refreshToken` refuses with a bare 400, 401 or 403,
+/// which KiroCrew (`auth/refresh.py` `_REJECTED_STATUSES`) treats as a dead
+/// grant. AWS OIDC is judged by the code it names, read from the
+/// `x-amzn-errortype` header and the body alike; a bare 401 is definitive.
+fn definitive(
+    social: bool,
+    status: StatusCode,
+    headers: &HeaderMap,
+    body: &[u8],
+) -> Option<String> {
     if !status.is_client_error() {
         return None;
     }
-    let value: Value = serde_json::from_slice(body).ok()?;
-    let code = ["__type", "error", "message"]
+    let value: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
+    let codes: Vec<&str> = headers
+        .get("x-amzn-errortype")
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.split(':').next().unwrap_or(value).trim())
         .into_iter()
-        .find_map(|name| value.get(name).and_then(Value::as_str))?;
-    let lowered = code.to_ascii_lowercase();
-    (lowered.contains("invalid_grant")
-        || lowered.contains("invalidgrant")
-        || lowered.contains("invalid_client")
-        || lowered.contains("unauthorized")
-        || lowered.contains("accessdenied"))
-    .then(|| code.to_owned())
+        .chain(
+            ["__type", "error", "code", "message"]
+                .into_iter()
+                .filter_map(|name| value.get(name).and_then(Value::as_str)),
+        )
+        .filter(|code| !code.is_empty())
+        .collect();
+    let named = |patterns: &[&str]| {
+        codes.iter().copied().find(|code| {
+            let lowered = code.to_ascii_lowercase();
+            patterns.iter().any(|pattern| lowered.contains(pattern))
+        })
+    };
+    if status == StatusCode::TOO_MANY_REQUESTS || named(THROTTLES).is_some() {
+        return None;
+    }
+    if let Some(code) = named(REFUSALS) {
+        return Some(code.to_owned());
+    }
+    let bare = if social {
+        matches!(
+            status,
+            StatusCode::BAD_REQUEST | StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
+        )
+    } else {
+        status == StatusCode::UNAUTHORIZED
+    };
+    bare.then(|| format!("http {}", status.as_u16()))
 }
 
 impl CredentialRefresh for super::Kiro {
@@ -474,7 +523,8 @@ impl CredentialRefresh for super::Kiro {
                 .ok_or_else(|| {
                     ChannelError::RefreshRejected("credential has no refresh token".into())
                 })?;
-            let (url, body) = if is_identity_center(&context.credential) {
+            let social = !is_identity_center(&context.credential);
+            let (url, body) = if !social {
                 let (client_id, client_secret) =
                     own_client(&context.credential).ok_or(ChannelError::InvalidCredential)?;
                 let region = fact(&context.credential, "region")
@@ -495,7 +545,7 @@ impl CredentialRefresh for super::Kiro {
                     json!({ "refreshToken": refresh_token }),
                 )
             };
-            let (status, _, bytes) = send(
+            let (status, reply_headers, bytes) = send(
                 context.client,
                 Method::POST,
                 &url,
@@ -504,7 +554,7 @@ impl CredentialRefresh for super::Kiro {
             )
             .await?;
             if !status.is_success() {
-                if let Some(code) = definitive(status, &bytes) {
+                if let Some(code) = definitive(social, status, &reply_headers, &bytes) {
                     return Err(ChannelError::RefreshRejected(code));
                 }
                 return Err(ChannelError::UpstreamResponse {
@@ -559,10 +609,12 @@ mod tests {
 
     #[test]
     fn only_a_named_refusal_is_definitive() {
-        assert!(definitive(StatusCode::UNAUTHORIZED, b"").is_some());
+        assert!(definitive(false, StatusCode::UNAUTHORIZED, &HeaderMap::new(), b"").is_some());
         assert_eq!(
             definitive(
+                false,
                 StatusCode::BAD_REQUEST,
+                &HeaderMap::new(),
                 br#"{"__type":"InvalidGrantException"}"#
             )
             .as_deref(),
@@ -570,12 +622,14 @@ mod tests {
         );
         assert!(
             definitive(
+                false,
                 StatusCode::BAD_REQUEST,
+                &HeaderMap::new(),
                 br#"{"__type":"ThrottlingException"}"#
             )
             .is_none()
         );
-        assert!(definitive(StatusCode::BAD_GATEWAY, b"down").is_none());
+        assert!(definitive(false, StatusCode::BAD_GATEWAY, &HeaderMap::new(), b"down").is_none());
     }
 
     #[test]

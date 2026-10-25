@@ -288,6 +288,14 @@ impl CredentialRefresh for super::WorkBuddy {
             let wrapped = envelope::parse::<Tokens>(&body, "token refresh")?;
             let code = wrapped.code;
             let message = wrapped.msg.clone();
+            // The plugin logs out on an envelope code 401 answered to a call
+            // carrying its token (`AuthenticationHttpInterceptor.checkToLogout`),
+            // so that refusal ends the grant as surely as an HTTP 401.
+            if code == 401 {
+                return Err(ChannelError::RefreshRejected(format!(
+                    "envelope 401: {message}"
+                )));
+            }
             let tokens = wrapped.data("token refresh").map_err(|error| {
                 if code == AUTH_PENDING {
                     ChannelError::InvalidResponse(format!("{ID} refresh: {message} ({code})"))

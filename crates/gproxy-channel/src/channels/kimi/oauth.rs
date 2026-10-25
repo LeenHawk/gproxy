@@ -293,10 +293,14 @@ impl CredentialRefresh for super::Kimi {
             let reply = serde_json::from_slice::<TokenReply>(&body).ok();
             if !status.is_success() || reply.as_ref().is_none_or(|reply| reply.token().is_none()) {
                 let code = reply.as_ref().and_then(|reply| reply.error.clone());
-                // `invalid_grant` is the upstream saying this refresh token is
-                // finished; anything else may be transient.
-                if status == http::StatusCode::UNAUTHORIZED
-                    || matches!(code.as_deref(), Some("invalid_grant" | "invalid_client"))
+                // The CLI tombstones a refresh token on exactly 401, 403 or
+                // `invalid_grant` (kimi-code `oauth.ts` `refreshAccessToken`,
+                // `oauth-manager.ts` `revokedTombstone`); any other refusal,
+                // `invalid_client` included, it tries again next time.
+                if matches!(
+                    status,
+                    http::StatusCode::UNAUTHORIZED | http::StatusCode::FORBIDDEN
+                ) || code.as_deref() == Some("invalid_grant")
                 {
                     return Err(ChannelError::RefreshRejected(
                         code.unwrap_or_else(|| format!("http {}", status.as_u16())),

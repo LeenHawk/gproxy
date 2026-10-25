@@ -97,6 +97,19 @@ fn unix_now_ms() -> i64 {
         .unwrap_or(0)
 }
 
+/// GitHub answers its rate limits with 403 too: an exhausted
+/// `x-ratelimit-remaining`, a `retry-after`, or a body naming the limit.
+fn rate_limited(headers: &HeaderMap, body: &[u8]) -> bool {
+    headers
+        .get("x-ratelimit-remaining")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.trim() == "0")
+        || headers.contains_key(header::RETRY_AFTER)
+        || String::from_utf8_lossy(body)
+            .to_ascii_lowercase()
+            .contains("rate limit")
+}
+
 /// Exchange the GitHub token for a Copilot token. Shared by the login's final
 /// step and by every later refresh, because they are the same exchange.
 async fn mint(
@@ -104,7 +117,7 @@ async fn mint(
     config: &CopilotCliConfig,
     github_token: &str,
 ) -> Result<(String, i64), ChannelError> {
-    let (status, _, body) = send(
+    let (status, headers, body) = send(
         client,
         Method::GET,
         &format!("{}/copilot_internal/v2/token", config.github_api_url()),
@@ -114,17 +127,18 @@ async fn mint(
     .await?;
     if !status.is_success() {
         // GitHub refusing the token itself is definitive: the OAuth grant was
-        // revoked or the account lost its Copilot seat. A 5xx is not.
-        return Err(
-            if matches!(
-                status,
-                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN | StatusCode::NOT_FOUND
-            ) {
-                ChannelError::RefreshRejected(format!("http {}", status.as_u16()))
-            } else {
-                ChannelError::UpstreamResponse { status, body }
-            },
-        );
+        // revoked or the account lost its Copilot seat. A 5xx is not, and
+        // neither is a 403 that is GitHub's rate limit rather than a refusal.
+        let definitive = match status {
+            StatusCode::UNAUTHORIZED | StatusCode::NOT_FOUND => true,
+            StatusCode::FORBIDDEN => !rate_limited(&headers, &body),
+            _ => false,
+        };
+        return Err(if definitive {
+            ChannelError::RefreshRejected(format!("http {}", status.as_u16()))
+        } else {
+            ChannelError::UpstreamResponse { status, body }
+        });
     }
     let reply: CopilotTokenReply = serde_json::from_slice(&body)
         .map_err(|error| invalid_response(format!("{ID} token: {error}")))?;

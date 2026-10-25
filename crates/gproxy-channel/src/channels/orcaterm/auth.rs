@@ -186,8 +186,16 @@ pub(super) async fn rpc_response(
 pub(super) fn check_response(action: &str, response: &Value) -> Result<(), ChannelError> {
     if let Some(error) = response.get("Error") {
         let code = error["Code"].as_str().unwrap_or("unknown");
+        // TokenManager re-logs in on these (features.js:88375); the RPC layer
+        // logs out on PROVIDER_AUTH_EXPIRED without reconciling (:51584).
         if action == "OAuthRefreshToken"
-            && matches!(code, "SESSION_EXPIRED" | "INVALID_REFRESH_TOKEN")
+            && matches!(
+                code,
+                "INVALID_REQUEST"
+                    | "SESSION_EXPIRED"
+                    | "INVALID_REFRESH_TOKEN"
+                    | "PROVIDER_AUTH_EXPIRED"
+            )
         {
             return Err(ChannelError::RefreshRejected(format!("OrcaTerm {code}")));
         }

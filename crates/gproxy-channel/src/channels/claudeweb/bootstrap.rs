@@ -75,6 +75,33 @@ pub(super) fn parse(body: &[u8]) -> Result<Bootstrap, BootstrapFailure> {
     })
 }
 
+/// An unexpired `active_flags` entry whose type names a ban. clewdr retires
+/// such cookies for good (`check_flags`); restricted and warning flags carry
+/// a reset time and stay recoverable. A flag without `expires_at` is active.
+pub(super) fn banned(bootstrap: &Bootstrap, now_ms: i64) -> bool {
+    bootstrap
+        .active_flags
+        .as_ref()
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|flag| {
+            flag.get("type")
+                .and_then(Value::as_str)
+                .is_some_and(|kind| kind.contains("banned"))
+        })
+        .any(
+            |flag| match flag.get("expires_at").and_then(Value::as_str) {
+                None => true,
+                Some(expires) => time::OffsetDateTime::parse(
+                    expires,
+                    &time::format_description::well_known::Rfc3339,
+                )
+                .is_ok_and(|at| at.unix_timestamp_nanos() / 1_000_000 > i128::from(now_ms)),
+            },
+        )
+}
+
 fn has_capability(organization: &Value, name: &str) -> bool {
     organization
         .get("capabilities")

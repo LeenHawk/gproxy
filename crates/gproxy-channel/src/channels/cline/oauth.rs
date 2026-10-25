@@ -142,6 +142,45 @@ fn credential(data: &Value) -> Result<OAuthCredential, ChannelError> {
     })
 }
 
+/// The SDK's `ClineOAuthTokenError.isLikelyInvalidGrant` for a failed
+/// refresh: the code and message are read as `parseOAuthError` reads them,
+/// and the message is the one the SDK builds around them. `Some` carries the
+/// reason a definitive rejection records.
+fn likely_invalid_grant(status: StatusCode, body: &Bytes) -> Option<String> {
+    let value = serde_json::from_slice::<Value>(body).ok();
+    let error = value.as_ref().and_then(|value| value.get("error"));
+    let code = error.and_then(|error| {
+        error
+            .as_str()
+            .or_else(|| error.get("type").and_then(Value::as_str))
+    });
+    let detail = value.as_ref().and_then(|value| {
+        value
+            .get("error_description")
+            .and_then(Value::as_str)
+            .or_else(|| value.get("message").and_then(Value::as_str))
+            .or_else(|| error?.get("message").and_then(Value::as_str))
+    });
+    let message = match detail.filter(|detail| !detail.is_empty()) {
+        Some(detail) => format!("Token refresh failed: {} - {detail}", status.as_u16()),
+        None => format!("Token refresh failed: {}", status.as_u16()),
+    };
+    let any = |text: &str, words: &[&str]| {
+        let text = text.to_ascii_lowercase();
+        words.iter().any(|word| text.contains(word))
+    };
+    if let Some(code) = code.filter(|code| {
+        !code.is_empty() && any(code, &["invalid_grant", "invalid_token", "unauthorized"])
+    }) {
+        return Some(code.to_owned());
+    }
+    (matches!(
+        status,
+        StatusCode::BAD_REQUEST | StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
+    ) && any(&message, &["invalid", "expired", "revoked", "unauthorized"]))
+    .then_some(message)
+}
+
 impl OAuthDeviceCode for super::Cline {
     fn start<'a>(&'a self, context: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
@@ -264,27 +303,16 @@ impl CredentialRefresh for super::Cline {
                 ),
             )
             .await?;
-            let reported_failure = serde_json::from_slice::<Value>(&body)
-                .ok()
-                .is_some_and(|value| value.get("success").and_then(Value::as_bool) == Some(false));
-            if !status.is_success() || reported_failure {
+            if !status.is_success() {
                 // Only the upstream saying "this token is finished" is
                 // definitive; a gateway failure is not a dead credential.
-                return Err(
-                    if reported_failure
-                        || matches!(
-                            status,
-                            StatusCode::BAD_REQUEST
-                                | StatusCode::UNAUTHORIZED
-                                | StatusCode::FORBIDDEN
-                        )
-                    {
-                        ChannelError::RefreshRejected(format!("http {}", status.as_u16()))
-                    } else {
-                        ChannelError::UpstreamResponse { status, body }
-                    },
-                );
+                return Err(match likely_invalid_grant(status, &body) {
+                    Some(reason) => ChannelError::RefreshRejected(reason),
+                    None => ChannelError::UpstreamResponse { status, body },
+                });
             }
+            // A 2xx that reports `success: false` or carries no access token
+            // is a malformed reply, not a rejection (`requireClineTokenResponse`).
             let data = envelope(&body)?;
             let rotated = credential(&data)?;
             // A full replacement that keeps what the rotation did not name:

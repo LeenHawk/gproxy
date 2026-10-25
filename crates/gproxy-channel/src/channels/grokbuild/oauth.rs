@@ -21,7 +21,7 @@ use crate::channels::shared::compatible::ability::send;
 use crate::channels::shared::compatible::http::invalid_response;
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
+use http::{HeaderMap, HeaderValue, Method, header};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -246,14 +246,11 @@ impl CredentialRefresh for super::GrokBuild {
             let reply = serde_json::from_slice::<TokenReply>(&body).ok();
             if !status.is_success() || reply.as_ref().is_none_or(|reply| reply.access().is_none()) {
                 let code = reply.as_ref().and_then(|reply| reply.error.clone());
-                // `invalid_grant` is the issuer saying this refresh token is
-                // finished; anything else may be transient.
-                if status == StatusCode::UNAUTHORIZED
-                    || matches!(code.as_deref(), Some("invalid_grant" | "invalid_client"))
-                {
-                    return Err(ChannelError::RefreshRejected(
-                        code.unwrap_or_else(|| format!("http {}", status.as_u16())),
-                    ));
+                // Only the OAuth code is definitive, as in the CLI's
+                // `oidc/refresh.rs::classify_terminal`: a bare 4xx, 429 or 5xx
+                // is retried there, never a dead credential.
+                if let Some(code @ ("invalid_grant" | "invalid_client")) = code.as_deref() {
+                    return Err(ChannelError::RefreshRejected(code.to_owned()));
                 }
                 return Err(ChannelError::UpstreamResponse { status, body });
             }
