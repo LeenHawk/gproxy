@@ -100,11 +100,13 @@ async fn usable(h: &Harness, model: &str) -> bool {
 }
 
 async fn permission(h: &Harness, allow: bool) {
+    let version = h.core.snapshot().credentials["a"].state.load().version + 1;
     h.core
         .store()
         .credentials()
         .update_many(vec![credential::ActiveModel {
             id: Set("a".into()),
+            version: Set(version),
             metadata: Set(json!({"user_id":"upstream-user","allow_paid_usage":allow})),
             ..Default::default()
         }])
