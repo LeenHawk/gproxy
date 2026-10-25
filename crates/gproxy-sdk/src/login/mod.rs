@@ -86,7 +86,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
                 "this channel has no authorization code login",
             ));
         };
-        let pkce = pkce::pkce()?;
+        let pkce = pkce::pkce(flow.pkce_verifier_bytes())?;
         let state = crate::ids::random_id();
         let client = self.inner.core.provider_client(&provider.entity.id).await?;
         // An empty redirect leaves the choice to the channel, which is what a

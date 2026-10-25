@@ -103,7 +103,7 @@ report quota windows without offering a reset.
 | Accessor | Purpose |
 | --- | --- |
 | `credential_refresh` | Produce a **full replacement** secret, expiry and optional public metadata; the host persists it under a compare-and-swap on `version` |
-| `oauth_authorization_code` | Build the authorize URL for a host-supplied PKCE challenge and state; exchange the code |
+| `oauth_authorization_code` | Build the authorize URL for a host-supplied PKCE challenge and state; exchange the code. Override `pkce_verifier_bytes` when the upstream client mints a verifier other than 32 bytes |
 | `oauth_device_code` | `start` and one `poll` step. Scheduling belongs to the host |
 | `quota_model` | Synchronous and pure: which quota dimensions a credential has, from its `auth_kind` and metadata |
 | `quota_query` | Read a quota snapshot from the upstream's usage endpoint |

@@ -347,6 +347,12 @@ fn callback_result(code: &str, state: &str) -> Result<(String, Option<String>), 
 }
 
 impl OAuthAuthorizationCode for OAuth {
+    /// The desktop's verifier is `randomBytes(48)` base64url: 64 characters
+    /// (marscode/util.js, main.js:52840).
+    fn pkce_verifier_bytes(&self) -> usize {
+        48
+    }
+
     fn authorize<'a>(
         &'a self,
         context: LoginContext<'a>,

@@ -83,6 +83,14 @@ pub struct AuthorizationCode<'a> {
 }
 
 pub trait OAuthAuthorizationCode: Send + Sync {
+    /// Random bytes behind the PKCE verifier the host mints. The default 32
+    /// encode to 43 characters; a channel whose upstream client uses another
+    /// size returns it so the verifier length matches. RFC 7636 bounds the
+    /// verifier to 43..=128 characters, so the host clamps this to 32..=96.
+    fn pkce_verifier_bytes(&self) -> usize {
+        32
+    }
+
     fn authorize<'a>(
         &'a self,
         context: LoginContext<'a>,

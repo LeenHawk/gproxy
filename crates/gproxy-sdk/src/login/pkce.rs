@@ -12,9 +12,9 @@ use sha2::{Digest, Sha256};
 
 use crate::{SdkError, SdkResult};
 
-/// 32 bytes, the upper bound RFC 7636 allows for a verifier and the only size
-/// worth using: 43 base64url characters, all of them entropy.
-const VERIFIER_BYTES: usize = 32;
+/// RFC 7636 allows 43..=128 verifier characters: 32..=96 random bytes once
+/// base64url-encoded. The channel picks the size its upstream client uses.
+const VERIFIER_BYTES: std::ops::RangeInclusive<usize> = 32..=96;
 
 /// A verifier and the challenge derived from it.
 pub(crate) struct Pkce {
@@ -22,8 +22,9 @@ pub(crate) struct Pkce {
     pub(crate) challenge: String,
 }
 
-pub(crate) fn pkce() -> SdkResult<Pkce> {
-    let mut bytes = [0_u8; VERIFIER_BYTES];
+pub(crate) fn pkce(verifier_bytes: usize) -> SdkResult<Pkce> {
+    let mut bytes =
+        vec![0_u8; verifier_bytes.clamp(*VERIFIER_BYTES.start(), *VERIFIER_BYTES.end())];
     // Unlike a row id, a guessable verifier is a vulnerability rather than a
     // collision risk, so entropy failure is fatal here instead of tolerated.
     getrandom::fill(&mut bytes)
@@ -62,8 +63,8 @@ mod tests {
 
     #[test]
     fn a_verifier_is_fresh_and_url_safe() {
-        let first = pkce().unwrap();
-        let second = pkce().unwrap();
+        let first = pkce(32).unwrap();
+        let second = pkce(32).unwrap();
         assert_ne!(first.verifier, second.verifier);
         assert_eq!(first.challenge, challenge(&first.verifier));
         assert!(
@@ -74,5 +75,6 @@ mod tests {
         );
         // RFC 7636 requires 43..=128 characters; 32 bytes encode to exactly 43.
         assert_eq!(first.verifier.len(), 43);
+        assert_eq!(pkce(48).unwrap().verifier.len(), 64);
     }
 }
