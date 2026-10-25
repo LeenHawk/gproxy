@@ -32,14 +32,34 @@ use std::time::Duration;
 /// What the upstream grants when it does not say.
 const DEFAULT_EXPIRES_IN_SECS: i64 = 3_600;
 
-fn form_headers() -> HeaderMap {
+/// The CLI's shared reqwest client: its process user agent, `.form()`'s
+/// content type and reqwest's default `Accept` (`xai-grok-http`
+/// `shared_client`). The refresh sends nothing else.
+fn form_headers() -> Result<HeaderMap, ChannelError> {
     let mut headers = HeaderMap::new();
     headers.insert(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/x-www-form-urlencoded"),
     );
-    headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
-    headers
+    headers.insert(
+        header::USER_AGENT,
+        HeaderValue::from_str(&super::auth::user_agent(false))
+            .map_err(|_| ChannelError::InvalidConfig("invalid CLI user agent".into()))?,
+    );
+    Ok(headers)
+}
+
+/// The device flow adds the client version and the surface the login is
+/// finished on (CLI `device_code.rs`). A console login renders the code to a
+/// person, which the CLI calls `ui`.
+fn device_headers() -> Result<HeaderMap, ChannelError> {
+    let mut headers = form_headers()?;
+    headers.insert(
+        "x-grok-client-version",
+        HeaderValue::from_static(super::auth::CLI_VERSION),
+    );
+    headers.insert("x-grok-client-surface", HeaderValue::from_static("ui"));
+    Ok(headers)
 }
 
 #[derive(Deserialize)]
@@ -157,10 +177,14 @@ impl OAuthDeviceCode for super::GrokBuild {
                 context.client,
                 Method::POST,
                 config.device_code_url(),
-                form_headers(),
+                device_headers()?,
                 Some(
-                    form_encode(&[("client_id", DEFAULT_CLIENT_ID), ("scope", OAUTH_SCOPE)])
-                        .into_bytes(),
+                    form_encode(&[
+                        ("client_id", DEFAULT_CLIENT_ID),
+                        ("scope", OAUTH_SCOPE),
+                        ("referrer", "grok-build"),
+                    ])
+                    .into_bytes(),
                 ),
             )
             .await?;
@@ -202,12 +226,12 @@ impl OAuthDeviceCode for super::GrokBuild {
                 context.client,
                 Method::POST,
                 config.token_url(),
-                form_headers(),
+                device_headers()?,
                 Some(
                     form_encode(&[
                         ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-                        ("client_id", DEFAULT_CLIENT_ID),
                         ("device_code", &authorization.device_code),
+                        ("client_id", DEFAULT_CLIENT_ID),
                     ])
                     .into_bytes(),
                 ),
@@ -238,8 +262,9 @@ impl OAuthDeviceCode for super::GrokBuild {
             }
             match reply.error.as_deref() {
                 Some("authorization_pending") => Ok(DevicePoll::Pending),
+                // The CLI adds five seconds per `slow_down`.
                 Some("slow_down") => Ok(DevicePoll::SlowDown {
-                    interval_secs: authorization.interval_secs.saturating_mul(2).max(5),
+                    interval_secs: authorization.interval_secs.saturating_add(5),
                 }),
                 Some("access_denied") => Ok(DevicePoll::Denied),
                 Some("expired_token") => Ok(DevicePoll::Expired),
@@ -266,7 +291,7 @@ async fn refresh_once(
         client,
         Method::POST,
         url,
-        form_headers(),
+        form_headers()?,
         Some(form.as_bytes().to_vec()),
     )
     .await?;
@@ -337,8 +362,8 @@ impl CredentialRefresh for super::GrokBuild {
                 .to_owned();
             let mut form = vec![
                 ("grant_type", "refresh_token"),
-                ("client_id", DEFAULT_CLIENT_ID),
                 ("refresh_token", refresh_token),
+                ("client_id", DEFAULT_CLIENT_ID),
             ];
             // The principal the login chose renews as that principal (CLI
             // `oidc/protocol.rs::refresh_tokens_once`).
@@ -374,21 +399,9 @@ impl CredentialRefresh for super::GrokBuild {
             if let Some(id_token) = id_token {
                 object.insert("id_token".into(), Value::String(id_token.to_owned()));
             }
-            let mut fields = BTreeMap::new();
-            account_fields(access, id_token, &mut fields);
-            if !fields.is_empty() {
-                let existing = object
-                    .entry("provider_fields")
-                    .or_insert_with(|| Value::Object(serde_json::Map::new()));
-                if let Some(existing) = existing.as_object_mut() {
-                    if principal(access).is_some_and(|(kind, _)| principal_is_account(&kind)) {
-                        existing.remove("user_email");
-                    }
-                    for (name, value) in fields {
-                        existing.insert(name, value);
-                    }
-                }
-            }
+            // The account facts stay the login's: the CLI reuses that
+            // identity and skips the refreshed id token
+            // (`oidc/refresh.rs::oidc_token_exchange`).
             Ok(CredentialUpdate {
                 metadata: None,
                 secret: updated,

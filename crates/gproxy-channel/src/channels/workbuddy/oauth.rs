@@ -118,6 +118,56 @@ fn login_headers() -> http::HeaderMap {
     headers
 }
 
+/// The opt-outs the plugin writes on its pre-session calls
+/// (`ExternalLinkAuthenticationProvider`): its interceptor reads them and
+/// leaves them on the wire. `auth/state` and the token poll send all four;
+/// the account poll, which carries a bearer, omits the first.
+fn opt_out(headers: &mut http::HeaderMap, with_authorization: bool) {
+    let names: &[&'static str] = if with_authorization {
+        &[
+            "x-no-authorization",
+            "x-no-user-id",
+            "x-no-enterprise-id",
+            "x-no-department-info",
+        ]
+    } else {
+        &["x-no-user-id", "x-no-enterprise-id", "x-no-department-info"]
+    };
+    for name in names {
+        headers.insert(
+            HeaderName::from_static(name),
+            HeaderValue::from_static("true"),
+        );
+    }
+}
+
+/// `X-Domain` as the plugin's `enterpriseHeaders` sends it: the token's
+/// domain, else the authority of the endpoint being called.
+fn domain_header(
+    headers: &mut http::HeaderMap,
+    domain: Option<&str>,
+    base: &str,
+) -> Result<(), ChannelError> {
+    let name = HeaderName::from_static("x-domain");
+    let domain = domain
+        .map(str::trim)
+        .filter(|domain| !domain.is_empty())
+        .map(str::to_owned)
+        .or_else(|| {
+            base.parse::<http::Uri>()
+                .ok()?
+                .authority()
+                .map(|authority| authority.as_str().to_owned())
+        });
+    if let Some(domain) = domain {
+        headers.insert(
+            name,
+            HeaderValue::from_str(&domain).map_err(|_| ChannelError::InvalidCredential)?,
+        );
+    }
+    Ok(())
+}
+
 impl OAuthDeviceCode for super::WorkBuddy {
     fn start<'a>(&'a self, context: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
@@ -130,7 +180,12 @@ impl OAuthDeviceCode for super::WorkBuddy {
                     "{base}/v2/plugin/auth/state?platform={}",
                     config.login_platform()
                 ),
-                login_headers(),
+                {
+                    let mut headers = login_headers();
+                    domain_header(&mut headers, None, &base)?;
+                    opt_out(&mut headers, true);
+                    headers
+                },
                 Some(b"{}".to_vec()),
             )
             .await?;
@@ -167,7 +222,11 @@ impl OAuthDeviceCode for super::WorkBuddy {
                 context.client,
                 Method::GET,
                 &format!("{base}/v2/plugin/auth/token?state={state}"),
-                login_headers(),
+                {
+                    let mut headers = login_headers();
+                    opt_out(&mut headers, true);
+                    headers
+                },
                 None,
             )
             .await?;
@@ -186,12 +245,8 @@ impl OAuthDeviceCode for super::WorkBuddy {
                 HeaderValue::from_str(&format!("Bearer {}", tokens.access_token))
                     .map_err(|_| ChannelError::InvalidCredential)?,
             );
-            if let Some(domain) = tokens.domain.as_deref().filter(|d| !d.trim().is_empty()) {
-                headers.insert(
-                    HeaderName::from_static("x-domain"),
-                    HeaderValue::from_str(domain).map_err(|_| ChannelError::InvalidCredential)?,
-                );
-            }
+            domain_header(&mut headers, tokens.domain.as_deref(), &base)?;
+            opt_out(&mut headers, false);
             let (status, _, body) = send(
                 context.client,
                 Method::GET,
@@ -303,19 +358,26 @@ impl CredentialRefresh for super::WorkBuddy {
                 HeaderName::from_static("x-auth-refresh-source"),
                 HeaderValue::from_static("plugin"),
             );
-            if let Some(domain) = super::auth::fact(&context.credential, "domain") {
+            // The refresh goes out with the session the plugin is renewing,
+            // so its interceptor adds the bearer and the account facts.
+            if let Ok(access) = super::auth::access_token(&context.credential) {
                 headers.insert(
-                    HeaderName::from_static("x-domain"),
-                    HeaderValue::from_str(domain).map_err(|_| ChannelError::InvalidCredential)?,
+                    header::AUTHORIZATION,
+                    HeaderValue::from_str(&format!("Bearer {access}"))
+                        .map_err(|_| ChannelError::InvalidCredential)?,
                 );
             }
+            super::auth::account_headers(&mut headers, &context.credential)?;
+            let base = config.base_url(context.provider);
+            domain_header(
+                &mut headers,
+                super::auth::fact(&context.credential, "domain"),
+                &base,
+            )?;
             let (status, _, body) = send(
                 context.client,
                 Method::POST,
-                &format!(
-                    "{}/v2/plugin/auth/token/refresh",
-                    config.base_url(context.provider)
-                ),
+                &format!("{base}/v2/plugin/auth/token/refresh"),
                 headers,
                 Some(b"{}".to_vec()),
             )

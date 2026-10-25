@@ -18,6 +18,7 @@ use p256::{
     ecdsa::{Signature, SigningKey, signature::Signer},
     pkcs8::{EncodePublicKey, LineEnding},
 };
+use serde::Serialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
@@ -38,21 +39,209 @@ fn private_key(value: &Value) -> Result<SigningKey, ChannelError> {
     SigningKey::from_slice(&bytes).map_err(|_| ChannelError::InvalidCredential)
 }
 
-fn device(
-    config: &TraeConfig,
-    id: &str,
-    machine: &str,
+// Request bodies are structs so they serialize in the desktop's insertion
+// order (marscode/request.js); serde_json maps would sort the keys.
+
+/// marscode/request.js `j()`: the Linux desktop's system information.
+#[derive(Serialize)]
+struct DeviceInfo<'a> {
+    #[serde(rename = "DeviceID")]
+    device_id: &'a str,
+    #[serde(rename = "MachineID")]
+    machine_id: &'a str,
+    #[serde(rename = "PlatformCode")]
+    platform_code: &'static str,
+    #[serde(rename = "DeviceType")]
+    device_type: &'static str,
+    #[serde(rename = "DeviceName")]
+    device_name: String,
+    #[serde(rename = "DeviceModel")]
+    device_model: &'static str,
+    #[serde(rename = "ClientVersion")]
+    client_version: &'a str,
+    #[serde(rename = "DevicePublicKey")]
+    device_public_key: String,
+    #[serde(rename = "DeviceBrand")]
+    device_brand: &'static str,
+    #[serde(rename = "DeviceCPU")]
+    device_cpu: &'static str,
+    #[serde(rename = "OSInfo")]
+    os_info: &'static str,
+    #[serde(rename = "OSVersion")]
+    os_version: &'static str,
+}
+
+#[derive(Serialize)]
+struct DeviceProof {
+    #[serde(rename = "Signature")]
+    signature: String,
+    #[serde(rename = "Timestamp")]
+    timestamp: i64,
+    #[serde(rename = "Nonce")]
+    nonce: String,
+}
+
+#[derive(Serialize)]
+struct RefreshBody<'a> {
+    #[serde(rename = "ClientID")]
+    client_id: &'static str,
+    #[serde(rename = "ClientSecret")]
+    client_secret: &'static str,
+    #[serde(rename = "RefreshToken")]
+    refresh_token: &'a str,
+    #[serde(rename = "DeviceInfo")]
+    device_info: DeviceInfo<'a>,
+    #[serde(rename = "DeviceProof")]
+    device_proof: DeviceProof,
+    #[serde(rename = "IDEVersion")]
+    ide_version: &'a str,
+}
+
+#[derive(Serialize)]
+struct AuthCodeBody<'a> {
+    #[serde(rename = "ClientID")]
+    client_id: &'static str,
+    #[serde(rename = "AuthCode")]
+    auth_code: &'a str,
+    #[serde(rename = "CodeVerifier")]
+    code_verifier: &'a str,
+    #[serde(rename = "DeviceInfo")]
+    device_info: DeviceInfo<'a>,
+    #[serde(rename = "IDEVersion")]
+    ide_version: &'a str,
+}
+
+#[derive(Serialize)]
+struct UserInfoBody<'a> {
+    #[serde(rename = "ReqSource")]
+    req_source: &'static str,
+    #[serde(rename = "IDEVersion")]
+    ide_version: &'a str,
+}
+
+/// A plausible Linux workstation, fixed per credential by its machine ID.
+/// iCubeSystemInformationService reports `osName` as `process.platform`,
+/// `osVersion` as os-release PRETTY_NAME and the CPU brand before any "@";
+/// `OPe` names the device after the user or, failing that, the hostname.
+struct Persona {
+    name: String,
+    os_version: &'static str,
+    cpu: &'static str,
+}
+
+const USERS: &[&str] = &[
+    "alex", "chris", "dana", "jamie", "jordan", "kai", "lee", "morgan", "robin", "sam",
+];
+const MACHINES: &[&str] = &[
+    "ThinkPad-X1-Carbon",
+    "ThinkPad-T14",
+    "XPS-15-9520",
+    "XPS-13-9310",
+    "Precision-5570",
+    "OptiPlex-7090",
+    "Latitude-7420",
+    "desktop",
+    "workstation",
+];
+const OS_VERSIONS: &[&str] = &[
+    "Ubuntu 24.04.2 LTS",
+    "Ubuntu 22.04.5 LTS",
+    "Debian GNU/Linux 12 (bookworm)",
+    "Fedora Linux 41 (Workstation Edition)",
+    "Linux Mint 22.1",
+];
+const CPUS: &[&str] = &[
+    "12th Gen Intel(R) Core(TM) i7-1260P",
+    "13th Gen Intel(R) Core(TM) i7-13700H",
+    "11th Gen Intel(R) Core(TM) i5-1145G7",
+    "AMD Ryzen 7 5800X 8-Core Processor",
+    "AMD Ryzen 7 PRO 6850U with Radeon Graphics",
+    "AMD Ryzen 9 7950X 16-Core Processor",
+];
+
+fn persona(machine: &str) -> Persona {
+    // FNV-1a: stable across builds and platforms, unlike the std hasher.
+    let hash = machine
+        .bytes()
+        .fold(0xcbf2_9ce4_8422_2325u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+        });
+    let pick = |items: &'static [&'static str], shift: u32| {
+        items[((hash >> shift) % items.len() as u64) as usize]
+    };
+    Persona {
+        name: format!("{}-{}", pick(USERS, 0), pick(MACHINES, 16)),
+        os_version: pick(OS_VERSIONS, 32),
+        cpu: pick(CPUS, 48),
+    }
+}
+
+fn device<'a>(
+    config: &'a TraeConfig,
+    id: &'a str,
+    machine: &'a str,
     key: &SigningKey,
-) -> Result<Value, ChannelError> {
+) -> Result<DeviceInfo<'a>, ChannelError> {
     let public = key
         .verifying_key()
         .to_public_key_pem(LineEnding::LF)
         .map_err(invalid)?;
-    Ok(
-        json!({"DeviceID":id,"MachineID":machine,"PlatformCode":"IDE_PC","DeviceType":"PC",
-        "DeviceName":"GProxy","DeviceModel":"","ClientVersion":config.version(),
-        "DevicePublicKey":public,"DeviceBrand":"","DeviceCPU":"","OSInfo":"Linux","OSVersion":""}),
+    let persona = persona(machine);
+    Ok(DeviceInfo {
+        device_id: id,
+        machine_id: machine,
+        platform_code: "IDE_PC",
+        device_type: "PC",
+        device_name: persona.name,
+        device_model: "",
+        client_version: config.version(),
+        device_public_key: public,
+        device_brand: "",
+        device_cpu: persona.cpu,
+        os_info: "linux",
+        os_version: persona.os_version,
+    })
+}
+
+fn encode(body: &impl Serialize) -> Result<Vec<u8>, ChannelError> {
+    serde_json::to_vec(body).map_err(invalid)
+}
+
+/// marscode/request.js `getUserInfo`, as the desktop calls it after a login
+/// and after every refresh.
+async fn user_info(
+    client: &dyn crate::OutboundClient,
+    origin: &str,
+    config: &TraeConfig,
+    token: &str,
+) -> Result<Value, ChannelError> {
+    let (status, _, body) = send(
+        client,
+        Method::POST,
+        &format!("{origin}/cloudide/api/v3/trae/GetUserInfo"),
+        headers(token)?,
+        Some(encode(&UserInfoBody {
+            req_source: "IDE",
+            ide_version: config.version(),
+        })?),
     )
+    .await?;
+    let account = json(&require_success(status, body)?)?;
+    check(&account)?;
+    account
+        .get("Result")
+        .cloned()
+        .ok_or_else(|| invalid("missing user information"))
+}
+
+/// The routing region: a US TTP login stays there, otherwise the account's
+/// AI region, otherwise the login's region.
+fn account_region(auth_region: Option<&str>, account: &Value) -> Option<String> {
+    auth_region
+        .filter(|r| *r == "USTTP")
+        .or_else(|| account["AIRegion"].as_str().map(super::config::region))
+        .or(auth_region)
+        .map(str::to_owned)
 }
 
 fn headers(token: &str) -> Result<HeaderMap, ChannelError> {
@@ -78,7 +267,7 @@ fn expiry(result: &Value) -> Option<i64> {
 async fn exchange(
     client: &dyn crate::OutboundClient,
     origin: &str,
-    body: Value,
+    body: Vec<u8>,
     token: &str,
     refreshing: bool,
 ) -> Result<Value, ChannelError> {
@@ -87,7 +276,7 @@ async fn exchange(
         Method::POST,
         &format!("{origin}{TOKEN_PATH}"),
         headers(token)?,
-        Some(body.to_string().into_bytes()),
+        Some(body),
     )
     .await?;
     // Only the native client's explicit invalid/revoked token codes are final
@@ -175,8 +364,24 @@ impl OAuthAuthorizationCode for OAuth {
             callback
                 .query_pairs_mut()
                 .append_pair("state", request.state);
+            // login.js uses its own `randomUUID()` trace, not the CSRF state.
+            let trace = {
+                let hex = random_hex::<16>()?;
+                let variant = ["8", "9", "a", "b"][usize::from(hex.as_bytes()[16] % 4)];
+                format!(
+                    "{}-{}-4{}-{variant}{}-{}",
+                    &hex[..8],
+                    &hex[8..12],
+                    &hex[13..16],
+                    &hex[17..20],
+                    &hex[20..]
+                )
+            };
+            let persona = persona(&machine);
             let mut url =
                 url::Url::parse(&format!("{}/authorization", config.website())).map_err(invalid)?;
+            // The desktop sends no `state`; ours stays (top level and inside the
+            // callback) because `callback_result` checks it against the login.
             url.query_pairs_mut().extend_pairs([
                 ("state", request.state),
                 ("login_version", "1"),
@@ -187,11 +392,16 @@ impl OAuthAuthorizationCode for OAuth {
                 ("client_id", CLIENT_ID),
                 ("redirect", "0"),
                 ("auth_callback_url", callback.as_str()),
-                ("login_trace_id", request.state),
+                ("login_trace_id", trace.as_str()),
                 ("machine_id", machine.as_str()),
                 ("device_id", id.as_str()),
                 ("x_device_id", id.as_str()),
                 ("x_machine_id", machine.as_str()),
+                // querystring.stringify keeps empty and undefined values.
+                ("x_device_brand", ""),
+                ("x_device_type", "linux"),
+                ("x_os_version", persona.os_version),
+                ("x_env", ""),
                 ("x_app_version", config.version()),
                 ("x_app_type", "stable"),
                 ("code_challenge", request.code_challenge),
@@ -236,9 +446,13 @@ impl OAuthAuthorizationCode for OAuth {
             let result = exchange(
                 context.client,
                 origin,
-                json!({"ClientID":CLIENT_ID,"AuthCode":code,
-                "CodeVerifier":grant.code_verifier,"DeviceInfo":device(&config,id,machine,&key)?,
-                "IDEVersion":config.version()}),
+                encode(&AuthCodeBody {
+                    client_id: CLIENT_ID,
+                    auth_code: &code,
+                    code_verifier: grant.code_verifier,
+                    device_info: device(&config, id, machine, &key)?,
+                    ide_version: config.version(),
+                })?,
                 "",
                 false,
             )
@@ -246,23 +460,7 @@ impl OAuthAuthorizationCode for OAuth {
             let token = result["Token"]
                 .as_str()
                 .ok_or(ChannelError::InvalidCredential)?;
-            let (status, _, body) = send(
-                context.client,
-                Method::POST,
-                &format!("{origin}/cloudide/api/v3/trae/GetUserInfo"),
-                headers(token)?,
-                Some(
-                    json!({"ReqSource":"IDE","IDEVersion":config.version()})
-                        .to_string()
-                        .into_bytes(),
-                ),
-            )
-            .await?;
-            let account = json(&require_success(status, body)?)?;
-            check(&account)?;
-            let account = account
-                .get("Result")
-                .ok_or_else(|| invalid("missing user information"))?;
+            let account = user_info(context.client, origin, &config, token).await?;
             let user_id = account["UserID"]
                 .as_str()
                 .filter(|v| !v.is_empty())
@@ -276,11 +474,7 @@ impl OAuthAuthorizationCode for OAuth {
             for (name, value) in [
                 (
                     "region",
-                    region
-                        .as_deref()
-                        .filter(|r| *r == "USTTP")
-                        .or_else(|| account["AIRegion"].as_str().map(super::config::region))
-                        .or(region.as_deref()),
+                    account_region(region.as_deref(), &account).as_deref(),
                 ),
                 ("user_name", account["ScreenName"].as_str()),
             ] {
@@ -362,20 +556,26 @@ impl CredentialRefresh for OAuth {
                 format!("POST\n{TOKEN_PATH}\n{CLIENT_ID}\n{refresh}\n{timestamp}\n{nonce}")
                     .as_bytes(),
             );
-            let body = json!({"ClientID":CLIENT_ID,"ClientSecret":"","RefreshToken":refresh,
-                "DeviceInfo":device(&config, fact(credential,"device_id").ok_or(ChannelError::InvalidCredential)?, fact(credential,"machine_id").ok_or(ChannelError::InvalidCredential)?, &key)?,
-                "DeviceProof":{"Signature":STANDARD.encode(signature.to_der()),"Timestamp":timestamp,"Nonce":nonce},
-                "IDEVersion":config.version()});
-            let result = exchange(
-                context.client,
-                config.auth_origin(
-                    fact(credential, "auth_region").or_else(|| fact(credential, "region")),
-                ),
-                body,
-                token,
-                true,
-            )
-            .await?;
+            let body = encode(&RefreshBody {
+                client_id: CLIENT_ID,
+                client_secret: "",
+                refresh_token: refresh,
+                device_info: device(
+                    &config,
+                    fact(credential, "device_id").ok_or(ChannelError::InvalidCredential)?,
+                    fact(credential, "machine_id").ok_or(ChannelError::InvalidCredential)?,
+                    &key,
+                )?,
+                device_proof: DeviceProof {
+                    signature: STANDARD.encode(signature.to_der()),
+                    timestamp,
+                    nonce,
+                },
+                ide_version: config.version(),
+            })?;
+            let auth_region = fact(credential, "auth_region");
+            let origin = config.auth_origin(auth_region.or_else(|| fact(credential, "region")));
+            let result = exchange(context.client, origin, body, token, true).await?;
             let expires_at_ms = expiry(&result);
             let mut secret = credential.secret.clone();
             if let Some(secrets) = secret
@@ -392,8 +592,44 @@ impl CredentialRefresh for OAuth {
             if result["RefreshExpireAt"].is_i64() {
                 secret["refresh_expires_at_ms"] = result["RefreshExpireAt"].clone();
             }
+            // OauthService.refreshToken re-reads the account with the new
+            // token. The refreshed token is already spent upstream, so only an
+            // account switch rejects; any other failure keeps the old facts.
+            let fresh = result["Token"].as_str().unwrap_or_default();
+            let mut metadata = None;
+            if let Ok(account) = user_info(context.client, origin, &config, fresh).await {
+                let user_id = account["UserID"].as_str().filter(|v| !v.is_empty());
+                if let (Some(user_id), Some(known)) = (user_id, fact(credential, "user_id"))
+                    && user_id != known
+                {
+                    return Err(ChannelError::RefreshRejected(
+                        "Trae refresh returned a different account".into(),
+                    ));
+                }
+                let mut fields = Vec::new();
+                if let Some(region) = account_region(auth_region, &account) {
+                    fields.push(("region", region));
+                }
+                if let Some(name) = account["ScreenName"].as_str() {
+                    fields.push(("user_name", name.to_owned()));
+                }
+                if let Some(provider_fields) = secret
+                    .get_mut("provider_fields")
+                    .and_then(Value::as_object_mut)
+                {
+                    for (name, value) in &fields {
+                        provider_fields.insert((*name).into(), json!(value));
+                    }
+                }
+                // `fact` prefers metadata, so the public copy must move too.
+                let mut public = credential.metadata.as_object().cloned().unwrap_or_default();
+                for (name, value) in fields {
+                    public.insert(name.into(), json!(value));
+                }
+                metadata = Some(Value::Object(public));
+            }
             Ok(CredentialUpdate {
-                metadata: None,
+                metadata,
                 secret,
                 expires_at_ms,
             })

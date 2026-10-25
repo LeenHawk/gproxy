@@ -23,7 +23,7 @@ use crate::channel::{
 use crate::channels::shared::compatible::ability::{bearer, send};
 use crate::channels::shared::compatible::http::invalid_response;
 use http::{HeaderMap, HeaderValue, Method, Uri, header};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
@@ -47,6 +47,25 @@ fn json_headers() -> HeaderMap {
     );
     headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     headers
+}
+
+/// A `/auth/device/token` body, its keys in the order both clients write
+/// them: `grant_type`, then the grant's own token, then `client_id` (opencode
+/// `account.ts` `DeviceTokenRequest` / `TokenRefreshRequest`, and the literals
+/// in `plugin/provider/opencode.ts`). `json!` would sort them.
+#[derive(Serialize)]
+struct TokenRequest<'a> {
+    grant_type: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    device_code: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    refresh_token: Option<&'a str>,
+    client_id: &'a str,
+}
+
+fn token_body(request: &TokenRequest<'_>) -> Result<Vec<u8>, ChannelError> {
+    serde_json::to_vec(request)
+        .map_err(|error| ChannelError::InvalidConfig(format!("{ID} token request: {error}")))
 }
 
 #[derive(Deserialize)]
@@ -247,15 +266,12 @@ impl OAuthDeviceCode for super::OpenCode {
                 Method::POST,
                 &format!("{base}/auth/device/token"),
                 json_headers(),
-                Some(
-                    json!({
-                        "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-                        "device_code": authorization.device_code,
-                        "client_id": DEFAULT_CLIENT_ID,
-                    })
-                    .to_string()
-                    .into_bytes(),
-                ),
+                Some(token_body(&TokenRequest {
+                    grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+                    device_code: Some(&authorization.device_code),
+                    refresh_token: None,
+                    client_id: DEFAULT_CLIENT_ID,
+                })?),
             )
             .await?;
             // A pending authorization is an error status carrying an OAuth
@@ -322,15 +338,12 @@ impl CredentialRefresh for super::OpenCode {
                 Method::POST,
                 &format!("{base}/auth/device/token"),
                 json_headers(),
-                Some(
-                    json!({
-                        "grant_type": "refresh_token",
-                        "refresh_token": refresh_token,
-                        "client_id": DEFAULT_CLIENT_ID,
-                    })
-                    .to_string()
-                    .into_bytes(),
-                ),
+                Some(token_body(&TokenRequest {
+                    grant_type: "refresh_token",
+                    device_code: None,
+                    refresh_token: Some(refresh_token),
+                    client_id: DEFAULT_CLIENT_ID,
+                })?),
             )
             .await?;
             let reply = serde_json::from_slice::<TokenReply>(&body).ok();

@@ -128,11 +128,14 @@ fn allowance(record: &Value, seconds: Option<i64>) -> Option<QuotaAllowance> {
     Some(QuotaAllowance {
         used,
         limit,
-        remaining: remaining.or_else(|| limit.zip(used).map(|(limit, used)| limit.saturating_sub(used))),
+        remaining: remaining.or_else(|| {
+            limit
+                .zip(used)
+                .map(|(limit, used)| limit.saturating_sub(used))
+        }),
         used_percent: used.zip(limit).and_then(|(used, limit)| {
-            used
-            .checked_div(limit)
-            .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED))
+            used.checked_div(limit)
+                .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED))
         }),
         unlimited: None,
         unit: None,

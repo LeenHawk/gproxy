@@ -90,13 +90,17 @@ fn device_id() -> Result<String, ChannelError> {
     ))
 }
 
+/// The `application/x-www-form-urlencoded` serializer `URLSearchParams` runs
+/// (WHATWG URL): `*-._` and alphanumerics stand, a space is `+`, and every
+/// other byte, `~` included, is escaped.
 fn percent_encode(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for byte in value.bytes() {
         match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'*' | b'-' | b'.' | b'_' => {
                 out.push(byte as char);
             }
+            b' ' => out.push('+'),
             other => out.push_str(&format!("%{other:02X}")),
         }
     }
@@ -244,10 +248,11 @@ impl OAuthDeviceCode for super::Kimi {
                 Method::POST,
                 &format!("{}/api/oauth/token", config.oauth_host()),
                 login_headers(&config, device)?,
+                // The CLI's field order (kimi-code `oauth.ts` `pollDeviceToken`).
                 Some(form(&[
-                    ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
                     ("client_id", DEFAULT_CLIENT_ID),
                     ("device_code", &authorization.device_code),
+                    ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
                 ])),
             )
             .await?;
@@ -279,8 +284,10 @@ impl OAuthDeviceCode for super::Kimi {
             }
             match reply.error.as_deref() {
                 Some("authorization_pending") => Ok(DevicePoll::Pending),
+                // RFC 8628 §3.5, as the CLI does it: five seconds more, kept
+                // (kimi-code `oauth-manager.ts` `currentInterval += 5`).
                 Some("slow_down") => Ok(DevicePoll::SlowDown {
-                    interval_secs: authorization.interval_secs.saturating_mul(2).max(5),
+                    interval_secs: authorization.interval_secs.saturating_add(5),
                 }),
                 Some("access_denied") => Ok(DevicePoll::Denied),
                 Some("expired_token") => Ok(DevicePoll::Expired),

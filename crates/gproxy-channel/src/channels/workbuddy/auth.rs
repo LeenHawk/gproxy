@@ -67,8 +67,21 @@ pub(super) fn authorize(
     );
     // The upstream rejects a token whose account it is not told; the login
     // records the id, so a credential without one is incomplete.
-    let user_id = fact(credential, "user_id").ok_or(ChannelError::InvalidCredential)?;
-    insert(headers, "x-user-id", user_id)?;
+    if fact(credential, "user_id").is_none() {
+        return Err(ChannelError::InvalidCredential);
+    }
+    account_headers(headers, credential)
+}
+
+/// The account facts the plugin's `AuthenticationHttpInterceptor` adds to
+/// every call it makes with a session, each only when the credential has it.
+pub(super) fn account_headers(
+    headers: &mut HeaderMap,
+    credential: &CredentialView<'_>,
+) -> Result<(), ChannelError> {
+    if let Some(user_id) = fact(credential, "user_id") {
+        insert(headers, "x-user-id", user_id)?;
+    }
     for (fact_name, header_names) in [
         ("enterprise_id", &["x-enterprise-id", "x-tenant-id"][..]),
         ("department_full_name", &["x-department-info"][..]),

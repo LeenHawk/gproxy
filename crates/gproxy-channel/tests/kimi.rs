@@ -93,11 +93,11 @@ fn an_api_key_reaches_the_platform_and_a_login_reaches_the_subscription() {
         "8f1c0a7e-0000-4000-8000-000000000001"
     );
     assert_eq!(code.headers()["x-msh-version"], "0.36.1");
-    assert_eq!(code.headers()["user-agent"], "kimi_code_cli/0.36.1");
-    assert_eq!(
+    assert_eq!(code.headers()["user-agent"], "kimi-code-cli/0.36.1");
+    assert_ne!(
         code.headers()["x-msh-device-name"],
         "unknown",
-        "a proxy is not the machine it claims to be unless the operator says so"
+        "an unstated machine is one a real CLI could be, derived from the device id"
     );
 }
 
@@ -171,7 +171,7 @@ fn a_client_cannot_forge_the_cli_identity() {
         "8f1c0a7e-0000-4000-8000-000000000001"
     );
     assert_eq!(prepared.headers()["x-msh-platform"], "kimi_code_cli");
-    assert_eq!(prepared.headers()["user-agent"], "kimi_code_cli/0.36.1");
+    assert_eq!(prepared.headers()["user-agent"], "kimi-code-cli/0.36.1");
 }
 
 #[test]
@@ -206,7 +206,7 @@ fn the_operator_states_the_machine_the_cli_claims_to_be() {
     assert_eq!(prepared.headers()["x-msh-device-name"], "build-01");
     assert_eq!(prepared.headers()["x-msh-device-model"], "Mac16,1");
     assert_eq!(prepared.headers()["x-msh-os-version"], "24.1.0");
-    assert_eq!(prepared.headers()["user-agent"], "kimi_code_cli/0.40.0");
+    assert_eq!(prepared.headers()["user-agent"], "kimi-code-cli/0.40.0");
 }
 
 #[test]

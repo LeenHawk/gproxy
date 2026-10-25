@@ -15,6 +15,9 @@ pub const DEFAULT_CLIENT_ID: &str = "17e5f671-d194-4dfb-9706-5516cb48c098";
 pub const DEFAULT_CLI_VERSION: &str = "0.36.1";
 /// The platform name the CLI announces itself under.
 pub const CLI_PLATFORM: &str = "kimi_code_cli";
+/// The product token of the CLI's `user-agent`, `kimi-code-cli/<version>`;
+/// only `x-msh-platform` carries the underscored platform id.
+pub const CLI_USER_AGENT_PRODUCT: &str = "kimi-code-cli";
 
 /// Which of Moonshot's two products a provider row fronts. The credential
 /// decides how a request authenticates; this decides what the upstream can be
@@ -41,11 +44,13 @@ pub struct KimiConfig {
     /// The Kimi Code CLI version announced in `user-agent` and `x-msh-version`.
     pub cli_version: String,
     /// The machine the CLI claims to run on. v3 read the host environment;
-    /// preparation here is pure, so the operator states it instead.
+    /// preparation here is pure, so the operator states it instead; a
+    /// hostname-like name picked per device by default.
     pub device_name: Option<String>,
-    /// Hardware description, `{os} {arch}` by default.
+    /// Hardware description, `Linux {os_version} {arch}` by default.
     pub device_model: Option<String>,
-    /// Kernel or OS release, the build's target OS by default.
+    /// Kernel or OS release, a Linux kernel release picked per device by
+    /// default.
     pub os_version: Option<String>,
     /// Static headers added to every upstream request.
     pub headers: BTreeMap<String, String>,
@@ -96,6 +101,4 @@ impl KimiConfig {
             host
         }
     }
-
-
 }

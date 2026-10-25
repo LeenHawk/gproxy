@@ -13,7 +13,10 @@ impl UsageExtras for super::Kimi {
         let Some(value) = usage_object(source.root) else {
             return;
         };
-        if value.pointer("/prompt_tokens_details/cached_tokens").is_some() {
+        if value
+            .pointer("/prompt_tokens_details/cached_tokens")
+            .is_some()
+        {
             return;
         }
         let Some(cached) = value.get("cached_tokens").and_then(Value::as_u64) else {

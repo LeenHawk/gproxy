@@ -57,10 +57,11 @@ fn form(pairs: &[(&str, &str)]) -> Vec<u8> {
         .into_bytes()
 }
 
+/// The SDK names only the content type on its WorkOS and Cline auth calls
+/// (`auth/cline.ts`); everything else is the runtime's fetch default.
 fn headers(content_type: &'static str) -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
-    headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     headers
 }
 
@@ -246,8 +247,9 @@ impl OAuthDeviceCode for super::Cline {
             let Some((access, refresh)) = reply.pair() else {
                 return Ok(match reply.error.as_deref() {
                     Some("authorization_pending") => DevicePoll::Pending,
+                    // The SDK adds a second per `slow_down` (`pollWorkOSTokens`).
                     Some("slow_down") => DevicePoll::SlowDown {
-                        interval_secs: authorization.interval_secs.saturating_mul(2).max(5),
+                        interval_secs: authorization.interval_secs.saturating_add(1),
                     },
                     Some("access_denied" | "invalid_grant") => DevicePoll::Denied,
                     Some("expired_token") => DevicePoll::Expired,

@@ -11,7 +11,7 @@ use crate::channel::{
 };
 use crate::channels::shared::services_common::unix_now_ms;
 use base64::Engine;
-use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
+use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -160,11 +160,12 @@ async fn exchange_code(
     code_verifier: &str,
 ) -> Result<OAuthCredential, ChannelError> {
     let url = format!("{}/oauth/token", config.issuer.trim_end_matches('/'));
+    // Field order of login/src/oauth/client.rs `exchange_code`.
     let body = form_encode(&[
         ("grant_type", "authorization_code"),
+        ("client_id", DEFAULT_CLIENT_ID),
         ("code", code),
         ("redirect_uri", redirect_uri),
-        ("client_id", DEFAULT_CLIENT_ID),
         ("code_verifier", code_verifier),
     ]);
     let (status, _, bytes) = send_json(
@@ -206,16 +207,18 @@ impl OAuthAuthorizationCode for Codex {
                 "" => DEFAULT_REDIRECT_URI,
                 _ => request.redirect_uri,
             };
+            // Parameter order of login/src/oauth/authorization.rs, then
+            // the extra parameters of server.rs `build_authorize_url`.
             let query = form_encode(&[
                 ("response_type", "code"),
                 ("client_id", DEFAULT_CLIENT_ID),
                 ("redirect_uri", redirect_uri),
-                ("scope", OAUTH_SCOPE),
                 ("code_challenge", request.code_challenge),
                 ("code_challenge_method", "S256"),
+                ("state", request.state),
+                ("scope", OAUTH_SCOPE),
                 ("id_token_add_organizations", "true"),
                 ("codex_cli_simplified_flow", "true"),
-                ("state", request.state),
                 ("originator", &config.originator),
             ]);
             Ok(AuthorizationStart {
@@ -334,14 +337,10 @@ impl OAuthDeviceCode for Codex {
                 ),
             )
             .await?;
+            // As device_code_auth.rs `poll_for_token`: 403 and 404 mean
+            // pending, any other failure ends the login.
             match status {
                 StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => return Ok(DevicePoll::Pending),
-                StatusCode::TOO_MANY_REQUESTS => {
-                    return Ok(DevicePoll::SlowDown {
-                        interval_secs: authorization.interval_secs.saturating_mul(2).max(5),
-                    });
-                }
-                StatusCode::GONE => return Ok(DevicePoll::Expired),
                 status if !status.is_success() => {
                     return Err(ChannelError::UpstreamResponse {
                         status,
@@ -434,11 +433,25 @@ impl CredentialRefresh for Codex {
                     RefreshReason::Forced => "forced",
                 },
             });
+            // The CLI refreshes through its default auth client, which adds
+            // `originator` and `User-Agent` (login/src/auth/default_client.rs
+            // `default_headers`); code exchange and device code do not.
+            let mut headers = json_headers();
+            headers.insert(
+                HeaderName::from_static("originator"),
+                HeaderValue::from_str(&config.originator)
+                    .map_err(|_| ChannelError::InvalidConfig("originator".into()))?,
+            );
+            headers.insert(
+                header::USER_AGENT,
+                HeaderValue::from_str(&super::agent::user_agent(&config.originator))
+                    .map_err(|_| ChannelError::InvalidConfig("originator".into()))?,
+            );
             let (status, _, bytes) = send_json(
                 context.client,
                 Method::POST,
                 &url,
-                json_headers(),
+                headers,
                 Some(body.to_string().into_bytes()),
             )
             .await?;
@@ -489,9 +502,15 @@ impl CredentialRefresh for Codex {
                 .and_then(Value::as_object)
                 .cloned()
                 .unwrap_or_default();
+            // The login's account stays: the CLI's TokenData.account_id is
+            // set at login and never rewritten by a refresh (persist_tokens).
+            let login_account = fields.get("chatgpt_account_id").cloned();
             fields.extend(provider_fields(
                 secret.get("id_token").and_then(Value::as_str),
             ));
+            if let Some(account) = login_account {
+                fields.insert("chatgpt_account_id".into(), account);
+            }
             secret["provider_fields"] = Value::Object(fields);
             let mut provider_secrets = secret
                 .get("provider_secrets")

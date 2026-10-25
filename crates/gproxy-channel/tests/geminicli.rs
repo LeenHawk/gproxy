@@ -704,7 +704,6 @@ async fn authorize_builds_the_google_consent_url() {
         "response_type=code",
         &format!("client_id={DEFAULT_CLIENT_ID}"),
         "access_type=offline",
-        "prompt=consent",
         "code_challenge_method=S256",
         "code_challenge=ch-1",
         "state=st-1",
@@ -715,6 +714,8 @@ async fn authorize_builds_the_google_consent_url() {
             start.authorize_url
         );
     }
+    // The CLI's user-code flow sends no `prompt`.
+    assert!(!start.authorize_url.contains("prompt="));
 }
 
 #[tokio::test]

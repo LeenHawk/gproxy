@@ -8,8 +8,8 @@
 //! (v3 `antigravity/{login,auth}.rs`, `shared/{google_login,google_oauth}.rs`).
 
 use super::{
-    Antigravity, AntigravityConfig, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET, DEFAULT_REDIRECT_URI,
-    DEFAULT_TOKEN_URL, OAUTH_SCOPE, base_url,
+    Antigravity, AntigravityConfig, CLI_USER_AGENT, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET,
+    DEFAULT_REDIRECT_URI, DEFAULT_TOKEN_URL, OAUTH_SCOPE, base_url,
 };
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, CredentialRefresh,
@@ -53,6 +53,13 @@ fn onboarding(loaded: &Value, _hint: Option<&str>) -> Result<Onboarding, Channel
     }
 }
 
+/// The google-auth-library the Antigravity IDE bundles
+/// (`resources/app/node_modules/google-auth-library` 10.3.0), whose token
+/// calls the login and refresh reproduce.
+const AUTH_LIBRARY: &str = "google-api-nodejs-client/10.3.0";
+/// The Node inside the IDE's Electron 39.2.3 (the binary carries `v22.21.1`).
+const NODE_CLIENT: &str = "gl-node/22.21.1";
+
 fn tool(config: &AntigravityConfig) -> GoogleTool<'_> {
     GoogleTool {
         client_id: DEFAULT_CLIENT_ID,
@@ -60,10 +67,19 @@ fn tool(config: &AntigravityConfig) -> GoogleTool<'_> {
         token_url: non_empty(&config.token_url, DEFAULT_TOKEN_URL),
         redirect_uri: DEFAULT_REDIRECT_URI,
         scope: OAUTH_SCOPE,
+        // The IDE's `getLoginUrl`: `generateAuthUrl({…, prompt:"consent"})`.
+        prompt_consent: true,
+        auth_library: AUTH_LIBRARY,
+        node_client: NODE_CLIENT,
+        code_assist_api_client: None,
+        userinfo_headers: &[
+            ("accept", "application/json"),
+            ("user-agent", CLI_USER_AGENT),
+        ],
         onboarding,
         // The IDE's `_ss=500` between polls of the onboarding operation.
         onboard_poll: Duration::from_millis(500),
-        user_agent: super::CLI_USER_AGENT,
+        user_agent: CLI_USER_AGENT,
         metadata,
     }
 }

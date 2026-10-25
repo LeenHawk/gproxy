@@ -40,9 +40,12 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
-/// The client name both the device authorization and the OIDC registration
-/// use (v3 `login.rs`).
+/// The client id the desktop device flow names, which is also kiro-cli's
+/// User-Agent (KiroCrew `login/endpoints.py` `USER_AGENT`).
 const CLIENT_NAME: &str = "Kiro-CLI";
+/// The name kiro-cli registers its AWS OIDC client under (KiroCrew
+/// `login/endpoints.py`: "kiro-cli uses \"Kiro CLI\"").
+const REGISTRATION_CLIENT_NAME: &str = "Kiro CLI";
 /// The registered client's id, under the same name wherever it travels: the
 /// login session's `provider_state`, then the credential's `provider_fields`.
 const CLIENT_ID: &str = "client_id";
@@ -240,15 +243,26 @@ impl OAuthDeviceCode for super::Kiro {
     ) -> OperationFuture<'a, DevicePoll> {
         Box::pin(async move {
             let config = KiroConfig::from_view(context.provider)?;
-            let body = json!({"deviceCode": authorization.device_code, "clientId": CLIENT_NAME});
+            // Written out because `json!` sorts its keys; kiro-cli sends
+            // `{deviceCode, clientId}` (KiroCrew `login/device.py`).
+            let body = format!(
+                "{{\"deviceCode\":{},\"clientId\":{}}}",
+                Value::String(authorization.device_code.clone()),
+                Value::String(CLIENT_NAME.into()),
+            );
             let (status, _, bytes) = send(
                 context.client,
                 Method::POST,
                 &format!("{}/oauth/device/poll", config.auth_base_url()),
                 json_headers(),
-                Some(body.to_string().into_bytes()),
+                Some(body.into_bytes()),
             )
             .await?;
+            // A refused poll is retried until the device code expires, as
+            // KiroCrew's `poll_device_token` does.
+            if !status.is_success() {
+                return Ok(DevicePoll::Pending);
+            }
             let Ok(reply) = serde_json::from_slice::<DevicePollReply>(&bytes) else {
                 return Err(ChannelError::UpstreamResponse {
                     status,
@@ -276,13 +290,10 @@ impl OAuthDeviceCode for super::Kiro {
                         BTreeMap::new(),
                     )))
                 }
-                // `access_denied` and anything the desktop app has not
-                // documented both mean this attempt is over.
-                Some(_) => Ok(DevicePoll::Denied),
-                None => Err(ChannelError::UpstreamResponse {
-                    status,
-                    body: bytes,
-                }),
+                // A refused or unknown device code ends this attempt.
+                Some("access_denied" | "invalid_token") => Ok(DevicePoll::Denied),
+                // Any status the service has not documented is waited out.
+                _ => Ok(DevicePoll::Pending),
             }
         })
     }
@@ -420,7 +431,7 @@ async fn register_client(
     start_url: &str,
 ) -> Result<Option<Registration>, ChannelError> {
     let body = json!({
-        "clientName": CLIENT_NAME,
+        "clientName": REGISTRATION_CLIENT_NAME,
         "clientType": "public",
         "scopes": OAUTH_SCOPE.split(' ').collect::<Vec<_>>(),
         "grantTypes": ["authorization_code", "refresh_token"],

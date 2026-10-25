@@ -1,7 +1,9 @@
 //! Which of the two accounts a credential is, where it talks, and the CLI
 //! identity a subscription credential must present.
 
-use super::config::{CLI_PLATFORM, DEFAULT_API_BASE_URL, DEFAULT_CODE_BASE_URL, KimiConfig};
+use super::config::{
+    CLI_PLATFORM, CLI_USER_AGENT_PRODUCT, DEFAULT_API_BASE_URL, DEFAULT_CODE_BASE_URL, KimiConfig,
+};
 use crate::channel::{ChannelError, CredentialView, ProviderView};
 use http::{HeaderMap, HeaderValue, header};
 use serde_json::Value;
@@ -154,31 +156,75 @@ pub(super) fn identity(
     identity_with_device(headers, config, &device_id)
 }
 
+/// Node's `os.arch()` spelling of the build's architecture; a proxy built for
+/// anything else (the Workers target included) claims the common one.
+fn node_arch() -> &'static str {
+    match std::env::consts::ARCH {
+        "aarch64" => "arm64",
+        _ => "x64",
+    }
+}
+
+/// Kernel releases `os.release()` reports on current Ubuntu LTS installs; one
+/// is picked per device so a machine keeps its kernel across requests.
+const KERNEL_RELEASES: &[&str] = &[
+    "6.8.0-60-generic",
+    "6.8.0-79-generic",
+    "6.11.0-26-generic",
+    "6.14.0-29-generic",
+];
+/// Stems for a default `os.hostname()`, likewise picked per device.
+const HOST_STEMS: &[&str] = &["ubuntu", "devbox", "workstation", "desktop"];
+
+/// A stable number for a device id (FNV-1a), so every default a device id
+/// implies is the same on every request and every proxy instance.
+fn device_seed(device_id: &str) -> u64 {
+    device_id.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
+    })
+}
+
+fn pick<'a>(choices: &[&'a str], seed: u64) -> &'a str {
+    choices[(seed % choices.len() as u64) as usize]
+}
+
 /// The same headers for a login, which has minted a device id but has no
 /// credential to read it back from yet.
+///
+/// The CLI reads them off the machine (kimi-code `identity.ts`
+/// `createKimiDeviceHeaders`): `hostname()`, `release()`, and a model of
+/// `${type()} ${release()} ${arch()}`. A proxy is not that machine, so the
+/// operator may state each; what is left unstated is a Linux machine derived
+/// from the device id, the shape a real CLI on Linux would send, and stable
+/// for as long as the credential is.
 pub(super) fn identity_with_device(
     headers: &mut HeaderMap,
     config: &KimiConfig,
     device_id: &str,
 ) -> Result<(), ChannelError> {
+    let seed = device_seed(device_id);
+    let os_version = config
+        .os_version
+        .clone()
+        .unwrap_or_else(|| pick(KERNEL_RELEASES, seed).to_owned());
     let model = config
         .device_model
         .clone()
-        .unwrap_or_else(|| format!("{} {}", std::env::consts::OS, std::env::consts::ARCH));
+        .unwrap_or_else(|| format!("Linux {} {}", sanitized(Some(&os_version)), node_arch()));
+    let name = config
+        .device_name
+        .clone()
+        .unwrap_or_else(|| format!("{}-{:04x}", pick(HOST_STEMS, seed), (seed >> 48) as u16));
     let version = sanitized(Some(&config.cli_version));
     for (name, value) in [
-        ("user-agent", format!("{CLI_PLATFORM}/{version}")),
+        // The product token is the CLI's own name, not its platform id
+        // (kimi-code `constant/app.ts` `CLI_USER_AGENT_PRODUCT`).
+        ("user-agent", format!("{CLI_USER_AGENT_PRODUCT}/{version}")),
         ("x-msh-platform", CLI_PLATFORM.to_owned()),
         ("x-msh-version", version.clone()),
-        (
-            "x-msh-device-name",
-            sanitized(config.device_name.as_deref()),
-        ),
+        ("x-msh-device-name", sanitized(Some(&name))),
         ("x-msh-device-model", sanitized(Some(&model))),
-        (
-            "x-msh-os-version",
-            sanitized(config.os_version.as_deref().or(Some(std::env::consts::OS))),
-        ),
+        ("x-msh-os-version", sanitized(Some(&os_version))),
         ("x-msh-device-id", sanitized(Some(device_id))),
     ] {
         headers.insert(

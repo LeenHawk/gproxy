@@ -408,9 +408,10 @@ async fn refresh_rotates_tokens_and_classifies_rejections() {
     assert_eq!(update.expires_at_ms, Some(1_800_000_000_000));
     assert_eq!(update.secret["access_token"], new_access);
     assert_eq!(update.secret["refresh_token"], "rt-2");
+    // The login's account survives a refresh whose id token names another.
     assert_eq!(
         update.secret["provider_fields"]["chatgpt_account_id"],
-        "acct-2"
+        "acct-1"
     );
     assert_eq!(
         update.secret["provider_fields"]["chatgpt_plan_type"],

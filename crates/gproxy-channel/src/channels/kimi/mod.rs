@@ -20,8 +20,9 @@
 //!
 //! Not ported from v3: reading the device name and OS release out of the host
 //! environment. Preparation here is pure and a proxy is not the machine it
-//! claims to be, so an operator states them in configuration and `unknown`
-//! stands where they said nothing.
+//! claims to be, so an operator states them in configuration; where they said
+//! nothing, a Linux machine derived from the device id stands in, shaped the
+//! way the CLI's own Node `os` calls would report it (`auth.rs`).
 
 mod auth;
 mod config;
@@ -32,15 +33,16 @@ mod usage;
 
 pub use auth::Mode;
 pub use config::{
-    CLI_PLATFORM, DEFAULT_API_BASE_URL, DEFAULT_CLI_VERSION, DEFAULT_CLIENT_ID,
-    DEFAULT_CODE_BASE_URL, DEFAULT_OAUTH_HOST, ID, KimiConfig, Product,
+    CLI_PLATFORM, CLI_USER_AGENT_PRODUCT, DEFAULT_API_BASE_URL, DEFAULT_CLI_VERSION,
+    DEFAULT_CLIENT_ID, DEFAULT_CODE_BASE_URL, DEFAULT_OAUTH_HOST, ID, KimiConfig, Product,
 };
 pub use quota::{BALANCE_DIMENSION, WEEKLY_DIMENSION};
 
-use crate::channel::{UsageExtras, 
+use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, PrepareContext, ProviderView,
-    QuotaModel, QuotaQuery, };
+    QuotaModel, QuotaQuery, UsageExtras,
+};
 use gproxy_protocol::{Dialect, HttpBody, Operation};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -86,17 +88,17 @@ impl BaseChannel for Kimi {
                 ConfigKey::optional(
                     "device_name",
                     ConfigKeyKind::String,
-                    "Machine name announced in x-msh-device-name; `unknown` when unset.",
+                    "Machine name announced in x-msh-device-name; a hostname-like name derived from the device id when unset.",
                 ),
                 ConfigKey::optional(
                     "device_model",
                     ConfigKeyKind::String,
-                    "Hardware announced in x-msh-device-model; the build's os and arch when unset.",
+                    "Hardware announced in x-msh-device-model; `Linux <os_version> <arch>` when unset.",
                 ),
                 ConfigKey::optional(
                     "os_version",
                     ConfigKeyKind::String,
-                    "Release announced in x-msh-os-version; the build's target OS when unset.",
+                    "Release announced in x-msh-os-version; a Linux kernel release derived from the device id when unset.",
                 ),
                 ConfigKey::optional(
                     "headers",

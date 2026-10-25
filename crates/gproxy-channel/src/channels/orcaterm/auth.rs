@@ -65,10 +65,9 @@ pub(super) fn csrf(secret: &Value) -> String {
     (hash & 0x7fff_ffff).to_string()
 }
 
-pub(super) fn headers(secret: &Value) -> Result<HeaderMap, ChannelError> {
+/// This credential's session and optional CSRF cookie, never the caller's.
+fn cookie(secret: &Value) -> Result<HeaderValue, ChannelError> {
     let token = token(secret)?;
-    // Never forward the caller's cookies or tokens. Only this credential's
-    // session and optional CSRF cookie belong on OrcaTerm's account transport.
     if token.contains([';', '\r', '\n']) {
         return Err(ChannelError::InvalidCredential);
     }
@@ -79,16 +78,18 @@ pub(super) fn headers(secret: &Value) -> Result<HeaderMap, ChannelError> {
         }
         cookie.push_str(&format!("; skey={skey}"));
     }
+    HeaderValue::from_str(&cookie).map_err(|_| ChannelError::InvalidCredential)
+}
+
+pub(super) fn headers(secret: &Value) -> Result<HeaderMap, ChannelError> {
+    let token = token(secret)?;
     let mut headers = HeaderMap::new();
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {token}"))
             .map_err(|_| ChannelError::InvalidCredential)?,
     );
-    headers.insert(
-        header::COOKIE,
-        HeaderValue::from_str(&cookie).map_err(|_| ChannelError::InvalidCredential)?,
-    );
+    headers.insert(header::COOKIE, cookie(secret)?);
     headers.insert("x-product", HeaderValue::from_static("orcaterm"));
     headers.insert(
         header::CONTENT_TYPE,
@@ -137,14 +138,16 @@ pub(super) async fn rpc_response(
             }
         }
     }
+    // The desktop's otApiRequest is an XHR the Tauri shim sends with only the
+    // document cookie (app.js:2961, http-interceptor.js:737): no bearer and
+    // no X-Product, unlike its fetch-based calls.
     let mut headers = request::configured_headers(config)?;
+    headers.remove(header::AUTHORIZATION);
+    headers.remove(header::COOKIE);
+    headers.remove("x-product");
     if let Some(secret) = secret {
-        headers.extend(self::headers(secret)?);
-    } else {
-        headers.remove(header::AUTHORIZATION);
-        headers.remove(header::COOKIE);
+        headers.insert(header::COOKIE, cookie(secret)?);
     }
-    headers.insert("x-product", HeaderValue::from_static("orcaterm"));
     headers.insert(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/json"),
@@ -382,11 +385,12 @@ impl CredentialRefresh for OrcaTerm {
                 }
             }
             let mut updated = renew(ctx.client, &config, ctx.credential.secret, fields).await?;
-            if !updated.provider_fields.contains_key("user_id") {
-                let renewed = serde_json::to_value(&updated).map_err(|e| invalid(e.to_string()))?;
-                updated
-                    .provider_fields
-                    .extend(identity(ctx.client, &config, &renewed).await?);
+            // AuthStore.reconcile re-reads the identity after every refresh
+            // (features.js:87137). The old token is already replaced upstream,
+            // so a failed lookup keeps the previous facts, not the error.
+            let renewed = serde_json::to_value(&updated).map_err(|e| invalid(e.to_string()))?;
+            if let Ok(identity) = identity(ctx.client, &config, &renewed).await {
+                updated.provider_fields.extend(identity);
             }
             Ok(CredentialUpdate {
                 metadata: Some({

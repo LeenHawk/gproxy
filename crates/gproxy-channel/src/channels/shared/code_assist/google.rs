@@ -21,7 +21,7 @@ use crate::channel::{
     AuthorizationRequest, AuthorizationStart, ChannelError, CredentialUpdate, OAuthCredential,
 };
 use crate::channels::shared::timer::sleep;
-use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
+use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -38,6 +38,20 @@ pub(crate) struct GoogleTool<'a> {
     /// Where Google sends the code back when the host names no redirect.
     pub redirect_uri: &'a str,
     pub scope: &'a str,
+    /// Whether the consent URL carries `prompt=consent`: the Antigravity IDE
+    /// asks for it, the Gemini CLI does not.
+    pub prompt_consent: bool,
+    /// The google-auth-library banner its token calls carry as their whole
+    /// `User-Agent` (`google-api-nodejs-client/<version>`).
+    pub auth_library: &'a str,
+    /// The Node runtime google-auth-library reports in `x-goog-api-client`
+    /// (`gl-node/<version>`) on its token calls.
+    pub node_client: &'a str,
+    /// `x-goog-api-client` on `loadCodeAssist`/`onboardUser`, for a tool that
+    /// sends them through google-auth-library's `OAuth2Client.request`.
+    pub code_assist_api_client: Option<&'a str>,
+    /// What the tool sends beside `Authorization` on its `userinfo` call.
+    pub userinfo_headers: &'a [(&'static str, &'a str)],
     /// What the tool does when `loadCodeAssist` names no project: use the
     /// hint, onboard on some tier, or refuse. The two tools disagree, so the
     /// rule is theirs (`loaded`, then the project hint).
@@ -93,14 +107,51 @@ pub(crate) fn form_encode(pairs: &[(&str, &str)]) -> String {
         .join("&")
 }
 
-fn form_headers() -> HeaderMap {
+/// The body google-auth-library posts: a `URLSearchParams`, whose
+/// serializer keeps `*-._` and alphanumerics, writes a space as `+` and
+/// escapes everything else, `~` included.
+fn search_params(pairs: &[(&str, &str)]) -> String {
+    fn component(value: &str) -> String {
+        const HEX: &[u8; 16] = b"0123456789ABCDEF";
+        let mut output = String::with_capacity(value.len());
+        for byte in value.bytes() {
+            if byte.is_ascii_alphanumeric() || matches!(byte, b'*' | b'-' | b'.' | b'_') {
+                output.push(char::from(byte));
+            } else if byte == b' ' {
+                output.push('+');
+            } else {
+                output.push('%');
+                output.push(char::from(HEX[usize::from(byte >> 4)]));
+                output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+            }
+        }
+        output
+    }
+    pairs
+        .iter()
+        .map(|(name, value)| format!("{}={}", component(name), component(value)))
+        .collect::<Vec<_>>()
+        .join("&")
+}
+
+/// What google-auth-library's token calls carry, in its order: node-fetch's
+/// `Accept: */*`, the `URLSearchParams` content type, and the library's own
+/// banner and runtime (`authclient.js` `DEFAULT_REQUEST_INTERCEPTOR`).
+/// node-fetch also asks for `gzip, deflate, br`; the channel's connection
+/// decides what it can decode, so `Accept-Encoding` is left to it.
+fn form_headers(tool: &GoogleTool<'_>) -> Result<HeaderMap, ChannelError> {
     let mut headers = HeaderMap::new();
+    headers.insert(header::ACCEPT, HeaderValue::from_static("*/*"));
     headers.insert(
         header::CONTENT_TYPE,
-        HeaderValue::from_static("application/x-www-form-urlencoded"),
+        HeaderValue::from_static("application/x-www-form-urlencoded;charset=UTF-8"),
     );
-    headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
-    headers
+    headers.insert(header::USER_AGENT, header_value(tool.auth_library)?);
+    headers.insert(
+        HeaderName::from_static("x-goog-api-client"),
+        header_value(tool.node_client)?,
+    );
+    Ok(headers)
 }
 
 /// The browser step. The host owns the PKCE verifier and `state`; only the
@@ -114,17 +165,22 @@ pub(crate) fn authorize(
         "" => tool.redirect_uri,
         given => given,
     };
-    let query = form_encode(&[
+    let mut pairs = vec![
         ("response_type", "code"),
         ("client_id", tool.client_id),
         ("redirect_uri", redirect_uri),
         ("scope", tool.scope),
         ("access_type", "offline"),
-        ("prompt", "consent"),
+    ];
+    if tool.prompt_consent {
+        pairs.push(("prompt", "consent"));
+    }
+    pairs.extend([
         ("code_challenge_method", "S256"),
         ("code_challenge", request.code_challenge),
         ("state", request.state),
     ]);
+    let query = form_encode(&pairs);
     AuthorizationStart {
         authorize_url: format!("{}?{query}", authorize_url.trim_end_matches('?')),
         redirect_uri: redirect_uri.to_owned(),
@@ -157,7 +213,7 @@ struct Tokens {
 
 async fn token_request(
     client: &dyn OutboundClient,
-    token_url: &str,
+    tool: &GoogleTool<'_>,
     pairs: &[(&str, &str)],
     // A definitive refusal means "this credential is finished" only when an
     // existing credential is being renewed; during a login it is just a
@@ -167,9 +223,9 @@ async fn token_request(
     let (status, _, bytes) = send(
         client,
         Method::POST,
-        token_url,
-        form_headers(),
-        Some(form_encode(pairs).into_bytes()),
+        tool.token_url,
+        form_headers(tool)?,
+        Some(search_params(pairs).into_bytes()),
     )
     .await?;
     if !status.is_success() {
@@ -216,16 +272,18 @@ pub(crate) async fn exchange(
         "" => tool.redirect_uri,
         given => given,
     };
+    // google-auth-library `getTokenAsync` field order, the secret appended
+    // last (`ClientSecretPost`).
     let tokens = token_request(
         client,
-        tool.token_url,
+        tool,
         &[
-            ("grant_type", "authorization_code"),
-            ("code", code),
-            ("redirect_uri", redirect_uri),
             ("client_id", tool.client_id),
-            ("client_secret", tool.client_secret),
             ("code_verifier", code_verifier),
+            ("code", code),
+            ("grant_type", "authorization_code"),
+            ("redirect_uri", redirect_uri),
+            ("client_secret", tool.client_secret),
         ],
         false,
     )
@@ -263,14 +321,15 @@ pub(crate) async fn refresh(
     let refresh_token = text(secret, "refresh_token").ok_or_else(|| {
         ChannelError::RefreshRejected("credential has no refresh token".to_owned())
     })?;
+    // google-auth-library `refreshTokenNoCache` field order.
     let tokens = token_request(
         client,
-        tool.token_url,
+        tool,
         &[
-            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh_token),
             ("client_id", tool.client_id),
             ("client_secret", tool.client_secret),
-            ("refresh_token", refresh_token),
+            ("grant_type", "refresh_token"),
         ],
         true,
     )
@@ -354,9 +413,10 @@ async fn code_assist_call(
     base: &str,
     access_token: &str,
     path: &str,
-    body: Option<&Value>,
+    body: Option<Vec<u8>>,
 ) -> Result<Value, ChannelError> {
     let mut headers = HeaderMap::new();
+    headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     headers.insert(
         header::AUTHORIZATION,
         header_value(&format!("Bearer {access_token}"))?,
@@ -365,11 +425,17 @@ async fn code_assist_call(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/json"),
     );
-    headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     headers.insert(header::USER_AGENT, header_value(tool.user_agent)?);
-    let (method, body) = match body {
-        Some(body) => (Method::POST, Some(encode(body, invalid_request)?.to_vec())),
-        None => (Method::GET, None),
+    if let Some(api_client) = tool.code_assist_api_client {
+        headers.insert(
+            HeaderName::from_static("x-goog-api-client"),
+            header_value(api_client)?,
+        );
+    }
+    let method = if body.is_some() {
+        Method::POST
+    } else {
+        Method::GET
     };
     let (status, _, bytes) = send(
         client,
@@ -497,7 +563,7 @@ async fn discover(
         base,
         access_token,
         "/v1internal:loadCodeAssist",
-        Some(&load),
+        Some(encode(&load, invalid_request)?.to_vec()),
     )
     .await?;
     if let Some(tier) = subscription_tier(&loaded) {
@@ -514,20 +580,24 @@ async fn discover(
         }
         Onboarding::Tier(tier) => tier,
     };
-    let mut onboard = json!({
-        "tierId": tier,
-        "metadata": metadata,
-    });
+    // `{tierId, cloudaicompanionProject?, metadata}` in the order both tools
+    // build it (gemini-cli `setup.ts` `onboardReq`); a `json!` map would sort
+    // the keys.
+    let mut onboard = format!("{{\"tierId\":{}", Value::String(tier.clone()));
     if let Some(project) = hint {
-        onboard["cloudaicompanionProject"] = Value::String(project.into());
+        onboard.push_str(&format!(
+            ",\"cloudaicompanionProject\":{}",
+            Value::String(project.into())
+        ));
     }
+    onboard.push_str(&format!(",\"metadata\":{metadata}}}"));
     let mut operation = code_assist_call(
         client,
         tool,
         base,
         access_token,
         "/v1internal:onboardUser",
-        Some(&onboard),
+        Some(onboard.into_bytes()),
     )
     .await?;
     let polls = (ONBOARD_POLL_BUDGET.as_millis() / tool.onboard_poll.as_millis().max(1)) as usize;
@@ -591,15 +661,18 @@ async fn enrich_email(
         return;
     };
     headers.insert(header::AUTHORIZATION, bearer);
-    headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
-    let Ok(agent) = header_value(tool.user_agent) else {
-        return;
-    };
-    headers.insert(header::USER_AGENT, agent);
+    for (name, value) in tool.userinfo_headers {
+        let Ok(value) = header_value(value) else {
+            return;
+        };
+        headers.insert(HeaderName::from_static(name), value);
+    }
+    // Both tools read the v2 endpoint (gemini-cli `fetchAndCacheUserInfo`,
+    // the Antigravity IDE's `_profileDataUrl`).
     let Ok((status, _, bytes)) = send(
         client,
         Method::GET,
-        "https://www.googleapis.com/oauth2/v1/userinfo?alt=json",
+        "https://www.googleapis.com/oauth2/v2/userinfo",
         headers,
         None,
     )

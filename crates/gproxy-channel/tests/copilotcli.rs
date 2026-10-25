@@ -161,12 +161,12 @@ fn the_cli_identity_is_the_channels_and_a_client_cannot_forge_it() {
     .unwrap();
     let headers = prepared.headers();
     assert_eq!(headers["copilot-integration-id"], "copilot-developer-cli");
-    assert_eq!(headers["editor-version"], "copilot/1.0.61");
+    assert_eq!(headers["editor-version"], "copilot/1.0.77");
     assert_eq!(headers["openai-intent"], "conversation-agent");
     assert_eq!(headers["x-github-api-version"], "2026-06-01");
     assert_eq!(
         headers["user-agent"],
-        "copilot/1.0.61 (linux v24.16.0) term/unknown"
+        "copilot/1.0.77 (linux v24.16.0) term/unknown"
     );
     assert_eq!(
         headers["x-initiator"], "user",

@@ -58,6 +58,21 @@ fn onboarding(loaded: &Value, hint: Option<&str>) -> Result<Onboarding, ChannelE
     ))
 }
 
+/// The google-auth-library the CLI pins (`packages/core/package.json`
+/// `"google-auth-library": "10.9.0"`), as its token calls name it.
+const AUTH_LIBRARY: &str = "google-api-nodejs-client/10.9.0";
+
+/// `fetchAndCacheUserInfo` is a bare global `fetch` with only
+/// `Authorization`; these are what Node's undici adds to it. Its
+/// `accept-encoding: gzip, deflate` is left to the connection, which decodes
+/// nothing by default.
+const USERINFO_HEADERS: &[(&str, &str)] = &[
+    ("accept", "*/*"),
+    ("accept-language", "*"),
+    ("sec-fetch-mode", "cors"),
+    ("user-agent", "node"),
+];
+
 fn tool(config: &GeminiCliConfig) -> GoogleTool<'_> {
     GoogleTool {
         client_id: DEFAULT_CLIENT_ID,
@@ -65,6 +80,14 @@ fn tool(config: &GeminiCliConfig) -> GoogleTool<'_> {
         token_url: non_empty(&config.token_url, super::DEFAULT_TOKEN_URL),
         redirect_uri: DEFAULT_REDIRECT_URI,
         scope: OAUTH_SCOPE,
+        // `authWithUserCode` builds its URL without `prompt` (`oauth2.ts`).
+        prompt_consent: false,
+        auth_library: AUTH_LIBRARY,
+        node_client: super::GOOG_API_CLIENT,
+        // `setupUser` goes through `OAuth2Client.request`, whose interceptor
+        // adds the runtime banner (`authclient.js`).
+        code_assist_api_client: Some(super::GOOG_API_CLIENT),
+        userinfo_headers: USERINFO_HEADERS,
         onboarding,
         // gemini-cli `setup.ts`: `setTimeout(f, 5000)` between polls.
         onboard_poll: Duration::from_secs(5),

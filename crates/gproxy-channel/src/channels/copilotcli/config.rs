@@ -24,9 +24,9 @@ pub const DEFAULT_CLIENT_ID: &str = "Iv1.b507a08c87ecfe98";
 pub const DEFAULT_SCOPE: &str = "read:user";
 
 /// The banner the CLI sends on every call, to GitHub and to Copilot alike.
-pub const CLI_USER_AGENT: &str = "copilot/1.0.61 (linux v24.16.0) term/unknown";
+pub const CLI_USER_AGENT: &str = "copilot/1.0.77 (linux v24.16.0) term/unknown";
 /// `editor-version` on an inference call: the CLI names itself.
-pub const CLI_EDITOR_VERSION: &str = "copilot/1.0.61";
+pub const CLI_EDITOR_VERSION: &str = "copilot/1.0.77";
 /// `editor-version` on a GitHub call: the CLI claims the editor whose
 /// entitlement mints Copilot tokens.
 pub const DEFAULT_VSCODE_VERSION: &str = "1.95.3";
@@ -118,8 +118,6 @@ impl CopilotCliConfig {
     pub(super) fn github_api_url(&self) -> &str {
         Self::or_default(&self.github_api_url, DEFAULT_GITHUB_API_URL).trim_end_matches('/')
     }
-
-
 
     pub(super) fn device_authorization_url(&self) -> &str {
         Self::or_default(

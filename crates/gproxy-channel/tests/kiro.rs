@@ -943,7 +943,7 @@ async fn the_identity_center_login_registers_its_own_client_and_carries_it_to_th
     assert_eq!(method, Method::POST);
     assert_eq!(url, "https://oidc.eu-west-1.amazonaws.com/client/register");
     let body: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(body["clientName"], "Kiro-CLI");
+    assert_eq!(body["clientName"], "Kiro CLI");
     assert_eq!(body["clientType"], "public");
     assert_eq!(
         body["grantTypes"],
