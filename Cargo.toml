@@ -141,7 +141,7 @@ percent-encoding = "2"
 paste = "1"
 proc-macro2 = "1"
 quote = "1"
-redis = { version = "1.7", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
+redis = { version = "1.8", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
 rsa = { version = "0.9", features = ["sha2"] }
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "http2", "stream", "socks", "cookies"] }
