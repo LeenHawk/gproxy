@@ -198,6 +198,8 @@
     "quota_team_id": "Quota team id",
     "referer": "Referer",
     "region": "Region",
+    "project_slug": "Project slug",
+    "zero_data_retention": "Zero data retention",
     "resource": "Resource",
     "scope": "Scope",
     "site_url": "Account service URL",

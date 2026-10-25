@@ -198,6 +198,8 @@
     "quota_team_id": "额度查询团队 ID",
     "referer": "应用来源地址",
     "region": "区域",
+    "project_slug": "项目标识",
+    "zero_data_retention": "零数据保留",
     "resource": "资源名称",
     "scope": "授权范围",
     "site_url": "账号服务地址",

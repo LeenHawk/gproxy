@@ -61,11 +61,6 @@ impl BaseChannel for CommandCode {
                     "Project identity sent to the CLI API; defaults to gproxy.",
                 ),
                 ConfigKey::optional(
-                    "server_config",
-                    ConfigKeyKind::Json,
-                    "CLI workspace context sent as config. Defaults to an empty object.",
-                ),
-                ConfigKey::optional(
                     "zero_data_retention",
                     ConfigKeyKind::Bool,
                     "Send x-cmd-zdr: 1, matching CMD_ZDR=1 in the CLI.",

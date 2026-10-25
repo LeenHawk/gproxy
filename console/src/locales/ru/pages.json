@@ -198,6 +198,8 @@
     "quota_team_id": "ID команды для квот",
     "referer": "Referer",
     "region": "Регион",
+    "project_slug": "Slug проекта",
+    "zero_data_retention": "Нулевое хранение данных",
     "resource": "Ресурс",
     "scope": "Область доступа",
     "site_url": "URL сервиса аккаунта",

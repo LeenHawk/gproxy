@@ -133,7 +133,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
           <Field
             key={`${field.name}-${resets[field.name] ?? 0}`}
             className={
-              ["list", "pairs", "dialects", "routing", "model-routing"].includes(controlFor(field))
+              ["list", "pairs", "dialects", "routing", "model-routing", "json"].includes(controlFor(field))
                 ? "sm:col-span-2"
                 : undefined
             }

@@ -11,7 +11,6 @@ pub const DEFAULT_BASE_URL: &str = "https://api.commandcode.ai";
 pub struct CommandCodeConfig {
     pub headers: BTreeMap<String, String>,
     pub project_slug: String,
-    pub server_config: serde_json::Map<String, Value>,
     pub zero_data_retention: bool,
 }
 
@@ -20,7 +19,6 @@ impl Default for CommandCodeConfig {
         Self {
             headers: BTreeMap::new(),
             project_slug: "gproxy".into(),
-            server_config: Default::default(),
             zero_data_retention: false,
         }
     }

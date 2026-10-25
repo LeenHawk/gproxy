@@ -410,6 +410,8 @@ export function ConfigControl({
       return <RoutingFields value={(value ?? {}) as ConfigObject} onChange={onChange} />
     case "model-routing":
       return <ModelRouting value={(value ?? {}) as Record<string, ConfigObject>} onChange={onChange} />
+    case "json":
+      return <JsonValue id={id} value={value} onChange={onChange} />
     case "integer":
       return (
         <Input
@@ -436,6 +438,38 @@ export function ConfigControl({
         />
       )
   }
+}
+
+function JsonValue({ id, value, onChange }: { id: string; value: unknown; onChange: (value: unknown) => void }) {
+  const { t } = useTranslation()
+  const [text, setText] = useState(() => (value === undefined ? "" : JSON.stringify(value, null, 2)))
+  const [invalid, setInvalid] = useState(false)
+  return (
+    <>
+      <Textarea
+        id={id}
+        className="font-mono"
+        rows={4}
+        aria-invalid={invalid}
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value)
+          if (e.target.value.trim() === "") {
+            setInvalid(false)
+            onChange(undefined)
+            return
+          }
+          try {
+            onChange(JSON.parse(e.target.value))
+            setInvalid(false)
+          } catch {
+            setInvalid(true)
+          }
+        }}
+      />
+      {invalid ? <p className="text-sm text-destructive">{t("form.invalidJson")}</p> : null}
+    </>
+  )
 }
 
 function DialectList({

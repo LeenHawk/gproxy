@@ -160,7 +160,7 @@ fn envelope(body: &[u8], config: &CommandCodeConfig) -> Result<Value, ChannelErr
         params["reasoning_effort"] = value.clone();
     }
     Ok(
-        json!({"config":config.server_config, "memory":null, "taste":null, "skills":null,
+        json!({"config":{}, "memory":null, "taste":null, "skills":null,
         "permissionMode":"standard", "params":params}),
     )
 }

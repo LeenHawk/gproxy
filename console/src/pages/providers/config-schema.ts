@@ -12,6 +12,7 @@ export type ControlKind =
   | "dialects"
   | "routing"
   | "model-routing"
+  | "json"
 
 export const choices: Record<string, Array<string>> = {
   credential_strategy: ["round_robin", "earliest_reset", "sticky", "round_robin_affinity"],
@@ -34,6 +35,7 @@ export function controlFor(field: ConfigKey): ControlKind {
   if (field.name === "provider") return "routing"
   if (field.name === "model_providers") return "model-routing"
   if (field.kind === "bool" || field.kind === "integer" || field.kind === "string") return field.kind
+  if (field.kind === "json") return "json"
   throw new Error(`No provider form control for ${field.name}`)
 }
 

@@ -198,6 +198,8 @@
     "quota_team_id": "額度查詢團隊 ID",
     "referer": "應用來源位址",
     "region": "區域",
+    "project_slug": "專案識別",
+    "zero_data_retention": "零資料保留",
     "resource": "資源名稱",
     "scope": "授權范围",
     "site_url": "帳號服務位址",
