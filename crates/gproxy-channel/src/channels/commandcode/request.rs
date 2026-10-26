@@ -72,7 +72,7 @@ fn text_blocks(value: &Value) -> String {
 }
 
 /// CLI toWireMessages/toWireTools: Claude blocks become AI SDK model messages.
-fn envelope(body: &[u8], config: &CommandCodeConfig) -> Result<Value, ChannelError> {
+fn envelope(body: &[u8]) -> Result<Value, ChannelError> {
     let input: Value = serde_json::from_slice(body).map_err(|e| invalid(&e.to_string()))?;
     let model = input["model"]
         .as_str()
@@ -197,7 +197,7 @@ pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, 
         let HttpBody::Bytes(bytes) = ctx.request.body else {
             return Err(invalid("generation needs a buffered JSON body"));
         };
-        HttpBody::Bytes(envelope(&bytes, &config)?.to_string().into())
+        HttpBody::Bytes(envelope(&bytes)?.to_string().into())
     };
     let url = ctx.endpoint_override.map(str::to_owned).unwrap_or_else(|| {
         format!(
