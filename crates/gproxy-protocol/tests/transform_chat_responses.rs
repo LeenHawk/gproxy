@@ -116,9 +116,13 @@ fn multiple_system_messages_controls_schema_custom_tools_and_raw_calls_roundtrip
         wire["response_format"]["json_schema"]["strict"],
         serde_json::Value::Null
     );
-    assert_eq!(
-        wire["tools"][0]["custom"]["format"]["grammar"]["definition"],
-        "[a-z]+"
+    // Chat targets get custom tools as function wrappers that carry the grammar.
+    assert_eq!(wire["tools"][0]["type"], "function");
+    assert!(
+        wire["tools"][0]["function"]["description"]
+            .as_str()
+            .unwrap()
+            .contains(r#""definition":"[a-z]+""#)
     );
     assert_eq!(wire["moderation"]["policy"]["input"]["mode"], "block");
     assert_eq!(wire["prompt_cache_retention"], "24h");
