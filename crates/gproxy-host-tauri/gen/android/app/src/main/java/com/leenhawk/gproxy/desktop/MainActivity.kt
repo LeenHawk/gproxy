@@ -1,6 +1,7 @@
 package com.leenhawk.gproxy.desktop
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -19,7 +20,7 @@ import androidx.core.view.WindowInsetsCompat
  * The window.
  *
  * Almost all of this is Tauri's: [TauriActivity] creates the WebView, wires
- * the IPC bridge and starts the Rust side. What is added is the order of four
+ * the IPC bridge and starts the Rust side. What is added is the order of five
  * things at startup, and the order is the whole of it.
  *
  * 1. **[GproxyNative.configure] first, before `super.onCreate()`.** The Rust
@@ -37,6 +38,7 @@ import androidx.core.view.WindowInsetsCompat
  * 3. **The service**, so the gateway survives the user leaving.
  * 4. **The two permissions** that are requests rather than manifest
  *    declarations.
+ * 5. **The WebView check**, which only warns: the console is still loaded.
  *
  * Nothing here talks to the engine. The window reaches it over Tauri's IPC
  * bridge, as the desktop window does: the console's requests go through
@@ -62,6 +64,38 @@ class MainActivity : TauriActivity() {
         super.onCreate(savedInstanceState)
         keepClearOfSystemBars()
         startConfiguredService()
+        if (savedInstanceState == null) warnIfWebViewTooOld()
+    }
+
+    /**
+     * The console is built for Chrome [MIN_WEBVIEW_MAJOR] and up, the baseline
+     * Vite and Tailwind target. An older WebView does not fail loudly: theme
+     * colours turn transparent and dialogs draw over the page (#307). Vendors
+     * without Play Store updates leave such WebViews in the field, so the
+     * person is told what to update instead of being shown a broken page.
+     * Asked on every cold start: the console stays broken until it is fixed.
+     */
+    private fun warnIfWebViewTooOld() {
+        val webView = WebView.getCurrentWebViewPackage() ?: return
+        val major = webView.versionName?.substringBefore('.')?.toIntOrNull() ?: return
+        if (major >= MIN_WEBVIEW_MAJOR) return
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.gproxy_webview_outdated_title)
+            .setMessage(getString(R.string.gproxy_webview_outdated_message, webView.versionName, MIN_WEBVIEW_MAJOR))
+            .setPositiveButton(R.string.gproxy_action_update) { _, _ -> openStorePage(webView.packageName) }
+            .setNegativeButton(R.string.gproxy_action_continue, null)
+            .show()
+    }
+
+    private fun openStorePage(packageName: String) {
+        for (uri in listOf("market://details?id=$packageName", "https://play.google.com/store/apps/details?id=$packageName")) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)))
+                return
+            } catch (_: ActivityNotFoundException) {
+                // No store, then no browser either: try the next form.
+            }
+        }
     }
 
     /** The first-run page calls this only after Rust has saved a completed setup. */
@@ -151,5 +185,6 @@ class MainActivity : TauriActivity() {
         const val REQUEST_NOTIFY = 10
         const val PREF_ASKED_NOTIFY = "asked_notification_permission"
         const val PREF_ASKED_BATTERY = "asked_battery_exemption"
+        const val MIN_WEBVIEW_MAJOR = 111
     }
 }

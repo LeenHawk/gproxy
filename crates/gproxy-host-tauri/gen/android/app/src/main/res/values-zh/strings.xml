@@ -1,3 +1,7 @@
 <resources>
     <string name="gproxy_action_privacy">隐私说明</string>
+    <string name="gproxy_action_update">更新</string>
+    <string name="gproxy_webview_outdated_title">请更新 Android System WebView</string>
+    <string name="gproxy_webview_outdated_message">本机的 WebView 版本为 %1$s。GPROXY 控制台需要 %2$d 或更高版本，旧版本下页面可能显示错乱。请在应用商店中更新 Android System WebView 后重新打开 GPROXY。</string>
+    <string name="gproxy_action_continue">仍然继续</string>
 </resources>

@@ -30,4 +30,9 @@
     <string name="gproxy_save_done">"Saved"</string>
     <string name="gproxy_save_failed">"Could not save the file"</string>
     <string name="gproxy_action_privacy">Privacy</string>
+
+    <!-- Shown at startup when the system WebView is older than the console supports. -->
+    <string name="gproxy_webview_outdated_title">"Update Android System WebView"</string>
+    <string name="gproxy_webview_outdated_message">"This device's WebView is version %1$s. GPROXY's console needs version %2$d or later, and on older versions pages may look broken. Update Android System WebView from your app store, then reopen GPROXY."</string>
+    <string name="gproxy_action_continue">"Continue anyway"</string>
 </resources>

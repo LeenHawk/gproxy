@@ -17,4 +17,7 @@
     <string name="gproxy_update_failed">Не удалось обновить GPROXY</string>
     <string name="gproxy_save_done">Сохранено</string>
     <string name="gproxy_save_failed">Не удалось сохранить файл</string>
+    <string name="gproxy_webview_outdated_title">Обновите Android System WebView</string>
+    <string name="gproxy_webview_outdated_message">Версия WebView на этом устройстве — %1$s. Консоли GPROXY нужна версия %2$d или новее; в более старых версиях страницы могут отображаться неправильно. Обновите Android System WebView в магазине приложений и снова откройте GPROXY.</string>
+    <string name="gproxy_action_continue">Всё равно продолжить</string>
 </resources>
