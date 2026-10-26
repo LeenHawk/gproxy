@@ -575,9 +575,9 @@ dependencies = [
 
 [[package]]
 name = "asyncband"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5161fb43cb8f231f06983cb2b8f9ee9cee14be0b1356d8383398cc0f312800d1"
+checksum = "5d2050892d4691cf110586070786712b504985a4d37ed64a9cd8a402718e1706"
 
 [[package]]
 name = "atk"
@@ -925,13 +925,13 @@ dependencies = [
 
 [[package]]
 name = "brotli"
-version = "9.0.0"
+version = "9.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8b851b75c23ca7873623d612fe49bd1989aeb03d08fb9432187eb253d3d4c6b"
+checksum = "6737ce8b81460bf9407909f73ff50bf13f7cb8577e1e76715f57ed0eba58ba44"
 dependencies = [
  "alloc-no-stdlib 3.0.0",
  "alloc-stdlib 0.3.0",
- "brotli-decompressor 6.0.1",
+ "brotli-decompressor 6.2.0",
 ]
 
 [[package]]
@@ -946,9 +946,9 @@ dependencies = [
 
 [[package]]
 name = "brotli-decompressor"
-version = "6.0.1"
+version = "6.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "941cd9bd4ddab83cb46fa5a2d428f1c857b24ac78cb876cf7beb710840934bd7"
+checksum = "34c6783f42c21c952ad7112b354f0ba2f10760e9decea5b1b60523d6e270faaf"
 dependencies = [
  "alloc-no-stdlib 3.0.0",
  "alloc-stdlib 0.3.0",
@@ -1326,7 +1326,7 @@ version = "0.4.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cae36683101b2899f48bd31f8db9839437356188e3b1ff23096e73dab09ba8fe"
 dependencies = [
- "brotli 9.0.0",
+ "brotli 9.1.0",
  "compression-core",
  "flate2",
  "memchr",
@@ -1581,9 +1581,9 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 
 [[package]]
 name = "crypto-bigint"
-version = "0.7.8"
+version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d726facc8b27e604391b232b970cdc19b5468c69f08b466b9734c759216c7415"
+checksum = "9c035cb64cba03dad2fb921f3e218785e8cf9a41790da5eb3a1400f62fa2be11"
 dependencies = [
  "cpubits",
  "ctutils",
@@ -1656,9 +1656,9 @@ dependencies = [
 
 [[package]]
 name = "ctutils"
-version = "0.4.5"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38d28fb6aa7dd680b3ffd1a3e64e115c177bdba63c0ae7f9cd48129ff05c4fa0"
+checksum = "fe3e9d21d39e6f39ff46e03d5b621424f88ee23d8a1672c6bfc9ccc7f2da4f6a"
 dependencies = [
  "cmov",
  "subtle",
@@ -1837,9 +1837,9 @@ dependencies = [
 
 [[package]]
 name = "der"
-version = "0.8.2"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a878c850e9e421b20262e9b41f9c860e4785fa07541c266b62ff9d1ef998a80a"
+checksum = "6a996a108feb8b427a6e12fcf6af4aa83409b79d72c15337d7741368131ee004"
 dependencies = [
  "const-oid 0.10.2",
  "pem-rfc7468 1.0.0",
@@ -2096,7 +2096,7 @@ version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0681a4fc24c767085329728d8dfba959af91228aa4610cca4f8ce317ba46ae0"
 dependencies = [
- "der 0.8.2",
+ "der 0.8.3",
  "digest 0.11.3",
  "elliptic-curve",
  "rfc6979",
@@ -2140,9 +2140,9 @@ dependencies = [
 
 [[package]]
 name = "elliptic-curve"
-version = "0.14.2"
+version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ad4496221fcfc21015fd8c0e26fcfab00504832dc0604f52acdd7bad2a8dc81"
+checksum = "900f37e7e18d74a2347389af6cd69e3a30d5cc9e697f40004865679aa75e9c7c"
 dependencies = [
  "base16ct",
  "crypto-bigint",
@@ -2228,9 +2228,9 @@ checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
 
 [[package]]
 name = "erased-serde"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2add8a07dd6a8d93ff627029c51de145e12686fbc36ecb298ac22e74cf02dec"
+checksum = "1e59b668157f32d3459d4bd634861a06ffa2503a461ca5f0916b9f0252605e66"
 dependencies = [
  "serde",
  "serde_core",
@@ -2861,7 +2861,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "aes-gcm",
  "axum",
@@ -2900,7 +2900,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-app"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "aes-gcm",
  "arc-swap",
@@ -2942,7 +2942,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-cache"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "async-trait",
  "futures-util",
@@ -2955,7 +2955,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-channel"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "base64 0.23.1",
  "crc32fast",
@@ -2989,7 +2989,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-client"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "futures-util",
  "gproxy-protocol",
@@ -3018,7 +3018,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-core"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "aes-gcm",
  "arc-swap",
@@ -3061,7 +3061,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-example-channel"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "gproxy-channel",
  "gproxy-protocol",
@@ -3072,7 +3072,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-example-edge"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "gproxy-example-channel",
  "gproxy-host-edge",
@@ -3081,7 +3081,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-example-native"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "gproxy",
  "gproxy-example-channel",
@@ -3089,7 +3089,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-file"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "futures-util",
  "http",
@@ -3104,7 +3104,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-host-axum"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "async-trait",
  "axum",
@@ -3147,7 +3147,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-host-edge"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "axum",
  "gproxy-app",
@@ -3170,7 +3170,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-host-tauri"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "axum",
  "getrandom 0.4.3",
@@ -3204,7 +3204,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "base64 0.23.1",
  "blake3",
@@ -3225,7 +3225,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol-macros"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3234,7 +3234,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-sdk"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -3270,7 +3270,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-seaorm"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -3294,7 +3294,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-store"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "async-trait",
  "blake3",
@@ -3316,7 +3316,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-tokenizer"
-version = "4.1.10"
+version = "4.1.11"
 dependencies = [
  "tiktoken-rs",
  "tokenizers",
@@ -5441,7 +5441,7 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "451913da69c775a56034ea8d9003d27ee8948e12443eae7c038ba100a4f21cb7"
 dependencies = [
- "der 0.8.2",
+ "der 0.8.3",
  "spki 0.8.1",
 ]
 
@@ -6680,7 +6680,7 @@ checksum = "d56d437c2f19203ce5f7122e507831de96f3d2d4d3be5af44a0b0a09d8a80e4d"
 dependencies = [
  "base16ct",
  "ctutils",
- "der 0.8.2",
+ "der 0.8.3",
  "hybrid-array",
  "subtle",
  "zeroize",
@@ -7235,7 +7235,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ef958a98b9d5da290cfc78946e9f3e61e1e62a18db0d92cac0b83cc161491a9"
 dependencies = [
  "base64ct",
- "der 0.8.2",
+ "der 0.8.3",
 ]
 
 [[package]]
@@ -7762,7 +7762,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb37631cf71dab5e8ab55e1bdd701e18a52653d90b78e71d0e5598b1e0a61316"
 dependencies = [
  "base64 0.23.1",
- "brotli 9.0.0",
+ "brotli 9.1.0",
  "ico",
  "json-patch",
  "plist",
@@ -7927,7 +7927,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "362ab21cd4cc713f2a02b1a9b5688198b1541cfb6907c4281e9190e0f0ef4aa3"
 dependencies = [
  "anyhow",
- "brotli 9.0.0",
+ "brotli 9.1.0",
  "cargo_metadata",
  "ctor",
  "dom_query",
@@ -9995,9 +9995,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "9.1.0"
+version = "9.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2886b00003a72c4ccee3f42cfc34908d33b2508a74d827dc2a4244706475c704"
+checksum = "518b847fd864440c379748ad684c449f293af68978a485a4ff16f7c901c1f7c4"
 dependencies = [
  "crc32fast",
  "flate2",
