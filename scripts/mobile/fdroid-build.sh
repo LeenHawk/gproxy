@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../reproducible-env.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/android-toolchain.sh"
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
 build_root=/tmp/gproxy-reproduce
@@ -15,7 +16,7 @@ test -d "$CARGO_HOME" && test ! -e "$build_root/source"
 trap 'rm -rf "$build_root"' EXIT
 ln -s "$ANDROID_NDK_HOME" "$build_root/android-ndk"
 export ANDROID_NDK_HOME="$build_root/android-ndk" ANDROID_NDK_ROOT="$build_root/android-ndk" NDK_HOME="$build_root/android-ndk"
-export PATH="$JAVA_HOME/bin:$tools_dir/gproxy-android-upx/bin:$CARGO_HOME/bin:$tools_dir/node-v24.21.0-linux-x64/bin:$tools_dir/pnpm/bin:$tools_dir/go/bin:$tools_dir/gradle-8.14.3/bin:$PATH"
+export PATH="$JAVA_HOME/bin:$tools_dir/gproxy-android-upx/bin:$CARGO_HOME/bin:$(android_toolchain_path "$tools_dir"):$PATH"
 # android-native-artifact.py records the version that build-android.sh selects.
 export GPROXY_BUILD_VERSION="$(python3 scripts/mobile/version.py | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')"
 natives="$build_root/android-build"

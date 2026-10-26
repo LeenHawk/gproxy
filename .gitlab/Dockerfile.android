@@ -1,21 +1,23 @@
-FROM docker.io/library/node:24.22.1-trixie@sha256:016f604a11c4c725f0a4c62e29ff11adab153d297bf97046c9bf2ddb9f1011d3 AS node
-FROM docker.io/library/golang:1.27.2-trixie@sha256:47667934874913a449b96faa7ef4777fa285d9ec29126ee80ed61c45b7cccf0e AS go
-FROM docker.io/library/rust:1.99.1-trixie@sha256:931c2c0531a8b143e044f0f3914dfe802f15bb3d1955f0b657e9359327ac2ffc
+FROM docker.io/library/debian:trixie-20261005-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
 COPY --from=docker:28-cli /usr/local/bin/docker /usr/local/bin/docker
-COPY --from=node /usr/local/bin/node /usr/local/bin/node
-COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=go /usr/local/go /usr/local/go
-ENV PATH="/opt/android/cmdline-tools/latest/bin:/opt/android/platform-tools:/usr/local/go/bin:${PATH}" \
+# Rust, Go, Node, Gradle and pnpm come from scripts/mobile/android-toolchain.sh,
+# the same pins the F-Droid prebuild installs. Do not add versioned base images
+# here: the F-Droid build must reproduce this image's APK.
+ENV RUSTUP_HOME=/opt/gproxy-toolchain/rustup CARGO_HOME=/opt/gproxy-toolchain/cargo \
     ANDROID_HOME=/opt/android ANDROID_SDK_ROOT=/opt/android \
     ANDROID_NDK_HOME=/opt/android/ndk/30.0.15729638 NDK_HOME=/opt/android/ndk/30.0.15729638 \
     JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
-    && npm install -g pnpm@9.15.9 \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends clang cmake libclang-dev \
-       pkg-config jq zip unzip python3 python3-pip openssl openjdk-21-jdk-headless \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -fsSL --retry 5 --retry-all-errors \
+# The first line matches the F-Droid recipe's `sudo` packages.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends clang cmake g++ libclang-dev make pkg-config ninja-build \
+       python3 rustup unzip xz-utils \
+       ca-certificates curl git jq zip openssl python3-pip openjdk-21-jdk-headless \
+    && rm -rf /var/lib/apt/lists/*
+COPY scripts/mobile/android-toolchain.sh /tmp/android-toolchain.sh
+RUN bash -c 'set -euo pipefail; source /tmp/android-toolchain.sh; install_android_toolchain /opt/gproxy-toolchain'
+# android_toolchain_path, then Cargo and the SDK tools.
+ENV PATH="/opt/gproxy-toolchain/node/bin:/opt/gproxy-toolchain/pnpm/bin:/opt/gproxy-toolchain/go/bin:/opt/gproxy-toolchain/gradle/bin:/opt/gproxy-toolchain/cargo/bin:/opt/android/cmdline-tools/latest/bin:/opt/android/platform-tools:${PATH}"
+RUN curl -fsSL --retry 5 --retry-all-errors \
       https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip -o /tmp/android.zip \
     && echo 'e025545c62a8e64c7559119566a569fb1dec5f60  /tmp/android.zip' | sha1sum -c - \
     && mkdir -p /opt/android/cmdline-tools \
@@ -24,15 +26,9 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && rm /tmp/android.zip \
     && yes | sdkmanager --licenses >/dev/null
 RUN sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.1.0' 'build-tools;34.0.0' 'ndk;30.0.15729638' \
-    && rustup target add x86_64-linux-android aarch64-linux-android \
-    && cargo install cargo-ndk --locked --version 4.1.2
-
-# The same pinned Gradle distribution used by F-Droid after source scanning.
-RUN curl -fsSL --retry 3 https://services.gradle.org/distributions/gradle-8.14.3-bin.zip -o /tmp/gradle.zip \
-    && echo 'bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531  /tmp/gradle.zip' | sha256sum -c - \
-    && unzip -q /tmp/gradle.zip -d /opt && rm /tmp/gradle.zip \
+    && cargo install cargo-ndk --locked --version 4.1.2 \
     && python3 -m pip install --break-system-packages apksigcopier==1.1.1
 COPY scripts/install-android-upx.sh /tmp/install-android-upx.sh
 COPY scripts/install-android-upx.patch /tmp/install-android-upx.patch
 RUN bash /tmp/install-android-upx.sh /opt/gproxy-android-upx
-ENV PATH="/opt/gradle-8.14.3/bin:/opt/gproxy-android-upx/bin:${PATH}"
+ENV PATH="/opt/gproxy-android-upx/bin:${PATH}"

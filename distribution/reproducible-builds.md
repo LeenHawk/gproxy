@@ -58,6 +58,13 @@ upstream's source/Cargo/NDK paths and selects the OpenJDK 21 already provided by
 F-Droid. The recipe installs Debian's `rustup` package to provision the pinned
 Rust toolchain, without a rustup srclib or an extra JDK installation.
 
+Rust, Go, Node, Gradle and pnpm are pinned once, in
+`scripts/mobile/android-toolchain.sh`. The upstream build image
+(`.gitlab/Dockerfile.android`, Debian trixie like the F-Droid buildserver) and
+the F-Droid prebuild (`scripts/mobile/fdroid-tools.sh`) both install from it, so
+a bump reaches both builds. v4.1.11 did not reproduce because the image had moved
+to newer Rust, Go and Node base images while the prebuild kept the old pins.
+
 After obtaining the signed reference APK and an independent F-Droid rebuild:
 
 ```sh

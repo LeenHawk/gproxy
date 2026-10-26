@@ -38,7 +38,8 @@ does not create store products, submit a review, or publish an application.
 
 ## Android builds
 
-Use Rust 1.99, Node 24, pnpm 9.15.9, Go 1.27.1, JDK 21, Android SDK 36,
+Use the Rust, Go, Node, Gradle and pnpm versions pinned in
+`scripts/mobile/android-toolchain.sh`, plus JDK 21, Android SDK 36,
 build-tools 36.1.0 and NDK 30.0.15729638. Native dependencies also need clang,
 libclang, CMake, pkg-config and Ninja. Put Go on PATH. Set `ANDROID_HOME` and
 `ANDROID_NDK_HOME` to the installed tools.
