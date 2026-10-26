@@ -33,7 +33,7 @@
 //!
 //! | Command | What it does |
 //! |---|---|
-//! | `serve` (default) | rotate if asked, bootstrap if the instance is new, bind, serve |
+//! | `serve` (default) | rotate if asked, bootstrap if the instance is new, bind, serve; a first run in a terminal asks first ([`wizard`]) |
 //! | `migrate` | create the schema, or apply the migrations this database has not seen |
 //! | `bootstrap admin` | create the first administrator, idempotently |
 //! | `export` | the instance's configuration as one JSON document |
@@ -55,10 +55,12 @@ pub mod serve;
 #[cfg(feature = "postgres")]
 pub mod serverless;
 pub mod service;
+pub mod setup;
 pub mod telemetry;
 pub mod transfer;
 pub mod update;
 pub mod v3;
+pub mod wizard;
 
 pub use cli::{Cli, Command};
 pub use config::Settings;
@@ -143,6 +145,12 @@ pub async fn run(cli: Cli) -> Result<()> {
     // and `Settings` is the result of the layering — it has deliberately
     // forgotten which file produced it.
     let config_path = cli.options.config.clone();
+
+    // A first run with a person at the terminal is asked rather than
+    // provisioned; everything else proceeds exactly as before.
+    if wizard::wanted(&cli, &settings) {
+        return wizard::run(cli, settings, updates).await;
+    }
 
     match cli.command.unwrap_or(Command::Serve) {
         Command::Migrate { status } => instance::migrate(&settings.config, status).await,

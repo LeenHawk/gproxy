@@ -459,6 +459,7 @@ ipc_table! {
         desktop setup status => desktop_setup_status;
         desktop setup complete => desktop_setup_complete;
         desktop setup pick_directory => desktop_setup_pick_directory;
+        desktop setup channels => desktop_setup_channels;
         desktop instance status => desktop_instance_status;
         desktop instance gateway_key => desktop_instance_gateway_key;
         desktop instance reload => desktop_instance_reload;
@@ -853,6 +854,13 @@ pub fn desktop_setup_status(
             .status()
             .map_err(|error| gproxy_app::AppError::invalid(error.to_string())),
     )
+}
+
+/// The channels this build carries, for the wizard's picker. A constant of the
+/// build, so it needs no instance.
+#[tauri::command]
+pub fn desktop_setup_channels() -> IpcResult<serde_json::Value> {
+    json(Ok::<_, gproxy_app::AppError>(gproxy::setup::channels()))
 }
 
 /// Secrets in this request are transient and must not be written to the audit log.

@@ -216,11 +216,13 @@ GPROXY_MASTER_KEY=<new> gproxy serve
 
 ## 首次初始化
 
-CLI 在 users 表為空時建立 0 號管理員和閘道器 API Key。已有實例啟動時，`GPROXY_ADMIN_PASSWORD`（或 `--admin-password`）按以下規則覆蓋：優先查詢 `GPROXY_ADMIN_USER` 指定的同名使用者，只更新其密碼；若不存在同名使用者，則啟用 0 號管理員並更新使用者名稱和密碼，0 號使用者不存在時建立它。未發生變更時保留會話，密碼變化或恢復 0 號使用者時登出目標使用者的會話。未顯式設定密碼時不修改帳戶，重啟不會生成新的 API Key。
+在終端機中首次執行 `gproxy` 會進入設定精靈，與 Application 的精靈一致：語言、監聽位址、資料目錄和資料庫、管理員帳戶、要建立供應商的渠道（或匯入一份設定匯出檔案），以及為每個新供應商新增憑據。精靈只在以下條件同時滿足時出現：沒有子命令；標準輸入和輸出都是終端機；工作目錄下沒有 `.env`；未設定 `--config`、`--dsn`、`--persistence`、`--data-dir` 和 `--admin-password`；資料庫尚不存在。答案連同新產生的 `GPROXY_MASTER_KEY` 寫入 `./.env`（權限 `0600`），密碼只以雜湊形式儲存。結束時精靈會顯示 Base URL 和閘道器 API Key，並詢問是否安裝為背景服務。按 Esc 略過目前供應商的憑據，按 Ctrl+C 取消且不寫入任何內容。
+
+沒有終端機時（容器、服務管理器、重新導向輸入）仍按以下規則處理。CLI 在 users 表為空時建立 0 號管理員和閘道器 API Key。已有實例啟動時，`GPROXY_ADMIN_PASSWORD`（或 `--admin-password`）按以下規則覆蓋：優先查詢 `GPROXY_ADMIN_USER` 指定的同名使用者，只更新其密碼；若不存在同名使用者，則啟用 0 號管理員並更新使用者名稱和密碼，0 號使用者不存在時建立它。未發生變更時保留會話，密碼變化或恢復 0 號使用者時登出目標使用者的會話。未顯式設定密碼時不修改帳戶，重啟不會生成新的 API Key。
 
 空庫初始化時，`GPROXY_ADMIN_PASSWORD` 和 `GPROXY_BOOTSTRAP_ADMIN_API_KEY` 可指定初始值；省略時自動生成。程式只顯示生成的憑據，輸出到標準輸出。服務管理器和容器可能收集標準輸出，因此首次啟動日誌同樣需要保管。
 
-Application 使用[首次設定精靈](/zh-tw/download/#setup)，不使用瀏覽器初始化頁。
+Application 在[首次設定精靈](/zh-tw/download/#setup)中詢問同樣的問題。兩者都不使用瀏覽器初始化頁。
 
 ## 搬運一份配置
 

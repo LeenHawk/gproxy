@@ -106,6 +106,8 @@ gproxy-host-axum = { workspace = true }
 gproxy-sdk = { workspace = true }
 gproxy-seaorm = { workspace = true, features = ["group-commit"] }
 gproxy-store = { workspace = true }
+# The first-run wizard's prompts, asked only when a person is at a terminal.
+inquire = { workspace = true }
 # The generated first-run password, and nothing else.
 getrandom = { workspace = true }
 # The two update downloads: a signed manifest and one release archive. It

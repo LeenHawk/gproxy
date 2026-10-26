@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core"
-import type { ImportReportDto, ImportRequest } from "@/generated/sdk"
+import type { ChannelDescriptor, ImportReportDto, ImportRequest, ProviderDto } from "@/generated/sdk"
 
 export type SetupDatabase = { kind: "sqlite"; path: string } | { kind: "url"; dsn: string }
 
@@ -36,8 +36,9 @@ export type SetupRequest = {
   language: string
   database: SetupDatabase
   import: ImportRequest | null
+  channels: string[]
 }
-export type SetupResult = { existingAdminPreserved: boolean; baseUrl: string; apiKey: string; importReport: ImportReportDto | null }
+export type SetupResult = { existingAdminPreserved: boolean; baseUrl: string; apiKey: string; importReport: ImportReportDto | null; providers: ProviderDto[] }
 
 export async function shellCall<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   try { return await invoke<T>(command, args) }
@@ -48,6 +49,7 @@ export async function shellCall<T>(command: string, args?: Record<string, unknow
 }
 export const setupStatus = () => shellCall<SetupStatus>("desktop_setup_status")
 export const completeSetup = (request: SetupRequest) => shellCall<SetupResult>("desktop_setup_complete", { request })
+export const setupChannels = () => shellCall<ChannelDescriptor[]>("desktop_setup_channels")
 export const pickDataDirectory = () => shellCall<string | null>("desktop_setup_pick_directory")
 
 type AndroidSetup = {

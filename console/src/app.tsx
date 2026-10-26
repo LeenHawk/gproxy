@@ -20,8 +20,10 @@ import { AuthorizePage, DevicePage } from "@/pages/oauth-consent"
 import { Routes } from "@/pages/routes"
 import { SignInPage } from "@/pages/sign-in"
 import { useRoute } from "@/lib/router"
+import { usePendingCredentials } from "@/pages/setup/pending"
 
 const SetupGate = lazy(() => import("@/pages/setup"))
+const SetupCredentials = lazy(() => import("@/pages/setup/credentials").then(module => ({ default: module.SetupCredentials })))
 
 const client = new QueryClient({
   defaultOptions: {
@@ -44,6 +46,7 @@ function Gate() {
   const { t } = useTranslation()
   const session = useSessionContext()
   const route = useRoute()
+  const pending = usePendingCredentials()
   useUnauthorizedReset()
 
   if (session.isPending) {
@@ -65,7 +68,7 @@ function Gate() {
   if (Consent) return <Consent userName={session.data.user.name} />
   return (
     <ConsoleContextProvider key={`${session.data.user.id}:${session.data.admin?.scope?.selector ?? "none"}`} context={session.data}>
-      <AppShell><Routes /></AppShell>
+      {pending ? <Suspense fallback={<LoadingRows />}><SetupCredentials pending={pending} /></Suspense> : <AppShell><Routes /></AppShell>}
     </ConsoleContextProvider>
   )
 }

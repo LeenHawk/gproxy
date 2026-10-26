@@ -220,11 +220,13 @@ mistaken for a rotation that happened.
 
 ## Bootstrap
 
-The CLI creates administrator `0` and a gateway API key when the users table is empty. On an existing instance, `GPROXY_ADMIN_PASSWORD` (or `--admin-password`) uses the following rule. A user matching `GPROXY_ADMIN_USER` takes priority: only their password is updated. If no name matches, user `0` is enabled as an administrator and given the configured name and password; user `0` is created if missing. Unchanged credentials preserve sessions; a password change or recovery of user `0` ends that user’s sessions. Without an explicit password, accounts are left unchanged. No new API key is created on restart.
+The first `gproxy` run in a terminal is a setup wizard, the same one the application shows: language, listening address, data directory and database, the administrator, the channels to create providers for (or a configuration export to import), and a credential for each new provider. It runs only when there is no subcommand, both standard input and output are a terminal, the working directory has no `.env`, none of `--config`, `--dsn`, `--persistence`, `--data-dir` or `--admin-password` is set, and no database exists yet. The answers are written to `./.env` (mode `0600`) together with a newly generated `GPROXY_MASTER_KEY`; the password is stored only as a hash. At the end the wizard prints the base URL and gateway API key and offers to install a background service. Esc skips one provider's credential; Ctrl+C cancels without writing anything.
+
+Without a terminal — a container, a service manager, redirected input — the rules below apply unchanged. The CLI creates administrator `0` and a gateway API key when the users table is empty. On an existing instance, `GPROXY_ADMIN_PASSWORD` (or `--admin-password`) uses the following rule. A user matching `GPROXY_ADMIN_USER` takes priority: only their password is updated. If no name matches, user `0` is enabled as an administrator and given the configured name and password; user `0` is created if missing. Unchanged credentials preserve sessions; a password change or recovery of user `0` ends that user’s sessions. Without an explicit password, accounts are left unchanged. No new API key is created on restart.
 
 On a fresh database, `GPROXY_ADMIN_PASSWORD` and `GPROXY_BOOTSTRAP_ADMIN_API_KEY` supply initial values; omitted values are generated. Only generated credentials are printed, to stdout. Service managers and containers may collect stdout, so protect the first startup log.
 
-Application uses the [setup wizard](/download/#setup), not a browser initialization page.
+The application asks the same questions in its [setup wizard](/download/#setup). Neither offers a browser initialization page.
 
 ## Moving a Configuration
 

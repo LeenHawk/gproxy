@@ -3,35 +3,40 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { ArrowLeft, ArrowRight, Check, Copy, FolderOpen, LoaderCircle } from "lucide-react"
 import { toast } from "sonner"
-import { completeSetup, setupStatus, pickDataDirectory, androidSetup, validListeningAddress, type SetupStatus, type SetupResult } from "@/api/setup"
+import { completeSetup, setupStatus, setupChannels, pickDataDirectory, androidSetup, validListeningAddress, type SetupStatus, type SetupResult } from "@/api/setup"
 import { normalizeSourceMasterKey, parseConfiguration } from "@/api/transfer"
-import type { ConfigurationExportDto } from "@/generated/sdk"
+import type { ConfigurationExportDto, ProviderDto } from "@/generated/sdk"
 import { copyText } from "@/lib/copy-text"
 import { usePageTitle } from "@/lib/use-page-title"
 import { FontSettings } from "@/components/font-settings"
 import { ShellNotices } from "@/components/shell-notices"
 import { ShellPreferenceFields } from "@/components/shell-preference-fields"
-import { SUPPORTED_LANGS, setLanguage, type LangCode } from "@/i18n"
 import { ErrorNotice, LoadingRows } from "@/components/state"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel, FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { ChannelPicker } from "./channel-picker"
+import { SetupFrame } from "./frame"
+import { PendingCredentialsContext, setupSteps, type PendingCredentials } from "./pending"
 
 const SETUP_KEY = ["desktop", "setup"] as const
 
 export default function SetupGate({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
   const status = useQuery({ queryKey: SETUP_KEY, queryFn: setupStatus, retry: false, refetchOnWindowFocus: false })
+  const [pending, setPending] = useState<PendingCredentials | null>(null)
   if (status.isPending) return <main className="mx-auto max-w-2xl px-5 py-16"><LoadingRows /></main>
   if (status.error) return <main className="mx-auto flex max-w-2xl flex-col gap-4 px-5 py-16"><ErrorNotice error={status.error} /><Button onClick={() => void status.refetch()}>{t("setup.retry")}</Button></main>
-  return status.data.required ? <SetupWizard initial={status.data} /> : <><ShellNotices />{children}</>
+  return status.data.required
+    ? <SetupWizard initial={status.data} onProviders={providers => setPending({ providers, done: () => setPending(null) })} />
+    : <PendingCredentialsContext.Provider value={pending}><ShellNotices />{children}</PendingCredentialsContext.Provider>
 }
 
-export function SetupWizard({ initial }: { initial: SetupStatus }) {
+function SetupWizard({ initial, onProviders }: { initial: SetupStatus; onProviders: (providers: ProviderDto[]) => void }) {
   const { t, i18n } = useTranslation()
   const client = useQueryClient()
   const [step, setStep] = useState(0)
@@ -52,6 +57,9 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
   const [databaseUrl, setDatabaseUrl] = useState(initial.database.kind === "url" ? initial.database.dsn : "")
   const [document, setDocument] = useState<ConfigurationExportDto | null>(null)
   const [sourceKey, setSourceKey] = useState("")
+  const [upstreams, setUpstreams] = useState<"channels" | "import">("channels")
+  const [selected, setSelected] = useState<string[]>([])
+  const catalog = useQuery({ queryKey: ["desktop", "setup", "channels"], queryFn: setupChannels, staleTime: Infinity })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [fileError, setFileError] = useState<unknown>(null)
   const [readingFile, setReadingFile] = useState(false)
@@ -74,15 +82,16 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
       apiKey: apiKey || null, autoStart: initial.canAutoStart && autoStart, tray: initial.canChooseDataDir && tray,
       closeToTray: tray && closeToTray, startHidden, language: i18n.language,
       database: databaseKind === "sqlite" ? { kind: "sqlite", path: databasePath.trim() } : { kind: "url", dsn: databaseUrl.trim() },
-      import: document ? { export: document, mode: "merge", sourceMasterKey } : null })
+      import: upstreams === "import" && document ? { export: document, mode: "merge", sourceMasterKey } : null,
+      channels: upstreams === "channels" ? selected : [] })
   }, onError: async () => {
     try { setStarted((await setupStatus()).started) } catch { /* Keep the original setup error visible. */ }
   }, onSuccess: value => {
-    setResult(value); setPassword(""); setConfirmation(""); setSourceKey(""); setApiKey(""); setDocument(null)
+    setResult(value); setPassword(""); setConfirmation(""); setSourceKey(""); setApiKey(""); setDocument(null); setSelected([])
     android?.setupFinished()
   } })
   const busy = setup.isPending || directory.isPending || readingFile
-  const titles = [t("setup.connection"), t("setup.account"), t("setup.importTitle")]
+  const titles = setupSteps(t)
   usePageTitle(result ? t("setup.ready") : titles[step])
   function next(event: FormEvent) {
     event.preventDefault()
@@ -111,13 +120,8 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
     try { await copyText(value); toast.success(t("actions.copied")) }
     catch { toast.error(t("setup.copyFailed")) }
   }
-  return <main ref={mainRef} className="mx-auto flex min-h-svh w-full max-w-2xl flex-col justify-center gap-6 px-4 py-8 sm:px-6 sm:py-12">
-    <header className="flex items-center justify-between gap-4">
-      <div className="flex min-w-0 items-center gap-2"><img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} alt="" className="size-10" /><span className="font-semibold">GPROXY</span></div>
-      <Select value={i18n.language} onValueChange={value => void setLanguage(value as LangCode)}><SelectTrigger aria-label={t("setup.language")} className="w-auto"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{SUPPORTED_LANGS.map(code => <SelectItem key={code} value={code}>{t(`language.${code}`)}</SelectItem>)}</SelectGroup></SelectContent></Select>
-    </header>
+  return <SetupFrame mainRef={mainRef} steps={result ? undefined : titles} current={step}>
     {!result && step === 0 ? <FontSettings showDescriptions={false} /> : null}
-    {!result ? <ol role="list" className="flex flex-wrap justify-between gap-2" aria-label={t("setup.steps")}>{titles.map((title, index) => <li key={title} className="flex min-w-0 items-center gap-2 text-sm" aria-current={step === index ? "step" : undefined}><Badge variant={step === index ? "default" : "secondary"}>{index + 1}</Badge><span className="whitespace-normal wrap-anywhere">{title}</span></li>)}</ol> : null}
     {result ? <Card>
       <CardHeader><CardTitle headingLevel={1} tabIndex={-1}>{t("setup.ready")}</CardTitle></CardHeader>
       <CardContent className="flex min-w-0 flex-col gap-5"><FieldGroup>
@@ -126,7 +130,7 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
       </FieldGroup>
       {result.existingAdminPreserved ? <Alert><AlertTitle>{t("setup.existingAdmin")}</AlertTitle></Alert> : null}
       {result.importReport ? <Alert><Check /><AlertTitle>{t("management.importResult")}</AlertTitle><AlertDescription><p>{t("management.importCounts", result.importReport)}</p>{result.importReport.warnings.map((warning, index) => <p key={index}>{warning}</p>)}</AlertDescription></Alert> : null}
-      </CardContent><CardFooter><Button className="w-full" onClick={() => client.setQueryData(SETUP_KEY, { ...initial, required: false, completed: true })}>{t("setup.openConsole")}<ArrowRight data-icon="inline-end" /></Button></CardFooter>
+      </CardContent><CardFooter><Button className="w-full" onClick={() => { if (result.providers.length) onProviders(result.providers); client.setQueryData(SETUP_KEY, { ...initial, required: false, completed: true }) }}>{t(result.providers.length ? "setup.addCredentials" : "setup.openConsole")}<ArrowRight data-icon="inline-end" /></Button></CardFooter>
     </Card> : <form onSubmit={next} noValidate><Card>
       <CardHeader><CardTitle headingLevel={1} tabIndex={-1}>{titles[step]}</CardTitle></CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -147,6 +151,13 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
         <Field data-field-span="full"><FieldLabel htmlFor="setup-api-key">{t("setup.initialKey")}</FieldLabel><Input id="setup-api-key" type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} autoComplete="off" disabled={busy} placeholder={t("setup.generateKey")} /></Field>
       </FieldGroup> : null}
       {step === 2 ? <FieldGroup>
+        <ToggleGroup type="single" variant="outline" value={upstreams} onValueChange={value => { if (value) { setUpstreams(value as typeof upstreams); setup.reset() } }} disabled={busy} data-field-span="full" aria-label={t("setup.upstreams")}>
+          <ToggleGroupItem value="channels">{t("setup.chooseChannels")}</ToggleGroupItem>
+          <ToggleGroupItem value="import">{t("setup.importConfiguration")}</ToggleGroupItem>
+        </ToggleGroup>
+        {upstreams === "channels" ? <Field data-field-span="full"><p className="text-sm text-muted-foreground">{t("setup.channelsHint")}</p>
+          {catalog.isPending ? <LoadingRows /> : catalog.error ? <ErrorNotice error={catalog.error} /> : <ChannelPicker channels={catalog.data} selected={selected} onChange={setSelected} disabled={busy} />}
+        </Field> : <>
         <Field data-field-span="full"><FieldLabel htmlFor="setup-import">{t("management.configurationFile")}</FieldLabel><Input id="setup-import" type="file" accept=".json,application/json" disabled={busy} onChange={async e => {
           const file = e.target.files?.[0]; const reading = ++fileRead.current
           setDocument(null); setFileError(null); setup.reset(); setSourceKey("")
@@ -159,11 +170,12 @@ export function SetupWizard({ initial }: { initial: SetupStatus }) {
           finally { if (reading === fileRead.current) setReadingFile(false) }
         }} /></Field>
         {document ? <><Field data-field-span="full"><FieldLabel htmlFor="setup-source-key">{t("management.sourceKey")}</FieldLabel><Input id="setup-source-key" type="password" autoComplete="off" value={sourceKey} onChange={e => setSourceKey(e.target.value)} disabled={busy} /></Field></> : null}
+        </>}
         {android ? <Field data-field-span="full"><FieldLabel>{t("setup.permissions")}</FieldLabel><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy || permissions.data?.notifications} onClick={() => android.requestNotifications()}>{t(permissions.data?.notifications ? "setup.notificationsGranted" : "setup.allowNotifications")}</Button><Button type="button" variant="outline" disabled={busy || permissions.data?.background} onClick={() => android.requestBackground()}>{t(permissions.data?.background ? "setup.backgroundGranted" : "setup.allowBackground")}</Button></div></Field> : null}
       </FieldGroup> : null}
-      {fileError || directory.error || setup.error ? <ErrorNotice error={fileError ?? directory.error ?? setup.error} /> : null}
+      {(upstreams === "import" && fileError) || directory.error || setup.error ? <ErrorNotice error={(upstreams === "import" ? fileError : null) ?? directory.error ?? setup.error} /> : null}
       </CardContent>
-      <CardFooter className="justify-between gap-3"><Button type="button" variant="ghost" disabled={busy || step === 0} onClick={() => { setStep(step - 1); setErrors({}); setup.reset() }}><ArrowLeft data-icon="inline-start" />{t("setup.back")}</Button><Button type="submit" disabled={busy || (step === 2 && !!fileError)}>{setup.isPending ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : null}{t(step === 2 ? "setup.finish" : "setup.next")}{step < 2 ? <ArrowRight data-icon="inline-end" /> : null}</Button></CardFooter>
+      <CardFooter className="justify-between gap-3"><Button type="button" variant="ghost" disabled={busy || step === 0} onClick={() => { setStep(step - 1); setErrors({}); setup.reset() }}><ArrowLeft data-icon="inline-start" />{t("setup.back")}</Button><Button type="submit" disabled={busy || (step === 2 && upstreams === "import" && !!fileError)}>{setup.isPending ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : null}{t(step === 2 ? "setup.finish" : "setup.next")}{step < 2 ? <ArrowRight data-icon="inline-end" /> : null}</Button></CardFooter>
     </Card></form>}
-  </main>
+  </SetupFrame>
 }

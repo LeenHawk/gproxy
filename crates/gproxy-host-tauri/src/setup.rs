@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use gproxy::config::AdminOptions;
 use gproxy_app::{AppError, Operations, config::StoreBackendConfig};
-use gproxy_sdk::dto::{ImportReportDto, ImportRequest};
+use gproxy_sdk::dto::{ImportReportDto, ImportRequest, ProviderDto};
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
@@ -53,6 +53,9 @@ pub struct SetupRequest {
     #[serde(flatten)]
     pub preferences: crate::preferences::Preferences,
     pub import: Option<ImportRequest>,
+    /// Channels to create a provider for, with the channel's defaults.
+    #[serde(default)]
+    pub channels: Vec<String>,
     pub database: StoreBackendConfig,
 }
 
@@ -62,6 +65,9 @@ pub struct SetupResult {
     pub base_url: String,
     pub api_key: String,
     pub import_report: Option<ImportReportDto>,
+    /// The providers made for [`SetupRequest::channels`], which the window
+    /// offers credentials for next.
+    pub providers: Vec<ProviderDto>,
     pub existing_admin_preserved: bool,
 }
 
@@ -99,7 +105,7 @@ impl Setup {
             can_auto_start: !cfg!(target_env = "ohos"),
             started: engine::started().is_some(),
             database: choices.database.clone(),
-            database_kinds: database_kinds(),
+            database_kinds: gproxy::setup::database_kinds(),
             choices,
         })
     }
@@ -114,20 +120,10 @@ impl Setup {
         if previous.completed {
             return Err(AppError::Conflict("this instance is already set up".into()).into());
         }
-        request.admin_user = request.admin_user.trim().to_owned();
-        if request.admin_user.is_empty() {
-            return Err(AppError::invalid("administrator name must not be blank").into());
-        }
-        gproxy_app::auth::password::validate(&request.password)?;
-        let host: std::net::IpAddr = request
-            .host
-            .trim()
-            .parse()
-            .map_err(|_| AppError::invalid("enter a valid listening IP address"))?;
+        request.admin_user = gproxy::setup::admin_name(&request.admin_user)?;
+        gproxy::setup::password(&request.password)?;
+        let host = gproxy::setup::listen(&request.host, request.port)?;
         request.host = host.to_string();
-        if request.port == 0 {
-            return Err(AppError::invalid("choose a port between 1 and 65535").into());
-        }
         if !request.data_dir.is_absolute() {
             return Err(AppError::invalid("choose an absolute data directory path").into());
         }
@@ -171,12 +167,7 @@ impl Setup {
             }
         } else {
             // Fail before creating a database when a server already owns this port.
-            std::net::TcpListener::bind((host, request.port)).map_err(|error| {
-                failure(format!(
-                    "cannot listen on {}:{}: {error}",
-                    host, request.port
-                ))
-            })?;
+            gproxy::setup::probe(host, request.port).map_err(failure)?;
         }
         let mut choices = Choices {
             data_dir: request.data_dir,
@@ -238,6 +229,9 @@ impl Setup {
         } else {
             None
         };
+        let providers =
+            gproxy::setup::create_providers(desktop.app(), &std::mem::take(&mut request.channels))
+                .await?;
         // OS startup registration may involve WinRT and must not block the IPC executor.
         let auto_start = choices.preferences.auto_start;
         tauri::async_runtime::spawn_blocking(move || crate::startup::set(auto_start))
@@ -255,6 +249,7 @@ impl Setup {
             base_url: plane.base_url.clone(),
             api_key: plane.gateway_key.clone(),
             import_report,
+            providers,
             existing_admin_preserved: !desktop.admin_created() && !database_exists,
         };
         app.manage(desktop);
@@ -298,45 +293,21 @@ pub fn read_choices(root: &Path) -> StartResult<Choices> {
     }
 }
 
-fn database_kinds() -> Vec<&'static str> {
-    let mut kinds = vec!["sqlite"];
-    if cfg!(feature = "postgres") {
-        kinds.push("postgres");
-    }
-    if cfg!(feature = "mysql") {
-        kinds.push("mysql");
-    }
-    kinds
-}
-
 fn validate_database(database: &StoreBackendConfig) -> IpcResult<()> {
-    match database {
-        StoreBackendConfig::Sqlite { path } if !path.trim().is_empty() => {
-            #[cfg(any(target_os = "android", target_env = "ohos"))]
-            if Path::new(path).is_absolute()
-                || Path::new(path)
-                    .components()
-                    .any(|component| component == std::path::Component::ParentDir)
-            {
-                return Err(AppError::invalid(
-                    "Mobile database files must stay inside the private data directory",
-                )
-                .into());
-            }
-            Ok(())
-        }
-        StoreBackendConfig::Url { dsn }
-            if (cfg!(feature = "postgres")
-                && (dsn.starts_with("postgres://") || dsn.starts_with("postgresql://")))
-                || (cfg!(feature = "mysql") && dsn.starts_with("mysql://")) =>
-        {
-            Ok(())
-        }
-        _ => Err(AppError::invalid(
-            "choose a supported database and provide its file path or connection URL",
+    gproxy::setup::database(database)?;
+    #[cfg(any(target_os = "android", target_env = "ohos"))]
+    if let StoreBackendConfig::Sqlite { path } = database
+        && (Path::new(path).is_absolute()
+            || Path::new(path)
+                .components()
+                .any(|component| component == std::path::Component::ParentDir))
+    {
+        return Err(AppError::invalid(
+            "Mobile database files must stay inside the private data directory",
         )
-        .into()),
+        .into());
     }
+    Ok(())
 }
 
 pub(crate) fn write_choices(root: &Path, choices: &Choices) -> std::io::Result<()> {

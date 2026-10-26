@@ -216,11 +216,13 @@ GPROXY_MASTER_KEY=<new> gproxy serve
 
 ## 首次初始化
 
-CLI 在 users 表为空时创建 0 号管理员和网关 API Key。已有实例启动时，`GPROXY_ADMIN_PASSWORD`（或 `--admin-password`）按以下规则覆盖：优先查找 `GPROXY_ADMIN_USER` 指定的同名用户，只更新其密码；若不存在同名用户，则启用 0 号管理员并更新用户名和密码，0 号用户不存在时创建它。未发生变更时保留会话，密码变化或恢复 0 号用户时注销目标用户的会话。未显式设置密码时不修改账户，重启不会生成新的 API Key。
+在终端里首次运行 `gproxy` 会进入设置向导，与 Application 的向导一致：语言、监听地址、数据目录和数据库、管理员账户、要创建供应商的渠道（或导入一份配置导出文件），以及为每个新供应商添加凭据。向导只在以下条件同时满足时出现：没有子命令；标准输入和输出都是终端；工作目录下没有 `.env`；未设置 `--config`、`--dsn`、`--persistence`、`--data-dir` 和 `--admin-password`；数据库尚不存在。答案连同新生成的 `GPROXY_MASTER_KEY` 写入 `./.env`（权限 `0600`），密码只以哈希形式保存。结束时向导会显示 Base URL 和网关 API Key，并询问是否安装为后台服务。按 Esc 跳过当前供应商的凭据，按 Ctrl+C 取消且不写入任何内容。
+
+没有终端时（容器、服务管理器、重定向输入）仍按以下规则处理。CLI 在 users 表为空时创建 0 号管理员和网关 API Key。已有实例启动时，`GPROXY_ADMIN_PASSWORD`（或 `--admin-password`）按以下规则覆盖：优先查找 `GPROXY_ADMIN_USER` 指定的同名用户，只更新其密码；若不存在同名用户，则启用 0 号管理员并更新用户名和密码，0 号用户不存在时创建它。未发生变更时保留会话，密码变化或恢复 0 号用户时注销目标用户的会话。未显式设置密码时不修改账户，重启不会生成新的 API Key。
 
 空库初始化时，`GPROXY_ADMIN_PASSWORD` 和 `GPROXY_BOOTSTRAP_ADMIN_API_KEY` 可指定初始值；省略时自动生成。程序只显示生成的凭据，输出到标准输出。服务管理器和容器可能收集标准输出，因此首次启动日志同样需要保管。
 
-Application 使用[首次设置向导](/zh-cn/download/#setup)，不使用浏览器初始化页。
+Application 在[首次设置向导](/zh-cn/download/#setup)中询问同样的问题。两者都不使用浏览器初始化页。
 
 ## 搬运一份配置
 
