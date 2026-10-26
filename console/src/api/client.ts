@@ -56,12 +56,23 @@ export function setAdminScope(selector: string | null, header = scopeHeader) {
 }
 export function getAdminScope() { return adminScope }
 
+// `AbortSignal.any` is Chrome 116; older Android WebViews (#307) lack it.
+function anySignal(a: AbortSignal, b: AbortSignal): AbortSignal {
+  if (typeof AbortSignal.any === "function") return AbortSignal.any([a, b])
+  const controller = new AbortController()
+  for (const source of [a, b]) {
+    if (source.aborted) { controller.abort(source.reason); break }
+    source.addEventListener("abort", () => controller.abort(source.reason), { once: true, signal: controller.signal })
+  }
+  return controller.signal
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (!headers.has("accept")) headers.set("accept", "application/json")
   const managed = path.startsWith("/admin/api/")
   if (managed && adminScope && !headers.has(scopeHeader)) headers.set(scopeHeader, adminScope)
-  const signal = managed ? (init?.signal ? AbortSignal.any([init.signal, scopeAbort.signal]) : scopeAbort.signal) : init?.signal
+  const signal = managed ? (init?.signal ? anySignal(init.signal, scopeAbort.signal) : scopeAbort.signal) : init?.signal
   const response = await send(path, { ...init, signal, credentials: "same-origin", headers })
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null)
