@@ -35,7 +35,7 @@ GPROXY CLI is a native console developer tool. Open PowerShell or Windows
 Terminal and run `gproxy --help`, then start an instance with:
 
 ```powershell
-gproxy serve --data-dir "$env:LOCALAPPDATA\GPROXY-CLI" --port 8787
+gproxy serve --data-dir "$env:LOCALAPPDATA\GPROXY" --port 8787
 ```
 
 Save the administrator credentials printed at first startup and open

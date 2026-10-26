@@ -32,7 +32,7 @@ GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模
 | `GPROXY_CONFIG` | `--config`、`-c` | — | 装任意配置字段的 TOML 文件 |
 | `GPROXY_HOST` | `--host` | `127.0.0.1` | 监听地址（一个 IP，不是主机名） |
 | `GPROXY_PORT` | `--port`、`-p` | `8787` | 监听端口 |
-| `GPROXY_DATA_DIR` | `--data-dir` | `data` | 相对路径相对它解析的根 |
+| `GPROXY_DATA_DIR` | `--data-dir` | `data`¹ | 相对路径相对它解析的根 |
 | `GPROXY_PERSISTENCE` | `--persistence` | `sqlite` | `sqlite`、`postgres` 或 `mysql` |
 | `GPROXY_DSN` | `--dsn` | — | 连接串；没有 `--persistence` 时由它自己点明后端 |
 | `GPROXY_REDIS_URL` | `--redis-url` | — | 共享 cache；**多实例必需** |
@@ -62,6 +62,8 @@ GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模
 | `GPROXY_UPDATE_AUTOMATIC` | `--update-automatic` | `false` | 自动安装检查到的更新 |
 | `GPROXY_UPDATE_VERIFY_SIGNATURE` | `--update-verify-signature` | `true` | 校验更新清单签名；设为 `false` 跳过签名校验，仍校验安装包大小和 SHA-256 |
 | `GPROXY_AUTOSTART` | `service install --autostart` | 见命令帮助 | 安装服务时的启动选项 |
+
+¹ 相对于工作目录。Windows 上通过 Microsoft Store（MSIX）或 WinGet 安装时，默认改用 `%LOCALAPPDATA%\GPROXY`，与 `install.ps1` 提供的默认目录相同。安装脚本和 `gproxy service install` 会记录所选目录，因此已配置的实例不受启动位置影响。
 
 Console → 系统更新 → 校验更新签名会立即保存实例设置，重启后保留。通过设置 API 将 `instance.updateVerifySignature` 设为 `null`，可恢复跟随命令行/环境变量默认值。
 

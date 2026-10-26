@@ -37,7 +37,7 @@ Common environment variables are listed below. `gproxy --help` shows the flags a
 | `GPROXY_CONFIG` | `--config`, `-c` | — | TOML file holding any config field |
 | `GPROXY_HOST` | `--host` | `127.0.0.1` | listen address (an IP, not a hostname) |
 | `GPROXY_PORT` | `--port`, `-p` | `8787` | listen port |
-| `GPROXY_DATA_DIR` | `--data-dir` | `data` | root that relative paths resolve against |
+| `GPROXY_DATA_DIR` | `--data-dir` | `data`¹ | root that relative paths resolve against |
 | `GPROXY_PERSISTENCE` | `--persistence` | `sqlite` | `sqlite`, `postgres` or `mysql` |
 | `GPROXY_DSN` | `--dsn` | — | connection string; names its own backend when `--persistence` is absent |
 | `GPROXY_REDIS_URL` | `--redis-url` | — | shared cache; **required for more than one instance** |
@@ -67,6 +67,8 @@ Common environment variables are listed below. `gproxy --help` shows the flags a
 | `GPROXY_UPDATE_AUTOMATIC` | `--update-automatic` | `false` | Automatically install scheduled updates |
 | `GPROXY_UPDATE_VERIFY_SIGNATURE` | `--update-verify-signature` | `true` | Verify manifest signatures; `false` skips signatures but still checks package size and SHA-256 |
 | `GPROXY_AUTOSTART` | `service install --autostart` | see command help | Service installation startup option |
+
+¹ Relative to the working directory. A Microsoft Store (MSIX) or WinGet install on Windows defaults to `%LOCALAPPDATA%\GPROXY` instead, the same directory `install.ps1` offers. The install scripts and `gproxy service install` record the chosen directory, so a configured instance does not depend on where it is started from.
 
 Console → Updates → Verify update signatures saves an instance override immediately and persists across restarts. Set `instance.updateVerifySignature` to `null` through the settings API to follow the CLI/environment default again.
 

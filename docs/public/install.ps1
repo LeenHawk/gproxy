@@ -287,7 +287,7 @@ if ($Mirror -notin 'github', 'gitlab', 'cnb') { throw "unknown mirror: $Mirror" 
 # ---------------------------------------------------------------- instance
 
 if (-not $InstallDir) { $InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\gproxy' }
-if (-not $DataDir) { $DataDir = Join-Path $env:LOCALAPPDATA 'gproxy' }
+if (-not $DataDir) { $DataDir = Join-Path $env:LOCALAPPDATA 'GPROXY' }
 $EnvFile = Join-Path $DataDir '.env'
 
 function Env-Value([string]$name) {

@@ -361,12 +361,15 @@ fn list(value: &str) -> Vec<String> {
         .collect()
 }
 
-/// `./data`, except inside an MSIX package: a Start menu launch runs with
+/// `./data`, except for a Windows install that has no setup step of its own:
+/// an MSIX package or a WinGet portable install. Those are started from the
+/// Start menu, a shell in any directory, or the WinGet validator, often with
 /// `System32` as the working directory, which only an elevated process can
-/// write, so a packaged install keeps its data per user instead.
+/// write. They keep their data per user, in the directory `install.ps1`
+/// offers too. A ZIP unpacked by hand stays portable.
 fn default_data_dir() -> String {
     #[cfg(windows)]
-    if packaged()
+    if (packaged() || winget_installed())
         && let Some(local) = std::env::var_os("LOCALAPPDATA")
     {
         return Path::new(&local)
@@ -375,6 +378,22 @@ fn default_data_dir() -> String {
             .into_owned();
     }
     DEFAULT_DATA_DIR.to_owned()
+}
+
+/// Whether this executable is a WinGet portable install: WinGet unpacks it
+/// under `…\WinGet\Packages\` (per user or per machine) and starts it
+/// through a link in `…\WinGet\Links\`. Both the path as started and the
+/// resolved one are checked.
+#[cfg(windows)]
+fn winget_installed() -> bool {
+    let Ok(exe) = std::env::current_exe() else {
+        return false;
+    };
+    let resolved = std::fs::canonicalize(&exe).ok();
+    std::iter::once(exe).chain(resolved).any(|path| {
+        let path = path.to_string_lossy().to_ascii_lowercase();
+        path.contains("\\winget\\packages\\") || path.contains("\\winget\\links\\")
+    })
 }
 
 /// Whether this process has package identity, i.e. runs from an MSIX install.
