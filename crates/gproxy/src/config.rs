@@ -132,7 +132,7 @@ pub fn layer(options: &cli::Options, file: Option<AppConfig>) -> Result<Settings
     // Not a flag override: the default belongs here rather than in `AppConfig`,
     // because the edge host has no filesystem to resolve it against.
     if config.data_dir.is_none() {
-        config.data_dir = Some(DEFAULT_DATA_DIR.to_owned());
+        config.data_dir = Some(default_data_dir());
     }
 
     if let Some(store) = store_backend(options)? {
@@ -359,6 +359,35 @@ fn list(value: &str) -> Vec<String> {
         .filter(|entry| !entry.is_empty())
         .map(str::to_owned)
         .collect()
+}
+
+/// `./data`, except inside an MSIX package: a Start menu launch runs with
+/// `System32` as the working directory, which only an elevated process can
+/// write, so a packaged install keeps its data per user instead.
+fn default_data_dir() -> String {
+    #[cfg(windows)]
+    if packaged()
+        && let Some(local) = std::env::var_os("LOCALAPPDATA")
+    {
+        return Path::new(&local)
+            .join("GPROXY")
+            .to_string_lossy()
+            .into_owned();
+    }
+    DEFAULT_DATA_DIR.to_owned()
+}
+
+/// Whether this process has package identity, i.e. runs from an MSIX install.
+#[cfg(windows)]
+fn packaged() -> bool {
+    use windows_sys::Win32::{
+        Foundation::APPMODEL_ERROR_NO_PACKAGE, Storage::Packaging::Appx::GetCurrentPackageFullName,
+    };
+    let mut length = 0;
+    // A size query has no buffer to write and only tells us whether we have package identity.
+    unsafe {
+        GetCurrentPackageFullName(&mut length, std::ptr::null_mut()) != APPMODEL_ERROR_NO_PACKAGE
+    }
 }
 
 /// A value the operator actually supplied. An empty string counts as silence:

@@ -143,6 +143,10 @@ zip = { workspace = true }
 [target.'cfg(not(unix))'.dependencies]
 self-replace = { workspace = true }
 
+# Package identity, so an MSIX install defaults its data directory per user.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true }
+
 [dev-dependencies]
 # `datetime!` literals in the announcement filter tests.
 time = { workspace = true, features = ["macros"] }

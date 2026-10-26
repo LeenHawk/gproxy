@@ -110,7 +110,8 @@ pub struct Options {
     pub port: Option<String>,
 
     /// Directory relative paths resolve against: the SQLite file, local file
-    /// storage, downloaded vocabularies. [default: data]
+    /// storage, downloaded vocabularies. [default: data; an MSIX install
+    /// uses %LOCALAPPDATA%\GPROXY]
     #[arg(long, global = true, env = DATA_DIR, value_name = "PATH")]
     pub data_dir: Option<String>,
 
