@@ -274,10 +274,14 @@ fn user_text_turns(body: &Value) -> usize {
         .count()
 }
 
+/// The CLI hashes its first non-meta user message (2.1.311 `dH`). Meta
+/// context reaches the wire as `<system-reminder>` text merged ahead of the
+/// prompt, so those blocks are skipped.
 fn first_user_text(body: &Value) -> &str {
     let Some(messages) = body.get("messages").and_then(Value::as_array) else {
         return "";
     };
+    let prompt = |text: &&str| !text.starts_with("<system-reminder>");
     for message in messages {
         if message.get("role").and_then(Value::as_str) != Some("user") {
             continue;
@@ -285,7 +289,7 @@ fn first_user_text(body: &Value) -> &str {
         let Some(content) = message.get("content") else {
             continue;
         };
-        if let Some(text) = content.as_str() {
+        if let Some(text) = content.as_str().filter(prompt) {
             return text;
         }
         if let Some(text) = content.as_array().and_then(|blocks| {
@@ -293,6 +297,7 @@ fn first_user_text(body: &Value) -> &str {
                 (block.get("type").and_then(Value::as_str) == Some("text"))
                     .then(|| block.get("text").and_then(Value::as_str))
                     .flatten()
+                    .filter(prompt)
             })
         }) {
             return text;

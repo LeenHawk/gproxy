@@ -1,4 +1,5 @@
-//! Claude Code 2.1.302 usage-limit requests and capacity waiting.
+//! Claude Code 2.1.302 usage-limit requests and capacity waiting
+//! (normalized source unchanged through 2.1.311).
 //! Sources: readable/chunk-pmgddf3s.js:8637-9064 (slow state/retries),
 //! chunk-m1s9ka5b.js:27-91 (offer acceptance), and
 //! chunk-8242685m.js:136075-136093,139066-139067 (extended dispatch).
