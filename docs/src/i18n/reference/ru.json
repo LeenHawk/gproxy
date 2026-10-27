@@ -905,5 +905,7 @@
   "A system message can change controls without sending content.": "Сообщение system может изменять параметры управления без передачи содержимого.",
   "The lifecycle is authoritative; a past scheduled retirement date alone does not mean that a model has retired.": "Определяющим является состояние жизненного цикла: прошедшая плановая дата вывода из эксплуатации сама по себе не означает, что модель уже выведена из эксплуатации.",
   "Required for user and assistant messages; system messages may omit it.": "Обязательно для сообщений user и assistant; в сообщениях system поле можно опустить.",
-  "The anthropic_version written into every Anthropic request body; defaults to 2026-10-21.": "Значение anthropic_version в теле каждого запроса Anthropic; по умолчанию 2026-10-21."
+  "The anthropic_version written into every Anthropic request body; defaults to 2026-10-21.": "Значение anthropic_version в теле каждого запроса Anthropic; по умолчанию 2026-10-21.",
+  "Source: Realtime.md `prompt_cache_breakpoint.ttl` (2026-10-27); omitted inherits the request TTL.": "Источник: Realtime.md `prompt_cache_breakpoint.ttl` (2026-10-27); если не указан, наследуется TTL запроса.",
+  "Announced shutdown date (`YYYY-MM-DD`); explicit `null` when none is announced.": "Объявленная дата отключения (`YYYY-MM-DD`); явное значение `null`, если дата не объявлена."
 }

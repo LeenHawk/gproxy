@@ -905,5 +905,7 @@
   "A system message can change controls without sending content.": "system 消息可以只更新控制字段，不发送正文。",
   "The lifecycle is authoritative; a past scheduled retirement date alone does not mean that a model has retired.": "模型是否退役以生命周期状态为准；计划退役日期已过，并不单独表示模型已经退役。",
   "Required for user and assistant messages; system messages may omit it.": "user 和 assistant 消息必须包含此字段，system 消息可以省略。",
-  "The anthropic_version written into every Anthropic request body; defaults to 2026-10-21.": "写入每个 Anthropic 请求体的 anthropic_version，默认为 2026-10-21。"
+  "The anthropic_version written into every Anthropic request body; defaults to 2026-10-21.": "写入每个 Anthropic 请求体的 anthropic_version，默认为 2026-10-21。",
+  "Source: Realtime.md `prompt_cache_breakpoint.ttl` (2026-10-27); omitted inherits the request TTL.": "来源：Realtime.md `prompt_cache_breakpoint.ttl`（2026-10-27）；省略时继承请求的 TTL。",
+  "Announced shutdown date (`YYYY-MM-DD`); explicit `null` when none is announced.": "已公布的停用日期（`YYYY-MM-DD`）；未公布时显式为 `null`。"
 }
