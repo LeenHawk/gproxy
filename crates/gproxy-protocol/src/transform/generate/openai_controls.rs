@@ -104,15 +104,30 @@ pub(crate) fn project_request(
 
 fn gpt6(model: &str) -> bool {
     let model = model.to_ascii_lowercase();
-    ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna"]
-        .iter()
-        .any(|name| crate::transform::instructions::family(&model, name))
+    [
+        "gpt-6-astra",
+        "gpt-6.1-sol",
+        "gpt-6.1-terra",
+        "gpt-6-sol",
+        "gpt-6-luna",
+    ]
+    .iter()
+    .any(|name| crate::transform::instructions::family(&model, name))
 }
 
 fn requires_reasoning(model: &str) -> bool {
     // https://developers.openai.com/api/docs/guides/latest-model#migration-quickstart
-    // Astra and 6.1 Sol require reasoning; 6 Sol and Luna still accept `none`.
+    // Astra and 6.1 Sol require reasoning; 6.1 Terra, 6 Sol and Luna still accept `none`.
     ["gpt-6-astra", "gpt-6.1-sol"]
+        .iter()
+        .any(|name| crate::transform::instructions::family(model, name))
+}
+
+fn chat_tools_require_responses(model: &str) -> bool {
+    // https://developers.openai.com/api/docs/guides/latest-model#migration-quickstart
+    // Astra, 6.1 Sol and 6.1 Terra call tools only through Responses; 6 Sol and
+    // Luna accept Chat function calling with `reasoning_effort: "none"`.
+    ["gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra"]
         .iter()
         .any(|name| crate::transform::instructions::family(model, name))
 }
@@ -191,7 +206,9 @@ pub(crate) fn target_chat(out: &mut c::GenerateContentRequestBody, report: &mut 
             }
         }
     }
-    if requires_reasoning || out.reasoning_effort.flatten() != Some(c::ReasoningEffort::None) {
+    if chat_tools_require_responses(&model)
+        || out.reasoning_effort.flatten() != Some(c::ReasoningEffort::None)
+    {
         for (present, field) in [
             (out.tools.take().is_some(), "tools"),
             (out.tool_choice.take().is_some(), "tool_choice"),

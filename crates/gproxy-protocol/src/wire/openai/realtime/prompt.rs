@@ -196,6 +196,8 @@ pub struct ResponseInputFile {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseInputTextPromptCacheBreakpoint {
     pub mode: ResponseInputTextPromptCacheBreakpointMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttl: Option<PromptCacheBreakpointTtl>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -223,6 +225,8 @@ pub enum ImageDetail {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseInputImagePromptCacheBreakpoint {
     pub mode: ResponseInputImagePromptCacheBreakpointMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttl: Option<PromptCacheBreakpointTtl>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -234,6 +238,8 @@ pub struct ResponseInputImagePromptCacheBreakpoint {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseInputFilePromptCacheBreakpoint {
     pub mode: ResponseInputFilePromptCacheBreakpointMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttl: Option<PromptCacheBreakpointTtl>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -294,6 +300,19 @@ pub enum ResponseInputFileDetail {
     Low,
     #[serde(rename = "high")]
     High,
+}
+
+/// Source: Realtime.md `prompt_cache_breakpoint.ttl` (2026-10-27); omitted
+/// inherits the request TTL.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum PromptCacheBreakpointTtl {
+    #[serde(rename = "30m")]
+    ThirtyMinutes,
+    #[serde(rename = "12h")]
+    TwelveHours,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

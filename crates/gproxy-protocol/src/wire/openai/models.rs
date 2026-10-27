@@ -74,6 +74,13 @@ pub struct Model {
     #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owned_by: Option<String>,
+    /// Announced shutdown date (`YYYY-MM-DD`); explicit `null` when none is announced.
+    #[serde(
+        default,
+        deserialize_with = "super::chat::content::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub shutdown_date: Option<Option<String>>,
 
     // GPROXY model extensions, matching the v3 OpenAI model contract.
     #[serde(default, skip_serializing_if = "Option::is_none")]

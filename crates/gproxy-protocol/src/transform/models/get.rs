@@ -32,12 +32,14 @@ pub fn claude_to_openai(
         );
     }
     common::report_claude_loss(&mut report);
-    common::report_claude_lifecycle(&input, &mut report);
+    common::report_claude_lifecycle(&input, true, &mut report);
+    let shutdown_date = common::openai_shutdown_date(&input, &mut report)?;
     let mut value = common::openai_model(
         common::openai_model_id(&input.id)?,
         created,
         supplement.owned_by.clone(),
     );
+    value.shutdown_date = shutdown_date;
     value.display_name = Some(input.display_name);
     value.context_window = input
         .max_input_tokens
@@ -152,7 +154,7 @@ pub fn claude_to_gemini(
             "Gemini has no Claude compaction capability",
         );
     }
-    common::report_claude_lifecycle(&input, &mut report);
+    common::report_claude_lifecycle(&input, false, &mut report);
     report.omitted("model.created_at", "Gemini has no model creation timestamp");
     report.omitted("model.type", "Gemini has no model type field");
     let value = gemini_models::Model {

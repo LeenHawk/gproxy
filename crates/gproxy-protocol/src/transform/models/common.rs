@@ -243,6 +243,7 @@ pub(crate) fn report_openai_extensions(model: &openai_models::Model, report: &mu
         )*};
     }
     omit!(
+        shutdown_date,
         instructions,
         output_modalities,
         supported_parameters,
@@ -365,11 +366,19 @@ pub(crate) fn reconcile_openai_capabilities(
 
 /// Lifecycle has no equivalent in the other model directories; do not infer
 /// availability from a retirement date or turn it into a generation capability.
-pub(crate) fn report_claude_lifecycle(model: &claude_models::ModelInfo, report: &mut Report) {
+/// OpenAI keeps the scheduled retirement as `shutdown_date`; see `openai_shutdown_date`.
+pub(crate) fn report_claude_lifecycle(
+    model: &claude_models::ModelInfo,
+    keeps_retirement: bool,
+    report: &mut Report,
+) {
     for (field, present) in [
         ("lifecycle", model.lifecycle.is_some()),
         ("deprecated_at", model.deprecated_at.is_some()),
-        ("retires_at", model.retires_at.is_some()),
+        (
+            "retires_at",
+            !keeps_retirement && model.retires_at.is_some(),
+        ),
     ] {
         if present {
             report.omitted(
@@ -378,4 +387,31 @@ pub(crate) fn report_claude_lifecycle(model: &claude_models::ModelInfo, report: 
             );
         }
     }
+}
+
+/// Claude's scheduled retirement instant becomes OpenAI's announced shutdown date.
+pub(crate) fn openai_shutdown_date(
+    model: &claude_models::ModelInfo,
+    report: &mut Report,
+) -> Result<Option<Option<String>>, TransformError> {
+    let Some(retires_at) = &model.retires_at else {
+        return Ok(None);
+    };
+    let Some(retires_at) = retires_at else {
+        return Ok(Some(None));
+    };
+    let instant = OffsetDateTime::parse(retires_at, &Rfc3339).map_err(|error| {
+        TransformError::shape(
+            "model.retires_at",
+            format!("invalid RFC3339 timestamp: {error}"),
+        )
+    })?;
+    let date = instant.to_offset(time::UtcOffset::UTC).date();
+    if instant.to_offset(time::UtcOffset::UTC).time() != time::Time::MIDNIGHT {
+        report.changed(
+            "model.retires_at",
+            "OpenAI shutdown_date keeps only the UTC calendar date",
+        );
+    }
+    Ok(Some(Some(date.to_string())))
 }
