@@ -56,7 +56,13 @@ export default defineConfig({
       "/v1/oauth": { target: backend, changeOrigin: true, headers: { origin: backend } },
     },
   },
-  build: { outDir: "dist", assetsDir: "assets", emptyOutDir: true },
+  // Chrome 108, not Vite's 111: Android System WebView can be stuck there on
+  // devices whose vendor stopped shipping updates and that have no Play Store
+  // (#307). 108 already has the layout features the console uses (individual
+  // transforms, dvh, :has, container queries); Lightning CSS lowers the oklch
+  // and color-mix theme colours it lacks. Keep the Android warning in
+  // MainActivity (MIN_WEBVIEW_MAJOR) on the same version.
+  build: { outDir: "dist", assetsDir: "assets", emptyOutDir: true, cssTarget: ["chrome108", "edge111", "firefox114", "safari16.4"] },
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],

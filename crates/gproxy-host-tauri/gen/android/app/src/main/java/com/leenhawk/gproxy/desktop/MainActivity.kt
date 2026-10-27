@@ -68,9 +68,9 @@ class MainActivity : TauriActivity() {
     }
 
     /**
-     * The console is built for Chrome [MIN_WEBVIEW_MAJOR] and up, the baseline
-     * Vite and Tailwind target. An older WebView does not fail loudly: theme
-     * colours turn transparent and dialogs draw over the page (#307). Vendors
+     * The console is built for Chrome [MIN_WEBVIEW_MAJOR] and up (the CSS
+     * target in console/vite.config.ts). An older WebView does not fail
+     * loudly: layout and theme colours break and dialogs draw over the page. Vendors
      * without Play Store updates leave such WebViews in the field, so the
      * person is told what to update instead of being shown a broken page.
      * Asked on every cold start: the console stays broken until it is fixed.
@@ -185,6 +185,6 @@ class MainActivity : TauriActivity() {
         const val REQUEST_NOTIFY = 10
         const val PREF_ASKED_NOTIFY = "asked_notification_permission"
         const val PREF_ASKED_BATTERY = "asked_battery_exemption"
-        const val MIN_WEBVIEW_MAJOR = 111
+        const val MIN_WEBVIEW_MAJOR = 108
     }
 }
