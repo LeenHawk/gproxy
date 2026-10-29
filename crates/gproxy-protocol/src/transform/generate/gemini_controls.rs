@@ -33,9 +33,9 @@ pub(crate) fn for_model(
     report: &mut Report,
 ) {
     let model = model.rsplit('/').next().unwrap_or(model);
-    let flash_38 = matches!(model, "gemini-3.8-flash" | "gemini-3.7-flash");
+    let flash_38 = model == "gemini-3.8-flash";
     let level_only = flash_38 || model == "gemini-4-argon";
-    if !level_only && !matches!(model, "gemini-3.5-flash" | "gemini-3.6-flash") {
+    if !level_only && model != "gemini-3.6-flash" {
         return;
     }
     let Some(config) = &mut request.generation_config else {
