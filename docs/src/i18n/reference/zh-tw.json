@@ -103,7 +103,6 @@
   "Cline API origin, `/api/v1` included; defaults to https://api.cline.bot/api/v1. Provider column, not config JSON.": "Cline API 源地址，包含 `/api/v1`，預設為 https://api.cline.bot/api/v1。儲存在供應商列中，不是 config JSON 欄位。",
   "Cloudflare REST API origin; the account path is appended. Provider column, not config JSON.": "Cloudflare REST API 源地址，賬號路徑會追加到其後。儲存在供應商列中，不是 config JSON 欄位。",
   "Code Assist origin; defaults to https://cloudcode-pa.googleapis.com. Provider column, not config JSON.": "Code Assist 源地址，預設為 https://cloudcode-pa.googleapis.com。儲存在供應商列中，不是 config JSON 欄位。",
-  "Code Assist origin; defaults to https://daily-cloudcode-pa.googleapis.com. Provider column, not config JSON.": "Code Assist 源地址，預設為 https://daily-cloudcode-pa.googleapis.com。儲存在供應商列中，不是 config JSON 欄位。",
   "CodeWhisperer profile ARN for credentials whose login did not report one; a credential's own wins.": "登入未返回 profile ARN 時使用的 CodeWhisperer profile ARN；憑證自身的值優先。",
   "Codex backend origin and prefix; defaults to https://chatgpt.com/backend-api/codex. Provider column, not config JSON.": "Codex 後端源地址及字首，預設為 https://chatgpt.com/backend-api/codex。儲存在供應商列中，不是 config JSON 欄位。",
   "Codex custom effort is serialized as an unsigned JSON integer.": "Codex 自定義推理強度序列化為無符號 JSON 整數。",

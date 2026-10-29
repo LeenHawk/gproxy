@@ -534,10 +534,10 @@ fn tls_presets() -> Vec<TlsPresetDto> {
         TlsPresetDto {
             id: "antigravity".to_owned(),
             label: "Antigravity".to_owned(),
-            // The Code Assist TLS profile captured from CLI 1.2.16 (the IDE's
-            // language server shares its Go client stack), using the
-            // algorithms the compiled BoringSSL supports (same as the channel
-            // default). The user agent is the IDE language server's.
+            // The Code Assist TLS profile captured from CLI 1.2.16 and
+            // unchanged in 1.4.10 (the IDE runs the CLI as its hub), using the algorithms the compiled
+            // BoringSSL supports (same as the channel default). The user
+            // agent is the IDE hub's.
             emulation: json!({
                 "kind": "custom",
                 "alpn": [],
@@ -569,7 +569,7 @@ fn tls_presets() -> Vec<TlsPresetDto> {
                 "psk_dhe_ke": false,
                 "headers": [[
                     "user-agent",
-                    "antigravity/ide/2.5.5 (aidev_client; os_type=linux; arch=amd64)"
+                    "antigravity/hub/2.28.1 (aidev_client; os_type=linux; arch=amd64; cl=1009308193)"
                 ]],
             }),
         },

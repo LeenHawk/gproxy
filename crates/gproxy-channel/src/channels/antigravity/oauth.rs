@@ -1,7 +1,7 @@
 //! The Google login and token refresh, wired to Antigravity's own client.
 //!
 //! Everything here is what the Antigravity IDE's Electron main process does
-//! (`resources/app/out/main.js`, IDE 2.5.5): google-auth-library 10.3.0's
+//! (`resources/app/out/main.js`, IDE 2.6.0): google-auth-library 10.3.0's
 //! `OAuth2Client` for the login and refresh, and its `request` for the Code
 //! Assist setup calls and the profile.
 //!

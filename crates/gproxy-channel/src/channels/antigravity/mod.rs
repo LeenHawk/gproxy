@@ -1,7 +1,7 @@
 //! Antigravity: a Google account used against the Code Assist host the
 //! Antigravity editor's agent talks to, rather than a Gemini API key.
 //!
-//! The channel presents itself as the Antigravity IDE (2.5.5, the official
+//! The channel presents itself as the Antigravity IDE (2.6.0, the official
 //! Linux x64 build), whose traffic leaves from two places:
 //!
 //! - The Electron main process (`resources/app/out/main.js`) logs in with
@@ -12,13 +12,24 @@
 //!   `loadCodeAssist`/`onboardUser` project discovery with
 //!   `{ideType: ANTIGRAVITY, ideVersion, ideName: "antigravity"}` and the
 //!   editor user agent (`oauth`).
-//! - The Go language server (`extensions/antigravity/bin/language_server_*`)
-//!   makes the model calls against `daily-cloudcode-pa.googleapis.com`:
-//!   `POST /v1internal:generateContent`, `:streamGenerateContent?alt=sse`
-//!   and `:countTokens` carrying the Code Assist envelope, the catalogue
-//!   from `POST /v1internal:fetchAvailableModels` with the account's
-//!   project, and the quota windows from `:retrieveUserQuotaSummary` (see
-//!   `quota`), all with the language server's user agent.
+//! - Since 2.6.0 the IDE ships no language server: its bundled `agy`
+//!   extension downloads the Antigravity CLI and runs it as
+//!   `antigravity --hub` (CLI 1.4.10, hub server 2.28.1), and that Go
+//!   process makes the model calls: `POST /v1internal:generateContent`,
+//!   `:streamGenerateContent?alt=sse` and `:countTokens` carrying the Code
+//!   Assist envelope, the catalogue from `POST /v1internal:fetchAvailableModels`
+//!   with the account's project, and the quota windows from
+//!   `:retrieveUserQuotaSummary` (see `quota`), all with the hub's user
+//!   agent.
+//!
+//! Every call goes to `cloudcode-pa.googleapis.com`. The official client
+//! picks the host per account (`CLIAuthProvider.UpdateEndpointURL`: the
+//! production host for a GCP-terms tier or sign-in, `daily-cloudcode-pa`
+//! for a consumer Google sign-in, which a 2026-10-29 capture of the hub
+//! confirmed after its first `loadCodeAssist`), but `gemini-4-argon-*` was
+//! reported answering 404 on `daily-` (2026-10-29) while the IDE kept
+//! serving it, so the channel defaults to production; a provider `base_url`
+//! can still pin `daily-`.
 //!
 //! The envelope shape follows the v3 channel and the reverse engineered
 //! client in
@@ -36,15 +47,27 @@
 //! body under `request` unchanged, so a `sessionId` the client sent arrives
 //! at `request.sessionId`, and a client that already sent a whole envelope
 //! keeps its own. The field is never renamed, moved or dropped; a request
-//! without one gets the id the editor would derive (below).
+//! without one gets the id the hub sends (below).
 //!
-//! Envelope fields: the editor's agent does not send the Gemini CLI's
-//! `user_prompt_id`. It names itself (`userAgent: "antigravity"`), the kind
-//! of call (`requestType: "agent"`, `"image_gen"` for an image model), a
-//! fresh `requestId` (`agent-<uuid>`, `image_gen/<ms>/<uuid>/12`) and a
-//! `request.sessionId` that stays put across a conversation: `-` and the
-//! first 63 bits of the SHA-256 of the first user text. It sends no
-//! `safetySettings` and keeps `toolConfig` inside `request`
+//! Envelope fields: the hub does not send the Gemini CLI's
+//! `user_prompt_id`. It names itself (`userAgent: "antigravity"`) and the
+//! kind of call (`requestType: "agent"`, `"image_gen"` for an image model).
+//! An agent call (captured from the hub and CLI 1.4.10, 2026-10-29) carries
+//! `requestId: agent/<cascade>/<ms>/<trajectory>/<step>`, where the cascade
+//! and trajectory ids stay put across a conversation and the step is the
+//! number of `contents`; `request.labels` repeating those ids
+//! (`last_step_index` one less than the step, `request_id`
+//! `<trajectory>-<model turns so far>`) and saying whether the model is
+//! Claude or not Gemini; and `request.sessionId` `-3750763034362895579`,
+//! the signed FNV-1a 64 of the empty session string the hub hashes
+//! (`codeassistclient.BuildGenerateContentRequest`). Without the hub's
+//! conversation state, the cascade and trajectory ids are derived from the
+//! first user text, so every turn of a conversation shares them, and the
+//! `model_enum` label (the catalogue's internal model number) comes from a
+//! captured table (`MODEL_ENUMS`).
+//! Any other kind keeps `<kind>/<uuid>`, and an image call
+//! `image_gen/<ms>/<uuid>/12`. It sends no `safetySettings` and keeps
+//! `toolConfig` inside `request`
 //! (`antigravity_executor_request.go::geminiToAntigravity`).
 
 mod claude;
@@ -68,9 +91,10 @@ use serde::Deserialize;
 use serde_json::Value;
 
 pub const ID: &str = "antigravity";
-/// The Code Assist host Antigravity talks to (v3 `prepare.rs`); note the
-/// `daily-` prefix, which is a different deployment from the Gemini CLI's.
-pub const DEFAULT_BASE_URL: &str = "https://daily-cloudcode-pa.googleapis.com";
+/// The production Code Assist host, the one the Gemini CLI also uses (see
+/// the module docs for the `daily-` deployment the IDE picks for consumer
+/// accounts).
+pub const DEFAULT_BASE_URL: &str = "https://cloudcode-pa.googleapis.com";
 pub const DEFAULT_AUTHORIZE_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 pub const DEFAULT_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 /// Antigravity's own installed-app client (v3 `login.rs`, `auth.rs`).
@@ -91,11 +115,11 @@ pub const OAUTH_SCOPE: &str = concat!(
 );
 
 /// The Antigravity IDE release this channel impersonates: `product.json`
-/// `"ideVersion": "2.5.5"` of the official Linux x64 build
-/// (`antigravity/stable/2.5.5-4923483625488384`).
+/// `"ideVersion": "2.6.0"` of the official Linux x64 build
+/// (`antigravity/stable/2.6.0-5526304964083712`).
 macro_rules! ide_version {
     () => {
-        "2.5.5"
+        "2.6.0"
     };
 }
 pub const IDE_VERSION: &str = ide_version!();
@@ -116,24 +140,17 @@ pub const EDITOR_USER_AGENT: &str = concat!(
     ide_version!(),
     " linux/amd64 google-api-nodejs-client/10.3.0"
 );
-/// The user agent of the IDE's language server, which makes the catalogue,
-/// quota and generation calls (`language_server_linux_x64`,
-/// `codeassistclient.(*CodeAssistClient).setHeaders`): `%s/%s/%s (%s)` of
-/// `IDEAuthProvider.GetUserAgentName()` (`antigravity`), the
-/// `--subclient_type` the extension passes (`ide`), the metadata's
-/// `ide_version`, and `aidev_client; os_type=<GOOS>; arch=<GOARCH>` joined by
-/// `; `. The IDE provider reports no auth method, and the binary never sets
-/// `host_path`/`proxy_client`, so neither part appears.
-pub const USER_AGENT: &str = concat!(
-    "antigravity/ide/",
-    ide_version!(),
-    " (aidev_client; os_type=linux; arch=amd64)"
-);
-/// The model Antigravity exposes as its own high reasoning tier; its
-/// catalogue supplies this thinking budget as the default (v3
-/// `prepare.rs::apply_model_defaults`).
-const HIGH_REASONING_MODEL: &str = "gemini-3.1-pro-high";
-const HIGH_REASONING_BUDGET: i64 = 10_001;
+/// The user agent of the hub the IDE runs (`antigravity --hub`, CLI
+/// 1.4.10), which makes the catalogue, quota and generation calls
+/// (`codeassistclient.UserAgent`): `%s/%s/%s (%s)` of the agent name
+/// (`antigravity`), the subclient type (`hub` under `--hub`, `cli`
+/// otherwise), the hub server's version (2.28.1; the CLI's own version under
+/// `cli`), and `aidev_client`, `os_type=<GOOS>`, `arch=<GOARCH>` and the
+/// build's `cl=<changelist>` joined by `; `. The hub's sign-in records no
+/// `auth_method` (the standalone CLI's adds `auth_method=consumer`). Captured
+/// from the Linux amd64 build on 2026-10-29.
+pub const USER_AGENT: &str =
+    "antigravity/hub/2.28.1 (aidev_client; os_type=linux; arch=amd64; cl=1009308193)";
 
 /// Provider `config` JSON understood by this channel. Unknown keys ignored.
 #[derive(Debug, Deserialize)]
@@ -185,9 +202,9 @@ const CHANNEL_HEADERS: &[&str] = &[
     "x-goog-user-project",
 ];
 
-/// The Go Code Assist transport the IDE's language server shares with the
-/// Antigravity CLI (captured from CLI 1.2.16): no ALPN or GREASE, TLS 1.2
-/// floor, Go's cipher preferences and its extension order. BoringSSL puts TLS
+/// The Go Code Assist transport of the Antigravity CLI the IDE runs as its
+/// hub (captured from CLI 1.2.16, unchanged in CLI 1.4.10): no ALPN or
+/// GREASE, TLS 1.2 floor, Go's cipher preferences and its extension order. BoringSSL puts TLS
 /// 1.3 suites first even though Go advertises them last.
 /// BoringSSL lacks the captured SecP256r1MLKEM768/SecP384r1MLKEM1024 groups
 /// and signature_algorithms_cert extension; keep the
@@ -290,9 +307,9 @@ fn header_value(value: &str) -> Result<HeaderValue, ChannelError> {
     HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)
 }
 
-/// Headers every language-server Code Assist call carries (catalogue, quota,
-/// generation): the bearer token, the JSON content type and the language
-/// server's user agent (`CodeAssistClient.setHeaders`), and no `Accept` or
+/// Headers every hub Code Assist call carries (catalogue, quota,
+/// generation): the bearer token, the JSON content type and the hub's user
+/// agent (`CodeAssistClient.setHeaders`), and no `Accept` or
 /// `x-goog-api-client`. Go's transport adds `Accept-Encoding: gzip` itself,
 /// which the connection's `gzip` reproduces.
 pub(super) fn apply_headers(
@@ -340,27 +357,35 @@ fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
     })
 }
 
+/// The hub's `request.sessionId`: the FNV-1a 64 offset basis as a signed
+/// integer, i.e. the hash of the empty session string it always has.
+const SESSION_ID: &str = "-3750763034362895579";
+
 fn uuid() -> Result<String, ChannelError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes)
         .map_err(|_| ChannelError::InvalidConfig("request id randomness failed".into()))?;
+    Ok(format_uuid(bytes))
+}
+
+fn format_uuid(mut bytes: [u8; 16]) -> String {
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
-    Ok(format!(
+    format!(
         "{}-{}-{}-{}-{}",
         &hex[..8],
         &hex[8..12],
         &hex[12..16],
         &hex[16..20],
         &hex[20..]
-    ))
+    )
 }
 
-/// `-<n>`, `n` the first 63 bits of the SHA-256 of the first user text, so
-/// every turn of a conversation lands on the same session; random when the
-/// conversation opens without text.
-fn session_id(request: &Value) -> Result<String, ChannelError> {
+/// The cascade and trajectory ids of a conversation: UUIDs from the SHA-256
+/// of the first user text, so every turn of a conversation shares them;
+/// random when the conversation opens without text.
+fn conversation_ids(request: &Value) -> Result<(String, String), ChannelError> {
     use sha2::Digest as _;
     let first = request
         .get("contents")
@@ -371,22 +396,106 @@ fn session_id(request: &Value) -> Result<String, ChannelError> {
         .and_then(|content| content.pointer("/parts/0/text"))
         .and_then(Value::as_str)
         .filter(|text| !text.is_empty());
-    let prefix: [u8; 8] = match first {
-        Some(text) => sha2::Sha256::digest(text.as_bytes())[..8]
-            .try_into()
-            .expect("eight bytes"),
-        None => {
-            let mut bytes = [0_u8; 8];
-            getrandom::fill(&mut bytes)
-                .map_err(|_| ChannelError::InvalidConfig("session id randomness failed".into()))?;
-            bytes
-        }
+    let Some(text) = first else {
+        return Ok((uuid()?, uuid()?));
     };
-    Ok(format!("-{}", u64::from_be_bytes(prefix) & (u64::MAX >> 1)))
+    let seed = sha2::Sha256::digest(text.as_bytes());
+    let derive = |label: &[u8]| {
+        let digest = sha2::Sha256::new()
+            .chain_update(label)
+            .chain_update(seed)
+            .finalize();
+        format_uuid(digest[..16].try_into().expect("sixteen bytes"))
+    };
+    Ok((derive(b"cascade"), derive(b"trajectory")))
 }
 
-/// The envelope fields the editor's agent sends in place of the Gemini
-/// CLI's; a value the client already put in the envelope is kept.
+/// The catalogue's internal model numbers (`fetchAvailableModels`
+/// `models.<id>.model`) the hub repeats as the `model_enum` label, from a
+/// Google AI Pro account's catalogue on 2026-10-30 (identical on the
+/// production and `daily-` hosts). A model missing here gets no label.
+const MODEL_ENUMS: &[(&str, &str)] = &[
+    ("claude-opus-5-5-high", "MODEL_PLACEHOLDER_M402"),
+    ("claude-opus-5-5-low", "MODEL_PLACEHOLDER_M400"),
+    ("claude-opus-5-5-medium", "MODEL_PLACEHOLDER_M401"),
+    ("claude-sonnet-5-5-high", "MODEL_PLACEHOLDER_M405"),
+    ("claude-sonnet-5-5-low", "MODEL_PLACEHOLDER_M403"),
+    ("claude-sonnet-5-5-medium", "MODEL_PLACEHOLDER_M404"),
+    ("gemini-2.5-flash", "MODEL_GOOGLE_GEMINI_2_5_FLASH"),
+    ("gemini-2.5-flash-lite", "MODEL_GOOGLE_GEMINI_2_5_FLASH_LITE"),
+    ("gemini-2.5-flash-thinking", "MODEL_GOOGLE_GEMINI_2_5_FLASH_THINKING"),
+    ("gemini-2.5-pro", "MODEL_GOOGLE_GEMINI_2_5_PRO"),
+    ("gemini-3-flash", "MODEL_PLACEHOLDER_M18"),
+    ("gemini-3.1-flash-image", "MODEL_PLACEHOLDER_M21"),
+    ("gemini-3.1-flash-lite", "MODEL_PLACEHOLDER_M50"),
+    ("gemini-3.5-flash-lite", "MODEL_PLACEHOLDER_M198"),
+    ("gemini-3.8-flash-high", "MODEL_PLACEHOLDER_M318"),
+    ("gemini-3.8-flash-low", "MODEL_PLACEHOLDER_M320"),
+    ("gemini-3.8-flash-medium", "MODEL_PLACEHOLDER_M319"),
+    ("gemini-3.8-flash-tiered", "MODEL_PLACEHOLDER_M322"),
+    ("gemini-4-argon-high", "MODEL_PLACEHOLDER_M417"),
+    ("gemini-4-argon-low", "MODEL_PLACEHOLDER_M419"),
+    ("gemini-4-argon-medium", "MODEL_PLACEHOLDER_M418"),
+    ("gpt-oss-120b-medium", "MODEL_OPENAI_GPT_OSS_120B_MEDIUM"),
+];
+
+/// The `requestId` and `request.labels` of an agent call, from the
+/// conversation so far.
+fn agent_labels(
+    request: &Value,
+    model: &str,
+    ms: i64,
+) -> Result<(String, serde_json::Map<String, Value>), ChannelError> {
+    let (cascade, trajectory) = conversation_ids(request)?;
+    let contents = request
+        .get("contents")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    // A model turn is a reply the model generated; a function response some
+    // clients file under the model role is the tool's, not the model's.
+    let model_turns = contents
+        .iter()
+        .filter(|content| content.get("role").and_then(Value::as_str) == Some("model"))
+        .filter(|content| {
+            content
+                .get("parts")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .any(|part| part.get("functionResponse").is_none())
+        })
+        .count();
+    let step = contents.len();
+    // The hub keeps these for the whole conversation once a Claude or
+    // non-Gemini model has answered; without its state they follow the
+    // model of this call.
+    let claude = claude::is_claude(model);
+    let gemini = code_assist::model_id(model).starts_with("gemini");
+    let mut labels = serde_json::Map::new();
+    if let Some((_, number)) = MODEL_ENUMS
+        .iter()
+        .find(|(id, _)| *id == code_assist::model_id(model))
+    {
+        labels.insert("model_enum".into(), Value::from(*number));
+    }
+    for (name, value) in [
+        ("cascade_id", cascade.clone()),
+        ("last_step_index", step.saturating_sub(1).to_string()),
+        ("request_id", format!("{trajectory}-{model_turns}")),
+        ("root_cascade_id", cascade.clone()),
+        ("trajectory_id", trajectory.clone()),
+        ("used_claude", claude.to_string()),
+        ("used_claude_conservative", claude.to_string()),
+        ("used_non_gemini_model", (!gemini).to_string()),
+    ] {
+        labels.insert(name.into(), Value::from(value));
+    }
+    Ok((format!("agent/{cascade}/{ms}/{trajectory}/{step}"), labels))
+}
+
+/// The envelope fields the hub sends in place of the Gemini CLI's; a value
+/// the client already put in the envelope is kept.
 fn agent_envelope(envelope: &mut Value, model: &str) -> Result<(), ChannelError> {
     let Some(object) = envelope.as_object_mut() else {
         return Ok(());
@@ -400,10 +509,15 @@ fn agent_envelope(envelope: &mut Value, model: &str) -> Result<(), ChannelError>
         .filter(|kind| !kind.trim().is_empty())
         .map(str::to_owned)
         .unwrap_or_else(|| if image { "image_gen" } else { "agent" }.to_owned());
-    let request_id = if kind == "image_gen" {
-        format!("image_gen/{}/{}/12", code_assist::unix_now_ms(), uuid()?)
-    } else {
-        format!("agent-{}", uuid()?)
+    let ms = code_assist::unix_now_ms();
+    let (request_id, labels) = match kind.as_str() {
+        "image_gen" => (format!("image_gen/{ms}/{}/12", uuid()?), None),
+        "agent" => {
+            let request = object.get("request").unwrap_or(&Value::Null);
+            let (id, labels) = agent_labels(request, model, ms)?;
+            (id, Some(labels))
+        }
+        other => (format!("{other}/{}", uuid()?), None),
     };
     object.insert("requestType".into(), Value::from(kind));
     object
@@ -414,50 +528,21 @@ fn agent_envelope(envelope: &mut Value, model: &str) -> Result<(), ChannelError>
     {
         request.entry("toolConfig").or_insert(tool_config);
     }
-    let Some(request) = object.get_mut("request") else {
+    let Some(request) = object.get_mut("request").and_then(Value::as_object_mut) else {
         return Ok(());
     };
-    let session = session_id(request)?;
-    if let Some(request) = request.as_object_mut() {
-        request.remove("safetySettings");
-        let named = request
-            .get("sessionId")
-            .and_then(Value::as_str)
-            .is_some_and(|id| !id.trim().is_empty());
-        if !named {
-            request.insert("sessionId".into(), Value::from(session));
-        }
+    request.remove("safetySettings");
+    if let Some(labels) = labels {
+        request.entry("labels").or_insert(Value::Object(labels));
+    }
+    let named = request
+        .get("sessionId")
+        .and_then(Value::as_str)
+        .is_some_and(|id| !id.trim().is_empty());
+    if !named {
+        request.insert("sessionId".into(), Value::from(SESSION_ID));
     }
     Ok(())
-}
-
-/// Antigravity exposes its high reasoning tier as a distinct model whose
-/// catalogue entry carries a default thinking budget; an explicit budget
-/// from the caller is left alone (v3 `apply_model_defaults`).
-fn apply_model_defaults(envelope: &mut Value, model: &str) {
-    if code_assist::model_id(model) != HIGH_REASONING_MODEL {
-        return;
-    }
-    let Some(request) = envelope.get_mut("request").and_then(Value::as_object_mut) else {
-        return;
-    };
-    let Some(config) = request
-        .entry("generationConfig")
-        .or_insert_with(|| Value::Object(serde_json::Map::new()))
-        .as_object_mut()
-    else {
-        return;
-    };
-    let Some(thinking) = config
-        .entry("thinkingConfig")
-        .or_insert_with(|| Value::Object(serde_json::Map::new()))
-        .as_object_mut()
-    else {
-        return;
-    };
-    thinking
-        .entry("thinkingBudget")
-        .or_insert_with(|| Value::from(HIGH_REASONING_BUDGET));
 }
 
 impl Antigravity {
@@ -492,7 +577,6 @@ impl Antigravity {
                 let bytes = code_assist::envelope(&buffered, &model, &project)?;
                 let mut envelope: Value = serde_json::from_slice(&bytes)
                     .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
-                apply_model_defaults(&mut envelope, &model);
                 if claude::is_claude(&model)
                     && let Some(request) = envelope.get_mut("request")
                 {
@@ -601,7 +685,7 @@ impl BaseChannel for Antigravity {
                 ConfigKey::optional(
                     "base_url",
                     ConfigKeyKind::String,
-                    "Code Assist origin; defaults to https://daily-cloudcode-pa.googleapis.com. Provider column, not config JSON.",
+                    "Code Assist origin; defaults to https://cloudcode-pa.googleapis.com. Provider column, not config JSON.",
                 ).with_placeholder(DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "authorize_url",

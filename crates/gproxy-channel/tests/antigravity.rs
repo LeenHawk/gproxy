@@ -213,7 +213,7 @@ fn prepare_targets_the_daily_code_assist_host_with_the_bearer_token() {
     .expect("prepared");
     assert_eq!(
         prepared.uri().to_string(),
-        "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse"
+        "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse"
     );
     assert_eq!(
         prepared.headers()["authorization"],
@@ -288,7 +288,7 @@ fn a_provider_allowlist_keeps_the_client_headers_it_names() {
 // ------------------------------------------------------------ body shaping
 
 #[test]
-fn the_gemini_body_is_wrapped_and_the_high_tier_gets_its_thinking_budget() {
+fn the_gemini_body_is_wrapped_in_the_envelope() {
     let config = json!({});
     let secret = secret();
     let metadata = json!({"project_id": "proj-metadata"});
@@ -298,55 +298,18 @@ fn the_gemini_body_is_wrapped_and_the_high_tier_gets_its_thinking_budget() {
         Operation::GenerateContent,
         request(
             HeaderMap::new(),
-            "/v1beta/models/gemini-3.1-pro-high:generateContent",
+            "/v1beta/models/gemini-3.8-flash-medium:generateContent",
             json!({"contents": [{"parts": [{"text": "hi"}]}], "store": true}),
         ),
     )
     .expect("prepared");
     let body = body_json(&prepared);
-    assert_eq!(body["model"], "gemini-3.1-pro-high");
+    assert_eq!(body["model"], "gemini-3.8-flash-medium");
     // Read from the host-persisted metadata, never rediscovered.
     assert_eq!(body["project"], "proj-metadata");
     assert!(body["request"].get("store").is_none());
-    assert_eq!(
-        body["request"]["generationConfig"]["thinkingConfig"]["thinkingBudget"],
-        10_001
-    );
-
-    // An explicit budget from the caller is left alone, and other models get
-    // no budget at all.
-    let prepared = prepare(
-        &config,
-        credential(&secret, &metadata),
-        Operation::GenerateContent,
-        request(
-            HeaderMap::new(),
-            "/v1beta/models/gemini-3.1-pro-high:generateContent",
-            json!({"contents": [], "generationConfig": {"thinkingConfig": {"thinkingBudget": 7}}}),
-        ),
-    )
-    .expect("prepared");
-    assert_eq!(
-        body_json(&prepared)["request"]["generationConfig"]["thinkingConfig"]["thinkingBudget"],
-        7
-    );
-
-    let prepared = prepare(
-        &config,
-        credential(&secret, &metadata),
-        Operation::GenerateContent,
-        request(
-            HeaderMap::new(),
-            "/v1beta/models/gemini-3-pro:generateContent",
-            json!({"contents": []}),
-        ),
-    )
-    .expect("prepared");
-    assert!(
-        body_json(&prepared)["request"]
-            .get("generationConfig")
-            .is_none()
-    );
+    // No thinking budget the client did not ask for.
+    assert!(body["request"].get("generationConfig").is_none());
 }
 
 fn claude_request(body: Value) -> Value {
@@ -592,15 +555,36 @@ fn the_envelope_carries_the_agent_fields_the_editor_sends() {
     assert!(first.get("user_prompt_id").is_none());
     assert_eq!(first["userAgent"], "antigravity");
     assert_eq!(first["requestType"], "agent");
-    let id = first["requestId"].as_str().unwrap();
-    assert!(id.starts_with("agent-") && id.len() == 42, "{id}");
     assert!(first["request"].get("safetySettings").is_none());
-    // The session follows the first user text, so every turn shares it.
-    let session = first["request"]["sessionId"].as_str().unwrap().to_owned();
-    assert!(session.starts_with('-') && session[1..].parse::<i64>().is_ok());
-    let second = envelope("gemini-3-flash", body);
-    assert_eq!(second["request"]["sessionId"], session.as_str());
-    assert_ne!(second["requestId"], first["requestId"]);
+    assert_eq!(first["request"]["sessionId"], "-3750763034362895579");
+    // agent/<cascade>/<ms>/<trajectory>/<step>, the ids following the first
+    // user text so every turn of a conversation shares them.
+    let id = first["requestId"].as_str().unwrap();
+    let parts: Vec<&str> = id.split('/').collect();
+    assert_eq!(parts.len(), 5, "{id}");
+    assert_eq!((parts[0], parts[4]), ("agent", "1"));
+    let labels = &first["request"]["labels"];
+    assert_eq!(labels["cascade_id"], parts[1]);
+    assert_eq!(labels["trajectory_id"], parts[3]);
+    assert_eq!(labels["last_step_index"], "0");
+    assert_eq!(labels["request_id"], format!("{}-0", parts[3]));
+    assert_eq!(labels["used_non_gemini_model"], "false");
+    assert_eq!(labels["model_enum"], "MODEL_PLACEHOLDER_M18");
+    let mut turn = body.clone();
+    turn["contents"] = json!([
+        {"role": "user", "parts": [{"text": "hello"}]},
+        {"role": "model", "parts": [{"text": "hi"}]},
+        {"role": "user", "parts": [{"text": "again"}]},
+    ]);
+    let second = envelope("gemini-3-flash", turn);
+    let next = second["requestId"].as_str().unwrap();
+    assert!(next.starts_with(&format!("agent/{}/", parts[1])), "{next}");
+    assert!(next.ends_with(&format!("/{}/3", parts[3])), "{next}");
+    assert_eq!(second["request"]["labels"]["last_step_index"], "2");
+    assert_eq!(
+        second["request"]["labels"]["request_id"],
+        format!("{}-1", parts[3])
+    );
 
     let image = envelope("gemini-3.1-flash-image", json!({"contents": []}));
     assert_eq!(image["requestType"], "image_gen");
