@@ -116,22 +116,35 @@ pub fn translate(
             _ => continue,
         };
         for (index, draft) in drafts.into_iter().enumerate() {
-            let filter_operation_keys = operations.as_ref().map(|operations| {
-                let dialects: Vec<&str> = match draft.dialect {
-                    Some(dialect) => vec![dialect],
-                    None => DIALECTS.to_vec(),
-                };
-                Value::Array(
-                    operations
-                        .iter()
-                        .flat_map(|operation| {
-                            dialects.iter().map(
-                                move |dialect| json!({"operation": operation, "dialect": dialect}),
-                            )
-                        })
+            let filter_operation_keys = match (&operations, draft.dialect) {
+                (Some(operations), _) => {
+                    let dialects: Vec<&str> = match draft.dialect {
+                        Some(dialect) => vec![dialect],
+                        None => DIALECTS.to_vec(),
+                    };
+                    Some(Value::Array(
+                        operations
+                            .iter()
+                            .flat_map(|operation| {
+                                dialects.iter().map(move |dialect| {
+                                    json!({"operation": operation, "dialect": dialect})
+                                })
+                            })
+                            .collect(),
+                    ))
+                }
+                // Content actions run on any operation of their dialect, so an
+                // unfiltered v3 rule keeps its conversation scope explicitly
+                // (same scope as m20261030_000001_dialect_rule_operations).
+                (None, Some(dialect)) => Some(Value::Array(
+                    ["generate_content", "stream_generate_content"]
+                        .into_iter()
+                        .chain(matches!(dialect, "openai" | "claude").then_some("count_tokens"))
+                        .map(|operation| json!({"operation": operation, "dialect": dialect}))
                         .collect(),
-                )
-            });
+                )),
+                (None, None) => None,
+            };
             rules.push(RewriteRuleDto {
                 id: ids::part("rules", row.id, &index.to_string()),
                 rule_set_id: ids::id("rule_sets", row.rule_set_id),

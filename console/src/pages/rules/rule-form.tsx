@@ -38,6 +38,10 @@ export function RuleSetSelect({ value, choices, remote, onChange, disabled }: { 
   </Field>
 }
 
+// Preset scope for system_text / cache_breakpoint: the dialect's conversation requests.
+// Mirrors migration m20261030_000001_dialect_rule_operations.
+const semanticOperations = (dialect: string) => JSON.stringify(["generate_content", "stream_generate_content", ...(dialect === "openai" || dialect === "claude" ? ["count_tokens"] : [])].map(operation => ({ operation, dialect })), null, 2)
+
 type Props = { providerId?: string; remoteSets?: boolean; original?: RewriteRuleDto; choices: SetChoice[]; defaultSetId: string; onClose: () => void; onSubmit: (write: RewriteRuleWrite) => void; pending: boolean; error: unknown }
 export function RuleForm({ providerId, original, choices, remoteSets, defaultSetId, onClose, onSubmit, pending, error }: Props) {
   const { t } = useTranslation()
@@ -63,7 +67,7 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
   const [bodyPredicate, setBodyPredicate] = useState(() => bodyConditionDraft(original?.filterBody))
   const [headerPredicate, setHeaderPredicate] = useState(() => conditionDraft(original?.filterHeader))
   const [eventFilter, setEventFilter] = useState(original?.filterEventPattern ?? "")
-  const [operations, setOperations] = useState(original?.filterOperationKeys ? JSON.stringify(original.filterOperationKeys, null, 2) : "")
+  const [operations, setOperations] = useState(original ? original.filterOperationKeys ? JSON.stringify(original.filterOperationKeys, null, 2) : "" : semanticOperations("openai"))
   const [enabled, setEnabled] = useState(original?.enabled ?? true)
   const [validation, setValidation] = useState<string | null>(null)
   const [mode, setMode] = useState("form")
@@ -152,9 +156,9 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
           <Textarea id={jsonId} value={jsonText} onChange={event => { setJsonText(event.target.value); setValidation(null) }} rows={18} className="font-mono" spellCheck={false} autoComplete="off" aria-invalid={!!validation} />
           <Button type="button" variant="outline" size="sm" className="self-start" onClick={formatJson}>{t("rules.formatJson")}</Button>
         </Field> : <>
-          <RuleSelect label={t("rules.ruleType")} value={kind} options={options(kinds, "rules.types")} onChange={value => { const next = value as RuleKind; setKind(next); setConfig({}); setTarget("body"); setPhase("request"); setEventFilter(""); setAction(next === "header" ? "header_set" : "set"); setValidation(null); if (next === "cache_breakpoint" && dialect === "gemini") setDialect("claude") }} />
+          <RuleSelect label={t("rules.ruleType")} value={kind} options={options(kinds, "rules.types")} onChange={value => { const next = value as RuleKind; setKind(next); setConfig({}); setTarget("body"); setPhase("request"); setEventFilter(""); setAction(next === "header" ? "header_set" : "set"); setValidation(null); const nextDialect = next === "cache_breakpoint" && dialect === "gemini" ? "claude" : dialect; setDialect(nextDialect); if ((!semantic && !operations.trim()) || operations === semanticOperations(dialect)) setOperations(next === "system_text" || next === "cache_breakpoint" ? semanticOperations(nextDialect) : "") }} />
         <FieldDescription>{t(`rules.templateHelp.${kind}`)}</FieldDescription>
-        {semantic ? select(t("fields.dialect"), dialect, kind === "system_text" ? ["openai", "openai_chat", "claude", "gemini", "openai_responses_websocket"] : ["openai", "openai_chat", "claude", "openai_responses_websocket"], value => { setDialect(value); setTtl("default"); if (value !== "claude" && cacheTarget === "tools") setCacheTarget("message") }, "rules.protocols") : null}
+        {semantic ? select(t("fields.dialect"), dialect, kind === "system_text" ? ["openai", "openai_chat", "claude", "gemini", "openai_responses_websocket"] : ["openai", "openai_chat", "claude", "openai_responses_websocket"], value => { if (operations === semanticOperations(dialect)) setOperations(semanticOperations(value)); setDialect(value); setTtl("default"); if (value !== "claude" && cacheTarget === "tools") setCacheTarget("message") }, "rules.protocols") : null}
         {kind === "system_text" ? <>{select(t("rules.position"), position, ["prepend", "append"], setPosition)}{input(t("rules.text"), text, setText, true, true)}</> : null}
         {kind === "cache_breakpoint" ? <>
           {select(t("rules.cacheTarget"), cacheTarget, dialect === "claude" ? ["global", "system", "message", "tools"] : ["global", "system", "message"], value => { setCacheTarget(value); if (value === "global" && dialect !== "claude" && ttl === "12h") setTtl("default") })}

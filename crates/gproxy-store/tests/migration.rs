@@ -155,7 +155,8 @@ async fn running_the_migrator_twice_is_a_no_op() {
             "m20261008_000001_usage_timing",
             "m20261015_000001_usage_retention",
             "m20261020_000001_retire_guardian",
-            "m20261021_000001_cache_retention"
+            "m20261021_000001_cache_retention",
+            "m20261030_000001_dialect_rule_operations",
         ]
     );
     let after_first = schema(store.connection()).await;

@@ -29,10 +29,7 @@ pub(super) fn system_text(
                     let index = messages
                         .iter()
                         .take_while(|message| {
-                            message
-                                .get("role")
-                                .and_then(Value::as_str)
-                                .is_some_and(|role| matches!(role, "system" | "developer"))
+                            message.get("role").and_then(Value::as_str) == Some("system")
                         })
                         .count();
                     messages.insert(index, message);

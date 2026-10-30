@@ -66,14 +66,7 @@ pub fn select_rules(
 
 fn applies(rule: &RewriteRuleData, phase: Phase, context: &RewriteContext<'_>) -> bool {
     if let Some(dialect) = rule.action.dialect()
-        && (context.operation.dialect != dialect
-            || !(matches!(
-                context.operation.operation,
-                gproxy_protocol::Operation::GenerateContent
-                    | gproxy_protocol::Operation::StreamGenerateContent
-            ) || (context.operation.operation == gproxy_protocol::Operation::CountTokens
-                // Gemini countTokens has no top-level systemInstruction.
-                && dialect != gproxy_protocol::Dialect::Gemini)))
+        && context.operation.dialect != dialect
     {
         return false;
     }
