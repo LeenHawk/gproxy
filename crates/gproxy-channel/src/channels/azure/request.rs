@@ -8,7 +8,7 @@ use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable,
 };
-use crate::channels::shared::cache;
+use crate::channels::shared::{cache, claude_images};
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily};
 use http::{HeaderName, HeaderValue};
 
@@ -175,14 +175,25 @@ impl BaseChannel for Azure {
             *map = headers;
         }
         let body = match ctx.request.body {
-            HttpBody::Bytes(bytes) => HttpBody::Bytes(cache::shape(
-                bytes,
-                cache::rules_for(
-                    ctx.operation.dialect,
-                    config.enable_claude_magic_cache,
-                    config.enable_openai_magic_cache,
-                ),
-            )),
+            HttpBody::Bytes(bytes) => {
+                let bytes = cache::shape(
+                    bytes,
+                    cache::rules_for(
+                        ctx.operation.dialect,
+                        config.enable_claude_magic_cache,
+                        config.enable_openai_magic_cache,
+                    ),
+                );
+                HttpBody::Bytes(
+                    if ctx.operation.dialect == Dialect::Claude
+                        && ctx.operation.operation != Operation::CountTokens
+                    {
+                        claude_images::fit_bytes(bytes, false)
+                    } else {
+                        bytes
+                    },
+                )
+            }
             body => body,
         };
         builder

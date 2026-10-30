@@ -3,7 +3,7 @@
 use super::config::{DEFAULT_BASE_URL, OpenRouterConfig};
 use super::routing;
 use crate::channel::{ChannelError, ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable};
-use crate::channels::shared::cache;
+use crate::channels::shared::{cache, claude_images};
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{Dialect, HttpBody, Operation, connection::Bytes};
 use http::{HeaderMap, HeaderName, HeaderValue, header};
@@ -123,6 +123,12 @@ pub(super) fn body(
                 cache::strip_tokens(&mut value);
             }
         }
+    }
+    if matches!(operation, Operation::GenerateContent | Operation::StreamGenerateContent)
+        && dialect == Dialect::Claude
+    {
+        // The route may land on Bedrock or Vertex, where documents count too.
+        changed |= claude_images::fit(&mut value, true);
     }
     if matches!(operation, Operation::GenerateContent | Operation::StreamGenerateContent)
         && matches!(dialect, Dialect::Claude | Dialect::OpenAiChat)

@@ -10,7 +10,7 @@ use crate::channel::{
     CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, OperationContext, OperationFuture,
     PrepareContext, ProviderView, forwardable,
 };
-use crate::channels::shared::google_model;
+use crate::channels::shared::{claude_images, google_model};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
 use http::{HeaderValue, header};
 use serde_json::Value;
@@ -231,6 +231,7 @@ fn body(body: HttpBody, operation: OperationKey) -> Result<HttpBody, ChannelErro
     let bytes = buffered(&body, operation)?;
     let mut value: Value = serde_json::from_slice(bytes)
         .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+    claude_images::fit(&mut value, true);
     let object = value.as_object_mut().ok_or_else(|| {
         ChannelError::InvalidConfig("a Claude request body must be a JSON object".into())
     })?;

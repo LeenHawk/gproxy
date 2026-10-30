@@ -5,6 +5,7 @@ use super::{
 use crate::channel::{
     BaseChannel, ChannelError, ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable,
 };
+use crate::channels::shared::claude_images;
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{HttpBody, Operation};
 use http::{HeaderMap, HeaderValue, Method, header};
@@ -73,7 +74,8 @@ fn text_blocks(value: &Value) -> String {
 
 /// CLI toWireMessages/toWireTools: Claude blocks become AI SDK model messages.
 fn envelope(body: &[u8]) -> Result<Value, ChannelError> {
-    let input: Value = serde_json::from_slice(body).map_err(|e| invalid(&e.to_string()))?;
+    let mut input: Value = serde_json::from_slice(body).map_err(|e| invalid(&e.to_string()))?;
+    claude_images::fit(&mut input, false);
     let model = input["model"]
         .as_str()
         .filter(|s| !s.is_empty())

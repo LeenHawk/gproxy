@@ -8,7 +8,7 @@ use crate::channel::{
     ConfigKeyKind, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
     QuotaHeaders, QuotaQuery, forwardable,
 };
-use crate::channels::shared::cache;
+use crate::channels::shared::{cache, claude_images};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireFamily, WireRequest};
 use http::{HeaderName, HeaderValue};
@@ -245,6 +245,7 @@ impl BaseChannel for Claudeapi {
             }
             HttpBody::Bytes(bytes) if messages => match hygiene::json_object(&bytes) {
                 Some(mut value) => {
+                    claude_images::fit(&mut value, false);
                     hygiene::messages(
                         &mut value,
                         &mut headers,

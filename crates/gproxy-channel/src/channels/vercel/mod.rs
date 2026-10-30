@@ -11,7 +11,7 @@ use crate::channel::{
 use crate::channels::shared::{
     cache,
     claude_fallback::FallbackMode,
-    claude_hygiene,
+    claude_hygiene, claude_images,
     compatible::http::{insert_configured, strip_query_auth},
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, connection::Bytes};
@@ -227,6 +227,8 @@ impl BaseChannel for Vercel {
                         if ctx.operation.operation == Operation::CountTokens {
                             claude_hygiene::count_tokens(&value, &mut headers);
                         } else {
+                            // The gateway may route to Bedrock or Vertex, where documents count too.
+                            claude_images::fit(&mut value, true);
                             claude_hygiene::messages(
                                 &mut value,
                                 &mut headers,

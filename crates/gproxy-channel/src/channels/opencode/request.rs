@@ -5,7 +5,7 @@ use super::config::{OpenCodeConfig, Tier};
 use crate::channel::{
     ChannelError, ChannelHeaders, CredentialView, HeaderAllowlist, PrepareContext, forwardable,
 };
-use crate::channels::shared::cache;
+use crate::channels::shared::{cache, claude_images};
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey};
@@ -192,14 +192,21 @@ pub(super) fn build(
 /// pass, so both families are the channel's to place and both switches are
 /// offered (v3 `opencode/shape.rs`).
 fn shape(bytes: Bytes, config: &OpenCodeConfig, dialect: Dialect) -> Bytes {
-    cache::shape(
+    let bytes = cache::shape(
         bytes,
         cache::rules_for(
             dialect,
             config.enable_claude_magic_cache,
             config.enable_openai_magic_cache,
         ),
-    )
+    );
+    // Only conversation bodies reach here with the Claude dialect; Zen may
+    // serve them from Bedrock or Vertex, where documents count too.
+    if dialect == Dialect::Claude {
+        claude_images::fit_bytes(bytes, true)
+    } else {
+        bytes
+    }
 }
 
 #[cfg(test)]

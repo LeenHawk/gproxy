@@ -15,6 +15,7 @@ use super::config::BedrockConfig;
 use super::endpoint::{self, Plane};
 use super::{ID, sigv4};
 use crate::channel::{ChannelError, CredentialView, HeaderAllowlist, ProviderView, forwardable};
+use crate::channels::shared::claude_images;
 use gproxy_protocol::HttpBody;
 use gproxy_protocol::connection::Bytes;
 
@@ -161,6 +162,7 @@ pub(super) fn invoke_body(
     let mut value: Value = serde_json::from_slice(body).map_err(|error| {
         ChannelError::InvalidConfig(format!("{ID} request body is not JSON: {error}"))
     })?;
+    claude_images::fit(&mut value, true);
     let object = value.as_object_mut().ok_or_else(|| {
         ChannelError::InvalidConfig(format!("{ID} request body is not an object"))
     })?;

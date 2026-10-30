@@ -40,6 +40,7 @@ antigravity = [
 # foundation-model directory answers ListModels/GetModel.
 aws_bedrock = [
     "dep:base64",
+    "dep:image",
     "dep:crc32fast",
     "dep:futures-util",
     "dep:hmac",
@@ -48,12 +49,12 @@ aws_bedrock = [
 ]
 # Azure OpenAI and the Anthropic models Azure AI Foundry hosts beside them:
 # an API key on the v1 or the deployment-scoped surface, no login, no refresh.
-azure = []
+azure = ["dep:base64", "dep:image"]
 # API-key upstreams speaking one or more native dialects verbatim.
 custom = []
 # Cloudflare AI Gateway over the Cloudflare REST API: a per-credential account
 # and gateway, one bearer on every wire, and the account's credit balance.
-cloudflare_ai_gateway = ["dep:futures-util"]
+cloudflare_ai_gateway = ["dep:base64", "dep:futures-util", "dep:image"]
 # OpenAI Codex (ChatGPT account) upstream: OAuth login/refresh, Responses over
 # HTTP and WebSocket, x-codex rate-limit headers and /wham/usage.
 codex = ["dep:time", "dep:url", "dep:base64", "dep:futures-util", "dep:sha2", "dep:web-time"]
@@ -61,13 +62,14 @@ codex = ["dep:time", "dep:url", "dep:base64", "dep:futures-util", "dep:sha2", "d
 # Messages with the API's request hygiene and server-side fallback, the
 # OpenAI SDK compatibility layer, anthropic-ratelimit-* headers and the
 # organization cost report.
-claudeapi = ["dep:futures-util", "dep:time", "dep:web-time"]
+claudeapi = ["dep:base64", "dep:futures-util", "dep:image", "dep:time", "dep:web-time"]
 # Claude Code (Claude.ai subscription) upstream: PKCE and cookie initialization,
 # refresh, Messages over HTTP with the CLI's request hygiene, unified
 # rate-limit headers and /api/oauth/usage.
 claudecode = [
     "dep:xxhash-rust",
     "dep:base64",
+    "dep:image",
     "dep:futures-util",
     "dep:getrandom",
     "dep:sha2",
@@ -93,7 +95,7 @@ claudeweb = [
 # its own recommended-model catalogue, plan-usage windows and credit balance.
 cline = ["dep:base64", "dep:futures-util", "dep:time", "dep:web-time"]
 # Command Code CLI: /alpha/generate NDJSON, public model catalog and billing.
-commandcode = ["dep:futures-util", "dep:getrandom", "dep:percent-encoding", "dep:time"]
+commandcode = ["dep:base64", "dep:futures-util", "dep:getrandom", "dep:image", "dep:percent-encoding", "dep:time"]
 # GitHub Copilot CLI: a GitHub OAuth token from a device login, exchanged
 # through CredentialRefresh for the short-lived Copilot token that Chat
 # Completions actually presents, the CLI's editor-identity headers and the
@@ -190,8 +192,10 @@ openai = ["dep:futures-util", "dep:web-time"]
 # `/usage` windows), three compatible surfaces each and the tool's
 # `x-opencode-session` affinity header.
 opencode = [
+    "dep:base64",
     "dep:futures-util",
     "dep:getrandom",
+    "dep:image",
     "dep:time",
     "dep:web-time",
 ]
@@ -199,9 +203,9 @@ opencode = [
 orcaterm = ["dep:image", "dep:sha2", "dep:base64", "dep:futures-util", "dep:getrandom", "dep:time", "dep:url", "dep:web-time"]
 # OpenRouter: provider routing preferences, app attribution headers,
 # upstream-priced usage and the /v1/auth/key budget probe.
-openrouter = ["dep:futures-util"]
+openrouter = ["dep:base64", "dep:futures-util", "dep:image"]
 # Vercel AI Gateway: API key, OpenAI/Claude wires and team credits.
-vercel = ["dep:futures-util", "dep:percent-encoding"]
+vercel = ["dep:base64", "dep:futures-util", "dep:image", "dep:percent-encoding"]
 # Volcengine Ark Agent/Coding Plan: native text, signed model/quota APIs and media.
 volcengine = ["dep:base64", "dep:futures-util", "dep:hmac", "dep:percent-encoding", "dep:sha2", "dep:time", "dep:url", "dep:web-time"]
 # Google Vertex AI: regional project-scoped methods for the Google, Anthropic
@@ -209,6 +213,7 @@ volcengine = ["dep:base64", "dep:futures-util", "dep:hmac", "dep:percent-encodin
 # short-lived access token through CredentialRefresh (RS256, hence `rsa`).
 vertex = [
     "dep:base64",
+    "dep:image",
     "dep:futures-util",
     "dep:getrandom_v02",
     "dep:percent-encoding",

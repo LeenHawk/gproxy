@@ -112,6 +112,20 @@ pub(crate) mod claude_fallback;
 
 #[cfg(any(feature = "claudeapi", feature = "vercel"))]
 pub(crate) mod claude_hygiene;
+/// Scaling for Anthropic's many-image dimension limit.
+#[cfg(any(
+    feature = "aws_bedrock",
+    feature = "azure",
+    feature = "claudeapi",
+    feature = "claudecode",
+    feature = "cloudflare_ai_gateway",
+    feature = "commandcode",
+    feature = "opencode",
+    feature = "openrouter",
+    feature = "vercel",
+    feature = "vertex"
+))]
+pub(crate) mod claude_images;
 
 /// Vertex's full resource names and publisher-qualified ids.
 #[cfg(any(feature = "vertex", feature = "vertexexpress"))]

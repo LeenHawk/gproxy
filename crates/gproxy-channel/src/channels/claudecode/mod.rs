@@ -42,7 +42,7 @@ use crate::channel::{
     QuotaReset, RefreshContext, forwardable,
 };
 pub use crate::channels::shared::claude_fallback::FallbackMode;
-use crate::channels::shared::{cache, claude_fallback};
+use crate::channels::shared::{cache, claude_fallback, claude_images};
 use futures_util::StreamExt;
 use gproxy_client::{Backend, ConnectionConfig};
 use gproxy_protocol::{
@@ -773,6 +773,7 @@ impl Claudecode {
                         {
                             usage_mode = Some(usage_limit::Mode::Extended);
                         }
+                        claude_images::fit(&mut value, false);
                         hygiene::messages(
                             &mut value,
                             &mut headers,
