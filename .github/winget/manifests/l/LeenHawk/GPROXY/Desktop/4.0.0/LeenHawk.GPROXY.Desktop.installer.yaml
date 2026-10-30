@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.28.0.schema.json
 
 PackageIdentifier: LeenHawk.GPROXY.Desktop
 PackageVersion: 4.0.0
@@ -24,4 +24,4 @@ Installers:
   InstallerUrl: https://github.com/LeenHawk/gproxy/releases/download/v4.0.0/gproxy-tauri-windows-aarch64.zip
   InstallerSha256: 070EC152A0BF5B0F17F2C6146CDC239ED9A1F44B5C91FCDEF72C923B7FF46A5B
 ManifestType: installer
-ManifestVersion: 1.12.0
+ManifestVersion: 1.28.0
