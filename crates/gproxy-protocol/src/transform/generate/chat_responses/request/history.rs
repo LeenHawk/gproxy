@@ -76,6 +76,46 @@ fn tool(call_id: String, output: c::TextContent) -> Result<c::ChatMessage, Trans
     ))
 }
 
+/// The assistant message items fold into: the last message when it is still an
+/// open assistant turn, otherwise a new one. Responses spreads one assistant
+/// turn over separate reasoning/message/call items; Chat needs them as one
+/// message so every tool call precedes its tool messages.
+fn assistant<'a>(
+    messages: &'a mut Vec<c::ChatMessage>,
+    open: &mut bool,
+) -> &'a mut c::AssistantMessage {
+    if !*open || !matches!(messages.last(), Some(c::ChatMessage::Assistant(_))) {
+        messages.push(c::ChatMessage::Assistant(
+            c::AssistantMessage::builder(c::AssistantRole::Assistant).build(),
+        ));
+        *open = true;
+    }
+    match messages.last_mut() {
+        Some(c::ChatMessage::Assistant(message)) => message,
+        // Pushed above when the last message was not an assistant.
+        _ => unreachable!(),
+    }
+}
+
+fn append_content(message: &mut c::AssistantMessage, content: c::AssistantContent) {
+    fn parts(content: c::AssistantContent) -> Vec<c::AssistantContentPart> {
+        match content {
+            c::AssistantContent::Text(text) => vec![c::AssistantContentPart::Text(
+                c::TextPart::builder(c::TextPartType::Text, text).build(),
+            )],
+            c::AssistantContent::Parts(parts) => parts,
+        }
+    }
+    message.content = Some(Some(match message.content.take().flatten() {
+        None => content,
+        Some(existing) => {
+            let mut merged = parts(existing);
+            merged.extend(parts(content));
+            c::AssistantContent::Parts(merged)
+        }
+    }));
+}
+
 pub(super) fn to_chat(
     input: Option<r::Input>,
     report: &mut Report,
@@ -92,23 +132,38 @@ pub(super) fn to_chat(
         Some(r::Input::Items(items)) => items,
     };
     let mut messages = Vec::new();
+    // Whether the last message is an assistant turn later assistant items join.
+    let mut open = false;
     for item in items {
         match item {
             r::InputItem::Easy(message) => {
                 if message.phase.flatten().is_some() {
                     report.omitted("input.phase", "Chat has no message phase field");
                 }
-                messages.push(role(message.role, message.content, report)?);
+                match role(message.role, message.content, report)? {
+                    c::ChatMessage::Assistant(message) => {
+                        if let Some(content) = message.content.flatten() {
+                            append_content(assistant(&mut messages, &mut open), content);
+                        }
+                    }
+                    message => {
+                        messages.push(message);
+                        open = false;
+                    }
+                }
             }
-            r::InputItem::Message(message) => messages.push(role(
-                match message.role {
-                    r::InputMessageRole::System => r::MessageRole::System,
-                    r::InputMessageRole::Developer => r::MessageRole::Developer,
-                    r::InputMessageRole::User => r::MessageRole::User,
-                },
-                r::MessageContent::Parts(message.content),
-                report,
-            )?),
+            r::InputItem::Message(message) => {
+                messages.push(role(
+                    match message.role {
+                        r::InputMessageRole::System => r::MessageRole::System,
+                        r::InputMessageRole::Developer => r::MessageRole::Developer,
+                        r::InputMessageRole::User => r::MessageRole::User,
+                    },
+                    r::MessageContent::Parts(message.content),
+                    report,
+                )?);
+                open = false;
+            }
             r::InputItem::OutputMessage(message) => {
                 let mut parts = Vec::new();
                 for part in message.content {
@@ -132,9 +187,10 @@ pub(super) fn to_chat(
                         }
                     }
                 }
-                let mut output = c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
-                output.content = Some(Some(c::AssistantContent::Parts(parts)));
-                messages.push(c::ChatMessage::Assistant(output));
+                append_content(
+                    assistant(&mut messages, &mut open),
+                    c::AssistantContent::Parts(parts),
+                );
             }
             r::InputItem::FunctionCall(call) => {
                 if call.namespace.is_some()
@@ -145,16 +201,18 @@ pub(super) fn to_chat(
                 {
                     continue;
                 }
-                let mut message = c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
-                message.tool_calls = Some(vec![c::MessageToolCall::Function(
+                let call = c::MessageToolCall::Function(
                     c::ChatToolCall::builder(
                         id(call.call_id)?,
                         c::FunctionCall::builder(call.arguments, call.name).build(),
                         c::ChatToolCallType::Function,
                     )
                     .build(),
-                )]);
-                messages.push(c::ChatMessage::Assistant(message));
+                );
+                assistant(&mut messages, &mut open)
+                    .tool_calls
+                    .get_or_insert_default()
+                    .push(call);
             }
             r::InputItem::CustomToolCall(call) => {
                 if call.namespace.is_some()
@@ -165,16 +223,18 @@ pub(super) fn to_chat(
                 {
                     continue;
                 }
-                let mut message = c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
-                message.tool_calls = Some(vec![c::MessageToolCall::Custom(
+                let call = c::MessageToolCall::Custom(
                     c::CustomToolCall::builder(
                         id(call.call_id)?,
                         c::CustomCall::builder(call.input, call.name).build(),
                         c::CustomToolCallType::Custom,
                     )
                     .build(),
-                )]);
-                messages.push(c::ChatMessage::Assistant(message));
+                );
+                assistant(&mut messages, &mut open)
+                    .tool_calls
+                    .get_or_insert_default()
+                    .push(call);
             }
             r::InputItem::FunctionCallOutput(output) => {
                 let call_id = output
@@ -217,6 +277,7 @@ pub(super) fn to_chat(
                     ),
                 };
                 messages.push(tool(call_id, value)?);
+                open = false;
             }
             r::InputItem::CustomToolCallOutput(output) => {
                 if output
@@ -248,6 +309,7 @@ pub(super) fn to_chat(
                     ),
                 };
                 messages.push(tool(output.call_id, value)?);
+                open = false;
             }
             r::InputItem::ItemReference(_) => {
                 return Err(TransformError::missing_metadata(
@@ -255,7 +317,20 @@ pub(super) fn to_chat(
                 ));
             }
             r::InputItem::Reasoning(item) => {
-                let details = rd::from_responses(&item, 0);
+                let index = if open {
+                    match messages.last() {
+                        Some(c::ChatMessage::Assistant(message)) => message
+                            .reasoning_details
+                            .as_ref()
+                            .and_then(Option::as_ref)
+                            .map_or(0, Vec::len)
+                            as i64,
+                        _ => 0,
+                    }
+                } else {
+                    0
+                };
+                let details = rd::from_responses(&item, index);
                 let text = item
                     .summary
                     .iter()
@@ -264,11 +339,23 @@ pub(super) fn to_chat(
                     .collect::<Vec<_>>()
                     .join("\n");
                 if !text.is_empty() || !details.is_empty() {
-                    let mut message =
-                        c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
-                    message.reasoning_content = (!text.is_empty()).then_some(Some(text));
-                    message.reasoning_details = (!details.is_empty()).then_some(Some(details));
-                    messages.push(c::ChatMessage::Assistant(message));
+                    let message = assistant(&mut messages, &mut open);
+                    if !text.is_empty() {
+                        match message.reasoning_content.get_or_insert(None) {
+                            Some(existing) => {
+                                existing.push('\n');
+                                existing.push_str(&text);
+                            }
+                            slot => *slot = Some(text),
+                        }
+                    }
+                    if !details.is_empty() {
+                        message
+                            .reasoning_details
+                            .get_or_insert(None)
+                            .get_or_insert_default()
+                            .extend(details);
+                    }
                 }
             }
             r::InputItem::MultiAgentCall(_)

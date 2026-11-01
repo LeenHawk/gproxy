@@ -313,7 +313,8 @@ fn cache_breakpoint_retention_survives_chat_responses_roundtrip() {
         }
         let back = responses_to_chat_request(converted, "m").unwrap().value;
         let wire = serde_json::to_value(back).unwrap();
-        for index in [0, 1, 2, 4, 6] {
+        // The assistant text and the call after it rejoin as one Chat turn.
+        for index in [0, 1, 2, 3, 5] {
             assert_eq!(
                 wire["messages"][index]["content"][0]["prompt_cache_breakpoint"]["ttl"],
                 ttl
