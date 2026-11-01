@@ -220,7 +220,9 @@ pub fn responses_to_claude_request(
     crate::transform::generate::claude_controls::target(
         &mut out.messages,
         &out.model,
+        Some(out.max_tokens),
         &mut out.thinking,
+        &mut out.output_config,
         &mut out.tool_choice,
         &mut report,
     );

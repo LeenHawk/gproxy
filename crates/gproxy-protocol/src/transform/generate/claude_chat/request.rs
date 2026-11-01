@@ -364,7 +364,9 @@ pub fn openai_to_claude(
     super::super::claude_controls::target(
         &mut converted.value.messages,
         &converted.value.model,
+        Some(converted.value.max_tokens),
         &mut converted.value.thinking,
+        &mut converted.value.output_config,
         &mut converted.value.tool_choice,
         &mut converted.report,
     );

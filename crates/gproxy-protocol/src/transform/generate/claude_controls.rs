@@ -148,34 +148,23 @@ fn project_blocks(
 }
 
 /// Newer models reject disabled thinking and forced tool choice. Sonnet 5.5
-/// replaces disabled thinking with between-tools thinking.
+/// replaces disabled thinking with between-tools thinking. Manual budgets are
+/// fitted to what each Claude model accepts (see [`thinking_budget`]).
 /// Apply only to cross-protocol output; native Claude requests stay untouched.
 pub(crate) fn target(
     messages: &mut Vec<c::Message>,
     model: &str,
+    max_tokens: Option<i64>,
     thinking: &mut Option<cc::ThinkingConfig>,
+    output_config: &mut Option<cc::OutputConfig>,
     choice: &mut Option<cc::ToolChoice>,
     report: &mut Report,
 ) {
     target_messages(messages, report);
     let model = model.to_ascii_lowercase();
-    // Haiku 5.5 keeps disabled thinking and forced tools, but removes budgets.
+    thinking_budget(&model, max_tokens, thinking, output_config, report);
+    // Haiku 5.5 keeps disabled thinking and forced tools.
     if crate::transform::instructions::family(&model, "claude-haiku-5-5") {
-        if let Some(cc::ThinkingConfig::Enabled(config)) = thinking.as_ref() {
-            *thinking = Some(cc::ThinkingConfig::Adaptive(cc::ThinkingAdaptive {
-                block_binding: config.block_binding.clone(),
-                display: config.display,
-                rest: Rest::new(),
-            }));
-            report.changed(
-                "thinking.type",
-                "Haiku 5.5 uses adaptive thinking instead of manual budgets",
-            );
-            report.omitted(
-                "thinking.budget_tokens",
-                "Haiku 5.5 does not accept a thinking token budget",
-            );
-        }
         return;
     }
     let sonnet = crate::transform::instructions::family(&model, "claude-sonnet-5-5");
@@ -214,6 +203,104 @@ pub(crate) fn target(
             "target supports auto/none only; forced choice relaxed to auto",
         );
     }
+}
+
+/// Claude Code's own rule (2.1.316): every Claude model thinks adaptively
+/// except the ones listed here, which take a manual `budget_tokens`. A budget
+/// sent to an adaptive model becomes adaptive thinking with the nearest effort;
+/// a budget sent to a listed model is clamped like the client clamps it,
+/// `max(1024, min(max_tokens - 1, budget))`. Non-Claude models on a Claude
+/// wire (compatible third-party endpoints) are left as sent.
+fn thinking_budget(
+    model: &str,
+    max_tokens: Option<i64>,
+    thinking: &mut Option<cc::ThinkingConfig>,
+    output_config: &mut Option<cc::OutputConfig>,
+    report: &mut Report,
+) {
+    let Some(cc::ThinkingConfig::Enabled(config)) = thinking.as_mut() else {
+        return;
+    };
+    let Some(manual) = manual_budget_model(model) else {
+        return;
+    };
+    if manual {
+        if let Some(max_tokens) = max_tokens {
+            let budget = config.budget_tokens.min(max_tokens - 1).max(1024);
+            if budget != config.budget_tokens {
+                config.budget_tokens = budget;
+                report.changed(
+                    "thinking.budget_tokens",
+                    "budget clamped to max(1024, min(max_tokens - 1, budget))",
+                );
+            }
+        }
+        return;
+    }
+    let budget = config.budget_tokens;
+    *thinking = Some(cc::ThinkingConfig::Adaptive(cc::ThinkingAdaptive {
+        block_binding: config.block_binding.clone(),
+        display: config.display,
+        rest: Rest::new(),
+    }));
+    report.changed(
+        "thinking.type",
+        "target model uses adaptive thinking instead of manual budgets",
+    );
+    let config = output_config.get_or_insert_with(|| cc::OutputConfig::builder().build());
+    if config.effort.is_none() {
+        // Nearest effort for the budget; a budget cannot tell xhigh from max.
+        config.effort = Some(match budget {
+            ..=4096 => cc::Effort::Low,
+            4097..=12000 => cc::Effort::Medium,
+            12001..=24000 => cc::Effort::High,
+            _ => cc::Effort::Max,
+        });
+        report.changed(
+            "thinking.budget_tokens",
+            "budget mapped to the nearest output_config.effort",
+        );
+    } else {
+        report.omitted(
+            "thinking.budget_tokens",
+            "adaptive thinking takes output_config.effort, which the request already sets",
+        );
+    }
+}
+
+/// `Some(true)` for a Claude model that takes a manual thinking budget,
+/// `Some(false)` for one that thinks adaptively, `None` for a non-Claude model.
+fn manual_budget_model(model: &str) -> Option<bool> {
+    let start = model.match_indices("claude-").find_map(|(start, _)| {
+        (start == 0 || matches!(model.as_bytes()[start - 1], b'/' | b'.' | b':')).then_some(start)
+    })?;
+    let name = model[start..].replace('.', "-");
+    if name.starts_with("claude-3-") {
+        return Some(true);
+    }
+    const LEGACY: [&str; 8] = [
+        "claude-opus-4-0",
+        "claude-opus-4-1",
+        "claude-opus-4-5",
+        "claude-sonnet-4-0",
+        "claude-sonnet-4-5",
+        "claude-haiku-4-5",
+        // Undotted ids of the 4.0 models: claude-opus-4-20250514.
+        "claude-opus-4",
+        "claude-sonnet-4",
+    ];
+    Some(LEGACY.iter().any(|legacy| {
+        name.strip_prefix(legacy).is_some_and(|rest| {
+            let date = rest.strip_prefix('-').is_some_and(|rest| {
+                rest.len() >= 8 && rest.as_bytes()[..8].iter().all(u8::is_ascii_digit)
+            });
+            rest.is_empty()
+                || date
+                || rest.starts_with("-v")
+                || rest.starts_with("-latest")
+                || matches!(rest.as_bytes()[0], b'@' | b':' | b'[')
+        })
+    }))
 }
 
 fn target_messages(messages: &mut Vec<c::Message>, report: &mut Report) {
@@ -344,7 +431,9 @@ mod tests {
         target(
             &mut request.messages,
             &request.model,
+            Some(request.max_tokens),
             &mut request.thinking,
+            &mut request.output_config,
             &mut request.tool_choice,
             &mut report,
         );
