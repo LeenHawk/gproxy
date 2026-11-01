@@ -1,8 +1,8 @@
 //! Claude Code: a Claude.ai subscription used through the OAuth surface of
 //! `api.anthropic.com`, the way the Claude Code CLI uses it.
 //!
-//! Wire facts follow the v3 channel (`crates/gproxy-channels/src/claudecode`
-//! on `main`) and the Claude Code CLI (`samples/claude-code-2.1.252`):
+//! Wire facts follow the Claude Code CLI (`samples/claude-code-2.1.316`,
+//! audited in `design/claudecode-2.1.316.md`):
 //! PKCE authorization at `claude.com/cai/oauth/authorize`, token exchange and
 //! refresh at `platform.claude.com/v1/oauth/token` (JSON bodies), a cookie
 //! login that mints the same OAuth tokens through `claude.ai/api/bootstrap`
@@ -66,22 +66,22 @@ pub const DEFAULT_TOKEN_URL: &str = "https://platform.claude.com/v1/oauth/token"
 /// The manual-callback redirect the CLI registers (v3 `auth.rs`).
 pub const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
 pub const DEFAULT_CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-/// Default refresh scopes verified against CLI 2.1.311, including plugins.
+/// Default refresh scopes verified against CLI 2.1.316, including plugins.
 pub const OAUTH_SCOPE: &str = "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins";
-/// Interactive login adds `org:create_api_key` (CLI 2.1.311).
+/// Interactive login adds `org:create_api_key` (CLI 2.1.316).
 pub const LOGIN_SCOPE: &str = concat!(
     "org:create_api_key ",
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins"
 );
 pub const OAUTH_BETA: &str = "oauth-2025-04-20";
 /// The CLI version the channel impersonates. Protocol behavior was audited in
-/// `design/claudecode-2.1.311.md` against the release binary and local capture.
-pub const CLI_VERSION: &str = "2.1.311";
-pub const CLI_USER_AGENT: &str = "claude-cli/2.1.311 (external, cli)";
+/// `design/claudecode-2.1.316.md` against the release binary and local capture.
+pub const CLI_VERSION: &str = "2.1.316";
+pub const CLI_USER_AGENT: &str = "claude-cli/2.1.316 (external, cli)";
 /// The profile and roles calls use the CLI's axios client with this agent.
-const PROFILE_USER_AGENT: &str = "claude-code/2.1.311";
+const PROFILE_USER_AGENT: &str = "claude-code/2.1.316";
 pub const ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
-/// The CLI posts to the token endpoint through axios (2.1.311 capture).
+/// The CLI posts to the token endpoint through axios (2.1.316 capture).
 const TOKEN_USER_AGENT: &str = "axios/1.15.2";
 /// Grant-error description for a suspended account. The CLI keeps the refresh
 /// token for an appeal instead of discarding it (2.1.302 `NUr`).
@@ -382,7 +382,7 @@ fn stainless_arch() -> &'static str {
 }
 
 /// A client user agent is honoured only when it is the impersonated CLI
-/// version with a plausible entrypoint, e.g. `claude-cli/2.1.311 (external,
+/// version with a plausible entrypoint, e.g. `claude-cli/2.1.316 (external,
 /// sdk-cli)`; anything else becomes the CLI's own (v3 `auth.rs`).
 fn valid_cli_user_agent(value: &str) -> bool {
     value
@@ -950,7 +950,7 @@ pub(super) async fn send(
     Ok((status, headers, read_body(body).await?))
 }
 
-/// Token endpoint headers as axios sends them in CLI 2.1.311.
+/// Token endpoint headers as axios sends them in CLI 2.1.316.
 fn token_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -1144,7 +1144,7 @@ pub(super) async fn enrich_profile(
         HeaderValue::from_static("gzip, compress, deflate, br"),
     );
     headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
-    // axios with the CLI's own user agent (2.1.311 capture).
+    // axios with the CLI's own user agent (2.1.316 capture).
     headers.insert(
         header::USER_AGENT,
         HeaderValue::from_static(PROFILE_USER_AGENT),

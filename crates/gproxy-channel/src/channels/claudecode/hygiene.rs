@@ -84,7 +84,10 @@ const BILLING_PREFIX: &str = "x-anthropic-billing-header:";
 /// client's, default `cli`), `cch=00000`, then the optional fragments the
 /// client sent when they pass the CLI's own validation: `cc_workload`,
 /// `cc_is_subagent=true`, `cc_prev_req`, `cc_prompt_id`, `cc_turn_origin`,
-/// then the paired `cc_prompt_index` / `cc_turn_index`. Unknown keys and
+/// then the paired `cc_prompt_index` / `cc_turn_index`. CLI 2.1.316 appends
+/// `cc_prev_msg` and paired `cc_prev_prompt_index` / `cc_prev_turn_index`
+/// after compaction; preserve validated client values without inferring them
+/// from the compacted transcript. Unknown keys and
 /// invalid values are dropped; they would only fingerprint the proxy. Gateway
 /// attribution (`cc_gateway`) is also dropped: this channel impersonates the
 /// default direct OAuth client, not a gateway-configured CLI. Two
@@ -191,6 +194,16 @@ pub(super) fn inject_billing(
     {
         text.push_str(&format!(" cc_prompt_index={prompt}; cc_turn_index={turn};"));
     }
+    if let Some(message) = field("cc_prev_msg").filter(|value| is_message_id(value)) {
+        text.push_str(&format!(" cc_prev_msg={message};"));
+    }
+    if let Some(prompt) = field("cc_prev_prompt_index").and_then(|value| billing_index(value, 0))
+        && let Some(turn) = field("cc_prev_turn_index").and_then(|value| billing_index(value, 1))
+    {
+        text.push_str(&format!(
+            " cc_prev_prompt_index={prompt}; cc_prev_turn_index={turn};"
+        ));
+    }
 
     let billing = json!({"type": "text", "text": text});
     match existing {
@@ -243,6 +256,16 @@ pub(super) fn is_request_id(value: &str) -> bool {
     value
         .strip_prefix("req_")
         .is_some_and(|rest| (1..=36).contains(&rest.len()) && is_token(rest))
+}
+
+/// `^msg_[A-Za-z0-9_]{1,64}$` (2.1.316 `Dns`).
+fn is_message_id(value: &str) -> bool {
+    value.strip_prefix("msg_").is_some_and(|rest| {
+        (1..=64).contains(&rest.len())
+            && rest
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    })
 }
 
 /// `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i`.

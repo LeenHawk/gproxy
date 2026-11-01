@@ -188,7 +188,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     );
     headers.insert(
         "user-agent",
-        HeaderValue::from_static("claude-cli/2.1.311 (external, sdk-cli)"),
+        HeaderValue::from_static("claude-cli/2.1.316 (external, sdk-cli)"),
     );
     headers.insert("x-request-id", HeaderValue::from_static("req-1"));
     let body = json!({
@@ -198,7 +198,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
         "top_p": 0.9,
         "top_k": 40,
         "system": [
-            {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.311.abc; cc_entrypoint=sdk-cli;"},
+            {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.316.abc; cc_entrypoint=sdk-cli;"},
             {"type":"text", "text":" policy "},
             {"type":"text", "text":" ", "cache_control":{"type":"ephemeral"}}
         ],
@@ -228,7 +228,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
         "oauth beta first, client betas kept, context-1m stripped, fast mode derived"
     );
     assert_eq!(h["x-app"], "cli");
-    assert_eq!(h["user-agent"], "claude-cli/2.1.311 (external, sdk-cli)");
+    assert_eq!(h["user-agent"], "claude-cli/2.1.316 (external, sdk-cli)");
     assert_eq!(h["x-claude-code-session-id"], "session-1");
     assert_eq!(h["x-stainless-package-version"], "0.128.0");
     assert_eq!(h["anthropic-dangerous-direct-browser-access"], "true");
@@ -251,7 +251,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     let (fixed, prompt) = billing.split_once(" cc_prompt_id=").unwrap();
     assert_eq!(
         fixed,
-        "x-anthropic-billing-header: cc_version=2.1.311.50b; cc_entrypoint=sdk-cli; cch=00000;"
+        "x-anthropic-billing-header: cc_version=2.1.316.db3; cc_entrypoint=sdk-cli; cch=00000;"
     );
     assert_eq!(prompt.len(), 37, "a derived prompt UUID: {prompt}");
     assert!(prompt.ends_with(';'));
@@ -384,12 +384,14 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
         billing(concat!(
             "x-anthropic-billing-header: cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D; ",
             "cc_version=2.1.200.zzz; cc_prev_req=req_0123abc-XYZ_; cc_is_subagent=true; ",
+            "cc_prev_turn_index=12; cc_prev_msg=msg_0123abc_XYZ; cc_prev_prompt_index=0; ",
             "cc_workload=agent_run; cc_entrypoint=sdk-ts; cc_secret=leak; cch=11111; cc_turn_origin=user; cc_gateway=1;"
         )),
         concat!(
-            "x-anthropic-billing-header: cc_version=2.1.311.50b; cc_entrypoint=sdk-ts; cch=00000; ",
+            "x-anthropic-billing-header: cc_version=2.1.316.db3; cc_entrypoint=sdk-ts; cch=00000; ",
             "cc_workload=agent_run; cc_is_subagent=true; cc_prev_req=req_0123abc-XYZ_; ",
-            "cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D; cc_turn_origin=user;"
+            "cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D; cc_turn_origin=user; ",
+            "cc_prev_msg=msg_0123abc_XYZ; cc_prev_prompt_index=0; cc_prev_turn_index=12;"
         )
     );
     // Invalid values are dropped rather than forwarded: a prev_req without
@@ -398,14 +400,43 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
     // (which is then derived instead). Gateway attribution is also dropped.
     let derived = billing(concat!(
         "x-anthropic-billing-header: cc_version=2.1.200.zzz; cc_entrypoint=sdk/ts; ",
-        "cc_workload=agent run; cc_is_subagent=false; cc_prev_req=nope; cc_prompt_id=prompt-1; cc_gateway=env;"
+        "cc_workload=agent run; cc_is_subagent=false; cc_prev_req=nope; cc_prompt_id=prompt-1; cc_gateway=env;",
+        "cc_prev_msg=msg_bad-id; cc_prev_prompt_index=0; cc_prev_turn_index=0;"
     ));
     let (fixed, prompt) = derived.split_once(" cc_prompt_id=").unwrap();
     assert_eq!(
         fixed,
-        "x-anthropic-billing-header: cc_version=2.1.311.50b; cc_entrypoint=cli; cch=00000;"
+        "x-anthropic-billing-header: cc_version=2.1.316.db3; cc_entrypoint=cli; cch=00000;"
     );
     assert_eq!(prompt.len(), 37);
+    for invalid in [
+        "msg_",
+        "msg_bad-id",
+        "MSG_a",
+        "msg_用户",
+        &format!("msg_{}", "a".repeat(65)),
+    ] {
+        assert!(
+            !billing(&format!(
+                "x-anthropic-billing-header: cc_prev_msg={invalid};"
+            ))
+            .contains("cc_prev_msg=")
+        );
+    }
+    for (prompt, turn, valid) in [
+        ("0", "1", true),
+        ("10000000", "10000000", true),
+        ("2", "1", true),
+        ("10000001", "1", false),
+        ("-1", "1", false),
+        ("1", "", false),
+    ] {
+        let shaped = billing(&format!(
+            "x-anthropic-billing-header: cc_prev_prompt_index={prompt}; cc_prev_turn_index={turn};"
+        ));
+        assert_eq!(shaped.contains("cc_prev_prompt_index="), valid);
+        assert_eq!(shaped.contains("cc_prev_turn_index="), valid);
+    }
     for invalid in [
         "User",
         "_user",
@@ -1495,7 +1526,7 @@ fn service_request(method: Method, path: &str, query: Option<&str>, body: &str) 
     headers.insert("x-organization-uuid", HeaderValue::from_static("org-1"));
     headers.insert(
         "user-agent",
-        HeaderValue::from_static("claude-cli/2.1.311 (external, sdk-cli)"),
+        HeaderValue::from_static("claude-cli/2.1.316 (external, sdk-cli)"),
     );
     WireRequest {
         method,
@@ -1582,7 +1613,7 @@ async fn catalog_routes_forward_under_every_view_with_the_cli_identity() {
     assert_eq!(h["authorization"], "Bearer at");
     assert_eq!(h["anthropic-beta"], "oauth-2025-04-20");
     assert_eq!(h["anthropic-version"], "2026-10-21");
-    assert_eq!(h["user-agent"], "claude-cli/2.1.311 (external, sdk-cli)");
+    assert_eq!(h["user-agent"], "claude-cli/2.1.316 (external, sdk-cli)");
     assert_eq!(h["x-app"], "cli");
     assert_eq!(h["cache-control"], "no-cache");
     assert_eq!(h["x-organization-uuid"], "org-1");
