@@ -290,10 +290,10 @@ pub fn openai_to_claude(
             max_tokens,
             messages,
             model: target_model,
-            cache_control: input
-                .prompt_cache_options
-                .as_ref()
-                .and_then(cache::chat_options),
+            cache_control: match &input.prompt_cache_options {
+                Some(options) => cache::chat_options(options),
+                None => cache::key_implicit(input.prompt_cache_key.as_ref()),
+            },
             container: None,
             context_management: None,
             diagnostics: None,
@@ -355,6 +355,12 @@ pub fn openai_to_claude(
         },
         report,
     };
+    if input.prompt_cache_options.is_none() && converted.value.cache_control.is_some() {
+        converted.report.changed(
+            "prompt_cache_key",
+            "cache key mapped to Claude automatic cache_control",
+        );
+    }
     super::super::claude_controls::target(
         &mut converted.value.messages,
         &converted.value.model,

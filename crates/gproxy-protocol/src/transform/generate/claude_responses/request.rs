@@ -150,10 +150,16 @@ pub fn responses_to_claude_request(
     super::super::client_tools::Bindings::for_target(&input, crate::Dialect::Claude)?
         .lower(&mut input, &mut report)?;
     controls::to_claude(&input, &mut out, &mut report)?;
-    out.cache_control = input
-        .prompt_cache_options
-        .as_ref()
-        .and_then(cache::responses_options);
+    out.cache_control = match &input.prompt_cache_options {
+        Some(options) => cache::responses_options(options),
+        None => cache::key_implicit(input.prompt_cache_key.as_ref()),
+    };
+    if input.prompt_cache_options.is_none() && out.cache_control.is_some() {
+        report.changed(
+            "prompt_cache_key",
+            "cache key mapped to Claude automatic cache_control",
+        );
+    }
     if let Some(options) = &input.prompt_cache_options {
         if options.prewarm == Some(true) {
             return Err(TransformError::unsupported(

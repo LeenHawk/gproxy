@@ -110,7 +110,12 @@ pub(super) fn chat(
                 .prompt_cache_key
                 .as_ref()
                 .and_then(Option::as_ref)
-                .is_some(),
+                .is_some()
+                && (input.prompt_cache_options.is_some()
+                    || crate::transform::generate::prompt_cache::key_implicit(
+                        input.prompt_cache_key.as_ref(),
+                    )
+                    .is_none()),
             "prompt_cache_key",
         ),
         (

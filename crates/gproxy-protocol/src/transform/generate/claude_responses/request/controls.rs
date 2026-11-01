@@ -304,7 +304,15 @@ pub(super) fn to_claude(
     for (present, name) in [
         (input.metadata.is_some(), "metadata"),
         (input.include.is_some(), "include"),
-        (input.prompt_cache_key.is_some(), "prompt_cache_key"),
+        (
+            input.prompt_cache_key.is_some()
+                && (input.prompt_cache_options.is_some()
+                    || crate::transform::generate::prompt_cache::key_implicit(
+                        input.prompt_cache_key.as_ref(),
+                    )
+                    .is_none()),
+            "prompt_cache_key",
+        ),
         (
             input.prompt_cache_retention.is_some(),
             "prompt_cache_retention",

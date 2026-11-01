@@ -73,6 +73,15 @@ pub(crate) fn chat_options(value: &chat::PromptCacheOptions) -> Option<c::CacheC
     Some(cache)
 }
 
+/// A client-sent cache key asks the upstream to reuse the shared prefix. Claude
+/// only reuses a prefix it was told to mark, so a key without cache options is
+/// read as a request for implicit caching: Claude's automatic request-level mark.
+pub(crate) fn key_implicit(key: Option<&Option<String>>) -> Option<c::CacheControl> {
+    key.and_then(Option::as_ref)
+        .filter(|key| !key.is_empty())
+        .map(|_| c::CacheControl::builder(c::CacheControlType::Ephemeral).build())
+}
+
 pub(crate) fn responses_options(value: &r::PromptCacheOptions) -> Option<c::CacheControl> {
     if value.mode == Some(r::PromptCachingMode::Explicit) {
         return None;
