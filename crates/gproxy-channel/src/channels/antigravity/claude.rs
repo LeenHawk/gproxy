@@ -468,5 +468,11 @@ fn clean(schema: &Value, definitions: &Map<String, Value>, depth: usize) -> Valu
     if !out.contains_key("type") && out.contains_key("properties") {
         out.insert("type".into(), Value::String("object".into()));
     }
+    // The proto `Schema` wants `items` on every array and refuses the whole
+    // request over one without (`parameters.properties[batch].items: missing
+    // field`); `{}` is what JSON Schema means by no `items`.
+    if out.get("type").and_then(Value::as_str) == Some("array") && !out.contains_key("items") {
+        out.insert("items".into(), Value::Object(Map::new()));
+    }
     Value::Object(out)
 }
