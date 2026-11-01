@@ -1,18 +1,20 @@
-//! Reset ordering uses observed quota readings, never a quota query on the request path.
-//! Cache only the latest readings, independent of the requested model/operation; a
-//! cold cache is rebuilt from the credentials' open cycles with observed boundaries.
+//! Reset ordering and headroom use observed quota readings, never a quota query on the
+//! request path. Cache only the latest readings, independent of the requested
+//! model/operation; a cold cache is rebuilt from the credentials' open cycles with
+//! observed boundaries.
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use gproxy_channel::channel::{
-    QuotaAllowance, QuotaEntry, QuotaScope, QuotaSubject, QuotaValue, QuotaWindow,
+    QuotaAllowance, QuotaEntry, QuotaScope, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
 };
 use gproxy_protocol::Operation;
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::limits::credential_cycle::CycleBoundary;
+use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 
-use crate::{Core, CoreError, CoreResult, CredentialBlocks, CredentialData, keys};
+use crate::{Core, CoreError, CoreResult, CredentialData, keys};
 
 #[derive(Serialize, Deserialize)]
 struct Observation {
@@ -23,6 +25,19 @@ struct Observation {
     resets_at_ms: Option<i64>,
     kind: String,
     unlimited: bool,
+    /// The share of the window spent at the reading, when known.
+    #[serde(default)]
+    used_percent: Option<f64>,
+}
+
+/// What a credential's observed quota windows applicable to one request say
+/// now. Both are None without an applicable observed window.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Standing {
+    /// The earliest reset among the windows.
+    pub reset_ms: Option<i64>,
+    /// The most spent share among the windows that report one.
+    pub used_percent: Option<f64>,
 }
 
 impl Observation {
@@ -89,6 +104,9 @@ pub(crate) async fn update_reset_observations(
                 resets_at_ms: allowance.and_then(|a| a.period_end_ms),
                 kind: kind.into(),
                 unlimited: allowance.is_some_and(|a| a.unlimited == Some(true)),
+                used_percent: allowance
+                    .and_then(crate::quota::spent_percent)
+                    .and_then(|p| p.to_f64()),
             });
         }
         let outcome = cache
@@ -112,28 +130,42 @@ pub(crate) async fn update_reset_observations(
 }
 
 impl<C: BatchConnectionTrait> Core<C> {
-    pub(crate) async fn credential_reset_times(
+    /// Each credential's `Standing` for this model and operation. Credentials
+    /// whose quota nobody reports are not read and have no entry.
+    pub(crate) async fn credential_standing(
         &self,
-        eligible: &[(Arc<CredentialData>, CredentialBlocks)],
+        credentials: &[&Arc<CredentialData>],
         model: Option<&str>,
         operation: Operation,
         now_ms: i64,
-    ) -> CoreResult<HashMap<String, i64>> {
+    ) -> CoreResult<HashMap<String, Standing>> {
+        let data = self.snapshot();
+        let credentials: Vec<&Arc<CredentialData>> = credentials
+            .iter()
+            .copied()
+            .filter(|credential| {
+                crate::quota::quota_model(&data, credential).is_some()
+                    || credential
+                        .quota
+                        .iter()
+                        .any(|d| d.tracking == QuotaTracking::Reported)
+            })
+            .collect();
+        if credentials.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let keys: Vec<String> = credentials
+            .iter()
+            .map(|c| keys::credential_reset_observations(&c.id))
+            .collect();
         let mut observations: HashMap<String, Vec<Observation>> = HashMap::new();
         let mut missing = Vec::new();
-        for (credential, _) in eligible {
-            let cached = self
-                .cache
-                .get(&keys::credential_reset_observations(&credential.id))
-                .await?
-                .and_then(|entry| serde_json::from_slice(&entry.value).ok());
-            match cached {
+        for (credential, cached) in credentials.iter().zip(self.cache.get_many(&keys).await?) {
+            match cached.and_then(|entry| serde_json::from_slice(&entry.value).ok()) {
                 Some(rows) => {
                     observations.insert(credential.id.clone(), rows);
                 }
-                None => {
-                    missing.push(credential.id.clone());
-                }
+                None => missing.push(credential.id.clone()),
             }
         }
         if !missing.is_empty() {
@@ -166,6 +198,7 @@ impl<C: BatchConnectionTrait> Core<C> {
                         resets_at_ms: row.ends_at_ms,
                         kind: "window".into(),
                         unlimited: false,
+                        used_percent: row.sample_used_percent.and_then(|p| p.decimal().to_f64()),
                     });
             }
             for id in missing {
@@ -179,9 +212,8 @@ impl<C: BatchConnectionTrait> Core<C> {
                     .await?;
             }
         }
-        let data = self.snapshot();
-        let mut resets = HashMap::new();
-        for (credential, _) in eligible {
+        let mut standing: HashMap<String, Standing> = HashMap::new();
+        for credential in credentials {
             let quota_model = crate::quota::quota_model(&data, credential);
             for row in &observations[&credential.id] {
                 if row.unlimited || !matches!(row.kind.as_str(), "window" | "budget") {
@@ -217,12 +249,13 @@ impl<C: BatchConnectionTrait> Core<C> {
                 {
                     continue;
                 }
-                resets
-                    .entry(credential.id.clone())
-                    .and_modify(|end: &mut i64| *end = (*end).min(reset))
-                    .or_insert(reset);
+                let entry = standing.entry(credential.id.clone()).or_default();
+                entry.reset_ms = Some(entry.reset_ms.map_or(reset, |end| end.min(reset)));
+                if let Some(used) = row.used_percent {
+                    entry.used_percent = Some(entry.used_percent.map_or(used, |u| u.max(used)));
+                }
             }
         }
-        Ok(resets)
+        Ok(standing)
     }
 }

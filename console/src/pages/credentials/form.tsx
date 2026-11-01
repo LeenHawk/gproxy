@@ -10,8 +10,8 @@ import { RecordDialog, RecordEditor, type FormField } from "@/components/record-
 import { ErrorNotice } from "@/components/state"
 import { ownerColumns, ownerValue, useOwnerChoices } from "./ownership"
 
-type FormProps = Parameters<NonNullable<CollectionProps<CredentialDto, unknown, unknown>["renderForm"]>>[0] & { providerId: string; channel: string; credentialKinds: string[]; paidUsage: boolean; inline?: boolean; secretActions?: ReactNode }
-export function CredentialForm({ providerId, channel, credentialKinds, paidUsage, inline = false, secretActions, ...props }: FormProps) {
+type FormProps = Parameters<NonNullable<CollectionProps<CredentialDto, unknown, unknown>["renderForm"]>>[0] & { providerId: string; channel: string; credentialKinds: string[]; paidUsage: boolean; quotaCap?: boolean; inline?: boolean; secretActions?: ReactNode }
+export function CredentialForm({ providerId, channel, credentialKinds, paidUsage, quotaCap = false, inline = false, secretActions, ...props }: FormProps) {
   const { t } = useTranslation()
   const context = useConsoleContext()
   const ownership = useOwnerChoices()
@@ -25,6 +25,8 @@ export function CredentialForm({ providerId, channel, credentialKinds, paidUsage
   const formMetadata = { ...metadata }
   if (supportsPaidUsage) delete formMetadata.allow_paid_usage
   if (supportsRegion) delete formMetadata.location
+  const capPercent = typeof metadata.cap_percent === "number" ? metadata.cap_percent : null
+  if (quotaCap) delete formMetadata.cap_percent
   const selectedOwner = original ? ownerValue(original) : ownership.defaultOwner
   const choices = ownership.choices.some(row => row.value === selectedOwner) ? ownership.choices : [...ownership.choices, { value: selectedOwner, label: selectedOwner }]
   const fields: FormField[] = credentialFields.filter(field => context.scope?.kind === "instance" || !["connectionProfileId", "proxy"].includes(field.name)).map(field => field.name === "secret" ? { ...field, description: t("form.credentialSecretHint") } : field.name === "connectionProfileId" ? { ...field, kind: "searchable" as const, emptyLabel: t("form.unset"), source: context.has("configuration.connection-profiles") ? optionSource(connectionProfiles, row => ({ value: row.id, label: row.name })) : undefined } : field.name === "proxy" ? { ...field, proxyScope: () => original ? { scope: "credential" as const, credential_id: original.id } : { scope: "provider" as const, provider_id: providerId, parent: true } } : { ...field })
@@ -44,10 +46,14 @@ export function CredentialForm({ providerId, channel, credentialKinds, paidUsage
     name: "location", kind: "text", nullable: true,
     label: t("providerConfig.region"), description: t("management.credentialRegionHint"),
   })
+  if (quotaCap) fields.splice(1, 0, {
+    name: "capPercent", kind: "number", nullable: true,
+    label: t("management.quotaCap"), description: t("management.quotaCapHint"),
+  })
   const Form = inline ? RecordEditor : RecordDialog
-  return <>{ownership.error ? <ErrorNotice error={ownership.error} /> : null}<Form {...props} extra={secretActions} extraAfter="secret" submitDisabled={!original && !credentialKinds.length} mode={original ? "edit" : "create"} title={t(original ? "edit.credentials" : "create.credentials")} original={{ ...original, expiresAtMs: original?.expiresAtMs === 0 ? null : original?.expiresAtMs, authKind: original?.authKind ?? credentialKinds[0], metadata: formMetadata, location: metadata.location ?? null, allowPaidUsage, owner: selectedOwner }} fields={[...fields, { name: "owner", label: t("management.owner"), kind: "select", required: true, choices }]}
+  return <>{ownership.error ? <ErrorNotice error={ownership.error} /> : null}<Form {...props} extra={secretActions} extraAfter="secret" submitDisabled={!original && !credentialKinds.length} mode={original ? "edit" : "create"} title={t(original ? "edit.credentials" : "create.credentials")} original={{ ...original, expiresAtMs: original?.expiresAtMs === 0 ? null : original?.expiresAtMs, authKind: original?.authKind ?? credentialKinds[0], metadata: formMetadata, location: metadata.location ?? null, capPercent, allowPaidUsage, owner: selectedOwner }} fields={[...fields, { name: "owner", label: t("management.owner"), kind: "select", required: true, choices }]}
     onSubmit={body => {
-      const { owner, location, allowPaidUsage: paid, ...rest } = body
+      const { owner, location, capPercent: cap, allowPaidUsage: paid, ...rest } = body
       const editedMetadata = rest.metadata ?? metadata
       if (supportsPaidUsage && (paid !== undefined || rest.metadata !== undefined) && typeof editedMetadata === "object" && !Array.isArray(editedMetadata)) {
         rest.metadata = { ...(editedMetadata as Record<string, unknown>), allow_paid_usage: paid ?? allowPaidUsage }
@@ -57,6 +63,13 @@ export function CredentialForm({ providerId, channel, credentialKinds, paidUsage
         const region = String(location !== undefined ? location ?? "" : metadata.location ?? "").trim()
         if (region) updated.location = region
         else delete updated.location
+        rest.metadata = updated
+      }
+      if (quotaCap && (cap !== undefined || rest.metadata !== undefined)) {
+        const updated = { ...(rest.metadata ?? metadata) as Record<string, unknown> }
+        const value = cap !== undefined ? cap : capPercent
+        if (typeof value === "number") updated.cap_percent = value
+        else delete updated.cap_percent
         rest.metadata = updated
       }
       props.onSubmit({ ...rest, ...(!original && fixedKind ? { authKind: fixedKind } : {}), ...(owner !== undefined || !original ? ownerColumns(String(owner ?? selectedOwner)) : {}) })

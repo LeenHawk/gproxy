@@ -615,7 +615,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
             version: Set(0),
             connection_profile_id: Set(self.profile(write.connection_profile_id).await?),
             proxy: Set(crud::proxy(write.proxy)?),
-            metadata: Set(crud::object(write.metadata, "metadata")?),
+            metadata: Set(metadata(write.metadata)?),
             expires_at_ms: Set(expires_at_ms),
             status: Set(CredentialStatus::Active),
             status_reason: Set(None),
@@ -665,7 +665,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
             row.enabled = Set(enabled);
         }
         if let Some(metadata) = patch.metadata {
-            row.metadata = Set(crud::object(Some(metadata), "metadata")?);
+            row.metadata = Set(self::metadata(Some(metadata))?);
         }
         if let Some(proxy) = patch.proxy {
             row.proxy = Set(crud::proxy(proxy)?);
@@ -687,4 +687,21 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
         }
         Ok(row)
     }
+}
+
+/// Credential metadata is channel-owned JSON, plus the operator's
+/// `cap_percent`: the share of an observed quota window past which the
+/// credential counts as exhausted. Null or absent is no cap.
+fn metadata(value: Option<Value>) -> SdkResult<Value> {
+    let value = crud::object(value, "metadata")?;
+    match value.get("cap_percent") {
+        None | Some(Value::Null) => {}
+        Some(cap) if cap.as_f64().is_some_and(|cap| (1.0..=100.0).contains(&cap)) => {}
+        Some(_) => {
+            return Err(SdkError::invalid(
+                "metadata.cap_percent must be a number from 1 to 100",
+            ));
+        }
+    }
+    Ok(value)
 }

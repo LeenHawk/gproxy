@@ -106,9 +106,34 @@ fn allowance(value: &QuotaValue) -> Option<&QuotaAllowance> {
     }
 }
 
+/// The share of a window spent: reported, or derived from used or remaining
+/// against a known limit.
+pub(crate) fn spent_percent(a: &QuotaAllowance) -> Option<Decimal> {
+    let limit = a.limit.filter(|limit| *limit > Decimal::ZERO);
+    a.used_percent.or_else(|| {
+        let used = a
+            .used
+            .or_else(|| Some((limit? - a.remaining?).max(Decimal::ZERO)))?;
+        used.checked_div(limit?)?.checked_mul(Decimal::ONE_HUNDRED)
+    })
+}
+
+/// The operator's `cap_percent` in the credential's metadata: the share of
+/// any observed quota window past which the credential counts as exhausted
+/// for that window. 1–100; anything else is no cap.
+pub(crate) fn cap_percent(credential: &CredentialData) -> Option<Decimal> {
+    let version = credential.state.load();
+    let cap = version.metadata.get("cap_percent")?.as_f64()?;
+    (1.0..=100.0)
+        .contains(&cap)
+        .then(|| Decimal::from_f64_retain(cap))
+        .flatten()
+}
+
 /// Exhaustion is a positive statement from the upstream: zero remaining, used
 /// at or over a known limit, or 100%. Unreported values never count as zero.
-fn exhausted(value: &QuotaValue) -> bool {
+/// With an operator `cap`, a window or budget spent to the cap counts too.
+fn exhausted(value: &QuotaValue, cap: Option<Decimal>) -> bool {
     match value {
         QuotaValue::Balance(balance) => balance.remaining.is_some_and(|r| r <= Decimal::ZERO),
         other => {
@@ -121,6 +146,10 @@ fn exhausted(value: &QuotaValue) -> bool {
             a.remaining.is_some_and(|r| r <= Decimal::ZERO)
                 || matches!((a.used, a.limit), (Some(used), Some(limit)) if used >= limit)
                 || a.used_percent.is_some_and(|p| p >= Decimal::ONE_HUNDRED)
+                || cap.is_some_and(|cap| {
+                    matches!(other, QuotaValue::Window(_) | QuotaValue::Budget(_))
+                        && spent_percent(a).is_some_and(|p| p >= cap)
+                })
         }
     }
 }
@@ -283,12 +312,13 @@ async fn record_observation<C: BatchConnectionTrait>(
     let latest = dedupe::persisted_quota_observations(cache.as_ref(), &credential.id).await?;
     let model = quota_model(data, credential);
     let subject = cycles::CycleSubject::of(credential);
+    let cap = cap_percent(credential);
     let mut readings = Vec::with_capacity(entries.len());
     let mut facts = Vec::new();
     for entry in entries {
         let reading = dedupe::Persisted::new(&credential.quota, entry, now_ms);
         // An exhausted entry always gets its row: its blocks name it.
-        let exhausted = exhausted(&entry.value);
+        let exhausted = exhausted(&entry.value, cap);
         let write = exhausted
             || !latest
                 .iter()
@@ -399,8 +429,9 @@ async fn record_observation<C: BatchConnectionTrait>(
 /// enforce the latest subscription exhaustion without another upstream call.
 fn blocks_on(data: &crate::CoreData, credential: &CredentialData, entries: &[QuotaEntry]) -> bool {
     let model = quota_model(data, credential);
+    let cap = cap_percent(credential);
     entries.iter().any(|entry| {
-        exhausted(&entry.value)
+        exhausted(&entry.value, cap)
             && classify(model, credential, entry)
                 .is_some_and(|d| d.tracking == QuotaTracking::Reported && d.blocking)
     })
@@ -658,8 +689,9 @@ impl<C: BatchConnectionTrait> Core<C> {
     ) -> CoreResult<()> {
         let data = self.snapshot();
         let model = quota_model(&data, credential);
+        let cap = cap_percent(credential);
         let positive = |entry: &QuotaEntry| {
-            !exhausted(&entry.value) && match &entry.value {
+            !exhausted(&entry.value, cap) && match &entry.value {
                 QuotaValue::Balance(balance) => {
                     balance.remaining.is_some_and(|r| r > Decimal::ZERO)
                 }

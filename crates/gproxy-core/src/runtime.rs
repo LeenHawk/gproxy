@@ -130,6 +130,8 @@ pub enum BlockSource {
 impl BlockSource {
     /// Paid usage only bypasses subscription exhaustion declared by the channel.
     /// The exhaustion record remains available when the permission is disabled.
+    /// An operator cap is the stronger statement: a capped credential stops at
+    /// its cap, and so at real exhaustion too, whatever paid usage allows.
     pub fn is_enforced(
         &self,
         provider: &crate::ProviderData,
@@ -138,6 +140,9 @@ impl BlockSource {
         let Self::QuotaExhausted { dimension, .. } = self else {
             return true;
         };
+        if crate::quota::cap_percent(credential).is_some() {
+            return true;
+        }
         let Some(model) = provider.channel.quota_model() else {
             return true;
         };

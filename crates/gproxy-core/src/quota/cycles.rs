@@ -241,7 +241,7 @@ pub(crate) struct Facts {
     pub window_id: String,
     pub dimension_id: String,
     pub scope: QuotaScope,
-    /// Reported, or derived from used and limit.
+    /// Reported, or derived from used or remaining and limit.
     pub used_percent: Option<Decimal>,
     pub used: Option<Decimal>,
     pub limit: Option<Decimal>,
@@ -283,12 +283,7 @@ impl Facts {
             (Some(start), Some(end)) if end > start => Some(end - start),
             _ => window_ms(&dimension.window),
         };
-        let used_percent = a.used_percent.or_else(|| match (a.used, a.limit) {
-            (Some(used), Some(limit)) if limit > Decimal::ZERO => used
-                .checked_div(limit)
-                .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED)),
-            _ => None,
-        });
+        let used_percent = super::spent_percent(a);
         Self {
             window_id: window_id.to_owned(),
             dimension_id: dimension.id.clone(),

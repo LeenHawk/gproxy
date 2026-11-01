@@ -769,6 +769,8 @@
     "credentialRegionHint": "Overrides the provider region. Leave empty to inherit the provider setting (or the location in the credential secret).",
     "allowPaidUsage": "Allow credit balance usage",
     "paidUsageHint": "Allow existing credits or paid usage after subscription limits are reached. This does not enable billing.",
+    "quotaCap": "Quota cap (%)",
+    "quotaCapHint": "Stop selecting this credential once any reported quota window reaches this share, until that window resets. Empty means no cap; a cap also overrides paid usage.",
     "codexPaidUsageHint": "Allow existing credits after subscription limits are reached.",
     "claudePaidUsageHint": "Allow extra usage after subscription limits are reached. Enable it in your Claude account first.",
     "select": "Select",

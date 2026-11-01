@@ -769,6 +769,8 @@
     "credentialRegionHint": "覆蓋供應商預設區域。留空時繼承供應商設定（或憑證密鑰中的 location）。",
     "allowPaidUsage": "允許使用積分餘額",
     "paidUsageHint": "訂閱額度耗盡後，允許使用已有積分或付費用量，不會自動開通計費。",
+    "quotaCap": "額度上限（%）",
+    "quotaCapHint": "任一上游回報的額度視窗用量達到該比例後，在該視窗重置前不再選用此憑證。留空表示不設上限；設定後也會覆蓋付費用量。",
     "codexPaidUsageHint": "訂閱額度耗盡後，允許使用已有積分。",
     "claudePaidUsageHint": "訂閱額度耗盡後，允許使用額外用量。需在 Claude 帳號中開通。",
     "select": "選擇",

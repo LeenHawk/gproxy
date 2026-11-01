@@ -6,10 +6,17 @@ use crate::{
     CredentialBlocks, CredentialData, CredentialStatus, CredentialStrategy, RequestContext, keys,
 };
 use gproxy_protocol::Operation;
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
 /// How long a session keeps its credential without traffic.
 const AFFINITY_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+/// Spent-share points within which credentials count as equally used, so
+/// they keep rotating rather than chasing every percent.
+const HEADROOM_BAND: f64 = 10.0;
 /// Rotation counters outlive any realistic idle gap; a lost counter only
 /// restarts rotation at the first candidate.
 const ROTATION_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
@@ -169,13 +176,23 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
             Some(index) => index,
             None => {
                 let mut ids: Vec<&str> = eligible.iter().map(|(c, _)| c.id.as_str()).collect();
-                if provider.credential_strategy == CredentialStrategy::EarliestReset {
-                    let resets = self
-                        .credential_reset_times(&eligible, model, operation, now_ms)
+                // A stable sticky session hashes onto the set as it is; every
+                // other pick leans towards quota headroom first.
+                let hashed = provider.credential_strategy == CredentialStrategy::Sticky
+                    && affinity_key.is_some();
+                if !hashed && ids.len() > 1 {
+                    let credentials: Vec<_> = eligible.iter().map(|(c, _)| c).collect();
+                    let standing = self
+                        .credential_standing(&credentials, model, operation, now_ms)
                         .await?;
-                    if let Some(earliest) = resets.values().min() {
-                        ids.retain(|id| resets.get(*id) == Some(earliest));
+                    if provider.credential_strategy == CredentialStrategy::EarliestReset
+                        && let Some(earliest) = standing.values().filter_map(|s| s.reset_ms).min()
+                    {
+                        ids.retain(|id| {
+                            standing.get(*id).and_then(|s| s.reset_ms) == Some(earliest)
+                        });
                     }
+                    prefer_headroom(&mut ids, &standing);
                 }
                 ids.sort_unstable();
                 let position = if let (CredentialStrategy::Sticky, Some(key)) =
@@ -268,6 +285,18 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
             .await?;
         Ok(())
     }
+}
+
+/// Lean an unbound pick towards quota headroom. Credentials whose observed
+/// windows are spent more than `HEADROOM_BAND` points past the least spent
+/// one sit out; the rest rotate as before. A credential without a reading is
+/// neutral: it is never left out and never leaves anyone out.
+fn prefer_headroom(ids: &mut Vec<&str>, standing: &HashMap<String, crate::select_reset::Standing>) {
+    let used = |id: &str| standing.get(id).and_then(|s| s.used_percent);
+    let Some(least) = ids.iter().filter_map(|id| used(id)).min_by(f64::total_cmp) else {
+        return;
+    };
+    ids.retain(|id| used(id).is_none_or(|u| u < least + HEADROOM_BAND));
 }
 
 /// A stable slot for a session on one provider: the same session keeps the
