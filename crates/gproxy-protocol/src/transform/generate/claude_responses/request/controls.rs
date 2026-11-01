@@ -86,6 +86,25 @@ pub(super) fn to_responses(
             i::ReasoningConfig::builder().effort(Some(effort)).build(),
         ));
     }
+    // Claude thinking comes back with a signature to replay; the Responses
+    // counterpart is the encrypted reasoning, which a stateless upstream
+    // returns only when asked.
+    if matches!(
+        input.thinking,
+        Some(cc::ThinkingConfig::Enabled(_) | cc::ThinkingConfig::Adaptive(_))
+    ) {
+        let include = out
+            .include
+            .get_or_insert_with(|| Some(Vec::new()))
+            .get_or_insert_with(Vec::new);
+        if !include.contains(&r::ResponseIncludable::ReasoningEncryptedContent) {
+            include.push(r::ResponseIncludable::ReasoningEncryptedContent);
+            report.changed(
+                "thinking",
+                "include reasoning.encrypted_content so the thinking signature can be replayed",
+            );
+        }
+    }
     let display = match &input.thinking {
         Some(cc::ThinkingConfig::Adaptive(v)) => v.display,
         Some(cc::ThinkingConfig::Enabled(v)) => v.display,
