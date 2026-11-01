@@ -121,7 +121,25 @@ pub(crate) fn kind(status: u16) -> &'static str {
     }
 }
 
+/// Anthropic's refusal of an over-long prompt, as it words it: "prompt is
+/// too long: N tokens > M maximum". Claude Code compacts on these words; an
+/// OpenAI client (Codex) compacts only on the code `context_length_exceeded`
+/// (`codex-api/src/sse/responses_error.rs`), so each side gets its own.
+const PROMPT_TOO_LONG: &str = "prompt is too long";
+const CONTEXT_LENGTH_EXCEEDED: &str = "context_length_exceeded";
+
+/// A Claude-shaped `invalid_request_error` refusing the prompt's length.
+fn claude_prompt_too_long(detail: &Value) -> bool {
+    detail["type"].as_str() == Some("invalid_request_error")
+        && detail["message"]
+            .as_str()
+            .is_some_and(|message| message.starts_with(PROMPT_TOO_LONG))
+}
+
 fn code(detail: &Value) -> Value {
+    if !detail["code"].is_string() && claude_prompt_too_long(detail) {
+        return CONTEXT_LENGTH_EXCEEDED.into();
+    }
     if detail["code"].is_string() {
         return detail["code"].clone();
     }
@@ -151,9 +169,20 @@ pub(crate) fn body(detail: &Value, status: u16, dialect: Dialect) -> Option<Valu
             error["param"] = detail["param"].clone();
             json!({"error": error})
         }
-        Dialect::Claude => json!({
-            "type": "error", "error": {"type": kind(status), "message": detail["message"]}
-        }),
+        Dialect::Claude => {
+            // An OpenAI context-length refusal is worded the way Claude Code
+            // recognises an over-long prompt.
+            let message = match detail["message"].as_str() {
+                Some(message)
+                    if detail["code"].as_str() == Some(CONTEXT_LENGTH_EXCEEDED)
+                        && !message.to_ascii_lowercase().contains(PROMPT_TOO_LONG) =>
+                {
+                    Value::String(format!("{PROMPT_TOO_LONG}: {message}"))
+                }
+                _ => detail["message"].clone(),
+            };
+            json!({"type": "error", "error": {"type": kind(status), "message": message}})
+        }
         Dialect::Gemini => {
             let mut error = json!({
                 "code": status, "message": detail["message"],
