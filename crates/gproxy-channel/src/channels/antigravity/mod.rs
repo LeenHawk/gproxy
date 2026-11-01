@@ -549,6 +549,62 @@ fn agent_envelope(envelope: &mut Value, model: &str) -> Result<(), ChannelError>
     Ok(())
 }
 
+/// Claude Code's `x-anthropic-billing-header:` system line, matched
+/// case-insensitively at the start of a line.
+const BILLING_LINE: &str = "x-anthropic-billing-header:";
+
+/// Drop Claude Code's billing line from the system instruction. Code Assist
+/// answers every model 429 `RESOURCE_EXHAUSTED` "Resource has been exhausted
+/// (e.g. check quota)", whatever quota is left, to a system instruction that
+/// carries it (`samples/magpie/internal/gateway/codeassist.go`
+/// `agTurnedAway`, #666); the line is Anthropic billing metadata that means
+/// nothing to Google. Every other line is sent as written, and a part the
+/// line was alone in is dropped rather than sent empty.
+fn strip_billing_line(request: &mut Value) {
+    let Some(request) = request.as_object_mut() else {
+        return;
+    };
+    for key in ["systemInstruction", "system_instruction"] {
+        let Some(parts) = request
+            .get_mut(key)
+            .and_then(|system| system.get_mut("parts"))
+            .and_then(Value::as_array_mut)
+        else {
+            continue;
+        };
+        let mut touched = false;
+        for part in parts.iter_mut() {
+            let Some(text) = part.get("text").and_then(Value::as_str) else {
+                continue;
+            };
+            let is_billing = |line: &str| {
+                line.trim_start()
+                    .get(..BILLING_LINE.len())
+                    .is_some_and(|head| head.eq_ignore_ascii_case(BILLING_LINE))
+            };
+            if !text.split_inclusive('\n').any(is_billing) {
+                continue;
+            }
+            let kept: String = text
+                .split_inclusive('\n')
+                .filter(|line| !is_billing(line))
+                .collect();
+            part["text"] = Value::String(kept);
+            touched = true;
+        }
+        if !touched {
+            continue;
+        }
+        parts.retain(|part| {
+            !(part.get("text").and_then(Value::as_str) == Some("")
+                && part.as_object().is_some_and(|object| object.len() == 1))
+        });
+        if parts.is_empty() {
+            request.remove(key);
+        }
+    }
+}
+
 impl Antigravity {
     fn build(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
         let config = AntigravityConfig::from_view(ctx.provider)?;
@@ -581,6 +637,9 @@ impl Antigravity {
                 let bytes = code_assist::envelope(&buffered, &model, &project)?;
                 let mut envelope: Value = serde_json::from_slice(&bytes)
                     .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+                if let Some(request) = envelope.get_mut("request") {
+                    strip_billing_line(request);
+                }
                 if claude::is_claude(&model)
                     && let Some(request) = envelope.get_mut("request")
                 {
