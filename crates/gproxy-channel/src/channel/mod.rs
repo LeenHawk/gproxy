@@ -12,6 +12,7 @@ mod quota;
 pub(crate) mod reason;
 mod refresh;
 mod registry;
+mod rejection;
 mod service;
 mod state;
 mod usage;
@@ -50,6 +51,11 @@ pub use usage::{
 };
 
 pub use reason::{ResponseReason, ResponseReasonObserver, standard_reason_observer};
+
+pub use rejection::{
+    Rejection, RejectionContext, RejectionKind, error_object, go_duration, proto_duration,
+    retry_after, standard_rejection,
+};
 
 pub use refresh::{CredentialRefresh, CredentialUpdate, RefreshContext, RefreshReason};
 
@@ -666,6 +672,16 @@ pub trait BaseChannel: Send + Sync {
         max_bytes: u64,
     ) -> Option<Box<dyn ResponseReasonObserver>> {
         standard_reason_observer(headers, max_bytes)
+    }
+
+    /// What a refusal says about the credential that received it: rate
+    /// limited, quota or credit exhausted, unauthenticated, model not served,
+    /// or the request's own fault. Called for every non-2xx answer with a
+    /// bounded prefix of its body, and for an error frame opening a 2xx
+    /// stream. `None` leaves the decision to the status code. The default
+    /// reads structured fields only; override to add a vendor's own wording.
+    fn classify_rejection(&self, context: RejectionContext<'_>) -> Option<Rejection> {
+        standard_rejection(context)
     }
 
     /// Classify one complete incoming WS message; control frames carry no model verdict.

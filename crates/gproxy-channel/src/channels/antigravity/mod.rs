@@ -771,6 +771,12 @@ impl BaseChannel for Antigravity {
     fn quota_model(&self) -> Option<&dyn QuotaModel> {
         Some(self)
     }
+    fn classify_rejection(
+        &self,
+        context: crate::channel::RejectionContext<'_>,
+    ) -> Option<crate::channel::Rejection> {
+        quota::classify_rejection(context)
+    }
 }
 
 /// `fetchAvailableModels` names the account's project, as the IDE's

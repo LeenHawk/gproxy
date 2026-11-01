@@ -363,3 +363,51 @@ impl QuotaQuery for Antigravity {
         })
     }
 }
+
+/// Code Assist's refusal for a model allowance used up names the wait only in
+/// prose, as Go prints a duration: "You have exhausted your capacity on this
+/// model. Your quota will reset after 3h19m30s." Read that sentence when the
+/// structured fields gave no wait, so the model rests until it returns instead
+/// of being asked again every few minutes.
+pub(super) fn classify_rejection(
+    context: crate::channel::RejectionContext<'_>,
+) -> Option<crate::channel::Rejection> {
+    use crate::channel::{Rejection, RejectionKind};
+    let standard = crate::channel::standard_rejection(context);
+    if standard.is_some_and(|r| {
+        r.retry_after.is_some()
+            || !matches!(
+                r.kind,
+                RejectionKind::RateLimited | RejectionKind::QuotaExhausted
+            )
+    }) {
+        return standard;
+    }
+    let Some(after) = quota_reset_after(context.body) else {
+        return standard;
+    };
+    Some(Rejection {
+        kind: RejectionKind::QuotaExhausted,
+        retry_after: Some(after),
+        model_scoped: true,
+    })
+}
+
+/// A written wait beyond this is not believed.
+const LONGEST_RESET: std::time::Duration = std::time::Duration::from_secs(8 * 24 * 60 * 60);
+
+fn quota_reset_after(body: &[u8]) -> Option<std::time::Duration> {
+    let value: Value = serde_json::from_slice(body).ok()?;
+    let message = crate::channel::error_object(&value)?
+        .get("message")?
+        .as_str()?;
+    const MARK: &str = "quota will reset after ";
+    let at = message.to_ascii_lowercase().find(MARK)? + MARK.len();
+    let rest = &message[at..];
+    let end = rest
+        .find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | 'h' | 'm' | 's')))
+        .unwrap_or(rest.len());
+    // The sentence's own full stop is not part of the duration.
+    let duration = rest[..end].trim_end_matches('.');
+    crate::channel::go_duration(duration).filter(|d| !d.is_zero() && *d <= LONGEST_RESET)
+}
