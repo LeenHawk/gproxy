@@ -13,8 +13,9 @@ impl Tool {
         id: Option<String>,
         function: Option<q::DeltaFunctionCall>,
     ) -> Result<(), TransformError> {
-        if let Some(id) = id {
-            if id.is_empty() || self.id.as_ref().is_some_and(|v| v != &id) {
+        // Some compatible relays repeat `"id":""` on continuation fragments.
+        if let Some(id) = id.filter(|id| !id.is_empty()) {
+            if self.id.as_ref().is_some_and(|v| v != &id) {
                 return Err(invalid("tool ID changed"));
             }
             self.id = Some(id);

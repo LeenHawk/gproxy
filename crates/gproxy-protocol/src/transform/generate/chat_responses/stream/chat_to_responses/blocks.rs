@@ -97,7 +97,8 @@ impl ChatToResponsesStream {
             name: String::new(),
             arguments: String::new(),
         });
-        if let Some(id) = source_id {
+        // Some compatible relays repeat `"id":""` on continuation fragments.
+        if let Some(id) = source_id.filter(|id| !id.is_empty()) {
             t.source_id = Some(id);
         }
         if let Some(name) = function.name.flatten() {

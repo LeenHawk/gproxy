@@ -110,11 +110,12 @@ impl ChoiceAccum {
                     ));
                 }
                 let state = self.tools.entry(call.index).or_default();
-                if let Some(Some(id)) = call.id {
-                    if id.is_empty() || state.id.as_ref().is_some_and(|v| v != &id) {
+                // Some compatible relays repeat `"id":""` on continuation fragments.
+                if let Some(id) = call.id.flatten().filter(|id| !id.is_empty()) {
+                    if state.id.as_ref().is_some_and(|v| v != &id) {
                         return Err(TransformError::invalid_result(
                             "tool.id",
-                            "empty or conflicting tool ID",
+                            "conflicting tool ID",
                         ));
                     }
                     state.id = Some(id);
