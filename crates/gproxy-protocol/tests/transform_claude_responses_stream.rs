@@ -535,9 +535,9 @@ fn interleaved_response_items_wait_for_unknown_earlier_parts() {
     assert_eq!(value.text, "b");
 }
 #[test]
-fn responses_reasoning_never_becomes_claude_thinking() {
-    // Anthropic accepts thinking only with a signature it issued; a Responses
-    // upstream's reasoning has none, whatever its encrypted_content holds.
+fn responses_reasoning_with_a_carried_claude_signature_becomes_claude_thinking() {
+    // A Claude signature gproxy carried in encrypted_content is restored as
+    // the native thinking block, streamed the same as the whole response.
     let body = response(
         json!([{"type":"reasoning","id":"rs-native","summary":[],"content":[{"type":"reasoning_text","text":"signed text"}],"encrypted_content":"claude:native-signature","status":"completed"},message("m",json!([text("answer")]),"completed")]),
         "completed",
@@ -562,12 +562,11 @@ fn responses_reasoning_never_becomes_claude_thinking() {
         .unwrap()
         .value;
     assert_eq!(actual, expected);
-    assert!(
-        actual
-            .content
-            .iter()
-            .all(|block| !matches!(block, c::ResponseContentBlock::Thinking(_)))
-    );
+    let c::ResponseContentBlock::Thinking(thinking) = &actual.content[0] else {
+        panic!()
+    };
+    assert_eq!(thinking.signature, "native-signature");
+    assert_eq!(thinking.thinking, "signed text");
 }
 #[test]
 fn mcp_native_result_is_not_a_client_tool_or_an_untyped_text_wrapper() {

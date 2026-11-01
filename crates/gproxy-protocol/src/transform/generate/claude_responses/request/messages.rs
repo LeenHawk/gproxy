@@ -1,4 +1,5 @@
 use crate::transform::generate::prompt_cache as cache;
+use crate::transform::generate::signature::Carried;
 use crate::{
     transform::{
         Report, TransformError,
@@ -255,6 +256,58 @@ pub(crate) fn to_responses(
                         call.output = text.map(Some);
                         call.status = Some(r::McpCallStatus::Completed);
                     }
+                }
+                // Reasoning a Responses upstream returned goes back as the
+                // reasoning item it was, with its ciphertext; see `signature`.
+                c::ContentBlock::Thinking(thinking)
+                    if matches!(
+                        Carried::parse(&thinking.signature),
+                        Some(Carried::OpenAi { .. })
+                    ) =>
+                {
+                    let Some(Carried::OpenAi { id, encrypted }) =
+                        Carried::parse(&thinking.signature)
+                    else {
+                        unreachable!("matched by the guard")
+                    };
+                    if encrypted.is_empty() {
+                        report.omitted(
+                            "thinking",
+                            "reasoning returned without ciphertext has nothing to replay",
+                        );
+                        continue;
+                    }
+                    let id = if id.is_empty() {
+                        let id = flow
+                            .resolve_as(
+                                IdentityRole::OutputItem(OutputItemKind::Reasoning),
+                                IdentityRole::OutputItem(OutputItemKind::Reasoning),
+                                SourceIdentity::new(crate::Dialect::Claude, None, ordinal),
+                                policy,
+                            )
+                            .map_err(|e| TransformError::shape("identity", e.to_string()))?
+                            .emitted_id;
+                        ordinal += 1;
+                        id
+                    } else {
+                        id.to_owned()
+                    };
+                    let summary = if thinking.thinking.is_empty() {
+                        Vec::new()
+                    } else {
+                        vec![
+                            r::SummaryText::builder(
+                                r::SummaryTextType::SummaryText,
+                                thinking.thinking,
+                            )
+                            .build(),
+                        ]
+                    };
+                    let mut item =
+                        r::ReasoningItem::builder(r::ReasoningItemType::ReasoningItem, id, summary)
+                            .build();
+                    item.encrypted_content = Some(Some(encrypted.to_owned()));
+                    out.push(r::InputItem::Reasoning(item));
                 }
                 // A signature carried from another upstream (a Gemini thought)
                 // only goes back to that upstream; this one would refuse it.

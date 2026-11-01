@@ -21,6 +21,11 @@
 //!   no text.
 //! - `claude:<signature>` is a Claude thinking block's signature, shown to a
 //!   client whose reasoning field is not a Claude one.
+//! - `openai:<item id>:<encrypted_content>` is a Responses reasoning item's
+//!   ciphertext and the id of the item that held it, shown to a Claude client
+//!   as a thinking block whose text is the item's summary. The pair replays
+//!   as one `reasoning` item with that ciphertext. A bare `openai:` marks
+//!   reasoning the upstream returned without ciphertext; it replays as nothing.
 //!
 //! A Claude client's own Claude signature carries no prefix: it is native
 //! there, and a Claude request routed to Anthropic as it is must not change.
@@ -33,6 +38,8 @@ pub const GEMINI: &str = "gemini:";
 pub const GEMINI_NEXT: &str = "gemini-next:";
 /// A Claude thinking block's signature.
 pub const CLAUDE: &str = "claude:";
+/// A Responses reasoning item's id and `encrypted_content`.
+pub const OPENAI: &str = "openai:";
 
 /// A carried signature, with its source prefix removed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,6 +50,9 @@ pub enum Carried<'a> {
     GeminiNext(&'a str),
     /// A Claude thinking signature.
     Claude(&'a str),
+    /// A Responses reasoning item's id and ciphertext; both empty when the
+    /// upstream returned the reasoning without ciphertext.
+    OpenAi { id: &'a str, encrypted: &'a str },
 }
 
 impl<'a> Carried<'a> {
@@ -53,6 +63,9 @@ impl<'a> Carried<'a> {
             Some(Self::GeminiNext(signature))
         } else if let Some(signature) = value.strip_prefix(GEMINI) {
             Some(Self::GeminiThought(signature))
+        } else if let Some(value) = value.strip_prefix(OPENAI) {
+            let (id, encrypted) = value.split_once(':').unwrap_or(("", value));
+            Some(Self::OpenAi { id, encrypted })
         } else {
             value.strip_prefix(CLAUDE).map(Self::Claude)
         }
@@ -87,6 +100,15 @@ pub fn gemini_next(signature: &str) -> String {
 /// The carried form of a Claude thinking signature.
 pub fn claude(signature: &str) -> String {
     format!("{CLAUDE}{signature}")
+}
+
+/// The carried form of a Responses reasoning item's ciphertext and id; `None`
+/// (or an empty ciphertext) marks reasoning without ciphertext.
+pub fn openai(id: &str, encrypted: Option<&str>) -> String {
+    match encrypted.filter(|v| !v.is_empty()) {
+        Some(encrypted) => format!("{OPENAI}{id}:{encrypted}"),
+        None => OPENAI.to_owned(),
+    }
 }
 
 /// A Responses request (or input token count) body without the reasoning

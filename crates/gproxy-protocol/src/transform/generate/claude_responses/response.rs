@@ -6,7 +6,7 @@ use crate::{
     },
     wire::{DeclaredFields, claude::generate_content as c, openai::responses as r},
 };
-mod content;
+pub(crate) mod content;
 mod facts;
 pub(crate) mod mcp;
 pub(crate) mod usage;

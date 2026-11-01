@@ -140,7 +140,29 @@ impl ResponsesToClaudeStream {
                     }
                     true
                 }
-                Kind::Reasoning => true,
+                Kind::Reasoning {
+                    final_item,
+                    projected,
+                } => {
+                    if item.done {
+                        if !*projected {
+                            let reasoning = final_item
+                                .take()
+                                .ok_or_else(|| invalid("missing completed reasoning"))?;
+                            self.held_bytes -= item.held;
+                            item.held = 0;
+                            if let Some(block) =
+                                super::super::response::content::reasoning_thinking(&reasoning)
+                            {
+                                self.thinking_block(out, block)?;
+                            }
+                            *projected = true;
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                }
                 Kind::Mcp {
                     final_item,
                     projected,
@@ -176,5 +198,62 @@ impl ResponsesToClaudeStream {
             }
             self.cursor = self.cursor.checked_add(1).ok_or_else(limit)?;
         }
+    }
+}
+
+impl ResponsesToClaudeStream {
+    /// A whole thinking block, streamed the way Anthropic streams one: an
+    /// empty block, its text, then its signature.
+    fn thinking_block(
+        &mut self,
+        out: &mut Vec<cs::StreamEvent>,
+        block: crate::wire::claude::content::ThinkingBlock,
+    ) -> Result<(), TransformError> {
+        let index = self.allocate_block()?;
+        let start = crate::wire::claude::content::ThinkingBlock {
+            thinking: String::new(),
+            signature: String::new(),
+            ..block.clone()
+        };
+        self.emit(
+            out,
+            cs::StreamEvent::ContentBlockStart(
+                cs::ContentBlockStartEvent::builder(
+                    index,
+                    c::ResponseContentBlock::Thinking(start),
+                )
+                .build(),
+            ),
+        )?;
+        if !block.thinking.is_empty() {
+            self.emit(
+                out,
+                cs::StreamEvent::ContentBlockDelta(
+                    cs::ContentBlockDeltaEvent::builder(
+                        index,
+                        cs::ContentBlockDelta::Thinking(
+                            cs::ThinkingDelta::builder(block.thinking).build(),
+                        ),
+                    )
+                    .build(),
+                ),
+            )?;
+        }
+        self.emit(
+            out,
+            cs::StreamEvent::ContentBlockDelta(
+                cs::ContentBlockDeltaEvent::builder(
+                    index,
+                    cs::ContentBlockDelta::Signature(
+                        cs::SignatureDelta::builder(block.signature).build(),
+                    ),
+                )
+                .build(),
+            ),
+        )?;
+        self.emit(
+            out,
+            cs::StreamEvent::ContentBlockStop(cs::ContentBlockStopEvent::builder(index).build()),
+        )
     }
 }

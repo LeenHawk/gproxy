@@ -332,14 +332,14 @@ fn claude_thinking_carries_its_signature_in_encrypted_content() {
         Some(Some("claude:native-signature".into()))
     );
     assert_eq!(item.content.as_ref().unwrap()[0].text, "original thought");
-    // The response direction never turns Responses reasoning into thinking.
+    // The carried Claude signature comes back as the native thinking block.
     let back =
         responses_to_claude_response(mapped, &mut flow(), &TargetIdPolicy::new(Dialect::Claude))
             .unwrap()
             .value;
-    assert!(
-        back.content
-            .iter()
-            .all(|block| !matches!(block, c::ResponseContentBlock::Thinking(_)))
-    );
+    let c::ResponseContentBlock::Thinking(thinking) = &back.content[0] else {
+        panic!()
+    };
+    assert_eq!(thinking.signature, "native-signature");
+    assert_eq!(thinking.thinking, "original thought");
 }

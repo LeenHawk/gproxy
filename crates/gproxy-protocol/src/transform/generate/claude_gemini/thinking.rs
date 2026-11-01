@@ -57,14 +57,14 @@ pub(crate) fn call_signature(part: &g::Part) -> Option<String> {
         .map(signature::gemini_next)
 }
 
-/// A Claude Messages (or count tokens) body with every Gemini-signed
-/// `thinking` block removed, and any message the removal empties; `None`
-/// when the body holds none. This is for a request that reaches an Anthropic
-/// upstream as it is, without conversion: Anthropic refuses a signature it
-/// did not issue, which is the case after the conversation moved over from a
-/// Gemini upstream.
+/// A Claude Messages (or count tokens) body with every `thinking` block
+/// signed by another upstream (Gemini, or OpenAI reasoning ciphertext)
+/// removed, and any message the removal empties; `None` when the body holds
+/// none. This is for a request that reaches an Anthropic upstream as it is,
+/// without conversion: Anthropic refuses a signature it did not issue, which
+/// is the case after the conversation moved over from another upstream.
 pub fn without_gemini_thinking(body: &[u8]) -> Option<Vec<u8>> {
-    let needles = [signature::GEMINI, signature::GEMINI_NEXT].map(str::as_bytes);
+    let needles = [signature::GEMINI, signature::GEMINI_NEXT, signature::OPENAI].map(str::as_bytes);
     if !needles
         .iter()
         .any(|needle| body.windows(needle.len()).any(|window| window == *needle))
@@ -87,7 +87,8 @@ pub fn without_gemini_thinking(body: &[u8]) -> Option<Vec<u8>> {
                 || !block
                     .get("signature")
                     .and_then(serde_json::Value::as_str)
-                    .is_some_and(signature::is_gemini)
+                    .and_then(signature::Carried::parse)
+                    .is_some_and(|carried| !matches!(carried, signature::Carried::Claude(_)))
         });
         changed |= content.len() != before;
     }

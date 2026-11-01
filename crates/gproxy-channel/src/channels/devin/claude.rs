@@ -50,7 +50,7 @@ pub(super) fn request(mut value: Value) -> Result<Value, ChannelError> {
             let (kind, signature) = match carried {
                 signature::Carried::GeminiThought(value) => ("gemini", value),
                 signature::Carried::Claude(value) => ("anthropic", value),
-                signature::Carried::GeminiNext(_) => continue,
+                signature::Carried::GeminiNext(_) | signature::Carried::OpenAi { .. } => continue,
             };
             block["signature"] = json!(
                 Reasoning {

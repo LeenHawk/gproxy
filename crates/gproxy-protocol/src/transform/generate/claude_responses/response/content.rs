@@ -10,6 +10,50 @@ use crate::{
     },
 };
 
+/// The thinking block a Claude client is shown for a Responses reasoning
+/// item: its summary as text, and its id and ciphertext carried in the
+/// signature (`openai:`, see `signature`) so a later request to a Responses
+/// upstream replays the item; a carried Claude signature is restored as it
+/// was. Reasoning with neither text nor ciphertext has nothing to show.
+pub(crate) fn reasoning_thinking(reasoning: &r::ReasoningItem) -> Option<cc::ThinkingBlock> {
+    let text = if reasoning.summary.is_empty() {
+        reasoning
+            .content
+            .iter()
+            .flatten()
+            .map(|part| part.text.as_str())
+            .collect::<String>()
+    } else {
+        reasoning
+            .summary
+            .iter()
+            .map(|part| part.text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    };
+    use crate::transform::generate::signature::{self, Carried};
+    let encrypted = reasoning
+        .encrypted_content
+        .as_ref()
+        .and_then(Option::as_deref)
+        .filter(|v| !v.is_empty());
+    let signature = match encrypted.map(Carried::parse) {
+        // A Claude signature gproxy carried comes back as the native one.
+        Some(Some(Carried::Claude(native))) if !native.is_empty() => native.to_owned(),
+        // Another upstream's carried signature is not this upstream's to replay.
+        Some(Some(_)) => signature::openai(&reasoning.id, None),
+        Some(None) => signature::openai(&reasoning.id, encrypted),
+        None if text.is_empty() => return None,
+        None => signature::openai(&reasoning.id, None),
+    };
+    Some(cc::ThinkingBlock {
+        type_: cc::ThinkingBlockType::Tag,
+        signature,
+        thinking: text,
+        rest: Default::default(),
+    })
+}
+
 pub(super) fn id(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
@@ -408,7 +452,9 @@ pub(super) fn to_claude(
                         "nonterminal reasoning conflicts with response status",
                     ));
                 }
-                report.omitted("output.reasoning","Claude thinking requires a valid original-origin signature; Responses reasoning and ciphertext cannot invent one");
+                if let Some(block) = reasoning_thinking(&reasoning) {
+                    result.blocks.push(c::ResponseContentBlock::Thinking(block));
+                }
             }
             r::ResponseOutputItem::McpCall(call) => {
                 if !calls.insert(call.id.clone()) {
