@@ -2,7 +2,7 @@ import { invalidateConfiguration } from "@/api/invalidation"
 import { QuotasPanel } from "@/pages/quotas"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { Boxes, KeyRound, Settings2 } from "lucide-react"
+import { Boxes, KeyRound, ListChecks, Route, Settings2 } from "lucide-react"
 import { toast } from "sonner"
 import { channels, providers, providerPath } from "@/api/configuration"
 import type { ChannelDescriptor, ProviderDto } from "@/generated/sdk"
@@ -68,8 +68,8 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
         <TabsList variant="line" className="max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto">
           <TabsTrigger value="credentials"><KeyRound />{t("nav.credentials")}</TabsTrigger>
           <TabsTrigger value="models"><Boxes />{t("nav.provider-models")}</TabsTrigger>
-          <TabsTrigger value="rules">{t("nav.provider-rule-sets")}</TabsTrigger>
-          <TabsTrigger value="routing">{t("nav.operation-rules")}</TabsTrigger>
+          <TabsTrigger value="rules"><ListChecks />{t("nav.provider-rule-sets")}</TabsTrigger>
+          <TabsTrigger value="routing"><Route />{t("nav.operation-rules")}</TabsTrigger>
           <TabsTrigger value="settings"><Settings2 />{t("providers.settings")}</TabsTrigger>
         </TabsList>
         <TabsContent value="rules"><ProviderRules providerId={provider.id} providerName={provider.name} /></TabsContent>
