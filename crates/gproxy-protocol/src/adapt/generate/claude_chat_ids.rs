@@ -52,6 +52,7 @@ pub(super) fn chat_request(
     identities: &mut GenerationIdentity,
     source: Dialect,
 ) -> Result<(), TransformError> {
+    super::tool_pairing::chat(&mut value.messages);
     let mut flow = identities.request.clone();
     let policy = &identities.request_policy;
     let mut aliases = BTreeMap::new();
@@ -85,6 +86,7 @@ pub(super) fn claude_request(
     identities: &mut GenerationIdentity,
     source: Dialect,
 ) -> Result<(), TransformError> {
+    super::tool_pairing::claude(value);
     let mut flow = identities.request.clone();
     let policy = &identities.request_policy;
     let mut aliases = BTreeMap::new();

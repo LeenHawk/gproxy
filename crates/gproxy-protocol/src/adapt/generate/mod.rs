@@ -19,6 +19,7 @@ mod request_ids;
 mod resources;
 mod state;
 pub mod stream;
+mod tool_pairing;
 mod transport;
 
 pub use crate::transform::generate::chat_responses::ToolCallKind;
