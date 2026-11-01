@@ -25,14 +25,15 @@
 //!   `:retrieveUserQuotaSummary` (see `quota`), all with the hub's user
 //!   agent.
 //!
-//! Every call goes to `cloudcode-pa.googleapis.com`. The official client
-//! picks the host per account (`CLIAuthProvider.UpdateEndpointURL`: the
-//! production host for a GCP-terms tier or sign-in, `daily-cloudcode-pa`
-//! for a consumer Google sign-in, which a 2026-10-29 capture of the hub
-//! confirmed after its first `loadCodeAssist`), but `gemini-4-argon-*` was
-//! reported answering 404 on `daily-` (2026-10-29) while the IDE kept
-//! serving it, so the channel defaults to production; a provider `base_url`
-//! can still pin `daily-`.
+//! Every call goes to `daily-cloudcode-pa.googleapis.com` by default. The
+//! official client picks the host per account
+//! (`CLIAuthProvider.UpdateEndpointURL`: the production
+//! `cloudcode-pa.googleapis.com` for a GCP-terms tier or sign-in,
+//! `daily-cloudcode-pa` for a consumer Google sign-in, which a 2026-10-29
+//! capture of the hub confirmed after its first `loadCodeAssist`), and the
+//! channel defaults to the consumer `daily-` host; a provider `base_url`
+//! can pin production instead (`gemini-4-argon-*` was reported answering
+//! 404 on `daily-` on 2026-10-29 while the IDE kept serving it).
 //!
 //! The envelope shape follows the v3 channel and the reverse engineered
 //! client in
@@ -94,9 +95,9 @@ use serde::Deserialize;
 use serde_json::Value;
 
 pub const ID: &str = "antigravity";
-/// The production Code Assist host, the one the Gemini CLI also uses (see
-/// the module docs for the `daily-` deployment the IDE picks for consumer
-/// accounts).
+/// The `daily-` Code Assist host the IDE picks for consumer accounts (see the
+/// module docs; the production `cloudcode-pa` host is the one the Gemini CLI
+/// uses).
 pub const DEFAULT_BASE_URL: &str = "https://daily-cloudcode-pa.googleapis.com";
 pub const DEFAULT_AUTHORIZE_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 pub const DEFAULT_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
@@ -688,7 +689,7 @@ impl BaseChannel for Antigravity {
                 ConfigKey::optional(
                     "base_url",
                     ConfigKeyKind::String,
-                    "Code Assist origin; defaults to https://cloudcode-pa.googleapis.com. Provider column, not config JSON.",
+                    "Code Assist origin; defaults to https://daily-cloudcode-pa.googleapis.com (production: https://cloudcode-pa.googleapis.com). Provider column, not config JSON.",
                 ).with_placeholder(DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "authorize_url",
