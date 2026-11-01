@@ -74,6 +74,15 @@ pub const LOGIN_SCOPE: &str = concat!(
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins"
 );
 pub const OAUTH_BETA: &str = "oauth-2025-04-20";
+/// The betas Claude Code 2.1.316 sends on a main-loop Messages call before
+/// its feature-specific ones (`samples/claude-code-2.1.316/captures`): the
+/// agent marker, then the OAuth beta, then the three every Messages call of
+/// the CLI carries, a side call without `thinking` or `context_management`
+/// in its body included. A Messages call from a client that sent no beta
+/// list of its own (one converted from another dialect) goes out with
+/// these; the betas a feature in the body calls for are added from the body
+/// as for any client (`hygiene`).
+const MAIN_LOOP_BETAS: &str = "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05";
 /// The CLI version the channel impersonates. Protocol behavior was audited in
 /// `design/claudecode-2.1.316.md` against the release binary and local capture.
 pub const CLI_VERSION: &str = "2.1.316";
@@ -758,8 +767,17 @@ impl Claudecode {
             .and_then(|value| HeaderValue::from_str(value).ok());
         let mut usage_mode = usage_limit::requested_mode(&source, &config);
         let mut headers = forwardable(&source, allowlist.as_ref(), CHANNEL_HEADERS);
-        if let Some(beta) = client_beta {
-            headers.insert(HeaderName::from_static("anthropic-beta"), beta);
+        match client_beta {
+            Some(beta) => {
+                headers.insert(HeaderName::from_static("anthropic-beta"), beta);
+            }
+            None if is_messages(operation) => {
+                headers.insert(
+                    HeaderName::from_static("anthropic-beta"),
+                    HeaderValue::from_static(MAIN_LOOP_BETAS),
+                );
+            }
+            None => {}
         }
 
         let body = match body {
