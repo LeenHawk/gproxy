@@ -996,6 +996,14 @@ pub(crate) trait UsageMeter: Send + Sync {
         request: &'a RequestContext,
         report: &'a UsageReport,
     ) -> CapabilityFuture<'a, ()>;
+
+    /// Refine the session's credential pin from the reply's cache usage.
+    /// Runs whether or not usage is recorded.
+    fn settle_affinity<'a>(
+        &'a self,
+        request: &'a RequestContext,
+        exchanges: &'a [crate::ExchangeUsage],
+    ) -> CapabilityFuture<'a, ()>;
 }
 
 pub(crate) async fn charge_responses_segment<C: BatchConnectionTrait>(
@@ -1030,6 +1038,21 @@ struct CountedMeter<C> {
 }
 
 impl<C: BatchConnectionTrait + Send + Sync> UsageMeter for CountedMeter<C> {
+    fn settle_affinity<'a>(
+        &'a self,
+        request: &'a RequestContext,
+        exchanges: &'a [crate::ExchangeUsage],
+    ) -> CapabilityFuture<'a, ()> {
+        Box::pin(async move {
+            if let Err(error) =
+                crate::select::settle_affinity(self.cache.as_ref(), request, exchanges, now_ms())
+                    .await
+            {
+                tracing::warn!(%error, "session affinity not settled");
+            }
+        })
+    }
+
     fn charge<'a>(
         &'a self,
         request: &'a RequestContext,

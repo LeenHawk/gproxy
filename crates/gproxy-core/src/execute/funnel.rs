@@ -202,6 +202,12 @@ impl Funnel {
                 UsageState::Skipped
             },
         };
+        let meter = self.meter.lock().unwrap().clone();
+        if let Some(meter) = &meter
+            && !report.exchanges.is_empty()
+        {
+            meter.settle_affinity(&request, &report.exchanges).await;
+        }
         if self.policy.usage {
             let dedup = self.realtime_dedup.lock().unwrap().clone();
             if let Some(dedup) = dedup

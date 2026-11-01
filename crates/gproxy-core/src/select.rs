@@ -12,8 +12,15 @@ use std::{
     time::Duration,
 };
 
-/// How long a session keeps its credential without traffic.
-const AFFINITY_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+/// How long a session keeps its credential without traffic: as long as the
+/// upstream's prompt cache stays warm, which is what the pin is for. Five
+/// minutes is Anthropic's default cache lifetime and the floor of OpenAI's.
+const CACHE_WARM_MS: i64 = 5 * 60 * 1000;
+/// A one-hour cache write, or an upstream whose cache lives about an hour.
+const CACHE_WARM_LONG_MS: i64 = 60 * 60 * 1000;
+/// Below this many cached tokens (read or written) a reply left nothing worth
+/// staying for: the smallest prefix Anthropic and OpenAI cache.
+const CACHE_WORTH_TOKENS: u64 = 1024;
 /// Spent-share points within which credentials count as equally used, so
 /// they keep rotating rather than chasing every percent.
 const HEADROOM_BAND: f64 = 10.0;
@@ -242,49 +249,148 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
 
     /// Record that this session should keep using this credential. Called
     /// after a successful attempt only, so a failing pick is never pinned.
+    /// The pin lasts while the prompt cache it protects is warm, counted from
+    /// this use; settlement refines it from the reply's cache usage.
     pub(crate) async fn pin_affinity(
         &self,
         request: &RequestContext,
         credential_id: &str,
         now_ms: i64,
     ) -> CoreResult<()> {
-        let Some(session) = request.session.as_ref().filter(|s| s.is_stable()) else {
+        let Some(cache_key) = affinity_cache_key(request) else {
             return Ok(());
         };
-        if request.target.provider.credential_strategy != CredentialStrategy::RoundRobinAffinity {
-            return Ok(());
-        }
-        let key = CredentialAffinityKey {
-            scope: AffinityScope {
-                scope: request.scope.clone(),
-                session_id: session.id.clone(),
-                source: session.source,
-            },
-            provider_id: request.target.provider.entity.id.clone(),
-        };
-        let cache_key = keys::credential_affinity(&key);
         let existing = self
             .cache
             .get(&cache_key)
             .await?
-            .and_then(|entry| serde_json::from_slice::<CredentialAffinity>(&entry.value).ok());
+            .and_then(|entry| serde_json::from_slice::<CredentialAffinity>(&entry.value).ok())
+            .filter(|pin| pin.credential_id == credential_id);
         let value = CredentialAffinity {
             credential_id: credential_id.to_owned(),
-            anchored_at_ms: existing
-                .as_ref()
-                .filter(|pin| pin.credential_id == credential_id)
-                .map_or(now_ms, |pin| pin.anchored_at_ms),
+            anchored_at_ms: existing.as_ref().map_or(now_ms, |pin| pin.anchored_at_ms),
             last_success_at_ms: now_ms,
+            warm_ms: existing.and_then(|pin| pin.warm_ms),
         };
+        let ttl = warm_for(request, value.warm_ms);
         self.cache
             .put(
                 &cache_key,
                 serde_json::to_vec(&value).map_err(|e| CoreError::Rewrite(e.to_string()))?,
-                AFFINITY_TTL,
+                ttl,
             )
             .await?;
         Ok(())
     }
+}
+
+/// The session's credential pin key, when its provider pins sessions.
+fn affinity_cache_key(request: &RequestContext) -> Option<String> {
+    let session = request.session.as_ref().filter(|s| s.is_stable())?;
+    if request.target.provider.credential_strategy != CredentialStrategy::RoundRobinAffinity {
+        return None;
+    }
+    Some(keys::credential_affinity(&CredentialAffinityKey {
+        scope: AffinityScope {
+            scope: request.scope.clone(),
+            session_id: session.id.clone(),
+            source: session.source,
+        },
+        provider_id: request.target.provider.entity.id.clone(),
+    }))
+}
+
+/// How long a pin outlives its last use: what the session's cache writes
+/// said, else the channel's cache lifetime. ChatGPT's Codex backend keeps a
+/// conversation's prefix for about an hour, the API's for minutes.
+fn warm_for(request: &RequestContext, warm_ms: Option<i64>) -> Duration {
+    let default = match request.target.provider.channel.id() {
+        "codex" => CACHE_WARM_LONG_MS,
+        _ => CACHE_WARM_MS,
+    };
+    Duration::from_millis(u64::try_from(warm_ms.unwrap_or(default)).unwrap_or(0))
+}
+
+/// After the reply settles: keep the session's pin warm from its end, for an
+/// hour once it wrote a one-hour cache entry, and drop it when the reply
+/// cached too little to be worth returning to. A reply that reported no cache
+/// figures, or a pin that moved to another credential meanwhile, only has its
+/// lifetime refreshed or is left alone. Best effort, like the pin itself.
+pub(crate) async fn settle_affinity(
+    cache: &dyn gproxy_cache::Cache,
+    request: &RequestContext,
+    exchanges: &[crate::ExchangeUsage],
+    now_ms: i64,
+) -> CoreResult<()> {
+    let Some(cache_key) = affinity_cache_key(request) else {
+        return Ok(());
+    };
+    let provider_id = &request.target.provider.entity.id;
+    let Some(last) = exchanges
+        .iter()
+        .filter(|e| &e.provider_id == provider_id)
+        .max_by_key(|e| e.attempt_ordinal)
+    else {
+        return Ok(());
+    };
+    let current = cache.get(&cache_key).await?;
+    let pin = match &current {
+        Some(entry) => match serde_json::from_slice::<CredentialAffinity>(&entry.value) {
+            Ok(pin) if pin.credential_id == last.credential_id => Some(pin),
+            _ => return Ok(()),
+        },
+        None => None,
+    };
+    let tokens = &last.usage.tokens;
+    let reported = tokens.cached_input_tokens.is_some() || !tokens.cache_creation.is_empty();
+    let cached = tokens
+        .cached_input_tokens
+        .unwrap_or(0)
+        .saturating_add(tokens.cache_creation_tokens());
+    let expected = current.map(|entry| entry.version);
+    if reported && cached < CACHE_WORTH_TOKENS {
+        if expected.is_some() {
+            cache.compare_exchange(&cache_key, expected, None).await?;
+        }
+        return Ok(());
+    }
+    // A missing pin is written back only for a reply that demonstrably
+    // cached: a long reply can outlast its own pin.
+    if pin.is_none() && !reported {
+        return Ok(());
+    }
+    // The last write with a known retention decides; a read keeps it.
+    let written: Vec<u64> = tokens
+        .cache_creation
+        .iter()
+        .filter(|write| write.tokens > 0)
+        .filter_map(|write| write.ttl_seconds)
+        .collect();
+    let warm_ms = if written.is_empty() {
+        pin.as_ref().and_then(|pin| pin.warm_ms)
+    } else {
+        written
+            .iter()
+            .any(|ttl| *ttl >= 3600)
+            .then_some(CACHE_WARM_LONG_MS)
+    };
+    let value = CredentialAffinity {
+        credential_id: last.credential_id.clone(),
+        anchored_at_ms: pin.as_ref().map_or(now_ms, |pin| pin.anchored_at_ms),
+        last_success_at_ms: pin.as_ref().map_or(now_ms, |pin| pin.last_success_at_ms),
+        warm_ms,
+    };
+    cache
+        .compare_exchange(
+            &cache_key,
+            expected,
+            Some(gproxy_cache::Replacement {
+                value: serde_json::to_vec(&value).map_err(|e| CoreError::Rewrite(e.to_string()))?,
+                ttl: warm_for(request, warm_ms),
+            }),
+        )
+        .await?;
+    Ok(())
 }
 
 /// Lean an unbound pick towards quota headroom. Credentials whose observed

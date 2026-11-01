@@ -99,6 +99,11 @@ pub struct CredentialAffinity {
     pub credential_id: String,
     pub anchored_at_ms: i64,
     pub last_success_at_ms: i64,
+    /// How long the upstream's prompt cache stays warm after a use, which is
+    /// how long the pin outlives the session's last request. None is the
+    /// channel's default.
+    #[serde(default)]
+    pub warm_ms: Option<i64>,
 }
 /// Where a block came from. Quota blocks end at the dimension's reset; failure
 /// and rate-limit blocks end at a cooldown chosen by core.
