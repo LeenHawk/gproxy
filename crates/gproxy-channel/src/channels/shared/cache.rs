@@ -257,6 +257,49 @@ mod rules {
             });
         }
         sanitize_claude(body);
+        order_ttls(body);
+    }
+
+    /// Anthropic reads breakpoints in tools → system → messages order and
+    /// rejects a `1h` one after a `5m` one (an absent `ttl` is `5m`). A token's
+    /// ttl may land after a shorter mark, the client's or another token's, so a
+    /// `1h` mark following the first `5m` one is shortened to `5m`; a body in
+    /// valid order is left as it is.
+    fn order_ttls(body: &mut Value) {
+        let Some(root) = body.as_object_mut() else {
+            return;
+        };
+        let mut short_seen = false;
+        let mut visit = |block: &mut Value| {
+            let Some(Value::Object(control)) = block.get_mut("cache_control") else {
+                return;
+            };
+            if control.get("ttl").and_then(Value::as_str) != Some("1h") {
+                short_seen = true;
+            } else if short_seen {
+                control.insert("ttl".into(), Value::String("5m".into()));
+            }
+        };
+        if let Some(Value::Array(tools)) = root.get_mut("tools") {
+            tools.iter_mut().for_each(&mut visit);
+        }
+        if let Some(Value::Array(blocks)) = root.get_mut("system") {
+            blocks.iter_mut().for_each(&mut visit);
+        }
+        let Some(Value::Array(messages)) = root.get_mut("messages") else {
+            return;
+        };
+        for message in messages {
+            let Some(Value::Array(blocks)) = message.get_mut("content") else {
+                continue;
+            };
+            for block in blocks {
+                visit(block);
+                if let Some(Value::Array(nested)) = block.get_mut("content") {
+                    nested.iter_mut().for_each(&mut visit);
+                }
+            }
+        }
     }
 
     /// Canonicalize `system` and message content to block arrays, drop empty
