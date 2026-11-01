@@ -1,4 +1,4 @@
-//! URL and headers for the two methods the Copilot backend serves.
+//! URL and headers for the methods the Copilot backend serves.
 
 use super::auth;
 use super::config::CopilotCliConfig;
@@ -8,13 +8,16 @@ use crate::channels::shared::compatible::http::{insert_configured, strip_query_a
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey};
 use http::{HeaderValue, Method, header};
 
-/// The Copilot backend answers exactly two routes for a CLI, so the client's
-/// own path is never trusted (v3 `copilotcli/prepare.rs::target`).
+/// The Copilot backend answers the catalogue and the two generation routes,
+/// so the client's own path is never trusted (v3 `copilotcli/prepare.rs::target`).
 fn target(operation: OperationKey) -> Result<(Method, &'static str), ChannelError> {
     match (operation.operation, operation.dialect) {
         (Operation::ListModels, _) => Ok((Method::GET, "/models")),
         (Operation::GenerateContent | Operation::StreamGenerateContent, Dialect::OpenAiChat) => {
             Ok((Method::POST, "/chat/completions"))
+        }
+        (Operation::GenerateContent | Operation::StreamGenerateContent, Dialect::OpenAi) => {
+            Ok((Method::POST, "/responses"))
         }
         _ => Err(ChannelError::UnsupportedOperation(operation)),
     }

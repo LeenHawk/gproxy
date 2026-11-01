@@ -35,11 +35,16 @@ pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
 /// Header names the channel owns; a client may not supply its own.
 pub(super) const CHANNEL_HEADERS: &[&str] = CLI_HEADERS.names;
 
-/// `user` or `agent`, from the conversation the body carries.
+/// `user` or `agent`, from the conversation the body carries: Chat
+/// Completions `messages`, or a Responses `input` list, where an item
+/// without a role (a function call, its output, reasoning) is the agent's.
 fn initiator(body: Option<&[u8]>) -> &'static str {
-    let agent = body
-        .and_then(|body| serde_json::from_slice::<Value>(body).ok())
-        .and_then(|body| body.get("messages")?.as_array().cloned())
+    let Some(body) = body.and_then(|body| serde_json::from_slice::<Value>(body).ok()) else {
+        return "user";
+    };
+    let messages = body
+        .get("messages")
+        .and_then(Value::as_array)
         .is_some_and(|messages| {
             messages.iter().any(|message| {
                 matches!(
@@ -48,7 +53,18 @@ fn initiator(body: Option<&[u8]>) -> &'static str {
                 )
             })
         });
-    if agent { "agent" } else { "user" }
+    let input = body
+        .get("input")
+        .and_then(Value::as_array)
+        .is_some_and(|items| {
+            items.iter().any(|item| {
+                matches!(
+                    item.get("role").and_then(Value::as_str),
+                    Some("assistant") | None
+                )
+            })
+        });
+    if messages || input { "agent" } else { "user" }
 }
 
 fn hex(bytes: &[u8]) -> String {

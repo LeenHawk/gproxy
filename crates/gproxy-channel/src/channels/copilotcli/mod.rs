@@ -22,6 +22,10 @@
 //! is asking (`identity.rs`). The origin is the one the probe reported,
 //! unless the operator names one.
 //!
+//! Generation goes to `/chat/completions` or `/responses`, whichever the
+//! model is served on (`endpoints.rs`); Copilot's Responses stream is relayed
+//! with each item kept under one id (`item_ids.rs`).
+//!
 //! **v3 infrastructure that has no v4 counterpart.** v3's `routes.rs`
 //! (`SurfaceTable` written with the `route!` macro) is replaced by
 //! `native_dialects` plus the host's protocol conversion. v3's `ChannelLogin`
@@ -36,7 +40,9 @@
 
 mod auth;
 mod config;
+mod endpoints;
 mod identity;
+mod item_ids;
 mod oauth;
 mod quota;
 mod request;
@@ -51,11 +57,13 @@ pub use quota::QUOTA_SOURCE;
 
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, PrepareContext, ProviderView,
-    QuotaQuery,
+    CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, OperationContext,
+    OperationFuture, PrepareContext, ProviderView, QuotaQuery,
 };
+use futures_util::StreamExt;
 use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
-use gproxy_protocol::{Dialect, HttpBody, Operation};
+use gproxy_protocol::connection::Bytes;
+use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
 
 /// The CLI's outbound stack, the default for a provider that names no
 /// connection profile: HTTP/1.1 only, a TLS 1.2 floor, the CLI's cipher and
@@ -160,15 +168,45 @@ impl BaseChannel for CopilotCli {
         Some(default_connection())
     }
 
-    /// The Copilot backend serves Chat Completions and a catalogue; every
-    /// other dialect is the host's conversion problem.
-    fn native_dialects(&self, _: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
+    /// The Copilot backend serves Chat Completions, Responses and a
+    /// catalogue; every other dialect is the host's conversion problem.
+    fn native_dialects(&self, provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
+        self.native_dialects_for_model(provider, operation, None)
+    }
+
+    /// Generation is served on the wires the model's catalogue entry names.
+    fn native_dialects_for_model(
+        &self,
+        _: ProviderView<'_>,
+        operation: Operation,
+        model: Option<&str>,
+    ) -> Vec<Dialect> {
         match operation {
-            Operation::GenerateContent
-            | Operation::StreamGenerateContent
-            | Operation::ListModels => vec![Dialect::OpenAiChat],
+            Operation::GenerateContent | Operation::StreamGenerateContent => {
+                endpoints::dialects(model)
+            }
+            Operation::ListModels => vec![Dialect::OpenAiChat],
             _ => Vec::new(),
         }
+    }
+
+    /// A Claude or Gemini client of a model served on both wires goes to
+    /// Responses (`endpoints::preferred`).
+    fn default_conversion_target_for_model(
+        &self,
+        _: ProviderView<'_>,
+        source: OperationKey,
+        model: Option<&str>,
+    ) -> Option<OperationKey> {
+        (matches!(source.dialect, Dialect::Claude | Dialect::Gemini)
+            && matches!(
+                source.operation,
+                Operation::GenerateContent | Operation::StreamGenerateContent
+            ))
+        .then(|| OperationKey {
+            operation: source.operation,
+            dialect: endpoints::preferred(model),
+        })
     }
 
     /// A credential from the channel's earlier design cannot be used: its
@@ -184,6 +222,42 @@ impl BaseChannel for CopilotCli {
         request::build(ctx)
     }
 
+    /// The catalogue as Copilot sent it; the wires of every model it lists
+    /// are remembered on the way.
+    fn list_models<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(async move {
+            let mut response = send(self, Operation::ListModels, context).await?;
+            if response.status.is_success() {
+                let body = read_catalogue(std::mem::replace(
+                    &mut response.body,
+                    HttpBody::Bytes(Bytes::new()),
+                ))
+                .await?;
+                endpoints::record(&body);
+                response.body = HttpBody::Bytes(body);
+            }
+            Ok(response)
+        })
+    }
+
+    fn stream_generate_content<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(async move {
+            let responses = context.dialect == Dialect::OpenAi;
+            let mut response = send(self, Operation::StreamGenerateContent, context).await?;
+            if responses && response.status.is_success() {
+                let body = std::mem::replace(&mut response.body, HttpBody::Bytes(Bytes::new()));
+                response.body = item_ids::stabilize(body);
+            }
+            Ok(response)
+        })
+    }
+
     fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
         Some(self)
     }
@@ -197,5 +271,47 @@ impl BaseChannel for CopilotCli {
     }
     fn quota_model(&self) -> Option<&dyn crate::channel::QuotaModel> {
         Some(self)
+    }
+}
+
+/// One call the way the default operations make it.
+async fn send(
+    channel: &CopilotCli,
+    operation: Operation,
+    context: OperationContext<'_>,
+) -> Result<WireResponse<HttpBody>, ChannelError> {
+    let request = channel.prepare(PrepareContext {
+        provider: context.provider,
+        credential: context.credential,
+        operation: OperationKey {
+            operation,
+            dialect: context.dialect,
+        },
+        request: context.request,
+        endpoint_override: context.endpoint_override,
+    })?;
+    Ok(context.client.send(request).await?)
+}
+
+/// A catalogue past this is not one.
+const MAX_CATALOGUE_BYTES: usize = 16 * 1024 * 1024;
+
+async fn read_catalogue(body: HttpBody) -> Result<Bytes, ChannelError> {
+    match body {
+        HttpBody::Bytes(bytes) => Ok(bytes),
+        HttpBody::Stream(mut stream) => {
+            let mut out = Vec::new();
+            while let Some(chunk) = stream.next().await {
+                let chunk =
+                    chunk.map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
+                out.extend_from_slice(&chunk);
+                if out.len() > MAX_CATALOGUE_BYTES {
+                    return Err(ChannelError::InvalidResponse(
+                        "model catalogue exceeds the read limit".into(),
+                    ));
+                }
+            }
+            Ok(Bytes::from(out))
+        }
     }
 }
