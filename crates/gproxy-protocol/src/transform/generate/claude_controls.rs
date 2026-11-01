@@ -238,9 +238,18 @@ fn thinking_budget(
         return;
     }
     let budget = config.budget_tokens;
+    // Enabled thinking shows its text; adaptive thinking may omit it, so keep
+    // what the client asked for visible unless it chose a display itself.
+    let display = config.display.or(Some(cc::ThinkingDisplay::Summarized));
+    if config.display.is_none() {
+        report.changed(
+            "thinking.display",
+            "summarized keeps adaptive thinking visible as enabled thinking was",
+        );
+    }
     *thinking = Some(cc::ThinkingConfig::Adaptive(cc::ThinkingAdaptive {
         block_binding: config.block_binding.clone(),
-        display: config.display,
+        display,
         rest: Rest::new(),
     }));
     report.changed(
