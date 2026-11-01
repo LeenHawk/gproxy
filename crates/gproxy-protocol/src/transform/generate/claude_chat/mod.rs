@@ -22,6 +22,7 @@ mod util;
 
 pub use request::{claude_to_openai, openai_to_claude};
 pub use response::{claude_response_to_openai, openai_response_to_claude};
+pub(crate) use schema::object_root;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ResponseSupplement {

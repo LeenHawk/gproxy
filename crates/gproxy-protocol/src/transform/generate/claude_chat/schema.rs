@@ -175,6 +175,7 @@ pub(super) fn from_chat(input: &Rest) -> Result<ct::JsonSchema, TransformError> 
             }
         }
     }
+    object_root(&mut output);
     Ok(output)
 }
 
@@ -182,4 +183,115 @@ fn decode<T: serde::de::DeserializeOwned>(value: &Value, key: &str) -> Result<T,
     serde_json::from_value(value.clone()).map_err(|error| {
         TransformError::shape(format!("tools.parameters.{key}"), error.to_string())
     })
+}
+
+/// Anthropic refuses `anyOf`/`oneOf`/`allOf` at the root of a tool's input
+/// schema. Fold a root union of object branches into the one object it
+/// describes: `allOf` branches add their properties and requirements, and
+/// `anyOf`/`oneOf` branches add their properties (several distinct schemas for
+/// one field become an `anyOf` there) while only a field every branch requires
+/// stays required. Nested schemas and a root with no union are left as sent.
+pub(crate) fn object_root(schema: &mut ct::JsonSchema) {
+    if schema.all_of.is_none() && schema.any_of.is_none() && schema.one_of.is_none() {
+        return;
+    }
+    let resolve = |branch: Value| -> Option<serde_json::Map<String, Value>> {
+        let branch = match branch.get("$ref").and_then(Value::as_str) {
+            None => branch,
+            Some(reference) => [
+                ("#/$defs/", &schema.defs),
+                ("#/definitions/", &schema.definitions),
+            ]
+            .into_iter()
+            .find_map(|(prefix, defs)| {
+                let name = reference.strip_prefix(prefix)?;
+                defs.as_ref()?.get(name).cloned()
+            })?,
+        };
+        match branch {
+            Value::Object(branch) => Some(branch),
+            _ => None,
+        }
+    };
+    let names = |value: Option<&Value>| -> Vec<String> {
+        value
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|name| name.as_str().map(str::to_owned))
+            .collect()
+    };
+    let had_properties = schema.properties.is_some();
+    let mut properties = match schema.properties.take() {
+        Some(Value::Object(properties)) => properties,
+        _ => serde_json::Map::new(),
+    };
+    let mut required = schema.required.take().unwrap_or_default();
+    for branch in schema
+        .all_of
+        .take()
+        .into_iter()
+        .flatten()
+        .filter_map(resolve)
+    {
+        if let Some(Value::Object(own)) = branch.get("properties") {
+            for (name, value) in own {
+                properties
+                    .entry(name.clone())
+                    .or_insert_with(|| value.clone());
+            }
+        }
+        required.extend(names(branch.get("required")));
+    }
+    let branches: Vec<_> = schema
+        .any_of
+        .take()
+        .into_iter()
+        .chain(schema.one_of.take())
+        .flatten()
+        .filter_map(resolve)
+        .filter(|branch| {
+            branch.get("type").and_then(Value::as_str) == Some("object")
+                || branch.contains_key("properties")
+        })
+        .collect();
+    let mut added: Vec<(String, Vec<Value>)> = Vec::new();
+    let mut common: Option<Vec<String>> = None;
+    for branch in &branches {
+        if let Some(Value::Object(own)) = branch.get("properties") {
+            for (name, value) in own {
+                if properties.contains_key(name) {
+                    continue;
+                }
+                match added.iter_mut().find(|(added, _)| added == name) {
+                    Some((_, values)) if !values.contains(value) => values.push(value.clone()),
+                    Some(_) => {}
+                    None => added.push((name.clone(), vec![value.clone()])),
+                }
+            }
+        }
+        let own = names(branch.get("required"));
+        common = Some(match common {
+            None => own,
+            Some(common) => common
+                .into_iter()
+                .filter(|name| own.contains(name))
+                .collect(),
+        });
+    }
+    for (name, mut values) in added {
+        let value = if values.len() == 1 {
+            values.remove(0)
+        } else {
+            serde_json::json!({ "anyOf": values })
+        };
+        properties.insert(name, value);
+    }
+    required.extend(common.unwrap_or_default());
+    let mut seen = std::collections::BTreeSet::new();
+    required.retain(|name| seen.insert(name.clone()));
+    if had_properties || !properties.is_empty() {
+        schema.properties = Some(Value::Object(properties));
+    }
+    schema.required = (!required.is_empty()).then_some(required);
 }

@@ -175,6 +175,7 @@ pub(super) fn from_chat(input: &Rest) -> Result<ct::JsonSchema, TransformError> 
             }
         }
     }
+    crate::transform::generate::claude_chat::object_root(&mut output);
     Ok(output)
 }
 
