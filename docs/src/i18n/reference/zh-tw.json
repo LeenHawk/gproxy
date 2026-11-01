@@ -906,5 +906,6 @@
   "Required for user and assistant messages; system messages may omit it.": "user 和 assistant 訊息必須包含此欄位，system 訊息可以省略。",
   "The anthropic_version written into every Anthropic request body; defaults to 2026-10-21.": "寫入每個 Anthropic 請求體的 anthropic_version，預設為 2026-10-21。",
   "Source: Realtime.md `prompt_cache_breakpoint.ttl` (2026-10-27); omitted inherits the request TTL.": "來源：Realtime.md `prompt_cache_breakpoint.ttl`（2026-10-27）；省略時繼承請求的 TTL。",
-  "Announced shutdown date (`YYYY-MM-DD`); explicit `null` when none is announced.": "已公布的停用日期（`YYYY-MM-DD`）；未公布時明確為 `null`。"
+  "Announced shutdown date (`YYYY-MM-DD`); explicit `null` when none is announced.": "已公布的停用日期（`YYYY-MM-DD`）；未公布時明確為 `null`。",
+  "Audio input supplied inline or by uploaded file ID.": "以內嵌資料或已上傳檔案 ID 提供的音訊輸入。"
 }

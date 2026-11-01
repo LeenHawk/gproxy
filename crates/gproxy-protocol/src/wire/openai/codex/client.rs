@@ -376,7 +376,7 @@ pub struct ContentItemInputImage {
     pub rest: Rest,
 }
 
-/// Native Codex audio input, inline or uploaded, from protocol/src/models.rs.
+/// Audio input supplied inline or by uploaded file ID.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]

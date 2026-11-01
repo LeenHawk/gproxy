@@ -906,5 +906,6 @@
   "Required for user and assistant messages; system messages may omit it.": "Обязательно для сообщений user и assistant; в сообщениях system поле можно опустить.",
   "The anthropic_version written into every Anthropic request body; defaults to 2026-10-21.": "Значение anthropic_version в теле каждого запроса Anthropic; по умолчанию 2026-10-21.",
   "Source: Realtime.md `prompt_cache_breakpoint.ttl` (2026-10-27); omitted inherits the request TTL.": "Источник: Realtime.md `prompt_cache_breakpoint.ttl` (2026-10-27); если не указан, наследуется TTL запроса.",
-  "Announced shutdown date (`YYYY-MM-DD`); explicit `null` when none is announced.": "Объявленная дата отключения (`YYYY-MM-DD`); явное значение `null`, если дата не объявлена."
+  "Announced shutdown date (`YYYY-MM-DD`); explicit `null` when none is announced.": "Объявленная дата отключения (`YYYY-MM-DD`); явное значение `null`, если дата не объявлена.",
+  "Audio input supplied inline or by uploaded file ID.": "Аудиовход, переданный встроенными данными или идентификатором загруженного файла."
 }
