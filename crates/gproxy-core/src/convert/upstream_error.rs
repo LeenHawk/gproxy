@@ -136,6 +136,44 @@ fn claude_prompt_too_long(detail: &Value) -> bool {
             .is_some_and(|message| message.starts_with(PROMPT_TOO_LONG))
 }
 
+/// An upstream's refusal of an over-long prompt, unwrapped to its error
+/// object, when it reaches a client of the other side: a Claude "prompt is
+/// too long" for an OpenAI client, an OpenAI `context_length_exceeded` for a
+/// Claude client. `None` for every other refusal and dialect pair, which
+/// pass through as the upstream sent them.
+pub(crate) fn prompt_too_long(body: &[u8], upstream: Dialect, client: Dialect) -> Option<Value> {
+    let openai = |dialect| matches!(dialect, Dialect::OpenAi | Dialect::OpenAiChat);
+    let detail = unwrap(serde_json::from_slice(body).ok()?);
+    let refused = match upstream {
+        Dialect::Claude => openai(client) && claude_prompt_too_long(&detail),
+        upstream if openai(upstream) => {
+            client == Dialect::Claude && detail["code"].as_str() == Some(CONTEXT_LENGTH_EXCEEDED)
+        }
+        _ => false,
+    };
+    refused.then_some(detail)
+}
+
+/// The `response.failed` event a Responses stream ends with for `detail`:
+/// Codex reads a context-length refusal of a streamed turn only there
+/// (`codex-api/src/sse/responses.rs` `response.failed`), not from an HTTP
+/// error body.
+pub(crate) fn failed_event(detail: &Value) -> Value {
+    let created_at = crate::api::lifecycle::now_ms().max(0) / 1000;
+    json!({
+        "type": "response.failed",
+        "sequence_number": 0,
+        "response": {
+            "id": format!("resp_{}", crate::ids::random_id()),
+            "object": "response",
+            "created_at": created_at,
+            "status": "failed",
+            "error": {"code": code(detail), "message": detail["message"]},
+            "output": [],
+        }
+    })
+}
+
 fn code(detail: &Value) -> Value {
     if !detail["code"].is_string() && claude_prompt_too_long(detail) {
         return CONTEXT_LENGTH_EXCEEDED.into();

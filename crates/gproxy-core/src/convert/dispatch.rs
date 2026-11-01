@@ -53,6 +53,59 @@ pub(crate) async fn dispatch<C: BatchConnectionTrait + Send + Sync + 'static>(
                 body: gproxy_protocol::HttpBody::Bytes(body.to_string().into()),
             }))
         }
+        Ok(Converted::Rejected(response)) if call.client.dialect != call.target => {
+            Ok(prompt_too_long(call, response))
+        }
         result => result,
     }
+}
+
+/// An over-long prompt refused by an upstream of the other side, in the
+/// words the client compacts on. A streamed Responses turn ends in
+/// `response.failed`, where Codex reads it; every other client gets the
+/// error body of its own dialect. Other refusals stay as the upstream sent.
+fn prompt_too_long<C: BatchConnectionTrait + Send + Sync + 'static>(
+    call: &Call<'_, C>,
+    response: gproxy_protocol::WireResponse<gproxy_protocol::HttpBody>,
+) -> Converted {
+    let gproxy_protocol::HttpBody::Bytes(bytes) = &response.body else {
+        return Converted::Rejected(response);
+    };
+    let generation = matches!(
+        call.client.operation,
+        Operation::GenerateContent | Operation::StreamGenerateContent
+    );
+    let Some(detail) = generation
+        .then(|| super::upstream_error::prompt_too_long(bytes, call.target, call.client.dialect))
+        .flatten()
+    else {
+        return Converted::Rejected(response);
+    };
+    if call.client.dialect == gproxy_protocol::Dialect::OpenAi
+        && call.client.operation == Operation::StreamGenerateContent
+    {
+        let event = super::upstream_error::failed_event(&detail);
+        let frame = format!("event: response.failed\ndata: {event}\n\n");
+        return Converted::Stream(gproxy_protocol::WireResponse {
+            status: http::StatusCode::OK,
+            headers: http::HeaderMap::from_iter([(
+                http::header::CONTENT_TYPE,
+                http::HeaderValue::from_static("text/event-stream"),
+            )]),
+            body: Box::pin(futures_util::stream::iter([Ok(frame.into())])),
+        });
+    }
+    let Some(body) =
+        super::upstream_error::body(&detail, response.status.as_u16(), call.client.dialect)
+    else {
+        return Converted::Rejected(response);
+    };
+    Converted::Rejected(gproxy_protocol::WireResponse {
+        status: response.status,
+        headers: http::HeaderMap::from_iter([(
+            http::header::CONTENT_TYPE,
+            http::HeaderValue::from_static("application/json"),
+        )]),
+        body: gproxy_protocol::HttpBody::Bytes(body.to_string().into()),
+    })
 }
