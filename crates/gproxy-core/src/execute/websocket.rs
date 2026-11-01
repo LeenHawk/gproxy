@@ -210,7 +210,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
             .await
         {
             Ok(selection) => selection,
-            Err(CoreError::NoUsableCredential) if held.is_some() => {
+            Err(CoreError::NoUsableCredential { .. }) if held.is_some() => {
                 let (connection, exchange) = held.take().expect("held");
                 exchange.make_terminal();
                 let settled = funnel.arm();
@@ -473,7 +473,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                         settled,
                     ));
                 }
-                let retry_after = retry_after_ms(&response.headers);
+                let retry_after = retry_after_ms(&response.headers, finished_at);
                 let outcome = AttemptOutcome::Rejected {
                     status,
                     retry_after: retry_after.map(|ms| std::time::Duration::from_millis(ms as u64)),
@@ -556,7 +556,9 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         return Ok(Execution::new(connection, completion, settled));
     }
     funnel.finish(UsageState::Failed).await;
-    Err(CoreError::NoUsableCredential)
+    Err(CoreError::NoUsableCredential {
+        retry_after_ms: None,
+    })
 }
 
 fn transport_error(message: &str) -> TransportError {

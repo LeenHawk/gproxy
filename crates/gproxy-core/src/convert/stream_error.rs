@@ -64,3 +64,10 @@ pub(crate) fn is_error_frame(frame: &gproxy_protocol::codec::SseFrame) -> bool {
         Some(_) => false,
     }
 }
+
+/// The upstream error a converted stream failed with, unwrapped to its error
+/// object, when the failure is one (`converted`).
+pub(crate) fn detail_of(error: &TransportError) -> Option<Value> {
+    let error = error.downcast_ref::<StreamError>()?;
+    super::upstream_error::detail(&error.error)
+}

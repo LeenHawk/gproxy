@@ -15,6 +15,11 @@ pub fn credential_blocks(provider_id: &str, credential_id: &str) -> String {
     format!("{PREFIX}:blocks:{provider_id}:{credential_id}")
 }
 
+/// Held by the one request trying a blocked credential early (`select`).
+pub fn credential_probe(provider_id: &str, credential_id: &str) -> String {
+    format!("{PREFIX}:probe:{provider_id}:{credential_id}")
+}
+
 /// The session half is digested: a session id is whatever the client sent,
 /// and spelled out it could push the key past the cache's key limit and turn
 /// every read of it into an error.

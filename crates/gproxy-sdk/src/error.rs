@@ -100,7 +100,7 @@ fn core_status(error: &gproxy_core::CoreError) -> u16 {
     match error {
         E::NotImplemented(_) => 501,
         E::InvalidTarget(_) | E::OperationMismatch { .. } | E::Route(_) => 400,
-        E::NoUsableCredential | E::RefreshContended { .. } | E::CredentialDead { .. } => 503,
+        E::NoUsableCredential { .. } | E::RefreshContended { .. } | E::CredentialDead { .. } => 503,
         E::BudgetExhausted { .. } => 429,
         E::Forbidden(_) => 403,
         E::ResourceNotFound { .. } => 404,

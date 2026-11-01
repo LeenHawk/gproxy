@@ -1039,7 +1039,9 @@ async fn stream_timing_is_persisted_without_capture() {
     let h = persistent().await;
     settings(&h, true, true, false, false).await;
     h.script(vec![(StatusCode::OK, vec![("content-type", "text/event-stream")], vec![
-        Bytes::from_static(b"event: response.created\ndata: {\"type\":\"response.created\"}\n\n"),
+        // The opening frames end at the first that is not preamble, which the
+        // attempt reads before answering; output starts with the next pull.
+        Bytes::from_static(b"event: response.created\ndata: {\"type\":\"response.created\"}\n\nevent: response.output_item.added\ndata: {\"type\":\"response.output_item.added\"}\n\n"),
         Bytes::from_static(b"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n"),
         Bytes::from_static(b"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r\",\"usage\":{\"input_tokens\":5,\"output_tokens\":10}}}\n\n"),
     ])]);

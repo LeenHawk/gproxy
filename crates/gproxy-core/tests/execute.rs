@@ -183,19 +183,19 @@ async fn repeated_server_errors_trip_a_failure_block_and_the_last_answer_is_retu
         deadline: None,
         cancellation: CancellationToken::new(),
     });
-    let execution = h
-        .core
-        .stream_generate_content(one_credential.clone(), request("{}"))
-        .await
-        .unwrap();
-    let (response, completion) = execution.into_parts();
-    assert_eq!(response.status, StatusCode::BAD_GATEWAY);
-    assert_eq!(
-        read(response.body).await,
-        "{\"e\":3}",
-        "three attempts, then the third failure is credential-blocked"
-    );
-    assert_eq!(completion.await.unwrap().state, UsageState::Failed);
+    // A refusal excludes the credential for the rest of its request, so each
+    // request asks once; the third consecutive failure blocks it.
+    for expected in ["{\"e\":1}", "{\"e\":2}", "{\"e\":3}"] {
+        let execution = h
+            .core
+            .stream_generate_content(one_credential.clone(), request("{}"))
+            .await
+            .unwrap();
+        let (response, completion) = execution.into_parts();
+        assert_eq!(response.status, StatusCode::BAD_GATEWAY);
+        assert_eq!(read(response.body).await, expected);
+        assert_eq!(completion.await.unwrap().state, UsageState::Failed);
+    }
     let cached: gproxy_core::CredentialBlocks = serde_json::from_slice(
         &h.core
             .cache()
@@ -219,12 +219,24 @@ async fn repeated_server_errors_trip_a_failure_block_and_the_last_answer_is_retu
         gproxy_channel::channel::QuotaScope::Models(vec!["gpt-x".into()])
     );
 
+    // With every credential cooling down, one request probes the one whose
+    // block ends first; the next finds the probe taken and is told when.
+    let execution = h
+        .core
+        .stream_generate_content(one_credential.clone(), request("{}"))
+        .await
+        .unwrap();
+    let (response, _) = execution.into_parts();
+    assert_eq!(read(response.body).await, "{\"e\":4}");
     let error = h
         .core
         .stream_generate_content(one_credential, request("{}"))
         .await
         .unwrap_err();
-    assert!(matches!(error, CoreError::NoUsableCredential), "{error}");
+    assert!(
+        matches!(error, CoreError::NoUsableCredential { retry_after_ms: Some(ms) } if ms > 0),
+        "{error:?}"
+    );
     let report = h.observer.reports.lock().unwrap().pop().unwrap();
     assert_eq!(
         report.state,

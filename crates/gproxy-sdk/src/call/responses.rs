@@ -29,7 +29,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ResponsesHttpExecutor for 
             };
             let binding = session.committed_http_binding();
             let mut held = None;
-            let mut last = CoreError::NoUsableCredential;
+            let mut last = CoreError::NoUsableCredential {
+                retry_after_ms: None,
+            };
             for context in &self.contexts {
                 if binding
                     .as_ref()
@@ -84,7 +86,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ResponsesHttpExecutor for 
                         return Ok(response);
                     }
                     Err(
-                        error @ (CoreError::NoUsableCredential
+                        error @ (CoreError::NoUsableCredential { .. }
                         | CoreError::CredentialDead { .. }
                         | CoreError::RefreshContended { .. }),
                     ) => last = error,

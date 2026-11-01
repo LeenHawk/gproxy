@@ -489,7 +489,9 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                         reason: version.status_reason.clone(),
                     })
                 }
-                _ => Err(CoreError::NoUsableCredential),
+                _ => Err(CoreError::NoUsableCredential {
+                    retry_after_ms: None,
+                }),
             },
         }
     }

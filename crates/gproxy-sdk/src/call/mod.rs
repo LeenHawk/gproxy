@@ -683,7 +683,9 @@ impl Walk {
     /// What the caller sees when no target answered.
     fn exhausted(self) -> SdkError {
         self.remembered
-            .unwrap_or(SdkError::Core(CoreError::NoUsableCredential))
+            .unwrap_or(SdkError::Core(CoreError::NoUsableCredential {
+                retry_after_ms: None,
+            }))
     }
 }
 
@@ -772,7 +774,9 @@ fn stops_the_call(error: &CoreError) -> bool {
     use CoreError as E;
     match error {
         // The provider had nothing to spend, or the material it had is gone.
-        E::NoUsableCredential | E::CredentialDead { .. } | E::RefreshContended { .. } => false,
+        E::NoUsableCredential { .. } | E::CredentialDead { .. } | E::RefreshContended { .. } => {
+            false
+        }
         // The continuation lives elsewhere; this provider is simply the wrong
         // address for it.
         E::ContinuationElsewhere { .. } => false,

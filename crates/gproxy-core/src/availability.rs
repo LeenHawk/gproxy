@@ -17,6 +17,14 @@ const FAILURE_COOLDOWN_STEP_MS: i64 = 30_000;
 const FAILURE_COOLDOWN_MAX_MS: i64 = 10 * 60_000;
 /// Rate limiting without a usable Retry-After.
 pub(crate) const DEFAULT_RATE_LIMIT_MS: i64 = 30_000;
+/// An upstream-reported exhaustion that does not say when it resets.
+pub(crate) const DEFAULT_EXHAUSTED_MS: i64 = 15 * 60_000;
+/// Out of balance. A balance does not refill by itself, so the block is long;
+/// it stays fixed rather than growing because the probe it saves is a cheap
+/// refusal, and a top-up should be noticed within the half hour.
+pub(crate) const CREDIT_BLOCK_MS: i64 = 30 * 60_000;
+/// A model this credential does not serve.
+pub(crate) const UNSERVED_BLOCK_MS: i64 = 30 * 60_000;
 const BLOCKS_CACHE_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
 pub(crate) fn failure_scope(upstream_model: Option<&str>) -> QuotaScope {
@@ -26,17 +34,10 @@ pub(crate) fn failure_scope(upstream_model: Option<&str>) -> QuotaScope {
     }
 }
 
-/// `Retry-After` in delta-seconds; HTTP-date forms are not parsed here.
-pub(crate) fn retry_after_ms(headers: &http::HeaderMap) -> Option<i64> {
-    headers
-        .get(http::header::RETRY_AFTER)?
-        .to_str()
-        .ok()?
-        .trim()
-        .parse::<i64>()
-        .ok()
-        .filter(|s| *s >= 0)
-        .map(|s| s.saturating_mul(1000))
+/// `Retry-After` as delta-seconds or an HTTP-date, in milliseconds from `now_ms`.
+pub(crate) fn retry_after_ms(headers: &http::HeaderMap, now_ms: i64) -> Option<i64> {
+    gproxy_channel::channel::retry_after(headers, now_ms)
+        .map(|wait| i64::try_from(wait.as_millis()).unwrap_or(i64::MAX))
 }
 
 impl<C> Core<C> {
@@ -59,7 +60,10 @@ impl<C> Core<C> {
     }
 
     /// A success on this scope clears its streak; a healthy model no longer
-    /// carries another model's failures.
+    /// carries another model's failures. It also lifts the cooldowns it just
+    /// proved wrong (rate limiting and failure blocks covering this
+    /// model/operation), so an early probe that succeeds reopens the
+    /// credential. Store rows are left to expire on their own.
     pub(crate) async fn record_success(
         &self,
         provider_id: &str,
@@ -70,11 +74,19 @@ impl<C> Core<C> {
     ) -> CoreResult<()> {
         let mut blocks = self.read_blocks(provider_id, credential_id).await?;
         let scope = failure_scope(upstream_model);
-        let before = blocks.failures.len();
+        let before = (blocks.failures.len(), blocks.blocks.len());
         blocks
             .failures
             .retain(|s| !(s.scope == scope && s.operation == Some(operation)));
-        let changed = before != blocks.failures.len() || blocks.last_success_at_ms.is_none();
+        blocks.blocks.retain(|block| {
+            !(matches!(
+                block.source,
+                BlockSource::RateLimited | BlockSource::Failures { .. }
+            ) && block.until_ms > now_ms
+                && block.applies_to(upstream_model, operation))
+        });
+        let changed = before != (blocks.failures.len(), blocks.blocks.len())
+            || blocks.last_success_at_ms.is_none();
         blocks.last_success_at_ms = Some(now_ms);
         if changed {
             self.write_blocks(provider_id, credential_id, &blocks)

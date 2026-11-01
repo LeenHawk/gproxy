@@ -188,7 +188,10 @@ async fn refused(h: &Harness, ctx: Arc<RequestContext>) {
         .stream_generate_content(ctx, request("{}"))
         .await
         .unwrap_err();
-    assert!(matches!(error, CoreError::NoUsableCredential), "{error}");
+    assert!(
+        matches!(error, CoreError::NoUsableCredential { .. }),
+        "{error}"
+    );
     assert_eq!(h.client.seen.lines().len(), sent, "nothing was sent");
 }
 

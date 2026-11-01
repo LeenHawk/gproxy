@@ -256,7 +256,12 @@ impl<C: BatchConnectionTrait> Core<C> {
                 Some(BlockSource::QuotaExhausted { cycle_id, .. }) => Unusable::Durable {
                     exhausted_cycle_id: cycle_id.clone(),
                 },
-                Some(BlockSource::Counted { .. }) => Unusable::Durable {
+                Some(
+                    BlockSource::Counted { .. }
+                    | BlockSource::Exhausted
+                    | BlockSource::Credit
+                    | BlockSource::Unserved,
+                ) => Unusable::Durable {
                     exhausted_cycle_id: None,
                 },
                 _ => Unusable::Transient,

@@ -9,10 +9,14 @@ use crate::{
     CredentialBlock, Execution, HttpExecution, ProtocolState, RequestContext, StateScope,
     TraceEvent, UsageState,
     api::lifecycle::now_ms,
-    availability::{DEFAULT_RATE_LIMIT_MS, retry_after_ms},
+    availability::{
+        CREDIT_BLOCK_MS, DEFAULT_EXHAUSTED_MS, DEFAULT_RATE_LIMIT_MS, UNSERVED_BLOCK_MS,
+        failure_scope, retry_after_ms,
+    },
     convert::{self, Route},
     rewrite::{Phase, RewriteContext, apply_body, apply_headers, apply_query, select_rules},
 };
+use gproxy_channel::channel::{QuotaScope, Rejection, RejectionContext, RejectionKind};
 use gproxy_protocol::{
     HttpBody, WireRequest, WireResponse,
     connection::Bytes,
@@ -33,13 +37,27 @@ fn remaining(request: &RequestContext) -> Option<Duration> {
 pub(crate) struct Answer {
     pub response: WireResponse<HttpBody>,
     pub attempt: Option<Arc<AttemptContext>>,
+    /// A 2xx stream that opened with an error frame: the upstream may keep
+    /// it open, so a superseded one is dropped rather than drained.
+    pub abandon: bool,
 }
 
 impl Answer {
+    fn new(response: WireResponse<HttpBody>, attempt: Option<Arc<AttemptContext>>) -> Self {
+        Self {
+            response,
+            attempt,
+            abandon: false,
+        }
+    }
+
     /// Drain a superseded rejection through observation before retrying. The
     /// observed stream retains its byte/idle/cancellation limits; a total cap
     /// prevents a slow rejection from holding retries indefinitely.
     async fn discard(self, timeout: Duration) {
+        if self.abandon {
+            return;
+        }
         let body = self.response.body;
         super::stream::drain(body, timeout).await;
     }
@@ -102,12 +120,71 @@ enum Classified {
     Refresh,
 }
 
-fn classify(status: StatusCode, refreshable: bool, refreshed: bool) -> Classified {
-    match status.as_u16() {
-        401 | 403 if refreshable && !refreshed => Classified::Refresh,
-        429 | 401 | 403 | 404 | 500..=599 => Classified::Exclude,
-        _ => Classified::Final,
+/// The channel's reading of the refusal decides when it has one; otherwise
+/// the status does. 402 (out of balance) fails over like a rate limit.
+fn classify(
+    status: StatusCode,
+    rejection: Option<&Rejection>,
+    refreshable: bool,
+    refreshed: bool,
+) -> Classified {
+    match rejection.map(|r| r.kind) {
+        Some(RejectionKind::Request) => Classified::Final,
+        Some(RejectionKind::Auth) if refreshable && !refreshed => Classified::Refresh,
+        Some(_) => Classified::Exclude,
+        None => match status.as_u16() {
+            401 | 403 if refreshable && !refreshed => Classified::Refresh,
+            402 | 429 | 401 | 403 | 404 | 500..=599 => Classified::Exclude,
+            _ => Classified::Final,
+        },
     }
+}
+
+/// The block a refusal earns, before the failure streak is consulted. None
+/// leaves the credential to the streak (auth, server errors).
+fn rejection_block(
+    status: StatusCode,
+    rejection: Option<&Rejection>,
+    headers: &http::HeaderMap,
+    upstream_model: Option<&str>,
+    operation: gproxy_protocol::Operation,
+    now_ms: i64,
+) -> Option<CredentialBlock> {
+    let kind = match rejection {
+        Some(rejection) => rejection.kind,
+        None if status == StatusCode::TOO_MANY_REQUESTS => RejectionKind::RateLimited,
+        None if status == StatusCode::PAYMENT_REQUIRED => RejectionKind::Credit,
+        None => return None,
+    };
+    let said = rejection
+        .and_then(|r| r.retry_after)
+        .map(|wait| i64::try_from(wait.as_millis()).unwrap_or(i64::MAX))
+        .or_else(|| retry_after_ms(headers, now_ms));
+    let (source, default_ms) = match kind {
+        RejectionKind::RateLimited => (BlockSource::RateLimited, DEFAULT_RATE_LIMIT_MS),
+        RejectionKind::QuotaExhausted => (BlockSource::Exhausted, DEFAULT_EXHAUSTED_MS),
+        RejectionKind::Credit => (BlockSource::Credit, CREDIT_BLOCK_MS),
+        // Unserved is about one model; without one it is left to the streak.
+        RejectionKind::ModelUnserved if upstream_model.is_some() => {
+            (BlockSource::Unserved, UNSERVED_BLOCK_MS)
+        }
+        RejectionKind::ModelUnserved | RejectionKind::Auth | RejectionKind::Request => {
+            return None;
+        }
+    };
+    let model_scoped =
+        matches!(kind, RejectionKind::ModelUnserved) || rejection.is_some_and(|r| r.model_scoped);
+    Some(CredentialBlock {
+        scope: if model_scoped {
+            failure_scope(upstream_model)
+        } else {
+            QuotaScope::All
+        },
+        operation: (!operation.produces_usage()).then_some(operation),
+        until_ms: now_ms.saturating_add(said.unwrap_or(default_ms)),
+        source,
+        observed_at_ms: now_ms,
+    })
 }
 
 /// What went wrong before any upstream answer arrived.
@@ -270,10 +347,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
         {
             response.body = HttpBody::Bytes(Bytes::from(rewritten));
         }
-        return Ok(Answer {
-            response,
-            attempt: None,
-        });
+        return Ok(Answer::new(response, None));
     }
     let attempts = if replayable {
         request.max_attempts.get()
@@ -307,7 +381,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
             .await
         {
             Ok(selection) => selection,
-            Err(CoreError::NoUsableCredential) if held.is_some() => {
+            Err(CoreError::NoUsableCredential { .. }) if held.is_some() => {
                 let answer = held.take().expect("held");
                 return Ok(answer);
             }
@@ -436,10 +510,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                         {
                             Err(Fault::Client(error.into()))
                         } else {
-                            Ok(Answer {
-                                response,
-                                attempt: Some(attempt.clone()),
-                            })
+                            Ok(Answer::new(response, Some(attempt.clone())))
                         }
                     }
                     Err(fault) => Err(fault),
@@ -508,18 +579,17 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                 };
                 converted.map(|converted| match converted {
                     convert::Converted::Success(response)
-                    | convert::Converted::Rejected(response) => Answer {
-                        response,
-                        attempt: Some(attempt.clone()),
-                    },
-                    convert::Converted::Stream(response) => Answer {
-                        response: WireResponse {
+                    | convert::Converted::Rejected(response) => {
+                        Answer::new(response, Some(attempt.clone()))
+                    }
+                    convert::Converted::Stream(response) => Answer::new(
+                        WireResponse {
                             status: response.status,
                             headers: response.headers,
                             body: HttpBody::Stream(response.body),
                         },
-                        attempt: Some(attempt.clone()),
-                    },
+                        Some(attempt.clone()),
+                    ),
                 })
             }
             Route::Unsupported => unreachable!("unsupported route rejected before attempting"),
@@ -626,10 +696,38 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
             }
         };
 
-        let status = answer.status();
+        // Read enough of the answer to tell what it says about the credential:
+        // a refusal's body prefix, or the first frame of a 2xx event stream,
+        // which can still be an error. Both are replayed to the caller.
+        let mut status = answer.status();
+        let mut refusal = None;
+        if status.is_success() {
+            if is_event_stream(answer.headers())
+                && let Some(found) =
+                    super::rejection::first_frame_error(&mut answer.response.body, limits.codec())
+                        .await
+            {
+                status = found.status;
+                answer.abandon = true;
+                refusal = Some(found.payload);
+            }
+        } else {
+            refusal = Some(super::rejection::body_prefix(&mut answer.response.body).await);
+        }
+        let rejection = refusal.as_ref().and_then(|body| {
+            provider.channel.classify_rejection(RejectionContext {
+                status,
+                headers: answer.headers(),
+                body,
+                operation,
+                upstream_model: upstream_model.as_deref(),
+                now_ms: finished_at,
+            })
+        });
         let refreshable = crate::refresh::can_refresh(&provider, &credential, &version);
         let classified = classify(
             status,
+            rejection.as_ref(),
             refreshable && ordinal < attempts && wire.is_some(),
             refreshed.contains(&credential.id),
         );
@@ -642,7 +740,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                 &credential,
                 operation,
                 upstream_model.as_deref(),
-                status,
+                answer.status(),
                 answer.headers(),
                 finished_at,
                 matches!(classified, Classified::Final).then_some(&*funnel),
@@ -753,17 +851,17 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                 }
             }
             Classified::Exclude => {
-                let retry_after = retry_after_ms(answer.headers());
-                let block = (status == StatusCode::TOO_MANY_REQUESTS && quota_blocks.is_empty())
-                    .then(|| CredentialBlock {
-                        scope: gproxy_channel::channel::QuotaScope::All,
-                        operation: (!operation.operation.produces_usage())
-                            .then_some(operation.operation),
-                        until_ms: finished_at + retry_after.unwrap_or(DEFAULT_RATE_LIMIT_MS),
-                        source: BlockSource::RateLimited,
-                        observed_at_ms: finished_at,
-                    });
-                let blocked = if quota_blocks.is_empty() {
+                // Account quota read from the headers replaces the block the
+                // refusal itself would earn.
+                if quota_blocks.is_empty() {
+                    let block = rejection_block(
+                        status,
+                        rejection.as_ref(),
+                        answer.headers(),
+                        upstream_model.as_deref(),
+                        operation.operation,
+                        finished_at,
+                    );
                     exclude(
                         core,
                         &funnel,
@@ -775,11 +873,11 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                         block,
                         finished_at,
                     )
-                    .await?
+                    .await?;
                 } else {
                     let outcome = AttemptOutcome::Rejected {
                         status,
-                        retry_after: retry_after
+                        retry_after: retry_after_ms(answer.headers(), finished_at)
                             .map(|ms| std::time::Duration::from_millis(ms as u64)),
                     };
                     funnel.trace(TraceEvent::AttemptFinished {
@@ -787,8 +885,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                         outcome: &outcome,
                         finished_at_ms: finished_at,
                     });
-                    true
-                };
+                }
                 settle(
                     core,
                     &mut assignment,
@@ -796,9 +893,9 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                     finished_at,
                 )
                 .await?;
-                if blocked {
-                    excluded.insert(credential.id.clone());
-                }
+                // Whatever its streak says across requests, this request does
+                // not ask a credential that just refused it again.
+                excluded.insert(credential.id.clone());
                 if ordinal >= attempts || wire.is_none() {
                     // Budget spent: the last upstream answer is the answer.
                     return Ok(answer);
@@ -810,7 +907,9 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
     if let Some(answer) = held.take() {
         return Ok(answer);
     }
-    Err(CoreError::NoUsableCredential)
+    Err(CoreError::NoUsableCredential {
+        retry_after_ms: None,
+    })
 }
 
 /// Caller budgets are checked once, before any credential is touched: an
@@ -845,8 +944,7 @@ pub(crate) async fn reject_when_over_budget<C: BatchConnectionTrait>(
     }
 }
 
-/// Trace the rejection and write the block or bump the streak. Returns whether
-/// the credential is now blocked and must be excluded for this request.
+/// Trace the rejection and write the block or bump the streak.
 #[allow(clippy::too_many_arguments)]
 async fn exclude<C: BatchConnectionTrait>(
     core: &Core<C>,
@@ -858,7 +956,7 @@ async fn exclude<C: BatchConnectionTrait>(
     status: StatusCode,
     block: Option<CredentialBlock>,
     now_ms: i64,
-) -> CoreResult<bool> {
+) -> CoreResult<()> {
     let outcome = AttemptOutcome::Rejected {
         status,
         retry_after: block
@@ -874,19 +972,27 @@ async fn exclude<C: BatchConnectionTrait>(
         Some(block) => {
             core.record_block(&credential.provider_id, &credential.id, block, now_ms)
                 .await?;
-            Ok(true)
         }
-        None => Ok(core
-            .record_failure(
+        None => {
+            core.record_failure(
                 &credential.provider_id,
                 &credential.id,
                 upstream_model,
                 operation,
                 now_ms,
             )
-            .await?
-            .is_some()),
+            .await?;
+        }
     }
+    Ok(())
+}
+
+fn is_event_stream(headers: &http::HeaderMap) -> bool {
+    headers
+        .get(http::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .is_some_and(|value| value.trim() == "text/event-stream")
 }
 
 fn failed(uncertain: bool, error: &str) -> AssignmentOutcome {

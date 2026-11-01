@@ -118,6 +118,13 @@ pub enum BlockSource {
     RateLimited,
     /// Consecutive failures for this scope tripped a cooldown.
     Failures { consecutive: u32 },
+    /// The upstream refused because a usage allowance it did not declare as a
+    /// quota dimension is spent; ends when the refusal said it resets.
+    Exhausted,
+    /// The upstream refused for lack of balance or inactive billing.
+    Credit,
+    /// The upstream does not serve the blocked model on this credential.
+    Unserved,
 }
 
 impl BlockSource {
@@ -151,7 +158,10 @@ impl BlockSource {
             )
             | (Self::Counted { dimension: a }, Self::Counted { dimension: b }) => a == b,
             (Self::RateLimited, Self::RateLimited)
-            | (Self::Failures { .. }, Self::Failures { .. }) => true,
+            | (Self::Failures { .. }, Self::Failures { .. })
+            | (Self::Exhausted, Self::Exhausted)
+            | (Self::Credit, Self::Credit)
+            | (Self::Unserved, Self::Unserved) => true,
             _ => false,
         }
     }
@@ -294,6 +304,26 @@ impl CredentialBlocks {
             .iter()
             .filter(|block| block.until_ms > now_ms && block.applies_to(upstream_model, operation))
             .max_by_key(|block| block.until_ms)
+    }
+    /// Whether every block covering this model/operation at `now_ms` is a
+    /// short cooldown (rate limiting or a failure streak) that a single
+    /// request may probe early. Quota, credit, counted and unserved blocks
+    /// are never probed.
+    pub fn probeable(
+        &self,
+        upstream_model: Option<&str>,
+        operation: Operation,
+        now_ms: i64,
+    ) -> bool {
+        self.blocks
+            .iter()
+            .filter(|block| block.until_ms > now_ms && block.applies_to(upstream_model, operation))
+            .all(|block| {
+                matches!(
+                    block.source,
+                    BlockSource::RateLimited | BlockSource::Failures { .. }
+                )
+            })
     }
     /// The streak recorded for exactly this scope/operation pair.
     pub fn streak(

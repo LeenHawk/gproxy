@@ -106,6 +106,21 @@ impl AppError {
         }
     }
 
+    /// Whole seconds a client told to back off should wait (`Retry-After`),
+    /// when known: a configured rate limit's window, or the earliest end of
+    /// the blocks that left no credential usable (rounded up).
+    pub fn retry_after_secs(&self) -> Option<i64> {
+        match self {
+            Self::RateLimited {
+                retry_after_ms: Some(ms),
+            } => Some(ms.div_euclid(1_000).max(1)),
+            Self::Core(CoreError::NoUsableCredential {
+                retry_after_ms: Some(ms),
+            }) => Some(ms.saturating_add(999).div_euclid(1_000).max(1)),
+            _ => None,
+        }
+    }
+
     pub fn invalid(message: impl Into<String>) -> Self {
         Self::Invalid(message.into())
     }
@@ -154,7 +169,9 @@ fn core_status(error: &CoreError) -> u16 {
         CoreError::Forbidden(_) => S::FORBIDDEN,
         CoreError::ResourceNotFound { .. } => S::NOT_FOUND,
         CoreError::InvalidTarget(_) | CoreError::OperationMismatch { .. } => S::BAD_REQUEST,
-        CoreError::NoUsableCredential | CoreError::CredentialDead { .. } => S::SERVICE_UNAVAILABLE,
+        CoreError::NoUsableCredential { .. } | CoreError::CredentialDead { .. } => {
+            S::SERVICE_UNAVAILABLE
+        }
         CoreError::BudgetExhausted { .. } => S::TOO_MANY_REQUESTS,
         CoreError::ContinuationElsewhere { .. } => S::MISDIRECTED_REQUEST,
         CoreError::RefreshContended { .. } => S::SERVICE_UNAVAILABLE,
@@ -182,7 +199,7 @@ fn core_code(error: &CoreError) -> &'static str {
         CoreError::Forbidden(_) => "forbidden",
         CoreError::ResourceNotFound { .. } => "not_found",
         CoreError::InvalidTarget(_) | CoreError::OperationMismatch { .. } => "invalid_request",
-        CoreError::NoUsableCredential => "no_usable_credential",
+        CoreError::NoUsableCredential { .. } => "no_usable_credential",
         CoreError::CredentialDead { .. } => "credential_dead",
         CoreError::BudgetExhausted { .. } => "budget_exhausted",
         CoreError::ContinuationElsewhere { .. } => "continuation_elsewhere",
@@ -256,7 +273,9 @@ mod tests {
         assert_eq!(error.status_code(), 429);
         assert_eq!(error.code(), "budget_exhausted");
 
-        let error = AppError::Core(CoreError::NoUsableCredential);
+        let error = AppError::Core(CoreError::NoUsableCredential {
+            retry_after_ms: None,
+        });
         assert_eq!(error.status_code(), 503);
         assert_eq!(error.code(), "no_usable_credential");
     }

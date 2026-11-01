@@ -985,7 +985,9 @@ pub(crate) async fn charge_responses_segment<C: BatchConnectionTrait>(
     .await?
     .is_some()
     {
-        return Err(CoreError::NoUsableCredential);
+        return Err(CoreError::NoUsableCredential {
+            retry_after_ms: None,
+        });
     }
     Ok(())
 }

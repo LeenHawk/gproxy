@@ -27,8 +27,10 @@ pub enum CoreError {
         expected: Operation,
         actual: Operation,
     },
+    /// Every candidate is blocked, excluded or unusable. `retry_after_ms` is
+    /// how long until the earliest block ends, when one does.
     #[error("no usable credential in the supplied candidate set")]
-    NoUsableCredential,
+    NoUsableCredential { retry_after_ms: Option<i64> },
     /// A caller budget named by the request is spent for its current
     /// window. Nothing was sent; `resets_at_ms` is None for a permanent
     /// budget, which only a manual reset reopens.

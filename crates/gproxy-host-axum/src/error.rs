@@ -78,11 +78,11 @@ impl IntoResponse for ErrorResponse {
             },
         };
         let mut response = json_response(status, &body);
-        // RFC 6585 §4: a client that is told to back off is told how long for.
-        if let AppError::RateLimited {
-            retry_after_ms: Some(ms),
-        } = &error
-            && let Ok(value) = HeaderValue::from_str(&ms.div_euclid(1_000).max(1).to_string())
+        // RFC 6585 §4: a client that is told to back off is told how long for;
+        // a 503 for credentials that are all cooling down says when the first
+        // one is back (RFC 9110 §10.2.3).
+        if let Some(seconds) = error.retry_after_secs()
+            && let Ok(value) = HeaderValue::from_str(&seconds.to_string())
         {
             response.headers_mut().insert(header::RETRY_AFTER, value);
         }

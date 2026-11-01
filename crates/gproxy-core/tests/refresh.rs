@@ -64,7 +64,8 @@ async fn static_api_key_auth_errors_do_not_refresh_or_mark_dead() {
         assert_eq!(response.status, status);
         read(response.body).await;
         completion.await.unwrap();
-        assert_eq!(h.client.seen.lines().len(), 2);
+        // A refusal excludes the credential for the rest of the request.
+        assert_eq!(h.client.seen.lines().len(), 1);
         assert!(h.channel.refresh_calls.lock().unwrap().is_empty());
         assert_eq!(
             stored_version(&h, "a").await,

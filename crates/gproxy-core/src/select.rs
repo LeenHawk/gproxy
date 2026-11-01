@@ -13,6 +13,9 @@ const AFFINITY_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 /// Rotation counters outlive any realistic idle gap; a lost counter only
 /// restarts rotation at the first candidate.
 const ROTATION_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+/// How often, at most, one request may try a cooled-down credential early
+/// while every candidate is blocked.
+const PROBE_LEASE: Duration = Duration::from_secs(15);
 
 pub(crate) struct Selection {
     pub credential: Arc<CredentialData>,
@@ -99,17 +102,46 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
         }
         // Every candidate's blocks in one read rather than one per credential.
         let blocks = self.read_blocks_many(&candidates).await?;
-        let mut eligible: Vec<(Arc<CredentialData>, CredentialBlocks)> = candidates
+        let (mut eligible, blocked): (Vec<_>, Vec<_>) = candidates
             .into_iter()
             .zip(blocks)
             .map(|(credential, mut blocks)| {
                 blocks.retain_for_request(provider, &credential, model, request.operation, headers);
                 (credential, blocks)
             })
-            .filter(|(_, blocks)| blocks.blocked_by(model, operation, now_ms).is_none())
-            .collect();
+            .partition(|(_, blocks)| blocks.blocked_by(model, operation, now_ms).is_none());
         if eligible.is_empty() {
-            return Err(dead.unwrap_or(CoreError::NoUsableCredential));
+            // Blocked, each until its longest covering block ends.
+            let mut blocked: Vec<(Arc<CredentialData>, i64, bool)> = blocked
+                .into_iter()
+                .filter_map(|(credential, blocks)| {
+                    let until = blocks.blocked_by(model, operation, now_ms)?.until_ms;
+                    let probeable = blocks.probeable(model, operation, now_ms);
+                    Some((credential, until, probeable))
+                })
+                .collect();
+            blocked.sort_by_key(|(_, until, _)| *until);
+            // Nothing tried yet on this request: rather than refuse outright,
+            // one request at a time may try the credential whose cooldown
+            // ends soonest. Quota, credit and unserved blocks are never tried.
+            if excluded.is_empty()
+                && let Some((credential, _, _)) = blocked.iter().find(|(_, _, probe)| *probe)
+                && self
+                    .cache
+                    .acquire_lease(
+                        &keys::credential_probe(&credential.provider_id, &credential.id),
+                        PROBE_LEASE,
+                    )
+                    .await?
+                    .is_some()
+            {
+                return Ok(Selection {
+                    credential: credential.clone(),
+                    assignment: None,
+                });
+            }
+            let retry_after_ms = blocked.first().map(|(_, until, _)| (until - now_ms).max(0));
+            return Err(dead.unwrap_or(CoreError::NoUsableCredential { retry_after_ms }));
         }
 
         let affinity_key = request
