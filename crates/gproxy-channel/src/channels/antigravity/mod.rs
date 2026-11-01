@@ -11,7 +11,10 @@
 //!   `access_type=offline`, `prompt=consent` and no PKCE. It also runs the
 //!   `loadCodeAssist`/`onboardUser` project discovery with
 //!   `{ideType: ANTIGRAVITY, ideVersion, ideName: "antigravity"}` and the
-//!   editor user agent (`oauth`).
+//!   editor user agent (`oauth`). Project discovery follows CPA's management
+//!   login policy: no local eligibility gate, and a failed discovery does not
+//!   discard OAuth tokens (`samples/CLIProxyAPI/internal/auth/antigravity/auth.go`
+//!   and `internal/api/handlers/management/auth_files_provider_oauth.go`).
 //! - Since 2.6.0 the IDE ships no language server: its bundled `agy`
 //!   extension downloads the Antigravity CLI and runs it as
 //!   `antigravity --hub` (CLI 1.4.10, hub server 2.28.1), and that Go

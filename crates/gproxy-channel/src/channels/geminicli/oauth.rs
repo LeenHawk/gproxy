@@ -105,6 +105,7 @@ fn tool(config: &GeminiCliConfig) -> GoogleTool<'_> {
         code_assist_accept: "application/json",
         userinfo_headers: USERINFO_HEADERS,
         onboarding,
+        require_project: true,
         // gemini-cli `setup.ts`: `setTimeout(f, 5000)` between polls.
         onboard_poll: Duration::from_secs(5),
         user_agent: super::CLI_USER_AGENT,

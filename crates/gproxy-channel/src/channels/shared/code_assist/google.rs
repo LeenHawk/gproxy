@@ -66,6 +66,9 @@ pub(crate) struct GoogleTool<'a> {
     /// hint, onboard on some tier, or refuse. The two tools disagree, so the
     /// rule is theirs (`loaded`, then the project hint).
     pub onboarding: fn(&Value, Option<&str>) -> Result<Onboarding, ChannelError>,
+    /// Whether failed project discovery rejects an otherwise valid OAuth
+    /// login. Channels may persist the tokens and retry discovery on refresh.
+    pub require_project: bool,
     /// How long the tool waits between polls of a running onboarding
     /// operation.
     pub onboard_poll: Duration,
@@ -307,7 +310,7 @@ pub(crate) async fn exchange(
         ));
     }
     let mut fields = BTreeMap::new();
-    discover(
+    let discovery = discover(
         client,
         tool,
         code_assist_base,
@@ -315,7 +318,10 @@ pub(crate) async fn exchange(
         project_hint,
         &mut fields,
     )
-    .await?;
+    .await;
+    if tool.require_project {
+        discovery?;
+    }
     enrich_email(client, tool, &tokens.access_token, &mut fields).await;
     Ok(credential(tokens, None, fields))
 }
@@ -367,6 +373,7 @@ pub(crate) async fn refresh(
         )
         .await
         .is_ok()
+            || !tool.require_project
         {
             fields = discovered;
         }
@@ -489,27 +496,6 @@ pub(crate) fn default_tier(loaded: &Value) -> Option<&str> {
         .flatten()
         .find(|tier| tier.get("isDefault").and_then(Value::as_bool) == Some(true))
         .and_then(|tier| text(tier, "id"))
-}
-
-/// Whether `tier_id` is among `allowedTiers`.
-pub(crate) fn tier_allowed(loaded: &Value, tier_id: &str) -> bool {
-    loaded
-        .get("allowedTiers")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .any(|tier| text(tier, "id") == Some(tier_id))
-}
-
-/// The `reasonMessage` of the `ineligibleTiers` entry for `tier_id`.
-pub(crate) fn ineligible_reason<'a>(loaded: &'a Value, tier_id: &str) -> Option<&'a str> {
-    loaded
-        .get("ineligibleTiers")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .find(|tier| text(tier, "tierId") == Some(tier_id))
-        .and_then(|tier| text(tier, "reasonMessage"))
 }
 
 /// The refusal for an account that has no project and none can be had:

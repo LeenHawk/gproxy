@@ -213,7 +213,7 @@ fn prepare_targets_the_daily_code_assist_host_with_the_bearer_token() {
     .expect("prepared");
     assert_eq!(
         prepared.uri().to_string(),
-        "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse"
+        "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse"
     );
     assert_eq!(
         prepared.headers()["authorization"],

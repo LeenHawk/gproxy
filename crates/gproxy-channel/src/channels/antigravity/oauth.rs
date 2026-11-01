@@ -8,7 +8,11 @@
 //! `authorize` builds the consent URL for the host's `state` (the IDE uses
 //! no PKCE, so the host's challenge is not sent); `exchange` turns the code
 //! into tokens and then learns the Cloud project and the tier, which travel
-//! back in `provider_fields` for the host to persist. `refresh` renews the access token, carries the discovered
+//! back in `provider_fields` for the host to persist. As in CPA's management
+//! login (`samples/CLIProxyAPI/internal/api/handlers/management/auth_files_provider_oauth.go`),
+//! project discovery is best effort: an account's service eligibility must
+//! not prevent saving its OAuth tokens. `refresh` renews the access token,
+//! carries the discovered
 //! facts forward, and completes a discovery that the login could not finish
 //! (v3 `antigravity/{login,auth}.rs`, `shared/{google_login,google_oauth}.rs`).
 
@@ -38,24 +42,25 @@ fn metadata(_project: Option<&str>) -> String {
     format!(r#"{{"ideType":"ANTIGRAVITY","ideVersion":"{IDE_VERSION}","ideName":"antigravity"}}"#)
 }
 
-/// The tier the Antigravity IDE onboards every consumer account on.
+/// CPA's fallback when neither a default allowed tier nor a current tier exists.
 const FREE_TIER: &str = "free-tier";
 
-/// The Antigravity IDE (`antigravityAuthMainService.confirmUserForService`):
-/// a consumer account is onboarded on the literal `free-tier` when that tier
-/// is allowed or carries no ineligibility reason
-/// (`const s=!!n||!i; … onboardUser("free-tier",t)`); otherwise it is
-/// ineligible, with the free tier's `reasonMessage`.
+/// CPA `internal/auth/antigravity/auth.go::defaultAntigravityTierID`:
+/// try the default allowed tier, then the current tier, then `free-tier`.
+/// Ineligibility messages are not a local gate; let `onboardUser` decide.
 fn onboarding(loaded: &Value, _hint: Option<&str>) -> Result<Onboarding, ChannelError> {
-    let reason = google::ineligible_reason(loaded, FREE_TIER);
-    match reason {
-        Some(reason) if !google::tier_allowed(loaded, FREE_TIER) => {
-            Err(ChannelError::InvalidResponse(format!(
-                "Antigravity: account is not eligible: {reason}"
-            )))
-        }
-        _ => Ok(Onboarding::Tier(FREE_TIER.to_owned())),
-    }
+    let tier = google::default_tier(loaded)
+        .map(str::trim)
+        .filter(|tier| !tier.is_empty())
+        .or_else(|| {
+            loaded
+                .pointer("/currentTier/id")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|tier| !tier.is_empty())
+        })
+        .unwrap_or(FREE_TIER);
+    Ok(Onboarding::Tier(tier.to_owned()))
 }
 
 fn tool(config: &AntigravityConfig) -> GoogleTool<'_> {
@@ -93,6 +98,7 @@ fn tool(config: &AntigravityConfig) -> GoogleTool<'_> {
             ("x-goog-api-client", NODE_CLIENT),
         ],
         onboarding,
+        require_project: false,
         // The IDE's `_ss=500` between polls of the onboarding operation.
         onboard_poll: Duration::from_millis(500),
         user_agent: EDITOR_USER_AGENT,
