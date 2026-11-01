@@ -146,9 +146,18 @@ pub(super) fn catalog(body: &[u8]) -> Result<Vec<Value>, ChannelError> {
             collect(value, &mut ids);
         }
     }
+    // A model the catalogue marks `disabled` is listed but not served to
+    // this account, wherever else the payload names it.
+    let disabled = |id: &String| {
+        metadata
+            .get(id)
+            .and_then(|model| model.get("disabled"))
+            .and_then(Value::as_bool)
+            == Some(true)
+    };
     Ok(ids
         .into_iter()
-        .filter(|id| !id.to_ascii_lowercase().contains("embed"))
+        .filter(|id| !id.to_ascii_lowercase().contains("embed") && !disabled(id))
         .map(|id| {
             let found = metadata.get(&id);
             entry(&id, found)
