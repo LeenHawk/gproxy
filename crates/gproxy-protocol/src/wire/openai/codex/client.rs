@@ -376,15 +376,56 @@ pub struct ContentItemInputImage {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+/// Native Codex audio input, inline or uploaded, from protocol/src/models.rs.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum AudioReference {
+    Inline { audio_url: String },
+    File { file_id: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ContentItemInputAudio {
-    pub audio_url: String,
+    #[serde(flatten)]
+    pub audio: AudioReference,
 
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
+}
+
+// A flattened untagged enum leaves its keys available to another flattened
+// map in serde. Consume the selected reference explicitly so known audio
+// fields are not duplicated in `rest` or serialized twice.
+impl<'de> Deserialize<'de> for ContentItemInputAudio {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let mut rest = Rest::deserialize(deserializer)?;
+        let audio = if rest
+            .get("audio_url")
+            .is_some_and(serde_json::Value::is_string)
+        {
+            AudioReference::Inline {
+                audio_url: serde_json::from_value(rest.remove("audio_url").unwrap())
+                    .map_err(serde::de::Error::custom)?,
+            }
+        } else if rest
+            .get("file_id")
+            .is_some_and(serde_json::Value::is_string)
+        {
+            AudioReference::File {
+                file_id: serde_json::from_value(rest.remove("file_id").unwrap())
+                    .map_err(serde::de::Error::custom)?,
+            }
+        } else {
+            return Err(serde::de::Error::custom("expected audio_url or file_id"));
+        };
+        Ok(Self { audio, rest })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]

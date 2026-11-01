@@ -2379,7 +2379,7 @@ async fn alpha_search_preserves_search_parameters_and_returns_json() {
     let config = json!({});
     let secret = secret("at");
     let input = json!({"id":"session-1","model":"gpt-6-astra","input":"recent context",
-        "commands":{"search_query":[{"q":"OpenAI","domains":["openai.com"]}],"response_length":"short"},
+        "commands":{"search_query":[{"q":"OpenAI","domains":["openai.com"]}],"literature_search_query":[{"q":"sparse attention"}],"response_length":"short"},
         "settings":{"external_web_access":"live"},"max_output_tokens":2500,"future":true});
     let answer =
         json!({"output":"result","encrypted_output":"opaque","results":[{"future_result":1}]});

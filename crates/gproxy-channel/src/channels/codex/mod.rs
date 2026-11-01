@@ -1,6 +1,7 @@
 //! OpenAI Codex: a ChatGPT account used through the Codex backend.
 //!
-//! Wire facts follow the Codex CLI (`samples/codex`): OAuth at
+//! Wire facts follow the Codex CLI (`samples/codex`, source audit at
+//! `upstream_docs/codex/protocol.md`, main `67f0994b53`): OAuth at
 //! `auth.openai.com` (authorization code with PKCE, and the device-code flow
 //! under `/api/accounts/deviceauth`), refresh at `/oauth/token`, generation
 //! at `{base}/responses` over HTTP SSE or WebSocket, account limits in the

@@ -41,6 +41,8 @@ pub struct SearchCommands {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub search_query: Option<Vec<SearchQuery>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub literature_search_query: Option<Vec<SearchQuery>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub image_query: Option<Vec<SearchQuery>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub open: Option<Vec<OpenOperation>>,

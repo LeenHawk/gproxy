@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 #[test]
 fn browser_commands_preserve_context_without_requiring_a_search_query() {
     let commands = json!({
+        "literature_search_query":[{"q":"sparse attention", "domains":["arxiv.org"]}],
         "open":[{"ref_id":"https://example.com/docs", "lineno":20}],
         "find":[{"ref_id":"page1", "pattern":"install"}],
         "click":[{"ref_id":"page1", "id":3}],

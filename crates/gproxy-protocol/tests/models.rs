@@ -165,3 +165,33 @@ fn model_queries_and_headers_are_separate_from_response_json() {
     );
     assert_eq!(response.status, http::StatusCode::OK);
 }
+
+#[test]
+fn codex_model_messages_remain_declared_and_preserve_literal_catalog_text() {
+    use gproxy_protocol::wire::DeclaredFields;
+    use serde_json::json;
+    let messages = json!({
+        "apps": {"usage_instructions":"  {{literal}}\r\n"},
+        "tools": {
+            "history": {"namespace_description":"History", "list_windows":{"description":"List", "parameters":"{\"type\":\"object\"}"}, "read_item":{"description":""}},
+            "notes": {"write_file":{"description":"Write notes"}},
+            "context_management": {"new_context":{"description":"Continue"}, "get_context_remaining":{"description":"Remaining"}},
+            "incremental_tools": {"tool_update_hint":"", "namespace_instructions_prefix":"Namespace {name}"}
+        },
+        "approvals": {"request_permissions":"Permission requests", "auto_review_suffix":"Review", "granular":{"intro":"{{ policy }}", "prompted_categories":"{{ categories }}", "rejected_categories":"Denied {{ categories }}"}},
+        "permissions": {"approved_prefixes":"", "approved_command_prefix_saved":"Saved", "writable_root":"{{ roots }}", "writable_roots":"Roots: {{ roots }}", "omitted_paths":"Omitted", "denied_reads":"{{ denied_reads }}"}
+    });
+    let model: openai::models::Model = serde_json::from_value(json!({
+        "id":"gpt-catalog", "model_messages":messages, "future_model":true
+    }))
+    .unwrap();
+    let declared = serde_json::to_value(model.into_declared()).unwrap();
+    assert_eq!(declared["model_messages"], messages);
+    assert!(declared.get("future_model").is_none());
+    let alias: openai::models::ApprovalMessages =
+        serde_json::from_value(json!({"request_permissions_tool":""})).unwrap();
+    assert_eq!(
+        serde_json::to_value(alias.into_declared()).unwrap(),
+        json!({"request_permissions":""})
+    );
+}

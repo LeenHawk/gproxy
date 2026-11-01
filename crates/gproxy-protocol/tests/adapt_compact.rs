@@ -378,3 +378,30 @@ fn selected_image_is_sent_as_native_image_instead_of_only_json_text() {
         }
     }
 }
+
+#[test]
+fn uploaded_audio_cannot_be_compacted_across_dialects_without_file_content() {
+    let input: CompactRequestBody = serde_json::from_value(json!({
+        "model":"source", "parallel_tool_calls":true,
+        "input":[{"type":"message", "role":"user", "content":[{"type":"input_audio", "file_id":"file_audio"}]}]
+    })).unwrap();
+    let host = Host {
+        sent: Mutex::default(),
+        responses: Mutex::default(),
+        pending: false,
+    };
+    let error = ready(compact::compact(
+        &host,
+        &(),
+        input,
+        CompactDialectRequest::Gemini,
+        "target",
+        128,
+        1,
+        limits(),
+    ))
+    .unwrap_err();
+    assert_eq!(error.attempted_calls, 0);
+    assert!(host.sent.lock().unwrap().is_empty());
+    assert!(format!("{error:?}").contains("resolved audio content"));
+}

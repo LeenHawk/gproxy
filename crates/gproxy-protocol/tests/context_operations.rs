@@ -83,7 +83,7 @@ fn native_search_all_commands_and_settings_are_typed() {
         json!({"id":"s","model":"m","reasoning":{"effort":"high","summary":"concise","context":"current_turn"},"input":"q","max_output_tokens":10,"commands":{"search_query":[{"q":"q","recency":1,"domains":["a"]}],"image_query":[{"q":"i"}],"open":[{"ref_id":"r","lineno":2}],"click":[{"ref_id":"r","id":1}],"find":[{"ref_id":"r","pattern":"x"}],"screenshot":[{"ref_id":"r","pageno":0}],"finance":[{"ticker":"SPX","type":"index","market":"USA"}],"weather":[{"location":"FR, Paris","start":"2026-01-01","duration":2}],"sports":[{"tool":"sports","fn":"schedule","league":"nba","team":"GSW","opponent":"BOS","date_from":"2026-01-01","date_to":"2026-01-02","num_games":1,"locale":"en"}],"time":[{"utc_offset":"+01:00"}],"response_length":"long"},"settings":{"user_location":{"type":"approximate","country":"US","region":"CA","city":"SF","timezone":"UTC"},"search_context_size":"high","filters":{"allowed_domains":["a"],"blocked_domains":["b"]},"image_settings":{"max_results":2,"caption":true},"allowed_callers":["direct","shell","code_interpreter"],"external_web_access":"indexed"}}),
     );
     exact::<WebSearchRequestBody>(
-        json!({"id":"s","model":"m","settings":{"external_web_access":false},"commands":{"weather":[{"location":"US"}],"sports":[{"fn":"standings","league":"ipl"}],"open":[{"ref_id":"r"}]}}),
+        json!({"id":"s","model":"m","settings":{"external_web_access":false},"commands":{"literature_search_query":[{"q":"sparse attention"}],"weather":[{"location":"US"}],"sports":[{"fn":"standings","league":"ipl"}],"open":[{"ref_id":"r"}]}}),
     );
     for value in [
         json!({"output":"text"}),
@@ -100,6 +100,7 @@ fn client_items() -> Vec<serde_json::Value> {
     use serde_json::json;
     vec![
         json!({"type":"additional_tools","role":"system","tools":[{"future":true}]}),
+        json!({"type":"message","role":"user","content":[{"type":"input_audio","file_id":"file_audio"}]}),
         json!({"type":"message","role":"assistant","content":[{"type":"input_text","text":"a"},{"type":"input_image","image_url":"u","detail":"original"},{"type":"input_audio","audio_url":"a"},{"type":"output_text","text":"b"}],"phase":"final_answer","internal_chat_message_metadata_passthrough":{"turn_id":"t","create_time":1.5,"content_item_kinds":["future"],"cell_id":"c","tool_calls_complete":true,"executed_tool_calls":[{"name":"f","arguments":{"x":1},"tool_result_sources":[{"type":"file","id":"i"}]}]}}),
         json!({"type":"agent_message","author":"a","recipient":"b","content":[{"type":"input_text","text":"a"},{"type":"encrypted_content","encrypted_content":"e"}]}),
         json!({"type":"reasoning","summary":[{"type":"summary_text","text":"s"}],"encrypted_content":null,"content":[{"type":"reasoning_text","text":"r"}]}),
