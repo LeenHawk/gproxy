@@ -224,13 +224,15 @@ pub(super) fn to_claude(
         out.metadata = Some(c::Metadata::builder().user_id(user.clone()).build());
     }
     if let Some(config) = input.reasoning.as_ref().and_then(Option::as_ref) {
-        if config.mode.is_some()
-            || config.context.as_ref().and_then(Option::as_ref).is_some()
-            || config.summary.flatten().is_some()
-            || config.generate_summary.flatten().is_some()
-        {
+        if config.mode.is_some() || config.context.as_ref().and_then(Option::as_ref).is_some() {
             report.omitted("reasoning", "field has no target representation");
         }
+        // Any requested summary asks for visible thinking; Claude has one summarized form.
+        let summary = config
+            .summary
+            .flatten()
+            .or(config.generate_summary.flatten())
+            .is_some();
         if let Some(effort) = config.effort.flatten() {
             match effort {
                 i::ReasoningEffort::None => {
@@ -258,11 +260,19 @@ pub(super) fn to_claude(
                         | i::ReasoningEffort::Numeric(_) => unreachable!(),
                     };
                     out.output_config = Some(cc::OutputConfig::builder().effort(effort).build());
-                    out.thinking = Some(cc::ThinkingConfig::Adaptive(
-                        cc::ThinkingAdaptive::builder().build(),
-                    ));
+                    let mut adaptive = cc::ThinkingAdaptive::builder().build();
+                    if summary {
+                        adaptive.display = Some(cc::ThinkingDisplay::Summarized);
+                    }
+                    out.thinking = Some(cc::ThinkingConfig::Adaptive(adaptive));
                 }
             }
+        }
+        if summary && !matches!(out.thinking, Some(cc::ThinkingConfig::Adaptive(_))) {
+            report.omitted(
+                "reasoning.summary",
+                "Claude shows a thinking summary only when thinking is enabled",
+            );
         }
     }
     if let Some(text) = &input.text {
