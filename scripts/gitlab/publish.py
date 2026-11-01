@@ -31,7 +31,7 @@ def request(method, url, token, body=None, header="Authorization", missing=False
         raise RuntimeError(f"{method} {urllib.parse.urlsplit(url).path}: HTTP {error.code}") from None
 
 
-def git_push(url, ref, token, username, force=False, mirror=False):
+def git_push(url, ref, token, username, force=False, mirror=False, skip_ci=False):
     host = urllib.parse.urlsplit(url).netloc
     env = os.environ | {
         "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_COUNT": "2",
@@ -43,6 +43,8 @@ def git_push(url, ref, token, username, force=False, mirror=False):
     if mirror:
         remote = subprocess.check_output(["git", "ls-remote", url, ref], env=env, text=True).split()
         options = [f"--force-with-lease={ref}:{remote[0] if remote else ''}"]
+    if skip_ci:
+        options += ["-o", "ci.skip"]
     subprocess.run(["git", "push", *options, url,
                     f"{os.environ['CI_COMMIT_SHA']}:{ref}"], env=env, check=True)
 
@@ -116,10 +118,24 @@ class Gitlab:
         return request(method, self.root + path, self.token, body, "PRIVATE-TOKEN", missing)
 
     def release(self, tag, notes, prerelease):
+        if tag == os.environ.get("CI_COMMIT_TAG"):
+            self.sync_version_tag(tag)
         release = self.api("GET", f"/releases/{tag}", missing=True)
         # GitLab has no draft releases. Upload all package files before making
         # a new release visible, then create it with all links in one request.
         return release or {"tag_name": tag, "pending": True, "assets": {"links": []}}
+
+    def sync_version_tag(self, tag):
+        # Pull mirrors may be delayed or stopped by a diverged branch. The
+        # release's source must be present before GitLab creates its release.
+        current = self.api("GET", "/repository/tags/" + urllib.parse.quote(tag, safe=""), missing=True)
+        if current:
+            if current["commit"]["id"] != os.environ["CI_COMMIT_SHA"]:
+                raise ValueError(f"GitLab version tag {tag} points at a different commit")
+            return
+        # Version tags are immutable; never force an existing tag or start a
+        # second build pipeline just to make the source available.
+        git_push(self.url, f"refs/tags/{tag}", self.token, "oauth2", skip_ci=True)
 
     def upload(self, release, path):
         # Release and beta manifests differ even within the same pipeline.

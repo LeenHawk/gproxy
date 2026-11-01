@@ -106,6 +106,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - run: cargo fmt --all --check
         if: matrix.check == 'backend'
+      - name: Release publisher regression tests
+        if: matrix.check == 'backend'
+        run: python3 -m unittest scripts/test_publish.py
       # Independent jobs retain the default, desktop and wasm feature sets.
       # Clippy and tests within each native job still share compiled dependencies.
       - run: cargo clippy --all-targets -- -D warnings
