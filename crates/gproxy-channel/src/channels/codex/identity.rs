@@ -7,13 +7,17 @@
 //! number starting at 0 and a separate v7 UUID as `context_window_id`) and
 //! `core/src/installation_id.rs` (a persisted UUID).
 //!
-//! Every id is derived, not random: a SHA-256 of a seed folded into a
+//! Every synthesized id is derived, not random: a SHA-256 of a seed folded into a
 //! UUID-shaped string, so two proxy instances serving the same credential
 //! agree without talking, and the only things that need channel state are
 //! the facts that change over time (the window number after a compaction,
 //! the server's turn-state token).
 
 use super::agent::CLI_VERSION;
+use super::common::invalid_config;
+use super::headers::Account;
+use crate::channel::ChannelError;
+use gproxy_protocol::connection::{Bytes, WsFrame};
 use http::{HeaderMap, HeaderName, HeaderValue};
 use serde::Serialize;
 use serde_json::Value;
@@ -129,6 +133,167 @@ pub(super) fn account_key(account_id: Option<&str>, access_token: &str) -> Strin
 
 pub(super) fn installation_id(account_key: &str) -> String {
     derived_uuid(&format!("codex-installation:{account_key}"))
+}
+
+/// Device and account facts belong to the selected upstream credential,
+/// even when the client manages its own thread and turn metadata.
+pub(super) struct AccountIdentity {
+    pub installation_id: String,
+    account_id: Option<String>,
+}
+
+impl AccountIdentity {
+    pub fn new(account: &Account<'_>, installation: Option<&str>) -> Self {
+        Self {
+            installation_id: installation.map(str::to_owned).unwrap_or_else(|| {
+                installation_id(&account_key(
+                    account.account_id.as_deref(),
+                    account.access_token,
+                ))
+            }),
+            account_id: account.account_id.clone(),
+        }
+    }
+
+    fn metadata(&self, value: &mut Value) -> Result<(), ChannelError> {
+        let object = value
+            .as_object_mut()
+            .ok_or_else(|| invalid_config("Codex turn metadata must be a JSON object"))?;
+        object.insert(
+            "installation_id".into(),
+            Value::String(self.installation_id.clone()),
+        );
+        self.account_fields(object);
+        Ok(())
+    }
+
+    fn account_fields(&self, object: &mut serde_json::Map<String, Value>) {
+        // These are not standard turn fields. If a client adds account
+        // projections, they must not contradict the selected credential.
+        for key in ["account_id", "chatgpt_account_id", "chatgpt-account-id"] {
+            if object.contains_key(key) {
+                match &self.account_id {
+                    Some(id) => {
+                        object.insert(key.into(), Value::String(id.clone()));
+                    }
+                    None => {
+                        object.remove(key);
+                    }
+                }
+            }
+        }
+    }
+
+    fn turn_metadata(&self, value: &mut Value) -> Result<(), ChannelError> {
+        if let Some(text) = value.as_str() {
+            let mut metadata: Value = serde_json::from_str(text)
+                .map_err(|_| invalid_config("Codex turn metadata must contain a JSON object"))?;
+            self.metadata(&mut metadata)?;
+            *value = Value::String(ascii(&metadata.to_string()));
+        } else {
+            self.metadata(value)?;
+        }
+        Ok(())
+    }
+
+    pub fn headers(&self, headers: &mut HeaderMap) -> Result<(), ChannelError> {
+        // An opaque client attestation describes the client's installation;
+        // it cannot attest to the account-scoped identity selected here.
+        headers.remove("x-oai-attestation");
+        headers.insert(
+            HeaderName::from_static("x-codex-installation-id"),
+            HeaderValue::from_str(&self.installation_id)
+                .map_err(|_| invalid_config("invalid Codex installation id"))?,
+        );
+        if let Some(value) = headers.get("x-codex-turn-metadata") {
+            let text = value
+                .to_str()
+                .map_err(|_| invalid_config("invalid Codex turn metadata header"))?;
+            let mut metadata: Value = serde_json::from_str(text)
+                .map_err(|_| invalid_config("Codex turn metadata must contain a JSON object"))?;
+            self.metadata(&mut metadata)?;
+            headers.insert(
+                HeaderName::from_static("x-codex-turn-metadata"),
+                HeaderValue::from_str(&ascii(&metadata.to_string()))
+                    .map_err(|_| invalid_config("invalid Codex turn metadata header"))?,
+            );
+        }
+        Ok(())
+    }
+
+    fn client_metadata(&self, body: &mut Value) -> Result<bool, ChannelError> {
+        let Some(metadata) = body.get_mut("client_metadata") else {
+            return Ok(false);
+        };
+        if metadata.is_null() {
+            return Ok(false);
+        }
+        let object = metadata
+            .as_object_mut()
+            .ok_or_else(|| invalid_config("Codex client_metadata must be an object"))?;
+        object.remove("x-oai-attestation");
+        object.insert(
+            "x-codex-installation-id".into(),
+            Value::String(self.installation_id.clone()),
+        );
+        if object.contains_key("installation_id") {
+            object.insert(
+                "installation_id".into(),
+                Value::String(self.installation_id.clone()),
+            );
+        }
+        self.account_fields(object);
+        if let Some(turn) = object.get_mut("x-codex-turn-metadata") {
+            self.turn_metadata(turn)?;
+        }
+        Ok(true)
+    }
+
+    pub fn body(&self, bytes: Bytes) -> Result<Bytes, ChannelError> {
+        let Ok(mut body) = serde_json::from_slice::<Value>(&bytes) else {
+            return Ok(bytes);
+        };
+        if !self.client_metadata(&mut body)? {
+            return Ok(bytes);
+        }
+        Ok(Bytes::from(body.to_string()))
+    }
+
+    /// Only Responses request messages carry this metadata. Control frames
+    /// and all other message types retain their original representation.
+    pub fn frame(&self, frame: WsFrame) -> Result<WsFrame, ChannelError> {
+        let bytes = match &frame {
+            WsFrame::Text(text) => text.as_bytes(),
+            WsFrame::Binary(bytes) => bytes.as_ref(),
+            _ => return Ok(frame),
+        };
+        let Ok(mut body) = serde_json::from_slice::<Value>(bytes) else {
+            return Ok(frame);
+        };
+        if body.get("type").and_then(Value::as_str) != Some("response.create") {
+            return Ok(frame);
+        }
+        let mut changed = self.client_metadata(&mut body)?;
+        if let Some(response) = body.get_mut("response") {
+            changed |= self.client_metadata(response)?;
+        }
+        if !changed {
+            return Ok(frame);
+        }
+        Ok(match frame {
+            WsFrame::Text(_) => WsFrame::Text(body.to_string()),
+            WsFrame::Binary(_) => WsFrame::Binary(Bytes::from(body.to_string())),
+            other => other,
+        })
+    }
+}
+
+pub(super) fn has_turn_metadata(bytes: &[u8]) -> bool {
+    serde_json::from_slice::<Value>(bytes).is_ok_and(|body| {
+        body.get("client_metadata")
+            .and_then(|metadata| metadata.get("x-codex-turn-metadata"))
+            .is_some()
+    })
 }
 
 pub(super) fn session_id(account_key: &str, session_key: &str) -> String {
@@ -371,7 +536,10 @@ mod tests {
     fn session_key_ladder_and_user_text_turns() {
         let facts = body_facts(br#"{"prompt_cache_key":"k","conversation_id":"c","input":"hi"}"#);
         assert_eq!(facts.session_key, "conversation_id:c");
-        assert_eq!(body_facts(br#"{"prompt_cache_key":"k"}"#).session_key, "prompt_cache_key:k");
+        assert_eq!(
+            body_facts(br#"{"prompt_cache_key":"k"}"#).session_key,
+            "prompt_cache_key:k"
+        );
         assert_eq!(facts.user_text_turns, 1);
         let facts =
             body_facts(br#"{"conversation_id":"c","input":[{"role":"user","content":"hi"}]}"#);

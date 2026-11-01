@@ -124,22 +124,6 @@ pub(super) fn backend_headers(
         None => HeaderMap::new(),
     };
     headers.insert(
-        header::AUTHORIZATION,
-        header_value(&format!("Bearer {}", account.access_token))?,
-    );
-    if let Some(id) = &account.account_id {
-        headers.insert(
-            HeaderName::from_static("chatgpt-account-id"),
-            header_value(id)?,
-        );
-    }
-    if account.fedramp {
-        headers.insert(
-            HeaderName::from_static("x-openai-fedramp"),
-            HeaderValue::from_static("true"),
-        );
-    }
-    headers.insert(
         HeaderName::from_static("originator"),
         header_value(&config.originator)?,
     );
@@ -150,6 +134,26 @@ pub(super) fn backend_headers(
             HeaderName::from_bytes(name.as_bytes())
                 .map_err(|_| invalid_config(format!("header `{name}`")))?,
             HeaderValue::from_str(value).map_err(|_| invalid_config(format!("header `{name}`")))?,
+        );
+    }
+    // Authentication and account flags always come from the selected
+    // credential, after client and static headers have been applied.
+    headers.insert(
+        header::AUTHORIZATION,
+        header_value(&format!("Bearer {}", account.access_token))?,
+    );
+    headers.remove("chatgpt-account-id");
+    if let Some(id) = &account.account_id {
+        headers.insert(
+            HeaderName::from_static("chatgpt-account-id"),
+            header_value(id)?,
+        );
+    }
+    headers.remove("x-openai-fedramp");
+    if account.fedramp {
+        headers.insert(
+            HeaderName::from_static("x-openai-fedramp"),
+            HeaderValue::from_static("true"),
         );
     }
     Ok(headers)

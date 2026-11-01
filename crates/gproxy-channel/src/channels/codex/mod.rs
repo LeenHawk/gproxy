@@ -14,6 +14,12 @@
 //! Refresh scheduling, partial token updates and failure recovery follow
 //! `codex-rs/login/src/auth/manager.rs`; request reasons follow
 //! `codex-rs/login/src/oauth/client.rs` in the same sample tree.
+//!
+//! Device/account projections are owned by the selected credential: the
+//! channel replaces installation ids in headers and Responses metadata,
+//! including WebSocket request frames, while retaining client thread, turn,
+//! window and subagent metadata. This account-scoped installation policy is
+//! intentional; the official CLI persists one random id per `CODEX_HOME`.
 
 mod agent;
 mod common;

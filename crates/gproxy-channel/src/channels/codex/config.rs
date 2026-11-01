@@ -27,7 +27,8 @@ pub struct CodexConfig {
     /// Give Responses calls from clients that are not the Codex CLI the
     /// CLI's session, thread, window and turn identity headers, and replay
     /// the backend's `x-codex-turn-state` within a turn (`identity.rs`).
-    /// On by default. Headers a client sends itself pass through either way.
+    /// On by default. Client thread/turn fields pass through either way;
+    /// device/account identity always comes from the selected credential.
     pub synthesize_cli_identity: bool,
 }
 

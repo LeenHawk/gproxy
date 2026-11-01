@@ -780,7 +780,12 @@ fn allowed_headers_applies_to_codex_too() {
     assert_eq!(h["session-id"], "sess-1");
     assert_eq!(h["thread-id"], "thread-1");
     assert_eq!(h["x-client-request-id"], "thread");
-    assert_eq!(h["x-codex-turn-metadata"], "{\"request_kind\":\"turn\"}");
+    let turn: Value = serde_json::from_str(h["x-codex-turn-metadata"].to_str().unwrap()).unwrap();
+    assert_eq!(turn["request_kind"], "turn");
+    assert_eq!(
+        turn["installation_id"],
+        h["x-codex-installation-id"].to_str().unwrap()
+    );
     assert_eq!(h["x-codex-turn-state"], "sticky");
     assert_eq!(h["version"], "0.155.1");
     assert!(
@@ -1742,7 +1747,7 @@ async fn converted_bodies_get_the_cli_session_window_and_turn_identity() {
 }
 
 #[tokio::test]
-async fn client_supplied_identity_is_kept_verbatim() {
+async fn client_turn_identity_is_kept_with_the_selected_installation() {
     let config = json!({});
     let state = Arc::new(MemoryState::default());
     let client = Arc::new(ScriptClient::new(vec![
@@ -1752,7 +1757,7 @@ async fn client_supplied_identity_is_kept_verbatim() {
     ]));
     let body = prompt("conv-1", json!([{"role": "user", "content": "hi"}]));
 
-    // A real CLI session: its own turn metadata, nothing synthesized.
+    // A real CLI session keeps its turn fields, with the selected device id.
     let mut headers = HeaderMap::new();
     headers.insert("session-id", HeaderValue::from_static("cli-session"));
     headers.insert("thread-id", HeaderValue::from_static("cli-thread"));
@@ -1772,11 +1777,13 @@ async fn client_supplied_identity_is_kept_verbatim() {
     let sent = &client.sent()[0];
     assert_eq!(header(sent, "session-id").unwrap(), "cli-session");
     assert_eq!(header(sent, "thread-id").unwrap(), "cli-thread");
+    let turn = turn_metadata(sent);
+    assert_eq!(turn["request_kind"], "turn");
     assert_eq!(
-        header(sent, "x-codex-turn-metadata").unwrap(),
-        "{\"request_kind\":\"turn\"}"
+        turn["installation_id"],
+        header(sent, "x-codex-installation-id").unwrap()
     );
-    for name in ["x-codex-window-id", "x-codex-installation-id", "version"] {
+    for name in ["x-codex-window-id", "version"] {
         assert!(sent.2.get(name).is_none(), "{name}: a CLI manages itself");
     }
 
@@ -1983,14 +1990,19 @@ async fn identity_synthesis_can_be_switched_off() {
     );
     for name in IDENTITY_HEADERS
         .iter()
-        .filter(|name| **name != "session-id")
+        .filter(|name| !["session-id", "x-codex-installation-id"].contains(name))
     {
         assert!(sent.2.get(*name).is_none(), "{name}");
     }
     assert!(sent.2.get("accept").is_none());
     assert!(
-        state.entries.lock().unwrap().is_empty(),
-        "nothing remembered"
+        state
+            .entries
+            .lock()
+            .unwrap()
+            .keys()
+            .all(|key| key == "installation_id"),
+        "no turn state remembered"
     );
 }
 
