@@ -21,14 +21,14 @@ TEMPLATES = Path('.github/winget/manifests/l/LeenHawk/GPROXY')
 
 
 def gh(*args):
-    return json.loads(subprocess.check_output(['gh', *args], text=True))
+    return json.loads(subprocess.check_output(['gh', *args], encoding='utf-8'))
 
 
 def already_submitted(edition, version):
     path = f'manifests/l/LeenHawk/GPROXY/{edition}'
     result = subprocess.run(
         ['gh', 'api', f'repos/{UPSTREAM}/contents/{path}/{version}/LeenHawk.GPROXY.{edition}.installer.yaml'],
-        capture_output=True, text=True)
+        capture_output=True, encoding='utf-8')
     if result.returncode == 0:
         doc = yaml.safe_load(base64.b64decode(json.loads(result.stdout)['content']))
         if all(entry.get('InstallerType', doc.get('InstallerType')) == 'msix'
@@ -117,7 +117,7 @@ def main():
     subprocess.run(command, check=True)
     checksums = dict((name.lstrip('*'), digest) for digest, name in
                      (line.split(maxsplit=1) for line in
-                      (downloads / 'SHA256SUMS').read_text().splitlines() if line.strip()))
+                      (downloads / 'SHA256SUMS').read_text(encoding='utf-8').splitlines() if line.strip()))
     packages = {}
     for name in names:
         digest = verify_zip(downloads / name, checksums[name], 'AppxManifest.xml')
