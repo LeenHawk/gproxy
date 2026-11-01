@@ -94,7 +94,7 @@ pub const ID: &str = "antigravity";
 /// The production Code Assist host, the one the Gemini CLI also uses (see
 /// the module docs for the `daily-` deployment the IDE picks for consumer
 /// accounts).
-pub const DEFAULT_BASE_URL: &str = "https://cloudcode-pa.googleapis.com";
+pub const DEFAULT_BASE_URL: &str = "https://daily-cloudcode-pa.googleapis.com";
 pub const DEFAULT_AUTHORIZE_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 pub const DEFAULT_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 /// Antigravity's own installed-app client (v3 `login.rs`, `auth.rs`).
