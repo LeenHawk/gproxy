@@ -908,5 +908,7 @@
   "The anthropic_version written into every Anthropic request body; defaults to 2026-10-21.": "写入每个 Anthropic 请求体的 anthropic_version，默认为 2026-10-21。",
   "Source: Realtime.md `prompt_cache_breakpoint.ttl` (2026-10-27); omitted inherits the request TTL.": "来源：Realtime.md `prompt_cache_breakpoint.ttl`（2026-10-27）；省略时继承请求的 TTL。",
   "Announced shutdown date (`YYYY-MM-DD`); explicit `null` when none is announced.": "已公布的停用日期（`YYYY-MM-DD`）；未公布时显式为 `null`。",
-  "Audio input supplied inline or by uploaded file ID.": "以内嵌数据或已上传文件 ID 提供的音频输入。"
+  "Audio input supplied inline or by uploaded file ID.": "以内嵌数据或已上传文件 ID 提供的音频输入。",
+  "The model the upstream response named, which may differ from `model`.": "上游响应中声明的模型，可能与 `model` 不同。",
+  "The upstream model the call was routed to.": "此次调用被路由到的上游模型。"
 }
