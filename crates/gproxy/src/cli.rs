@@ -26,6 +26,7 @@
 
 use std::path::PathBuf;
 
+use clap::builder::styling::{AnsiColor, Styles};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 // The environment names, as constants rather than literals: the same symbol is
@@ -67,10 +68,85 @@ pub const UPDATE_AUTOMATIC: &str = "GPROXY_UPDATE_AUTOMATIC";
 /// name it, because a flag would have to be parsed by the very step it feeds.
 pub const ENV_FILE: &str = "GPROXY_ENV_FILE";
 
+/// Printed at the top of `--help`: the wordmark, then who to blame and which build
+/// this is, so a pasted help screen identifies its own version. The escapes
+/// are stripped by `clap` when colour is off (a pipe, `NO_COLOR`).
+macro_rules! banner {
+    () => {
+        concat!(
+            "\x1b[1;36m",
+            " ██████╗ ██████╗ ██████╗  ██████╗ ██╗  ██╗██╗   ██╗\n",
+            "██╔════╝ ██╔══██╗██╔══██╗██╔═══██╗╚██╗██╔╝╚██╗ ██╔╝\n",
+            "██║  ███╗██████╔╝██████╔╝██║   ██║ ╚███╔╝  ╚████╔╝\n",
+            "██║   ██║██╔═══╝ ██╔══██╗██║   ██║ ██╔██╗   ╚██╔╝\n",
+            "╚██████╔╝██║     ██║  ██║╚██████╔╝██╔╝ ██╗   ██║\n",
+            " ╚═════╝ ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝\x1b[0m\n",
+            "\n",
+            "\x1b[1mVersion:\x1b[0m ",
+            env!("CARGO_PKG_VERSION"),
+            " (",
+            env!("GPROXY_BUILD_SHORT_HASH"),
+            ")\n\x1b[1mAuthor:\x1b[0m  ",
+            env!("CARGO_PKG_AUTHORS"),
+            "\n\x1b[1mHome:\x1b[0m    ",
+            env!("CARGO_PKG_REPOSITORY"),
+        )
+    };
+}
+
+/// Printed at the bottom of `--help`.
+macro_rules! footer {
+    () => {
+        concat!(
+            "\x1b[1;32mDocs:\x1b[0m    https://gproxy.leenhawk.com\n",
+            "\x1b[1;32mIssues:\x1b[0m  ",
+            env!("CARGO_PKG_REPOSITORY"),
+            "/issues\n",
+            "\x1b[1;32mSponsor:\x1b[0m https://github.com/sponsors/LeenHawk",
+        )
+    };
+}
+
+/// clap's default template between the banner and the footer. They go in as
+/// template text rather than `before_help`/`after_help` because `wrap_help` would wrap it,
+/// and it measures the escape codes as if they were visible.
+const HELP_TEMPLATE: &str = concat!(
+    banner!(),
+    "\n\n{before-help}{about-with-newline}\n{usage-heading} {usage}\n\n{all-args}{after-help}\n\n",
+    footer!(),
+);
+
+/// `-V` stays one line; `--version` carries what a bug report needs.
+const LONG_VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    "\ncommit:   ",
+    env!("GPROXY_BUILD_HASH"),
+    "\ntarget:   ",
+    env!("GPROXY_BUILD_TARGET"),
+    "\nprofile:  ",
+    env!("GPROXY_BUILD_PROFILE"),
+    "\nfeatures: ",
+    env!("GPROXY_BUILD_FEATURES"),
+);
+
+/// Cargo's palette, so the help reads like the rest of a Rust toolchain.
+const STYLES: Styles = Styles::styled()
+    .header(AnsiColor::Green.on_default().bold())
+    .usage(AnsiColor::Green.on_default().bold())
+    .literal(AnsiColor::Cyan.on_default().bold())
+    .placeholder(AnsiColor::Cyan.on_default())
+    .valid(AnsiColor::Cyan.on_default().bold())
+    .invalid(AnsiColor::Yellow.on_default().bold())
+    .error(AnsiColor::Red.on_default().bold());
+
 #[derive(Debug, Default, Parser)]
 #[command(
     name = "gproxy",
     version,
+    long_version = LONG_VERSION,
+    author,
+    styles = STYLES,
+    help_template = HELP_TEMPLATE,
     about = "GPROXY — one gateway in front of many LLM providers",
     long_about = "GPROXY — one gateway in front of many LLM providers.\n\n\
                   Configuration is layered: a flag beats an environment variable, \
@@ -402,6 +478,25 @@ pub enum Command {
         /// `--update-channel`.
         #[arg(long, value_name = "CHANNEL")]
         channel: Option<String>,
+    },
+
+    /// Print a shell completion script to standard output.
+    ///
+    /// For example `gproxy completions bash > /etc/bash_completion.d/gproxy`,
+    /// or `gproxy completions zsh > "${fpath[1]}/_gproxy"`.
+    Completions {
+        /// The shell to complete for.
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+
+    /// Print the man page to standard output, or every page into a directory.
+    ///
+    /// `gproxy man | man -l -` reads it in place.
+    Man {
+        /// Write `gproxy.1` and one page per subcommand here instead.
+        #[arg(long, value_name = "DIR")]
+        out_dir: Option<PathBuf>,
     },
 }
 

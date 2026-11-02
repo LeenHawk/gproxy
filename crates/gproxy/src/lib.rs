@@ -128,11 +128,48 @@ pub fn main_with(
     }
 }
 
+/// Write generated text to standard output. A reader that closes early
+/// (`| head`) is not a failure: it has everything it asked for.
+fn print_generated(bytes: &[u8], what: &str) -> Result<()> {
+    use std::io::Write as _;
+    match std::io::stdout().lock().write_all(bytes) {
+        Err(error) if error.kind() != std::io::ErrorKind::BrokenPipe => {
+            Err(Error::other(format!("cannot write the {what}: {error}")))
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Run one invocation, with the configuration layered exactly once.
 ///
 /// Returns to the caller rather than exiting, so the process's exit code is
 /// decided in one place and a failure is printed in one format.
 pub async fn run(cli: Cli) -> Result<()> {
+    // These describe the binary, not an instance: no configuration is layered,
+    // so they work before any master key or data directory exists.
+    match &cli.command {
+        Some(Command::Completions { shell }) => {
+            let mut command = <Cli as clap::CommandFactory>::command();
+            let mut script = Vec::new();
+            clap_complete::generate(*shell, &mut command, "gproxy", &mut script);
+            return print_generated(&script, "completion script");
+        }
+        Some(Command::Man { out_dir: Some(dir) }) => {
+            let command = <Cli as clap::CommandFactory>::command();
+            return clap_mangen::generate_to(command, dir)
+                .map_err(|error| Error::other(format!("cannot write the man pages: {error}")));
+        }
+        Some(Command::Man { out_dir: None }) => {
+            let command = <Cli as clap::CommandFactory>::command();
+            let mut page = Vec::new();
+            clap_mangen::Man::new(command)
+                .render(&mut page)
+                .map_err(|error| Error::other(format!("cannot render the man page: {error}")))?;
+            return print_generated(&page, "man page");
+        }
+        _ => {}
+    }
+
     let settings = config::settings(&cli)?;
     telemetry::init(&settings.telemetry)?;
     // Layered here with everything else, and refused here too: a bad
@@ -208,5 +245,6 @@ pub async fn run(cli: Cli) -> Result<()> {
         // Opens no database and touches no row: an update is about this
         // executable, not about this instance's configuration.
         Command::Update { check, channel } => update::run(&settings, updates, check, channel).await,
+        Command::Completions { .. } | Command::Man { .. } => Ok(()),
     }
 }

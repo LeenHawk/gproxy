@@ -26,4 +26,19 @@ fn main() {
         }
     }
     println!("cargo:rustc-env=GPROXY_BUILD_HASH={hash}");
+    // For `--version`: which commit, for which machine, how optimised, and
+    // which of this crate's features — enough to identify a pasted build.
+    let short: String = hash.chars().take(12).collect();
+    println!("cargo:rustc-env=GPROXY_BUILD_SHORT_HASH={short}");
+    for name in ["TARGET", "PROFILE"] {
+        let value = std::env::var(name).unwrap_or_else(|_| "unknown".to_owned());
+        println!("cargo:rustc-env=GPROXY_BUILD_{name}={value}");
+    }
+    let features = std::env::var("CARGO_CFG_FEATURE").unwrap_or_default();
+    let features = if features.is_empty() {
+        "none".to_owned()
+    } else {
+        features.replace(',', ", ")
+    };
+    println!("cargo:rustc-env=GPROXY_BUILD_FEATURES={features}");
 }

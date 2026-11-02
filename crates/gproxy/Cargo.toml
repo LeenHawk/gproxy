@@ -3,6 +3,7 @@ name = "gproxy"
 description = "The GPROXY v4 command line: configuration, schema, bootstrap, transfer and the native server"
 readme = "README.md"
 version.workspace = true
+authors.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -93,6 +94,8 @@ axum = { workspace = true, features = ["form", "http1", "http2", "json", "matche
 # key given here in hex is re-encoded rather than handed over as typed.
 base64 = { workspace = true }
 clap = { workspace = true }
+clap_complete = { workspace = true }
+clap_mangen = { workspace = true }
 # `.env`, loaded without overriding anything the real environment already set.
 dotenvy = { workspace = true }
 # Detached ed25519 verification of the signed update manifest. Verification
