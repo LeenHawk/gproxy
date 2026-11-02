@@ -910,5 +910,6 @@
   "Announced shutdown date (`YYYY-MM-DD`); explicit `null` when none is announced.": "Объявленная дата отключения (`YYYY-MM-DD`); явное значение `null`, если дата не объявлена.",
   "Audio input supplied inline or by uploaded file ID.": "Аудиовход, переданный встроенными данными или идентификатором загруженного файла.",
   "The model the upstream response named, which may differ from `model`.": "Модель, указанная в ответе провайдера; может отличаться от `model`.",
-  "The upstream model the call was routed to.": "Модель провайдера, на которую был направлен вызов."
+  "The upstream model the call was routed to.": "Модель провайдера, на которую был направлен вызов.",
+  "Required key; the reference allows null.": "Обязательный ключ; эталонная спецификация допускает null."
 }

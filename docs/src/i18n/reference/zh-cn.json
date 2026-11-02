@@ -910,5 +910,6 @@
   "Announced shutdown date (`YYYY-MM-DD`); explicit `null` when none is announced.": "已公布的停用日期（`YYYY-MM-DD`）；未公布时显式为 `null`。",
   "Audio input supplied inline or by uploaded file ID.": "以内嵌数据或已上传文件 ID 提供的音频输入。",
   "The model the upstream response named, which may differ from `model`.": "上游响应中声明的模型，可能与 `model` 不同。",
-  "The upstream model the call was routed to.": "此次调用被路由到的上游模型。"
+  "The upstream model the call was routed to.": "此次调用被路由到的上游模型。",
+  "Required key; the reference allows null.": "必填键；参考规范允许为 null。"
 }
