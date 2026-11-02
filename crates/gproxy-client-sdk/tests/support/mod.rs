@@ -438,6 +438,7 @@ pub fn extensions(options: &mut ProviderOptions, vendor: Vendor) -> &mut protoco
         Vendor::Claude => &mut options.claude.rest,
         Vendor::Openai => &mut options.openai.rest,
         Vendor::Gemini => &mut options.gemini.rest,
+        Vendor::Unknown(_) => panic!("this fixture helper only sets known vendor options"),
     }
 }
 /// Normalize only fields whose vendor reference explicitly permits both a

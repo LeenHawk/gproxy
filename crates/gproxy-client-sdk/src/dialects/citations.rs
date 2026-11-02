@@ -412,6 +412,9 @@ pub(crate) fn render_responses(
         let Some(range) = &citation.text_range else {
             return Ok(None);
         };
+        let Some(title) = &citation.title else {
+            return Ok(None);
+        };
         let rest = metadata::<UrlMetadata>(citation, Vendor::Openai)?
             .unwrap_or(UrlMetadata {
                 rest: Rest::new(),
@@ -422,7 +425,7 @@ pub(crate) fn render_responses(
             i::UrlCitation::builder(
                 range.end.try_into().map_err(Error::invalid)?,
                 range.start.try_into().map_err(Error::invalid)?,
-                citation.title.clone().unwrap_or_default(),
+                title.clone(),
                 url.into(),
                 i::UrlCitationType::UrlCitation,
             )

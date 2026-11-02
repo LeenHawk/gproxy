@@ -64,7 +64,7 @@ pub(crate) fn claude_cache(
             let mut native = c::CacheControl::builder(c::CacheControlType::Ephemeral)
                 .rest(cache_rest(block, Vendor::Claude)?)
                 .build();
-            native.ttl = match cache.ttl {
+            native.ttl = match cache.ttl.as_ref() {
                 Some(CacheTtl::FiveMinutes) => Some(c::CacheTtl::FiveMinutes),
                 Some(CacheTtl::OneHour) => Some(c::CacheTtl::OneHour),
                 _ => None,
@@ -102,7 +102,7 @@ pub(crate) fn responses_cache(
             let mut value = i::PromptCacheBreakpoint::builder(i::PromptCacheMode::Explicit)
                 .rest(cache_rest(block, Vendor::Openai)?)
                 .build();
-            value.ttl = match cache.ttl {
+            value.ttl = match cache.ttl.as_ref() {
                 Some(CacheTtl::ThirtyMinutes) => Some(i::PromptCacheBreakpointTtl::ThirtyMinutes),
                 Some(CacheTtl::TwelveHours) => Some(i::PromptCacheBreakpointTtl::TwelveHours),
                 _ => None,
@@ -140,7 +140,7 @@ pub(crate) fn chat_cache(
             let mut value = i::PromptCacheBreakpoint::builder(i::PromptCacheMode::Explicit)
                 .rest(cache_rest(block, Vendor::Openai)?)
                 .build();
-            value.ttl = match cache.ttl {
+            value.ttl = match cache.ttl.as_ref() {
                 Some(CacheTtl::ThirtyMinutes) => Some(i::PromptCacheBreakpointTtl::ThirtyMinutes),
                 Some(CacheTtl::TwelveHours) => Some(i::PromptCacheBreakpointTtl::TwelveHours),
                 _ => None,
@@ -151,7 +151,7 @@ pub(crate) fn chat_cache(
 }
 #[cfg(feature = "openai")]
 pub(crate) fn responses_detail(
-    detail: Detail,
+    detail: &Detail,
 ) -> Option<gproxy_protocol::openai::responses::input::ImageDetail> {
     use gproxy_protocol::openai::responses::input::ImageDetail as D;
     match detail {
@@ -159,30 +159,30 @@ pub(crate) fn responses_detail(
         Detail::High => Some(D::High),
         Detail::Original => Some(D::Original),
         Detail::Auto => Some(D::Auto),
-        Detail::Medium => None,
+        Detail::Medium | Detail::Unknown(_) => None,
     }
 }
 #[cfg(feature = "chat")]
 pub(crate) fn chat_detail(
-    detail: Detail,
+    detail: &Detail,
 ) -> Option<gproxy_protocol::openai::chat::content::ImageDetail> {
     use gproxy_protocol::openai::chat::content::ImageDetail as D;
     match detail {
         Detail::Low => Some(D::Low),
         Detail::High => Some(D::High),
         Detail::Auto => Some(D::Auto),
-        Detail::Medium | Detail::Original => None,
+        Detail::Medium | Detail::Original | Detail::Unknown(_) => None,
     }
 }
 #[cfg(feature = "gemini")]
-pub(crate) fn gemini_detail(detail: Detail) -> Option<gproxy_protocol::gemini::MediaResolution> {
+pub(crate) fn gemini_detail(detail: &Detail) -> Option<gproxy_protocol::gemini::MediaResolution> {
     use gproxy_protocol::gemini as g;
     let level = match detail {
         Detail::Low => g::MediaResolutionLevel::Low,
         Detail::Medium => g::MediaResolutionLevel::Medium,
         Detail::High => g::MediaResolutionLevel::High,
         Detail::Original => g::MediaResolutionLevel::UltraHigh,
-        Detail::Auto => return None,
+        Detail::Auto | Detail::Unknown(_) => return None,
     };
     Some(g::MediaResolution::builder().level(level).build())
 }
@@ -203,6 +203,7 @@ pub(crate) fn parse_gemini_detail(
 #[cfg(feature = "gemini")]
 pub(crate) fn pcm_mime(format: &AudioFormat) -> Result<String> {
     match format {
+        AudioFormat::Unknown(_) => Err(Error::invalid("unknown persisted audio format")),
         AudioFormat::Encoded { media_type } => {
             if is_pcm(media_type) {
                 return Err(Error::invalid("raw PCM requires sample_rate and channels"));
@@ -269,6 +270,9 @@ pub(crate) fn document_bytes(
             }),
             Some("text/plain"),
         ),
+        DocumentSource::Unknown(_) => {
+            return Err(Error::invalid("unknown persisted document source"));
+        }
         DocumentSource::Chunks { .. } => {
             return Err(Error::invalid(
                 "custom document chunks are supported by Claude Messages",

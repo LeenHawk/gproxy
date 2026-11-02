@@ -13,8 +13,6 @@ struct Metadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     message: Option<MessageMetadata>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    refusal: bool,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     legacy: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     call_type: Option<c::ChatToolCallType>,
@@ -97,14 +95,27 @@ fn block(content: Content, meta: Metadata) -> Result<Block> {
     with_metadata(content, Vendor::Openai, Envelope { chat: Some(meta) })
 }
 
-pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateContentRequestBody> {
+pub(crate) fn audio_reference_valid(block: &Block, now: u64) -> Result<bool> {
+    Ok(metadata(block)?
+        .and_then(|meta| meta.audio)
+        .is_some_and(|audio| {
+            audio.id.is_some()
+                && audio.expires_at.is_some_and(|expiry| {
+                    expiry > 0 && u64::try_from(expiry).is_ok_and(|expiry| expiry > now)
+                })
+        }))
+}
+pub fn render(
+    request: &GenerateRequest,
+    streaming: bool,
+) -> Result<Rendered<q::GenerateContentRequestBody>> {
     render_at(request, streaming, media::clock()?)
 }
 pub fn render_at(
     request: &GenerateRequest,
     streaming: bool,
     now: u64,
-) -> Result<q::GenerateContentRequestBody> {
+) -> Result<Rendered<q::GenerateContentRequestBody>> {
     let opts = &request.provider_options.openai.chat;
     let mut body =
         q::GenerateContentRequestBody::builder(Vec::new(), request.model.id.clone()).build();
@@ -135,6 +146,9 @@ pub fn render_at(
     }
     let mut messages = Vec::new();
     for message in &request.messages {
+        if matches!(&message.role, Role::Unknown(_)) {
+            continue;
+        }
         if message.role == Role::Assistant {
             let mut value = c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
             // Apply the message envelope once before portable blocks so moving
@@ -155,7 +169,7 @@ pub fn render_at(
                 let meta = metadata(content)?.unwrap_or_default();
                 match &content.content {
                     Content::Text(t) => {
-                        if meta.refusal {
+                        if t.refusal {
                             value.refusal = Some(Some(t.text.clone()));
                         } else {
                             let mut part =
@@ -228,6 +242,7 @@ pub fn render_at(
                                 .push(c::MessageToolCall::Function(tool));
                         }
                     }
+                    Content::Unknown(_) => {}
                     Content::Opaque => {
                         #[derive(Deserialize)]
                         struct Custom {
@@ -322,20 +337,24 @@ pub fn render_at(
         )));
     }
     if !request.settings.output_modalities.is_empty() {
-        body.modalities = Some(Some(
-            request
-                .settings
-                .output_modalities
-                .iter()
-                .map(|m| match m {
-                    Modality::Text => Ok(q::Modality::Text),
-                    Modality::Audio => Ok(q::Modality::Audio),
-                    Modality::Image => Err(Error::invalid("Chat does not support image output")),
-                })
-                .collect::<Result<_>>()?,
-        ));
+        let modalities = request
+            .settings
+            .output_modalities
+            .iter()
+            .filter_map(|m| match m {
+                Modality::Text => Some(Ok(q::Modality::Text)),
+                Modality::Audio => Some(Ok(q::Modality::Audio)),
+                Modality::Image => Some(Err(Error::invalid("Chat does not support image output"))),
+                Modality::Unknown(_) => None,
+            })
+            .collect::<Result<Vec<_>>>()?;
+        if !modalities.is_empty() {
+            body.modalities = Some(Some(modalities));
+        }
     }
-    if let Some(speech) = &request.settings.speech {
+    if let Some(speech) = &request.settings.speech
+        && opts.audio.as_ref().and_then(Option::as_ref).is_none()
+    {
         let voice = q::AudioVoice::String(speech.voice.clone());
         let format = native_format(&speech.format)?;
         let rest = body
@@ -367,20 +386,23 @@ pub fn render_at(
         body.tools.get_or_insert_with(Vec::new).extend(tools);
     }
     if let Some(choice) = &request.settings.tool_choice {
-        body.tool_choice = Some(match choice {
-            ToolChoice::Auto => t::ToolChoice::Mode(t::ToolChoiceMode::Auto),
-            ToolChoice::None => t::ToolChoice::Mode(t::ToolChoiceMode::None),
-            ToolChoice::Required => t::ToolChoice::Mode(t::ToolChoiceMode::Required),
-            ToolChoice::Tool { name } => t::ToolChoice::Function(
+        body.tool_choice = match choice {
+            ToolChoice::Auto => Some(t::ToolChoice::Mode(t::ToolChoiceMode::Auto)),
+            ToolChoice::None => Some(t::ToolChoice::Mode(t::ToolChoiceMode::None)),
+            ToolChoice::Required => Some(t::ToolChoice::Mode(t::ToolChoiceMode::Required)),
+            ToolChoice::Tool { name } => Some(t::ToolChoice::Function(
                 t::NamedFunctionChoice::builder(
                     t::NamedFunctionChoiceType::Function,
                     t::NamedFunction::builder(name.clone()).build(),
                 )
                 .build(),
-            ),
-        });
+            )),
+            ToolChoice::Unknown(_) => None,
+        };
     }
-    if let Some(schema) = &request.settings.output_schema {
+    if let Some(schema) = &request.settings.output_schema
+        && opts.response_format.is_none()
+    {
         let schema: Rest = serde_json::from_value(schema.clone()).map_err(Error::invalid)?;
         let mut format = match body.response_format.take() {
             Some(q::ResponseFormat::JsonSchema(format)) => format,
@@ -401,7 +423,12 @@ pub fn render_at(
         format.json_schema.schema = Some(schema);
         body.response_format = Some(q::ResponseFormat::JsonSchema(format));
     }
-    Ok(body)
+    let mut warnings = crate::warnings::for_request(request, Some(now))?;
+    warnings.extend(crate::reasoning::chat(request, &mut body));
+    Ok(Rendered {
+        request: body,
+        warnings,
+    })
 }
 fn render_reasoning_details(
     message: &mut c::AssistantMessage,
@@ -438,6 +465,7 @@ fn render_reasoning_details(
 }
 fn tool_output(result: &ToolResult) -> Result<c::TextContent> {
     Ok(match &result.output {
+        ToolOutput::Unknown(_) => return Err(Error::invalid("unknown persisted tool output")),
         ToolOutput::Json(Value::String(text)) => c::TextContent::Text(text.clone()),
         ToolOutput::Json(value) => c::TextContent::Text(value.to_string()),
         ToolOutput::Blocks(blocks) => {
@@ -469,7 +497,7 @@ fn user_part(block: &Block) -> Result<c::UserContentPart> {
             let source = &image.source;
             let mut url =
                 c::ImageUrl::builder(data_url(source, image.media_type.as_deref())?).build();
-            url.detail = media::chat_detail(image.detail);
+            url.detail = media::chat_detail(&image.detail);
             let mut value = c::ImagePart::builder(c::ImagePartType::ImageUrl, url).build();
             value.prompt_cache_breakpoint = media::chat_cache(block)?;
             c::UserContentPart::Image(value)
@@ -554,6 +582,7 @@ fn chat_file(
 }
 fn native_format(format: &AudioFormat) -> Result<q::ChatAudioFormat> {
     Ok(match format {
+        AudioFormat::Unknown(_) => return Err(Error::invalid("unknown persisted audio format")),
         AudioFormat::Pcm {
             sample_rate: 24000,
             channels: 1,
@@ -584,6 +613,16 @@ fn ir_format(format: q::ChatAudioFormat) -> AudioFormat {
     }
 }
 pub(crate) fn output_format(request: &GenerateRequest) -> Result<Option<AudioFormat>> {
+    if let Some(audio) = request
+        .provider_options
+        .openai
+        .chat
+        .audio
+        .as_ref()
+        .and_then(Option::as_ref)
+    {
+        return Ok(Some(ir_format(audio.format)));
+    }
     if let Some(speech) = &request.settings.speech {
         return Ok(Some(speech.format.clone()));
     }
@@ -600,6 +639,20 @@ pub fn parse(
     response: r::GenerateContentResponseBody,
     audio_format: Option<AudioFormat>,
 ) -> Result<GenerateResult> {
+    let warnings = if response.choices.len() > 1 {
+        vec![Warning::new(
+            WarningKind::Compatibility,
+            "response.choices",
+            "Only the first choice is returned",
+        )]
+    } else {
+        Vec::new()
+    };
+    let response_metadata = ResponseMetadata {
+        id: Some(response.id.clone()),
+        model: Some(response.model.clone()),
+        timestamp: Some(response.created),
+    };
     let choice = response
         .choices
         .into_iter()
@@ -611,6 +664,9 @@ pub fn parse(
         .map(|(_, block)| block)
         .collect();
     Ok(GenerateResult {
+        response: response_metadata,
+        warnings,
+        sources: Vec::new(),
         content,
         finish_reason,
         usage: parse_usage(response.usage.as_ref())?,
@@ -701,6 +757,7 @@ fn parse_message_inner(
             1,
             block(
                 Content::Text(Text {
+                    refusal: false,
                     text,
                     citations: annotations,
                 }),
@@ -713,11 +770,11 @@ fn parse_message_inner(
             2,
             block(
                 Content::Text(Text {
+                    refusal: true,
                     text: refusal,
                     citations: Vec::new(),
                 }),
                 Metadata {
-                    refusal: true,
                     ..Default::default()
                 },
             )?,
@@ -832,12 +889,14 @@ fn parse_message_inner(
     Ok(result)
 }
 pub(crate) fn finish_reason(reason: r::FinishReason) -> FinishReason {
-    match reason {
-        r::FinishReason::Stop => FinishReason::Stop,
-        r::FinishReason::Length => FinishReason::Length,
-        r::FinishReason::ToolCalls | r::FinishReason::FunctionCall => FinishReason::ToolCalls,
-        r::FinishReason::ContentFilter => FinishReason::ContentBlocked,
-    }
+    let (kind, raw) = match reason {
+        r::FinishReason::Stop => (FinishReasonKind::Stop, "stop"),
+        r::FinishReason::Length => (FinishReasonKind::Length, "length"),
+        r::FinishReason::ToolCalls => (FinishReasonKind::ToolCalls, "tool_calls"),
+        r::FinishReason::FunctionCall => (FinishReasonKind::ToolCalls, "function_call"),
+        r::FinishReason::ContentFilter => (FinishReasonKind::ContentBlocked, "content_filter"),
+    };
+    FinishReason::new(kind, Some(raw.into()))
 }
 pub(crate) fn parse_usage(usage: Option<&r::Usage>) -> Result<Usage> {
     let Some(v) = usage else {
@@ -911,26 +970,76 @@ impl StreamState {
     pub(crate) fn push(&mut self, data: &str) -> Result<Vec<crate::stream::Event>> {
         use crate::stream::{BlockId, Event};
         use gproxy_protocol::openai::chat::stream as s;
+        // Error records are a separate envelope, not normal completion chunks.
+        // OpenRouter can include an optional trailing choice with a raw reason.
+        #[derive(Deserialize)]
+        struct ErrorChoice {
+            finish_reason: Option<String>,
+        }
         #[derive(Deserialize)]
         #[serde(untagged)]
-        // This transient decode record avoids one extra heap allocation per chunk.
         #[allow(clippy::large_enum_variant)]
         enum Record {
-            Error { error: s::StreamError },
+            Error {
+                #[serde(rename = "error")]
+                _error: s::StreamError,
+                #[serde(default)]
+                choices: Vec<ErrorChoice>,
+                id: Option<String>,
+                model: Option<String>,
+                created: Option<i64>,
+            },
             Chunk(s::ChatCompletionChunk),
         }
         let chunk = match serde_json::from_str::<Record>(data).map_err(Error::invalid)? {
-            Record::Error { error } => {
-                let _ = error;
-                return Err(Error::from_response(
-                    200,
-                    &http::HeaderMap::new(),
-                    data.into(),
-                ));
+            Record::Error {
+                _error: _,
+                choices,
+                id,
+                model,
+                created,
+            } => {
+                return Ok(vec![
+                    Event::ResponseMetadata {
+                        metadata: ResponseMetadata {
+                            id,
+                            model,
+                            timestamp: created,
+                        },
+                    },
+                    Event::Error {
+                        error: Error::from_event(data.into()),
+                    },
+                    Event::Finish {
+                        reason: FinishReason::new(
+                            FinishReasonKind::Error,
+                            choices
+                                .into_iter()
+                                .next()
+                                .and_then(|choice| choice.finish_reason),
+                        ),
+                        usage: self.usage.clone(),
+                    },
+                ]);
             }
             Record::Chunk(chunk) => chunk,
         };
-        let mut out = Vec::new();
+        let mut out = vec![Event::ResponseMetadata {
+            metadata: ResponseMetadata {
+                id: Some(chunk.id.clone()),
+                model: Some(chunk.model.clone()),
+                timestamp: Some(chunk.created),
+            },
+        }];
+        if chunk.choices.len() > 1 {
+            out.push(Event::Warning {
+                warning: Warning::new(
+                    WarningKind::Compatibility,
+                    "response.choices",
+                    "Only the first choice is returned",
+                ),
+            });
+        }
         if let Some(choice) = chunk.choices.into_iter().next() {
             let delta = choice.delta;
             let extensions: StreamExtensions =
@@ -1169,12 +1278,15 @@ impl StreamState {
         }
         Ok(out)
     }
+    pub(crate) fn usage(&self) -> Usage {
+        self.usage.clone()
+    }
     pub(crate) fn finish(mut self) -> Result<Vec<crate::stream::Event>> {
         use crate::stream::{BlockId, Event};
-        let reason = finish_reason(
-            self.reason
-                .ok_or_else(|| Error::invalid("Chat stream ended before finish reason"))?,
-        );
+        let reason = self
+            .reason
+            .map(finish_reason)
+            .unwrap_or_else(|| FinishReason::new(FinishReasonKind::Interrupted, None));
         self.message.tool_calls = (!self.calls.is_empty()).then(|| {
             self.calls
                 .into_values()

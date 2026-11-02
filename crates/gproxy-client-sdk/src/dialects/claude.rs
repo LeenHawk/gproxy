@@ -18,21 +18,22 @@ enum ReasoningMetadata {
     },
 }
 
-pub fn render(request: &GenerateRequest, streaming: bool) -> Result<r::GenerateContentRequestBody> {
+pub fn render(
+    request: &GenerateRequest,
+    streaming: bool,
+) -> Result<Rendered<r::GenerateContentRequestBody>> {
     if request
         .settings
         .output_modalities
         .iter()
-        .any(|m| *m != Modality::Text)
+        .any(|m| !matches!(m, Modality::Text | Modality::Unknown(_)))
     {
         return Err(Error::invalid("Claude Messages supports text output only"));
     }
     let opts = &request.provider_options.claude;
-    let max = request
-        .settings
-        .max_output_tokens
-        .map(i64::from)
-        .or(opts.max_tokens)
+    let max = opts
+        .max_tokens
+        .or(request.settings.max_output_tokens.map(i64::from))
         .ok_or_else(|| {
             Error::invalid("Claude requires max_output_tokens or provider_options.max_tokens")
         })?;
@@ -53,6 +54,9 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<r::GenerateC
     let mut messages = Vec::new();
     let mut system = Vec::new();
     for message in &request.messages {
+        if matches!(&message.role, Role::Unknown(_)) {
+            continue;
+        }
         let mut content = Vec::new();
         for block in &message.content {
             if let Some(block) = render_block(block)? {
@@ -104,16 +108,23 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<r::GenerateC
         body.tools.get_or_insert_with(Vec::new).extend(tools);
     }
     if let Some(choice) = &request.settings.tool_choice {
-        body.tool_choice = Some(match choice {
-            ToolChoice::Auto => q::ToolChoice::Auto(q::ToolChoiceAuto::builder().build()),
-            ToolChoice::None => q::ToolChoice::None(q::ToolChoiceNone::builder().build()),
-            ToolChoice::Required => q::ToolChoice::Any(q::ToolChoiceAny::builder().build()),
-            ToolChoice::Tool { name } => {
-                q::ToolChoice::Tool(q::ToolChoiceTool::builder(name.clone()).build())
-            }
-        });
+        body.tool_choice = match choice {
+            ToolChoice::Auto => Some(q::ToolChoice::Auto(q::ToolChoiceAuto::builder().build())),
+            ToolChoice::None => Some(q::ToolChoice::None(q::ToolChoiceNone::builder().build())),
+            ToolChoice::Required => Some(q::ToolChoice::Any(q::ToolChoiceAny::builder().build())),
+            ToolChoice::Tool { name } => Some(q::ToolChoice::Tool(
+                q::ToolChoiceTool::builder(name.clone()).build(),
+            )),
+            ToolChoice::Unknown(_) => None,
+        };
     }
-    if let Some(schema) = &request.settings.output_schema {
+    if let Some(schema) = &request.settings.output_schema
+        && opts
+            .output_config
+            .as_ref()
+            .and_then(|c| c.format.as_ref())
+            .is_none()
+    {
         let output = body
             .output_config
             .get_or_insert_with(|| q::OutputConfig::builder().build());
@@ -125,7 +136,12 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<r::GenerateC
         }
         output.format = Some(format);
     }
-    Ok(body)
+    let mut warnings = crate::warnings::for_request(request, None)?;
+    warnings.extend(crate::reasoning::claude(request, &mut body));
+    Ok(Rendered {
+        request: body,
+        warnings,
+    })
 }
 
 #[derive(Serialize)]
@@ -272,6 +288,9 @@ pub(crate) fn render_block(block: &Block) -> Result<Option<c::ContentBlock>> {
                         serde_json::from_value(value.clone()).map_err(Error::invalid)?,
                     ))
                 }
+                ToolOutput::Unknown(_) => {
+                    return Err(Error::invalid("unknown persisted tool output"));
+                }
                 ToolOutput::Json(Value::Null) => None,
                 ToolOutput::Json(Value::String(text)) => {
                     Some(c::ToolResultContent::Text(text.clone()))
@@ -284,6 +303,7 @@ pub(crate) fn render_block(block: &Block) -> Result<Option<c::ContentBlock>> {
             value.cache_control = media::claude_cache(block)?;
             c::ContentBlock::ToolResult(value)
         }
+        Content::Unknown(_) => return Ok(None),
         Content::Opaque => return read_native(block, Vendor::Claude),
         Content::File(_) | Content::Audio(_) | Content::Video(_) => {
             return Err(Error::invalid(
@@ -346,6 +366,7 @@ fn render_image(block: &ContentBlock<impl Sized>, image: &Image) -> Result<c::Im
                 .rest(meta.source_rest)
                 .build(),
         ),
+        Asset::Unknown(_) => return Err(Error::invalid("unknown persisted media source")),
         Asset::Reference { .. } => {
             return Err(Error::invalid(
                 "resolve application references before rendering",
@@ -364,6 +385,9 @@ fn render_document(
 ) -> Result<c::DocumentBlock> {
     let meta = read_native::<DocumentMetadata>(block, Vendor::Claude)?.unwrap_or_default();
     let source = match &document.source {
+        DocumentSource::Unknown(_) => {
+            return Err(Error::invalid("unknown persisted document source"));
+        }
         DocumentSource::Text { text } => c::DocumentSource::Text(
             c::PlainTextSource::builder(text.clone(), c::TextMediaType::Plain)
                 .rest(meta.source_rest)
@@ -372,6 +396,9 @@ fn render_document(
         DocumentSource::Chunks { chunks } => {
             let content = if meta.chunk_text && chunks.len() == 1 {
                 match &chunks[0].content {
+                    ChunkContent::Unknown(_) => {
+                        return Err(Error::invalid("unknown persisted document chunk"));
+                    }
                     ChunkContent::Text(text) => c::DocumentContent::Text(text.text.clone()),
                     ChunkContent::Image(_) => c::DocumentContent::Blocks(
                         chunks.iter().map(render_chunk).collect::<Result<_>>()?,
@@ -422,6 +449,7 @@ fn render_document(
                         .rest(meta.source_rest)
                         .build(),
                 ),
+                Asset::Unknown(_) => return Err(Error::invalid("unknown persisted media source")),
                 Asset::Reference { .. } => {
                     return Err(Error::invalid(
                         "resolve application references before rendering",
@@ -447,12 +475,16 @@ fn render_document(
 }
 fn render_chunk(block: &DocumentChunk) -> Result<c::DocumentContentBlock> {
     Ok(match &block.content {
+        ChunkContent::Unknown(_) => return Err(Error::invalid("unknown persisted document chunk")),
         ChunkContent::Text(text) => c::DocumentContentBlock::Text(render_text(block, text)?),
         ChunkContent::Image(image) => c::DocumentContentBlock::Image(render_image(block, image)?),
     })
 }
 fn render_output(block: &ToolResultBlock) -> Result<c::ToolResultContentBlock> {
     Ok(match &block.content {
+        ToolResultContent::Unknown(_) => {
+            return Err(Error::invalid("unknown persisted tool content"));
+        }
         ToolResultContent::Text(text) => c::ToolResultContentBlock::Text(render_text(block, text)?),
         ToolResultContent::Image(image) => {
             c::ToolResultContentBlock::Image(render_image(block, image)?)
@@ -514,14 +546,36 @@ fn render_server_result(block: &Block, result: &ToolResult) -> Result<Option<c::
     Ok(Some(value))
 }
 pub fn parse(response: r::GenerateContentResponseBody) -> Result<GenerateResult> {
+    let metadata = response_metadata(&response);
+    let sources = response
+        .content
+        .iter()
+        .map(crate::sources::claude_block)
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .flatten()
+        .collect();
+    let sources = crate::sources::unique(sources);
+    let refused = response.stop_reason == r::StopReason::Refusal;
+    let mut content = response
+        .content
+        .into_iter()
+        .map(parse_block)
+        .collect::<Result<Vec<_>>>()?;
+    if refused {
+        for block in &mut content {
+            if let Content::Text(text) = &mut block.content {
+                text.refusal = true;
+            }
+        }
+    }
     Ok(GenerateResult {
+        response: metadata,
         finish_reason: finish_reason(response.stop_reason),
         usage: parse_usage(&response.usage)?,
-        content: response
-            .content
-            .into_iter()
-            .map(parse_block)
-            .collect::<Result<_>>()?,
+        content,
+        warnings: Vec::new(),
+        sources,
     })
 }
 pub(crate) fn parse_block(block: r::ResponseContentBlock) -> Result<Block> {
@@ -620,6 +674,7 @@ fn parse_text(value: r::ResponseTextBlock) -> Result<ContentBlock<Text>> {
         .collect::<Result<_>>()?;
     with_native(
         Text {
+            refusal: false,
             text: value.text,
             citations,
         },
@@ -642,6 +697,7 @@ fn parse_input_text(value: c::TextBlock) -> Result<ContentBlock<Text>> {
         .collect::<Result<_>>()?;
     let mut block = with_native(
         Text {
+            refusal: false,
             text: value.text,
             citations,
         },
@@ -858,6 +914,7 @@ fn parse_document(value: c::DocumentBlock) -> Result<DocumentBlock> {
                 c::DocumentContent::Text(text) => {
                     chunk_text = true;
                     vec![ContentBlock::new(ChunkContent::Text(Text {
+                        refusal: false,
                         text,
                         citations: Vec::new(),
                     }))]
@@ -919,15 +976,24 @@ pub(crate) fn parse_usage(value: &r::Usage) -> Result<Usage> {
     })
 }
 pub(crate) fn finish_reason(reason: r::StopReason) -> FinishReason {
-    match reason {
-        r::StopReason::EndTurn | r::StopReason::StopSequence => FinishReason::Stop,
-        r::StopReason::MaxTokens => FinishReason::Length,
-        r::StopReason::ToolUse => FinishReason::ToolCalls,
-        r::StopReason::Refusal => FinishReason::ContentBlocked,
-        r::StopReason::PauseTurn => FinishReason::Other("pause_turn".into()),
-        r::StopReason::Compaction => FinishReason::Other("compaction".into()),
+    let (kind, raw) = match reason {
+        r::StopReason::EndTurn => (FinishReasonKind::Stop, "end_turn"),
+        r::StopReason::StopSequence => (FinishReasonKind::Stop, "stop_sequence"),
+        r::StopReason::MaxTokens => (FinishReasonKind::Length, "max_tokens"),
+        r::StopReason::ToolUse => (FinishReasonKind::ToolCalls, "tool_use"),
+        r::StopReason::Refusal => (FinishReasonKind::ContentBlocked, "refusal"),
+        r::StopReason::PauseTurn => (FinishReasonKind::Other, "pause_turn"),
+        r::StopReason::Compaction => (FinishReasonKind::Other, "compaction"),
         r::StopReason::ModelContextWindowExceeded => {
-            FinishReason::Other("model_context_window_exceeded".into())
+            (FinishReasonKind::Length, "model_context_window_exceeded")
         }
+    };
+    FinishReason::new(kind, Some(raw.into()))
+}
+pub(crate) fn response_metadata(response: &r::GenerateContentResponseBody) -> ResponseMetadata {
+    ResponseMetadata {
+        id: Some(response.id.clone()),
+        model: Some(response.model.clone()),
+        timestamp: None,
     }
 }

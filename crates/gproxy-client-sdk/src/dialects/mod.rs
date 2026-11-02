@@ -19,22 +19,22 @@ use serde_json::Value;
 #[cfg(feature = "gemini")]
 use std::collections::BTreeMap;
 
-pub fn render(request: &GenerateRequest, _streaming: bool) -> Result<Value> {
+pub fn render(request: &GenerateRequest, streaming: bool) -> Result<Rendered<Value>> {
+    fn json<T: Serialize>(rendered: Rendered<T>) -> Result<Rendered<Value>> {
+        Ok(Rendered {
+            request: serde_json::to_value(rendered.request).map_err(Error::invalid)?,
+            warnings: rendered.warnings,
+        })
+    }
     match request.model.dialect {
         #[cfg(feature = "claude")]
-        Dialect::Claude => {
-            serde_json::to_value(claude::render(request, _streaming)?).map_err(Error::invalid)
-        }
+        Dialect::Claude => json(claude::render(request, streaming)?),
         #[cfg(feature = "openai")]
-        Dialect::Openai => {
-            serde_json::to_value(openai::render(request, _streaming)?).map_err(Error::invalid)
-        }
-        #[cfg(feature = "gemini")]
-        Dialect::Gemini => serde_json::to_value(gemini::render(request)?).map_err(Error::invalid),
+        Dialect::Openai => json(openai::render(request, streaming)?),
         #[cfg(feature = "chat")]
-        Dialect::OpenaiChat => {
-            serde_json::to_value(chat::render(request, _streaming)?).map_err(Error::invalid)
-        }
+        Dialect::OpenaiChat => json(chat::render(request, streaming)?),
+        #[cfg(feature = "gemini")]
+        Dialect::Gemini => json(gemini::render(request)?),
     }
 }
 
@@ -115,6 +115,7 @@ pub(crate) fn data_url(source: &Asset, media_type: Option<&str>) -> Result<Strin
             base64::engine::general_purpose::STANDARD.encode(bytes)
         )),
         Asset::Url { url } => Ok(url.clone()),
+        Asset::Unknown(_) => Err(Error::invalid("unknown persisted media source")),
         Asset::Reference { .. } => Err(Error::invalid(
             "resolve application asset references before sending",
         )),

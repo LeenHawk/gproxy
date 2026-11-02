@@ -24,7 +24,7 @@ fn replay_gemini(parts: Value) {
     let result = gemini(parts.clone());
     let request = support::request(Dialect::Gemini, support::persisted(result));
     assert_eq!(
-        dialects::render(&request, false).unwrap()["contents"][0]["parts"],
+        dialects::render(&request, false).unwrap().request["contents"][0]["parts"],
         parts
     );
 }
@@ -114,7 +114,7 @@ fn claude_document_image_cache_and_tool_media_are_typed_and_lossless() {
         }],
     );
     assert_eq!(
-        dialects::render(&req, false).unwrap()["messages"][0]["content"][0],
+        dialects::render(&req, false).unwrap().request["messages"][0]["content"][0],
         native
     );
 }
@@ -143,7 +143,7 @@ fn separate_media_fields_and_request_settings_reach_native_dialects() {
             content: vec![text, image, doc],
         }],
     );
-    let native = dialects::render(&request, false).unwrap();
+    let native = dialects::render(&request, false).unwrap().request;
     assert_eq!(native["messages"][0]["content"][2]["type"], "document");
     assert_eq!(native["messages"][0]["content"][2]["title"], "Report");
     assert_eq!(
@@ -155,7 +155,7 @@ fn separate_media_fields_and_request_settings_reach_native_dialects() {
     request.messages[0].content[0].cache = Some(CacheBreakpoint {
         ttl: Some(CacheTtl::ThirtyMinutes),
     });
-    let native = dialects::render(&request, false).unwrap();
+    let native = dialects::render(&request, false).unwrap().request;
     assert_eq!(
         native["input"][0]["content"][0]["prompt_cache_breakpoint"]["ttl"],
         "30m"
@@ -269,7 +269,7 @@ fn gemini_modalities_voice_and_pcm_constraints() {
         voice: "Kore".into(),
         format: AudioFormat::pcm(24000, 1),
     });
-    let native = dialects::render(&request, false).unwrap();
+    let native = dialects::render(&request, false).unwrap().request;
     assert_eq!(
         native["generationConfig"]["responseModalities"],
         json!(["AUDIO"])
@@ -283,7 +283,10 @@ fn gemini_modalities_voice_and_pcm_constraints() {
     };
     assert!(matches!(
         dialects::render(&request, false),
-        Err(Error::InvalidData { .. })
+        Err(Error {
+            kind: ErrorKind::InvalidData,
+            ..
+        })
     ));
 }
 fn chat_response() -> Value {
@@ -338,9 +341,12 @@ fn chat_audio_id_continuation_and_expiration_use_transcript() {
     )
     .unwrap();
     let mut request = support::request(Dialect::OpenaiChat, support::persisted(result));
-    let native =
-        serde_json::to_value(dialects::chat::render_at(&request, false, 1900000000).unwrap())
-            .unwrap();
+    let native = serde_json::to_value(
+        dialects::chat::render_at(&request, false, 1900000000)
+            .unwrap()
+            .request,
+    )
+    .unwrap();
     assert_eq!(
         native["messages"][0]["audio"],
         json!({"id":"audio_1","extra":1})
@@ -351,9 +357,12 @@ fn chat_audio_id_continuation_and_expiration_use_transcript() {
         chat_response()["choices"][0]["message"]["tool_calls"]
     );
     request.messages[0].content.reverse();
-    let native =
-        serde_json::to_value(dialects::chat::render_at(&request, false, 2100000000).unwrap())
-            .unwrap();
+    let native = serde_json::to_value(
+        dialects::chat::render_at(&request, false, 2100000000)
+            .unwrap()
+            .request,
+    )
+    .unwrap();
     assert!(native["messages"][0].get("audio").is_none());
     assert!(
         native["messages"][0]["content"]
@@ -389,7 +398,7 @@ fn chat_input_audio_and_output_settings_are_typed() {
         voice: "alloy".into(),
         format: AudioFormat::pcm(24000, 1),
     });
-    let native = dialects::render(&request, true).unwrap();
+    let native = dialects::render(&request, true).unwrap().request;
     assert_eq!(
         native["messages"][0]["content"][0]["input_audio"],
         json!({"data":"AQID","format":"wav"})
@@ -585,7 +594,7 @@ fn citations_are_portable_and_stream_aggregation_keeps_late_grounding() {
     ));
     let request = support::request(Dialect::Claude, support::persisted(parsed));
     assert_eq!(
-        dialects::render(&request, false).unwrap()["messages"][0]["content"],
+        dialects::render(&request, false).unwrap().request["messages"][0]["content"],
         native["content"]
     );
     let mut native = support::openai();
@@ -617,7 +626,7 @@ fn citations_are_portable_and_stream_aggregation_keeps_late_grounding() {
     let parsed = dialects::openai::parse(serde_json::from_value(native.clone()).unwrap()).unwrap();
     let request = support::request(Dialect::Openai, support::persisted(parsed));
     assert_eq!(
-        dialects::render(&request, false).unwrap()["input"],
+        dialects::render(&request, false).unwrap().request["input"],
         native["output"]
     );
     let first = json!({"candidates":[{"content":{"parts":[{"text":"grounded"}]}}]});
@@ -702,7 +711,7 @@ fn responses_generated_images_and_builtin_tools_roundtrip_as_portable_blocks() {
     ));
     let request = support::request(Dialect::Openai, support::persisted(parsed));
     assert_eq!(
-        dialects::render(&request, false).unwrap()["input"],
+        dialects::render(&request, false).unwrap().request["input"],
         native["output"]
     );
 }

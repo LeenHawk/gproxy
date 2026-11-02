@@ -2,19 +2,11 @@ use super::*;
 use gproxy_protocol::openai::responses::{generate as q, input as i, response as r, tools as t};
 
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
-enum TextMetadata {
-    #[serde(rename = "output_text")]
-    Text {
-        logprobs: Vec<i::OutputLogprob>,
-        #[serde(flatten)]
-        rest: Rest,
-    },
-    #[serde(rename = "refusal")]
-    Refusal {
-        #[serde(flatten)]
-        rest: Rest,
-    },
+struct TextMetadata {
+    #[serde(default)]
+    logprobs: Vec<i::OutputLogprob>,
+    #[serde(default, flatten)]
+    rest: Rest,
 }
 #[derive(Serialize, Deserialize)]
 struct PartMetadata {
@@ -73,7 +65,7 @@ fn push_output(
     input: &mut Vec<i::InputItem>,
     meta: PartMetadata,
     part: i::OutputContent,
-) {
+) -> Result<()> {
     match pending.take() {
         Some(Pending::Output { group, mut message }) if group == meta.group => {
             message.content.push(part);
@@ -81,21 +73,20 @@ fn push_output(
         }
         other => {
             flush(other, input);
+            let item = meta.item.ok_or_else(|| {
+                Error::invalid("native output-text metadata requires its message envelope")
+            })?;
             let mut message = i::ResponseOutputMessage::builder(
-                String::new(),
+                item.id,
                 Vec::new(),
                 i::OutputMessageRole::Assistant,
-                i::OutputMessageStatus::Completed,
+                item.status,
                 i::MessageType::Message,
             )
+            .rest(item.rest)
             .build();
-            if let Some(item) = meta.item {
-                message.id = item.id;
-                message.status = item.status;
-                message.agent = item.agent;
-                message.phase = item.phase;
-                message.rest = item.rest;
-            }
+            message.agent = item.agent;
+            message.phase = item.phase;
             message.content = vec![part];
             *pending = Some(Pending::Output {
                 group: meta.group,
@@ -103,12 +94,14 @@ fn push_output(
             });
         }
     }
+    Ok(())
 }
-fn message_role(role: Role) -> Result<i::MessageRole> {
+fn message_role(role: &Role) -> Result<i::MessageRole> {
     Ok(match role {
         Role::System => i::MessageRole::System,
         Role::User => i::MessageRole::User,
         Role::Assistant => i::MessageRole::Assistant,
+        Role::Unknown(_) => return Err(Error::invalid("unknown persisted message role")),
         Role::Tool => {
             return Err(Error::invalid(
                 "Responses tool messages require tool-result blocks",
@@ -427,7 +420,7 @@ fn input_image(block: &ContentBlock<impl Sized>, image: &Image) -> Result<i::Res
             value.image_url = Some(None);
         }
     }
-    value.detail = media::responses_detail(image.detail).unwrap_or(i::ImageDetail::Auto);
+    value.detail = media::responses_detail(&image.detail).unwrap_or(i::ImageDetail::Auto);
     match source {
         Asset::ProviderFile { id, .. } => value.file_id = Some(Some(id.clone())),
         _ => value.image_url = Some(Some(data_url(source, image.media_type.as_deref())?)),
@@ -447,7 +440,7 @@ fn input_document(
         source,
         mime,
         document.title.as_deref(),
-        Some(document.detail),
+        Some(&document.detail),
     )
 }
 fn input_file(
@@ -455,7 +448,7 @@ fn input_file(
     source: &Asset,
     mime: Option<&str>,
     filename: Option<&str>,
-    detail: Option<Detail>,
+    detail: Option<&Detail>,
 ) -> Result<i::ResponseInputFile> {
     let mut value =
         i::ResponseInputFile::builder(i::ResponseInputFileType::ResponseInputFile).build();
@@ -485,6 +478,7 @@ fn input_file(
             });
             value.filename = filename.map(str::to_owned);
         }
+        Asset::Unknown(_) => return Err(Error::invalid("unknown persisted media source")),
         Asset::Reference { .. } => {
             return Err(Error::invalid(
                 "prepare application assets before rendering",
@@ -499,11 +493,17 @@ fn input_file(
         None => value.detail,
     };
     // Auto is the native default; omit an override on newly-authored documents.
-    if !had_detail && detail == Some(Detail::Auto) && value.detail == Some(i::FileDetail::Auto) {
+    if !had_detail && detail == Some(&Detail::Auto) && value.detail == Some(i::FileDetail::Auto) {
         value.detail = None;
     }
     value.prompt_cache_breakpoint = media::responses_cache(block)?;
     Ok(value)
+}
+pub(crate) fn is_output_image(block: &Block) -> Result<bool> {
+    Ok(matches!(
+        read_native::<ImageMetadata>(block, Vendor::Openai)?,
+        Some(ImageMetadata::Generated(_))
+    ))
 }
 fn generated_image(block: &Block, image: &Image) -> Result<Option<i::InputItem>> {
     let Some(ImageMetadata::Generated(meta)) = read_native(block, Vendor::Openai)? else {
@@ -544,6 +544,9 @@ fn generated_image(block: &Block, image: &Image) -> Result<Option<i::InputItem>>
 }
 fn function_output(block: &ToolResultBlock) -> Result<i::FunctionOutputContent> {
     Ok(match &block.content {
+        ToolResultContent::Unknown(_) => {
+            return Err(Error::invalid("unknown persisted tool content"));
+        }
         ToolResultContent::Text(text) => {
             let mut value = i::FunctionOutputText::builder(
                 i::ResponseInputTextType::ResponseInputText,
@@ -666,7 +669,10 @@ fn restore_server(block: &Block, call: &ToolCall) -> Result<Option<i::InputItem>
         }
     }))
 }
-pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateContentRequestBody> {
+pub fn render(
+    request: &GenerateRequest,
+    streaming: bool,
+) -> Result<Rendered<q::GenerateContentRequestBody>> {
     let opts = &request.provider_options.openai.responses;
     let mut body = q::GenerateContentRequestBody::builder().build();
     body.reasoning = opts.reasoning.clone();
@@ -688,6 +694,9 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
     body.stream = Some(Some(streaming));
     let mut input = Vec::new();
     for message in &request.messages {
+        if matches!(&message.role, Role::Unknown(_)) {
+            continue;
+        }
         let mut pending = None;
         for block in &message.content {
             match &block.content {
@@ -698,36 +707,36 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
                         item,
                         group,
                     }) = meta
+                        && message.role == Role::Assistant
                     {
-                        let part = match native {
-                            TextMetadata::Text { logprobs, rest } => {
-                                let annotations = text
-                                    .citations
-                                    .iter()
-                                    .map(citations::render_responses)
-                                    .collect::<Result<Vec<_>>>()?
-                                    .into_iter()
-                                    .flatten()
-                                    .collect();
-                                i::OutputContent::Text(
-                                    i::ResponseOutputText::builder(
-                                        i::ResponseOutputTextType::ResponseOutputText,
-                                        text.text.clone(),
-                                        annotations,
-                                        logprobs,
-                                    )
-                                    .rest(rest)
-                                    .build(),
-                                )
-                            }
-                            TextMetadata::Refusal { rest } => i::OutputContent::Refusal(
+                        let part = if text.refusal {
+                            i::OutputContent::Refusal(
                                 i::ResponseOutputRefusal::builder(
                                     i::ResponseOutputRefusalType::ResponseOutputRefusal,
                                     text.text.clone(),
                                 )
-                                .rest(rest)
+                                .rest(native.rest)
                                 .build(),
-                            ),
+                            )
+                        } else {
+                            let annotations = text
+                                .citations
+                                .iter()
+                                .map(citations::render_responses)
+                                .collect::<Result<Vec<_>>>()?
+                                .into_iter()
+                                .flatten()
+                                .collect();
+                            i::OutputContent::Text(
+                                i::ResponseOutputText::builder(
+                                    i::ResponseOutputTextType::ResponseOutputText,
+                                    text.text.clone(),
+                                    annotations,
+                                    native.logprobs,
+                                )
+                                .rest(native.rest)
+                                .build(),
+                            )
                         };
                         push_output(
                             &mut pending,
@@ -738,7 +747,7 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
                                 group,
                             },
                             part,
-                        );
+                        )?;
                     } else {
                         let mut text = i::ResponseInputText::builder(
                             i::ResponseInputTextType::ResponseInputText,
@@ -749,20 +758,22 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
                         push_input(
                             &mut pending,
                             &mut input,
-                            message_role(message.role)?,
+                            message_role(&message.role)?,
                             i::InputContent::Text(text),
                         );
                     }
                 }
                 Content::Image(image) => {
-                    if let Some(generated) = generated_image(block, image)? {
+                    if message.role == Role::Assistant
+                        && let Some(generated) = generated_image(block, image)?
+                    {
                         flush(pending.take(), &mut input);
                         input.push(generated);
                     } else {
                         push_input(
                             &mut pending,
                             &mut input,
-                            message_role(message.role)?,
+                            message_role(&message.role)?,
                             i::InputContent::Image(input_image(block, image)?),
                         );
                     }
@@ -770,7 +781,7 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
                 Content::Document(document) => push_input(
                     &mut pending,
                     &mut input,
-                    message_role(message.role)?,
+                    message_role(&message.role)?,
                     i::InputContent::File(input_document(block, document)?),
                 ),
                 Content::File(file) => {
@@ -786,7 +797,7 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
                     push_input(
                         &mut pending,
                         &mut input,
-                        message_role(message.role)?,
+                        message_role(&message.role)?,
                         i::InputContent::File(value),
                     );
                 }
@@ -855,6 +866,9 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
                         continue;
                     }
                     let output = match &result.output {
+                        ToolOutput::Unknown(_) => {
+                            return Err(Error::invalid("unknown persisted tool output"));
+                        }
                         ToolOutput::Json(Value::String(text)) => {
                             i::FunctionOutput::Text(text.clone())
                         }
@@ -896,6 +910,7 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
                     }
                     input.push(i::InputItem::FunctionCallOutput(value));
                 }
+                Content::Unknown(_) => {}
                 Content::Opaque => {
                     flush(pending.take(), &mut input);
                     if let Some(value) = read_native(block, Vendor::Openai)? {
@@ -974,20 +989,23 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
         body.tools.get_or_insert_with(Vec::new).extend(functions);
     }
     if let Some(choice) = &request.settings.tool_choice {
-        body.tool_choice = Some(match choice {
-            ToolChoice::Auto => i::ToolChoice::Mode(i::ToolChoiceMode::Auto),
-            ToolChoice::None => i::ToolChoice::Mode(i::ToolChoiceMode::None),
-            ToolChoice::Required => i::ToolChoice::Mode(i::ToolChoiceMode::Required),
-            ToolChoice::Tool { name } => i::ToolChoice::Function(
+        body.tool_choice = match choice {
+            ToolChoice::Auto => Some(i::ToolChoice::Mode(i::ToolChoiceMode::Auto)),
+            ToolChoice::None => Some(i::ToolChoice::Mode(i::ToolChoiceMode::None)),
+            ToolChoice::Required => Some(i::ToolChoice::Mode(i::ToolChoiceMode::Required)),
+            ToolChoice::Tool { name } => Some(i::ToolChoice::Function(
                 i::ToolChoiceFunction::builder(
                     i::ToolChoiceFunctionType::ToolChoiceFunction,
                     name.clone(),
                 )
                 .build(),
-            ),
-        });
+            )),
+            ToolChoice::Unknown(_) => None,
+        };
     }
-    if let Some(schema) = &request.settings.output_schema {
+    if let Some(schema) = &request.settings.output_schema
+        && opts.text.as_ref().and_then(|c| c.format.as_ref()).is_none()
+    {
         let schema = serde_json::from_value(schema.clone()).map_err(Error::invalid)?;
         let text = body
             .text
@@ -1010,76 +1028,47 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
         format.schema = schema;
         text.format = Some(i::TextFormat::JsonSchema(format));
     }
-    Ok(body)
+    let mut warnings = crate::warnings::for_request(request, None)?;
+    warnings.extend(crate::reasoning::openai(request, &mut body));
+    Ok(Rendered {
+        request: body,
+        warnings,
+    })
 }
 
 pub fn parse(response: r::GenerateContentResponseBody) -> Result<GenerateResult> {
+    let metadata = response_metadata(&response);
+    let sources = response
+        .output
+        .iter()
+        .map(crate::sources::openai_item)
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .flatten()
+        .collect();
+    let sources = crate::sources::unique(sources);
     let (finish_reason, usage) = finish_metadata(&response)?;
     let mut content = Vec::new();
     for (index, item) in response.output.into_iter().enumerate() {
         content.extend(parse_item(item, index as u32)?);
     }
     Ok(GenerateResult {
+        response: metadata,
+        warnings: Vec::new(),
+        sources,
         content,
         finish_reason,
         usage,
     })
 }
-pub(crate) fn finish_metadata(
-    response: &r::GenerateContentResponseBody,
-) -> Result<(FinishReason, Usage)> {
-    if let Some(error) = &response.error {
-        #[derive(Serialize)]
-        struct Envelope<'a> {
-            error: &'a r::ResponseError,
-        }
-        return Err(Error::from_response(
-            200,
-            &http::HeaderMap::new(),
-            serde_json::to_string(&Envelope { error }).map_err(Error::invalid)?,
-        ));
+pub(crate) fn response_metadata(response: &r::GenerateContentResponseBody) -> ResponseMetadata {
+    ResponseMetadata {
+        id: Some(response.id.clone()),
+        model: Some(response.model.clone()),
+        timestamp: Some(response.created_at),
     }
-    let mut reason = if let Some(incomplete) = response
-        .incomplete_details
-        .as_ref()
-        .and_then(|details| details.reason)
-    {
-        match incomplete {
-            r::ResponseIncompleteReason::MaxOutputTokens => FinishReason::Length,
-            r::ResponseIncompleteReason::ContentFilter => FinishReason::ContentBlocked,
-            r::ResponseIncompleteReason::MaxMessages => FinishReason::Other("max_messages".into()),
-            r::ResponseIncompleteReason::Steered => FinishReason::Other("steered".into()),
-            r::ResponseIncompleteReason::Interrupted => FinishReason::Other("interrupted".into()),
-        }
-    } else {
-        match response.status {
-            Some(r::ResponseStatus::Completed) => FinishReason::Stop,
-            Some(r::ResponseStatus::Failed) => FinishReason::Other("failed".into()),
-            Some(r::ResponseStatus::Incomplete) => FinishReason::Other("incomplete".into()),
-            Some(r::ResponseStatus::Cancelled) => FinishReason::Other("cancelled".into()),
-            Some(r::ResponseStatus::Queued) => FinishReason::Other("queued".into()),
-            Some(r::ResponseStatus::InProgress) => FinishReason::Other("in_progress".into()),
-            None => FinishReason::Other("unknown".into()),
-        }
-    };
-    if reason == FinishReason::Stop
-        && response
-            .output
-            .iter()
-            .any(|item| matches!(item, r::ResponseOutputItem::FunctionCall(_)))
-    {
-        reason = FinishReason::ToolCalls;
-    }
-    let refused = response.output.iter().any(|item| match item {
-        r::ResponseOutputItem::Message(message) => message
-            .content
-            .iter()
-            .any(|part| matches!(part, i::OutputContent::Refusal(_))),
-        _ => false,
-    });
-    if refused {
-        reason = FinishReason::ContentBlocked;
-    }
+}
+pub(crate) fn parse_usage(response: &r::GenerateContentResponseBody) -> Result<Usage> {
     let usage = match response.usage.as_ref().and_then(Option::as_ref) {
         None => Usage::default(),
         Some(value) => Usage {
@@ -1090,7 +1079,102 @@ pub(crate) fn finish_metadata(
             cache_write_tokens: Some(count(value.input_tokens_details.cache_write_tokens)?),
         },
     };
-    Ok((reason, usage))
+    Ok(usage)
+}
+pub(crate) fn error_finish_reason(response: &r::GenerateContentResponseBody) -> FinishReason {
+    let raw = response
+        .incomplete_details
+        .as_ref()
+        .and_then(|d| d.reason)
+        .map(|reason| match reason {
+            r::ResponseIncompleteReason::MaxOutputTokens => "max_output_tokens",
+            r::ResponseIncompleteReason::ContentFilter => "content_filter",
+            r::ResponseIncompleteReason::MaxMessages => "max_messages",
+            r::ResponseIncompleteReason::Steered => "steered",
+            r::ResponseIncompleteReason::Interrupted => "interrupted",
+        })
+        .or_else(|| {
+            response.status.map(|status| match status {
+                r::ResponseStatus::Completed => "completed",
+                r::ResponseStatus::Failed => "failed",
+                r::ResponseStatus::Incomplete => "incomplete",
+                r::ResponseStatus::Cancelled => "cancelled",
+                r::ResponseStatus::Queued => "queued",
+                r::ResponseStatus::InProgress => "in_progress",
+            })
+        });
+    FinishReason::new(FinishReasonKind::Error, raw.map(str::to_owned))
+}
+pub(crate) fn finish_metadata(
+    response: &r::GenerateContentResponseBody,
+) -> Result<(FinishReason, Usage)> {
+    if let Some(error) = &response.error {
+        #[derive(Serialize)]
+        struct Envelope<'a> {
+            error: &'a r::ResponseError,
+        }
+        return Err(Error::from_event(
+            serde_json::to_string(&Envelope { error }).map_err(Error::invalid)?,
+        ));
+    }
+    let (mut reason, raw) = if let Some(incomplete) =
+        response.incomplete_details.as_ref().and_then(|d| d.reason)
+    {
+        let (kind, raw) = match incomplete {
+            r::ResponseIncompleteReason::MaxOutputTokens => {
+                (FinishReasonKind::Length, "max_output_tokens")
+            }
+            r::ResponseIncompleteReason::ContentFilter => {
+                (FinishReasonKind::ContentBlocked, "content_filter")
+            }
+            r::ResponseIncompleteReason::MaxMessages => (FinishReasonKind::Length, "max_messages"),
+            r::ResponseIncompleteReason::Steered => (FinishReasonKind::Interrupted, "steered"),
+            r::ResponseIncompleteReason::Interrupted => {
+                (FinishReasonKind::Interrupted, "interrupted")
+            }
+        };
+        (kind, Some(raw.into()))
+    } else {
+        match response.status {
+            Some(r::ResponseStatus::Completed) => {
+                (FinishReasonKind::Stop, Some("completed".into()))
+            }
+            Some(r::ResponseStatus::Failed) => (FinishReasonKind::Error, Some("failed".into())),
+            Some(r::ResponseStatus::Incomplete) => {
+                (FinishReasonKind::Interrupted, Some("incomplete".into()))
+            }
+            Some(r::ResponseStatus::Cancelled) => {
+                (FinishReasonKind::Interrupted, Some("cancelled".into()))
+            }
+            Some(r::ResponseStatus::Queued) => {
+                (FinishReasonKind::Interrupted, Some("queued".into()))
+            }
+            Some(r::ResponseStatus::InProgress) => {
+                (FinishReasonKind::Interrupted, Some("in_progress".into()))
+            }
+            None => (FinishReasonKind::Other, None),
+        }
+    };
+    if reason == FinishReasonKind::Stop
+        && response
+            .output
+            .iter()
+            .any(|item| matches!(item, r::ResponseOutputItem::FunctionCall(_)))
+    {
+        reason = FinishReasonKind::ToolCalls;
+    }
+    let refused = response.output.iter().any(|item| match item {
+        r::ResponseOutputItem::Message(message) => message
+            .content
+            .iter()
+            .any(|part| matches!(part, i::OutputContent::Refusal(_))),
+        _ => false,
+    });
+    if refused {
+        reason = FinishReasonKind::ContentBlocked;
+    }
+    let usage = parse_usage(response)?;
+    Ok((FinishReason::new(reason, raw), usage))
 }
 
 pub(crate) fn parse_item(item: r::ResponseOutputItem, index: u32) -> Result<Vec<Block>> {
@@ -1116,10 +1200,11 @@ pub(crate) fn parse_item(item: r::ResponseOutputItem, index: u32) -> Result<Vec<
                                 .collect::<Result<_>>()?;
                             (
                                 Content::Text(Text {
+                                    refusal: false,
                                     text: value.text,
                                     citations,
                                 }),
-                                TextMetadata::Text {
+                                TextMetadata {
                                     logprobs: value.logprobs,
                                     rest: value.rest,
                                 },
@@ -1127,10 +1212,14 @@ pub(crate) fn parse_item(item: r::ResponseOutputItem, index: u32) -> Result<Vec<
                         }
                         i::OutputContent::Refusal(value) => (
                             Content::Text(Text {
+                                refusal: true,
                                 text: value.refusal,
                                 citations: Vec::new(),
                             }),
-                            TextMetadata::Refusal { rest: value.rest },
+                            TextMetadata {
+                                logprobs: Vec::new(),
+                                rest: value.rest,
+                            },
                         ),
                     };
                     with_metadata(
@@ -1374,6 +1463,7 @@ fn parse_output_part(part: i::InputContent) -> Result<ToolResultBlock> {
             let native = Remainder { rest: value.rest };
             let mut block = with_native(
                 ToolResultContent::Text(Text {
+                    refusal: false,
                     text,
                     citations: Vec::new(),
                 }),

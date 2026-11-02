@@ -154,37 +154,20 @@ async fn remote_maps_errors_and_preserves_status_body_and_retry_after_without_re
         .await;
         let client = Client::new(backend::Remote::new(endpoint, "gateway").await.unwrap());
         let error = client.generate(&request()).await.unwrap_err();
-        match (status, error) {
-            (
-                401,
-                Error::Auth {
-                    status: 401,
-                    body: actual,
-                },
-            ) => assert_eq!(actual, body),
-            (
-                429,
-                Error::RateLimit {
-                    retry_after,
-                    body: actual,
-                },
-            ) => {
-                assert_eq!(retry_after.as_deref(), Some("7"));
-                assert_eq!(actual, body);
-            }
-            (
-                400,
-                Error::ContextTooLong { body: actual } | Error::ContentBlocked { body: actual },
-            ) => assert_eq!(actual, body),
-            (
-                503,
-                Error::Upstream {
-                    status: 503,
-                    body: actual,
-                },
-            ) => assert_eq!(actual, body),
-            (_, other) => panic!("unexpected error {other:?}"),
-        }
+        assert_eq!(error.status, Some(status));
+        assert_eq!(error.body.as_deref(), Some(body));
+        assert_eq!(error.retry_after.as_deref(), Some("7"));
+        assert_eq!(error.retryable, matches!(status, 429 | 503));
+        assert!(match status {
+            401 => error.kind == ErrorKind::Auth,
+            429 => error.kind == ErrorKind::RateLimit,
+            400 => matches!(
+                error.kind,
+                ErrorKind::ContextTooLong | ErrorKind::ContentBlocked
+            ),
+            503 => error.kind == ErrorKind::Upstream,
+            _ => false,
+        });
         server.await.unwrap();
     }
 }
@@ -271,6 +254,7 @@ async fn cancel_releases_the_live_response_without_buffering_or_spawning_a_task(
     .unwrap();
     let client = Client::new(remote);
     let mut stream = client.stream(&request()).await.unwrap();
+    assert!(matches!(stream.next().await, Some(Event::Start { .. })));
     assert!(matches!(stream.next().await, Some(Event::TextDelta { .. })));
     assert!(!dropped.load(Ordering::SeqCst));
     stream.cancel();

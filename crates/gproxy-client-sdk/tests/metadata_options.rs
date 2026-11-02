@@ -120,7 +120,7 @@ fn vendor_options_are_typed_and_keep_native_nulls_and_extensions() {
             description: String::new(),
             input_schema: json!({"type":"object"}),
         }];
-        let native = dialects::render(&request, true).unwrap();
+        let native = dialects::render(&request, true).unwrap().request;
         assert_eq!(native["tools"].as_array().unwrap().len(), 2);
         match dialect {
             Dialect::Claude => {
@@ -150,17 +150,17 @@ fn vendor_options_are_typed_and_keep_native_nulls_and_extensions() {
         if matches!(dialect, Dialect::OpenaiChat | Dialect::Gemini) {
             request.settings.speech = Some(SpeechSettings {
                 voice: if dialect == Dialect::Gemini {
-                    "Kore"
+                    "Puck"
                 } else {
                     "nova"
                 }
                 .into(),
                 format: AudioFormat::pcm(24000, 1),
             });
-            let updated = dialects::render(&request, true).unwrap();
+            let updated = dialects::render(&request, true).unwrap().request;
             if dialect == Dialect::OpenaiChat {
                 assert_eq!(updated["audio"]["audio_extra"], 7);
-                assert_eq!(updated["audio"]["voice"], "nova");
+                assert_eq!(updated["audio"]["voice"], "alloy");
             } else {
                 let speech = &updated["generationConfig"]["speechConfig"];
                 assert_eq!(speech["languageCode"], "en-US");
@@ -172,7 +172,7 @@ fn vendor_options_are_typed_and_keep_native_nulls_and_extensions() {
                 );
                 assert_eq!(
                     speech["voiceConfig"]["prebuiltVoiceConfig"]["voiceName"],
-                    "Kore"
+                    "Puck"
                 );
             }
         }
@@ -218,7 +218,8 @@ fn claude_optional_nulls_are_omitted_and_required_nullable_titles_stay_present()
                 dialects::claude::parse(serde_json::from_value(native.clone()).unwrap()).unwrap();
             let request = support::request(Dialect::Claude, support::persisted(parsed));
             let actual =
-                dialects::render(&request, false).unwrap()["messages"][0]["content"].clone();
+                dialects::render(&request, false).unwrap().request["messages"][0]["content"]
+                    .clone();
             let mut expected = native["content"].clone();
             support::normalize_claude(&mut expected);
             assert_eq!(actual, expected);
@@ -282,7 +283,7 @@ fn server_outputs_are_ir_tool_results_and_roundtrip_including_streams() {
     assert_eq!(support::aggregate(events), parsed);
     let request = support::request(Dialect::Openai, support::persisted(parsed));
     assert_eq!(
-        dialects::render(&request, false).unwrap()["input"],
+        dialects::render(&request, false).unwrap().request["input"],
         native["output"]
     );
 }
@@ -334,7 +335,7 @@ fn caller_reference_resolution_covers_nested_media_without_uploading() {
     }))
     .unwrap();
     assert_eq!(calls, 1);
-    let native = dialects::render(&request, false).unwrap();
+    let native = dialects::render(&request, false).unwrap().request;
     assert_eq!(
         native["messages"][0]["content"][0]["content"][0]["source"]["content"][0]["source"]["data"],
         "AQID"
@@ -364,7 +365,7 @@ fn chat_refusal_and_legacy_tool_arguments_keep_distinct_stream_blocks() {
     assert_eq!(support::aggregate(events), parsed);
     let request = support::request(Dialect::OpenaiChat, support::persisted(parsed));
     assert_eq!(
-        dialects::render(&request, false).unwrap()["messages"][0],
+        dialects::render(&request, false).unwrap().request["messages"][0],
         message
     );
 }
@@ -415,13 +416,13 @@ fn chat_reasoning_details_keep_signatures_and_layout_without_copying_visible_tex
     assert_eq!(support::aggregate(events), parsed);
     let mut request = support::request(Dialect::OpenaiChat, support::persisted(parsed));
     assert_eq!(
-        dialects::render(&request, false).unwrap()["messages"][0],
+        dialects::render(&request, false).unwrap().request["messages"][0],
         message
     );
     if let Content::Reasoning(reasoning) = &mut request.messages[0].content[0].content {
         reasoning.text = "edited".into();
     }
-    let replay = dialects::render(&request, false).unwrap();
+    let replay = dialects::render(&request, false).unwrap().request;
     assert_eq!(
         replay["messages"][0]["reasoning_details"][0]["text"],
         "edited"

@@ -191,7 +191,7 @@ fn trailing_transcripts(block: &Block) -> Result<Vec<g::Part>> {
     }
     Ok(parts)
 }
-pub fn render(request: &GenerateRequest) -> Result<g::GenerateContentRequestBody> {
+pub fn render(request: &GenerateRequest) -> Result<Rendered<g::GenerateContentRequestBody>> {
     let opts = &request.provider_options.gemini;
     let mut body = g::GenerateContentRequestBody::builder(Vec::new()).build();
     body.generation_config = opts.generation_config.clone();
@@ -206,6 +206,9 @@ pub fn render(request: &GenerateRequest) -> Result<g::GenerateContentRequestBody
     let mut system = Vec::new();
     let mut calls = BTreeMap::new();
     for message in &request.messages {
+        if matches!(&message.role, Role::Unknown(_)) {
+            continue;
+        }
         let mut parts = Vec::new();
         for block in &message.content {
             if let Some(part) = render_block(block, &calls)? {
@@ -239,39 +242,56 @@ pub fn render(request: &GenerateRequest) -> Result<g::GenerateContentRequestBody
         let config = body
             .generation_config
             .get_or_insert_with(|| g::GenerationConfig::builder().build());
-        if let Some(value) = request.settings.temperature {
+        if let Some(value) = request.settings.temperature
+            && config.temperature.is_none()
+        {
             config.temperature = Some(value);
         }
-        if let Some(value) = request.settings.top_p {
+        if let Some(value) = request.settings.top_p
+            && config.top_p.is_none()
+        {
             config.top_p = Some(value);
         }
-        if let Some(value) = request.settings.max_output_tokens {
+        if let Some(value) = request.settings.max_output_tokens
+            && config.max_output_tokens.is_none()
+        {
             config.max_output_tokens = Some(value.into());
         }
-        if !request.settings.stop_sequences.is_empty() {
+        if !request.settings.stop_sequences.is_empty() && config.stop_sequences.is_none() {
             config.stop_sequences = Some(request.settings.stop_sequences.clone());
         }
-        if let Some(schema) = &request.settings.output_schema {
+        if let Some(schema) = &request.settings.output_schema
+            && config.response_json_schema.is_none()
+            && config.response_schema.is_none()
+            && config.response_mime_type.is_none()
+        {
             config.response_mime_type = Some("application/json".into());
             config.response_json_schema = Some(schema.clone());
         }
     }
-    if !request.settings.output_modalities.is_empty() {
-        let config = body
+    if !request.settings.output_modalities.is_empty()
+        && opts
             .generation_config
-            .get_or_insert_with(|| g::GenerationConfig::builder().build());
-        config.response_modalities = Some(
-            request
-                .settings
-                .output_modalities
-                .iter()
-                .map(|m| match m {
-                    Modality::Text => g::Modality::Text,
-                    Modality::Audio => g::Modality::Audio,
-                    Modality::Image => g::Modality::Image,
-                })
-                .collect(),
-        );
+            .as_ref()
+            .and_then(|c| c.response_modalities.as_ref())
+            .is_none()
+    {
+        let modalities = request
+            .settings
+            .output_modalities
+            .iter()
+            .filter_map(|m| match m {
+                Modality::Text => Some(g::Modality::Text),
+                Modality::Audio => Some(g::Modality::Audio),
+                Modality::Image => Some(g::Modality::Image),
+                Modality::Unknown(_) => None,
+            })
+            .collect::<Vec<_>>();
+        if !modalities.is_empty() {
+            body.generation_config
+                .get_or_insert_with(|| g::GenerationConfig::builder().build())
+                .response_modalities = Some(modalities);
+        }
     }
     if let Some(speech) = &request.settings.speech {
         match &speech.format {
@@ -292,13 +312,17 @@ pub fn render(request: &GenerateRequest) -> Result<g::GenerateContentRequestBody
         let speech_config = config
             .speech_config
             .get_or_insert_with(|| g::SpeechConfig::builder().build());
-        let voice = speech_config
-            .voice_config
-            .get_or_insert_with(|| g::VoiceConfig::builder().build());
-        let prebuilt = voice
-            .prebuilt_voice_config
-            .get_or_insert_with(|| g::PrebuiltVoiceConfig::builder().build());
-        prebuilt.voice_name = Some(speech.voice.clone());
+        if speech_config.multi_speaker_voice_config.is_none() {
+            let voice = speech_config
+                .voice_config
+                .get_or_insert_with(|| g::VoiceConfig::builder().build());
+            let prebuilt = voice
+                .prebuilt_voice_config
+                .get_or_insert_with(|| g::PrebuiltVoiceConfig::builder().build());
+            if prebuilt.voice_name.is_none() {
+                prebuilt.voice_name = Some(speech.voice.clone());
+            }
+        }
     }
     if !request.tools.is_empty() {
         let declarations: Vec<_> = request
@@ -317,21 +341,30 @@ pub fn render(request: &GenerateRequest) -> Result<g::GenerateContentRequestBody
         );
     }
     if let Some(choice) = &request.settings.tool_choice {
-        let config = body
-            .tool_config
-            .get_or_insert_with(|| g::ToolConfig::builder().build())
-            .function_calling_config
-            .get_or_insert_with(|| g::FunctionCallingConfig::builder().build());
-        config.mode = Some(match choice {
-            ToolChoice::Auto => g::FunctionCallingMode::Auto,
-            ToolChoice::None => g::FunctionCallingMode::None,
-            ToolChoice::Required | ToolChoice::Tool { .. } => g::FunctionCallingMode::Any,
-        });
-        if let ToolChoice::Tool { name } = choice {
-            config.allowed_function_names = Some(vec![name.clone()]);
+        let mode = match choice {
+            ToolChoice::Auto => Some(g::FunctionCallingMode::Auto),
+            ToolChoice::None => Some(g::FunctionCallingMode::None),
+            ToolChoice::Required | ToolChoice::Tool { .. } => Some(g::FunctionCallingMode::Any),
+            ToolChoice::Unknown(_) => None,
+        };
+        if let Some(mode) = mode {
+            let config = body
+                .tool_config
+                .get_or_insert_with(|| g::ToolConfig::builder().build())
+                .function_calling_config
+                .get_or_insert_with(|| g::FunctionCallingConfig::builder().build());
+            config.mode = Some(mode);
+            if let ToolChoice::Tool { name } = choice {
+                config.allowed_function_names = Some(vec![name.clone()]);
+            }
         }
     }
-    Ok(body)
+    let mut warnings = crate::warnings::for_request(request, None)?;
+    warnings.extend(crate::reasoning::gemini(request, &mut body));
+    Ok(Rendered {
+        request: body,
+        warnings,
+    })
 }
 
 fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g::Part>> {
@@ -362,7 +395,7 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
                 meta.inline_data,
                 meta.file_data,
             )?;
-            set_detail(&mut part, image.detail);
+            set_detail(&mut part, &image.detail);
         }
         Content::Document(document) => {
             let (asset, mime) = media::document_bytes(document)?;
@@ -376,7 +409,7 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
                 meta.inline_data,
                 meta.file_data,
             )?;
-            set_detail(&mut part, document.detail);
+            set_detail(&mut part, &document.detail);
         }
         Content::File(file) => {
             media::check_file_vendor(&file.source, Vendor::Gemini)?;
@@ -507,6 +540,9 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
             let name = tool_name(&result.name, &result.id, calls)?;
             let mut parts = Vec::new();
             let response = match &result.output {
+                ToolOutput::Unknown(_) => {
+                    return Err(Error::invalid("unknown persisted tool output"));
+                }
                 ToolOutput::Json(Value::Object(object)) => object.clone(),
                 ToolOutput::Json(value) => encode_rest(if result.is_error {
                     ToolOutputJson::Error { error: value }
@@ -520,6 +556,9 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
                             continue;
                         }
                         match &block.content {
+                            ToolResultContent::Unknown(_) => {
+                                return Err(Error::invalid("unknown persisted tool content"));
+                            }
                             ToolResultContent::Text(value) => text.push(value.text.as_str()),
                             ToolResultContent::Image(value) => parts.push(response_part(
                                 block,
@@ -579,6 +618,7 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
             }
             part.function_response = Some(value);
         }
+        Content::Unknown(_) => return Ok(None),
         Content::Opaque => return Err(Error::invalid("opaque Gemini part has no native value")),
     }
     Ok(Some(part))
@@ -612,6 +652,7 @@ fn response_part(
                 "Gemini function response media requires inline bytes",
             ));
         }
+        Asset::Unknown(_) => return Err(Error::invalid("unknown persisted media source")),
         Asset::Reference { .. } => {
             return Err(Error::invalid(
                 "prepare application references before rendering tool output",
@@ -632,7 +673,7 @@ fn response_part(
     }
     Ok(part)
 }
-fn set_detail(part: &mut g::Part, detail: Detail) {
+fn set_detail(part: &mut g::Part, detail: &Detail) {
     if let Some(mapped) = media::gemini_detail(detail) {
         if let Some(native) = &mut part.media_resolution {
             native.level = mapped.level;
@@ -682,6 +723,7 @@ fn render_asset(
             part.file_data = Some(value);
             part.inline_data = None;
         }
+        Asset::Unknown(_) => return Err(Error::invalid("unknown persisted media source")),
         Asset::Reference { .. } => {
             return Err(Error::invalid(
                 "prepare application assets before rendering",
@@ -713,10 +755,26 @@ fn parse_duration(value: &str) -> Result<f64> {
 }
 
 pub fn parse(response: g::GenerateContentResponseBody) -> Result<GenerateResult> {
+    let metadata = response_metadata(&response);
+    let warnings = if response.candidates.as_ref().is_some_and(|v| v.len() > 1) {
+        vec![Warning::new(
+            WarningKind::Compatibility,
+            "response.candidates",
+            "Only the first candidate is returned",
+        )]
+    } else {
+        Vec::new()
+    };
     check_response(&response)?;
     let usage = parse_usage(response.usage_metadata.as_ref())?;
     let candidate = response.candidates.into_iter().flatten().next();
     let reason = candidate.as_ref().and_then(|c| c.finish_reason);
+    let sources = candidate
+        .as_ref()
+        .map(crate::sources::gemini_candidate)
+        .transpose()?
+        .unwrap_or_default();
+    let sources = crate::sources::unique(sources);
     let links = candidate
         .as_ref()
         .map(citations::gemini_citations)
@@ -749,6 +807,9 @@ pub fn parse(response: g::GenerateContentResponseBody) -> Result<GenerateResult>
         .iter()
         .any(|b| matches!(b.content, Content::ToolCall(_)));
     Ok(GenerateResult {
+        response: metadata,
+        warnings,
+        sources,
         content,
         finish_reason: finish_reason(reason, has_tools),
         usage,
@@ -761,9 +822,7 @@ pub(crate) fn check_response(response: &g::GenerateContentResponseBody) -> Resul
         struct Envelope<'a> {
             error: &'a g::GenerateContentError,
         }
-        return Err(Error::from_response(
-            200,
-            &http::HeaderMap::new(),
+        return Err(Error::from_event(
             serde_json::to_string(&Envelope { error }).map_err(Error::invalid)?,
         ));
     }
@@ -773,9 +832,9 @@ pub(crate) fn check_response(response: &g::GenerateContentResponseBody) -> Resul
         .and_then(|p| p.block_reason)
         .is_some_and(|r| r != g::BlockReason::Unspecified)
     {
-        return Err(Error::ContentBlocked {
-            body: serde_json::to_string(response).map_err(Error::invalid)?,
-        });
+        return Err(Error::content_blocked(
+            serde_json::to_string(response).map_err(Error::invalid)?,
+        ));
     }
     Ok(())
 }
@@ -794,49 +853,52 @@ pub(crate) fn parse_usage(value: Option<&g::UsageMetadata>) -> Result<Usage> {
 }
 
 pub(crate) fn finish_reason(reason: Option<g::FinishReason>, has_tools: bool) -> FinishReason {
-    match reason {
-        Some(g::FinishReason::Stop) if has_tools => FinishReason::ToolCalls,
-        Some(g::FinishReason::Stop) => FinishReason::Stop,
-        Some(g::FinishReason::MaxTokens) => FinishReason::Length,
-        Some(
-            g::FinishReason::Safety
-            | g::FinishReason::Blocklist
-            | g::FinishReason::ProhibitedContent
-            | g::FinishReason::Spii
-            | g::FinishReason::ImageSafety,
-        ) => FinishReason::ContentBlocked,
-        None | Some(g::FinishReason::Unspecified) => {
-            FinishReason::Other("FINISH_REASON_UNSPECIFIED".into())
+    let Some(reason) = reason else {
+        return FinishReason::new(FinishReasonKind::Other, None);
+    };
+    let (mut kind, raw) = match reason {
+        g::FinishReason::Stop => (FinishReasonKind::Stop, "STOP"),
+        g::FinishReason::MaxTokens => (FinishReasonKind::Length, "MAX_TOKENS"),
+        g::FinishReason::Safety => (FinishReasonKind::ContentBlocked, "SAFETY"),
+        g::FinishReason::Blocklist => (FinishReasonKind::ContentBlocked, "BLOCKLIST"),
+        g::FinishReason::ProhibitedContent => {
+            (FinishReasonKind::ContentBlocked, "PROHIBITED_CONTENT")
         }
-        Some(g::FinishReason::Continuation) => FinishReason::Other("CONTINUATION".into()),
-        Some(g::FinishReason::Recitation) => FinishReason::Other("RECITATION".into()),
-        Some(g::FinishReason::Language) => FinishReason::Other("LANGUAGE".into()),
-        Some(g::FinishReason::Other) => FinishReason::Other("OTHER".into()),
-        Some(g::FinishReason::MalformedFunctionCall) => {
-            FinishReason::Other("MALFORMED_FUNCTION_CALL".into())
+        g::FinishReason::Spii => (FinishReasonKind::ContentBlocked, "SPII"),
+        g::FinishReason::ImageSafety => (FinishReasonKind::ContentBlocked, "IMAGE_SAFETY"),
+        g::FinishReason::Unspecified => (FinishReasonKind::Other, "FINISH_REASON_UNSPECIFIED"),
+        g::FinishReason::Continuation => (FinishReasonKind::Other, "CONTINUATION"),
+        g::FinishReason::Recitation => (FinishReasonKind::Other, "RECITATION"),
+        g::FinishReason::Language => (FinishReasonKind::Other, "LANGUAGE"),
+        g::FinishReason::Other => (FinishReasonKind::Other, "OTHER"),
+        g::FinishReason::MalformedFunctionCall => {
+            (FinishReasonKind::Other, "MALFORMED_FUNCTION_CALL")
         }
-        Some(g::FinishReason::ImageProhibitedContent) => {
-            FinishReason::Other("IMAGE_PROHIBITED_CONTENT".into())
+        g::FinishReason::ImageProhibitedContent => {
+            (FinishReasonKind::ContentBlocked, "IMAGE_PROHIBITED_CONTENT")
         }
-        Some(g::FinishReason::ImageOther) => FinishReason::Other("IMAGE_OTHER".into()),
-        Some(g::FinishReason::NoImage) => FinishReason::Other("NO_IMAGE".into()),
-        Some(g::FinishReason::ImageRecitation) => FinishReason::Other("IMAGE_RECITATION".into()),
-        Some(g::FinishReason::UnexpectedToolCall) => {
-            FinishReason::Other("UNEXPECTED_TOOL_CALL".into())
+        g::FinishReason::ImageOther => (FinishReasonKind::Other, "IMAGE_OTHER"),
+        g::FinishReason::NoImage => (FinishReasonKind::Other, "NO_IMAGE"),
+        g::FinishReason::ImageRecitation => (FinishReasonKind::Other, "IMAGE_RECITATION"),
+        g::FinishReason::UnexpectedToolCall => (FinishReasonKind::Other, "UNEXPECTED_TOOL_CALL"),
+        g::FinishReason::TooManyToolCalls => (FinishReasonKind::Other, "TOO_MANY_TOOL_CALLS"),
+        g::FinishReason::MissingThoughtSignature => {
+            (FinishReasonKind::Other, "MISSING_THOUGHT_SIGNATURE")
         }
-        Some(g::FinishReason::TooManyToolCalls) => {
-            FinishReason::Other("TOO_MANY_TOOL_CALLS".into())
-        }
-        Some(g::FinishReason::MissingThoughtSignature) => {
-            FinishReason::Other("MISSING_THOUGHT_SIGNATURE".into())
-        }
-        Some(g::FinishReason::MalformedResponse) => {
-            FinishReason::Other("MALFORMED_RESPONSE".into())
-        }
-        Some(g::FinishReason::Escalation) => FinishReason::Other("ESCALATION".into()),
-        Some(g::FinishReason::PupLimitedDisabled) => {
-            FinishReason::Other("PUP_LIMITED_DISABLED".into())
-        }
+        g::FinishReason::MalformedResponse => (FinishReasonKind::Other, "MALFORMED_RESPONSE"),
+        g::FinishReason::Escalation => (FinishReasonKind::Other, "ESCALATION"),
+        g::FinishReason::PupLimitedDisabled => (FinishReasonKind::Other, "PUP_LIMITED_DISABLED"),
+    };
+    if kind == FinishReasonKind::Stop && has_tools {
+        kind = FinishReasonKind::ToolCalls;
+    }
+    FinishReason::new(kind, Some(raw.into()))
+}
+pub(crate) fn response_metadata(response: &g::GenerateContentResponseBody) -> ResponseMetadata {
+    ResponseMetadata {
+        id: response.response_id.clone(),
+        model: response.model_version.clone(),
+        timestamp: None,
     }
 }
 
@@ -991,6 +1053,7 @@ pub(crate) fn parse_block(part: g::Part, index: u32) -> Result<Block> {
             Content::Reasoning(Reasoning { text })
         } else {
             Content::Text(Text {
+                refusal: false,
                 text,
                 citations: Vec::new(),
             })
@@ -1033,6 +1096,7 @@ pub(crate) fn parse_block(part: g::Part, index: u32) -> Result<Block> {
         let parts_present = parts.is_some();
         let output = if let Some(parts) = parts.filter(|p| !p.is_empty()) {
             let mut blocks = vec![ContentBlock::new(ToolResultContent::Text(Text {
+                refusal: false,
                 text: serde_json::to_string(&response).map_err(Error::invalid)?,
                 citations: Vec::new(),
             }))];

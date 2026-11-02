@@ -32,7 +32,7 @@ fn claude_same_vendor_roundtrip_including_signed_and_redacted_thinking() {
     let parsed = dialects::claude::parse(serde_json::from_value(native.clone()).unwrap()).unwrap();
     assert_eq!(parsed.usage.reasoning_tokens, Some(2));
     let request = support::request(Dialect::Claude, support::persisted(parsed));
-    let rendered = dialects::render(&request, false).unwrap();
+    let rendered = dialects::render(&request, false).unwrap().request;
     assert_eq!(rendered["messages"][0]["content"], native["content"]);
 }
 
@@ -42,7 +42,7 @@ fn responses_same_vendor_preserves_item_boundaries_encryption_and_lexical_argume
     let native = support::openai();
     let result = dialects::openai::parse(serde_json::from_value(native.clone()).unwrap()).unwrap();
     let request = support::request(Dialect::Openai, support::persisted(result));
-    let rendered = dialects::render(&request, false).unwrap();
+    let rendered = dialects::render(&request, false).unwrap().request;
     assert_eq!(rendered["input"], native["output"]);
 }
 
@@ -53,13 +53,17 @@ fn responses_refusal_is_portable_text_with_native_refusal_metadata() {
     native["output"][1]["content"] =
         json!([{"type":"refusal","refusal":"blocked","futureRefusal":true}]);
     let result = dialects::openai::parse(serde_json::from_value(native.clone()).unwrap()).unwrap();
-    assert_eq!(result.finish_reason, FinishReason::ContentBlocked);
+    assert_eq!(
+        result.finish_reason.unified,
+        FinishReasonKind::ContentBlocked
+    );
     assert_eq!(
         dialects::render(
             &support::request(Dialect::Openai, support::persisted(result)),
             false
         )
-        .unwrap()["input"],
+        .unwrap()
+        .request["input"],
         native["output"]
     );
 }
@@ -86,7 +90,8 @@ fn edited_tool_arguments_replace_original_json_while_retaining_vendor_extensions
             &support::request(dialect, vec![result.into_message()]),
             false,
         )
-        .unwrap();
+        .unwrap()
+        .request;
         match dialect {
             Dialect::Claude => {
                 assert_eq!(rendered["messages"][0]["content"][3]["input"], json!({}));
@@ -115,15 +120,34 @@ fn edited_tool_arguments_replace_original_json_while_retaining_vendor_extensions
 
 #[cfg(feature = "gemini")]
 #[test]
-fn gemini_in_band_errors_keep_the_http_status_and_use_the_native_status_name() {
+fn gemini_in_band_errors_keep_the_native_status_without_inventing_http_status() {
     let mut decoder = stream::StreamDecoder::new(Dialect::Gemini);
-    let error = decoder
+    let events = decoder
         .push_json(
             &json!({"error":{"code":429,"status":"RESOURCE_EXHAUSTED","message":"quota"}})
                 .to_string(),
         )
-        .unwrap_err();
-    assert!(matches!(error, Error::RateLimit { .. }));
+        .unwrap();
+    let error = events
+        .iter()
+        .find_map(|event| match event {
+            Event::Error { error } => Some(error),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::RateLimit);
+    assert_eq!(error.status, None);
+    assert!(error.retryable);
+    assert!(events.iter().any(|event| matches!(
+        event,
+        Event::Finish {
+            reason: FinishReason {
+                unified: FinishReasonKind::Error,
+                ..
+            },
+            ..
+        }
+    )));
 }
 
 #[cfg(feature = "gemini")]
@@ -132,7 +156,7 @@ fn gemini_same_vendor_preserves_signatures_and_unknown_nested_media_fields() {
     let native = support::gemini();
     let result = dialects::gemini::parse(serde_json::from_value(native.clone()).unwrap()).unwrap();
     let request = support::request(Dialect::Gemini, support::persisted(result));
-    let rendered = dialects::render(&request, false).unwrap();
+    let rendered = dialects::render(&request, false).unwrap().request;
     assert_eq!(
         rendered["contents"][0]["parts"],
         native["candidates"][0]["content"]["parts"]
@@ -172,6 +196,7 @@ fn crossing_vendors_drops_private_metadata_and_options() {
                 .insert("secret_option".into(), json!("private"));
             let rendered = dialects::render(&request, false)
                 .unwrap_or_else(|error| panic!("{source:?} -> {target:?}: {error}"))
+                .request
                 .to_string();
             for private in [
                 "signature",
@@ -218,7 +243,7 @@ fn tools_sampling_structured_output_and_options_reach_each_native_dialect() {
             Some(json!({"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"]}));
         support::extensions(&mut request.provider_options, dialect.vendor())
             .insert("future_option".into(), json!({"keep":true}));
-        let rendered = dialects::render(&request, false).unwrap();
+        let rendered = dialects::render(&request, false).unwrap().request;
         assert_eq!(rendered["future_option"], json!({"keep":true}));
         assert!(rendered["tools"].is_array());
         assert!(rendered.to_string().contains("weather"));
@@ -251,7 +276,8 @@ fn caller_blob_references_are_resolved_explicitly() {
     }))
     .unwrap();
     assert_eq!(
-        dialects::render(&request, false).unwrap()["contents"][0]["parts"][0]["inlineData"]["data"],
+        dialects::render(&request, false).unwrap().request["contents"][0]["parts"][0]["inlineData"]
+            ["data"],
         "AQID"
     );
 }
@@ -280,7 +306,8 @@ fn claude_stream_aggregates_to_the_buffered_result_and_can_be_replayed() {
         &support::request(Dialect::Claude, support::persisted(result)),
         false,
     )
-    .unwrap();
+    .unwrap()
+    .request;
     assert_eq!(rendered["messages"][0]["content"], native["content"]);
 }
 
@@ -300,7 +327,8 @@ fn responses_stream_aggregates_to_the_buffered_result_and_can_be_replayed() {
             &support::request(Dialect::Openai, support::persisted(result)),
             false
         )
-        .unwrap()["input"],
+        .unwrap()
+        .request["input"],
         native["output"]
     );
 }
@@ -327,19 +355,39 @@ fn gemini_stream_keeps_native_part_boundaries_and_late_usage() {
             &support::request(Dialect::Gemini, support::persisted(result)),
             false
         )
-        .unwrap()["contents"][0]["parts"],
+        .unwrap()
+        .request["contents"][0]["parts"],
         native["candidates"][0]["content"]["parts"]
     );
 }
 
 #[cfg(feature = "openai")]
 #[test]
-fn truncated_streams_and_upstream_error_events_are_errors() {
+fn truncated_streams_are_interrupted_and_in_band_errors_finish_as_errors() {
     let decoder = stream::StreamDecoder::new(Dialect::Openai);
-    assert!(decoder.finish().is_err());
+    let partial = support::aggregate(decoder.finish().unwrap());
+    assert_eq!(partial.finish_reason.unified, FinishReasonKind::Interrupted);
     let mut decoder = stream::StreamDecoder::new(Dialect::Openai);
-    let error = decoder.push_json(&json!({"type":"error","sequence_number":1,"code":"context_length_exceeded","message":"too long","param":null}).to_string()).unwrap_err();
-    assert!(matches!(error, Error::ContextTooLong { .. }), "{error:?}");
+    let events=decoder.push_json(&json!({"type":"error","sequence_number":1,"code":"context_length_exceeded","message":"too long","param":null}).to_string()).unwrap();
+    assert!(events.iter().any(|event| matches!(
+        event,
+        Event::Error {
+            error: Error {
+                kind: ErrorKind::ContextTooLong,
+                ..
+            }
+        }
+    )));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        Event::Finish {
+            reason: FinishReason {
+                unified: FinishReasonKind::Error,
+                ..
+            },
+            ..
+        }
+    )));
 }
 
 #[cfg(feature = "ts")]

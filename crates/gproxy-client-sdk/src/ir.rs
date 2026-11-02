@@ -1,16 +1,19 @@
 //! Persist `Conversation`, not transport payloads. Its schema version is
-//! an enum tag: unknown versions are rejected instead of being read as v1.
+//! an enum tag. Unknown schema versions are rejected; unknown enum variants
+//! inside a known schema are retained for forward-compatible readers.
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum Vendor {
     Claude,
     Openai,
     Gemini,
+    #[serde(untagged)]
+    Unknown(String),
 }
 
 /// Available renderers. Vendor keys in persisted metadata are independent of
@@ -66,7 +69,7 @@ pub struct Model {
     pub dialect: Dialect,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum Role {
@@ -74,19 +77,32 @@ pub enum Role {
     User,
     Assistant,
     Tool,
+    #[serde(untagged)]
+    Unknown(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum Asset {
-    Inline { bytes: Vec<u8> },
-    Url { url: String },
-    Reference { reference: String },
-    ProviderFile { vendor: Vendor, id: String },
+    Inline {
+        bytes: Vec<u8>,
+    },
+    Url {
+        url: String,
+    },
+    Reference {
+        reference: String,
+    },
+    ProviderFile {
+        vendor: Vendor,
+        id: String,
+    },
+    #[serde(untagged)]
+    Unknown(Value),
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum Detail {
@@ -96,9 +112,11 @@ pub enum Detail {
     #[default]
     Auto,
     Original,
+    #[serde(untagged)]
+    Unknown(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum CacheTtl {
@@ -106,6 +124,8 @@ pub enum CacheTtl {
     ThirtyMinutes,
     OneHour,
     TwelveHours,
+    #[serde(untagged)]
+    Unknown(String),
 }
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -117,6 +137,8 @@ pub struct CacheBreakpoint {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Text {
     pub text: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub refusal: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub citations: Vec<Citation>,
 }
@@ -138,9 +160,17 @@ pub struct Image {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum DocumentSource {
-    Asset { source: Asset },
-    Text { text: String },
-    Chunks { chunks: Vec<DocumentChunk> },
+    Asset {
+        source: Asset,
+    },
+    Text {
+        text: String,
+    },
+    Chunks {
+        chunks: Vec<DocumentChunk>,
+    },
+    #[serde(untagged)]
+    Unknown(Value),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -173,11 +203,14 @@ pub enum AudioFormat {
         sample_rate: u32,
         channels: u16,
     },
+    #[serde(untagged)]
+    Unknown(Value),
 }
 impl AudioFormat {
-    pub fn media_type(&self) -> &str {
+    pub fn media_type(&self) -> Option<&str> {
         match self {
-            Self::Encoded { media_type } | Self::Pcm { media_type, .. } => media_type,
+            Self::Encoded { media_type } | Self::Pcm { media_type, .. } => Some(media_type),
+            Self::Unknown(_) => None,
         }
     }
     pub fn pcm(sample_rate: u32, channels: u16) -> Self {
@@ -225,6 +258,8 @@ pub struct ToolCall {
 pub enum ToolOutput {
     Json(Value),
     Blocks(Vec<ToolResultBlock>),
+    #[serde(untagged)]
+    Unknown(Value),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -251,6 +286,8 @@ pub enum Content {
     ToolCall(ToolCall),
     ToolResult(ToolResult),
     Opaque,
+    #[serde(untagged)]
+    Unknown(Value),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -259,6 +296,8 @@ pub enum ToolResultContent {
     Text(Text),
     Image(Image),
     Document(Document),
+    #[serde(untagged)]
+    Unknown(Value),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -266,6 +305,8 @@ pub enum ToolResultContent {
 pub enum ChunkContent {
     Text(Text),
     Image(Image),
+    #[serde(untagged)]
+    Unknown(Value),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -301,6 +342,7 @@ impl<T> ContentBlock<T> {
 impl Block {
     pub fn text(text: impl Into<String>) -> Self {
         Self::new(Content::Text(Text {
+            refusal: false,
             text: text.into(),
             citations: Vec::new(),
         }))
@@ -317,9 +359,20 @@ pub struct TextRange {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum DocumentRange {
-    Pages { start: u32, end: u32 },
-    Chars { start: u64, end: u64 },
-    Chunks { start: u32, end: u32 },
+    Pages {
+        start: u32,
+        end: u32,
+    },
+    Chars {
+        start: u64,
+        end: u64,
+    },
+    Chunks {
+        start: u32,
+        end: u32,
+    },
+    #[serde(untagged)]
+    Unknown(Value),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -337,6 +390,8 @@ pub enum DocumentReference {
         vendor: Vendor,
         id: String,
     },
+    #[serde(untagged)]
+    Unknown(Value),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -349,6 +404,8 @@ pub enum CitationSource {
         document: DocumentReference,
         range: Option<DocumentRange>,
     },
+    #[serde(untagged)]
+    Unknown(Value),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -401,16 +458,22 @@ pub enum ToolChoice {
     Auto,
     None,
     Required,
-    Tool { name: String },
+    Tool {
+        name: String,
+    },
+    #[serde(untagged)]
+    Unknown(Value),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum Modality {
     Text,
     Audio,
     Image,
+    #[serde(untagged)]
+    Unknown(String),
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -419,9 +482,33 @@ pub struct SpeechSettings {
     pub format: AudioFormat,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub enum ReasoningEffort {
+    ProviderDefault,
+    None,
+    Minimal,
+    Low,
+    Medium,
+    High,
+    Xhigh,
+    Max,
+    #[serde(untagged)]
+    Unknown(String),
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct ReasoningSettings {
+    pub effort: ReasoningEffort,
+    pub token_budget: Option<u32>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Settings {
+    #[serde(default)]
+    pub reasoning: Option<ReasoningSettings>,
     #[serde(default)]
     pub output_modalities: Vec<Modality>,
     pub speech: Option<SpeechSettings>,
@@ -458,15 +545,89 @@ impl GenerateRequest {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", content = "reason", rename_all = "snake_case")]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-pub enum FinishReason {
+pub enum FinishReasonKind {
     Stop,
     Length,
     ToolCalls,
     ContentBlocked,
-    Other(String),
+    Error,
+    Interrupted,
+    #[default]
+    Other,
+    #[serde(untagged)]
+    Unknown(String),
+}
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct FinishReason {
+    pub unified: FinishReasonKind,
+    pub raw: Option<String>,
+}
+impl FinishReason {
+    pub fn new(unified: FinishReasonKind, raw: Option<String>) -> Self {
+        Self { unified, raw }
+    }
+}
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct ResponseMetadata {
+    pub id: Option<String>,
+    pub model: Option<String>,
+    /// Unix seconds reported by the provider, never a synthesized receipt time.
+    pub timestamp: Option<i64>,
+}
+impl ResponseMetadata {
+    pub(crate) fn merge(&mut self, update: Self) {
+        if update.id.is_some() {
+            self.id = update.id;
+        }
+        if update.model.is_some() {
+            self.model = update.model;
+        }
+        if update.timestamp.is_some() {
+            self.timestamp = update.timestamp;
+        }
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub enum WarningKind {
+    Unsupported,
+    Compatibility,
+    Deprecated,
+    Other,
+    #[serde(untagged)]
+    Unknown(String),
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Warning {
+    pub kind: WarningKind,
+    pub field: String,
+    pub message: String,
+}
+impl Warning {
+    pub fn new(kind: WarningKind, field: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            field: field.into(),
+            message: message.into(),
+        }
+    }
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Source {
+    /// None when a retrieved snippet has no URL or file identity.
+    pub source: Option<CitationSource>,
+    pub title: Option<String>,
+    pub text: Option<String>,
+    #[serde(default)]
+    pub provider_metadata: ProviderMetadata,
 }
 
 /// None means the provider did not report this counter; zero is an observed zero.
@@ -480,9 +641,15 @@ pub struct Usage {
     pub cache_write_tokens: Option<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct GenerateResult {
+    #[serde(default)]
+    pub response: ResponseMetadata,
+    #[serde(default)]
+    pub warnings: Vec<Warning>,
+    #[serde(default)]
+    pub sources: Vec<Source>,
     pub content: Vec<Block>,
     pub finish_reason: FinishReason,
     pub usage: Usage,
@@ -494,4 +661,11 @@ impl GenerateResult {
             content: self.content,
         }
     }
+}
+
+/// A native request and the diagnostics from compiling portable settings.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Rendered<T> {
+    pub request: T,
+    pub warnings: Vec<Warning>,
 }

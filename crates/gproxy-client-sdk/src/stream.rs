@@ -55,6 +55,18 @@ impl BlockId {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum Event {
+    Start {
+        warnings: Vec<Warning>,
+    },
+    Warning {
+        warning: Warning,
+    },
+    ResponseMetadata {
+        metadata: ResponseMetadata,
+    },
+    Source {
+        source: Source,
+    },
     TextDelta {
         id: BlockId,
         delta: String,
@@ -133,9 +145,16 @@ impl Stream for GenerationStream {
 pub async fn aggregate(events: impl Stream<Item = Event>) -> Result<GenerateResult> {
     futures_util::pin_mut!(events);
     let mut content = BTreeMap::<BlockId, Block>::new();
+    let mut response = ResponseMetadata::default();
+    let mut warnings = Vec::new();
+    let mut sources = Vec::new();
     let mut citations = BTreeMap::<BlockId, Vec<Citation>>::new();
     while let Some(event) = events.next().await {
         match event {
+            Event::Start { warnings: initial } => warnings.extend(initial),
+            Event::Warning { warning } => warnings.push(warning),
+            Event::ResponseMetadata { metadata } => response.merge(metadata),
+            Event::Source { source } => sources.push(source),
             Event::BlockEnd { id, block } => {
                 content.insert(id, block);
             }
@@ -157,6 +176,9 @@ pub async fn aggregate(events: impl Stream<Item = Event>) -> Result<GenerateResu
                     }
                 }
                 return Ok(GenerateResult {
+                    response,
+                    warnings,
+                    sources,
                     content: content.into_values().collect(),
                     finish_reason: reason,
                     usage,
@@ -181,6 +203,12 @@ pub async fn aggregate(events: impl Stream<Item = Event>) -> Result<GenerateResu
 ))]
 pub struct StreamDecoder {
     state: State,
+    started: bool,
+    terminal: bool,
+    initial_warnings: Vec<Warning>,
+    seen_warnings: Vec<Warning>,
+    response: ResponseMetadata,
+    sources: Vec<Source>,
 }
 #[cfg(any(
     feature = "claude",
@@ -192,6 +220,7 @@ enum State {
     #[cfg(feature = "claude")]
     Claude {
         blocks: BTreeMap<u32, gproxy_protocol::claude::generate_content::ResponseContentBlock>,
+        texts: BTreeMap<u32, Block>,
         args: BTreeMap<u32, String>,
         usage: Option<Usage>,
         reason: Option<gproxy_protocol::claude::generate_content::StopReason>,
@@ -222,10 +251,17 @@ impl StreamDecoder {
     }
     pub fn with_audio_format(dialect: Dialect, _format: Option<AudioFormat>) -> Self {
         Self {
+            started: false,
+            terminal: false,
+            initial_warnings: Vec::new(),
+            seen_warnings: Vec::new(),
+            response: ResponseMetadata::default(),
+            sources: Vec::new(),
             state: match dialect {
                 #[cfg(feature = "claude")]
                 Dialect::Claude => State::Claude {
                     blocks: BTreeMap::new(),
+                    texts: BTreeMap::new(),
                     args: BTreeMap::new(),
                     usage: None,
                     reason: None,
@@ -248,13 +284,93 @@ impl StreamDecoder {
             },
         }
     }
+    pub fn with_warnings(
+        dialect: Dialect,
+        format: Option<AudioFormat>,
+        warnings: Vec<Warning>,
+    ) -> Self {
+        let mut decoder = Self::with_audio_format(dialect, format);
+        decoder.initial_warnings = warnings;
+        decoder
+    }
+    fn start(&mut self) -> Vec<Event> {
+        if self.started {
+            Vec::new()
+        } else {
+            self.started = true;
+            vec![Event::Start {
+                warnings: std::mem::take(&mut self.initial_warnings),
+            }]
+        }
+    }
+    fn observed_usage(&self) -> Usage {
+        match &self.state {
+            #[cfg(feature = "claude")]
+            State::Claude { usage, .. } => usage.clone().unwrap_or_default(),
+            #[cfg(feature = "chat")]
+            State::Chat(chat) => chat.usage(),
+            #[cfg(feature = "gemini")]
+            State::Gemini { usage, .. } => usage.clone(),
+            #[cfg(feature = "openai")]
+            State::Openai { .. } => Usage::default(),
+        }
+    }
     pub fn push_json(&mut self, data: &str) -> Result<Vec<Event>> {
+        if self.terminal {
+            return Ok(Vec::new());
+        }
+        let mut out = self.start();
+        let events = match self.decode_json(data) {
+            Ok(events) => events,
+            Err(error) if error.body.is_some() => vec![
+                Event::Error { error },
+                Event::Finish {
+                    reason: FinishReason::new(FinishReasonKind::Error, None),
+                    usage: self.observed_usage(),
+                },
+            ],
+            Err(error) => return Err(error),
+        };
+        for event in events {
+            match event {
+                Event::ResponseMetadata { metadata } => {
+                    let before = self.response.clone();
+                    self.response.merge(metadata);
+                    if self.response != before {
+                        out.push(Event::ResponseMetadata {
+                            metadata: self.response.clone(),
+                        });
+                    }
+                }
+                Event::Source { source } => {
+                    if !self.sources.contains(&source) {
+                        self.sources.push(source.clone());
+                        out.push(Event::Source { source });
+                    }
+                }
+                Event::Warning { warning } => {
+                    if !self.seen_warnings.contains(&warning) {
+                        self.seen_warnings.push(warning.clone());
+                        out.push(Event::Warning { warning });
+                    }
+                }
+                Event::Finish { reason, usage } => {
+                    self.terminal = true;
+                    out.push(Event::Finish { reason, usage });
+                }
+                event => out.push(event),
+            }
+        }
+        Ok(out)
+    }
+    fn decode_json(&mut self, data: &str) -> Result<Vec<Event>> {
         match &mut self.state {
             #[cfg(feature = "chat")]
             State::Chat(chat) => chat.push(data),
             #[cfg(feature = "claude")]
             State::Claude {
                 blocks,
+                texts,
                 args,
                 usage,
                 reason,
@@ -265,6 +381,13 @@ impl StreamDecoder {
                 let mut out = Vec::new();
                 match event {
                     s::StreamEvent::MessageStart(event) => {
+                        out.push(Event::ResponseMetadata {
+                            metadata: ResponseMetadata {
+                                id: Some(event.message.id.clone()),
+                                model: Some(event.message.model.clone()),
+                                timestamp: None,
+                            },
+                        });
                         *usage = Some(dialects::claude::parse_usage(&event.message.usage)?);
                     }
                     s::StreamEvent::ContentBlockStart(event) => {
@@ -419,10 +542,16 @@ impl StreamDecoder {
                         ) {
                             out.push(Event::ToolCallEnd { id });
                         }
-                        out.push(Event::BlockEnd {
-                            id,
-                            block: dialects::claude::parse_block(block)?,
-                        });
+                        let sources = crate::sources::claude_block(&block)?;
+                        for source in sources {
+                            out.push(Event::Source { source });
+                        }
+                        let block = dialects::claude::parse_block(block)?;
+                        if matches!(block.content, Content::Text(_)) {
+                            texts.insert(index, block);
+                        } else {
+                            out.push(Event::BlockEnd { id, block });
+                        }
                     }
                     s::StreamEvent::MessageDelta(event) => {
                         let current = usage.as_mut().ok_or_else(|| {
@@ -444,6 +573,15 @@ impl StreamDecoder {
                         }
                         if let Some(Some(value)) = event.delta.stop_reason {
                             *reason = Some(value);
+                            for (index, mut block) in std::mem::take(texts) {
+                                if let Content::Text(text) = &mut block.content {
+                                    text.refusal = value == c::StopReason::Refusal;
+                                }
+                                out.push(Event::BlockEnd {
+                                    id: BlockId::item(index),
+                                    block,
+                                });
+                            }
                         }
                     }
                     s::StreamEvent::MessageStop(_) => {
@@ -463,11 +601,7 @@ impl StreamDecoder {
                         });
                     }
                     s::StreamEvent::Error(_) => {
-                        return Err(Error::from_response(
-                            200,
-                            &http::HeaderMap::new(),
-                            data.to_owned(),
-                        ));
+                        return Err(Error::from_event(data.to_owned()));
                     }
                     s::StreamEvent::Ping(_) => {}
                 }
@@ -479,6 +613,12 @@ impl StreamDecoder {
                 let event: s::StreamEvent = serde_json::from_str(data).map_err(Error::invalid)?;
                 let mut out = Vec::new();
                 match event {
+                    s::StreamEvent::Created(value) => out.push(Event::ResponseMetadata {
+                        metadata: dialects::openai::response_metadata(&value.response),
+                    }),
+                    s::StreamEvent::InProgress(value) => out.push(Event::ResponseMetadata {
+                        metadata: dialects::openai::response_metadata(&value.response),
+                    }),
                     s::StreamEvent::OutputTextDelta(value) => out.push(Event::TextDelta {
                         id: BlockId {
                             item: index(value.output_index)?,
@@ -553,6 +693,9 @@ impl StreamDecoder {
                     }
                     s::StreamEvent::OutputItemDone(value) => {
                         let item = index(value.output_index)?;
+                        for source in crate::sources::openai_item(&value.item)? {
+                            out.push(Event::Source { source });
+                        }
                         for (part, block) in dialects::openai::parse_item(value.item, item)?
                             .into_iter()
                             .enumerate()
@@ -577,11 +720,7 @@ impl StreamDecoder {
                         out.extend(responses_finish(&value.response, stopped)?)
                     }
                     s::StreamEvent::Error(_) => {
-                        return Err(Error::from_response(
-                            200,
-                            &http::HeaderMap::new(),
-                            data.to_owned(),
-                        ));
+                        return Err(Error::from_event(data.to_owned()));
                     }
                     _ => {}
                 }
@@ -598,9 +737,44 @@ impl StreamDecoder {
                 use gproxy_protocol::gemini as g;
                 let chunk: g::GenerateContentResponseBody =
                     serde_json::from_str(data).map_err(Error::invalid)?;
-                dialects::gemini::check_response(&chunk)?;
-                let mut out = Vec::new();
+                let mut out = vec![Event::ResponseMetadata {
+                    metadata: dialects::gemini::response_metadata(&chunk),
+                }];
+                if let Err(error) = dialects::gemini::check_response(&chunk) {
+                    out.push(Event::Error { error });
+                    out.push(Event::Finish {
+                        reason: FinishReason::new(
+                            FinishReasonKind::Error,
+                            chunk
+                                .candidates
+                                .as_ref()
+                                .and_then(|v| v.first())
+                                .and_then(|c| c.finish_reason)
+                                .and_then(|reason| {
+                                    dialects::gemini::finish_reason(Some(reason), false).raw
+                                }),
+                        ),
+                        usage: dialects::gemini::parse_usage(chunk.usage_metadata.as_ref())?,
+                    });
+                    return Ok(out);
+                }
+                if chunk
+                    .candidates
+                    .as_ref()
+                    .is_some_and(|values| values.len() > 1)
+                {
+                    out.push(Event::Warning {
+                        warning: Warning::new(
+                            WarningKind::Compatibility,
+                            "response.candidates",
+                            "Only the first candidate is returned",
+                        ),
+                    });
+                }
                 if let Some(candidate) = chunk.candidates.into_iter().flatten().next() {
+                    for source in crate::sources::gemini_candidate(&candidate)? {
+                        out.push(Event::Source { source });
+                    }
                     for (part, citation) in dialects::citations::gemini_citations(&candidate)? {
                         out.push(Event::Citation {
                             id: BlockId::item(part.try_into().map_err(Error::invalid)?),
@@ -685,10 +859,7 @@ impl StreamDecoder {
                         }
                         *next_index += 1;
                     }
-                    if let Some(value) = candidate
-                        .finish_reason
-                        .filter(|v| *v != g::FinishReason::Unspecified)
-                    {
+                    if let Some(value) = candidate.finish_reason {
                         *reason = Some(value);
                     }
                 }
@@ -713,38 +884,87 @@ impl StreamDecoder {
             }
         }
     }
-    pub fn finish(self) -> Result<Vec<Event>> {
+    pub fn finish(mut self) -> Result<Vec<Event>> {
+        let mut out = self.start();
+        if self.terminal {
+            return Ok(out);
+        }
         match self.state {
             #[cfg(feature = "chat")]
-            State::Chat(chat) => chat.finish(),
+            State::Chat(chat) => out.extend(chat.finish()?),
             #[cfg(feature = "claude")]
-            State::Claude { stopped: true, .. } => Ok(Vec::new()),
+            State::Claude {
+                blocks,
+                texts,
+                args,
+                usage,
+                reason,
+                ..
+            } => {
+                let refused =
+                    reason == Some(gproxy_protocol::claude::generate_content::StopReason::Refusal);
+                for (index, mut block) in texts {
+                    if let Content::Text(text) = &mut block.content {
+                        text.refusal = refused;
+                    }
+                    out.push(Event::BlockEnd {
+                        id: BlockId::item(index),
+                        block,
+                    });
+                }
+                for (index, native) in blocks {
+                    let mut block = dialects::claude::parse_block(native)?;
+                    if let Content::Text(text) = &mut block.content {
+                        text.refusal = refused;
+                    }
+                    if let (Some(arguments), Content::ToolCall(call)) =
+                        (args.get(&index), &mut block.content)
+                    {
+                        call.arguments = arguments.clone();
+                    }
+                    out.push(Event::BlockEnd {
+                        id: BlockId::item(index),
+                        block,
+                    });
+                }
+                out.push(Event::Finish {
+                    reason: FinishReason::new(
+                        FinishReasonKind::Interrupted,
+                        reason.and_then(|reason| dialects::claude::finish_reason(reason).raw),
+                    ),
+                    usage: usage.unwrap_or_default(),
+                });
+            }
             #[cfg(feature = "openai")]
-            State::Openai { stopped: true } => Ok(Vec::new()),
+            State::Openai { .. } => out.push(Event::Finish {
+                reason: FinishReason::new(FinishReasonKind::Interrupted, None),
+                usage: Usage::default(),
+            }),
             #[cfg(feature = "gemini")]
             State::Gemini {
-                reason: Some(reason),
+                reason,
                 has_tool_calls,
                 usage,
                 pending_audio,
                 ..
             } => {
-                let mut events = Vec::new();
                 if let Some(pending) = pending_audio {
                     let (id, block) = *pending;
-                    events.push(Event::BlockEnd { id, block });
+                    out.push(Event::BlockEnd { id, block });
                 }
-                events.push(Event::Finish {
-                    reason: dialects::gemini::finish_reason(Some(reason), has_tool_calls),
+                let mut finish = dialects::gemini::finish_reason(reason, has_tool_calls);
+                if reason.is_none()
+                    || reason == Some(gproxy_protocol::gemini::FinishReason::Unspecified)
+                {
+                    finish.unified = FinishReasonKind::Interrupted;
+                }
+                out.push(Event::Finish {
+                    reason: finish,
                     usage,
                 });
-                Ok(events)
             }
-            #[cfg(any(feature = "claude", feature = "openai", feature = "gemini"))]
-            _ => Err(Error::invalid(
-                "native stream ended before its terminal event",
-            )),
         }
+        Ok(out)
     }
 }
 #[cfg(feature = "openai")]
@@ -752,9 +972,21 @@ fn responses_finish(
     response: &gproxy_protocol::openai::responses::response::GenerateContentResponseBody,
     stopped: &mut bool,
 ) -> Result<Vec<Event>> {
-    let (reason, usage) = dialects::openai::finish_metadata(response)?;
+    let mut out = vec![Event::ResponseMetadata {
+        metadata: dialects::openai::response_metadata(response),
+    }];
+    match dialects::openai::finish_metadata(response) {
+        Ok((reason, usage)) => out.push(Event::Finish { reason, usage }),
+        Err(error) => {
+            out.push(Event::Error { error });
+            out.push(Event::Finish {
+                reason: dialects::openai::error_finish_reason(response),
+                usage: dialects::openai::parse_usage(response)?,
+            });
+        }
+    }
     *stopped = true;
-    Ok(vec![Event::Finish { reason, usage }])
+    Ok(out)
 }
 #[cfg(any(feature = "claude", feature = "openai"))]
 fn index(value: i64) -> Result<u32> {
@@ -770,6 +1002,9 @@ pub(crate) fn decode(
     body: HttpBody,
     request: &GenerateRequest,
     limits: gproxy_protocol::codec::CodecLimits,
+    warnings: Vec<Warning>,
+    http_status: u16,
+    headers: http::HeaderMap,
 ) -> Result<GenerationStream> {
     #[cfg(feature = "chat")]
     let format = if request.model.dialect == Dialect::OpenaiChat {
@@ -785,24 +1020,33 @@ pub(crate) fn decode(
         decoder: Option<StreamDecoder>,
         queue: VecDeque<Event>,
         done: bool,
+        http_status: u16,
+        headers: http::HeaderMap,
     }
     let bytes = match body {
         HttpBody::Stream(bytes) => bytes,
         HttpBody::Bytes(bytes) => Box::pin(stream::once(async { Ok(bytes) })) as ByteStream,
     };
+    let mut decoder = StreamDecoder::with_warnings(request.model.dialect, format, warnings);
+    let queue = decoder.start().into();
     let state = Reader {
         bytes,
         sse: SseDecoder::new(limits),
-        decoder: Some(StreamDecoder::with_audio_format(
-            request.model.dialect,
-            format,
-        )),
-        queue: VecDeque::new(),
+        decoder: Some(decoder),
+        queue,
         done: false,
+        http_status,
+        headers,
     };
     let inner = stream::unfold(state, |mut state| async move {
         loop {
             if let Some(event) = state.queue.pop_front() {
+                let event = match event {
+                    Event::Error { error } => Event::Error {
+                        error: error.with_head(state.http_status, &state.headers),
+                    },
+                    event => event,
+                };
                 if matches!(event, Event::Finish { .. } | Event::Error { .. }) {
                     state.done = true;
                 }
@@ -813,7 +1057,7 @@ pub(crate) fn decode(
             }
             let (frames, eof) = match state.bytes.next().await {
                 Some(Ok(bytes)) => (state.sse.push(&bytes).map_err(Error::invalid), false),
-                Some(Err(error)) => (Err(Error::network(error)), false),
+                Some(Err(error)) => (Err(Error::network_cause(error.as_ref())), false),
                 None => (state.sse.finish().map_err(Error::invalid), true),
             };
             let ended = frames
@@ -846,7 +1090,16 @@ pub(crate) fn decode(
                 Ok(())
             })();
             if let Err(error) = result {
+                let usage = state
+                    .decoder
+                    .as_ref()
+                    .map(StreamDecoder::observed_usage)
+                    .unwrap_or_default();
                 state.queue.push_back(Event::Error { error });
+                state.queue.push_back(Event::Finish {
+                    reason: FinishReason::new(FinishReasonKind::Interrupted, None),
+                    usage,
+                });
                 state.done = true;
             }
         }

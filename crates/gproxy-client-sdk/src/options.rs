@@ -37,11 +37,14 @@ impl ProviderOptions {
         feature = "images",
         feature = "video"
     ))]
-    pub(crate) fn remainder(&self, vendor: crate::Vendor) -> &Rest {
+    pub(crate) fn remainder(&self, vendor: &crate::Vendor) -> crate::Result<&Rest> {
         match vendor {
-            crate::Vendor::Claude => &self.claude.rest,
-            crate::Vendor::Openai => &self.openai.rest,
-            crate::Vendor::Gemini => &self.gemini.rest,
+            crate::Vendor::Claude => Ok(&self.claude.rest),
+            crate::Vendor::Openai => Ok(&self.openai.rest),
+            crate::Vendor::Gemini => Ok(&self.gemini.rest),
+            crate::Vendor::Unknown(_) => Err(crate::Error::invalid(
+                "unknown vendor options cannot be sent",
+            )),
         }
     }
 }

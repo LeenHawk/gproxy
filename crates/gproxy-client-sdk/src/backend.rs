@@ -44,7 +44,10 @@ mod remote {
         pub async fn new(endpoint: impl Into<String>, gateway_key: &str) -> Result<Self> {
             let pool = ClientPool::default();
             let config = ConnectionConfig::default();
-            let transport = pool.get(&config).await.map_err(Error::network)?;
+            let transport = pool
+                .get(&config)
+                .await
+                .map_err(|error| Error::network_cause(&error))?;
             Self::with_transport(endpoint, gateway_key, transport)
         }
         pub fn with_transport(
@@ -85,7 +88,10 @@ mod remote {
                 outbound
                     .headers_mut()
                     .insert(http::header::AUTHORIZATION, self.key.clone());
-                self.transport.send(outbound).await.map_err(Error::network)
+                self.transport
+                    .send(outbound)
+                    .await
+                    .map_err(|error| Error::network_cause(&error))
             })
         }
     }

@@ -47,7 +47,7 @@ impl GenerateRequest {
                                     ToolResultContent::Document(document) => {
                                         resolve_document(document, &mut resolve).await?
                                     }
-                                    ToolResultContent::Text(_) => {}
+                                    ToolResultContent::Text(_) | ToolResultContent::Unknown(_) => {}
                                 }
                             }
                         }
@@ -75,11 +75,11 @@ where
                 }
             }
         }
-        DocumentSource::Text { .. } => {}
+        DocumentSource::Text { .. } | DocumentSource::Unknown(_) => {}
     }
     Ok(())
 }
-async fn resolve_media<F, Fut>(
+pub(crate) async fn resolve_media<F, Fut>(
     source: &mut Asset,
     mime: &mut Option<String>,
     resolve: &mut F,

@@ -21,7 +21,7 @@ fn claude_tool_result_optional_fields_are_replayed_losslessly() {
             }],
         );
         assert_eq!(
-            dialects::render(&request, false).unwrap()["messages"][0]["content"][0],
+            dialects::render(&request, false).unwrap().request["messages"][0]["content"][0],
             value
         );
     }
@@ -48,7 +48,7 @@ fn responses_tool_result_names_and_optional_call_ids_are_replayed_losslessly() {
             }],
         );
         assert_eq!(
-            dialects::render(&request, false).unwrap()["input"][0],
+            dialects::render(&request, false).unwrap().request["input"][0],
             output
         );
     }
@@ -77,7 +77,7 @@ fn claude_tool_result_name_is_resolved_from_an_earlier_call_when_continuing_on_g
             },
         ],
     );
-    let native = dialects::gemini::render(&request).unwrap();
+    let native = dialects::gemini::render(&request).unwrap().request;
     let response = native.contents[1].parts.as_ref().unwrap()[0]
         .function_response
         .as_ref()
@@ -105,7 +105,8 @@ fn responses_tool_result_name_is_resolved_from_earlier_call_id() {
         Dialect::Gemini,
         vec![result.into_message()],
     ))
-    .unwrap();
+    .unwrap()
+    .request;
     let parts = rendered.contents[0].parts.as_ref().unwrap();
     let response = parts
         .iter()
@@ -133,7 +134,10 @@ fn nameless_results_without_an_earlier_call_return_invalid_data() {
     );
     assert!(matches!(
         dialects::gemini::render(&request),
-        Err(Error::InvalidData { .. })
+        Err(Error {
+            kind: ErrorKind::InvalidData,
+            ..
+        })
     ));
 }
 
@@ -155,7 +159,10 @@ fn malformed_metadata_and_options_return_errors_without_panics() {
         );
         assert!(matches!(
             dialects::render(&request, false),
-            Err(Error::InvalidData { .. })
+            Err(Error {
+                kind: ErrorKind::InvalidData,
+                ..
+            })
         ));
         for native in [
             json!("not an object"),
@@ -221,7 +228,8 @@ fn typed_claude_mapping_preserves_nullable_history_and_citation_fields() {
         &support::request(Dialect::Claude, support::persisted(parsed)),
         false,
     )
-    .unwrap();
+    .unwrap()
+    .request;
     let mut expected = native["content"].clone();
     support::normalize_claude(&mut expected);
     assert_eq!(rendered["messages"][0]["content"], expected);
@@ -232,9 +240,9 @@ fn typed_claude_mapping_preserves_nullable_history_and_citation_fields() {
 fn mismatched_stream_deltas_and_invalid_indices_are_invalid_data() {
     let mut decoder = stream::StreamDecoder::new(Dialect::Claude);
     decoder.push_json(&json!({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}).to_string()).unwrap();
-    assert!(matches!(decoder.push_json(&json!({"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"wrong block"}}).to_string()),Err(Error::InvalidData {..})));
+    assert!(matches!(decoder.push_json(&json!({"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"wrong block"}}).to_string()),Err(Error {kind:ErrorKind::InvalidData,..})));
     let mut decoder = stream::StreamDecoder::new(Dialect::Claude);
-    assert!(matches!(decoder.push_json(&json!({"type":"content_block_start","index":-1,"content_block":{"type":"text","text":""}}).to_string()),Err(Error::InvalidData {..})));
+    assert!(matches!(decoder.push_json(&json!({"type":"content_block_start","index":-1,"content_block":{"type":"text","text":""}}).to_string()),Err(Error {kind:ErrorKind::InvalidData,..})));
 }
 
 #[cfg(all(feature = "claude", feature = "openai", feature = "gemini"))]

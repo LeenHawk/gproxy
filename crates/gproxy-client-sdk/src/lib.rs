@@ -14,11 +14,29 @@ mod error;
 pub mod ir;
 mod resolution;
 pub use resolution::ResolvedAsset;
+#[cfg(feature = "embeddings")]
+pub mod embeddings;
 pub mod operations;
 pub mod options;
+#[cfg(any(
+    feature = "claude",
+    feature = "openai",
+    feature = "chat",
+    feature = "gemini"
+))]
+mod reasoning;
+#[cfg(any(feature = "claude", feature = "openai", feature = "gemini"))]
+mod sources;
 pub mod stream;
+#[cfg(any(
+    feature = "claude",
+    feature = "openai",
+    feature = "chat",
+    feature = "gemini"
+))]
+mod warnings;
 pub use backend::Backend;
-pub use error::{Error, Result};
+pub use error::{Error, ErrorKind, Result};
 pub use gproxy_protocol as protocol;
 pub use ir::*;
 pub use stream::{Event, GenerationStream, aggregate};
@@ -66,28 +84,39 @@ impl<B: Backend> Client<B> {
         feature = "gemini"
     ))]
     pub async fn generate(&self, request: &GenerateRequest) -> Result<GenerateResult> {
-        let (key, wire) = generation_wire(request, false)?;
+        let (key, wire, warnings) = generation_wire(request, false)?;
         let response = self.send(key, Some(&request.model.id), wire).await?;
-        let bytes = read_http_body(response.body, self.limits).await?;
-        match request.model.dialect {
+        let status = response.status.as_u16();
+        let headers = response.headers;
+        let bytes = read_http_body(response.body, self.limits)
+            .await
+            .map_err(|error| Error::from(error).with_head(status, &headers))?;
+        let result = match request.model.dialect {
             #[cfg(feature = "claude")]
-            Dialect::Claude => {
-                dialects::claude::parse(serde_json::from_slice(&bytes).map_err(Error::invalid)?)
-            }
+            Dialect::Claude => serde_json::from_slice(&bytes)
+                .map_err(Error::invalid)
+                .and_then(dialects::claude::parse),
             #[cfg(feature = "openai")]
-            Dialect::Openai => {
-                dialects::openai::parse(serde_json::from_slice(&bytes).map_err(Error::invalid)?)
-            }
+            Dialect::Openai => serde_json::from_slice(&bytes)
+                .map_err(Error::invalid)
+                .and_then(dialects::openai::parse),
             #[cfg(feature = "gemini")]
-            Dialect::Gemini => {
-                dialects::gemini::parse(serde_json::from_slice(&bytes).map_err(Error::invalid)?)
-            }
+            Dialect::Gemini => serde_json::from_slice(&bytes)
+                .map_err(Error::invalid)
+                .and_then(dialects::gemini::parse),
             #[cfg(feature = "chat")]
-            Dialect::OpenaiChat => dialects::chat::parse(
-                serde_json::from_slice(&bytes).map_err(Error::invalid)?,
-                dialects::chat::output_format(request)?,
-            ),
-        }
+            Dialect::OpenaiChat => serde_json::from_slice(&bytes)
+                .map_err(Error::invalid)
+                .and_then(|response| {
+                    dialects::chat::parse(response, dialects::chat::output_format(request)?)
+                }),
+        };
+        let mut result =
+            result.map_err(|error| error.with_head(status, &headers).with_body(&bytes))?;
+        let mut all = warnings;
+        all.extend(result.warnings);
+        result.warnings = all;
+        Ok(result)
     }
     #[cfg(any(
         feature = "claude",
@@ -96,9 +125,16 @@ impl<B: Backend> Client<B> {
         feature = "gemini"
     ))]
     pub async fn stream(&self, request: &GenerateRequest) -> Result<GenerationStream> {
-        let (key, wire) = generation_wire(request, true)?;
+        let (key, wire, warnings) = generation_wire(request, true)?;
         let response = self.send(key, Some(&request.model.id), wire).await?;
-        stream::decode(response.body, request, self.limits)
+        stream::decode(
+            response.body,
+            request,
+            self.limits,
+            warnings,
+            response.status.as_u16(),
+            response.headers,
+        )
     }
     #[allow(dead_code)] // Used by independently selectable operation families.
     pub(crate) async fn send(
@@ -111,9 +147,12 @@ impl<B: Backend> Client<B> {
         if response.status.is_success() {
             return Ok(response);
         }
-        let bytes = read_http_body(response.body, self.limits).await?;
+        let status = response.status.as_u16();
+        let bytes = read_http_body(response.body, self.limits)
+            .await
+            .map_err(|error| Error::from(error).with_head(status, &response.headers))?;
         Err(Error::from_response(
-            response.status.as_u16(),
+            status,
             &response.headers,
             String::from_utf8_lossy(&bytes).into_owned(),
         ))
@@ -126,8 +165,16 @@ impl<B: Backend> Client<B> {
         request: WireRequest<HttpBody>,
     ) -> Result<T> {
         let response = self.send(key, model, request).await?;
-        let bytes = read_http_body(response.body, self.limits).await?;
-        serde_json::from_slice(&bytes).map_err(Error::invalid)
+        let status = response.status.as_u16();
+        let headers = response.headers;
+        let bytes = read_http_body(response.body, self.limits)
+            .await
+            .map_err(|error| Error::from(error).with_head(status, &headers))?;
+        serde_json::from_slice(&bytes).map_err(|error| {
+            Error::invalid(error)
+                .with_head(status, &headers)
+                .with_body(&bytes)
+        })
     }
 }
 #[allow(dead_code)]
@@ -163,7 +210,7 @@ pub(crate) fn wire_json(
 fn generation_wire(
     request: &GenerateRequest,
     streaming: bool,
-) -> Result<(OperationKey, WireRequest<HttpBody>)> {
+) -> Result<(OperationKey, WireRequest<HttpBody>, Vec<Warning>)> {
     let operation = if streaming {
         Operation::StreamGenerateContent
     } else {
@@ -187,27 +234,24 @@ fn generation_wire(
             }
         ),
     };
-    let mut wire = match request.model.dialect {
+    fn encode<T: Serialize>(
+        path: String,
+        rendered: Rendered<T>,
+    ) -> Result<(WireRequest<HttpBody>, Vec<Warning>)> {
+        Ok((
+            wire_json(Method::POST, path, &rendered.request)?,
+            rendered.warnings,
+        ))
+    }
+    let (mut wire, warnings) = match request.model.dialect {
         #[cfg(feature = "claude")]
-        Dialect::Claude => wire_json(
-            Method::POST,
-            path,
-            &dialects::claude::render(request, streaming)?,
-        )?,
+        Dialect::Claude => encode(path, dialects::claude::render(request, streaming)?)?,
         #[cfg(feature = "openai")]
-        Dialect::Openai => wire_json(
-            Method::POST,
-            path,
-            &dialects::openai::render(request, streaming)?,
-        )?,
+        Dialect::Openai => encode(path, dialects::openai::render(request, streaming)?)?,
         #[cfg(feature = "gemini")]
-        Dialect::Gemini => wire_json(Method::POST, path, &dialects::gemini::render(request)?)?,
+        Dialect::Gemini => encode(path, dialects::gemini::render(request)?)?,
         #[cfg(feature = "chat")]
-        Dialect::OpenaiChat => wire_json(
-            Method::POST,
-            path,
-            &dialects::chat::render(request, streaming)?,
-        )?,
+        Dialect::OpenaiChat => encode(path, dialects::chat::render(request, streaming)?)?,
     };
     if request.model.dialect.wire() == gproxy_protocol::Dialect::Claude {
         wire.headers.insert(
@@ -230,6 +274,7 @@ fn generation_wire(
             dialect: request.model.dialect.wire(),
         },
         wire,
+        warnings,
     ))
 }
 
@@ -247,6 +292,11 @@ pub fn export_types(
     GenerateRequest::export_all(&config)?;
     GenerateResult::export_all(&config)?;
     Event::export_all(&config)?;
+    #[cfg(feature = "embeddings")]
+    {
+        embeddings::EmbedRequest::export_all(&config)?;
+        embeddings::EmbedResult::export_all(&config)?;
+    }
     operations::Params::<ts_rs::Dummy>::export_all(&config)?;
     #[cfg(feature = "count-tokens")]
     operations::TokenCount::export_all(&config)?;
