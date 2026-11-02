@@ -44,12 +44,7 @@ pub struct BlockId {
     pub item: u32,
     pub part: u32,
 }
-#[cfg(any(
-    feature = "claude",
-    feature = "openai",
-    feature = "chat",
-    feature = "gemini"
-))]
+#[cfg(any(feature = "claude", feature = "openai", feature = "gemini"))]
 impl BlockId {
     fn item(item: u32) -> Self {
         Self { item, part: 0 }
@@ -289,8 +284,7 @@ impl StreamDecoder {
                                     id,
                                     call_id: value.id.clone(),
                                     name: serde_json::from_value(
-                                        serde_json::to_value(&value.name)
-                                            .map_err(Error::invalid)?,
+                                        serde_json::to_value(value.name).map_err(Error::invalid)?,
                                     )
                                     .map_err(Error::invalid)?,
                                     provider_executed: true,
@@ -524,12 +518,30 @@ impl StreamDecoder {
                         })
                     }
                     s::StreamEvent::OutputItemAdded(value) => {
-                        if let r::ResponseOutputItem::FunctionCall(call) = value.item {
+                        let call = match value.item {
+                            r::ResponseOutputItem::FunctionCall(call) => {
+                                Some((call.call_id, call.name, false))
+                            }
+                            r::ResponseOutputItem::WebSearchCall(call) => {
+                                Some((call.id, "web_search".into(), true))
+                            }
+                            r::ResponseOutputItem::FileSearchCall(call) => {
+                                Some((call.id, "file_search".into(), true))
+                            }
+                            r::ResponseOutputItem::CodeInterpreterCall(call) => {
+                                Some((call.id, "code_interpreter".into(), true))
+                            }
+                            r::ResponseOutputItem::ComputerCall(call) => {
+                                Some((call.call_id, "computer".into(), true))
+                            }
+                            _ => None,
+                        };
+                        if let Some((call_id, name, provider_executed)) = call {
                             out.push(Event::ToolCallStart {
                                 id: BlockId::item(index(value.output_index)?),
-                                call_id: call.call_id,
-                                name: call.name,
-                                provider_executed: false,
+                                call_id,
+                                name,
+                                provider_executed,
                             });
                         }
                     }
@@ -541,22 +553,18 @@ impl StreamDecoder {
                     }
                     s::StreamEvent::OutputItemDone(value) => {
                         let item = index(value.output_index)?;
-                        if matches!(value.item, r::ResponseOutputItem::FunctionCall(_)) {
-                            out.push(Event::ToolCallEnd {
-                                id: BlockId::item(item),
-                            });
-                        }
                         for (part, block) in dialects::openai::parse_item(value.item, item)?
                             .into_iter()
                             .enumerate()
                         {
-                            out.push(Event::BlockEnd {
-                                id: BlockId {
-                                    item,
-                                    part: part as u32,
-                                },
-                                block,
-                            });
+                            let id = BlockId {
+                                item,
+                                part: part as u32,
+                            };
+                            if matches!(block.content, Content::ToolCall(_)) {
+                                out.push(Event::ToolCallEnd { id });
+                            }
+                            out.push(Event::BlockEnd { id, block });
                         }
                     }
                     s::StreamEvent::Completed(value) => {
@@ -732,6 +740,7 @@ impl StreamDecoder {
                 });
                 Ok(events)
             }
+            #[cfg(any(feature = "claude", feature = "openai", feature = "gemini"))]
             _ => Err(Error::invalid(
                 "native stream ended before its terminal event",
             )),

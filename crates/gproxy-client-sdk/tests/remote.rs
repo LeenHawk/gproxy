@@ -280,25 +280,35 @@ async fn cancel_releases_the_live_response_without_buffering_or_spawning_a_task(
 #[cfg(all(feature = "claude", feature = "count-tokens"))]
 #[tokio::test]
 async fn count_tokens_uses_its_native_typed_parameters() {
-    let (endpoint, server) = server(
-        200,
-        "Content-Type: application/json\r\n",
-        b"{\"input_tokens\":42}".to_vec(),
-        false,
-    )
-    .await;
-    let client = Client::new(backend::Remote::new(endpoint, "gateway").await.unwrap());
-    let native = serde_json::from_value(
-        json!({"model":"claude","messages":[{"role":"user","content":"hi"}]}),
-    )
-    .unwrap();
-    let params =
-        operations::CountTokensParams::Claude(operations::Params::new(native, Vendor::Claude));
-    assert_eq!(
-        client.count_tokens(&params).await.unwrap().input_tokens,
-        Some(42)
-    );
-    let captured = server.await.unwrap();
-    assert!(String::from_utf8_lossy(&captured).starts_with("POST /v1/messages/count_tokens "));
-    assert!(String::from_utf8_lossy(&captured).contains("anthropic-version: 2023-06-01"));
+    use protocol::claude::count_tokens::{
+        CountTokensContextManagementResponse, CountTokensResponseBody,
+    };
+    for body in [
+        CountTokensResponseBody::builder(42).build(),
+        CountTokensResponseBody::builder(42)
+            .context_management(CountTokensContextManagementResponse::builder(50).build())
+            .build(),
+    ] {
+        let expected = serde_json::to_value(&body).unwrap();
+        let (endpoint, server) = server(
+            200,
+            "Content-Type: application/json\r\n",
+            serde_json::to_vec(&body).unwrap(),
+            false,
+        )
+        .await;
+        let client = Client::new(backend::Remote::new(endpoint, "gateway").await.unwrap());
+        let native = serde_json::from_value(
+            json!({"model":"claude","messages":[{"role":"user","content":"hi"}]}),
+        )
+        .unwrap();
+        let params =
+            operations::CountTokensParams::Claude(operations::Params::new(native, Vendor::Claude));
+        let count = client.count_tokens(&params).await.unwrap();
+        assert_eq!(count.input_tokens, Some(42));
+        assert_eq!(count.provider_metadata[&Vendor::Claude]["native"], expected);
+        let captured = server.await.unwrap();
+        assert!(String::from_utf8_lossy(&captured).starts_with("POST /v1/messages/count_tokens "));
+        assert!(String::from_utf8_lossy(&captured).contains("anthropic-version: 2023-06-01"));
+    }
 }

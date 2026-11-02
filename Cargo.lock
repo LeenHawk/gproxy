@@ -3090,7 +3090,6 @@ name = "gproxy-client-sdk"
 version = "4.1.14"
 dependencies = [
  "base64 0.23.1",
- "blake3",
  "futures-core",
  "futures-executor",
  "futures-util",
@@ -3105,7 +3104,6 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "thiserror 2.0.21",
- "time",
  "tokio",
  "tokio-util",
  "ts-rs",

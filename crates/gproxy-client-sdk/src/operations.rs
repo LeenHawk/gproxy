@@ -31,31 +31,54 @@ impl<T> Params<T> {
         }
     }
 }
-fn params<T: Serialize>(params: &Params<T>) -> Result<Value> {
-    let mut value: Rest = params
-        .provider_options
-        .get(&params.vendor)
-        .cloned()
-        .unwrap_or_default();
-    let Value::Object(native) = serde_json::to_value(&params.native).map_err(Error::invalid)?
-    else {
-        return Err(Error::invalid(
-            "native operation parameters must be an object",
-        ));
+#[cfg(any(
+    feature = "embeddings",
+    feature = "rerank",
+    feature = "audio",
+    feature = "images",
+    feature = "video",
+    all(
+        feature = "count-tokens",
+        any(feature = "claude", feature = "openai", feature = "gemini")
+    )
+))]
+macro_rules! native_params {
+    ($params:expr) => {{
+        let params = $params;
+        let mut native = params.native.clone();
+        let mut rest = params.provider_options.remainder(params.vendor).clone();
+        rest.extend(native.rest);
+        native.rest = rest;
+        native
+    }};
+}
+#[cfg(any(
+    feature = "embeddings",
+    feature = "rerank",
+    feature = "images",
+    feature = "video"
+))]
+macro_rules! native_model {
+    ($native:ident,required) => {
+        Some($native.model.as_str())
     };
-    value.extend(native);
-    Ok(value.into())
+    ($native:ident,optional) => {
+        $native.model.as_deref()
+    };
+    ($native:ident,nullable) => {
+        $native.model.as_ref().and_then(Option::as_deref)
+    };
 }
 
 // The operation's type and path are a single declaration. All of these use
 // GPROXY's public OpenAI-shaped ingress; the target channel adapts upstream.
 macro_rules! json_operation {
-    ($feature:literal,$method:ident,$input:ty,$output:ty,$operation:ident,$path:literal) => {
+    ($feature:literal,$method:ident,$input:ty,$output:ty,$operation:ident,$path:literal,$model:ident) => {
         #[cfg(feature = $feature)]
         impl<B: Backend> Client<B> {
             pub async fn $method(&self, request: &Params<$input>) -> Result<$output> {
-                let value = params(request)?;
-                let model = value["model"].as_str();
+                let value = native_params!(request);
+                let model = native_model!(value, $model);
                 self.json(
                     OperationKey {
                         operation: Operation::$operation,
@@ -75,7 +98,8 @@ json_operation!(
     openai::embeddings::CreateEmbeddingRequestBody,
     openai::embeddings::CreateEmbeddingResponseBody,
     CreateEmbedding,
-    "/v1/embeddings"
+    "/v1/embeddings",
+    required
 );
 json_operation!(
     "rerank",
@@ -83,7 +107,8 @@ json_operation!(
     openai::rerank::RerankRequestBody,
     openai::rerank::RerankResponseBody,
     Rerank,
-    "/v1/rerank"
+    "/v1/rerank",
+    required
 );
 json_operation!(
     "images",
@@ -91,7 +116,8 @@ json_operation!(
     openai::images::CreateImageRequestBody,
     openai::images::ImagesResponse,
     CreateImage,
-    "/v1/images/generations"
+    "/v1/images/generations",
+    nullable
 );
 json_operation!(
     "images",
@@ -99,7 +125,8 @@ json_operation!(
     openai::images::EditImageJsonBody,
     openai::images::ImagesResponse,
     EditImage,
-    "/v1/images/edits"
+    "/v1/images/edits",
+    nullable
 );
 json_operation!(
     "video",
@@ -107,7 +134,8 @@ json_operation!(
     openai::video::NativeCreateVideoRequestBody,
     openai::video::NativeVideo,
     CreateVideo,
-    "/v1/videos"
+    "/v1/videos",
+    optional
 );
 
 #[cfg(feature = "models")]
@@ -159,7 +187,7 @@ impl<B: Backend> Client<B> {
                 let mut wire = wire_json(
                     Method::POST,
                     "/v1/messages/count_tokens".into(),
-                    &params(p)?,
+                    &native_params!(p),
                 )?;
                 wire.headers
                     .insert("anthropic-version", HeaderValue::from_static("2023-06-01"));
@@ -190,7 +218,7 @@ impl<B: Backend> Client<B> {
                 let wire = wire_json(
                     Method::POST,
                     "/v1/responses/input_tokens".into(),
-                    &params(p)?,
+                    &native_params!(p),
                 )?;
                 let body: protocol::openai::count_tokens::CountTokensResponseBody = self
                     .json(
@@ -213,7 +241,7 @@ impl<B: Backend> Client<B> {
                 let wire = wire_json(
                     Method::POST,
                     format!("/v1beta/models/{}:countTokens", path_segment(model)),
-                    &params(p)?,
+                    &native_params!(p),
                 )?;
                 let body: protocol::gemini::count_tokens::CountTokensResponseBody = self
                     .json(
@@ -338,7 +366,11 @@ impl<B: Backend> Client<B> {
                 dialect: gproxy_protocol::Dialect::OpenAi,
             },
             Some(&request.native.model),
-            wire_json(Method::POST, "/v1/audio/speech".into(), &params(request)?)?,
+            wire_json(
+                Method::POST,
+                "/v1/audio/speech".into(),
+                &native_params!(request),
+            )?,
         )
         .await
     }
@@ -368,11 +400,7 @@ impl<B: Backend> Client<B> {
             headers,
             body: HttpBody::Bytes(request.bytes.clone().into()),
         }];
-        let mut fields = request
-            .provider_options
-            .get(&request.vendor)
-            .cloned()
-            .unwrap_or_default();
+        let mut fields = request.provider_options.remainder(request.vendor).clone();
         fields.insert("model".into(), request.model.clone().into());
         if let Some(language) = &request.language {
             fields.insert("language".into(), language.clone().into());

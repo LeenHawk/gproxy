@@ -432,3 +432,41 @@ pub fn aggregate(events: Vec<Event>) -> GenerateResult {
     )))
     .unwrap()
 }
+
+pub fn extensions(options: &mut ProviderOptions, vendor: Vendor) -> &mut protocol::Rest {
+    match vendor {
+        Vendor::Claude => &mut options.claude.rest,
+        Vendor::Openai => &mut options.openai.rest,
+        Vendor::Gemini => &mut options.gemini.rest,
+    }
+}
+/// Normalize only fields whose vendor reference explicitly permits both a
+/// missing key and null. Required nullable citation titles stay present.
+pub fn normalize_claude(value: &mut Value) {
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                normalize_claude(value);
+            }
+        }
+        Value::Object(object) => {
+            for key in ["citations", "toolset_name", "page_age"] {
+                if object.get(key) == Some(&Value::Null) {
+                    object.remove(key);
+                }
+            }
+            if object.get("type").and_then(Value::as_str).is_some_and(|s| {
+                matches!(
+                    s,
+                    "char_location" | "page_location" | "content_block_location"
+                )
+            }) {
+                object.entry("document_title").or_insert(Value::Null);
+            }
+            for value in object.values_mut() {
+                normalize_claude(value);
+            }
+        }
+        _ => {}
+    }
+}

@@ -2,93 +2,6 @@ mod support;
 use gproxy_client_sdk::*;
 use serde_json::{Value, json};
 
-#[cfg(all(feature = "claude", feature = "openai", feature = "gemini"))]
-#[test]
-fn v1_metadata_templates_remain_typed_after_the_content_revision() {
-    let persisted = json!({
-        "schema_version":"1",
-        "messages":[{
-            "role":"assistant",
-            "content":[
-                {
-                    "type":"reasoning",
-                    "text":"think",
-                    "provider_metadata":{
-                        "claude":{"native":{"type":"thinking","signature":"claude-sig","future":true}},
-                        "openai":{"native":{
-                            "type":"reasoning",
-                            "id":"rs_saved",
-                            "summary":[{"type":"summary_text","text":"think"}],
-                            "encrypted_content":"cipher"
-                        }},
-                        "gemini":{"native":{"thought":true,"thoughtSignature":"gemini-sig"}}
-                    }
-                },
-                {
-                    "type":"text",
-                    "text":"answer",
-                    "provider_metadata":{
-                        "claude":{"native":{"type":"text","future_text":true}},
-                        "openai":{
-                            "native":{"type":"output_text","annotations":[],"logprobs":[]},
-                            "item":{"type":"message","id":"msg_saved","role":"assistant","status":"completed"},
-                            "group":1
-                        },
-                        "gemini":{"native":{"thoughtSignature":"text-sig"}}
-                    }
-                },
-                {
-                    "type":"tool_call",
-                    "id":"saved_call",
-                    "name":"lookup",
-                    "provider_executed":false,
-                    "arguments":"{ \"x\": 1 }",
-                    "provider_metadata":{
-                        "claude":{"native":{"type":"tool_use","extra":true}},
-                        "openai":{"native":{"type":"function_call","id":"fc_saved","status":"completed"}},
-                        "gemini":{"native":{
-                            "functionCall":{"id":"saved_call","args":{},"extra":true},
-                            "thoughtSignature":"call-sig"
-                        }}
-                    }
-                },
-                {
-                    "type":"image",
-                    "source":{"type":"inline","bytes":[104,101,108,108,111]},
-                    "media_type":"image/png","detail":"auto",
-                    "provider_metadata":{"gemini":{"native":{
-                        "inlineData":{"mimeType":"image/png","displayName":"saved image","extra":true},
-                        "thoughtSignature":"image-sig"
-                    }}}
-                }
-            ]
-        }]
-    });
-    let conversation: Conversation = serde_json::from_value(persisted.clone()).unwrap();
-    assert_eq!(serde_json::to_value(&conversation).unwrap(), persisted);
-    let messages = conversation.into_messages();
-    let claude =
-        dialects::render(&support::request(Dialect::Claude, messages.clone()), false).unwrap();
-    assert_eq!(
-        claude["messages"][0]["content"][0]["signature"],
-        "claude-sig"
-    );
-    let openai =
-        dialects::render(&support::request(Dialect::Openai, messages.clone()), false).unwrap();
-    assert_eq!(openai["input"][0]["encrypted_content"], "cipher");
-    assert_eq!(openai["input"][1]["id"], "msg_saved");
-    assert_eq!(openai["input"][2]["arguments"], "{ \"x\": 1 }");
-    let gemini = dialects::render(&support::request(Dialect::Gemini, messages), false).unwrap();
-    assert_eq!(
-        gemini["contents"][0]["parts"][3]["inlineData"]["data"],
-        "aGVsbG8="
-    );
-    assert_eq!(
-        gemini["contents"][0]["parts"][3]["inlineData"]["displayName"],
-        "saved image"
-    );
-}
-
 #[cfg(feature = "claude")]
 #[test]
 fn claude_tool_result_optional_fields_are_replayed_losslessly() {
@@ -265,27 +178,26 @@ fn malformed_metadata_and_options_return_errors_without_panics() {
             // valid metadata; neither case may panic.
             let _ = dialects::render(&request, false);
         }
-        let mut request = support::request(
-            dialect,
-            vec![Message {
-                role: Role::User,
-                content: vec![Block::text("hello")],
-            }],
-        );
-        let key = match dialect {
-            Dialect::Claude => "output_config",
-            Dialect::Openai => "text",
-            Dialect::Gemini => "generationConfig",
+        let invalid = json!("invalid object");
+        let rejected = match dialect {
+            Dialect::Claude => {
+                serde_json::from_value::<options::ClaudeOptions>(json!({"output_config":invalid}))
+                    .is_err()
+            }
+            Dialect::Openai => {
+                serde_json::from_value::<options::ResponsesOptions>(json!({"text":invalid}))
+                    .is_err()
+            }
+            Dialect::Gemini => serde_json::from_value::<options::GeminiOptions>(
+                json!({"generationConfig":invalid}),
+            )
+            .is_err(),
             #[cfg(feature = "chat")]
-            Dialect::OpenaiChat => "audio",
+            Dialect::OpenaiChat => {
+                serde_json::from_value::<options::ChatOptions>(json!({"audio":invalid})).is_err()
+            }
         };
-        let mut options = protocol::Rest::new();
-        options.insert(key.into(), json!("invalid object"));
-        request.provider_options.insert(dialect.vendor(), options);
-        assert!(matches!(
-            dialects::render(&request, false),
-            Err(Error::InvalidData { .. })
-        ));
+        assert!(rejected);
     }
 }
 
@@ -303,7 +215,6 @@ fn typed_claude_mapping_preserves_nullable_history_and_citation_fields() {
         "end_char_index":5,
         "futureCitation":{"keep":true}
     }]);
-    native["content"][3]["caller"] = Value::Null;
     native["content"][3]["toolset_name"] = Value::Null;
     let parsed = dialects::claude::parse(serde_json::from_value(native.clone()).unwrap()).unwrap();
     let rendered = dialects::render(
@@ -311,7 +222,9 @@ fn typed_claude_mapping_preserves_nullable_history_and_citation_fields() {
         false,
     )
     .unwrap();
-    assert_eq!(rendered["messages"][0]["content"], native["content"]);
+    let mut expected = native["content"].clone();
+    support::normalize_claude(&mut expected);
+    assert_eq!(rendered["messages"][0]["content"], expected);
 }
 
 #[cfg(feature = "claude")]
@@ -326,7 +239,7 @@ fn mismatched_stream_deltas_and_invalid_indices_are_invalid_data() {
 
 #[cfg(all(feature = "claude", feature = "openai", feature = "gemini"))]
 #[test]
-fn persisted_metadata_templates_remain_compatible_and_do_not_duplicate_payloads() {
+fn metadata_keeps_native_fields_without_portable_payload_duplicates() {
     for (vendor, result) in [
         (
             Vendor::Claude,

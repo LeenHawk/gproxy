@@ -6,7 +6,6 @@ use gproxy_protocol::openai::responses::{generate as q, input as i, response as 
 enum TextMetadata {
     #[serde(rename = "output_text")]
     Text {
-        annotations: Vec<i::OutputAnnotation>,
         logprobs: Vec<i::OutputLogprob>,
         #[serde(flatten)]
         rest: Rest,
@@ -22,7 +21,7 @@ struct PartMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     native: Option<TextMetadata>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    item: Option<i::ResponseOutputMessageOptions>,
+    item: Option<MessageMetadata>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     group: Option<u32>,
 }
@@ -91,7 +90,11 @@ fn push_output(
             )
             .build();
             if let Some(item) = meta.item {
-                item.apply_to(&mut message);
+                message.id = item.id;
+                message.status = item.status;
+                message.agent = item.agent;
+                message.phase = item.phase;
+                message.rest = item.rest;
             }
             message.content = vec![part];
             *pending = Some(Pending::Output {
@@ -114,44 +117,320 @@ fn message_role(role: Role) -> Result<i::MessageRole> {
     })
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "kind", content = "fields", rename_all = "snake_case")]
-enum ImageMetadata {
-    Input(i::ResponseInputImageOptions),
-    Generated(i::ImageGenerationCallOptions),
+type Agent = gproxy_protocol::openai::responses::multi_agent::Agent;
+fn nullable<'de, D, T>(deserializer: D) -> std::result::Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
 }
-#[derive(Serialize, Deserialize)]
-struct FileMetadata {
-    #[serde(default)]
-    raw_base64: bool,
+#[derive(Clone, Serialize, Deserialize)]
+struct MessageMetadata {
+    id: String,
+    status: i::OutputMessageStatus,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    agent: Option<Option<Agent>>,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    phase: Option<Option<i::MessagePhase>>,
+    #[serde(default, flatten)]
+    rest: Rest,
+}
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct Remainder {
     #[serde(flatten)]
-    fields: i::ResponseInputFileOptions,
+    rest: Rest,
+}
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct InputImageMetadata {
+    file_id_null: bool,
+    image_url_null: bool,
+    #[serde(flatten)]
+    rest: Rest,
+}
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct FileMetadata {
+    raw_base64: bool,
+    file_id_null: bool,
+    detail_present: bool,
+    #[serde(flatten)]
+    rest: Rest,
+}
+#[derive(Serialize, Deserialize)]
+struct GeneratedImageMetadata {
+    id: String,
+    status: i::ImageGenerationStatus,
+    error: Option<gproxy_protocol::openai::responses::errors::ImageGenerationCallError>,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    agent: Option<Option<Agent>>,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    action: Option<Option<t::ImageAction>>,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    background: Option<Option<t::ImageBackground>>,
+    format_present: bool,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    quality: Option<Option<t::ImageQuality>>,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    revised_prompt: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    size: Option<Option<String>>,
+    #[serde(default, flatten)]
+    rest: Rest,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", content = "fields", rename_all = "snake_case")]
+// Read only at metadata serialization boundaries; boxing adds no lasting saving.
+#[allow(clippy::large_enum_variant)]
+enum ImageMetadata {
+    Input(InputImageMetadata),
+    Generated(GeneratedImageMetadata),
+}
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct FunctionMetadata {
+    id: Option<String>,
+    namespace: Option<String>,
+    status: Option<i::ItemStatus>,
+    async_: Option<bool>,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    agent: Option<Option<Agent>>,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    caller: Option<Option<i::Caller>>,
+    #[serde(flatten)]
+    rest: Rest,
+}
+#[derive(Serialize, Deserialize)]
+struct ResultMetadata {
+    id: String,
+    status: i::ItemStatus,
+    name_present: bool,
+    call_id_present: bool,
+    namespace: Option<String>,
+    created_by: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    agent: Option<Option<Agent>>,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    caller: Option<Option<i::Caller>>,
+    #[serde(default, flatten)]
+    rest: Rest,
+}
+#[derive(Serialize, Deserialize)]
+struct SummaryMetadata {
+    chars: usize,
+    #[serde(default, flatten)]
+    rest: Rest,
+}
+#[derive(Serialize, Deserialize)]
+struct ReasoningMetadata {
+    id: String,
+    summary: Vec<SummaryMetadata>,
+    content: Option<Vec<i::ReasoningContent>>,
+    status: Option<i::ReasoningStatus>,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    agent: Option<Option<Agent>>,
+    #[serde(
+        default,
+        deserialize_with = "nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    encrypted_content: Option<Option<String>>,
+    #[serde(default, flatten)]
+    rest: Rest,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 enum ServerMetadata {
-    Web(i::WebSearchCallOptions),
-    Files(i::FileSearchCallOptions),
-    Code(i::CodeInterpreterCallOptions),
-    Computer(i::ComputerCallOptions),
+    Web {
+        status: i::WebSearchStatus,
+        #[serde(
+            default,
+            deserialize_with = "nullable",
+            skip_serializing_if = "Option::is_none"
+        )]
+        agent: Option<Option<Agent>>,
+        rest: Rest,
+    },
+    Files {
+        status: i::FileSearchStatus,
+        #[serde(
+            default,
+            deserialize_with = "nullable",
+            skip_serializing_if = "Option::is_none"
+        )]
+        agent: Option<Option<Agent>>,
+        rest: Rest,
+    },
+    Code {
+        status: i::CodeInterpreterStatus,
+        container_id: String,
+        #[serde(
+            default,
+            deserialize_with = "nullable",
+            skip_serializing_if = "Option::is_none"
+        )]
+        agent: Option<Option<Agent>>,
+        rest: Rest,
+    },
+    Computer {
+        id: String,
+        status: i::ItemStatus,
+        pending_safety_checks: Vec<i::PendingSafetyCheck>,
+        #[serde(
+            default,
+            deserialize_with = "nullable",
+            skip_serializing_if = "Option::is_none"
+        )]
+        agent: Option<Option<Agent>>,
+        rest: Rest,
+    },
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ServerOutputKind {
+    FileSearch,
+    CodeInterpreter,
+}
+#[derive(Serialize, Deserialize)]
+struct ServerOutputMetadata {
+    kind: ServerOutputKind,
+}
+#[derive(Serialize, Deserialize)]
+struct ComputerArguments {
+    action: Option<i::ComputerAction>,
+    actions: Option<Vec<i::ComputerAction>>,
+}
+fn server_output(id: String, name: &str, output: Value, kind: ServerOutputKind) -> Result<Block> {
+    with_native(
+        Content::ToolResult(ToolResult {
+            id,
+            name: name.into(),
+            output: ToolOutput::Json(output),
+            is_error: false,
+            provider_executed: true,
+        }),
+        Vendor::Openai,
+        ServerOutputMetadata { kind },
+    )
+}
+fn restore_server_output(
+    block: &Block,
+    result: &ToolResult,
+    input: &mut [i::InputItem],
+) -> Result<()> {
+    let Some(meta) = read_native::<ServerOutputMetadata>(block, Vendor::Openai)? else {
+        return Ok(());
+    };
+    let ToolOutput::Json(output) = &result.output else {
+        return Err(Error::invalid("native server output requires JSON"));
+    };
+    match meta.kind {
+        ServerOutputKind::FileSearch => {
+            let target = input
+                .iter_mut()
+                .rev()
+                .find_map(|item| match item {
+                    i::InputItem::FileSearchCall(value) if value.id == result.id => Some(value),
+                    _ => None,
+                })
+                .ok_or_else(|| Error::invalid("file-search result has no earlier native call"))?;
+            target.results = Some(serde_json::from_value(output.clone()).map_err(Error::invalid)?);
+        }
+        ServerOutputKind::CodeInterpreter => {
+            let target = input
+                .iter_mut()
+                .rev()
+                .find_map(|item| match item {
+                    i::InputItem::CodeInterpreterCall(value) if value.id == result.id => {
+                        Some(value)
+                    }
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    Error::invalid("code-interpreter result has no earlier native call")
+                })?;
+            target.outputs = Some(serde_json::from_value(output.clone()).map_err(Error::invalid)?);
+        }
+    }
+    Ok(())
 }
 
 fn input_image(block: &ContentBlock<impl Sized>, image: &Image) -> Result<i::ResponseInputImage> {
-    let source = crate::assets::source(block, &image.source, Vendor::Openai, true)?;
+    media::check_file_vendor(&image.source, Vendor::Openai)?;
+    let source = &image.source;
     let mut value = i::ResponseInputImage::builder(
         i::ResponseInputImageType::ResponseInputImage,
         i::ImageDetail::Auto,
     )
     .build();
-    if let Some(ImageMetadata::Input(mut meta)) = read_native(block, Vendor::Openai)? {
-        meta.file_id = None;
-        meta.image_url = None;
-        meta.apply_to(&mut value);
+    if let Some(ImageMetadata::Input(meta)) = read_native(block, Vendor::Openai)? {
+        value.rest = meta.rest;
+        if meta.file_id_null {
+            value.file_id = Some(None);
+        }
+        if meta.image_url_null {
+            value.image_url = Some(None);
+        }
     }
     value.detail = media::responses_detail(image.detail).unwrap_or(i::ImageDetail::Auto);
-    match source.as_ref() {
+    match source {
         Asset::ProviderFile { id, .. } => value.file_id = Some(Some(id.clone())),
-        _ => value.image_url = Some(Some(data_url(&source, image.media_type.as_deref())?)),
+        _ => value.image_url = Some(Some(data_url(source, image.media_type.as_deref())?)),
     };
     value.prompt_cache_breakpoint = media::responses_cache(block)?;
     Ok(value)
@@ -161,10 +440,11 @@ fn input_document(
     document: &Document,
 ) -> Result<i::ResponseInputFile> {
     let (original, mime) = media::document_bytes(document)?;
-    let source = crate::assets::source(block, &original, Vendor::Openai, true)?;
+    media::check_file_vendor(&original, Vendor::Openai)?;
+    let source = original.as_ref();
     input_file(
         block,
-        &source,
+        source,
         mime,
         document.title.as_deref(),
         Some(document.detail),
@@ -181,16 +461,14 @@ fn input_file(
         i::ResponseInputFile::builder(i::ResponseInputFileType::ResponseInputFile).build();
     let meta = read_native::<FileMetadata>(block, Vendor::Openai)?;
     let raw = meta.as_ref().is_some_and(|m| m.raw_base64);
-    let had_detail = meta.as_ref().is_some_and(|m| m.fields.detail.is_some());
-    if let Some(mut m) = meta {
-        m.fields.file_data = None;
-        m.fields.file_url = None;
-        m.fields.filename = None;
-        if m.fields.file_id.as_ref().is_some_and(Option::is_some) {
-            m.fields.file_id = None;
+    let had_detail = meta.as_ref().is_some_and(|m| m.detail_present);
+    if let Some(meta) = meta {
+        value.rest = meta.rest;
+        if meta.file_id_null {
+            value.file_id = Some(None);
         }
-        m.fields.apply_to(&mut value);
     }
+    value.filename = filename.map(str::to_owned);
     match source {
         Asset::ProviderFile { vendor, id } => {
             if *vendor != Vendor::Openai {
@@ -228,32 +506,40 @@ fn input_file(
     Ok(value)
 }
 fn generated_image(block: &Block, image: &Image) -> Result<Option<i::InputItem>> {
-    let Some(ImageMetadata::Generated(mut native)) = read_native(block, Vendor::Openai)? else {
+    let Some(ImageMetadata::Generated(meta)) = read_native(block, Vendor::Openai)? else {
         return Ok(None);
     };
-    let id = native
-        .id
-        .take()
-        .ok_or_else(|| Error::invalid("generated image is missing native item ID"))?;
-    let status = native
-        .status
-        .take()
-        .ok_or_else(|| Error::invalid("generated image is missing native status"))?;
     let Asset::Inline { bytes } = &image.source else {
         return Err(Error::invalid(
-            "generated image history requires its inline bytes",
+            "generated image history requires inline bytes",
         ));
     };
     let mut value = i::ImageGenerationCall::builder(
         i::ImageGenerationCallType::ImageGenerationCall,
-        id,
-        None,
-        status,
+        meta.id,
+        Some(base64::engine::general_purpose::STANDARD.encode(bytes)),
+        meta.status,
     )
+    .rest(meta.rest)
     .build();
-    native.result = None;
-    native.apply_to(&mut value);
-    value.result = Some(base64::engine::general_purpose::STANDARD.encode(bytes));
+    value.error = meta.error;
+    value.agent = meta.agent;
+    value.action = meta.action;
+    value.background = meta.background;
+    value.output_format = match image.media_type.as_deref() {
+        Some("image/png") => Some(Some(t::ImageOutputFormat::Png)),
+        Some("image/jpeg") => Some(Some(t::ImageOutputFormat::Jpeg)),
+        Some("image/webp") => Some(Some(t::ImageOutputFormat::Webp)),
+        Some(_) => {
+            return Err(Error::invalid(
+                "native generated-image history requires PNG, JPEG or WebP",
+            ));
+        }
+        None => meta.format_present.then_some(None),
+    };
+    value.quality = meta.quality;
+    value.revised_prompt = meta.revised_prompt;
+    value.size = meta.size;
     Ok(Some(i::InputItem::ImageGenerationCall(value)))
 }
 fn function_output(block: &ToolResultBlock) -> Result<i::FunctionOutputContent> {
@@ -264,8 +550,7 @@ fn function_output(block: &ToolResultBlock) -> Result<i::FunctionOutputContent> 
                 text.text.clone(),
             )
             .build();
-            if let Some(native) = read_native::<i::ResponseInputTextOptions>(block, Vendor::Openai)?
-            {
+            if let Some(native) = read_native::<Remainder>(block, Vendor::Openai)? {
                 value.rest = native.rest;
             }
             value.prompt_cache_breakpoint = media::responses_cache(block)?.map(Some);
@@ -299,105 +584,106 @@ fn function_output(block: &ToolResultBlock) -> Result<i::FunctionOutputContent> 
     })
 }
 fn restore_server(block: &Block, call: &ToolCall) -> Result<Option<i::InputItem>> {
-    let Some(metadata) = read_native::<ServerMetadata>(block, Vendor::Openai)? else {
+    let Some(meta) = read_native::<ServerMetadata>(block, Vendor::Openai)? else {
         return Ok(None);
     };
-    Ok(Some(match metadata {
-        ServerMetadata::Web(mut m) => {
-            let status = m
-                .status
-                .take()
-                .ok_or_else(|| Error::invalid("web search history is missing status"))?;
-            let mut value = i::WebSearchCall::builder(
+    Ok(Some(match meta {
+        ServerMetadata::Web {
+            status,
+            agent,
+            rest,
+        } => {
+            let mut v = i::WebSearchCall::builder(
                 i::WebSearchCallType::WebSearchCall,
                 call.id.clone(),
                 status,
             )
+            .rest(rest)
             .build();
-            m.id = None;
-            m.action = None;
-            m.apply_to(&mut value);
-            value.action = serde_json::from_str(&call.arguments).map_err(Error::invalid)?;
-            i::InputItem::WebSearchCall(value)
+            v.agent = agent;
+            v.action = serde_json::from_str(&call.arguments).map_err(Error::invalid)?;
+            i::InputItem::WebSearchCall(v)
         }
-        ServerMetadata::Files(mut m) => {
-            let status = m
-                .status
-                .take()
-                .ok_or_else(|| Error::invalid("file search history is missing status"))?;
+        ServerMetadata::Files {
+            status,
+            agent,
+            rest,
+        } => {
             let queries = serde_json::from_str(&call.arguments).map_err(Error::invalid)?;
-            let mut value = i::FileSearchCall::builder(
+            let mut v = i::FileSearchCall::builder(
                 i::FileSearchCallType::FileSearchCall,
                 call.id.clone(),
                 queries,
                 status,
             )
+            .rest(rest)
             .build();
-            m.id = None;
-            m.queries = None;
-            m.apply_to(&mut value);
-            i::InputItem::FileSearchCall(value)
+            v.agent = agent;
+            i::InputItem::FileSearchCall(v)
         }
-        ServerMetadata::Code(mut m) => {
-            let id = call.id.clone();
-            let status = m
-                .status
-                .take()
-                .ok_or_else(|| Error::invalid("code interpreter history is missing status"))?;
-            let container = m.container_id.take().ok_or_else(|| {
-                Error::invalid("code interpreter history is missing container ID")
-            })?;
+        ServerMetadata::Code {
+            status,
+            container_id,
+            agent,
+            rest,
+        } => {
             let code = serde_json::from_str(&call.arguments).map_err(Error::invalid)?;
-            let mut value = i::CodeInterpreterCall::builder(
+            let mut v = i::CodeInterpreterCall::builder(
                 i::CodeInterpreterCallType::CodeInterpreterCall,
-                id,
+                call.id.clone(),
                 code,
-                container,
-                m.outputs.take(),
+                container_id,
+                None,
                 status,
             )
+            .rest(rest)
             .build();
-            m.id = None;
-            m.code = None;
-            m.apply_to(&mut value);
-            i::InputItem::CodeInterpreterCall(value)
+            v.agent = agent;
+            i::InputItem::CodeInterpreterCall(v)
         }
-        ServerMetadata::Computer(mut m) => {
-            let id =
-                m.id.take()
-                    .ok_or_else(|| Error::invalid("computer history is missing item ID"))?;
-            let action = serde_json::from_str(&call.arguments).map_err(Error::invalid)?;
-            let status = m
-                .status
-                .take()
-                .ok_or_else(|| Error::invalid("computer call history is missing status"))?;
-            let call_id = call.id.clone();
-            m.call_id = None;
-            let checks = m
-                .pending_safety_checks
-                .take()
-                .ok_or_else(|| Error::invalid("computer history is missing safety checks"))?;
-            let mut value = i::ComputerCall::builder(
+        ServerMetadata::Computer {
+            id,
+            status,
+            pending_safety_checks,
+            agent,
+            rest,
+        } => {
+            let mut v = i::ComputerCall::builder(
                 i::ComputerCallType::ComputerCall,
                 id,
-                call_id,
-                checks,
+                call.id.clone(),
+                pending_safety_checks,
                 status,
             )
+            .rest(rest)
             .build();
-            value.action = action;
-            m.id = None;
-            m.action = None;
-            m.apply_to(&mut value);
-            i::InputItem::ComputerCall(value)
+            v.agent = agent;
+            let arguments: ComputerArguments =
+                serde_json::from_str(&call.arguments).map_err(Error::invalid)?;
+            v.action = arguments.action;
+            v.actions = arguments.actions;
+            i::InputItem::ComputerCall(v)
         }
     }))
 }
-
 pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateContentRequestBody> {
-    let opts: q::GenerateContentRequestBodyOptions = options(request)?;
+    let opts = &request.provider_options.openai.responses;
     let mut body = q::GenerateContentRequestBody::builder().build();
-    opts.apply_to(&mut body);
+    body.reasoning = opts.reasoning.clone();
+    body.include = opts.include.clone();
+    body.store = opts.store;
+    body.background = opts.background;
+    body.parallel_tool_calls = opts.parallel_tool_calls;
+    body.previous_response_id = opts.previous_response_id.clone();
+    body.prompt_cache_key = opts.prompt_cache_key.clone();
+    body.prompt_cache_options = opts.prompt_cache_options.clone();
+    body.prompt_cache_retention = opts.prompt_cache_retention;
+    body.service_tier = opts.service_tier;
+    body.text = opts.text.clone();
+    body.tools = opts.tools.clone();
+    body.truncation = opts.truncation;
+    body.rest = request.provider_options.openai.rest.clone();
+    body.rest.extend(opts.rest.clone());
     body.model = Some(request.model.id.clone());
     body.stream = Some(Some(streaming));
     let mut input = Vec::new();
@@ -414,21 +700,15 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
                     }) = meta
                     {
                         let part = match native {
-                            TextMetadata::Text {
-                                mut annotations,
-                                logprobs,
-                                rest,
-                            } => {
-                                if !text.citations.is_empty() {
-                                    annotations = text
-                                        .citations
-                                        .iter()
-                                        .map(citations::render_responses)
-                                        .collect::<Result<Vec<_>>>()?
-                                        .into_iter()
-                                        .flatten()
-                                        .collect();
-                                }
+                            TextMetadata::Text { logprobs, rest } => {
+                                let annotations = text
+                                    .citations
+                                    .iter()
+                                    .map(citations::render_responses)
+                                    .collect::<Result<Vec<_>>>()?
+                                    .into_iter()
+                                    .flatten()
+                                    .collect();
                                 i::OutputContent::Text(
                                     i::ResponseOutputText::builder(
                                         i::ResponseOutputTextType::ResponseOutputText,
@@ -494,10 +774,11 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
                     i::InputContent::File(input_document(block, document)?),
                 ),
                 Content::File(file) => {
-                    let source = crate::assets::source(block, &file.source, Vendor::Openai, true)?;
+                    media::check_file_vendor(&file.source, Vendor::Openai)?;
+                    let source = &file.source;
                     let value = input_file(
                         block,
-                        &source,
+                        source,
                         file.media_type.as_deref(),
                         file.filename.as_deref(),
                         None,
@@ -511,35 +792,34 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
                 }
                 Content::Reasoning(Reasoning { text }) => {
                     flush(pending.take(), &mut input);
-                    if let Some(mut native) =
-                        read_native::<i::ReasoningItemOptions>(block, Vendor::Openai)?
-                    {
-                        let id = native.id.take().ok_or_else(|| {
-                            Error::invalid("reasoning metadata is missing item ID")
-                        })?;
-                        let summary = native.summary.take().ok_or_else(|| {
-                            Error::invalid("reasoning metadata is missing summary layout")
-                        })?;
-                        let original: String = summary.iter().map(|s| s.text.as_str()).collect();
-                        let summary = if original == *text {
-                            summary
-                        } else {
-                            vec![
-                                i::SummaryText::builder(
-                                    i::SummaryTextType::SummaryText,
-                                    text.clone(),
-                                )
-                                .build(),
-                            ]
-                        };
-                        let mut item = i::ReasoningItem::builder(
+                    if let Some(meta) = read_native::<ReasoningMetadata>(block, Vendor::Openai)? {
+                        let mut chars = text.chars();
+                        let count = meta.summary.len();
+                        let mut summary = Vec::with_capacity(count);
+                        for (index, part) in meta.summary.into_iter().enumerate() {
+                            let text = if index + 1 == count {
+                                chars.by_ref().collect()
+                            } else {
+                                chars.by_ref().take(part.chars).collect()
+                            };
+                            summary.push(
+                                i::SummaryText::builder(i::SummaryTextType::SummaryText, text)
+                                    .rest(part.rest)
+                                    .build(),
+                            );
+                        }
+                        let mut value = i::ReasoningItem::builder(
                             i::ReasoningItemType::ReasoningItem,
-                            id,
+                            meta.id,
                             summary,
                         )
+                        .rest(meta.rest)
                         .build();
-                        native.apply_to(&mut item);
-                        input.push(i::InputItem::Reasoning(item));
+                        value.content = meta.content;
+                        value.status = meta.status;
+                        value.agent = meta.agent;
+                        value.encrypted_content = meta.encrypted_content;
+                        input.push(i::InputItem::Reasoning(value));
                     }
                 }
                 Content::ToolCall(call) => {
@@ -557,19 +837,21 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
                         call.name.clone(),
                     )
                     .build();
-                    if let Some(mut meta) =
-                        read_native::<i::FunctionCallOptions>(block, Vendor::Openai)?
-                    {
-                        meta.call_id = None;
-                        meta.name = None;
-                        meta.arguments = None;
-                        meta.apply_to(&mut value);
+                    if let Some(meta) = read_native::<FunctionMetadata>(block, Vendor::Openai)? {
+                        value.id = meta.id;
+                        value.namespace = meta.namespace;
+                        value.status = meta.status;
+                        value.async_ = meta.async_;
+                        value.agent = meta.agent;
+                        value.caller = meta.caller;
+                        value.rest = meta.rest;
                     }
                     input.push(i::InputItem::FunctionCall(value));
                 }
                 Content::ToolResult(result) => {
                     flush(pending.take(), &mut input);
                     if result.provider_executed {
+                        restore_server_output(block, result, &mut input)?;
                         continue;
                     }
                     let output = match &result.output {
@@ -586,17 +868,30 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateC
                         output,
                     )
                     .build();
-                    if let Some(mut native) =
-                        read_native::<i::FunctionCallOutputOptions>(block, Vendor::Openai)?
-                    {
-                        native.output = None;
-                        native.call_id = None;
-                        native.apply_to(&mut value);
+                    let meta = read_native::<ResultMetadata>(block, Vendor::Openai)?;
+                    let include_id =
+                        meta.as_ref().is_some_and(|m| m.call_id_present) || !result.id.is_empty();
+                    let include_name =
+                        meta.as_ref().is_some_and(|m| m.name_present) || !result.name.is_empty();
+                    if let Some(meta) = meta {
+                        value.id = Some(Some(meta.id));
+                        value.status = Some(Some(meta.status));
+                        value.namespace = meta.namespace.map(Some);
+                        value.agent = meta.agent;
+                        value.caller = meta.caller;
+                        value.rest = meta.rest;
+                        if let Some(created_by) = meta.created_by {
+                            #[derive(Serialize)]
+                            struct CreatedBy {
+                                created_by: String,
+                            }
+                            value.rest.extend(encode_rest(CreatedBy { created_by })?);
+                        }
                     }
-                    if !result.id.is_empty() {
+                    if include_id {
                         value.call_id = Some(Some(result.id.clone()));
                     }
-                    if !result.name.is_empty() {
+                    if include_name {
                         value.name = Some(Some(result.name.clone()));
                     }
                     input.push(i::InputItem::FunctionCallOutput(value));
@@ -802,8 +1097,13 @@ pub(crate) fn parse_item(item: r::ResponseOutputItem, index: u32) -> Result<Vec<
     Ok(match item {
         r::ResponseOutputItem::Message(mut message) => {
             let parts = std::mem::take(&mut message.content);
-            let mut envelope = i::ResponseOutputMessageOptions::from(message);
-            envelope.content = None;
+            let envelope = MessageMetadata {
+                id: message.id,
+                status: message.status,
+                agent: message.agent,
+                phase: message.phase,
+                rest: message.rest,
+            };
             parts
                 .into_iter()
                 .map(|part| {
@@ -820,7 +1120,6 @@ pub(crate) fn parse_item(item: r::ResponseOutputItem, index: u32) -> Result<Vec<
                                     citations,
                                 }),
                                 TextMetadata::Text {
-                                    annotations: Vec::new(),
                                     logprobs: value.logprobs,
                                     rest: value.rest,
                                 },
@@ -853,18 +1152,40 @@ pub(crate) fn parse_item(item: r::ResponseOutputItem, index: u32) -> Result<Vec<
                 arguments: std::mem::take(&mut call.arguments),
                 provider_executed: false,
             });
-            let mut meta = i::FunctionCallOptions::from(call);
-            meta.call_id = None;
-            meta.name = None;
-            meta.arguments = None;
+            let meta = FunctionMetadata {
+                id: call.id,
+                namespace: call.namespace,
+                status: call.status,
+                async_: call.async_,
+                agent: call.agent,
+                caller: call.caller,
+                rest: call.rest,
+            };
             vec![with_native(content, Vendor::Openai, meta)?]
         }
         r::ResponseOutputItem::Reasoning(item) => {
-            let text = item.summary.iter().map(|p| p.text.as_str()).collect();
+            let text = item.summary.iter().map(|v| v.text.as_str()).collect();
+            let summary = item
+                .summary
+                .into_iter()
+                .map(|v| SummaryMetadata {
+                    chars: v.text.chars().count(),
+                    rest: v.rest,
+                })
+                .collect();
+            let meta = ReasoningMetadata {
+                id: item.id,
+                summary,
+                content: item.content,
+                status: item.status,
+                agent: item.agent,
+                encrypted_content: item.encrypted_content,
+                rest: item.rest,
+            };
             vec![with_native(
                 Content::Reasoning(Reasoning { text }),
                 Vendor::Openai,
-                item,
+                meta,
             )?]
         }
         r::ResponseOutputItem::FunctionCallOutput(value) => vec![parse_tool_result(value)?],
@@ -893,7 +1214,19 @@ pub(crate) fn parse_item(item: r::ResponseOutputItem, index: u32) -> Result<Vec<
                 vec![with_native(
                     content,
                     Vendor::Openai,
-                    ImageMetadata::Generated(i::ImageGenerationCallOptions::from(value)),
+                    ImageMetadata::Generated(GeneratedImageMetadata {
+                        id: value.id,
+                        status: value.status,
+                        error: value.error,
+                        agent: value.agent,
+                        action: value.action,
+                        background: value.background,
+                        format_present: value.output_format.is_some(),
+                        quality: value.quality,
+                        revised_prompt: value.revised_prompt,
+                        size: value.size,
+                        rest: value.rest,
+                    }),
                 )?]
             } else {
                 vec![with_native(
@@ -910,61 +1243,94 @@ pub(crate) fn parse_item(item: r::ResponseOutputItem, index: u32) -> Result<Vec<
                 arguments: serde_json::to_string(&value.action).map_err(Error::invalid)?,
                 provider_executed: true,
             });
-            let mut meta = i::WebSearchCallOptions::from(value);
-            meta.id = None;
-            meta.action = None;
             vec![with_native(
                 content,
                 Vendor::Openai,
-                ServerMetadata::Web(meta),
+                ServerMetadata::Web {
+                    status: value.status,
+                    agent: value.agent,
+                    rest: value.rest,
+                },
             )?]
         }
         r::ResponseOutputItem::FileSearchCall(mut value) => {
+            let outputs = value.results.take();
+            let id = value.id.clone();
             let content = Content::ToolCall(ToolCall {
                 id: std::mem::take(&mut value.id),
                 name: "file_search".into(),
                 arguments: serde_json::to_string(&value.queries).map_err(Error::invalid)?,
                 provider_executed: true,
             });
-            let mut meta = i::FileSearchCallOptions::from(value);
-            meta.id = None;
-            meta.queries = None;
-            vec![with_native(
+            let mut blocks = vec![with_native(
                 content,
                 Vendor::Openai,
-                ServerMetadata::Files(meta),
-            )?]
+                ServerMetadata::Files {
+                    status: value.status,
+                    agent: value.agent,
+                    rest: value.rest,
+                },
+            )?];
+            if let Some(outputs) = outputs {
+                blocks.push(server_output(
+                    id,
+                    "file_search",
+                    serde_json::to_value(outputs).map_err(Error::invalid)?,
+                    ServerOutputKind::FileSearch,
+                )?);
+            }
+            blocks
         }
         r::ResponseOutputItem::CodeInterpreterCall(mut value) => {
+            let outputs = value.outputs.take();
+            let id = value.id.clone();
             let content = Content::ToolCall(ToolCall {
                 id: std::mem::take(&mut value.id),
                 name: "code_interpreter".into(),
                 arguments: serde_json::to_string(&value.code).map_err(Error::invalid)?,
                 provider_executed: true,
             });
-            let mut meta = i::CodeInterpreterCallOptions::from(value);
-            meta.id = None;
-            meta.code = None;
-            vec![with_native(
+            let mut blocks = vec![with_native(
                 content,
                 Vendor::Openai,
-                ServerMetadata::Code(meta),
-            )?]
+                ServerMetadata::Code {
+                    status: value.status,
+                    container_id: value.container_id,
+                    agent: value.agent,
+                    rest: value.rest,
+                },
+            )?];
+            if let Some(outputs) = outputs {
+                blocks.push(server_output(
+                    id,
+                    "code_interpreter",
+                    serde_json::to_value(outputs).map_err(Error::invalid)?,
+                    ServerOutputKind::CodeInterpreter,
+                )?);
+            }
+            blocks
         }
         r::ResponseOutputItem::ComputerCall(mut value) => {
             let content = Content::ToolCall(ToolCall {
                 id: std::mem::take(&mut value.call_id),
                 name: "computer".into(),
-                arguments: serde_json::to_string(&value.action).map_err(Error::invalid)?,
+                arguments: serde_json::to_string(&ComputerArguments {
+                    action: value.action,
+                    actions: value.actions,
+                })
+                .map_err(Error::invalid)?,
                 provider_executed: true,
             });
-            let mut meta = i::ComputerCallOptions::from(value);
-            meta.call_id = None;
-            meta.action = None;
             vec![with_native(
                 content,
                 Vendor::Openai,
-                ServerMetadata::Computer(meta),
+                ServerMetadata::Computer {
+                    id: value.id,
+                    status: value.status,
+                    pending_safety_checks: value.pending_safety_checks,
+                    agent: value.agent,
+                    rest: value.rest,
+                },
             )?]
         }
         other => vec![with_native(Content::Opaque, Vendor::Openai, other)?],
@@ -980,40 +1346,32 @@ pub fn parse_tool_result(output: r::ResponseFunctionCallOutput) -> Result<Block>
                 .collect::<Result<_>>()?,
         ),
     };
+    let meta = ResultMetadata {
+        id: output.id,
+        status: output.status,
+        name_present: output.name.is_some(),
+        call_id_present: output.call_id.is_some(),
+        namespace: output.namespace,
+        created_by: output.created_by,
+        agent: output.agent,
+        caller: output.caller,
+        rest: output.rest,
+    };
     let content = Content::ToolResult(ToolResult {
         id: output.call_id.unwrap_or_default(),
-        name: output.name.clone().unwrap_or_default(),
+        name: output.name.unwrap_or_default(),
         output: output_content,
         is_error: false,
         provider_executed: false,
     });
-    let mut native = i::FunctionCallOutputOptions {
-        type_: Some(output.type_),
-        id: Some(Some(output.id)),
-        agent: output.agent,
-        caller: output.caller,
-        name: output.name.filter(|n| n.is_empty()).map(Some),
-        namespace: output.namespace.map(Some),
-        status: Some(Some(output.status)),
-        rest: output.rest,
-        ..Default::default()
-    };
-    if let Some(created_by) = output.created_by {
-        #[derive(Serialize)]
-        struct CreatedBy {
-            created_by: String,
-        }
-        native.rest.extend(encode_rest(CreatedBy { created_by })?);
-    }
-    with_native(content, Vendor::Openai, native)
+    with_native(content, Vendor::Openai, meta)
 }
 fn parse_output_part(part: i::InputContent) -> Result<ToolResultBlock> {
     match part {
         i::InputContent::Text(mut value) => {
             let cache = value.prompt_cache_breakpoint.take();
             let text = std::mem::take(&mut value.text);
-            let mut native = i::ResponseInputTextOptions::from(value);
-            native.text = None;
+            let native = Remainder { rest: value.rest };
             let mut block = with_native(
                 ToolResultContent::Text(Text {
                     text,
@@ -1026,6 +1384,8 @@ fn parse_output_part(part: i::InputContent) -> Result<ToolResultBlock> {
             Ok(block)
         }
         i::InputContent::Image(mut value) => {
+            let file_id_null = value.file_id == Some(None);
+            let image_url_null = value.image_url == Some(None);
             let source = if let Some(Some(id)) = value.file_id.take() {
                 Asset::ProviderFile {
                     vendor: Vendor::Openai,
@@ -1043,11 +1403,11 @@ fn parse_output_part(part: i::InputContent) -> Result<ToolResultBlock> {
                 i::ImageDetail::Original => Detail::Original,
             };
             let cache = value.prompt_cache_breakpoint.take();
-            let mut meta = i::ResponseInputImageOptions::from(value);
-            meta.detail = None;
-            meta.file_id = None;
-            meta.image_url = None;
-            meta.prompt_cache_breakpoint = None;
+            let meta = InputImageMetadata {
+                file_id_null,
+                image_url_null,
+                rest: value.rest,
+            };
             let mut block = with_native(
                 ToolResultContent::Image(Image {
                     source,
@@ -1061,6 +1421,7 @@ fn parse_output_part(part: i::InputContent) -> Result<ToolResultBlock> {
             Ok(block)
         }
         i::InputContent::File(mut value) => {
+            let file_id_null = value.file_id == Some(None);
             let mut mime = None;
             let mut raw = false;
             let source = if let Some(Some(id)) = value.file_id.take() {
@@ -1103,18 +1464,16 @@ fn parse_output_part(part: i::InputContent) -> Result<ToolResultBlock> {
                 detail,
             };
             let cache = value.prompt_cache_breakpoint.take();
-            let mut fields = i::ResponseInputFileOptions::from(value);
-            fields.file_data = None;
-            fields.file_url = None;
-            fields.file_id = None;
-            fields.filename = None;
-            fields.prompt_cache_breakpoint = None;
+            let detail_present = value.detail.is_some();
+            let rest = value.rest;
             let mut block = with_native(
                 ToolResultContent::Document(document),
                 Vendor::Openai,
                 FileMetadata {
                     raw_base64: raw,
-                    fields,
+                    file_id_null,
+                    detail_present,
+                    rest,
                 },
             )?;
             media::parse_responses_cache(&mut block, cache)?;

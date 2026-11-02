@@ -1,165 +1,155 @@
 # gproxy-client-sdk
 
-The caller-facing Rust SDK for programs calling a GPROXY deployment or an
-embedded `gproxy-sdk::Gproxy`. It uses `gproxy-client` for HTTP, including fetch
-on `wasm32-unknown-unknown`. It does not run retries or failover.
+A caller-facing SDK for programs calling GPROXY over HTTP or through an embedded
+`gproxy-sdk::Gproxy`. The IR belongs to this crate; protocol's pairwise conversions
+are unchanged. HTTP and SSE reuse `gproxy-client`, including wasm fetch.
 
 ```rust,no_run
 use gproxy_client_sdk::{backend::Remote, *};
 
-# async fn example() -> Result<()> {
+# async fn example() -> std::result::Result<(), Box<dyn std::error::Error>> {
 let client = Client::new(Remote::new("https://gproxy.example", "gateway-key").await?);
-let request = GenerateRequest::new(
+let mut request = GenerateRequest::new(
     Model { id: "provider/model".into(), dialect: Dialect::Openai },
     vec![Message { role: Role::User, content: vec![Block::text("Hello")] }],
 );
+request.provider_options.openai.responses.store = Some(Some(false));
 let result = client.stream(&request).await?.aggregate().await?;
 let history = Conversation::new(vec![result.into_message()]);
-let persisted = serde_json::to_string(&history).unwrap();
+let persisted = serde_json::to_string(&history)?;
 # Ok(())
 # }
 ```
 
-For Claude, supply `settings.max_output_tokens` (or native `max_tokens` in
-`provider_options[Vendor::Claude]`); the native API requires it. For stateless
-OpenAI reasoning, request `include: ["reasoning.encrypted_content"]` in OpenAI
-provider options. The SDK preserves the encrypted items it receives.
+`Model.dialect` is explicit: Claude Messages, OpenAI Responses (`Openai`), OpenAI
+Chat Completions (`OpenaiChat`), or Gemini GenerateContent. The local model catalog
+and its permissions are unchanged; `owned_by` does not identify a dialect.
+For Claude, set `settings.max_output_tokens` or `provider_options.claude.max_tokens`.
 
-Use `Client::new(backend::Embedded::new(engine, scope))` on native targets for
-the same generation/operation methods. The embedding host configures the engine
-and owns access policy. Remote requests use the gateway key's policy.
+Use `Client::new(backend::Embedded::new(engine, scope))` on native targets for the
+same API. The embedding host configures the engine and owns access policy.
 
-The model's dialect is explicit. `list_models()` returns GPROXY's normal local
-catalog, whose `owned_by` field is not a dialect guarantee. Set `Model.dialect`
-from application configuration; no model-name heuristics are used.
+## Content and persistence
 
-`dialects::{claude,openai,chat,gemini}::{render,parse}` expose the native wire-type
-boundaries. `stream::StreamDecoder` accepts native JSON events when a host
-already owns framing. `Client::stream()` handles SSE and UTF-8 fragmentation.
-Drop a stream or call `cancel()` to release the request. Billing follows
-GPROXY's observed usage and cancellation semantics; cancellation does not undo
-tokens already generated upstream.
+Every `ContentBlock<T>` has vendor-scoped `provider_metadata` and an optional
+cache breakpoint. `Block` is the general `ContentBlock<Content>` alias.
 
-`Asset` supports inline bytes, URLs, provider file IDs and application blob
-references. Use `client.prepare_assets(&mut request, resolver).await?` before
-sending. The resolver returns `assets::ResolvedAsset::Bytes { bytes, media_type }`
-or `Url { url }`. The SDK chooses inline data, a supported URL, or a Files upload,
-using protocol's existing multipart/Gemini resumable capabilities. It never reads
-local files, fetches arbitrary URLs, or transcodes media. Unsupported formats and
-size limits return `InvalidData`.
-
-Preparation keeps portable bytes and stores reusable file IDs under
-`provider_metadata[vendor].upload`; expired IDs are uploaded again. The default
-inline threshold is 1 MiB; `prepare_assets_with` can change it. Gemini processing
-IDs are saved before returning an error; call preparation again when the caller
-chooses to refresh. There is no polling or retry task. Vendor file IDs never
-cross vendors. An asset with only a foreign file ID needs portable material from
-the caller. Files uploads include an `x-gproxy-model` routing hint consumed by the
-gateway, so the upload follows the same model/provider plan as generation.
-
-Persist `Conversation`, whose v1 JSON envelope is
-`{"schema_version":"1","messages":[...]}`. Unknown versions fail to decode.
-The rich content revision changes V1 in place before any caller has persisted
-it, as authorized for this round. From this point, changes must be additive with
-serde defaults; a breaking representation needs a new version and migration. Keep `provider_metadata` with the
-content: it contains signatures, native item IDs, annotations, encrypted
-reasoning, and unknown vendor extensions. Portable text, tool arguments and
-media payloads live in the IR rather than being duplicated in metadata.
-SDK-owned metadata keys are `native`,
-`item`, `group`, `cache`, `upload`, and `chat`. Native metadata stays authoritative for opaque blocks;
-edits to portable text/tool fields are applied when rendering.
-
-Rendering constructs protocol structs/builders directly, and parsing matches
-native enum variants. Only provider options, persisted metadata, schemas and
-schema-free tool payloads cross a JSON boundary. Protocol `WireOptions`
-projections keep these boundaries typed without relaxing required fields on
-complete native requests. Unknown fields stay in the wire types' `rest` bags.
-Responses reasoning metadata retains its native summary segmentation because
-the IR has a single reasoning string.
-
-Claude and OpenAI tool results can omit the function name. Gemini rendering
-resolves an empty name from the matching tool-call ID earlier in the request;
-an unresolved result returns `InvalidData`. Native result import helpers are
-`claude::parse_tool_result` and `openai::parse_tool_result`.
-
-When changing vendors, only that vendor's metadata/options are read. Signed
-reasoning, redacted/encrypted reasoning, item IDs, native citation extensions,
-unknown native blocks, and provider options from other vendors are dropped.
-Portable citation sources/title/ranges remain in the IR; renderers use them only
-where the target API has a request representation. Unsigned reasoning
-is omitted rather than manufactured into signed native history. Portable text,
-images, documents, audio/video and function results are rendered when supported
-by the target. Claude accepts images/documents; Responses accepts images/files;
-Chat accepts input WAV/MP3 and audio-ID assistant history; Gemini supports all
-media kinds. Custom document chunks are Claude-only. Unsupported kinds return an
-error. Unmappable detail levels and cache TTLs are omitted.
-OpenAI Responses has no stop-sequence field; requesting it returns `InvalidData`.
-Gemini generation returns candidate zero, with streamed parts kept in native
-order (including separate text parts); request one candidate for this API.
-
-Content blocks distinguish `Text` (with citations), `Reasoning`, `Image`,
-`Document`, `File`, `Audio`, `Video`, `ToolCall`, `ToolResult`, and `Opaque`.
-Every block has vendor metadata and an optional cache breakpoint. `Document`
-supports PDF/text/assets/custom chunks, title/context/citation settings and detail;
-`AudioFormat::Pcm` requires sample rate and channels. Tool results are JSON or
-restricted text/image/document blocks. `provider_executed` distinguishes native
-server tools from tools the application should execute. Model output images are
-portable `Image` blocks too.
-
-Output modalities and speech voice/format live in `Settings`. Streams emit audio,
-transcript and citation events alongside text/reasoning/tools. `BlockEnd` holds
-the complete block; aggregation also attaches late citations. Gemini audio and
-separate transcription parts merge into `Audio.transcript`, retaining native
-boundaries for replay. Chat parsing requires the requested audio format (the
-response does not carry it); `Client` passes it automatically. `chat::render_at`
-allows deterministic expiry handling: a valid native audio ID is reused, while
-expired audio becomes its transcript. Missing transcript after expiry is an error.
-
-With `realtime`, `client.connect_realtime(OpenaiRealtimeOptions::new(model))`
-returns a session with `send(Command)`, `receive()`, and `conversation()`.
-`split()` permits sending microphone chunks while waiting for events. Native
-session options remain typed protocol DTOs. `create_realtime_call(options, sdp)`
-returns the SDP answer and Location; the host owns its WebRTC peer, media tracks,
-and data channel. `OpenaiSessionCodec` runs on that channel, with
-`record_output_audio` accepting audio decoded from a host media track. Gemini
-Live is deferred. These APIs were tested with local transports/typed fixtures;
-no live vendor audio session or browser WebRTC negotiation was performed.
-
-Features (`embedded`, `realtime`, and `ts` are opt-in):
-
-| Feature | API |
+| Content | Fields and behavior |
 |---|---|
-| `remote` | `backend::Remote`; native reqwest or wasm fetch |
-| `embedded` | Native `backend::Embedded<C>`; optional engine dependencies |
-| `claude`, `openai`, `chat`, `gemini` | Native renderers and stream decoders |
-| `asset-upload` | Files uploads and reusable vendor IDs during preparation |
-| `realtime` | OpenAI WS session, WebRTC SDP setup and data-channel codec |
-| `count-tokens`, `models` | Native token-count params, local model catalog |
-| `embeddings`, `rerank` | Native typed JSON params/results |
-| `audio` | Typed speech params; multipart transcription params |
-| `images` | Typed generation/edit JSON params/results (URL/data URL/file ID) |
-| `video` | Async create/retrieve/list/delete/download; no polling loop |
-| `ts` | `export_types(directory)` using workspace ts-rs |
+| Text / Reasoning | Text; Text also has portable citations |
+| Image | Source, MIME and detail; supports model-generated images |
+| Document | PDF/text/assets/custom chunks, title/context, citation settings, detail |
+| File | Other attachments, MIME and filename |
+| Audio | Source, format and transcript; PCM requires sample rate and channels |
+| Video | Source, MIME, start/end seconds and fps |
+| ToolCall / ToolResult | ID/name, original arguments or JSON/media output, provider execution flag |
+| Opaque | Native value without a portable meaning; replayed only to its vendor |
 
-Non-chat JSON methods accept `operations::Params<protocol::openai::...>`:
-typed native parameters, the target `Vendor`, and `provider_options`. GPROXY's
-public OpenAI-shaped media/embedding endpoints adapt these upstream. Parameters
-override options of the same name. Token counting uses its selected native
-dialect. Speech and transcription return `WireResponse<HttpBody>` because the
-requested result can be binary, text, JSON or native SSE. Read or stream it
-with `protocol::codec`; dropping it cancels consumption too.
+Tool results contain JSON or restricted Text/Image/Document blocks. Custom
+Document chunks contain Text/Image blocks. Citations reference a URL or a document
+with page/character/chunk ranges. Native document indices/file IDs remain vendor
+scoped when the response does not include the source document.
+
+Persist `Conversation::V1`: `{"schema_version":"1","messages":[...]}`. This round
+changes V1 and its metadata in place, as authorized before any caller persisted
+it. From this point, incompatible changes need a new version and migration;
+compatible additions need serde defaults. Unknown versions fail to decode.
+
+## Metadata, options and native mapping
+
+Renderers build protocol structs/enums directly. Parsers match those types.
+SDK-owned metadata structs retain signatures, encrypted/redacted reasoning, native
+item IDs/status, citations' native anchors and unknown `Rest` fields. Portable
+text, tool arguments and media payloads stay in IR. Layout metadata preserves
+Responses message grouping and reasoning segments, Chat reasoning detail segments,
+and Gemini transcription segments. Server tool outputs use IR ToolResult values.
+Full native values are stored only for Opaque blocks.
+
+`ProviderOptions` contains SDK-owned `ClaudeOptions`, `OpenaiOptions` (separate
+`responses` and `chat` settings), and `GeminiOptions`. Their known fields use
+protocol's existing types. Each has a `rest` remainder for extensions. Portable
+settings override their corresponding native controls; vendor tools supplement
+portable tools. Nested native extension fields are retained. Use `rest` only for
+fields outside the SDK-owned option schema.
+
+When the vendor reference declares an **optional** field nullable, missing and
+null are equivalent. Renderers may omit null when protocol cannot emit it. Required
+nullable Claude citation titles and count-token context metadata remain null.
+The SDK uses the supplied protocol fixes for these fields; it makes no protocol
+changes. JSON decoding is limited to serialization boundaries, schema-free tool
+payloads, and typed extension readers for fields in native `Rest` (such as Chat
+audio chunks). There is no generated projection or JSON overlay of modeled data.
+
+When changing vendors, other vendors' metadata/options, signatures, encrypted or
+redacted reasoning, native item IDs and Opaque values are dropped. Portable
+citations remain in IR; each renderer uses only the request representation its
+API supports. Provider file IDs cannot cross vendors. Media unsupported by the
+target returns `InvalidData`; unsupported optional detail levels/TTLs are omitted.
+Responses input images require a detail, so an unmappable level uses native Auto.
+
+## Sources, streams and operations
+
+Sources are Inline bytes, URL, application Reference, or vendor-scoped ProviderFile.
+Resolve references explicitly before sending:
+
+```rust,no_run
+# use gproxy_client_sdk::*;
+# async fn resolve(request: &mut GenerateRequest) -> Result<()> {
+request.resolve_assets(|reference| async move {
+    // Replace with application blob storage. The caller owns this I/O.
+    let bytes = reference.into_bytes();
+    Ok(ResolvedAsset::Bytes { bytes, media_type: "text/plain".into() })
+}).await?;
+# Ok(())
+# }
+```
+
+The SDK does not read files, fetch arbitrary URLs, upload assets, or transcode.
+Asset preparation/Files uploads and Realtime sessions are deferred to later rounds.
+
+`Client::stream()` handles SSE and UTF-8 fragmentation. Events include text,
+reasoning, tool arguments, audio, transcripts, citations, complete BlockEnd values,
+finish reason/usage and errors. Aggregation uses complete blocks and attaches late
+citations. Truncated EOF cannot become Finish. Gemini's separate transcription
+parts merge into Audio.transcript while preserving native replay boundaries.
+
+Chat audio parsing needs the requested format because the response does not report
+it; `Client` supplies it automatically. Chat streams request usage by default.
+For assistant audio history, a valid OpenAI audio ID is reused; after expiry, the
+transcript is sent. Missing transcript after expiry returns `InvalidData`.
+Gemini speech output supports 24 kHz mono PCM. Responses audio is unsupported;
+choose Chat for audio models. Claude and Responses tool results with no function
+name acquire it from the earlier matching call ID when rendering to Gemini.
+
+Drop a generation stream or call `cancel()` to release its response body. Transport
+cancellation follows `gproxy-client`; observed usage may already be billable.
+There are no SDK retries, failover or background polling tasks.
+
+Non-chat methods use `operations::Params<protocol::openai::...>`: typed native
+parameters plus the selected vendor's option remainder. Families cover count
+tokens, local model listing, embeddings, rerank, TTS/transcription, images and
+asynchronous video jobs. Speech/transcription return the native response transport
+because it may contain binary, text, JSON or SSE.
+
+## Features and TypeScript
+
+Defaults enable remote, all four dialects and all non-chat operation families.
+`embedded` and `ts` are opt-in. Dialect features are `claude`, `openai`, `chat`,
+`gemini`; operation features are `count-tokens`, `models`, `embeddings`, `rerank`,
+`audio`, `images`, `video`. The `audio` feature controls standalone audio operations;
+Chat/Gemini content audio is part of its dialect. Remote normal dependencies do
+not include the engine/store/channel/identity crates.
 
 ```sh
 cargo check -p gproxy-client-sdk --no-default-features --features remote,openai \
   --target wasm32-unknown-unknown
 GPROXY_TS_OUT="$PWD/target/client-sdk-types" \
-  cargo test -p gproxy-client-sdk --features ts typescript_exports
+  cargo test -p gproxy-client-sdk --all-features typescript_exports
 ```
 
-TypeScript exports cover the versioned conversation, request/result/event IR,
-generic operation parameters, token counts and transcription parameters.
-Rust's `Block` alias is represented as `ContentBlock<Content>` in TypeScript;
-restricted tool/document blocks use the same generic with their own content enum. Native
-non-chat parameter/result types remain in `gproxy-protocol`; the generic TS
-`Params<T>` accepts the application's native operation shape. Normal builds and
-tests do not write declarations unless `GPROXY_TS_OUT` is supplied.
+`export_types(directory)` exports the conversation, request/result/events, options
+and generic operation parameter graph with workspace ts-rs. Rust's Block alias is
+`ContentBlock<Content>` in TS. Complex protocol-native option values export as
+JsonValue; portable IR fields retain their concrete TS types. Builds write no
+exports unless requested explicitly. Offline tests do not establish live vendor
+or Workers runtime behavior.

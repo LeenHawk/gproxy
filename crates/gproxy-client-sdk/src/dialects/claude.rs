@@ -27,7 +27,7 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<r::GenerateC
     {
         return Err(Error::invalid("Claude Messages supports text output only"));
     }
-    let opts: r::GenerateContentRequestBodyOptions = options(request)?;
+    let opts = &request.provider_options.claude;
     let max = request
         .settings
         .max_output_tokens
@@ -38,7 +38,15 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<r::GenerateC
         })?;
     let mut body =
         r::GenerateContentRequestBody::builder(max, Vec::new(), request.model.id.clone()).build();
-    opts.apply_to(&mut body);
+    body.thinking = opts.thinking.clone();
+    body.cache_control = opts.cache_control.clone();
+    body.container = opts.container.clone();
+    body.context_management = opts.context_management.clone();
+    body.output_config = opts.output_config.clone();
+    body.service_tier = opts.service_tier;
+    body.speed = opts.speed;
+    body.tools = opts.tools.clone();
+    body.rest = opts.rest.clone();
     body.model = request.model.id.clone();
     body.max_tokens = max;
     body.stream = Some(streaming);
@@ -71,7 +79,7 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<r::GenerateC
     if !system.is_empty() {
         body.system = Some(q::SystemPrompt::Blocks(system));
     }
-    let sampling = r::LegacySampling {
+    let sampling = Sampling {
         temperature: request.settings.temperature,
         top_p: request.settings.top_p,
     };
@@ -80,21 +88,20 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<r::GenerateC
         body.stop_sequences = Some(request.settings.stop_sequences.clone());
     }
     if !request.tools.is_empty() {
-        body.tools = Some(
-            request
-                .tools
-                .iter()
-                .map(|tool| {
-                    let schema: t::JsonSchema = serde_json::from_value(tool.input_schema.clone())
-                        .map_err(Error::invalid)?;
-                    Ok(t::ToolUnion::Custom(
-                        t::Tool::builder(schema, tool.name.clone())
-                            .description(tool.description.clone())
-                            .build(),
-                    ))
-                })
-                .collect::<Result<_>>()?,
-        );
+        let tools = request
+            .tools
+            .iter()
+            .map(|tool| {
+                let schema: t::JsonSchema =
+                    serde_json::from_value(tool.input_schema.clone()).map_err(Error::invalid)?;
+                Ok(t::ToolUnion::Custom(
+                    t::Tool::builder(schema, tool.name.clone())
+                        .description(tool.description.clone())
+                        .build(),
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        body.tools.get_or_insert_with(Vec::new).extend(tools);
     }
     if let Some(choice) = &request.settings.tool_choice {
         body.tool_choice = Some(match choice {
@@ -121,57 +128,87 @@ pub fn render(request: &GenerateRequest, streaming: bool) -> Result<r::GenerateC
     Ok(body)
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "type", content = "fields", rename_all = "snake_case")]
-enum DocumentSourceMetadata {
-    Base64(c::PdfBase64SourceOptions),
-    Text(c::PlainTextSourceOptions),
-    Url(c::UrlSourceOptions),
-    File(c::FileSourceOptions),
-    Content {
-        #[serde(default)]
-        text_form: bool,
-        #[serde(flatten)]
-        fields: c::ContentSourceOptions,
-    },
-}
-#[derive(Serialize, Deserialize)]
-struct DocumentMetadata {
+#[derive(Serialize)]
+struct Sampling {
     #[serde(skip_serializing_if = "Option::is_none")]
-    source: Option<DocumentSourceMetadata>,
+    temperature: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_p: Option<f64>,
+}
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct TextMetadata {
+    empty_citations: bool,
     #[serde(flatten)]
-    fields: c::DocumentBlockOptions,
+    rest: Rest,
 }
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "kind", content = "fields", rename_all = "snake_case")]
-enum ServerResultMetadata {
-    Search(c::WebSearchToolResultBlockOptions),
-    Fetch(c::WebFetchToolResultBlockOptions),
-    Code(c::CodeExecutionToolResultBlockOptions),
-    Bash(c::BashCodeExecutionToolResultBlockOptions),
-    Edit(c::TextEditorCodeExecutionToolResultBlockOptions),
-    Tools(c::ToolSearchToolResultBlockOptions),
-    Advisor(c::AdvisorToolResultBlockOptions),
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct ToolMetadata {
+    caller: Option<c::Caller>,
+    toolset_name: Option<String>,
+    #[serde(flatten)]
+    rest: Rest,
 }
-
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct ImageMetadata {
+    source_rest: Rest,
+    #[serde(flatten)]
+    rest: Rest,
+}
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct DocumentMetadata {
+    source_rest: Rest,
+    chunk_text: bool,
+    citations: Option<c::CitationsConfig>,
+    #[serde(flatten)]
+    rest: Rest,
+}
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
 struct ToolResultMetadata {
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    toolset_name: Option<String>,
+    is_error_present: bool,
     native_blocks: bool,
     #[serde(flatten)]
-    fields: c::ToolResultBlockOptions,
+    rest: Rest,
 }
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ServerResultKind {
+    Search,
+    Fetch,
+    Code,
+    Bash,
+    Edit,
+    Tools,
+    Advisor,
+}
+#[derive(Serialize, Deserialize)]
+struct ServerResultMetadata {
+    kind: ServerResultKind,
+    caller: Option<c::Caller>,
+    #[serde(default, flatten)]
+    rest: Rest,
+}
+
 pub(crate) fn render_block(block: &Block) -> Result<Option<c::ContentBlock>> {
     Ok(Some(match &block.content {
-        Content::Text(value) => c::ContentBlock::Text(render_text(block, value)?),
-        Content::Image(value) => c::ContentBlock::Image(render_image(block, value)?),
-        Content::Document(value) => c::ContentBlock::Document(render_document(block, value)?),
-        Content::Reasoning(Reasoning { text }) => {
+        Content::Text(text) => c::ContentBlock::Text(render_text(block, text)?),
+        Content::Image(image) => c::ContentBlock::Image(render_image(block, image)?),
+        Content::Document(document) => c::ContentBlock::Document(render_document(block, document)?),
+        Content::Reasoning(reasoning) => {
             match read_native::<ReasoningMetadata>(block, Vendor::Claude)? {
                 Some(ReasoningMetadata::Thinking { signature, rest }) => c::ContentBlock::Thinking(
-                    c::ThinkingBlock::builder(c::ThinkingBlockType::Tag, signature, text.clone())
-                        .rest(rest)
-                        .build(),
+                    c::ThinkingBlock::builder(
+                        c::ThinkingBlockType::Tag,
+                        signature,
+                        reasoning.text.clone(),
+                    )
+                    .rest(rest)
+                    .build(),
                 ),
                 Some(ReasoningMetadata::Redacted { data, rest }) => {
                     c::ContentBlock::RedactedThinking(
@@ -184,40 +221,36 @@ pub(crate) fn render_block(block: &Block) -> Result<Option<c::ContentBlock>> {
             }
         }
         Content::ToolCall(call) => {
+            let meta = read_native::<ToolMetadata>(block, Vendor::Claude)?;
             if call.provider_executed {
-                let Some(mut meta) =
-                    read_native::<r::ResponseServerToolUseBlockOptions>(block, Vendor::Claude)?
-                else {
-                    return Ok(None);
-                };
+                let Some(meta) = meta else { return Ok(None) };
                 let name = serde_json::from_value(Value::String(call.name.clone()))
                     .map_err(Error::invalid)?;
+                let input = serde_json::from_str(&call.arguments).map_err(Error::invalid)?;
                 let mut value = c::ServerToolUseBlock::builder(
                     c::ServerToolUseBlockType::Tag,
                     call.id.clone(),
-                    serde_json::from_str(&call.arguments).map_err(Error::invalid)?,
+                    input,
                     name,
                 )
+                .rest(meta.rest)
                 .build();
-                value.caller = meta.caller.take();
-                value.rest = meta.rest;
+                value.caller = meta.caller;
                 value.cache_control = media::claude_cache(block)?;
                 c::ContentBlock::ServerToolUse(value)
             } else {
+                let meta = meta.unwrap_or_default();
+                let input = serde_json::from_str(&call.arguments).map_err(Error::invalid)?;
                 let mut value = c::ToolUseBlock::builder(
                     c::ToolUseBlockType::Tag,
                     call.id.clone(),
-                    serde_json::from_str(&call.arguments).map_err(Error::invalid)?,
+                    input,
                     call.name.clone(),
                 )
+                .rest(meta.rest)
                 .build();
-                if let Some(meta) =
-                    read_native::<r::ResponseToolUseBlockOptions>(block, Vendor::Claude)?
-                {
-                    value.toolset_name = meta.toolset_name;
-                    value.caller = meta.caller;
-                    value.rest = meta.rest;
-                }
+                value.caller = meta.caller;
+                value.toolset_name = meta.toolset_name;
                 value.cache_control = media::claude_cache(block)?;
                 c::ContentBlock::ToolUse(value)
             }
@@ -226,39 +259,33 @@ pub(crate) fn render_block(block: &Block) -> Result<Option<c::ContentBlock>> {
             if result.provider_executed {
                 return render_server_result(block, result);
             }
-            let metadata = read_native::<ToolResultMetadata>(block, Vendor::Claude)?;
-            let native_blocks = metadata.as_ref().is_some_and(|m| m.native_blocks);
-            let omitted = metadata
-                .as_ref()
-                .is_some_and(|m| m.fields.is_error.is_none())
-                && !result.is_error;
+            let meta = read_native::<ToolResultMetadata>(block, Vendor::Claude)?;
             let mut value =
                 c::ToolResultBlock::builder(c::ToolResultBlockType::Tag, result.id.clone()).build();
-            if let Some(meta) = metadata {
-                let mut fields = meta.fields;
-                fields.tool_use_id = None;
-                fields.content = None;
-                fields.apply_to(&mut value);
-            }
+            let meta = meta.unwrap_or_default();
+            value.rest = meta.rest;
+            value.toolset_name = meta.toolset_name;
+            value.is_error = (meta.is_error_present || result.is_error).then_some(result.is_error);
             value.content = match &result.output {
-                ToolOutput::Json(value) if native_blocks => Some(c::ToolResultContent::Blocks(
-                    serde_json::from_value(value.clone()).map_err(Error::invalid)?,
-                )),
+                ToolOutput::Json(value) if meta.native_blocks => {
+                    Some(c::ToolResultContent::Blocks(
+                        serde_json::from_value(value.clone()).map_err(Error::invalid)?,
+                    ))
+                }
                 ToolOutput::Json(Value::Null) => None,
                 ToolOutput::Json(Value::String(text)) => {
                     Some(c::ToolResultContent::Text(text.clone()))
                 }
-                ToolOutput::Json(json) => Some(c::ToolResultContent::Text(json.to_string())),
+                ToolOutput::Json(value) => Some(c::ToolResultContent::Text(value.to_string())),
                 ToolOutput::Blocks(blocks) => Some(c::ToolResultContent::Blocks(
                     blocks.iter().map(render_output).collect::<Result<_>>()?,
                 )),
             };
-            value.is_error = if omitted { None } else { Some(result.is_error) };
             value.cache_control = media::claude_cache(block)?;
             c::ContentBlock::ToolResult(value)
         }
         Content::Opaque => return read_native(block, Vendor::Claude),
-        Content::Audio(_) | Content::Video(_) | Content::File(_) => {
+        Content::File(_) | Content::Audio(_) | Content::Video(_) => {
             return Err(Error::invalid(
                 "Claude Messages accepts images and documents; this attachment kind is unsupported",
             ));
@@ -266,42 +293,32 @@ pub(crate) fn render_block(block: &Block) -> Result<Option<c::ContentBlock>> {
     }))
 }
 fn render_text(block: &ContentBlock<impl Sized>, text: &Text) -> Result<c::TextBlock> {
-    let mut value = c::TextBlock::builder(c::TextBlockType::Tag, text.text.clone()).build();
-    let native = read_native::<r::ResponseTextBlockOptions>(block, Vendor::Claude)?;
-    if let Some(meta) = native {
-        value.citations = meta.citations.map(|m| m.map(|_| Vec::new()));
-        value.rest = meta.rest;
-    }
-    if !text.citations.is_empty() {
-        value.citations = Some(Some(
-            text.citations
-                .iter()
-                .map(citations::render_claude)
-                .collect::<Result<Vec<_>>>()?
-                .into_iter()
-                .flatten()
-                .map(c::TextCitation::Response)
-                .collect(),
-        ));
+    let meta = read_native::<TextMetadata>(block, Vendor::Claude)?.unwrap_or_default();
+    let mut value = c::TextBlock::builder(c::TextBlockType::Tag, text.text.clone())
+        .rest(meta.rest)
+        .build();
+    let citations = text
+        .citations
+        .iter()
+        .map(citations::render_claude)
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    if !citations.is_empty() || meta.empty_citations {
+        value.citations = Some(citations);
     }
     value.cache_control = media::claude_cache(block)?;
     Ok(value)
 }
-#[derive(Default, Serialize, Deserialize)]
-struct ImageMetadata {
-    #[serde(default)]
-    source_rest: Rest,
-    #[serde(flatten)]
-    fields: c::ImageBlockOptions,
-}
 fn render_image(block: &ContentBlock<impl Sized>, image: &Image) -> Result<c::ImageBlock> {
-    let source = crate::assets::source(block, &image.source, Vendor::Claude, true)?;
+    media::check_file_vendor(&image.source, Vendor::Claude)?;
     let meta = read_native::<ImageMetadata>(block, Vendor::Claude)?.unwrap_or_default();
-    let native = match source.as_ref() {
+    let source = match &image.source {
         Asset::Inline { bytes } => {
             let mime = match image.media_type.as_deref() {
-                Some("image/jpeg") => c::ImageMediaType::Jpeg,
                 Some("image/png") => c::ImageMediaType::Png,
+                Some("image/jpeg") => c::ImageMediaType::Jpeg,
                 Some("image/gif") => c::ImageMediaType::Gif,
                 Some("image/webp") => c::ImageMediaType::Webp,
                 _ => {
@@ -315,31 +332,29 @@ fn render_image(block: &ContentBlock<impl Sized>, image: &Image) -> Result<c::Im
                     base64::engine::general_purpose::STANDARD.encode(bytes),
                     mime,
                 )
-                .rest(meta.source_rest.clone())
+                .rest(meta.source_rest)
                 .build(),
             )
         }
         Asset::Url { url } => c::ImageSource::Url(
             c::UrlSource::builder(url.clone())
-                .rest(meta.source_rest.clone())
+                .rest(meta.source_rest)
                 .build(),
         ),
         Asset::ProviderFile { id, .. } => c::ImageSource::File(
             c::FileSource::builder(id.clone())
-                .rest(meta.source_rest.clone())
+                .rest(meta.source_rest)
                 .build(),
         ),
         Asset::Reference { .. } => {
             return Err(Error::invalid(
-                "prepare application assets before rendering",
+                "resolve application references before rendering",
             ));
         }
     };
-    let mut value = c::ImageBlock::builder(c::ImageBlockType::Tag, native).build();
-    let mut fields = meta.fields;
-    fields.source = None;
-    fields.cache_control = None;
-    fields.apply_to(&mut value);
+    let mut value = c::ImageBlock::builder(c::ImageBlockType::Tag, source)
+        .rest(meta.rest)
+        .build();
     value.cache_control = media::claude_cache(block)?;
     Ok(value)
 }
@@ -347,111 +362,80 @@ fn render_document(
     block: &ContentBlock<impl Sized>,
     document: &Document,
 ) -> Result<c::DocumentBlock> {
-    let meta = read_native::<DocumentMetadata>(block, Vendor::Claude)?;
-    let (fields, source_meta) = match meta {
-        Some(m) => (Some(m.fields), m.source),
-        None => (None, None),
-    };
+    let meta = read_native::<DocumentMetadata>(block, Vendor::Claude)?.unwrap_or_default();
     let source = match &document.source {
-        DocumentSource::Asset { source } => {
-            let source = crate::assets::source(block, source, Vendor::Claude, true)?;
-            match source.as_ref() {
-                Asset::Inline { bytes } => match document.media_type.as_deref() {
-                    Some("application/pdf") => {
-                        let mut source = c::PdfBase64Source::builder(
-                            base64::engine::general_purpose::STANDARD.encode(bytes),
-                            c::PdfMediaType::Pdf,
-                        )
-                        .build();
-                        if let Some(DocumentSourceMetadata::Base64(m)) = source_meta {
-                            source.rest = m.rest;
-                        }
-                        c::DocumentSource::Base64(source)
-                    }
-                    Some("text/plain") => {
-                        let mut source = c::PlainTextSource::builder(
-                            std::str::from_utf8(bytes).map_err(Error::invalid)?.into(),
-                            c::TextMediaType::Plain,
-                        )
-                        .build();
-                        if let Some(DocumentSourceMetadata::Text(m)) = source_meta {
-                            source.rest = m.rest;
-                        }
-                        c::DocumentSource::Text(source)
-                    }
-                    _ => {
-                        return Err(Error::invalid(
-                            "Claude inline documents require PDF or text/plain",
-                        ));
-                    }
-                },
-                Asset::Url { url } => {
-                    let mut source = c::UrlSource::builder(url.clone()).build();
-                    if let Some(DocumentSourceMetadata::Url(m)) = source_meta {
-                        source.rest = m.rest;
-                    }
-                    c::DocumentSource::Url(source)
-                }
-                Asset::ProviderFile { id, .. } => {
-                    let mut source = c::FileSource::builder(id.clone()).build();
-                    if let Some(DocumentSourceMetadata::File(m)) = source_meta {
-                        source.rest = m.rest;
-                    }
-                    c::DocumentSource::File(source)
-                }
-                Asset::Reference { .. } => {
-                    return Err(Error::invalid(
-                        "prepare application assets before rendering",
-                    ));
-                }
-            }
-        }
-        DocumentSource::Text { text } => {
-            let original = Asset::Inline {
-                bytes: text.as_bytes().to_vec(),
-            };
-            let prepared = crate::assets::source(block, &original, Vendor::Claude, true)?;
-            if let Asset::ProviderFile { id, .. } = prepared.as_ref() {
-                c::DocumentSource::File(c::FileSource::builder(id.clone()).build())
-            } else {
-                let mut source =
-                    c::PlainTextSource::builder(text.clone(), c::TextMediaType::Plain).build();
-                if let Some(DocumentSourceMetadata::Text(m)) = source_meta {
-                    source.rest = m.rest;
-                }
-                c::DocumentSource::Text(source)
-            }
-        }
+        DocumentSource::Text { text } => c::DocumentSource::Text(
+            c::PlainTextSource::builder(text.clone(), c::TextMediaType::Plain)
+                .rest(meta.source_rest)
+                .build(),
+        ),
         DocumentSource::Chunks { chunks } => {
-            let (text_form, rest) = match source_meta {
-                Some(DocumentSourceMetadata::Content { text_form, fields }) => {
-                    (text_form, fields.rest)
-                }
-                _ => (false, Rest::new()),
-            };
-            let content = if text_form && chunks.len() == 1 {
+            let content = if meta.chunk_text && chunks.len() == 1 {
                 match &chunks[0].content {
-                    ChunkContent::Text(t) => c::DocumentContent::Text(t.text.clone()),
-                    _ => c::DocumentContent::Blocks(
+                    ChunkContent::Text(text) => c::DocumentContent::Text(text.text.clone()),
+                    ChunkContent::Image(_) => c::DocumentContent::Blocks(
                         chunks.iter().map(render_chunk).collect::<Result<_>>()?,
                     ),
                 }
             } else {
                 c::DocumentContent::Blocks(chunks.iter().map(render_chunk).collect::<Result<_>>()?)
             };
-            c::DocumentSource::Content(c::ContentSource::builder(content).rest(rest).build())
+            c::DocumentSource::Content(
+                c::ContentSource::builder(content)
+                    .rest(meta.source_rest)
+                    .build(),
+            )
+        }
+        DocumentSource::Asset { source } => {
+            media::check_file_vendor(source, Vendor::Claude)?;
+            match source {
+                Asset::Inline { bytes } => match document.media_type.as_deref() {
+                    Some("application/pdf") => c::DocumentSource::Base64(
+                        c::PdfBase64Source::builder(
+                            base64::engine::general_purpose::STANDARD.encode(bytes),
+                            c::PdfMediaType::Pdf,
+                        )
+                        .rest(meta.source_rest)
+                        .build(),
+                    ),
+                    Some("text/plain") => c::DocumentSource::Text(
+                        c::PlainTextSource::builder(
+                            std::str::from_utf8(bytes).map_err(Error::invalid)?.into(),
+                            c::TextMediaType::Plain,
+                        )
+                        .rest(meta.source_rest)
+                        .build(),
+                    ),
+                    _ => {
+                        return Err(Error::invalid(
+                            "Claude inline documents require PDF or text/plain",
+                        ));
+                    }
+                },
+                Asset::Url { url } => c::DocumentSource::Url(
+                    c::UrlSource::builder(url.clone())
+                        .rest(meta.source_rest)
+                        .build(),
+                ),
+                Asset::ProviderFile { id, .. } => c::DocumentSource::File(
+                    c::FileSource::builder(id.clone())
+                        .rest(meta.source_rest)
+                        .build(),
+                ),
+                Asset::Reference { .. } => {
+                    return Err(Error::invalid(
+                        "resolve application references before rendering",
+                    ));
+                }
+            }
         }
     };
-    let mut value = c::DocumentBlock::builder(c::DocumentBlockType::Tag, source).build();
-    if let Some(mut fields) = fields {
-        fields.source = None;
-        fields.title = None;
-        fields.context = None;
-        fields.cache_control = None;
-        fields.apply_to(&mut value);
-    }
+    let mut value = c::DocumentBlock::builder(c::DocumentBlockType::Tag, source)
+        .rest(meta.rest)
+        .build();
     value.title = document.title.clone();
     value.context = document.context.clone();
+    value.citations = meta.citations;
     if let Some(enabled) = document.citations {
         value
             .citations
@@ -463,20 +447,18 @@ fn render_document(
 }
 fn render_chunk(block: &DocumentChunk) -> Result<c::DocumentContentBlock> {
     Ok(match &block.content {
-        ChunkContent::Text(value) => c::DocumentContentBlock::Text(render_text(block, value)?),
-        ChunkContent::Image(value) => c::DocumentContentBlock::Image(render_image(block, value)?),
+        ChunkContent::Text(text) => c::DocumentContentBlock::Text(render_text(block, text)?),
+        ChunkContent::Image(image) => c::DocumentContentBlock::Image(render_image(block, image)?),
     })
 }
 fn render_output(block: &ToolResultBlock) -> Result<c::ToolResultContentBlock> {
     Ok(match &block.content {
-        ToolResultContent::Text(value) => {
-            c::ToolResultContentBlock::Text(render_text(block, value)?)
+        ToolResultContent::Text(text) => c::ToolResultContentBlock::Text(render_text(block, text)?),
+        ToolResultContent::Image(image) => {
+            c::ToolResultContentBlock::Image(render_image(block, image)?)
         }
-        ToolResultContent::Image(value) => {
-            c::ToolResultContentBlock::Image(render_image(block, value)?)
-        }
-        ToolResultContent::Document(value) => {
-            c::ToolResultContentBlock::Document(render_document(block, value)?)
+        ToolResultContent::Document(document) => {
+            c::ToolResultContentBlock::Document(render_document(block, document)?)
         }
     })
 }
@@ -485,86 +467,195 @@ fn render_server_result(block: &Block, result: &ToolResult) -> Result<Option<c::
         return Ok(None);
     };
     let ToolOutput::Json(output) = &result.output else {
-        return Err(Error::invalid(
-            "native server tool results require their JSON output",
-        ));
+        return Err(Error::invalid("native server tools require JSON output"));
     };
     macro_rules! restore {
-        ($meta:ident,$type:ident,$tag:ident,$variant:ident) => {{
+        ($ty:ident,$tag:ident) => {{
             let content = serde_json::from_value(output.clone()).map_err(Error::invalid)?;
-            let mut value = c::$type::builder(c::$tag::Tag, content, result.id.clone()).build();
-            let mut meta = $meta;
-            meta.content = None;
-            meta.tool_use_id = None;
-            meta.apply_to(&mut value);
+            let mut value = c::$ty::builder(c::$tag::Tag, content, result.id.clone())
+                .rest(meta.rest)
+                .build();
             value.cache_control = media::claude_cache(block)?;
-            c::ContentBlock::$variant(value)
+            value
         }};
     }
-    Ok(Some(match meta {
-        ServerResultMetadata::Search(m) => restore!(
-            m,
-            WebSearchToolResultBlock,
-            WebSearchToolResultType,
-            WebSearchToolResult
-        ),
-        ServerResultMetadata::Fetch(m) => restore!(
-            m,
-            WebFetchToolResultBlock,
-            WebFetchToolResultType,
-            WebFetchToolResult
-        ),
-        ServerResultMetadata::Code(m) => restore!(
-            m,
+    let value = match meta.kind {
+        ServerResultKind::Search => {
+            let mut value = restore!(WebSearchToolResultBlock, WebSearchToolResultType);
+            value.caller = meta.caller;
+            c::ContentBlock::WebSearchToolResult(value)
+        }
+        ServerResultKind::Fetch => {
+            let mut value = restore!(WebFetchToolResultBlock, WebFetchToolResultType);
+            value.caller = meta.caller;
+            c::ContentBlock::WebFetchToolResult(value)
+        }
+        ServerResultKind::Code => c::ContentBlock::CodeExecutionToolResult(restore!(
             CodeExecutionToolResultBlock,
-            CodeExecutionToolResultType,
-            CodeExecutionToolResult
-        ),
-        ServerResultMetadata::Bash(m) => restore!(
-            m,
+            CodeExecutionToolResultType
+        )),
+        ServerResultKind::Bash => c::ContentBlock::BashCodeExecutionToolResult(restore!(
             BashCodeExecutionToolResultBlock,
-            BashCodeExecutionToolResultType,
-            BashCodeExecutionToolResult
-        ),
-        ServerResultMetadata::Edit(m) => restore!(
-            m,
+            BashCodeExecutionToolResultType
+        )),
+        ServerResultKind::Edit => c::ContentBlock::TextEditorCodeExecutionToolResult(restore!(
             TextEditorCodeExecutionToolResultBlock,
-            TextEditorCodeExecutionToolResultType,
-            TextEditorCodeExecutionToolResult
-        ),
-        ServerResultMetadata::Tools(m) => restore!(
-            m,
+            TextEditorCodeExecutionToolResultType
+        )),
+        ServerResultKind::Tools => c::ContentBlock::ToolSearchToolResult(restore!(
             ToolSearchToolResultBlock,
-            ToolSearchToolResultType,
-            ToolSearchToolResult
-        ),
-        ServerResultMetadata::Advisor(m) => restore!(
-            m,
+            ToolSearchToolResultType
+        )),
+        ServerResultKind::Advisor => c::ContentBlock::AdvisorToolResult(restore!(
             AdvisorToolResultBlock,
-            AdvisorToolResultType,
-            AdvisorToolResult
-        ),
-    }))
+            AdvisorToolResultType
+        )),
+    };
+    Ok(Some(value))
 }
-
 pub fn parse(response: r::GenerateContentResponseBody) -> Result<GenerateResult> {
-    let finish_reason = finish_reason(response.stop_reason);
-    let usage = parse_usage(&response.usage)?;
-    let content = response
-        .content
-        .into_iter()
-        .map(parse_block)
-        .collect::<Result<_>>()?;
     Ok(GenerateResult {
-        content,
-        finish_reason,
-        usage,
+        finish_reason: finish_reason(response.stop_reason),
+        usage: parse_usage(&response.usage)?,
+        content: response
+            .content
+            .into_iter()
+            .map(parse_block)
+            .collect::<Result<_>>()?,
     })
 }
-
+pub(crate) fn parse_block(block: r::ResponseContentBlock) -> Result<Block> {
+    macro_rules! server {
+        ($v:ident,$kind:ident,$caller:expr) => {{
+            let content = Content::ToolResult(ToolResult {
+                id: $v.tool_use_id,
+                name: String::new(),
+                output: ToolOutput::Json(serde_json::to_value($v.content).map_err(Error::invalid)?),
+                is_error: false,
+                provider_executed: true,
+            });
+            with_native(
+                content,
+                Vendor::Claude,
+                ServerResultMetadata {
+                    kind: ServerResultKind::$kind,
+                    caller: $caller,
+                    rest: $v.rest,
+                },
+            )
+        }};
+    }
+    match block {
+        r::ResponseContentBlock::Text(value) => parse_text(value).map(|b| b.map(Content::Text)),
+        r::ResponseContentBlock::Thinking(value) => with_native(
+            Content::Reasoning(Reasoning {
+                text: value.thinking,
+            }),
+            Vendor::Claude,
+            ReasoningMetadata::Thinking {
+                signature: value.signature,
+                rest: value.rest,
+            },
+        ),
+        r::ResponseContentBlock::RedactedThinking(value) => with_native(
+            Content::Reasoning(Reasoning {
+                text: String::new(),
+            }),
+            Vendor::Claude,
+            ReasoningMetadata::Redacted {
+                data: value.data,
+                rest: value.rest,
+            },
+        ),
+        r::ResponseContentBlock::ToolUse(v) => with_native(
+            Content::ToolCall(ToolCall {
+                id: v.id,
+                name: v.name,
+                arguments: serde_json::to_string(&v.input).map_err(Error::invalid)?,
+                provider_executed: false,
+            }),
+            Vendor::Claude,
+            ToolMetadata {
+                caller: v.caller.flatten(),
+                toolset_name: v.toolset_name.flatten(),
+                rest: v.rest,
+            },
+        ),
+        r::ResponseContentBlock::ServerToolUse(v) => {
+            let name =
+                serde_json::from_value(serde_json::to_value(v.name).map_err(Error::invalid)?)
+                    .map_err(Error::invalid)?;
+            with_native(
+                Content::ToolCall(ToolCall {
+                    id: v.id,
+                    name,
+                    arguments: serde_json::to_string(&v.input).map_err(Error::invalid)?,
+                    provider_executed: true,
+                }),
+                Vendor::Claude,
+                ToolMetadata {
+                    caller: v.caller.flatten(),
+                    toolset_name: None,
+                    rest: v.rest,
+                },
+            )
+        }
+        r::ResponseContentBlock::WebSearchToolResult(v) => server!(v, Search, v.caller.flatten()),
+        r::ResponseContentBlock::WebFetchToolResult(v) => server!(v, Fetch, v.caller.flatten()),
+        r::ResponseContentBlock::CodeExecutionToolResult(v) => server!(v, Code, None),
+        r::ResponseContentBlock::BashCodeExecutionToolResult(v) => server!(v, Bash, None),
+        r::ResponseContentBlock::TextEditorCodeExecutionToolResult(v) => server!(v, Edit, None),
+        r::ResponseContentBlock::ToolSearchToolResult(v) => server!(v, Tools, None),
+        r::ResponseContentBlock::AdvisorToolResult(v) => server!(v, Advisor, None),
+        other => with_native(Content::Opaque, Vendor::Claude, other),
+    }
+}
+fn parse_text(value: r::ResponseTextBlock) -> Result<ContentBlock<Text>> {
+    let citations = value.citations.flatten();
+    let empty_citations = citations.as_ref().is_some_and(Vec::is_empty);
+    let citations = citations
+        .unwrap_or_default()
+        .into_iter()
+        .map(citations::parse_claude)
+        .collect::<Result<_>>()?;
+    with_native(
+        Text {
+            text: value.text,
+            citations,
+        },
+        Vendor::Claude,
+        TextMetadata {
+            empty_citations,
+            rest: value.rest,
+        },
+    )
+}
+fn parse_input_text(value: c::TextBlock) -> Result<ContentBlock<Text>> {
+    let cache = value.cache_control;
+    let empty_citations = value.citations.as_ref().is_some_and(Vec::is_empty);
+    let citations = value
+        .citations
+        .unwrap_or_default()
+        .into_iter()
+        .map(input_citation)
+        .map(|c| c.and_then(citations::parse_claude))
+        .collect::<Result<_>>()?;
+    let mut block = with_native(
+        Text {
+            text: value.text,
+            citations,
+        },
+        Vendor::Claude,
+        TextMetadata {
+            empty_citations,
+            rest: value.rest,
+        },
+    )?;
+    media::parse_claude_cache(&mut block, cache)?;
+    Ok(block)
+}
 fn input_citation(value: c::TextCitation) -> Result<r::ResponseTextCitation> {
     Ok(match value {
-        c::TextCitation::Response(v) => v,
         c::TextCitation::Char(v) => r::ResponseTextCitation::Char(
             r::ResponseCharCitation::builder(
                 r::ResponseCharCitationType::Tag,
@@ -573,7 +664,7 @@ fn input_citation(value: c::TextCitation) -> Result<r::ResponseTextCitation> {
                 v.end_char_index,
                 v.start_char_index,
             )
-            .document_title(Some(v.document_title))
+            .document_title(v.document_title)
             .rest(v.rest)
             .build(),
         ),
@@ -585,7 +676,7 @@ fn input_citation(value: c::TextCitation) -> Result<r::ResponseTextCitation> {
                 v.end_page_number,
                 v.start_page_number,
             )
-            .document_title(Some(v.document_title))
+            .document_title(v.document_title)
             .rest(v.rest)
             .build(),
         ),
@@ -597,7 +688,7 @@ fn input_citation(value: c::TextCitation) -> Result<r::ResponseTextCitation> {
                 v.end_block_index,
                 v.start_block_index,
             )
-            .document_title(Some(v.document_title))
+            .document_title(v.document_title)
             .rest(v.rest)
             .build(),
         ),
@@ -627,194 +718,10 @@ fn input_citation(value: c::TextCitation) -> Result<r::ResponseTextCitation> {
         ),
     })
 }
-fn parse_text(mut value: r::ResponseTextBlock) -> Result<ContentBlock<Text>> {
-    let native = value.citations.take();
-    let parsed = native
-        .as_ref()
-        .and_then(Option::as_ref)
-        .into_iter()
-        .flatten()
-        .cloned()
-        .map(citations::parse_claude)
-        .collect::<Result<_>>()?;
-    let content = Text {
-        text: std::mem::take(&mut value.text),
-        citations: parsed,
-    };
-    let mut meta = r::ResponseTextBlockOptions::from(value);
-    meta.text = None;
-    meta.citations = native.map(|v| v.map(|_| Vec::new()));
-    with_native(content, Vendor::Claude, meta)
-}
-fn parse_input_text(mut value: c::TextBlock) -> Result<ContentBlock<Text>> {
-    let cache = value.cache_control.take();
-    let response = r::ResponseTextBlock {
-        type_: r::ResponseTextBlockType::Tag,
-        text: value.text,
-        citations: value
-            .citations
-            .map(|v| {
-                v.map(|items| {
-                    items
-                        .into_iter()
-                        .map(input_citation)
-                        .collect::<Result<Vec<_>>>()
-                })
-                .transpose()
-            })
-            .transpose()?,
-        rest: value.rest,
-    };
-    let mut block = parse_text(response)?;
-    media::parse_claude_cache(&mut block, cache)?;
-    Ok(block)
-}
-pub(crate) fn parse_block(block: r::ResponseContentBlock) -> Result<Block> {
-    macro_rules! server_result {
-        ($value:ident,$options:ident,$tag:ident,$kind:ident) => {{
-            let mut value = $value;
-            let output =
-                ToolOutput::Json(serde_json::to_value(value.content).map_err(Error::invalid)?);
-            let content = Content::ToolResult(ToolResult {
-                id: std::mem::take(&mut value.tool_use_id),
-                name: String::new(),
-                output,
-                is_error: false,
-                provider_executed: true,
-            });
-            let meta = c::$options {
-                type_: Some(c::$tag::Tag),
-                rest: value.rest,
-                ..Default::default()
-            };
-            with_native(content, Vendor::Claude, ServerResultMetadata::$kind(meta))
-        }};
-    }
-    match block {
-        r::ResponseContentBlock::Text(value) => parse_text(value).map(|b| b.map(Content::Text)),
-        r::ResponseContentBlock::Thinking(value) => with_native(
-            Content::Reasoning(Reasoning {
-                text: value.thinking,
-            }),
-            Vendor::Claude,
-            ReasoningMetadata::Thinking {
-                signature: value.signature,
-                rest: value.rest,
-            },
-        ),
-        r::ResponseContentBlock::RedactedThinking(value) => with_native(
-            Content::Reasoning(Reasoning {
-                text: String::new(),
-            }),
-            Vendor::Claude,
-            ReasoningMetadata::Redacted {
-                data: value.data,
-                rest: value.rest,
-            },
-        ),
-        r::ResponseContentBlock::ToolUse(mut value) => {
-            let content = Content::ToolCall(ToolCall {
-                id: std::mem::take(&mut value.id),
-                name: std::mem::take(&mut value.name),
-                arguments: serde_json::to_string(&value.input).map_err(Error::invalid)?,
-                provider_executed: false,
-            });
-            let mut meta = r::ResponseToolUseBlockOptions::from(value);
-            meta.id = None;
-            meta.name = None;
-            meta.input = None;
-            with_native(content, Vendor::Claude, meta)
-        }
-        r::ResponseContentBlock::ServerToolUse(mut value) => {
-            let name: String =
-                serde_json::from_value(serde_json::to_value(value.name).map_err(Error::invalid)?)
-                    .map_err(Error::invalid)?;
-            let content = Content::ToolCall(ToolCall {
-                id: std::mem::take(&mut value.id),
-                name,
-                arguments: serde_json::to_string(&value.input).map_err(Error::invalid)?,
-                provider_executed: true,
-            });
-            let mut meta = r::ResponseServerToolUseBlockOptions::from(value);
-            meta.id = None;
-            meta.input = None;
-            meta.name = None;
-            with_native(content, Vendor::Claude, meta)
-        }
-        r::ResponseContentBlock::WebSearchToolResult(value) => {
-            let output =
-                ToolOutput::Json(serde_json::to_value(value.content).map_err(Error::invalid)?);
-            let content = Content::ToolResult(ToolResult {
-                id: value.tool_use_id,
-                name: String::new(),
-                output,
-                is_error: false,
-                provider_executed: true,
-            });
-            let meta = c::WebSearchToolResultBlockOptions {
-                type_: Some(c::WebSearchToolResultType::Tag),
-                caller: value.caller,
-                rest: value.rest,
-                ..Default::default()
-            };
-            with_native(content, Vendor::Claude, ServerResultMetadata::Search(meta))
-        }
-        r::ResponseContentBlock::WebFetchToolResult(value) => {
-            let output =
-                ToolOutput::Json(serde_json::to_value(value.content).map_err(Error::invalid)?);
-            let content = Content::ToolResult(ToolResult {
-                id: value.tool_use_id,
-                name: String::new(),
-                output,
-                is_error: false,
-                provider_executed: true,
-            });
-            let meta = c::WebFetchToolResultBlockOptions {
-                type_: Some(c::WebFetchToolResultType::Tag),
-                caller: value.caller,
-                rest: value.rest,
-                ..Default::default()
-            };
-            with_native(content, Vendor::Claude, ServerResultMetadata::Fetch(meta))
-        }
-        r::ResponseContentBlock::CodeExecutionToolResult(v) => server_result!(
-            v,
-            CodeExecutionToolResultBlockOptions,
-            CodeExecutionToolResultType,
-            Code
-        ),
-        r::ResponseContentBlock::BashCodeExecutionToolResult(v) => server_result!(
-            v,
-            BashCodeExecutionToolResultBlockOptions,
-            BashCodeExecutionToolResultType,
-            Bash
-        ),
-        r::ResponseContentBlock::TextEditorCodeExecutionToolResult(v) => server_result!(
-            v,
-            TextEditorCodeExecutionToolResultBlockOptions,
-            TextEditorCodeExecutionToolResultType,
-            Edit
-        ),
-        r::ResponseContentBlock::ToolSearchToolResult(v) => server_result!(
-            v,
-            ToolSearchToolResultBlockOptions,
-            ToolSearchToolResultType,
-            Tools
-        ),
-        r::ResponseContentBlock::AdvisorToolResult(v) => server_result!(
-            v,
-            AdvisorToolResultBlockOptions,
-            AdvisorToolResultType,
-            Advisor
-        ),
-        other => with_native(Content::Opaque, Vendor::Claude, other),
-    }
-}
-
-pub fn parse_tool_result(mut value: c::ToolResultBlock) -> Result<Block> {
-    let cache = value.cache_control.take();
+pub fn parse_tool_result(value: c::ToolResultBlock) -> Result<Block> {
     let mut native_blocks = false;
-    let output = match value.content.take() {
+    let output = match value.content {
+        Some(c::ToolResultContent::Text(text)) => ToolOutput::Json(Value::String(text)),
         Some(c::ToolResultContent::Blocks(blocks))
             if blocks.iter().any(|b| {
                 !matches!(
@@ -828,7 +735,6 @@ pub fn parse_tool_result(mut value: c::ToolResultBlock) -> Result<Block> {
             native_blocks = true;
             ToolOutput::Json(serde_json::to_value(blocks).map_err(Error::invalid)?)
         }
-        Some(c::ToolResultContent::Text(text)) => ToolOutput::Json(Value::String(text)),
         Some(c::ToolResultContent::Blocks(blocks)) => ToolOutput::Blocks(
             blocks
                 .into_iter()
@@ -842,211 +748,161 @@ pub fn parse_tool_result(mut value: c::ToolResultBlock) -> Result<Block> {
                     c::ToolResultContentBlock::Document(v) => {
                         parse_document(v).map(|b| b.map(ToolResultContent::Document))
                     }
-                    _ => Err(Error::invalid(
-                        "native result block has no portable attachment representation",
-                    )),
+                    _ => Err(Error::invalid("tool output has no portable representation")),
                 })
                 .collect::<Result<_>>()?,
         ),
         None => ToolOutput::Json(Value::Null),
     };
-    let content = Content::ToolResult(ToolResult {
-        id: std::mem::take(&mut value.tool_use_id),
-        name: String::new(),
-        output,
-        is_error: value.is_error.unwrap_or(false),
-        provider_executed: false,
-    });
-    let mut meta = c::ToolResultBlockOptions::from(value);
-    meta.tool_use_id = None;
-    meta.content = None;
     let mut block = with_native(
-        content,
+        Content::ToolResult(ToolResult {
+            id: value.tool_use_id,
+            name: String::new(),
+            output,
+            is_error: value.is_error.unwrap_or(false),
+            provider_executed: false,
+        }),
         Vendor::Claude,
         ToolResultMetadata {
+            toolset_name: value.toolset_name,
+            is_error_present: value.is_error.is_some(),
             native_blocks,
-            fields: meta,
+            rest: value.rest,
         },
     )?;
-    media::parse_claude_cache(&mut block, cache)?;
+    media::parse_claude_cache(&mut block, value.cache_control)?;
     Ok(block)
 }
-fn parse_image(mut value: c::ImageBlock) -> Result<ContentBlock<Image>> {
-    let cache = value.cache_control.take();
-    let source_rest = match &value.source {
-        c::ImageSource::Base64(v) => v.rest.clone(),
-        c::ImageSource::Url(v) => v.rest.clone(),
-        c::ImageSource::File(v) => v.rest.clone(),
-    };
-    let (source, mime) = match value.source {
-        c::ImageSource::Base64(v) => (
-            Asset::Inline {
-                bytes: base64::engine::general_purpose::STANDARD
-                    .decode(v.data)
-                    .map_err(Error::invalid)?,
-            },
-            Some(
-                match v.media_type {
-                    c::ImageMediaType::Jpeg => "image/jpeg",
-                    c::ImageMediaType::Png => "image/png",
-                    c::ImageMediaType::Gif => "image/gif",
-                    c::ImageMediaType::Webp => "image/webp",
-                }
-                .into(),
-            ),
-        ),
-        c::ImageSource::Url(v) => (Asset::Url { url: v.url }, None),
+fn parse_image(value: c::ImageBlock) -> Result<ContentBlock<Image>> {
+    let (source, media_type, source_rest) = match value.source {
+        c::ImageSource::Base64(v) => {
+            let mime = match v.media_type {
+                c::ImageMediaType::Png => "image/png",
+                c::ImageMediaType::Jpeg => "image/jpeg",
+                c::ImageMediaType::Gif => "image/gif",
+                c::ImageMediaType::Webp => "image/webp",
+            };
+            (
+                Asset::Inline {
+                    bytes: base64::engine::general_purpose::STANDARD
+                        .decode(v.data)
+                        .map_err(Error::invalid)?,
+                },
+                Some(mime.into()),
+                v.rest,
+            )
+        }
+        c::ImageSource::Url(v) => (Asset::Url { url: v.url }, None, v.rest),
         c::ImageSource::File(v) => (
             Asset::ProviderFile {
                 vendor: Vendor::Claude,
                 id: v.file_id,
             },
             None,
+            v.rest,
         ),
     };
-    let mut block = ContentBlock::new(Image {
-        source,
-        media_type: mime,
-        detail: Detail::Auto,
-    });
-    let meta = c::ImageBlockOptions {
-        type_: Some(value.type_),
-        rest: value.rest,
-        ..Default::default()
-    };
-    block.provider_metadata.insert(
+    let mut block = with_native(
+        Image {
+            source,
+            media_type,
+            detail: Detail::Auto,
+        },
         Vendor::Claude,
-        encode_rest(Native {
-            native: Some(ImageMetadata {
-                source_rest,
-                fields: meta,
-            }),
-        })?,
-    );
-    media::parse_claude_cache(&mut block, cache)?;
+        ImageMetadata {
+            source_rest,
+            rest: value.rest,
+        },
+    )?;
+    media::parse_claude_cache(&mut block, value.cache_control)?;
     Ok(block)
 }
-fn parse_document(mut value: c::DocumentBlock) -> Result<DocumentBlock> {
-    let cache = value.cache_control.take();
-    let (source, mime, source_meta) = match value.source {
-        c::DocumentSource::Base64(mut v) => {
-            let bytes = base64::engine::general_purpose::STANDARD
-                .decode(&v.data)
-                .map_err(Error::invalid)?;
-            v.data.clear();
-            let mut m = c::PdfBase64SourceOptions::from(v);
-            m.data = None;
-            m.media_type = None;
-            (
-                DocumentSource::Asset {
-                    source: Asset::Inline { bytes },
+fn parse_document(value: c::DocumentBlock) -> Result<DocumentBlock> {
+    let mut chunk_text = false;
+    let (source, media_type, source_rest) = match value.source {
+        c::DocumentSource::Base64(v) => (
+            DocumentSource::Asset {
+                source: Asset::Inline {
+                    bytes: base64::engine::general_purpose::STANDARD
+                        .decode(v.data)
+                        .map_err(Error::invalid)?,
                 },
-                Some("application/pdf".into()),
-                DocumentSourceMetadata::Base64(m),
-            )
-        }
-        c::DocumentSource::Text(mut v) => {
-            let text = std::mem::take(&mut v.data);
-            let mut m = c::PlainTextSourceOptions::from(v);
-            m.data = None;
-            m.media_type = None;
-            (
-                DocumentSource::Text { text },
-                Some("text/plain".into()),
-                DocumentSourceMetadata::Text(m),
-            )
-        }
-        c::DocumentSource::Url(mut v) => {
-            let source = DocumentSource::Asset {
-                source: Asset::Url {
-                    url: std::mem::take(&mut v.url),
-                },
-            };
-            let mut m = c::UrlSourceOptions::from(v);
-            m.url = None;
-            (source, None, DocumentSourceMetadata::Url(m))
-        }
-        c::DocumentSource::File(mut v) => {
-            let source = DocumentSource::Asset {
+            },
+            Some("application/pdf".into()),
+            v.rest,
+        ),
+        c::DocumentSource::Text(v) => (
+            DocumentSource::Text { text: v.data },
+            Some("text/plain".into()),
+            v.rest,
+        ),
+        c::DocumentSource::Url(v) => (
+            DocumentSource::Asset {
+                source: Asset::Url { url: v.url },
+            },
+            None,
+            v.rest,
+        ),
+        c::DocumentSource::File(v) => (
+            DocumentSource::Asset {
                 source: Asset::ProviderFile {
                     vendor: Vendor::Claude,
-                    id: std::mem::take(&mut v.file_id),
+                    id: v.file_id,
                 },
-            };
-            let mut m = c::FileSourceOptions::from(v);
-            m.file_id = None;
-            (source, None, DocumentSourceMetadata::File(m))
-        }
+            },
+            None,
+            v.rest,
+        ),
         c::DocumentSource::Content(v) => {
-            let (text_form, chunks) = match v.content {
-                c::DocumentContent::Text(text) => (
-                    true,
+            let chunks = match v.content {
+                c::DocumentContent::Text(text) => {
+                    chunk_text = true;
                     vec![ContentBlock::new(ChunkContent::Text(Text {
                         text,
                         citations: Vec::new(),
-                    }))],
-                ),
-                c::DocumentContent::Blocks(blocks) => (
-                    false,
-                    blocks
-                        .into_iter()
-                        .map(|block| match block {
-                            c::DocumentContentBlock::Text(v) => {
-                                parse_input_text(v).map(|b| b.map(ChunkContent::Text))
-                            }
-                            c::DocumentContentBlock::Image(v) => {
-                                parse_image(v).map(|b| b.map(ChunkContent::Image))
-                            }
-                        })
-                        .collect::<Result<_>>()?,
-                ),
+                    }))]
+                }
+                c::DocumentContent::Blocks(blocks) => blocks
+                    .into_iter()
+                    .map(|b| match b {
+                        c::DocumentContentBlock::Text(v) => {
+                            parse_input_text(v).map(|b| b.map(ChunkContent::Text))
+                        }
+                        c::DocumentContentBlock::Image(v) => {
+                            parse_image(v).map(|b| b.map(ChunkContent::Image))
+                        }
+                    })
+                    .collect::<Result<_>>()?,
             };
-            let m = c::ContentSourceOptions {
-                content: None,
-                rest: v.rest,
-            };
-            (
-                DocumentSource::Chunks { chunks },
-                None,
-                DocumentSourceMetadata::Content {
-                    text_form,
-                    fields: m,
-                },
-            )
+            (DocumentSource::Chunks { chunks }, None, v.rest)
         }
     };
+    let mut citations = value.citations;
+    let enabled = citations.as_ref().and_then(|c| c.enabled);
+    if let Some(c) = &mut citations {
+        c.enabled = None;
+    }
     let document = Document {
         source,
-        media_type: mime,
-        title: value.title.clone(),
-        context: value.context.clone(),
-        citations: value.citations.as_ref().and_then(|v| v.enabled),
+        media_type,
+        title: value.title,
+        context: value.context,
+        citations: enabled,
         detail: Detail::Auto,
     };
-    let mut fields = c::DocumentBlockOptions {
-        type_: Some(value.type_),
-        source: None,
-        title: None,
-        context: None,
-        citations: value.citations.take(),
-        cache_control: None,
-        rest: value.rest,
-    };
-    if let Some(citations) = &mut fields.citations {
-        citations.enabled = None;
-    }
     let mut block = with_native(
         document,
         Vendor::Claude,
         DocumentMetadata {
-            source: Some(source_meta),
-            fields,
+            source_rest,
+            chunk_text,
+            citations,
+            rest: value.rest,
         },
     )?;
-    media::parse_claude_cache(&mut block, cache)?;
+    media::parse_claude_cache(&mut block, value.cache_control)?;
     Ok(block)
 }
-
 pub(crate) fn parse_usage(value: &r::Usage) -> Result<Usage> {
     Ok(Usage {
         input_tokens: Some(count(value.input_tokens)?),

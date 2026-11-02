@@ -57,7 +57,7 @@ impl Dialect {
 }
 
 pub type ProviderMetadata = BTreeMap<Vendor, gproxy_protocol::Rest>;
-pub type ProviderOptions = BTreeMap<Vendor, gproxy_protocol::Rest>;
+pub use crate::options::ProviderOptions;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -453,7 +453,7 @@ impl GenerateRequest {
             messages,
             tools: Vec::new(),
             settings: Settings::default(),
-            provider_options: BTreeMap::new(),
+            provider_options: ProviderOptions::default(),
         }
     }
 }

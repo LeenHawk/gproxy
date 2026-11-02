@@ -38,16 +38,6 @@ pub fn render(request: &GenerateRequest, _streaming: bool) -> Result<Value> {
     }
 }
 
-pub(crate) fn options<T: DeserializeOwned + Default>(request: &GenerateRequest) -> Result<T> {
-    match request
-        .provider_options
-        .get(&request.model.dialect.vendor())
-    {
-        Some(rest) => serde_json::from_value(Value::Object(rest.clone())).map_err(Error::invalid),
-        None => Ok(T::default()),
-    }
-}
-
 pub(crate) fn read_metadata<T: DeserializeOwned>(
     block: &ContentBlock<impl Sized>,
     vendor: Vendor,
@@ -66,6 +56,7 @@ pub(crate) struct Native<T> {
     pub native: Option<T>,
 }
 
+#[cfg(any(feature = "claude", feature = "openai", feature = "gemini"))]
 pub(crate) fn read_native<T: DeserializeOwned>(
     block: &ContentBlock<impl Sized>,
     vendor: Vendor,
@@ -92,6 +83,7 @@ pub(crate) fn with_metadata<C>(
     })
 }
 
+#[cfg(any(feature = "claude", feature = "openai", feature = "gemini"))]
 pub(crate) fn with_native<C>(
     content: C,
     vendor: Vendor,

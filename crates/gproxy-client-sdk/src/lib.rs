@@ -2,7 +2,6 @@
 //! `gproxy-sdk`; the outbound HTTP transport is `gproxy-client`.
 #![cfg_attr(target_arch = "wasm32", allow(clippy::arc_with_non_send_sync))]
 
-pub mod assets;
 pub mod backend;
 #[cfg(any(
     feature = "claude",
@@ -13,9 +12,10 @@ pub mod backend;
 pub mod dialects;
 mod error;
 pub mod ir;
+mod resolution;
+pub use resolution::ResolvedAsset;
 pub mod operations;
-#[cfg(feature = "realtime")]
-pub mod realtime;
+pub mod options;
 pub mod stream;
 pub use backend::Backend;
 pub use error::{Error, Result};

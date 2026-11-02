@@ -168,10 +168,8 @@ fn crossing_vendors_drops_private_metadata_and_options() {
                     .content
                     .retain(|b| !matches!(b.content, Content::File(_)));
             }
-            request.provider_options.insert(
-                source.vendor(),
-                serde_json::from_value(json!({"secret_option":"private"})).unwrap(),
-            );
+            support::extensions(&mut request.provider_options, source.vendor())
+                .insert("secret_option".into(), json!("private"));
             let rendered = dialects::render(&request, false)
                 .unwrap_or_else(|error| panic!("{source:?} -> {target:?}: {error}"))
                 .to_string();
@@ -218,10 +216,8 @@ fn tools_sampling_structured_output_and_options_reach_each_native_dialect() {
         });
         request.settings.output_schema =
             Some(json!({"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"]}));
-        request.provider_options.insert(
-            dialect.vendor(),
-            serde_json::from_value(json!({"future_option":{"keep":true}})).unwrap(),
-        );
+        support::extensions(&mut request.provider_options, dialect.vendor())
+            .insert("future_option".into(), json!({"keep":true}));
         let rendered = dialects::render(&request, false).unwrap();
         assert_eq!(rendered["future_option"], json!({"keep":true}));
         assert!(rendered["tools"].is_array());
@@ -246,30 +242,13 @@ fn caller_blob_references_are_resolved_explicitly() {
         }],
     );
     assert!(dialects::render(&request, false).is_err());
-    struct NoIo;
-    impl Backend for NoIo {
-        fn send(
-            &self,
-            _: protocol::OperationKey,
-            _: Option<&str>,
-            _: protocol::WireRequest<protocol::HttpBody>,
-        ) -> protocol::capability::CapabilityFuture<
-            '_,
-            Result<protocol::WireResponse<protocol::HttpBody>>,
-        > {
-            Box::pin(async { panic!("small image must remain inline") })
-        }
-    }
-    futures_executor::block_on(Client::new(NoIo).prepare_assets(
-        &mut request,
-        |reference| async move {
-            assert_eq!(reference, "sha256:blob");
-            Ok(assets::ResolvedAsset::Bytes {
-                media_type: "image/png".into(),
-                bytes: vec![1, 2, 3],
-            })
-        },
-    ))
+    futures_executor::block_on(request.resolve_assets(|reference| async move {
+        assert_eq!(reference, "sha256:blob");
+        Ok(ResolvedAsset::Bytes {
+            media_type: "image/png".into(),
+            bytes: vec![1, 2, 3],
+        })
+    }))
     .unwrap();
     assert_eq!(
         dialects::render(&request, false).unwrap()["contents"][0]["parts"][0]["inlineData"]["data"],

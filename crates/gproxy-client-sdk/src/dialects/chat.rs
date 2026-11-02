@@ -11,7 +11,7 @@ struct Envelope {
 #[derive(Default, Serialize, Deserialize)]
 struct Metadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    message: Option<r::ResponseMessageOptions>,
+    message: Option<MessageMetadata>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     refusal: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -23,9 +23,65 @@ struct Metadata {
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
     function_rest: Rest,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    audio: Option<r::ResponseAudioOptions>,
+    audio: Option<AudioMetadata>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     reasoning_source: Option<ReasoningSource>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    reasoning_layout: Vec<ReasoningSegment>,
+}
+#[derive(Serialize, Deserialize)]
+struct ReasoningSegment {
+    index: usize,
+    chars: usize,
+}
+#[derive(Default, Serialize, Deserialize)]
+struct MessageMetadata {
+    #[serde(
+        default,
+        deserialize_with = "crate::options::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    reasoning_details:
+        Option<Option<Vec<gproxy_protocol::openai::chat::reasoning::ReasoningDetail>>>,
+    #[serde(
+        default,
+        deserialize_with = "crate::options::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    reasoning_content: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "crate::options::present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    reasoning: Option<Option<String>>,
+    #[serde(default, flatten)]
+    rest: Rest,
+}
+#[derive(Default, Serialize, Deserialize)]
+struct AudioMetadata {
+    id: Option<String>,
+    expires_at: Option<i64>,
+    #[serde(default, flatten)]
+    rest: Rest,
+}
+// These are extensions in protocol's current Delta.rest. Decode that remainder
+// once at its boundary; the mapping never indexes the native Delta as JSON.
+#[derive(Default, Deserialize)]
+struct StreamExtensions {
+    audio: Option<AudioDelta>,
+    annotations: Option<Vec<r::Annotation>>,
+    #[serde(default, flatten)]
+    rest: Rest,
+}
+#[derive(Deserialize)]
+struct AudioDelta {
+    id: Option<String>,
+    expires_at: Option<i64>,
+    data: Option<String>,
+    transcript: Option<String>,
+    #[serde(default, flatten)]
+    rest: Rest,
 }
 #[derive(Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -42,19 +98,41 @@ fn block(content: Content, meta: Metadata) -> Result<Block> {
 }
 
 pub fn render(request: &GenerateRequest, streaming: bool) -> Result<q::GenerateContentRequestBody> {
-    render_at(request, streaming, crate::assets::clock()?)
+    render_at(request, streaming, media::clock()?)
 }
 pub fn render_at(
     request: &GenerateRequest,
     streaming: bool,
     now: u64,
 ) -> Result<q::GenerateContentRequestBody> {
-    let opts: q::GenerateContentRequestBodyOptions = options(request)?;
+    let opts = &request.provider_options.openai.chat;
     let mut body =
         q::GenerateContentRequestBody::builder(Vec::new(), request.model.id.clone()).build();
-    opts.apply_to(&mut body);
+    body.audio = opts.audio.clone();
+    body.reasoning_effort = opts.reasoning_effort;
+    body.response_format = opts.response_format.clone();
+    body.tools = opts.tools.clone();
+    body.parallel_tool_calls = opts.parallel_tool_calls;
+    body.seed = opts.seed;
+    body.store = opts.store;
+    body.prompt_cache_key = opts.prompt_cache_key.clone();
+    body.prompt_cache_options = opts.prompt_cache_options.clone();
+    body.prompt_cache_retention = opts.prompt_cache_retention;
+    body.service_tier = opts.service_tier;
+    body.web_search_options = opts.web_search_options.clone();
+    body.rest = request.provider_options.openai.rest.clone();
+    body.rest.extend(opts.rest.clone());
     body.model = request.model.id.clone();
     body.stream = Some(Some(streaming));
+    if streaming {
+        let mut stream_options = opts
+            .stream_options
+            .clone()
+            .flatten()
+            .unwrap_or_else(|| q::StreamOptions::builder().build());
+        stream_options.include_usage.get_or_insert(true);
+        body.stream_options = Some(Some(stream_options));
+    }
     let mut messages = Vec::new();
     for message in &request.messages {
         if message.role == Role::Assistant {
@@ -69,7 +147,6 @@ pub fn render_at(
                     value.reasoning = native.reasoning;
                     value.content = Some(None);
                     value.refusal = Some(None);
-                    value.audio = native.audio.map(|_| None);
                 }
             }
             let mut text = Vec::new();
@@ -90,24 +167,35 @@ pub fn render_at(
                     }
                     Content::Reasoning(reasoning) => match meta.reasoning_source {
                         Some(ReasoningSource::Reasoning) => {
-                            value.reasoning = Some(Some(reasoning.text.clone()))
+                            value
+                                .reasoning
+                                .get_or_insert_with(|| Some(String::new()))
+                                .get_or_insert_with(String::new)
+                                .push_str(&reasoning.text);
                         }
-                        Some(ReasoningSource::Details) => {}
+                        Some(ReasoningSource::Details) => render_reasoning_details(
+                            &mut value,
+                            &reasoning.text,
+                            &meta.reasoning_layout,
+                        )?,
                         Some(ReasoningSource::Content) | None => {
-                            value.reasoning_content = Some(Some(reasoning.text.clone()))
+                            value
+                                .reasoning_content
+                                .get_or_insert_with(|| Some(String::new()))
+                                .get_or_insert_with(String::new)
+                                .push_str(&reasoning.text);
                         }
                     },
                     Content::Audio(audio) => {
-                        if let Some(native) = meta.audio {
-                            if let (Some(expiry), Some(id)) = (native.expires_at, native.id)
-                                && expiry > 0
-                                && count(expiry)? > now
-                            {
-                                value.audio = Some(Some(
-                                    c::AssistantAudio::builder(id).rest(native.rest).build(),
-                                ));
-                                continue;
-                            }
+                        if let Some(native) = meta.audio
+                            && let (Some(expiry), Some(id)) = (native.expires_at, native.id)
+                            && expiry > 0
+                            && count(expiry)? > now
+                        {
+                            value.audio = Some(Some(
+                                c::AssistantAudio::builder(id).rest(native.rest).build(),
+                            ));
+                            continue;
                         }
                         let transcript=audio.transcript.as_ref().ok_or_else(||Error::invalid("expired or foreign assistant audio requires a transcript for Chat continuation"))?;
                         text.push(c::AssistantContentPart::Text(
@@ -248,32 +336,35 @@ pub fn render_at(
         ));
     }
     if let Some(speech) = &request.settings.speech {
+        let voice = q::AudioVoice::String(speech.voice.clone());
+        let format = native_format(&speech.format)?;
+        let rest = body
+            .audio
+            .take()
+            .flatten()
+            .map(|value| value.rest)
+            .unwrap_or_default();
         body.audio = Some(Some(
-            q::ChatAudioParam::builder(
-                q::AudioVoice::String(speech.voice.clone()),
-                native_format(&speech.format)?,
-            )
-            .build(),
+            q::ChatAudioParam::builder(voice, format).rest(rest).build(),
         ));
     }
     if !request.tools.is_empty() {
-        body.tools = Some(
-            request
-                .tools
-                .iter()
-                .map(|tool| {
-                    let parameters: Rest = serde_json::from_value(tool.input_schema.clone())
-                        .map_err(Error::invalid)?;
-                    let function = t::FunctionDefinition::builder(tool.name.clone())
-                        .description(tool.description.clone())
-                        .parameters(parameters)
-                        .build();
-                    Ok(t::ChatTool::Function(
-                        t::FunctionTool::builder(t::FunctionToolType::Function, function).build(),
-                    ))
-                })
-                .collect::<Result<_>>()?,
-        );
+        let tools = request
+            .tools
+            .iter()
+            .map(|tool| {
+                let parameters: Rest =
+                    serde_json::from_value(tool.input_schema.clone()).map_err(Error::invalid)?;
+                let function = t::FunctionDefinition::builder(tool.name.clone())
+                    .description(tool.description.clone())
+                    .parameters(parameters)
+                    .build();
+                Ok(t::ChatTool::Function(
+                    t::FunctionTool::builder(t::FunctionToolType::Function, function).build(),
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        body.tools.get_or_insert_with(Vec::new).extend(tools);
     }
     if let Some(choice) = &request.settings.tool_choice {
         body.tool_choice = Some(match choice {
@@ -291,17 +382,59 @@ pub fn render_at(
     }
     if let Some(schema) = &request.settings.output_schema {
         let schema: Rest = serde_json::from_value(schema.clone()).map_err(Error::invalid)?;
-        body.response_format = Some(q::ResponseFormat::JsonSchema(
-            q::JsonSchemaResponseFormat::builder(
-                q::JsonSchemaResponseType::JsonSchema,
-                q::JsonSchemaFormat::builder("response".into())
-                    .schema(schema)
-                    .build(),
-            )
-            .build(),
-        ));
+        let mut format = match body.response_format.take() {
+            Some(q::ResponseFormat::JsonSchema(format)) => format,
+            other => {
+                let rest = match other {
+                    Some(q::ResponseFormat::Text(value)) => value.rest,
+                    Some(q::ResponseFormat::JsonObject(value)) => value.rest,
+                    _ => Rest::new(),
+                };
+                q::JsonSchemaResponseFormat::builder(
+                    q::JsonSchemaResponseType::JsonSchema,
+                    q::JsonSchemaFormat::builder("response".into()).build(),
+                )
+                .rest(rest)
+                .build()
+            }
+        };
+        format.json_schema.schema = Some(schema);
+        body.response_format = Some(q::ResponseFormat::JsonSchema(format));
     }
     Ok(body)
+}
+fn render_reasoning_details(
+    message: &mut c::AssistantMessage,
+    text: &str,
+    layout: &[ReasoningSegment],
+) -> Result<()> {
+    use gproxy_protocol::openai::chat::reasoning::ReasoningDetailKind as K;
+    let details = message
+        .reasoning_details
+        .as_mut()
+        .and_then(Option::as_mut)
+        .ok_or_else(|| Error::invalid("Chat reasoning metadata has no detail records"))?;
+    let mut chars = text.chars();
+    for (position, segment) in layout.iter().enumerate() {
+        let value = if position + 1 == layout.len() {
+            chars.by_ref().collect()
+        } else {
+            chars.by_ref().take(segment.chars).collect()
+        };
+        let detail = details
+            .get_mut(segment.index)
+            .ok_or_else(|| Error::invalid("Chat reasoning layout references a missing detail"))?;
+        match detail.type_ {
+            K::Text => detail.text = Some(Some(value)),
+            K::Summary => detail.summary = Some(value),
+            K::Encrypted => {
+                return Err(Error::invalid(
+                    "visible reasoning cannot replace encrypted data",
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 fn tool_output(result: &ToolResult) -> Result<c::TextContent> {
     Ok(match &result.output {
@@ -332,9 +465,10 @@ fn user_part(block: &Block) -> Result<c::UserContentPart> {
             c::UserContentPart::Text(value)
         }
         Content::Image(image) => {
-            let source = crate::assets::source(block, &image.source, Vendor::Openai, false)?;
+            media::check_file_vendor(&image.source, Vendor::Openai)?;
+            let source = &image.source;
             let mut url =
-                c::ImageUrl::builder(data_url(&source, image.media_type.as_deref())?).build();
+                c::ImageUrl::builder(data_url(source, image.media_type.as_deref())?).build();
             url.detail = media::chat_detail(image.detail);
             let mut value = c::ImagePart::builder(c::ImagePartType::ImageUrl, url).build();
             value.prompt_cache_breakpoint = media::chat_cache(block)?;
@@ -342,14 +476,16 @@ fn user_part(block: &Block) -> Result<c::UserContentPart> {
         }
         Content::Document(document) => {
             let (original, mime) = media::document_bytes(document)?;
-            let source = crate::assets::source(block, &original, Vendor::Openai, true)?;
-            chat_file(block, &source, mime, document.title.as_deref())?
+            media::check_file_vendor(&original, Vendor::Openai)?;
+            let source = original.as_ref();
+            chat_file(block, source, mime, document.title.as_deref())?
         }
         Content::File(file) => {
-            let source = crate::assets::source(block, &file.source, Vendor::Openai, true)?;
+            media::check_file_vendor(&file.source, Vendor::Openai)?;
+            let source = &file.source;
             chat_file(
                 block,
-                &source,
+                source,
                 file.media_type.as_deref(),
                 file.filename.as_deref(),
             )?
@@ -451,8 +587,14 @@ pub(crate) fn output_format(request: &GenerateRequest) -> Result<Option<AudioFor
     if let Some(speech) = &request.settings.speech {
         return Ok(Some(speech.format.clone()));
     }
-    let options: q::GenerateContentRequestBodyOptions = options(request)?;
-    Ok(options.audio.flatten().map(|audio| ir_format(audio.format)))
+    Ok(request
+        .provider_options
+        .openai
+        .chat
+        .audio
+        .as_ref()
+        .and_then(Option::as_ref)
+        .map(|audio| ir_format(audio.format)))
 }
 pub fn parse(
     response: r::GenerateContentResponseBody,
@@ -504,19 +646,44 @@ fn parse_message_inner(
             .reasoning
             .as_ref()
             .and_then(Option::as_ref)
-            .is_some()
+            .is_some_and(|s| !s.is_empty())
         {
             message.reasoning = Some(Some(String::new()));
             ReasoningSource::Reasoning
         } else {
             ReasoningSource::Details
         };
+        let mut layout = Vec::new();
+        if matches!(source, ReasoningSource::Details) {
+            use gproxy_protocol::openai::chat::reasoning::ReasoningDetailKind as K;
+            for (index, detail) in message
+                .reasoning_details
+                .iter_mut()
+                .flatten()
+                .flatten()
+                .enumerate()
+            {
+                let value = match detail.type_ {
+                    K::Text => detail.text.as_mut().and_then(Option::as_mut),
+                    K::Summary => detail.summary.as_mut(),
+                    K::Encrypted => None,
+                };
+                if let Some(value) = value {
+                    layout.push(ReasoningSegment {
+                        index,
+                        chars: value.chars().count(),
+                    });
+                    value.clear();
+                }
+            }
+        }
         result.push((
             0,
             block(
                 Content::Reasoning(Reasoning { text }),
                 Metadata {
                     reasoning_source: Some(source),
+                    reasoning_layout: layout,
                     ..Default::default()
                 },
             )?,
@@ -564,9 +731,11 @@ fn parse_message_inner(
         };
         let transcript = Some(std::mem::take(&mut audio.transcript));
         audio.data.clear();
-        let mut native = r::ResponseAudioOptions::from(audio);
-        native.data = None;
-        native.transcript = None;
+        let native = AudioMetadata {
+            id: Some(audio.id),
+            expires_at: Some(audio.expires_at),
+            rest: audio.rest,
+        };
         result.push((
             3,
             block(
@@ -645,13 +814,12 @@ fn parse_message_inner(
             )?,
         ));
     }
-    let mut native = r::ResponseMessageOptions::from(message);
-    native.content = None;
-    native.refusal = None;
-    native.audio = None;
-    native.tool_calls = None;
-    native.function_call = None;
-    native.annotations = None;
+    let native = MessageMetadata {
+        reasoning_details: message.reasoning_details,
+        reasoning_content: message.reasoning_content,
+        reasoning: message.reasoning,
+        rest: message.rest,
+    };
     if let Some((_, first)) = result.first_mut() {
         let mut meta = metadata(first)?.unwrap_or_default();
         meta.message = Some(native);
@@ -701,6 +869,16 @@ fn optional_count_chat(value: Option<i64>) -> Result<Option<u64>> {
 
 /// Native Chat chunks do not contain a complete audio object. Accumulate their
 /// observed fields without inventing an audio ID or an expiration timestamp.
+fn append_nullable(target: &mut Option<Option<String>>, delta: Option<Option<String>>) {
+    match delta {
+        Some(Some(text)) => target
+            .get_or_insert_with(|| Some(String::new()))
+            .get_or_insert_with(String::new)
+            .push_str(&text),
+        Some(None) if target.is_none() => *target = Some(None),
+        _ => {}
+    }
+}
 pub(crate) struct StreamState {
     message: r::ResponseMessage,
     calls: BTreeMap<u32, c::ChatToolCall>,
@@ -735,6 +913,8 @@ impl StreamState {
         use gproxy_protocol::openai::chat::stream as s;
         #[derive(Deserialize)]
         #[serde(untagged)]
+        // This transient decode record avoids one extra heap allocation per chunk.
+        #[allow(clippy::large_enum_variant)]
         enum Record {
             Error { error: s::StreamError },
             Chunk(s::ChatCompletionChunk),
@@ -753,6 +933,8 @@ impl StreamState {
         let mut out = Vec::new();
         if let Some(choice) = chunk.choices.into_iter().next() {
             let delta = choice.delta;
+            let extensions: StreamExtensions =
+                serde_json::from_value(Value::Object(delta.rest)).map_err(Error::invalid)?;
             if let Some(Some(text)) = delta.content {
                 self.message
                     .content
@@ -773,36 +955,75 @@ impl StreamState {
                     delta: text,
                 });
             }
-            if let Some(Some(text)) = delta.reasoning_content {
-                self.message
-                    .reasoning_content
-                    .get_or_insert_with(|| Some(String::new()))
-                    .get_or_insert_with(String::new)
-                    .push_str(&text);
+            if let Some(Some(text)) = &delta.reasoning_content {
                 out.push(Event::ReasoningDelta {
                     id: BlockId { item: 0, part: 0 },
-                    delta: text,
+                    delta: text.clone(),
                 });
             }
-            if let Some(Some(text)) = delta.reasoning {
-                self.message
-                    .reasoning
-                    .get_or_insert_with(|| Some(String::new()))
-                    .get_or_insert_with(String::new)
-                    .push_str(&text);
+            append_nullable(&mut self.message.reasoning_content, delta.reasoning_content);
+            if let Some(Some(text)) = &delta.reasoning {
                 out.push(Event::ReasoningDelta {
                     id: BlockId { item: 0, part: 0 },
-                    delta: text,
+                    delta: text.clone(),
                 });
             }
+            append_nullable(&mut self.message.reasoning, delta.reasoning);
             if let Some(Some(details)) = delta.reasoning_details {
-                self.message
+                let target = self
+                    .message
                     .reasoning_details
                     .get_or_insert_with(|| Some(Vec::new()))
-                    .get_or_insert_with(Vec::new)
-                    .extend(details);
+                    .get_or_insert_with(Vec::new);
+                let plain_reasoning = gproxy_protocol::openai::chat::reasoning_text(
+                    &self.message.reasoning_content,
+                    &self.message.reasoning,
+                )
+                .is_some_and(|s| !s.is_empty());
+                for detail in details {
+                    if !plain_reasoning {
+                        use gproxy_protocol::openai::chat::reasoning::ReasoningDetailKind as K;
+                        let text = match detail.type_ {
+                            K::Text => detail.text.as_ref().and_then(Option::as_ref),
+                            K::Summary => detail.summary.as_ref(),
+                            K::Encrypted => None,
+                        };
+                        if let Some(text) = text {
+                            out.push(Event::ReasoningDelta {
+                                id: BlockId { item: 0, part: 0 },
+                                delta: text.clone(),
+                            });
+                        }
+                    }
+                    if let Some(index) = detail.index
+                        && let Some(current) = target.iter_mut().find(|current| {
+                            current.index == Some(index) && current.type_ == detail.type_
+                        })
+                    {
+                        append_nullable(&mut current.text, detail.text);
+                        append_nullable(&mut current.signature, detail.signature);
+                        if let Some(text) = detail.summary {
+                            current
+                                .summary
+                                .get_or_insert_with(String::new)
+                                .push_str(&text);
+                        }
+                        if let Some(data) = detail.data {
+                            current.data.get_or_insert_with(String::new).push_str(&data);
+                        }
+                        if detail.id.is_some() {
+                            current.id = detail.id;
+                        }
+                        if detail.format.is_some() {
+                            current.format = detail.format;
+                        }
+                        current.rest.extend(detail.rest);
+                    } else {
+                        target.push(detail);
+                    }
+                }
             }
-            if let Some(annotations) = delta.annotations {
+            if let Some(annotations) = extensions.annotations {
                 for annotation in &annotations {
                     out.push(Event::Citation {
                         id: BlockId { item: 1, part: 0 },
@@ -814,7 +1035,7 @@ impl StreamState {
                     .get_or_insert_with(Vec::new)
                     .extend(annotations);
             }
-            if let Some(audio) = delta.audio {
+            if let Some(audio) = extensions.audio {
                 self.audio_seen = true;
                 if let Some(id) = audio.id {
                     self.audio_id = Some(id);
@@ -917,7 +1138,7 @@ impl StreamState {
             if let Some(Some(reason)) = choice.finish_reason {
                 self.reason = Some(reason);
             }
-            self.message.rest.extend(delta.rest);
+            self.message.rest.extend(extensions.rest);
         }
         if let Some(Some(value)) = chunk.usage {
             self.usage = Usage {
@@ -969,11 +1190,9 @@ impl StreamState {
                     .ok_or_else(|| Error::invalid("audio stream requires its requested format"))?,
                 transcript: Some(self.transcript),
             };
-            let native = r::ResponseAudioOptions {
+            let native = AudioMetadata {
                 id: self.audio_id,
-                data: None,
                 expires_at: self.expires,
-                transcript: None,
                 rest: self.audio_rest,
             };
             Some(block(

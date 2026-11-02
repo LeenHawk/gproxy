@@ -7,15 +7,13 @@ license = "MIT"
 repository.workspace = true
 
 [features]
-default = ["remote", "claude", "openai", "chat", "gemini", "asset-upload", "count-tokens", "models", "embeddings", "rerank", "audio", "images", "video"]
+default = ["remote", "claude", "openai", "chat", "gemini", "count-tokens", "models", "embeddings", "rerank", "audio", "images", "video"]
 remote = ["dep:gproxy-client", "gproxy-client/reqwest", "gproxy-client/fetch"]
 embedded = ["dep:gproxy-sdk", "dep:gproxy-seaorm", "dep:tokio-util"]
 claude = []
 openai = []
 gemini = []
 chat = []
-asset-upload = ["dep:getrandom"]
-realtime = ["dep:gproxy-client", "gproxy-client/workers", "dep:getrandom"]
 count-tokens = []
 models = []
 embeddings = []
@@ -27,9 +25,8 @@ ts = ["dep:ts-rs"]
 
 [dependencies]
 base64.workspace = true
-blake3.workspace = true
 futures-core.workspace = true
-futures-util = {workspace=true,features=["sink"]}
+futures-util.workspace = true
 gproxy-client = { workspace = true, optional = true }
 gproxy-protocol.workspace = true
 getrandom = { workspace = true, optional = true }
@@ -39,9 +36,8 @@ serde.workspace = true
 serde_json.workspace = true
 serde_urlencoded = { workspace = true, optional = true }
 thiserror.workspace = true
-ts-rs = { workspace = true, optional = true }
+ts-rs = { workspace = true, optional = true, features = ["no-serde-warnings"] }
 web-time.workspace = true
-time = { workspace = true, features = ["parsing"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gproxy-sdk = { workspace = true, optional = true }

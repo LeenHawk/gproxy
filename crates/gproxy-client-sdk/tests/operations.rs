@@ -64,14 +64,10 @@ impl Backend for BackendScript {
 fn params<T: serde::de::DeserializeOwned>(value: Value) -> operations::Params<T> {
     let mut params =
         operations::Params::new(serde_json::from_value(value).unwrap(), Vendor::Claude);
-    params.provider_options.insert(
-        Vendor::Claude,
-        serde_json::from_value(json!({"vendor_extension":{"enabled":true}})).unwrap(),
-    );
-    params.provider_options.insert(
-        Vendor::Gemini,
-        serde_json::from_value(json!({"wrong_vendor":true})).unwrap(),
-    );
+    params.provider_options.claude.rest =
+        serde_json::from_value(json!({"vendor_extension":{"enabled":true}})).unwrap();
+    params.provider_options.gemini.rest =
+        serde_json::from_value(json!({"wrong_vendor":true})).unwrap();
     params
 }
 fn assert_request(request: Recorded, path: &str) -> Value {

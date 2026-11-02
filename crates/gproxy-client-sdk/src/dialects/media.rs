@@ -1,6 +1,14 @@
 //! Small native conversions shared by dialects, not a media transport layer.
 use super::*;
 
+#[cfg(feature = "chat")]
+pub(crate) fn clock() -> Result<u64> {
+    web_time::SystemTime::now()
+        .duration_since(web_time::SystemTime::UNIX_EPOCH)
+        .map(|v| v.as_secs())
+        .map_err(Error::invalid)
+}
+#[cfg(feature = "gemini")]
 pub(crate) fn mime<'a>(value: Option<&'a str>, source: &Asset) -> Result<&'a str> {
     match source {
         Asset::Inline { .. } => {
@@ -21,16 +29,19 @@ pub(crate) fn check_file_vendor(source: &Asset, vendor: Vendor) -> Result<()> {
     Ok(())
 }
 
+#[cfg(any(feature = "claude", feature = "openai", feature = "chat"))]
 #[derive(Default, Serialize, Deserialize)]
 struct CacheMetadata {
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
     cache: Rest,
 }
+#[cfg(any(feature = "claude", feature = "openai", feature = "chat"))]
 fn cache_rest(block: &ContentBlock<impl Sized>, vendor: Vendor) -> Result<Rest> {
     Ok(read_metadata::<CacheMetadata>(block, vendor)?
         .unwrap_or_default()
         .cache)
 }
+#[cfg(any(feature = "claude", feature = "openai"))]
 fn save_cache<C>(block: &mut ContentBlock<C>, vendor: Vendor, rest: Rest) -> Result<()> {
     if !rest.is_empty() {
         block
@@ -189,6 +200,7 @@ pub(crate) fn parse_gemini_detail(
     }
 }
 
+#[cfg(feature = "gemini")]
 pub(crate) fn pcm_mime(format: &AudioFormat) -> Result<String> {
     match format {
         AudioFormat::Encoded { media_type } => {
@@ -213,9 +225,11 @@ pub(crate) fn pcm_mime(format: &AudioFormat) -> Result<String> {
         }
     }
 }
+#[cfg(feature = "gemini")]
 pub(crate) fn is_pcm(mime: &str) -> bool {
     mime.starts_with("audio/pcm") || mime.starts_with("audio/L16") || mime.starts_with("audio/l16")
 }
+#[cfg(feature = "gemini")]
 pub(crate) fn parse_audio_format(mime: &str) -> Result<AudioFormat> {
     if !is_pcm(mime) {
         return Ok(AudioFormat::Encoded {
@@ -240,6 +254,7 @@ pub(crate) fn parse_audio_format(mime: &str) -> Result<AudioFormat> {
     })
 }
 
+#[cfg(any(feature = "openai", feature = "chat", feature = "gemini"))]
 pub(crate) fn document_bytes(
     document: &Document,
 ) -> Result<(std::borrow::Cow<'_, Asset>, Option<&str>)> {

@@ -30,11 +30,70 @@ fn replay_gemini(parts: Value) {
 }
 #[test]
 fn claude_document_image_cache_and_tool_media_are_typed_and_lossless() {
-    let native = json!({"type":"tool_result","tool_use_id":"call_1","is_error":false,"cache_control":{"type":"ephemeral","ttl":"1h","future":1},"extra":true,"content":[
-        {"type":"text","text":"see report","cache_control":{"type":"ephemeral"},"future":2},
-        {"type":"image","source":{"type":"base64","media_type":"image/png","data":"AQID","source_extra":3},"image_extra":4},
-        {"type":"document","source":{"type":"content","content":[{"type":"text","text":"part","extra":5},{"type":"image","source":{"type":"url","url":"https://example.com/a.png","source_extra":6}}],"source_extra":7},"title":"Report","context":"Notes","citations":{"enabled":true,"extra":8},"cache_control":{"type":"ephemeral","ttl":"5m"},"extra":9}
-    ]});
+    let native = json!({
+        "type": "tool_result",
+        "tool_use_id": "call_1",
+        "is_error": false,
+        "cache_control": {
+            "type": "ephemeral",
+            "ttl": "1h",
+            "future": 1
+        },
+        "extra": true,
+        "content": [
+            {
+                "type": "text",
+                "text": "see report",
+                "cache_control": {
+                    "type": "ephemeral"
+                },
+                "future": 2
+            },
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": "AQID",
+                    "source_extra": 3
+                },
+                "image_extra": 4
+            },
+            {
+                "type": "document",
+                "source": {
+                    "type": "content",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "part",
+                            "extra": 5
+                        },
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "url",
+                                "url": "https://example.com/a.png",
+                                "source_extra": 6
+                            }
+                        }
+                    ],
+                    "source_extra": 7
+                },
+                "title": "Report",
+                "context": "Notes",
+                "citations": {
+                    "enabled": true,
+                    "extra": 8
+                },
+                "cache_control": {
+                    "type": "ephemeral",
+                    "ttl": "5m"
+                },
+                "extra": 9
+            }
+        ]
+    });
     let block =
         dialects::claude::parse_tool_result(serde_json::from_value(native.clone()).unwrap())
             .unwrap();
@@ -108,18 +167,99 @@ fn separate_media_fields_and_request_settings_reach_native_dialects() {
 #[test]
 fn gemini_images_pcm_video_and_server_tools_roundtrip() {
     replay_gemini(json!([
-        {"inlineData":{"mimeType":"image/png","data":"AQID","displayName":"generated","extra":1},"mediaResolution":{"level":"MEDIA_RESOLUTION_HIGH","extra":2},"thoughtSignature":"signed"},
-        {"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"BAU=","extra":3},"audioTranscription":{"text":"hello","extra":4}},
-        {"fileData":{"fileUri":"https://example.com/movie.mp4","mimeType":"video/mp4","extra":5},"videoMetadata":{"startOffset":"1.500s","endOffset":"3s","fps":2.0,"extra":6}},
-        {"toolCall":{"toolType":"GOOGLE_SEARCH_WEB","id":"s1","toolName":"search","args":{"q":"weather"},"extra":7}},
-        {"toolResponse":{"toolType":"GOOGLE_SEARCH_WEB","id":"s1","response":{"answer":"sunny"},"extra":8}}
+        {
+            "inlineData": {
+                "mimeType": "image/png",
+                "data": "AQID",
+                "displayName": "generated",
+                "extra": 1
+            },
+            "mediaResolution": {
+                "level": "MEDIA_RESOLUTION_HIGH",
+                "extra": 2
+            },
+            "thoughtSignature": "signed"
+        },
+        {
+            "inlineData": {
+                "mimeType": "audio/pcm;rate=24000",
+                "data": "BAU=",
+                "extra": 3
+            },
+            "audioTranscription": {
+                "text": "hello",
+                "extra": 4
+            }
+        },
+        {
+            "fileData": {
+                "fileUri": "https://example.com/movie.mp4",
+                "mimeType": "video/mp4",
+                "extra": 5
+            },
+            "videoMetadata": {
+                "startOffset": "1.500s",
+                "endOffset": "3s",
+                "fps": 2.0,
+                "extra": 6
+            }
+        },
+        {
+            "toolCall": {
+                "toolType": "GOOGLE_SEARCH_WEB",
+                "id": "s1",
+                "toolName": "search",
+                "args": {
+                    "q": "weather"
+                },
+                "extra": 7
+            }
+        },
+        {
+            "toolResponse": {
+                "toolType": "GOOGLE_SEARCH_WEB",
+                "id": "s1",
+                "response": {
+                    "answer": "sunny"
+                },
+                "extra": 8
+            }
+        }
     ]));
 }
 #[test]
 fn gemini_tool_result_media_preserves_json_and_nested_extensions() {
-    replay_gemini(
-        json!([{"functionResponse":{"name":"inspect","id":"call_1","response":{"answer":7},"parts":[{"inlineData":{"mimeType":"image/png","data":"AQID","extra":1},"extra":2},{"inlineData":{"mimeType":"application/pdf","data":"BAU=","displayName":"Doc","extra":3}}],"extra":4},"thoughtSignature":"signature"}]),
-    );
+    replay_gemini(json!([
+        {
+            "functionResponse": {
+                "name": "inspect",
+                "id": "call_1",
+                "response": {
+                    "answer": 7
+                },
+                "parts": [
+                    {
+                        "inlineData": {
+                            "mimeType": "image/png",
+                            "data": "AQID",
+                            "extra": 1
+                        },
+                        "extra": 2
+                    },
+                    {
+                        "inlineData": {
+                            "mimeType": "application/pdf",
+                            "data": "BAU=",
+                            "displayName": "Doc",
+                            "extra": 3
+                        }
+                    }
+                ],
+                "extra": 4
+            },
+            "thoughtSignature": "signature"
+        }
+    ]));
 }
 #[test]
 fn gemini_modalities_voice_and_pcm_constraints() {
@@ -147,7 +287,48 @@ fn gemini_modalities_voice_and_pcm_constraints() {
     ));
 }
 fn chat_response() -> Value {
-    json!({"id":"chat_1","object":"chat.completion","created":1,"model":"audio-model","choices":[{"index":0,"finish_reason":"tool_calls","message":{"role":"assistant","content":"hello","refusal":null,"audio":{"id":"audio_1","expires_at":2000000000,"data":"AQID","transcript":"spoken hello","extra":1},"tool_calls":[{"id":"call_1","type":"function","function":{"name":"weather","arguments":"{ \"city\": \"Shanghai\" }","extra":2},"extra":3}],"extra":4}}],"usage":{"prompt_tokens":8,"completion_tokens":9,"total_tokens":17}})
+    json!({
+        "id": "chat_1",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "audio-model",
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "tool_calls",
+                "message": {
+                    "role": "assistant",
+                    "content": "hello",
+                    "refusal": null,
+                    "audio": {
+                        "id": "audio_1",
+                        "expires_at": 2000000000,
+                        "data": "AQID",
+                        "transcript": "spoken hello",
+                        "extra": 1
+                    },
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "weather",
+                                "arguments": "{ \"city\": \"Shanghai\" }",
+                                "extra": 2
+                            },
+                            "extra": 3
+                        }
+                    ],
+                    "extra": 4
+                }
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 8,
+            "completion_tokens": 9,
+            "total_tokens": 17
+        }
+    })
 }
 #[test]
 fn chat_audio_id_continuation_and_expiration_use_transcript() {
@@ -238,13 +419,49 @@ fn chat_stream_audio_transcript_tool_calls_and_citations_match_buffered_result()
             Value::Null,
         ),
         (
-            json!({"audio":{"data":"Aw==","transcript":"hello"},"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"weather","arguments":"{ \"city\": \"Shanghai\" }","extra":2},"extra":3}]}),
+            json!({
+                "audio": {
+                    "data": "Aw==",
+                    "transcript": "hello"
+                },
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "weather",
+                            "arguments": "{ \"city\": \"Shanghai\" }",
+                            "extra": 2
+                        },
+                        "extra": 3
+                    }
+                ]
+            }),
             json!("tool_calls"),
         ),
     ] {
         events.extend(decoder.push_json(&json!({"id":"chat_1","object":"chat.completion.chunk","created":1,"model":"audio-model","choices":[{"index":0,"delta":delta,"finish_reason":finish}]}).to_string()).unwrap());
     }
-    events.extend(decoder.push_json(&json!({"id":"chat_1","object":"chat.completion.chunk","created":1,"model":"audio-model","choices":[],"usage":{"prompt_tokens":8,"completion_tokens":9,"total_tokens":17}}).to_string()).unwrap());
+    events.extend(
+        decoder
+            .push_json(
+                &json!({
+                    "id": "chat_1",
+                    "object": "chat.completion.chunk",
+                    "created": 1,
+                    "model": "audio-model",
+                    "choices": [],
+                    "usage": {
+                        "prompt_tokens": 8,
+                        "completion_tokens": 9,
+                        "total_tokens": 17
+                    }
+                })
+                .to_string(),
+            )
+            .unwrap(),
+    );
     events.extend(decoder.finish().unwrap());
     assert!(events.iter().any(|e| matches!(e, Event::AudioDelta { .. })));
     assert!(
@@ -336,7 +553,24 @@ fn gemini_separate_transcript_parts_merge_into_audio_and_replay_the_native_layou
 #[test]
 fn citations_are_portable_and_stream_aggregation_keeps_late_grounding() {
     let mut native = support::claude();
-    native["content"] = json!([{"type":"text","text":"evidence","citations":[{"type":"page_location","cited_text":"quote","document_index":0,"document_title":"Report","start_page_number":1,"end_page_number":2,"file_id":null,"extra":3}]}]);
+    native["content"] = json!([
+        {
+            "type": "text",
+            "text": "evidence",
+            "citations": [
+                {
+                    "type": "page_location",
+                    "cited_text": "quote",
+                    "document_index": 0,
+                    "document_title": "Report",
+                    "start_page_number": 1,
+                    "end_page_number": 2,
+                    "file_id": null,
+                    "extra": 3
+                }
+            ]
+        }
+    ]);
     let parsed = dialects::claude::parse(serde_json::from_value(native.clone()).unwrap()).unwrap();
     let Content::Text(text) = &parsed.content[0].content else {
         panic!()
@@ -355,7 +589,31 @@ fn citations_are_portable_and_stream_aggregation_keeps_late_grounding() {
         native["content"]
     );
     let mut native = support::openai();
-    native["output"] = json!([{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"evidence","logprobs":[],"annotations":[{"type":"url_citation","start_index":0,"end_index":8,"url":"https://example.com/source","title":"Source","extra":4}]}]}]);
+    native["output"] = json!([
+        {
+            "type": "message",
+            "id": "msg_1",
+            "role": "assistant",
+            "status": "completed",
+            "content": [
+                {
+                    "type": "output_text",
+                    "text": "evidence",
+                    "logprobs": [],
+                    "annotations": [
+                        {
+                            "type": "url_citation",
+                            "start_index": 0,
+                            "end_index": 8,
+                            "url": "https://example.com/source",
+                            "title": "Source",
+                            "extra": 4
+                        }
+                    ]
+                }
+            ]
+        }
+    ]);
     let parsed = dialects::openai::parse(serde_json::from_value(native.clone()).unwrap()).unwrap();
     let request = support::request(Dialect::Openai, support::persisted(parsed));
     assert_eq!(
@@ -363,7 +621,36 @@ fn citations_are_portable_and_stream_aggregation_keeps_late_grounding() {
         native["output"]
     );
     let first = json!({"candidates":[{"content":{"parts":[{"text":"grounded"}]}}]});
-    let last = json!({"candidates":[{"finishReason":"STOP","groundingMetadata":{"groundingChunks":[{"web":{"uri":"https://example.com/source","title":"Source"}}],"groundingSupports":[{"segment":{"partIndex":0,"startIndex":0,"endIndex":8,"text":"grounded"},"groundingChunkIndices":[0]}]}}]});
+    let last = json!({
+        "candidates": [
+            {
+                "finishReason": "STOP",
+                "groundingMetadata": {
+                    "groundingChunks": [
+                        {
+                            "web": {
+                                "uri": "https://example.com/source",
+                                "title": "Source"
+                            }
+                        }
+                    ],
+                    "groundingSupports": [
+                        {
+                            "segment": {
+                                "partIndex": 0,
+                                "startIndex": 0,
+                                "endIndex": 8,
+                                "text": "grounded"
+                            },
+                            "groundingChunkIndices": [
+                                0
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    });
     let mut combined = first.clone();
     combined["candidates"][0]["groundingMetadata"] =
         last["candidates"][0]["groundingMetadata"].clone();
@@ -383,8 +670,26 @@ fn citations_are_portable_and_stream_aggregation_keeps_late_grounding() {
 fn responses_generated_images_and_builtin_tools_roundtrip_as_portable_blocks() {
     let mut native = support::openai();
     native["output"] = json!([
-        {"type":"image_generation_call","id":"ig_1","status":"completed","result":"AQID","output_format":"png","revised_prompt":"a landscape","extra":1},
-        {"type":"web_search_call","id":"web_1","status":"completed","action":{"type":"search","query":"weather","extra":2},"extra":3}
+        {
+            "type": "image_generation_call",
+            "id": "ig_1",
+            "status": "completed",
+            "result": "AQID",
+            "output_format": "png",
+            "revised_prompt": "a landscape",
+            "extra": 1
+        },
+        {
+            "type": "web_search_call",
+            "id": "web_1",
+            "status": "completed",
+            "action": {
+                "type": "search",
+                "query": "weather",
+                "extra": 2
+            },
+            "extra": 3
+        }
     ]);
     let parsed = dialects::openai::parse(serde_json::from_value(native.clone()).unwrap()).unwrap();
     assert!(matches!(parsed.content[0].content, Content::Image(_)));
@@ -400,4 +705,41 @@ fn responses_generated_images_and_builtin_tools_roundtrip_as_portable_blocks() {
         dialects::render(&request, false).unwrap()["input"],
         native["output"]
     );
+}
+
+#[test]
+fn gemini_file_audio_transcript_and_video_without_mime_keep_their_media_kinds() {
+    let parts = json!([
+        {
+            "fileData": {
+                "fileUri": "https://example.com/audio",
+                "mimeType": "audio/pcm;rate=16000",
+                "displayName": "clip"
+            },
+            "audioTranscription": {
+                "text": "transcript",
+                "speakerLabel": "one"
+            }
+        },
+        {
+            "fileData": {
+                "fileUri": "https://example.com/video",
+                "displayName": "video"
+            },
+            "videoMetadata": {
+                "startOffset": "1s",
+                "endOffset": "2s",
+                "fps": 1.0
+            }
+        }
+    ]);
+    let parsed = gemini(parts.clone());
+    assert!(
+        matches!(&parsed.content[0].content,Content::Audio(Audio {transcript:Some(text),..}) if text=="transcript")
+    );
+    assert!(matches!(
+        &parsed.content[1].content,
+        Content::Video(Video { clip: Some(_), .. })
+    ));
+    replay_gemini(parts);
 }

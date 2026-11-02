@@ -1,41 +1,132 @@
 use super::*;
 use gproxy_protocol::gemini as g;
 
-// The flattened projection preserves native fields that do not have an IR
-// counterpart. Payload-bearing children use their own partial projections.
+// Only native fields without a portable payload are persisted.
 #[derive(Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
+struct MediaMetadata {
+    mime_type: Option<String>,
+    display_name: Option<String>,
+    #[serde(flatten)]
+    rest: Rest,
+}
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct FunctionMetadata {
+    id_present: bool,
+    args_present: bool,
+    #[serde(flatten)]
+    rest: Rest,
+}
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct ResultMetadata {
+    id_present: bool,
+    parts_present: bool,
+    will_continue: Option<bool>,
+    scheduling: Option<g::Scheduling>,
+    #[serde(flatten)]
+    rest: Rest,
+}
+#[derive(Serialize, Deserialize)]
+struct ServerCallMetadata {
+    tool_type: g::ToolType,
+    id_present: bool,
+    name_present: bool,
+    args_present: bool,
+    #[serde(default, flatten)]
+    rest: Rest,
+}
+#[derive(Serialize, Deserialize)]
+struct ServerResponseMetadata {
+    tool_type: g::ToolType,
+    id_present: bool,
+    response_present: bool,
+    #[serde(default, flatten)]
+    rest: Rest,
+}
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct AudioMetadata {
+    speaker_label: Option<String>,
+    words: Option<Vec<g::audio::WordInfo>>,
+    #[serde(flatten)]
+    rest: Rest,
+}
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct PartFields {
+    thought: Option<bool>,
+    thought_signature: Option<String>,
+    part_metadata: Option<Rest>,
+    media_resolution: Option<g::MediaResolution>,
+    media_processing: Option<g::MediaProcessing>,
+    speech_metadata: Option<g::audio::SpeechMetadata>,
+    video_metadata: Option<g::VideoMetadata>,
+    #[serde(flatten)]
+    rest: Rest,
+}
+fn part_fields(part: g::Part) -> PartFields {
+    PartFields {
+        thought: part.thought,
+        thought_signature: part.thought_signature,
+        part_metadata: part.part_metadata,
+        media_resolution: part.media_resolution,
+        media_processing: part.media_processing,
+        speech_metadata: part.speech_metadata,
+        video_metadata: part.video_metadata,
+        rest: part.rest,
+    }
+}
+fn native_part(meta: PartFields) -> g::Part {
+    let mut part = g::Part::builder().build();
+    part.thought = meta.thought;
+    part.thought_signature = meta.thought_signature;
+    part.part_metadata = meta.part_metadata;
+    part.media_resolution = meta.media_resolution;
+    part.media_processing = meta.media_processing;
+    part.speech_metadata = meta.speech_metadata;
+    part.video_metadata = meta.video_metadata;
+    part.rest = meta.rest;
+    part
+}
+fn audio_metadata(value: g::audio::AudioTranscription) -> AudioMetadata {
+    AudioMetadata {
+        speaker_label: value.speaker_label,
+        words: value.words,
+        rest: value.rest,
+    }
+}
+fn transcription(text: String, meta: AudioMetadata) -> g::audio::AudioTranscription {
+    let mut value = g::audio::AudioTranscription::builder(text).build();
+    value.speaker_label = meta.speaker_label;
+    value.words = meta.words;
+    value.rest = meta.rest;
+    value
+}
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 struct PartMetadata {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    inline_data: Option<g::BlobOptions>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    file_data: Option<g::FileDataOptions>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    function_call: Option<g::FunctionCallOptions>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    function_response: Option<g::FunctionResponseOptions>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    audio_transcription: Option<g::audio::AudioTranscriptionOptions>,
-    #[serde(default)]
+    inline_data: Option<MediaMetadata>,
+    file_data: Option<MediaMetadata>,
+    function_call: Option<FunctionMetadata>,
+    function_response: Option<ResultMetadata>,
+    audio_transcription: Option<AudioMetadata>,
     response_json_text: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tool_call: Option<g::ToolCallOptions>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tool_response: Option<g::ToolResponseOptions>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    tool_call: Option<ServerCallMetadata>,
+    tool_response: Option<ServerResponseMetadata>,
     trailing_transcripts: Vec<TranscriptMetadata>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     primary_transcript_chars: Option<usize>,
     #[serde(flatten)]
-    fields: g::PartOptions,
+    fields: PartFields,
 }
-
 #[derive(Serialize, Deserialize)]
 struct TranscriptMetadata {
-    fields: g::PartOptions,
-    transcription: g::audio::AudioTranscriptionOptions,
+    fields: PartFields,
+    transcription: AudioMetadata,
     chars: usize,
 }
+
 pub(crate) fn merge_transcription(block: &mut Block, part: &g::Part) -> Result<Option<String>> {
     let Content::Audio(audio) = &mut block.content else {
         return Ok(None);
@@ -59,10 +150,8 @@ pub(crate) fn merge_transcription(block: &mut Block, part: &g::Part) -> Result<O
         meta.primary_transcript_chars = Some(text.chars().count());
     }
     text.push_str(&transcript.text);
-    let mut fields = g::PartOptions::from(part.clone());
-    fields.audio_transcription = None;
-    let mut native = g::audio::AudioTranscriptionOptions::from(transcript.clone());
-    native.text = None;
+    let fields = part_fields(part.clone());
+    let native = audio_metadata(transcript.clone());
     meta.trailing_transcripts.push(TranscriptMetadata {
         fields,
         transcription: native,
@@ -96,19 +185,23 @@ fn trailing_transcripts(block: &Block) -> Result<Vec<g::Part>> {
         } else {
             chars.by_ref().take(meta.chars).collect()
         };
-        let mut part = g::Part::builder().build();
-        meta.fields.apply_to(&mut part);
-        let mut transcription = g::audio::AudioTranscription::builder(text).build();
-        meta.transcription.apply_to(&mut transcription);
-        part.audio_transcription = Some(transcription);
+        let mut part = native_part(meta.fields);
+        part.audio_transcription = Some(transcription(text, meta.transcription));
         parts.push(part);
     }
     Ok(parts)
 }
 pub fn render(request: &GenerateRequest) -> Result<g::GenerateContentRequestBody> {
-    let opts: g::GenerateContentRequestBodyOptions = options(request)?;
+    let opts = &request.provider_options.gemini;
     let mut body = g::GenerateContentRequestBody::builder(Vec::new()).build();
-    opts.apply_to(&mut body);
+    body.generation_config = opts.generation_config.clone();
+    body.tools = opts.tools.clone();
+    body.tool_config = opts.tool_config.clone();
+    body.safety_settings = opts.safety_settings.clone();
+    body.cached_content = opts.cached_content.clone();
+    body.continuation_token = opts.continuation_token.clone();
+    body.service_tier = opts.service_tier.clone();
+    body.rest = opts.rest.clone();
     let mut contents = Vec::new();
     let mut system = Vec::new();
     let mut calls = BTreeMap::new();
@@ -196,19 +289,16 @@ pub fn render(request: &GenerateRequest) -> Result<g::GenerateContentRequestBody
         let config = body
             .generation_config
             .get_or_insert_with(|| g::GenerationConfig::builder().build());
-        config.speech_config = Some(
-            g::SpeechConfig::builder()
-                .voice_config(
-                    g::VoiceConfig::builder()
-                        .prebuilt_voice_config(
-                            g::PrebuiltVoiceConfig::builder()
-                                .voice_name(speech.voice.clone())
-                                .build(),
-                        )
-                        .build(),
-                )
-                .build(),
-        );
+        let speech_config = config
+            .speech_config
+            .get_or_insert_with(|| g::SpeechConfig::builder().build());
+        let voice = speech_config
+            .voice_config
+            .get_or_insert_with(|| g::VoiceConfig::builder().build());
+        let prebuilt = voice
+            .prebuilt_voice_config
+            .get_or_insert_with(|| g::PrebuiltVoiceConfig::builder().build());
+        prebuilt.voice_name = Some(speech.voice.clone());
     }
     if !request.tools.is_empty() {
         let declarations: Vec<_> = request
@@ -220,14 +310,18 @@ pub fn render(request: &GenerateRequest) -> Result<g::GenerateContentRequestBody
                     .build()
             })
             .collect();
-        body.tools = Some(vec![
+        body.tools.get_or_insert_with(Vec::new).push(
             g::Tool::builder()
                 .function_declarations(declarations)
                 .build(),
-        ]);
+        );
     }
     if let Some(choice) = &request.settings.tool_choice {
-        let mut config = g::FunctionCallingConfig::builder().build();
+        let config = body
+            .tool_config
+            .get_or_insert_with(|| g::ToolConfig::builder().build())
+            .function_calling_config
+            .get_or_insert_with(|| g::FunctionCallingConfig::builder().build());
         config.mode = Some(match choice {
             ToolChoice::Auto => g::FunctionCallingMode::Auto,
             ToolChoice::None => g::FunctionCallingMode::None,
@@ -236,10 +330,6 @@ pub fn render(request: &GenerateRequest) -> Result<g::GenerateContentRequestBody
         if let ToolChoice::Tool { name } = choice {
             config.allowed_function_names = Some(vec![name.clone()]);
         }
-        let tool_config = body
-            .tool_config
-            .get_or_insert_with(|| g::ToolConfig::builder().build());
-        tool_config.function_calling_config = Some(config);
     }
     Ok(body)
 }
@@ -254,8 +344,7 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
     }
     let had_metadata = metadata.is_some();
     let meta = metadata.unwrap_or_default();
-    let mut part = g::Part::builder().build();
-    meta.fields.apply_to(&mut part);
+    let mut part = native_part(meta.fields);
     match &block.content {
         Content::Text(text) => part.text = Some(text.text.clone()),
         Content::Reasoning(Reasoning { text }) => {
@@ -263,10 +352,11 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
             part.thought = Some(true);
         }
         Content::Image(image) => {
-            let source = crate::assets::source(block, &image.source, Vendor::Gemini, true)?;
+            media::check_file_vendor(&image.source, Vendor::Gemini)?;
+            let source = &image.source;
             render_asset(
                 &mut part,
-                &source,
+                source,
                 image.media_type.as_deref(),
                 None,
                 meta.inline_data,
@@ -276,10 +366,11 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
         }
         Content::Document(document) => {
             let (asset, mime) = media::document_bytes(document)?;
-            let source = crate::assets::source(block, &asset, Vendor::Gemini, true)?;
+            media::check_file_vendor(&asset, Vendor::Gemini)?;
+            let source = asset.as_ref();
             render_asset(
                 &mut part,
-                &source,
+                source,
                 mime,
                 document.title.as_deref(),
                 meta.inline_data,
@@ -288,10 +379,11 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
             set_detail(&mut part, document.detail);
         }
         Content::File(file) => {
-            let source = crate::assets::source(block, &file.source, Vendor::Gemini, true)?;
+            media::check_file_vendor(&file.source, Vendor::Gemini)?;
+            let source = &file.source;
             render_asset(
                 &mut part,
-                &source,
+                source,
                 file.media_type.as_deref(),
                 file.filename.as_deref(),
                 meta.inline_data,
@@ -305,15 +397,15 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
                 .as_ref()
                 .and_then(|m| m.mime_type.as_deref())
                 .or_else(|| meta.file_data.as_ref().and_then(|m| m.mime_type.as_deref()))
+                && media::parse_audio_format(original)? == audio.format
             {
-                if media::parse_audio_format(original)? == audio.format {
-                    mime = original.into();
-                }
+                mime = original.into();
             }
-            let source = crate::assets::source(block, &audio.source, Vendor::Gemini, true)?;
+            media::check_file_vendor(&audio.source, Vendor::Gemini)?;
+            let source = &audio.source;
             render_asset(
                 &mut part,
-                &source,
+                source,
                 Some(&mime),
                 None,
                 meta.inline_data,
@@ -326,20 +418,19 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
                         Some(count) => transcript.chars().take(count).collect(),
                         None => transcript.clone(),
                     };
-                    let mut value = g::audio::AudioTranscription::builder(text).build();
-                    if let Some(mut native) = meta.audio_transcription {
-                        native.text = None;
-                        native.apply_to(&mut value);
-                    }
-                    part.audio_transcription = Some(value);
+                    part.audio_transcription = Some(transcription(
+                        text,
+                        meta.audio_transcription.unwrap_or_default(),
+                    ));
                 }
             }
         }
         Content::Video(video) => {
-            let source = crate::assets::source(block, &video.source, Vendor::Gemini, true)?;
+            media::check_file_vendor(&video.source, Vendor::Gemini)?;
+            let source = &video.source;
             render_asset(
                 &mut part,
-                &source,
+                source,
                 video.media_type.as_deref(),
                 None,
                 meta.inline_data,
@@ -356,39 +447,33 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
         }
         Content::ToolCall(call) => {
             if call.provider_executed {
-                let Some(mut native) = meta.tool_call else {
+                let Some(native) = meta.tool_call else {
                     return Ok(None);
                 };
-                let tool_type = native.tool_type.clone().ok_or_else(|| {
-                    Error::invalid("Gemini server tool metadata requires tool_type")
-                })?;
-                let mut value = g::ToolCall::builder(tool_type).build();
-                if native.id.is_some() {
-                    native.id = Some(call.id.clone());
+                let mut value = g::ToolCall::builder(native.tool_type)
+                    .rest(native.rest)
+                    .build();
+                if native.id_present {
+                    value.id = Some(call.id.clone());
                 }
-                if native.tool_name.is_some() {
-                    native.tool_name = Some(call.name.clone());
+                if native.name_present {
+                    value.tool_name = Some(call.name.clone());
                 }
-                if native.args.is_some() || call.arguments != "{}" {
-                    native.args =
+                if native.args_present || call.arguments != "{}" {
+                    value.args =
                         Some(serde_json::from_str(&call.arguments).map_err(Error::invalid)?);
                 }
-                native.apply_to(&mut value);
                 part.tool_call = Some(value);
                 return Ok(Some(part));
             }
-            let include_args = meta
-                .function_call
-                .as_ref()
-                .is_some_and(|m| m.args.is_some())
+            let include_args = meta.function_call.as_ref().is_some_and(|m| m.args_present)
                 || !had_metadata
                 || call.arguments != "{}";
             let include_id =
-                meta.function_call.as_ref().is_some_and(|m| m.id.is_some()) || !had_metadata;
+                meta.function_call.as_ref().is_some_and(|m| m.id_present) || !had_metadata;
             let mut value = g::FunctionCall::builder(call.name.clone()).build();
-            if let Some(mut native) = meta.function_call {
-                native.name = None;
-                native.apply_to(&mut value);
+            if let Some(native) = meta.function_call {
+                value.rest = native.rest;
             }
             if include_args {
                 value.args = Some(serde_json::from_str(&call.arguments).map_err(Error::invalid)?);
@@ -400,24 +485,22 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
         }
         Content::ToolResult(result) => {
             if result.provider_executed {
-                let Some(mut native) = meta.tool_response else {
+                let Some(native) = meta.tool_response else {
                     return Ok(None);
                 };
-                let tool_type = native.tool_type.clone().ok_or_else(|| {
-                    Error::invalid("Gemini server tool metadata requires tool_type")
-                })?;
-                let mut value = g::ToolResponse::builder(tool_type).build();
-                if native.id.is_some() {
-                    native.id = Some(result.id.clone());
+                let mut value = g::ToolResponse::builder(native.tool_type)
+                    .rest(native.rest)
+                    .build();
+                if native.id_present {
+                    value.id = Some(result.id.clone());
                 }
                 let ToolOutput::Json(output) = &result.output else {
                     return Err(Error::invalid("Gemini server tool output requires JSON"));
                 };
-                if !output.is_null() {
-                    native.response =
+                if native.response_present || !output.is_null() {
+                    value.response =
                         Some(serde_json::from_value(output.clone()).map_err(Error::invalid)?);
                 }
-                native.apply_to(&mut value);
                 part.tool_response = Some(value);
                 return Ok(Some(part));
             }
@@ -474,16 +557,24 @@ fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Result<Option<g:
                 }
             };
             let mut value = g::FunctionResponse::builder(name.to_owned(), response).build();
-            if let Some(mut native) = meta.function_response {
-                native.name = None;
-                native.response = None;
-                native.parts = None;
-                native.apply_to(&mut value);
+            let include_id = meta
+                .function_response
+                .as_ref()
+                .is_some_and(|m| m.id_present)
+                || !had_metadata;
+            let parts_present = meta
+                .function_response
+                .as_ref()
+                .is_some_and(|m| m.parts_present);
+            if let Some(native) = meta.function_response {
+                value.will_continue = native.will_continue;
+                value.scheduling = native.scheduling;
+                value.rest = native.rest;
             }
-            if !parts.is_empty() {
+            if parts_present || !parts.is_empty() {
                 value.parts = Some(parts);
             }
-            if !result.id.is_empty() && (!had_metadata || value.id.is_some()) {
+            if include_id && !result.id.is_empty() {
                 value.id = Some(result.id.clone());
             }
             part.function_response = Some(value);
@@ -531,13 +622,12 @@ fn response_part(
         blob.display_name = Some(name.into());
     }
     if let Some(meta) = meta {
-        let mut fields = meta.fields;
-        fields.inline_data = None;
-        fields.apply_to(&mut part);
-        if let (Some(mut native), Some(blob)) = (meta.inline_data, part.inline_data.as_mut()) {
-            native.data = None;
-            native.mime_type = None;
-            native.apply_to(blob);
+        part.rest = meta.fields.rest;
+        if let (Some(native), Some(blob)) = (meta.inline_data, part.inline_data.as_mut()) {
+            blob.rest = native.rest;
+            if native.display_name.is_some() {
+                blob.display_name = native.display_name;
+            }
         }
     }
     Ok(part)
@@ -556,8 +646,8 @@ fn render_asset(
     source: &Asset,
     mime: Option<&str>,
     filename: Option<&str>,
-    inline: Option<g::BlobOptions>,
-    file: Option<g::FileDataOptions>,
+    inline: Option<MediaMetadata>,
+    file: Option<MediaMetadata>,
 ) -> Result<()> {
     match source {
         Asset::Inline { bytes } => {
@@ -566,10 +656,9 @@ fn render_asset(
                 base64::engine::general_purpose::STANDARD.encode(bytes),
             )
             .build();
-            if let Some(mut native) = inline {
-                native.data = None;
-                native.mime_type = None;
-                native.apply_to(&mut value);
+            if let Some(native) = inline {
+                value.rest = native.rest;
+                value.display_name = native.display_name;
             }
             if let Some(name) = filename {
                 value.display_name = Some(name.into());
@@ -579,9 +668,10 @@ fn render_asset(
         }
         Asset::Url { url } | Asset::ProviderFile { id: url, .. } => {
             let mut value = g::FileData::builder(url.clone()).build();
-            if let Some(mut native) = file {
-                native.file_uri = None;
-                native.apply_to(&mut value);
+            if let Some(native) = file {
+                value.rest = native.rest;
+                value.display_name = native.display_name;
+                value.mime_type = native.mime_type;
             }
             if let Some(mime) = mime {
                 value.mime_type = Some(mime.into());
@@ -754,11 +844,7 @@ fn parse_blob(
     blob: g::Blob,
     detail: Detail,
     transcription: Option<g::audio::AudioTranscription>,
-) -> Result<(
-    Content,
-    g::BlobOptions,
-    Option<g::audio::AudioTranscriptionOptions>,
-)> {
+) -> Result<(Content, MediaMetadata, Option<AudioMetadata>)> {
     let g::Blob {
         mime_type,
         data,
@@ -767,9 +853,8 @@ fn parse_blob(
     } = blob;
     let source = decode_inline(&data)?;
     let base = mime_type.split(';').next().unwrap_or(&mime_type);
-    let mut native = g::BlobOptions {
+    let mut native = MediaMetadata {
         mime_type: None,
-        data: None,
         display_name: display_name.clone(),
         rest,
     };
@@ -788,9 +873,7 @@ fn parse_blob(
         }
         let transcript = transcription.map(|mut value| {
             let text = std::mem::take(&mut value.text);
-            let mut meta = g::audio::AudioTranscriptionOptions::from(value);
-            meta.text = None;
-            audio_meta = Some(meta);
+            audio_meta = Some(audio_metadata(value));
             text
         });
         Content::Audio(Audio {
@@ -825,7 +908,7 @@ fn parse_blob(
     }
     Ok((content, native, audio_meta))
 }
-fn parse_file(file: g::FileData, detail: Detail) -> Result<(Content, g::FileDataOptions)> {
+fn parse_file(file: g::FileData, detail: Detail) -> Result<(Content, MediaMetadata)> {
     let g::FileData {
         file_uri,
         mime_type,
@@ -843,8 +926,7 @@ fn parse_file(file: g::FileData, detail: Detail) -> Result<(Content, g::FileData
         Asset::Url { url: file_uri }
     };
     let base = mime_type.as_deref().and_then(|s| s.split(';').next());
-    let mut native = g::FileDataOptions {
-        file_uri: None,
+    let mut native = MediaMetadata {
         mime_type: None,
         display_name: display_name.clone(),
         rest,
@@ -895,7 +977,7 @@ fn parse_file(file: g::FileData, detail: Detail) -> Result<(Content, g::FileData
     Ok((content, native))
 }
 pub(crate) fn parse_block(part: g::Part, index: u32) -> Result<Block> {
-    let mut fields = g::PartOptions::from(part);
+    let mut fields = part;
     let mut meta = PartMetadata::default();
     let detail = media::parse_gemini_detail(fields.media_resolution.as_ref());
     if detail != Detail::Auto
@@ -925,10 +1007,9 @@ pub(crate) fn parse_block(part: g::Part, index: u32) -> Result<Block> {
             Some(args) => serde_json::to_string(args).map_err(Error::invalid)?,
             None => "{}".into(),
         };
-        meta.function_call = Some(g::FunctionCallOptions {
-            name: None,
-            id,
-            args: args.map(|_| Rest::new()),
+        meta.function_call = Some(FunctionMetadata {
+            id_present: id.is_some(),
+            args_present: args.is_some(),
             rest,
         });
         Content::ToolCall(ToolCall {
@@ -949,6 +1030,7 @@ pub(crate) fn parse_block(part: g::Part, index: u32) -> Result<Block> {
         } = output;
         let portable_id = id.clone().unwrap_or_default();
         let is_error = response.contains_key("error");
+        let parts_present = parts.is_some();
         let output = if let Some(parts) = parts.filter(|p| !p.is_empty()) {
             let mut blocks = vec![ContentBlock::new(ToolResultContent::Text(Text {
                 text: serde_json::to_string(&response).map_err(Error::invalid)?,
@@ -962,11 +1044,9 @@ pub(crate) fn parse_block(part: g::Part, index: u32) -> Result<Block> {
         } else {
             ToolOutput::Json(Value::Object(response))
         };
-        meta.function_response = Some(g::FunctionResponseOptions {
-            name: None,
-            response: None,
-            id,
-            parts: None,
+        meta.function_response = Some(ResultMetadata {
+            id_present: id.is_some(),
+            parts_present,
             will_continue,
             scheduling,
             rest,
@@ -988,8 +1068,29 @@ pub(crate) fn parse_block(part: g::Part, index: u32) -> Result<Block> {
         }
         content
     } else if let Some(file) = fields.file_data.take() {
-        let (mut content, file) = parse_file(file, detail)?;
+        let (content, mut file) = parse_file(file, detail)?;
+        let mut content = if fields.video_metadata.is_some() {
+            match content {
+                Content::File(value) => {
+                    file.display_name = value.filename;
+                    Content::Video(Video {
+                        source: value.source,
+                        media_type: value.media_type,
+                        clip: None,
+                    })
+                }
+                other => other,
+            }
+        } else {
+            content
+        };
         meta.file_data = Some(file);
+        if let Content::Audio(audio) = &mut content
+            && let Some(mut value) = fields.audio_transcription.take()
+        {
+            audio.transcript = Some(std::mem::take(&mut value.text));
+            meta.audio_transcription = Some(audio_metadata(value));
+        }
         if let Content::Video(video) = &mut content {
             video.clip = parse_video(fields.video_metadata.as_ref())?;
         }
@@ -1016,11 +1117,11 @@ pub(crate) fn parse_block(part: g::Part, index: u32) -> Result<Block> {
         let portable_id = id
             .clone()
             .unwrap_or_else(|| format!("server_gemini_{index}"));
-        meta.tool_call = Some(g::ToolCallOptions {
-            tool_type: Some(tool_type),
-            id,
-            tool_name: tool_name.map(|_| String::new()),
-            args: args.map(|_| Rest::new()),
+        meta.tool_call = Some(ServerCallMetadata {
+            tool_type,
+            id_present: id.is_some(),
+            name_present: tool_name.is_some(),
+            args_present: args.is_some(),
             rest,
         });
         Content::ToolCall(ToolCall {
@@ -1046,10 +1147,10 @@ pub(crate) fn parse_block(part: g::Part, index: u32) -> Result<Block> {
                 .unwrap_or(Value::Null),
         );
         let portable_id = id.clone().unwrap_or_default();
-        meta.tool_response = Some(g::ToolResponseOptions {
-            tool_type: Some(tool_type),
-            id,
-            response: response.map(|_| Rest::new()),
+        meta.tool_response = Some(ServerResponseMetadata {
+            tool_type,
+            id_present: id.is_some(),
+            response_present: response.is_some(),
             rest,
         });
         Content::ToolResult(ToolResult {
@@ -1060,16 +1161,14 @@ pub(crate) fn parse_block(part: g::Part, index: u32) -> Result<Block> {
             provider_executed: true,
         })
     } else {
-        let mut original = g::Part::builder().build();
-        fields.apply_to(&mut original);
-        return with_native(Content::Opaque, Vendor::Gemini, original);
+        return with_native(Content::Opaque, Vendor::Gemini, fields);
     };
     if let Content::Video(_) = &content
         && let Some(video) = fields.video_metadata.as_mut()
     {
         video.fps = None;
     }
-    meta.fields = fields;
+    meta.fields = part_fields(fields);
     with_native(content, Vendor::Gemini, meta)
 }
 fn parse_video(value: Option<&g::VideoMetadata>) -> Result<Option<VideoClip>> {
@@ -1083,16 +1182,21 @@ fn parse_video(value: Option<&g::VideoMetadata>) -> Result<Option<VideoClip>> {
         })
         .transpose()
 }
+#[derive(Default, Serialize, Deserialize)]
+struct ResponseFields {
+    #[serde(default, flatten)]
+    rest: Rest,
+}
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ResponsePartMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    inline_data: Option<g::BlobOptions>,
+    inline_data: Option<MediaMetadata>,
     #[serde(flatten)]
-    fields: g::FunctionResponsePartOptions,
+    fields: ResponseFields,
 }
 fn parse_response_part(part: g::FunctionResponsePart) -> Result<ToolResultBlock> {
-    let mut fields = g::FunctionResponsePartOptions::from(part);
+    let mut fields = part;
     let (content, inline) = if let Some(blob) = fields.inline_data.take() {
         let (content, inline, _) = parse_blob(blob, Detail::Auto, None)?;
         (content, Some(inline))
@@ -1118,7 +1222,7 @@ fn parse_response_part(part: g::FunctionResponsePart) -> Result<ToolResultBlock>
         Envelope {
             function_result_part: ResponsePartMetadata {
                 inline_data: inline,
-                fields,
+                fields: ResponseFields { rest: fields.rest },
             },
         },
     )
