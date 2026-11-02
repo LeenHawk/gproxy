@@ -24,9 +24,16 @@ fn six_directions_preserve_counts_above_old_u32_limits_and_empty_extensions() {
     let claude = openai_to_claude_response(openai, ClaudeCountContext::Unedited)
         .unwrap()
         .value;
-    assert_eq!(claude.context_management.original_input_tokens, count);
+    assert_eq!(
+        claude
+            .context_management
+            .as_ref()
+            .unwrap()
+            .original_input_tokens,
+        count
+    );
     assert!(claude.rest.is_empty());
-    assert!(claude.context_management.rest.is_empty());
+    assert!(claude.context_management.as_ref().unwrap().rest.is_empty());
     assert_eq!(
         claude_to_openai_response(claude.clone())
             .unwrap()
@@ -46,6 +53,7 @@ fn six_directions_preserve_counts_above_old_u32_limits_and_empty_extensions() {
             .unwrap()
             .value
             .context_management
+            .unwrap()
             .original_input_tokens,
         123
     );
@@ -107,7 +115,15 @@ fn original_count_comes_from_request_or_actual_context_edit_facts() {
     let converted =
         gemini_to_claude_response(response, ClaudeCountContext::OriginalInputTokens(84)).unwrap();
     assert_eq!(converted.value.input_tokens, 42);
-    assert_eq!(converted.value.context_management.original_input_tokens, 84);
+    assert_eq!(
+        converted
+            .value
+            .context_management
+            .as_ref()
+            .unwrap()
+            .original_input_tokens,
+        84
+    );
 }
 
 #[test]

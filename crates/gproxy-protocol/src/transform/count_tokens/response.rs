@@ -91,11 +91,9 @@ fn claude(
     let count = nonnegative(count, "input_tokens")?;
     let original = context.original(count)?;
     Ok(Converted {
-        value: c::CountTokensResponseBody::builder(
-            c::CountTokensContextManagementResponse::builder(original).build(),
-            count,
-        )
-        .build(),
+        value: c::CountTokensResponseBody::builder(count)
+            .context_management(c::CountTokensContextManagementResponse::builder(original).build())
+            .build(),
         report,
     })
 }
@@ -127,15 +125,17 @@ fn gemini(
 }
 
 fn claude_report(input: &c::CountTokensResponseBody) -> Result<Report, TransformError> {
-    nonnegative(
-        input.context_management.original_input_tokens,
-        "context_management.original_input_tokens",
-    )?;
     let mut report = Report::default();
-    report.omitted(
-        "context_management.original_input_tokens",
-        "target reports only the counted input, without the count before context edits",
-    );
+    if let Some(context) = &input.context_management {
+        nonnegative(
+            context.original_input_tokens,
+            "context_management.original_input_tokens",
+        )?;
+        report.omitted(
+            "context_management.original_input_tokens",
+            "target reports only the counted input, without the count before context edits",
+        );
+    }
     Ok(report)
 }
 

@@ -100,12 +100,14 @@ fn count_tokens_http_envelope_keeps_transport_outside_json_body() {
     let response = WireResponse {
         status: StatusCode::OK,
         headers: HeaderMap::new(),
-        body: CountTokensResponseBody::builder(
-            gproxy_protocol::claude::count_tokens::CountTokensContextManagementResponse::builder(0)
+        body: CountTokensResponseBody::builder(12)
+            .context_management(
+                gproxy_protocol::claude::count_tokens::CountTokensContextManagementResponse::builder(
+                    0,
+                )
                 .build(),
-            12,
-        )
-        .build(),
+            )
+            .build(),
     };
     assert_eq!(response.body.input_tokens, 12);
 }
@@ -210,4 +212,13 @@ fn compaction_content_preserves_missing_null_and_string_states() {
         assert!(parsed.rest.is_empty());
         assert_eq!(serde_json::to_value(parsed).unwrap(), value);
     }
+}
+
+#[test]
+fn response_context_management_is_a_required_nullable_key() {
+    // Count tokens in a Message: `context_management: ... or null`.
+    let value = serde_json::json!({"context_management":null,"input_tokens":42});
+    let body: CountTokensResponseBody = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(body.context_management, None);
+    assert_eq!(serde_json::to_value(&body).unwrap(), value);
 }

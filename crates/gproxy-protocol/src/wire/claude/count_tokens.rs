@@ -529,7 +529,8 @@ pub type CountTokensRequest = crate::WireRequest<CountTokensRequestBody>;
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CountTokensResponseBody {
-    pub context_management: CountTokensContextManagementResponse,
+    /// Required key; the reference allows null.
+    pub context_management: Option<CountTokensContextManagementResponse>,
     pub input_tokens: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
