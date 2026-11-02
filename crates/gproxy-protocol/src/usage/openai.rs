@@ -130,6 +130,8 @@ pub(super) fn from_usage(usage: &Value) -> Option<NormalizedUsage> {
 struct Envelope {
     #[serde(default, deserialize_with = "common::string")]
     id: Option<String>,
+    #[serde(default, deserialize_with = "common::string")]
+    model: Option<String>,
     #[serde(default, deserialize_with = "common::object")]
     usage: Option<Value>,
     #[serde(default, deserialize_with = "common::any")]
@@ -140,6 +142,8 @@ struct Envelope {
 /// event-shaped body.
 #[derive(Deserialize)]
 struct Reply {
+    #[serde(default, deserialize_with = "common::string")]
+    model: Option<String>,
     #[serde(default, deserialize_with = "common::object")]
     usage: Option<Value>,
     #[serde(default, deserialize_with = "common::any")]
@@ -151,20 +155,29 @@ struct Reply {
 /// Usage from a buffered Chat Completions or Responses reply.
 pub(super) fn whole(body: &[u8]) -> Option<NormalizedUsage> {
     let reply: Reply = serde_json::from_slice(body).ok()?;
-    let (usage, tier) = match reply.usage {
-        Some(usage) => (
-            usage,
-            reply
-                .service_tier
-                .or_else(|| reply.response.and_then(|response| response.service_tier)),
-        ),
+    let (usage, tier, model) = match reply.usage {
+        Some(usage) => {
+            let (tier, model) = match reply.response {
+                Some(response) => (
+                    reply.service_tier.or(response.service_tier),
+                    reply.model.or(response.model),
+                ),
+                None => (reply.service_tier, reply.model),
+            };
+            (usage, tier, model)
+        }
         None => {
             let response = reply.response?;
-            (response.usage?, response.service_tier)
+            (
+                response.usage?,
+                response.service_tier,
+                response.model.or(reply.model),
+            )
         }
     };
     let mut normalized = from_usage(&usage)?;
     common::service_tier(&mut normalized, tier.as_ref().and_then(common::label));
+    common::response_model(&mut normalized, model);
     Some(normalized)
 }
 
@@ -196,6 +209,7 @@ impl ChatStream {
             &mut usage,
             reply.service_tier.as_ref().and_then(common::label),
         );
+        common::response_model(&mut usage, reply.model);
         self.usage = Some(usage);
         true
     }
@@ -309,13 +323,18 @@ impl ResponsesStream {
             return false;
         }
         let image = IMAGE_DONE.contains(&kind);
-        let (id, usage, tier) = if image {
-            (event.generation_id.clone(), event.usage.clone(), None)
+        let (id, usage, tier, model) = if image {
+            (event.generation_id.clone(), event.usage.clone(), None, None)
         } else {
             let Some(response) = event.response.take() else {
                 return false;
             };
-            (response.id, response.usage, response.service_tier)
+            (
+                response.id,
+                response.usage,
+                response.service_tier,
+                response.model,
+            )
         };
         let reading = usage.as_ref().and_then(|usage| {
             if self.mode == Mode::Image {
@@ -333,6 +352,7 @@ impl ResponsesStream {
             return false;
         };
         common::service_tier(&mut reading, tier.as_ref().and_then(common::label));
+        common::response_model(&mut reading, model);
         if image {
             common::metric(&mut reading, "image_outputs", 1);
             media::qualify(

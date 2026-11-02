@@ -212,6 +212,7 @@
     "refreshCount": "Обновления",
     "requestId": "ID запроса",
     "requests": "Запросы",
+    "responseModel": "Модель ответа",
     "responseStatus": "Статус",
     "retainSecret": "Хранить секрет",
     "management": "Доступ к управлению",

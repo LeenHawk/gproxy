@@ -95,8 +95,10 @@ pub struct UsageRecordDto {
     pub request_id: String,
     pub user_id: Option<String>,
     pub api_key_id: Option<String>,
-    /// The upstream model that produced this usage.
+    /// The upstream model the call was routed to.
     pub model: String,
+    /// The model the upstream response named, which may differ from `model`.
+    pub response_model: Option<String>,
     pub operation: String,
     /// The settlement state core recorded: `settled`, `failed`, … .
     pub state: Option<String>,
@@ -133,6 +135,7 @@ impl From<gproxy_core::usage_scan::UsageRecord> for UsageRecordDto {
             user_id: row.user_id,
             api_key_id: row.api_key_id,
             model: row.model,
+            response_model: row.response_model,
             operation: row.operation,
             state: row.state,
             completeness: row.completeness,
@@ -166,6 +169,8 @@ pub struct UsageExchangeDto {
     pub credential_id: Option<String>,
     /// The upstream model name, which need not be the requested one.
     pub model: Option<String>,
+    /// The model the upstream response named, which may differ from `model`.
+    pub response_model: Option<String>,
     pub tokens: UsageTokensDto,
     /// Reported media/tool quantities, as exact decimal strings. Missing is unknown.
     pub quantities: std::collections::BTreeMap<String, String>,
@@ -185,6 +190,7 @@ impl UsageExchangeDto {
             provider_id: row.provider_id.clone(),
             credential_id: row.credential_id.clone(),
             model: (!row.model.is_empty()).then(|| row.model.clone()),
+            response_model: row.response_model.clone(),
             tokens: UsageTokensDto::from_row(row),
             quantities: quantities(row),
             cost: row.cost.map(|cost| cost.to_string()),

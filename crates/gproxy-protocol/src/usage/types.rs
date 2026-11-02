@@ -73,6 +73,9 @@ pub struct NormalizedUsage {
     pub dimensions: BTreeMap<String, String>,
     /// Actual upstream serving tier, which may differ from the requested tier.
     pub actual_service_tier: Option<String>,
+    /// The model the standard response names as having served it, which may
+    /// differ from the model the request was routed to.
+    pub response_model: Option<String>,
     pub completeness: UsageCompleteness,
     /// When present, per-attempt usage replaces aggregate usage for billing.
     pub attempts: Vec<UsageAttempt>,
@@ -127,6 +130,7 @@ impl NormalizedUsage {
             if first {
                 total.dimensions = value.dimensions.clone();
                 total.actual_service_tier = value.actual_service_tier.clone();
+                total.response_model = value.response_model.clone();
                 first = false;
             } else {
                 total
@@ -134,6 +138,9 @@ impl NormalizedUsage {
                     .retain(|key, v| value.dimensions.get(key) == Some(v));
                 if total.actual_service_tier != value.actual_service_tier {
                     total.actual_service_tier = None;
+                }
+                if total.response_model != value.response_model {
+                    total.response_model = None;
                 }
             }
             if value.completeness != UsageCompleteness::Complete {

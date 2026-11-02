@@ -11,9 +11,13 @@ export type UsageRecordDto = {
  */
 requestId: string, userId: string | null, apiKeyId: string | null,
 /**
- * The upstream model that produced this usage.
+ * The upstream model the call was routed to.
  */
-model: string, operation: string,
+model: string,
+/**
+ * The model the upstream response named, which may differ from `model`.
+ */
+responseModel: string | null, operation: string,
 /**
  * The settlement state core recorded: `settled`, `failed`, … .
  */

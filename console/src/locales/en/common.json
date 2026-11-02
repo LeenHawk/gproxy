@@ -212,6 +212,7 @@
     "refreshCount": "Refreshes",
     "requestId": "Request ID",
     "requests": "Requests",
+    "responseModel": "Response model",
     "responseStatus": "Status",
     "retainSecret": "Retain the secret",
     "management": "Management access",

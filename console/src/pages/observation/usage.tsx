@@ -46,6 +46,7 @@ function UsageRecords({ filter }: { filter: HistoryFilter }) {
         { key: "providerId", cell: row => <UsageProviderCell id={row.exchanges[0]?.providerId ?? null} /> },
         { key: "credentialId", cell: row => <UsageCredentialCell id={row.exchanges[0]?.credentialId ?? null} /> },
         { key: "model", cell: row => row.model },
+        { key: "responseModel", cell: row => row.responseModel === null ? "—" : <span className={row.responseModel === row.model ? undefined : "text-destructive"}>{row.responseModel}</span> },
         { key: "inputTokens", cell: row => row.tokens.inputTokens === null ? "—" : formatCount(row.tokens.inputTokens, i18n.language) },
         { key: "outputTokens", cell: row => row.tokens.outputTokens === null ? "—" : formatCount(row.tokens.outputTokens, i18n.language) },
         ...CACHE_TOKEN_FIELDS.map(key => ({ key, cell: (row: UsageRecordDto) => formatUsageTokens(row.tokens[key], i18n.language) })),

@@ -95,6 +95,13 @@ pub(super) fn from_metadata(metadata: &Value, settled: bool) -> Option<Normalize
 #[derive(Deserialize)]
 struct Reply {
     #[serde(
+        rename = "modelVersion",
+        alias = "model_version",
+        default,
+        deserialize_with = "common::string"
+    )]
+    model: Option<String>,
+    #[serde(
         rename = "usageMetadata",
         alias = "usage_metadata",
         default,
@@ -106,7 +113,9 @@ struct Reply {
 /// Usage from a buffered `generateContent` reply.
 pub(super) fn whole(body: &[u8]) -> Option<NormalizedUsage> {
     let reply: Reply = serde_json::from_slice(body).ok()?;
-    from_metadata(&reply.usage?, true)
+    let mut usage = from_metadata(&reply.usage?, true)?;
+    common::response_model(&mut usage, reply.model);
+    Some(usage)
 }
 
 /// An embedding reply, which reports only the input side.
@@ -127,6 +136,8 @@ pub(super) struct Stream {
     /// The last `usageMetadata` seen. It is kept raw because whether a
     /// missing output count is zero depends on how the stream ends.
     metadata: Option<Value>,
+    /// The `modelVersion` of the latest record that named one.
+    model: Option<String>,
 }
 
 impl Stream {
@@ -139,15 +150,20 @@ impl Stream {
         let Ok(reply) = serde_json::from_str::<Reply>(data) else {
             return false;
         };
-        reply.usage.is_some_and(|metadata| self.keep(metadata))
+        reply
+            .usage
+            .is_some_and(|metadata| self.keep(metadata, reply.model))
     }
 
     /// Whether the metadata carried a reading and was kept.
-    fn keep(&mut self, metadata: Value) -> bool {
+    fn keep(&mut self, metadata: Value, model: Option<String>) -> bool {
         if from_metadata(&metadata, true).is_none() {
             return false;
         }
         self.metadata = Some(metadata);
+        if let Some(model) = model.filter(|model| !model.is_empty()) {
+            self.model = Some(model);
+        }
         true
     }
 
@@ -157,12 +173,19 @@ impl Stream {
         let metadata = record
             .get("usageMetadata")
             .or_else(|| record.get("usage_metadata"));
-        metadata.is_some_and(|metadata| self.keep(metadata.clone()))
+        let model = record
+            .get("modelVersion")
+            .or_else(|| record.get("model_version"))
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        metadata.is_some_and(|metadata| self.keep(metadata.clone(), model))
     }
 
     /// The reading so far; `settled` once the stream ended on its own.
     pub(super) fn reading(&self, settled: bool) -> Option<NormalizedUsage> {
-        from_metadata(self.metadata.as_ref()?, settled)
+        let mut usage = from_metadata(self.metadata.as_ref()?, settled)?;
+        common::response_model(&mut usage, self.model.clone());
+        Some(usage)
     }
 }
 

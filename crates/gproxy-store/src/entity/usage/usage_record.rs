@@ -162,6 +162,10 @@ pub struct Model {
     pub state: Option<String>,
     pub completeness: Option<String>,
     pub actual_service_tier: Option<String>,
+    /// The model the upstream response named, read after the channel shaped
+    /// it and before any conversion for the client. `model` is the one the
+    /// call was routed to; the two may differ. None when it named none.
+    pub response_model: Option<String>,
     /// Dynamic quantities, pricing dimensions and nested protocol-specific detail only.
     pub metrics: Json,
     /// For subscription requests, the settled charge is denominated in USD.

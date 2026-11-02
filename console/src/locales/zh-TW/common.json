@@ -212,6 +212,7 @@
     "refreshCount": "更新次數",
     "requestId": "請求 ID",
     "requests": "請求數",
+    "responseModel": "回應模型",
     "responseStatus": "狀態碼",
     "retainSecret": "保留金鑰原文",
     "management": "管理權限",

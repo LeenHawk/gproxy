@@ -609,6 +609,7 @@ fn usage_json(u: &NormalizedUsage) -> Value {
         "cached_input_tokens": t.cached_input_tokens, "cache_creation": t.cache_creation,
         "reasoning_tokens": t.reasoning_tokens,
     }, "metrics": u.metrics, "dimensions": u.dimensions, "actual_service_tier": u.actual_service_tier,
+    "response_model": u.response_model,
     "completeness": format!("{:?}", u.completeness).to_lowercase(),
     "attempts": u.attempts.iter().map(|a| json!({"model": a.model, "operation": a.operation.map(gproxy_protocol::Operation::id), "usage": usage_json(&a.usage), "billable": a.billable, "started_at_ms": a.started_at_ms})).collect::<Vec<_>>(),
     "responses": u.responses.iter().map(|r| json!({"id": r.id, "usage": usage_json(&r.usage)})).collect::<Vec<_>>()})
@@ -709,6 +710,7 @@ fn usage_columns(u: &NormalizedUsage) -> usage_record::ActiveModel {
         requests: reported(requests),
         completeness: Set(Some(format!("{:?}", u.completeness).to_lowercase())),
         actual_service_tier: reported(u.actual_service_tier.clone()),
+        response_model: reported(u.response_model.clone()),
         metrics: Set(Value::Object(extra)),
         ..Default::default()
     }

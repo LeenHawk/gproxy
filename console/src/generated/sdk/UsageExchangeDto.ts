@@ -13,7 +13,11 @@ metrics: unknown, attemptId: string | null, attemptOrdinal: number | null, provi
 /**
  * The upstream model name, which need not be the requested one.
  */
-model: string | null, tokens: UsageTokensDto,
+model: string | null,
+/**
+ * The model the upstream response named, which may differ from `model`.
+ */
+responseModel: string | null, tokens: UsageTokensDto,
 /**
  * Reported media/tool quantities, as exact decimal strings. Missing is unknown.
  */

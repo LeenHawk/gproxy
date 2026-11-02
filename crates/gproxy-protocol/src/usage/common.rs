@@ -70,6 +70,13 @@ pub(super) fn service_tier(usage: &mut NormalizedUsage, tier: Option<String>) {
     }
 }
 
+/// Record the model a response names, ignoring an empty name.
+pub(super) fn response_model(usage: &mut NormalizedUsage, model: Option<String>) {
+    if let Some(model) = model.filter(|model| !model.is_empty()) {
+        usage.response_model = Some(model);
+    }
+}
+
 /// The pricing dimension that says modality counts are subsets of the token
 /// totals rather than additions to them; see `gproxy-core`'s pricing.
 pub(super) const MODALITIES_IN_TOTALS: &str = "token_modalities_in_totals";

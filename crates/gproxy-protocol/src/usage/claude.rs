@@ -148,6 +148,7 @@ pub(super) fn whole(body: &[u8]) -> Option<NormalizedUsage> {
         message.model.as_deref().unwrap_or_default(),
         message.stop_reason.as_deref() == Some("refusal"),
     );
+    common::response_model(&mut usage, message.model);
     Some(usage)
 }
 
@@ -266,6 +267,7 @@ impl Stream {
             usage.completeness = UsageCompleteness::Partial;
         }
         attach_attempts(&mut usage, &merged, &self.model, self.refused);
+        common::response_model(&mut usage, Some(self.model.clone()));
         Some(usage)
     }
 }
