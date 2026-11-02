@@ -390,3 +390,36 @@ fn system_controls_can_omit_content_without_accepting_empty_user_or_null_content
         assert!(serde_json::from_value::<Message>(value).is_err());
     }
 }
+
+#[test]
+fn request_citation_document_title_is_a_required_nullable_key() {
+    // The request reference declares `document_title: string or null` on all
+    // three document citation params, so an untitled document's citation
+    // from a response can be sent back in the assistant's history.
+    let citations = serde_json::json!([
+        {"type":"char_location","cited_text":"a","document_index":0,"document_title":null,"start_char_index":0,"end_char_index":1},
+        {"type":"page_location","cited_text":"b","document_index":0,"document_title":"Doc","start_page_number":1,"end_page_number":2},
+        {"type":"content_block_location","cited_text":"c","document_index":1,"document_title":null,"start_block_index":0,"end_block_index":1}
+    ]);
+    let request = serde_json::json!({
+        "max_tokens": 16,
+        "model": "claude-sonnet-4-6",
+        "messages": [{"role":"assistant","content":[{"type":"text","text":"abc","citations":citations}]}]
+    });
+    let body: GenerateContentRequestBody = serde_json::from_value(request.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&body).unwrap(), request);
+
+    // A response may omit the title entirely; the request still writes the key.
+    let mut absent = request;
+    let char_citation = &mut absent["messages"][0]["content"][0]["citations"][0];
+    char_citation
+        .as_object_mut()
+        .unwrap()
+        .remove("document_title");
+    let body: GenerateContentRequestBody = serde_json::from_value(absent).unwrap();
+    let encoded = serde_json::to_value(&body).unwrap();
+    assert_eq!(
+        encoded["messages"][0]["content"][0]["citations"][0]["document_title"],
+        serde_json::Value::Null
+    );
+}

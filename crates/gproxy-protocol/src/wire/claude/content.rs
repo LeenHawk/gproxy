@@ -223,7 +223,8 @@ pub enum TextCitation {
 pub struct CharCitation {
     pub cited_text: String,
     pub document_index: i64,
-    pub document_title: String,
+    /// Required key; the reference allows null.
+    pub document_title: Option<String>,
     pub end_char_index: i64,
     pub start_char_index: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -239,7 +240,8 @@ pub struct CharCitation {
 pub struct PageCitation {
     pub cited_text: String,
     pub document_index: i64,
-    pub document_title: String,
+    /// Required key; the reference allows null.
+    pub document_title: Option<String>,
     pub end_page_number: i64,
     pub start_page_number: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -255,7 +257,8 @@ pub struct PageCitation {
 pub struct ContentBlockCitation {
     pub cited_text: String,
     pub document_index: i64,
-    pub document_title: String,
+    /// Required key; the reference allows null.
+    pub document_title: Option<String>,
     pub end_block_index: i64,
     pub start_block_index: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
