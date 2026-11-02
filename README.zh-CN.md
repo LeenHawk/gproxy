@@ -18,6 +18,8 @@
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
+[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
 
 </div>
 
@@ -127,22 +129,7 @@ Cloudflare、Netlify 和 Vercel 的模板使用 **latest 稳定版** 预编译�
 
 部署入口、平台数据库与外部数据库的选择，以及 WebSocket 等能力差异，统一见[托管平台部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)。
 
-以下两个模板使用 **latest 稳定版** PostgreSQL 预编译程序与轻量容器。部署前请核对应用和数据库的付费套餐。
-
-<table>
-<tr>
-<td width="50%" valign="top">
-<h3>Render</h3>
-<p>Starter 服务 + Basic PostgreSQL，自动绑定数据库并生成密码与主密钥。</p>
-<p><a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>部署到 Render →</strong></a></p>
-</td>
-<td width="50%" valign="top">
-<h3>Heroku</h3>
-<p>Basic dyno + Essential PostgreSQL，填写主密钥后自动创建应用和数据库。</p>
-<p><a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>部署到 Heroku →</strong></a></p>
-</td>
-</tr>
-</table>
+Render 和 Heroku 模板使用 **latest 稳定版** PostgreSQL 预编译程序与轻量容器。Render 使用免费 Web 服务并连接你自己的 PostgreSQL；Heroku 自动创建 Basic dyno 和 Essential PostgreSQL。部署前请核对应用和数据库的套餐。
 
 [初始化与运行说明](https://gproxy.leenhawk.com/zh-cn/deployment/containers/)
 

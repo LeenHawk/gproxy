@@ -18,6 +18,8 @@
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
+[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
 
 </div>
 
@@ -127,22 +129,7 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
 
 См. [руководство по размещению на хостинге](https://gproxy.leenhawk.com/ru/deployment/edge/), чтобы узнать о кнопках развертывания, платформе или внешних базах данных, а также о таких различиях, как поддержка WebSocket.
 
-Эти два шаблона упаковывают **последнюю стабильную версию** исполняемого файла PostgreSQL в легкий контейнер. Перед развертыванием ознакомьтесь с планами платных услуг и баз данных.
-
-<table>
-<tr>
-<td width="50%" valign="top">
-<h3>Оказывать</h3>
-<p>Стартовый сервис + Базовый PostgreSQL. Подключение к базе данных и секреты настраиваются автоматически.</p>
-<p><a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>Развертывание для рендеринга →</strong></a></p>
-</td>
-<td width="50%" valign="top">
-<h3>Хероку</h3>
-<p>Базовый динамометр + Essential PostgreSQL. Возьмите с собой ключ шифрования; база данных создана для вас.</p>
-<p><a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>Развертывание в Heroku →</strong></a></p>
-</td>
-</tr>
-</table>
+Шаблоны Render и Heroku упаковывают **последнюю стабильную версию** исполняемого файла PostgreSQL в лёгкий контейнер. Render запускает бесплатный веб-сервис с вашей внешней базой данных PostgreSQL; Heroku создаёт Basic dyno с Essential PostgreSQL. Перед развертыванием ознакомьтесь с тарифами сервиса и базы данных.
 
 [Setup and operating instructions](https://gproxy.leenhawk.com/ru/deployment/containers/)
 

@@ -18,6 +18,8 @@
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
+[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev)
 
 </div>
 
@@ -127,22 +129,7 @@ Templates for Cloudflare, Netlify, and Vercel use prebuilt **latest stable relea
 
 See the [hosted deployment guide](https://gproxy.leenhawk.com/deployment/edge/) for deploy buttons, platform or external databases, and differences such as WebSocket support.
 
-These two templates package the **latest stable release** PostgreSQL executable in a lightweight container. Review the paid service and database plans before deploying.
-
-<table>
-<tr>
-<td width="50%" valign="top">
-<h3>Render</h3>
-<p>Starter service + Basic PostgreSQL. Database connection and secrets are set up automatically.</p>
-<p><a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>Deploy to Render →</strong></a></p>
-</td>
-<td width="50%" valign="top">
-<h3>Heroku</h3>
-<p>Basic dyno + Essential PostgreSQL. Bring your encryption key; the database is created for you.</p>
-<p><a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>Deploy to Heroku →</strong></a></p>
-</td>
-</tr>
-</table>
+Render and Heroku templates package the **latest stable release** PostgreSQL executable in a lightweight container. Render runs a free web service with your external PostgreSQL database; Heroku creates a Basic dyno with Essential PostgreSQL. Review the service and database plans before deploying.
 
 [Setup and operating instructions](https://gproxy.leenhawk.com/deployment/containers/)
 
