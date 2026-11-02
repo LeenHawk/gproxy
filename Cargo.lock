@@ -3086,6 +3086,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "gproxy-client-sdk"
+version = "4.1.14"
+dependencies = [
+ "base64 0.23.1",
+ "blake3",
+ "futures-core",
+ "futures-executor",
+ "futures-util",
+ "getrandom 0.4.3",
+ "gproxy-client",
+ "gproxy-protocol",
+ "gproxy-sdk",
+ "gproxy-seaorm",
+ "http",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "thiserror 2.0.21",
+ "time",
+ "tokio",
+ "tokio-util",
+ "ts-rs",
+ "web-time",
+]
+
+[[package]]
 name = "gproxy-core"
 version = "4.1.14"
 dependencies = [
