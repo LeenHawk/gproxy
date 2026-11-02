@@ -1108,13 +1108,9 @@ pub(crate) fn error_finish_reason(response: &r::GenerateContentResponseBody) -> 
 pub(crate) fn finish_metadata(
     response: &r::GenerateContentResponseBody,
 ) -> Result<(FinishReason, Usage)> {
-    if let Some(error) = &response.error {
-        #[derive(Serialize)]
-        struct Envelope<'a> {
-            error: &'a r::ResponseError,
-        }
+    if response.error.is_some() {
         return Err(Error::from_event(
-            serde_json::to_string(&Envelope { error }).map_err(Error::invalid)?,
+            serde_json::to_string(response).map_err(Error::invalid)?,
         ));
     }
     let (mut reason, raw) = if let Some(incomplete) =

@@ -322,14 +322,22 @@ impl StreamDecoder {
         let mut out = self.start();
         let events = match self.decode_json(data) {
             Ok(events) => events,
-            Err(error) if error.body.is_some() => vec![
-                Event::Error { error },
-                Event::Finish {
-                    reason: FinishReason::new(FinishReasonKind::Error, None),
-                    usage: self.observed_usage(),
-                },
-            ],
-            Err(error) => return Err(error),
+            Err(error)
+                if error.body.is_some()
+                    && !matches!(
+                        error.kind,
+                        crate::ErrorKind::InvalidData | crate::ErrorKind::Network
+                    ) =>
+            {
+                vec![
+                    Event::Error { error },
+                    Event::Finish {
+                        reason: FinishReason::new(FinishReasonKind::Error, None),
+                        usage: self.observed_usage(),
+                    },
+                ]
+            }
+            Err(error) => return Err(error.with_body(data.as_bytes())),
         };
         for event in events {
             match event {
@@ -354,6 +362,9 @@ impl StreamDecoder {
                         out.push(Event::Warning { warning });
                     }
                 }
+                Event::Error { error } => out.push(Event::Error {
+                    error: error.with_body(data.as_bytes()),
+                }),
                 Event::Finish { reason, usage } => {
                     self.terminal = true;
                     out.push(Event::Finish { reason, usage });

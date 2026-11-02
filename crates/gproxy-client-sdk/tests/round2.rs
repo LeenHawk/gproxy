@@ -135,13 +135,15 @@ fn result_and_stream_expose_reported_identity_time_and_early_warnings() {
         assert!(matches!(&second,Event::ResponseMetadata {metadata} if metadata==&result.response));
         let mut events = vec![first, second];
         events.extend(stream.collect::<Vec<_>>().await);
-        let aggregate = support::aggregate(events);
+        let aggregate = gproxy_client_sdk::aggregate(futures_util::stream::iter(events))
+            .await
+            .unwrap();
         assert_eq!(aggregate, result);
         request
             .provider_options
             .openai
             .responses
-            .previous_response_id = result.response.id;
+            .previous_response_id = result.response.id.map(Some);
         assert_eq!(
             dialects::openai::render(&request, false)
                 .unwrap()
@@ -557,6 +559,13 @@ fn error_classes_keep_transport_facts_and_do_not_retry_in_band_failures() {
             Some("Wed, 01 Jan 2031 00:00:00 GMT")
         );
     }
+    let context = Error::from_response(
+        400,
+        &http::HeaderMap::new(),
+        json!({"error":{"type":"api_error","code":"context_length_exceeded"}}).to_string(),
+    );
+    assert_eq!(context.kind, ErrorKind::ContextTooLong);
+    assert!(!context.retryable);
     let overloaded = Error::from_event(
         json!({"error":{"type":"overloaded_error","message":"busy"}}).to_string(),
     );
@@ -594,5 +603,136 @@ fn error_classes_keep_transport_facts_and_do_not_retry_in_band_failures() {
         assert!(!error.retryable);
         assert!(events.iter().any(|event|matches!(event,Event::Finish {reason:FinishReason {unified:FinishReasonKind::Error,raw:Some(raw)},..} if raw=="error")));
         assert_eq!(client.backend.requests.lock().unwrap().len(), 1);
+    });
+}
+
+#[test]
+fn malformed_native_records_keep_the_original_data_and_finish_interrupted() {
+    futures_executor::block_on(async {
+        let malformed = json!({"not":"a native response record"});
+        let client = Client::new(Script::new(vec![Reply::sse(vec![malformed.clone()])]));
+        let events = client
+            .stream(&support::request(Dialect::OpenaiChat, vec![]))
+            .await
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await;
+        let error = events
+            .iter()
+            .find_map(|event| match event {
+                Event::Error { error } => Some(error),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(error.kind, ErrorKind::InvalidData);
+        assert_eq!(error.status, Some(200));
+        assert_eq!(error.body.as_deref(), Some(malformed.to_string().as_str()));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            Event::Finish {
+                reason: FinishReason {
+                    unified: FinishReasonKind::Interrupted,
+                    ..
+                },
+                ..
+            }
+        )));
+    });
+}
+#[test]
+fn typed_transport_timeouts_are_retryable_and_do_not_synthesize_completion() {
+    struct TimeoutTransport;
+    impl Backend for TimeoutTransport {
+        fn send(
+            &self,
+            _: OperationKey,
+            _: Option<&str>,
+            _: WireRequest<HttpBody>,
+        ) -> CapabilityFuture<'_, Result<WireResponse<HttpBody>>> {
+            Box::pin(async {
+                let event = json!({"id":"partial","object":"chat.completion.chunk","created":1,"model":"served","choices":[{"index":0,"delta":{"content":"partial"},"finish_reason":null}]});
+                let frames = vec![
+                    Ok(format!("data: {event}\n\n").into()),
+                    Err(
+                        Box::new(std::io::Error::new(std::io::ErrorKind::TimedOut, "stalled"))
+                            as protocol::connection::TransportError,
+                    ),
+                ];
+                Ok(WireResponse {
+                    status: http::StatusCode::OK,
+                    headers: http::HeaderMap::new(),
+                    body: HttpBody::Stream(Box::pin(futures_util::stream::iter(frames))),
+                })
+            })
+        }
+    }
+    futures_executor::block_on(async {
+        let events = Client::new(TimeoutTransport)
+            .stream(&support::request(Dialect::OpenaiChat, vec![]))
+            .await
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await;
+        let error = events
+            .iter()
+            .find_map(|event| match event {
+                Event::Error { error } => Some(error),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(error.kind, ErrorKind::Timeout);
+        assert_eq!(error.status, Some(200));
+        assert!(error.retryable);
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event,Event::TextDelta {delta,..} if delta=="partial"))
+        );
+        assert!(events.iter().any(|event| matches!(
+            event,
+            Event::Finish {
+                reason: FinishReason {
+                    unified: FinishReasonKind::Interrupted,
+                    ..
+                },
+                ..
+            }
+        )));
+    });
+}
+
+#[test]
+fn successful_http_replies_with_native_errors_keep_the_whole_observed_body() {
+    futures_executor::block_on(async {
+        let mut failed = answer();
+        failed["status"] = json!("failed");
+        failed["error"] = json!({"code":"server_error","message":"busy"});
+        failed["audit_extra"] = json!({"preserved":true});
+        let event = json!({"type":"response.failed","sequence_number":1,"response":failed});
+        let client = Client::new(Script::new(vec![
+            Reply::json(failed.clone()),
+            Reply::sse(vec![event.clone()]),
+        ]));
+        let request = support::request(Dialect::Openai, vec![]);
+        let error = client.generate(&request).await.unwrap_err();
+        assert_eq!(error.status, Some(200));
+        assert_eq!(error.kind, ErrorKind::Upstream);
+        assert!(error.retryable);
+        assert_eq!(error.body.as_deref(), Some(failed.to_string().as_str()));
+        let events = client
+            .stream(&request)
+            .await
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await;
+        let error = events
+            .iter()
+            .find_map(|event| match event {
+                Event::Error { error } => Some(error),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(error.status, Some(200));
+        assert_eq!(error.body.as_deref(), Some(event.to_string().as_str()));
     });
 }

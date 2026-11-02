@@ -20,6 +20,8 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 
 pub fn render(request: &GenerateRequest, streaming: bool) -> Result<Rendered<Value>> {
+    #[cfg(not(any(feature = "claude", feature = "openai", feature = "chat")))]
+    let _ = streaming;
     fn json<T: Serialize>(rendered: Rendered<T>) -> Result<Rendered<Value>> {
         Ok(Rendered {
             request: serde_json::to_value(rendered.request).map_err(Error::invalid)?,

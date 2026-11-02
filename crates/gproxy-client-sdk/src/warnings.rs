@@ -32,9 +32,13 @@ fn presence(metadata: &ProviderMetadata, vendor: &Vendor) -> Result<Presence> {
     })
 }
 pub(crate) fn for_request(request: &GenerateRequest, now: Option<u64>) -> Result<Vec<Warning>> {
+    #[cfg(not(feature = "chat"))]
+    let _ = now;
     let mut walk = Walk {
+        #[cfg(any(feature = "openai", feature = "chat"))]
         dialect: request.model.dialect,
         vendor: request.model.dialect.vendor(),
+        #[cfg(feature = "chat")]
         now,
         warnings: Vec::new(),
     };
@@ -261,8 +265,10 @@ pub(crate) fn for_request(request: &GenerateRequest, now: Option<u64>) -> Result
     Ok(walk.warnings)
 }
 struct Walk {
+    #[cfg(any(feature = "openai", feature = "chat"))]
     dialect: Dialect,
     vendor: Vendor,
+    #[cfg(feature = "chat")]
     now: Option<u64>,
     warnings: Vec<Warning>,
 }
@@ -488,10 +494,10 @@ impl Walk {
         let envelope = presence(&block.provider_metadata, &self.vendor)?;
         let responses_text =
             self.is_responses() && *role == Role::Assistant && envelope.native && envelope.item;
-        if let Content::Text(text) = &block.content {
-            if responses_text || (self.is_chat() && text.refusal && *role == Role::Assistant) {
-                cache_supported = false;
-            }
+        if let Content::Text(text) = &block.content
+            && (responses_text || (self.is_chat() && text.refusal && *role == Role::Assistant))
+        {
+            cache_supported = false;
         }
         #[cfg(feature = "openai")]
         if self.is_responses()
@@ -512,7 +518,11 @@ impl Walk {
             Content::Text(text) => {
                 let refusal_native = (self.is_chat() && *role == Role::Assistant) || responses_text;
                 if text.refusal && !refusal_native {
-                    self.warn(WarningKind::Compatibility,&format!("{path}.refusal"),"Refusal remains portable IR semantics; this native request sends its text without a refusal marker");
+                    self.warn(
+                        WarningKind::Compatibility,
+                        &format!("{path}.refusal"),
+                        "Refusal remains portable IR semantics; this native request sends its text without a refusal marker",
+                    );
                 }
                 if self.is_responses()
                     && *role != Role::Assistant
@@ -608,7 +618,13 @@ impl Walk {
                 }
                 if result.is_error
                     && self.vendor == Vendor::Gemini
-                    && !matches!(&result.output,ToolOutput::Json(serde_json::Value::Object(map)) if map.contains_key("error"))
+                    && match &result.output {
+                        ToolOutput::Json(serde_json::Value::Object(map)) => {
+                            !map.contains_key("error")
+                        }
+                        ToolOutput::Blocks(_) => true,
+                        _ => false,
+                    }
                 {
                     self.warn(
                         WarningKind::Compatibility,

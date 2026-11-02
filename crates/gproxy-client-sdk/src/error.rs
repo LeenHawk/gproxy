@@ -95,6 +95,7 @@ impl Error {
         }
         value
     }
+    #[cfg(feature = "gemini")]
     pub(crate) fn content_blocked(body: String) -> Self {
         Self {
             kind: ErrorKind::ContentBlocked,
@@ -121,9 +122,7 @@ impl Error {
         self
     }
     pub(crate) fn with_body(mut self, body: &[u8]) -> Self {
-        if self.body.is_none() {
-            self.body = Some(String::from_utf8_lossy(body).into_owned());
-        }
+        self.body = Some(String::from_utf8_lossy(body).into_owned());
         self
     }
     pub fn from_response(status: u16, headers: &http::HeaderMap, body: String) -> Self {
@@ -207,13 +206,13 @@ impl Error {
         } else {
             ErrorKind::Upstream
         };
-        let retryable = status.is_some_and(retry_status)
-            || native_status.is_some_and(retry_status)
+        let retryable = effective.is_some_and(retry_status)
             || matches!(
                 kind,
                 ErrorKind::RateLimit | ErrorKind::Overloaded | ErrorKind::Timeout
             )
-            || has(&["server_error", "api_error", "INTERNAL", "UNAVAILABLE"]);
+            || (kind == ErrorKind::Upstream
+                && has(&["server_error", "api_error", "INTERNAL", "UNAVAILABLE"]));
         let retry_after = headers
             .get("retry-after")
             .and_then(|v| v.to_str().ok())

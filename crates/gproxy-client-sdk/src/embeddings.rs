@@ -71,10 +71,13 @@ pub struct EmbeddingOptions {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct OpenaiEmbeddingOptions {
     #[cfg_attr(feature = "ts", ts(optional))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub dimensions: Option<i64>,
     #[cfg_attr(feature = "ts", ts(as = "Option<serde_json::Value>", optional))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub encoding_format: Option<o::EmbeddingEncodingFormat>,
     #[cfg_attr(feature = "ts", ts(optional))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub user: Option<String>,
     #[serde(default, flatten)]
     pub rest: protocol::Rest,
@@ -84,6 +87,7 @@ pub struct OpenaiEmbeddingOptions {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct GeminiEmbeddingOptions {
     #[cfg_attr(feature = "ts", ts(as = "Option<serde_json::Value>", optional))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub config: Option<e::EmbedContentConfig>,
     #[serde(default, flatten)]
     pub rest: protocol::Rest,
@@ -166,15 +170,16 @@ impl<B: Backend> Client<B> {
         let mut tokens = Some(0u64);
         match &request.model.dialect {
             EmbeddingDialect::Openai => {
-                if request
+                let texts = request
                     .inputs
                     .iter()
-                    .any(|input| !matches!(input, EmbeddingInput::Text(_)))
-                {
-                    return Err(Error::invalid(
-                        "OpenAI embeddings accept text inputs; use Gemini for images or multipart input",
-                    ));
-                }
+                    .map(|input| match input {
+                        EmbeddingInput::Text(text) => Ok(text.as_str()),
+                        _ => Err(Error::invalid(
+                            "OpenAI embeddings accept text inputs; use Gemini for images or multipart input",
+                        )),
+                    })
+                    .collect::<Result<Vec<_>>>()?;
                 if request.purpose.is_some() {
                     warnings.push(Warning::new(
                         WarningKind::Unsupported,
@@ -210,14 +215,8 @@ impl<B: Backend> Client<B> {
                         "OpenAI native batches are limited to 2048 inputs",
                     ));
                 }
-                for inputs in request.inputs.chunks(size) {
-                    let texts = inputs
-                        .iter()
-                        .map(|input| match input {
-                            EmbeddingInput::Text(text) => Ok(text.clone()),
-                            _ => Err(Error::invalid("OpenAI embedding input must be text")),
-                        })
-                        .collect::<Result<Vec<_>>>()?;
+                for inputs in texts.chunks(size) {
+                    let texts = inputs.iter().map(|text| (*text).to_owned()).collect();
                     let options = &request.provider_options.openai;
                     let mut body = o::CreateEmbeddingRequestBody::builder(
                         o::EmbeddingInput::Texts(texts),
@@ -264,8 +263,13 @@ impl<B: Backend> Client<B> {
                         "OpenAI embedding options are not sent to Gemini",
                     ));
                 }
-                if request.inputs.len() > 1 || request.batch_size.is_some_and(|n| n.get() > 1) {
-                    warnings.push(Warning::new(WarningKind::Compatibility,"batch_size","Gemini uses one embedContent call per input so model routing stays in the URL"));
+                if request.inputs.len() > 1 && request.batch_size.map(NonZeroUsize::get) != Some(1)
+                {
+                    warnings.push(Warning::new(
+                        WarningKind::Compatibility,
+                        "batch_size",
+                        "Gemini uses one embedContent call per input so model routing stays in the URL",
+                    ));
                 }
                 let native_task = options.config.as_ref().and_then(|c| c.task_type);
                 let native_dims = options
@@ -389,10 +393,11 @@ fn openai_batch(mut body: o::CreateEmbeddingResponseBody, expected: usize) -> Re
                     ));
                 }
                 bytes
-                    .chunks_exact(4)
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
                     .map(|bytes| {
-                        let value =
-                            f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as f64;
+                        let value = f32::from_le_bytes(*bytes) as f64;
                         if value.is_finite() {
                             Ok(value)
                         } else {

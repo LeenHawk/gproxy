@@ -817,13 +817,9 @@ pub fn parse(response: g::GenerateContentResponseBody) -> Result<GenerateResult>
 }
 
 pub(crate) fn check_response(response: &g::GenerateContentResponseBody) -> Result<()> {
-    if let Some(error) = &response.error {
-        #[derive(Serialize)]
-        struct Envelope<'a> {
-            error: &'a g::GenerateContentError,
-        }
+    if response.error.is_some() {
         return Err(Error::from_event(
-            serde_json::to_string(&Envelope { error }).map_err(Error::invalid)?,
+            serde_json::to_string(response).map_err(Error::invalid)?,
         ));
     }
     if response
