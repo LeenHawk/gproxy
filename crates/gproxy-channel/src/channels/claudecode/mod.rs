@@ -87,6 +87,12 @@ const MAIN_LOOP_BETAS: &str = "claude-code-20250219,oauth-2025-04-20,interleaved
 /// `design/claudecode-2.1.316.md` against the release binary and local capture.
 pub const CLI_VERSION: &str = "2.1.316";
 pub const CLI_USER_AGENT: &str = "claude-cli/2.1.316 (external, cli)";
+/// The `@anthropic-ai/claude-agent-sdk` release that bundles `CLI_VERSION`
+/// (npm 0.3.316 pins Claude Code 2.1.316). The SDK spawns that CLI with
+/// `CLAUDE_CODE_ENTRYPOINT=sdk-ts` and `CLAUDE_AGENT_SDK_VERSION` set.
+pub const AGENT_SDK_VERSION: &str = "0.3.316";
+/// What the CLI's `wU` builds under the TypeScript Agent SDK.
+pub const AGENT_SDK_USER_AGENT: &str = "claude-cli/2.1.316 (external, sdk-ts, agent-sdk/0.3.316)";
 /// The profile and roles calls use the CLI's axios client with this agent.
 const PROFILE_USER_AGENT: &str = "claude-code/2.1.316";
 pub const ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
@@ -127,6 +133,67 @@ pub struct ClaudecodeConfig {
     /// Request the CLI's extended grace for tool-result continuations when
     /// extra usage is not known to be enabled. Off by default.
     pub extended_usage: bool,
+    /// Which first-party client the requests present as.
+    pub client_identity: ClientIdentity,
+    /// Place the CLI's identity system block (`You are Claude Code, ...` or
+    /// the Agent SDK's) after the billing block, matching its entrypoint.
+    /// Off by default: the client's system blocks are left as sent.
+    pub identity_system_block: bool,
+}
+
+/// The first-party client the channel presents as. Both run the same CLI
+/// binary over the same OAuth token; they differ only in the user agent's
+/// entrypoint, the billing block's `cc_entrypoint` and turn fields, and the
+/// identity system block (2.1.316 `wU`, `p7n`; `captures/` holds both). The
+/// billing checksum (`cch`), `cc_version` suffix and `metadata.user_id` do
+/// not depend on the entrypoint.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClientIdentity {
+    /// The interactive Claude Code CLI (`cli`). A client's own valid CLI
+    /// user agent and billing entrypoint are kept.
+    #[default]
+    Cli,
+    /// The Claude Agent SDK (`sdk-ts`). Only an Agent SDK user agent from
+    /// the client is kept; the billing block follows it.
+    AgentSdk,
+}
+
+impl ClientIdentity {
+    fn default_user_agent(self) -> &'static str {
+        match self {
+            Self::Cli => CLI_USER_AGENT,
+            Self::AgentSdk => AGENT_SDK_USER_AGENT,
+        }
+    }
+
+    fn of(provider: ProviderView<'_>) -> Self {
+        ClaudecodeConfig::from_view(provider)
+            .map(|config| config.client_identity)
+            .unwrap_or_default()
+    }
+
+    /// The user agent to send: the client's when it is a valid CLI agent
+    /// this identity accepts, otherwise the identity's own.
+    fn user_agent(self, client: Option<&str>) -> &str {
+        client
+            .filter(|value| {
+                parse_cli_user_agent(value).is_some_and(|ua| match self {
+                    Self::Cli => true,
+                    Self::AgentSdk => ua.agent_sdk && matches!(ua.entrypoint, "sdk-ts" | "sdk-py"),
+                })
+            })
+            .unwrap_or(self.default_user_agent())
+    }
+
+    /// The `cc_entrypoint` the billing block must carry, when the identity
+    /// forces one: the entrypoint of the user agent actually sent.
+    fn forced_entrypoint(self, user_agent: &str) -> Option<&str> {
+        match self {
+            Self::Cli => None,
+            Self::AgentSdk => parse_cli_user_agent(user_agent).map(|ua| ua.entrypoint),
+        }
+    }
 }
 
 impl Default for ClaudecodeConfig {
@@ -141,6 +208,8 @@ impl Default for ClaudecodeConfig {
             fallback_models: Vec::new(),
             low_priority: false,
             extended_usage: false,
+            client_identity: ClientIdentity::Cli,
+            identity_system_block: false,
         }
     }
 }
@@ -390,22 +459,62 @@ fn stainless_arch() -> &'static str {
     }
 }
 
+struct CliUserAgent<'a> {
+    entrypoint: &'a str,
+    agent_sdk: bool,
+}
+
 /// A client user agent is honoured only when it is the impersonated CLI
-/// version with a plausible entrypoint, e.g. `claude-cli/2.1.316 (external,
-/// sdk-cli)`; anything else becomes the CLI's own (v3 `auth.rs`).
-fn valid_cli_user_agent(value: &str) -> bool {
-    value
-        .strip_prefix("claude-cli/")
-        .and_then(|value| value.split_once(" (external, "))
-        .filter(|(version, _)| *version == CLI_VERSION)
-        .map(|(_, entrypoint)| entrypoint)
-        .and_then(|value| value.strip_suffix(')'))
-        .is_some_and(|entrypoint| {
-            !entrypoint.is_empty()
-                && entrypoint
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-        })
+/// version in the CLI's `wU` grammar (v3 `auth.rs`): `claude-cli/{version} (external, {entrypoint}`,
+/// then optionally `, agent-sdk/{x.y.z}`, `, client-app/{app}` and
+/// `, workload/{token}` in that order, then `)`.
+fn parse_cli_user_agent(value: &str) -> Option<CliUserAgent<'_>> {
+    let token = |value: &str| {
+        !value.is_empty()
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    };
+    let inner = value
+        .strip_prefix("claude-cli/")?
+        .strip_prefix(CLI_VERSION)?
+        .strip_prefix(" (external, ")?
+        .strip_suffix(')')?;
+    let mut parts = inner.split(", ");
+    let entrypoint = parts.next().filter(|value| token(value))?;
+    let mut agent_sdk = false;
+    let mut rank = 0;
+    for part in parts {
+        let (name, value) = part.split_once('/')?;
+        let (next, valid) = match name {
+            "agent-sdk" => (
+                1,
+                value.split('.').count() == 3
+                    && value.split('.').all(|n| {
+                        (1..=8).contains(&n.len()) && n.bytes().all(|b| b.is_ascii_digit())
+                    }),
+            ),
+            "client-app" => (
+                2,
+                (1..=64).contains(&value.len())
+                    && value.bytes().all(|byte| {
+                        byte.is_ascii_alphanumeric()
+                            || matches!(byte, b'-' | b'_' | b'.' | b'@' | b'/')
+                    }),
+            ),
+            "workload" => (3, token(value)),
+            _ => return None,
+        };
+        if next <= rank || !valid {
+            return None;
+        }
+        rank = next;
+        agent_sdk |= next == 1;
+    }
+    Some(CliUserAgent {
+        entrypoint,
+        agent_sdk,
+    })
 }
 
 /// `oauth-2025-04-20` first, then every other beta already on the request.
@@ -431,7 +540,7 @@ fn apply_headers(
     config: &ClaudecodeConfig,
     access_token: &str,
     session_id: &str,
-    client_user_agent: Option<&str>,
+    user_agent: &str,
 ) -> Result<(), ChannelError> {
     headers.insert(
         header::AUTHORIZATION,
@@ -464,9 +573,6 @@ fn apply_headers(
         HeaderName::from_static("x-stainless-arch"),
         HeaderValue::from_static(stainless_arch()),
     );
-    let user_agent = client_user_agent
-        .filter(|value| valid_cli_user_agent(value))
-        .unwrap_or(CLI_USER_AGENT);
     headers.insert(header::USER_AGENT, header_value(user_agent)?);
     headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     headers.insert(
@@ -627,6 +733,16 @@ impl BaseChannel for Claudecode {
                     ConfigKeyKind::Bool,
                     "Request extended usage grace for tool-result continuations unless paid extra usage is enabled. Off by default; the server decides whether grace is available.",
                 ),
+                ConfigKey::optional(
+                    "client_identity",
+                    ConfigKeyKind::String,
+                    "Client to present as: cli (default, interactive Claude Code) or agent_sdk (Claude Agent SDK: sdk-ts user agent and SDK billing turn fields).",
+                ),
+                ConfigKey::optional(
+                    "identity_system_block",
+                    ConfigKeyKind::Bool,
+                    "Place the client's identity system block after the billing block: Claude Code's for cli, the Agent SDK's for sdk-* entrypoints. Off by default.",
+                ),
             ]
             .into_iter()
             .chain(HOST_CONFIG_KEYS)
@@ -762,7 +878,11 @@ impl Claudecode {
             &account.device_id,
             explicit_session(&source, allowlist.as_ref()),
         );
-        let client_user_agent = client_header(&source, allowlist.as_ref(), "user-agent");
+        let user_agent = config.client_identity.user_agent(client_header(
+            &source,
+            allowlist.as_ref(),
+            "user-agent",
+        ));
         let client_beta = client_header(&source, allowlist.as_ref(), "anthropic-beta")
             .and_then(|value| HeaderValue::from_str(value).ok());
         let mut usage_mode = usage_limit::requested_mode(&source, &config);
@@ -809,6 +929,8 @@ impl Claudecode {
                             account.account_uuid.as_deref().unwrap_or_default(),
                             &session,
                             prev_req,
+                            config.client_identity.forced_entrypoint(user_agent),
+                            config.identity_system_block,
                         );
                         HttpBody::Bytes(Bytes::from(cch::serialize(&value)))
                     }
@@ -835,7 +957,7 @@ impl Claudecode {
             &config,
             account.access_token,
             &session,
-            client_user_agent,
+            user_agent,
         )?;
         usage_limit::set_mode(
             &mut headers,

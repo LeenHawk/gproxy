@@ -17,6 +17,7 @@ export type ControlKind =
 export const choices: Record<string, Array<string>> = {
   credential_strategy: ["round_robin", "earliest_reset", "sticky", "round_robin_affinity"],
   fallback_mode: ["off", "default", "models"],
+  client_identity: ["cli", "agent_sdk"],
   account_type: ["individual", "business", "enterprise"],
   product: ["platform", "code"],
   tier: ["zen", "go"],

@@ -120,6 +120,33 @@ description: "Выберите канал, добавьте провайдеро
 
 <a id="per-operation-url-overrides"></a>
 
+### Идентификация клиента Claude Code
+
+`client_identity` выбирает, каким официальным клиентом представляется канал
+`claudecode`. Оба варианта — один и тот же бинарный файл CLI с тем же токеном OAuth:
+
+- `cli` (по умолчанию): интерактивный CLI, `claude-cli/2.1.316 (external, cli)`.
+  Собственный корректный User-Agent CLI и `cc_entrypoint` блока биллинга клиента сохраняются.
+- `agent_sdk`: Claude Agent SDK 0.3.316,
+  `claude-cli/2.1.316 (external, sdk-ts, agent-sdk/0.3.316)`. Сохраняется только
+  User-Agent Agent SDK клиента (`sdk-ts`/`sdk-py` с `agent-sdk/…`), остальные заменяются.
+  `cc_entrypoint` блока биллинга следует за User-Agent, ход оформляется как ход SDK
+  (`cc_turn_origin=sdk`, `cc_prompt_index=0`).
+
+`identity_system_block: true` (по умолчанию `false`) ставит сразу после блока биллинга
+системный блок идентификации, соответствующий `cc_entrypoint`: для `cli` —
+`You are Claude Code, Anthropic's official CLI for Claude.`, для `sdk-*` —
+`You are a Claude agent, built on Anthropic's Claude Agent SDK.` (собственная идентификация
+SDK клиента, включая вариант `running within the Claude Agent SDK`, сохраняется). Блок
+идентификации другого вида переписывается; если клиент его не прислал, он вставляется.
+Когда параметр выключен, системные блоки клиента не меняются.
+
+Контрольная сумма биллинга (`cch`), суффикс `cc_version` и `metadata.user_id` вычисляются
+одинаково для обоих вариантов.
+
+Anthropic может учитывать трафик Agent SDK в подписке отдельно от интерактивного;
+признаком служит именно entrypoint.
+
 ### Переопределения URL для каждой операции
 
 `operation_endpoints` заменяет весь метод URL на один `(operation, dialect, transport)` на одном провайдере. Это **не** заменяющая база URL с добавленным путем по умолчанию; параметры пути канала разрешаются этим методом:

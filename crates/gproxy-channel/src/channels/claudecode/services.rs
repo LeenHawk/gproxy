@@ -24,9 +24,8 @@
 //! caller identity (v3 `claudecode/surface/local.rs` shapes).
 
 use super::{
-    ANTHROPIC_VERSION, CHANNEL_HEADERS, CLI_USER_AGENT, Claudecode, ClaudecodeConfig, OAUTH_BETA,
-    STATIC_HEADERS, base_url, fact, header_value, invalid_config, merge_beta, stainless_arch,
-    stainless_os, valid_cli_user_agent,
+    ANTHROPIC_VERSION, CHANNEL_HEADERS, Claudecode, ClaudecodeConfig, OAUTH_BETA, STATIC_HEADERS,
+    base_url, fact, header_value, invalid_config, merge_beta, stainless_arch, stainless_os,
 };
 use crate::channel::{
     CallerRole, CallerUsage, CallerUsageWindow, ChannelError, ChannelServices, CredentialContext,
@@ -527,10 +526,12 @@ fn service_headers(
         HeaderName::from_static("x-stainless-arch"),
         HeaderValue::from_static(stainless_arch()),
     );
-    let user_agent = client_user_agent
-        .filter(|value| value.to_str().is_ok_and(valid_cli_user_agent))
-        .unwrap_or_else(|| HeaderValue::from_static(CLI_USER_AGENT));
-    headers.insert(header::USER_AGENT, user_agent);
+    let user_agent = config.client_identity.user_agent(
+        client_user_agent
+            .as_ref()
+            .and_then(|value| value.to_str().ok()),
+    );
+    headers.insert(header::USER_AGENT, header_value(user_agent)?);
     headers.insert(
         header::ACCEPT,
         client_accept

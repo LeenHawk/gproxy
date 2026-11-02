@@ -455,7 +455,9 @@ impl QuotaQuery for Claudecode {
             );
             headers.insert(
                 header::USER_AGENT,
-                HeaderValue::from_static(super::CLI_USER_AGENT),
+                HeaderValue::from_static(
+                    super::ClientIdentity::of(context.provider).user_agent(None),
+                ),
             );
             headers.insert(
                 "anthropic-beta",

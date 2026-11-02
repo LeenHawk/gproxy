@@ -84,26 +84,42 @@ const BILLING_PREFIX: &str = "x-anthropic-billing-header:";
 /// client's, default `cli`), `cch=00000`, then the optional fragments the
 /// client sent when they pass the CLI's own validation: `cc_workload`,
 /// `cc_is_subagent=true`, `cc_prev_req`, `cc_prompt_id`, `cc_turn_origin`,
-/// then the paired `cc_prompt_index` / `cc_turn_index`. CLI 2.1.316 appends
+/// then the paired `cc_prompt_index` / `cc_turn_index`. CLI 2.1.316 adds the
+/// paired `cc_project` / `cc_project_src` for a Claude project, and appends
 /// `cc_prev_msg` and paired `cc_prev_prompt_index` / `cc_prev_turn_index`
 /// after compaction; preserve validated client values without inferring them
 /// from the compacted transcript. Unknown keys and
 /// invalid values are dropped; they would only fingerprint the proxy. Gateway
 /// attribution (`cc_gateway`) is also dropped: this channel impersonates the
 /// default direct OAuth client, not a gateway-configured CLI. Two
-/// fragments the CLI always sends on the OAuth path are synthesized when the
+/// fragments the CLI's main loop sends on the OAuth path are synthesized when the
 /// client left them out: `cc_prev_req` from `prev_req`, the `request-id` of
 /// the session's previous upstream call, and `cc_prompt_id`, a UUID derived
 /// from the device, the session and the count of user text turns, so it
 /// stays fixed across the tool loop of one prompt and changes with the next
-/// user message; this approximates the CLI's per-prompt id. `cc_workload`
+/// user message; this approximates the CLI's per-prompt id. Both are only
+/// synthesized for a main-loop turn: a client block that carries none of the
+/// turn fragments is a CLI side call and stays bare. `cc_workload`
 /// and `cc_is_subagent` stay absent unless sent: absence is the main session.
+///
+/// The turn fields of a client that sent no billing block are synthesized
+/// as a main-loop turn (see below).
+///
+/// `sdk_entrypoint` is set when the channel presents as the Agent SDK. It
+/// then replaces the client's `cc_entrypoint`, and a main-loop turn is an
+/// SDK one (`cc_turn_origin=sdk`, `cc_prompt_index=0`, `cc_turn_index` the
+/// client's or the count of user text turns, as in the `-p` captures).
+///
+/// `identity_block` places the identity system block after the billing
+/// block, matching the entrypoint the billing block carries.
 pub(super) fn inject_billing(
     body: &mut Value,
     device_id: &str,
     account_uuid: &str,
     session: &str,
     prev_req: Option<&str>,
+    sdk_entrypoint: Option<&str>,
+    identity_block: bool,
 ) {
     if has_fallback_credit(body) {
         return;
@@ -156,9 +172,12 @@ pub(super) fn inject_billing(
             .map(|(_, value)| *value)
     };
 
-    let entrypoint = field("cc_entrypoint")
-        .filter(|value| is_token(value))
-        .unwrap_or("cli");
+    let entrypoint = sdk_entrypoint.unwrap_or_else(|| {
+        field("cc_entrypoint")
+            .filter(|value| is_token(value))
+            .unwrap_or("cli")
+    });
+    let sdk = entrypoint.starts_with("sdk-");
     let mut text = format!(
         "{BILLING_PREFIX} cc_version={}.{suffix}; cc_entrypoint={entrypoint}; cch=00000;",
         super::CLI_VERSION,
@@ -169,30 +188,68 @@ pub(super) fn inject_billing(
     if field("cc_is_subagent") == Some("true") {
         text.push_str(" cc_is_subagent=true;");
     }
-    if let Some(request) = field("cc_prev_req")
-        .filter(|value| is_request_id(value))
-        .or_else(|| prev_req.filter(|value| is_request_id(value)))
+    // The CLI's main loop sends the turn fragments (2.1.316 `JXs`); its
+    // side calls (`QXs`, e.g. session titles) send none of them. A client
+    // billing block without any is such a side call and stays without them.
+    // A client that sent no block is a gateway client whose every request is
+    // a main-loop turn.
+    let sent_prev_req = field("cc_prev_req").filter(|value| is_request_id(value));
+    let sent_prompt = field("cc_prompt_id").filter(|value| is_uuid(value));
+    let sent_origin = field("cc_turn_origin").filter(|value| is_turn_origin(value));
+    let turn = field("cc_turn_index").and_then(|value| billing_index(value, 1));
+    let sent_indices = field("cc_prompt_index")
+        .and_then(|value| billing_index(value, 0))
+        .zip(turn);
+    let gateway_client = existing.is_none();
+    let main_turn = gateway_client
+        || sent_prev_req.is_some()
+        || sent_prompt.is_some()
+        || sent_origin.is_some()
+        || sent_indices.is_some();
+    if let Some(request) =
+        sent_prev_req.or_else(|| prev_req.filter(|value| main_turn && is_request_id(value)))
     {
         text.push_str(&format!(" cc_prev_req={request};"));
     }
-    let prompt = match field("cc_prompt_id").filter(|value| is_uuid(value)) {
-        Some(prompt) => prompt.to_owned(),
-        None => super::derived_uuid(&format!(
-            "claudecode-prompt:{device_id}:{session}:{prompt_index}"
-        )),
+    let prompt = match sent_prompt {
+        Some(prompt) => Some(prompt.to_owned()),
+        None => main_turn.then(|| {
+            super::derived_uuid(&format!(
+                "claudecode-prompt:{device_id}:{session}:{prompt_index}"
+            ))
+        }),
     };
-    text.push_str(&format!(" cc_prompt_id={prompt};"));
-    if let Some(origin) = field("cc_turn_origin").filter(|value| is_turn_origin(value)) {
+    if let Some(prompt) = prompt {
+        text.push_str(&format!(" cc_prompt_id={prompt};"));
+    }
+    // A gateway client's turn is one per user text turn: `human` for the
+    // CLI and `sdk` (prompt index 0, since SDK input is never human) for the
+    // Agent SDK, as in the captures. Counters are client session state:
+    // prompt advances only for human input, turn for every new triggering
+    // input (not tool round-trips).
+    let turns = u32::try_from(prompt_index.max(1)).unwrap_or(u32::MAX);
+    let (origin, indices) = match sdk_entrypoint {
+        Some(_) if main_turn => (Some("sdk"), Some((0, turn.unwrap_or(turns)))),
+        Some(_) => (None, None),
+        None if gateway_client => (Some("human"), Some((turns, turns))),
+        None => (sent_origin, sent_indices),
+    };
+    if let Some(origin) = origin {
         text.push_str(&format!(" cc_turn_origin={origin};"));
     }
-    // CLI 2.1.284 emits both indices or neither. These are client session
-    // counters: prompt advances only for human input, turn for every new
-    // triggering input (not tool round-trips). Preserve, never infer them.
-    if let Some(prompt) = field("cc_prompt_index").and_then(|value| billing_index(value, 0))
-        && let Some(turn) = field("cc_turn_index").and_then(|value| billing_index(value, 1))
+    // CLI 2.1.284 emits both indices or neither.
+    if let Some((prompt, turn)) = indices
         && prompt <= turn
     {
         text.push_str(&format!(" cc_prompt_index={prompt}; cc_turn_index={turn};"));
+    }
+    // 2.1.316 attributes a request to a Claude project; the id and its
+    // settings source travel together.
+    if let Some(project) = field("cc_project").filter(|value| is_project_id(value))
+        && let Some(source) =
+            field("cc_project_src").filter(|value| PROJECT_SOURCES.contains(value))
+    {
+        text.push_str(&format!(" cc_project={project}; cc_project_src={source};"));
     }
     if let Some(message) = field("cc_prev_msg").filter(|value| is_message_id(value)) {
         text.push_str(&format!(" cc_prev_msg={message};"));
@@ -206,9 +263,53 @@ pub(super) fn inject_billing(
     }
 
     let billing = json!({"type": "text", "text": text});
-    match existing {
-        Some(index) => blocks[index] = billing,
-        None => blocks.insert(0, billing),
+    let billing_at = match existing {
+        Some(index) => {
+            blocks[index] = billing;
+            index
+        }
+        None => {
+            blocks.insert(0, billing);
+            0
+        }
+    };
+    if identity_block {
+        identity(blocks, billing_at, sdk);
+    }
+}
+
+/// The CLI's identity strings (2.1.316 `oe`, `Ue`, `Ie`).
+const CLI_IDENTITY: &str = "You are Claude Code, Anthropic's official CLI for Claude.";
+const SDK_APPEND_IDENTITY: &str = "You are Claude Code, Anthropic's official CLI for Claude, running within the Claude Agent SDK.";
+const SDK_IDENTITY: &str = "You are a Claude agent, built on Anthropic's Claude Agent SDK.";
+
+/// The identity block follows the billing block (`p7n`). An interactive
+/// entrypoint gets `CLI_IDENTITY`; a non-interactive one (`sdk-*`, `-p`
+/// included) keeps a client's SDK identity and otherwise gets
+/// `SDK_IDENTITY`, the pick for a custom system prompt, which a gateway
+/// client's is. A client's identity of the other family is rewritten; one
+/// is inserted when the client sent none.
+fn identity(blocks: &mut Vec<Value>, billing_at: usize, sdk: bool) {
+    let wanted = if sdk { SDK_IDENTITY } else { CLI_IDENTITY };
+    let identity = blocks.iter().position(|block| {
+        block
+            .get("text")
+            .and_then(Value::as_str)
+            .is_some_and(|text| [CLI_IDENTITY, SDK_APPEND_IDENTITY, SDK_IDENTITY].contains(&text))
+    });
+    match identity {
+        Some(index) => {
+            let current = blocks[index].get("text").and_then(Value::as_str);
+            let matches = if sdk {
+                current != Some(CLI_IDENTITY)
+            } else {
+                current == Some(CLI_IDENTITY)
+            };
+            if !matches && let Some(block) = blocks[index].as_object_mut() {
+                block.insert("text".into(), Value::String(wanted.into()));
+            }
+        }
+        None => blocks.insert(billing_at + 1, json!({"type": "text", "text": wanted})),
     }
 }
 
@@ -249,6 +350,34 @@ fn is_turn_origin(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte == b'_')
+}
+
+/// The settings sources a project attribution may come from (2.1.316 `M`).
+const PROJECT_SOURCES: &[&str] = &[
+    "harness",
+    "user",
+    "project",
+    "local",
+    "flag",
+    "managed",
+    "admin_default",
+];
+
+/// `^claude_proj_(?:staging_|local_)?01[1-9A-HJ-NP-Za-km-z]{22}$` (2.1.316 `Mns`).
+fn is_project_id(value: &str) -> bool {
+    let Some(rest) = value.strip_prefix("claude_proj_") else {
+        return false;
+    };
+    let rest = rest
+        .strip_prefix("staging_")
+        .or_else(|| rest.strip_prefix("local_"))
+        .unwrap_or(rest);
+    rest.strip_prefix("01").is_some_and(|id| {
+        id.len() == 22
+            && id.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() && !matches!(byte, b'0' | b'I' | b'O' | b'l')
+            })
+    })
 }
 
 /// `^req_[A-Za-z0-9_-]{1,36}$` (2.1.252 `KUt`).

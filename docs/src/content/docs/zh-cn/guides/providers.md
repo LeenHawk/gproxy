@@ -129,6 +129,27 @@ CountTokens 和控制接口不发送这个请求头。对其他客户端，以�
 额度视图也记录服务端报告的低优先级预算和宽限额度，但它们不拦截普通请求。显式模式只对当前请求
 放行适用的已耗尽订阅窗口；本地预算、模型专属额度和上游失败／限流冷却继续生效。
 
+### Claude Code 客户端身份
+
+`client_identity` 决定 `claudecode` 渠道以哪个官方客户端的身份发请求。两者都是同一个 CLI
+二进制、同一个 OAuth 令牌：
+
+- `cli`（默认）：交互式 CLI，`claude-cli/2.1.316 (external, cli)`。客户端自带的合法 CLI
+  User-Agent 和计费块里的 `cc_entrypoint` 会保留。
+- `agent_sdk`：Claude Agent SDK 0.3.316，`claude-cli/2.1.316 (external, sdk-ts, agent-sdk/0.3.316)`。
+  只保留客户端自带的 Agent SDK User-Agent（`sdk-ts`/`sdk-py` 且带 `agent-sdk/…`），其他一律替换。
+  计费块的 `cc_entrypoint` 跟随 User-Agent，回合按 SDK 填写（`cc_turn_origin=sdk`、`cc_prompt_index=0`）。
+
+`identity_system_block: true`（默认 `false`）会在计费块后放置与计费 `cc_entrypoint` 对应的身份 system 块：
+`cli` 为 `You are Claude Code, Anthropic's official CLI for Claude.`，`sdk-*` 为
+`You are a Claude agent, built on Anthropic's Claude Agent SDK.`（客户端自带的 SDK 身份，包括
+`running within the Claude Agent SDK` 变体，会保留）。另一类身份块会被改写，客户端没发则插入。
+关闭时不改动客户端的 system 块。
+
+计费校验和（`cch`）、`cc_version` 后缀和 `metadata.user_id` 在两种身份下计算方式相同。
+
+Anthropic 可能对订阅下的 Agent SDK 流量单独计量，依据的正是 entrypoint。
+
 ### 按操作覆盖 URL
 
 `operation_endpoints` 对某个供应商的某个 `(操作, 方言, 传输)` 整体替换方法 URL。它

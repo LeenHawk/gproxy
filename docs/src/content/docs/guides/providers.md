@@ -160,6 +160,34 @@ These do not block normal traffic. Explicit modes exempt only their applicable
 reported subscription windows for that request; local budgets, scoped model
 limits and upstream failure/rate-limit cooldowns still apply.
 
+### Claude Code client identity
+
+`client_identity` picks which first-party client the `claudecode` channel
+presents as. Both run the same CLI binary on the same OAuth token:
+
+- `cli` (default): the interactive CLI, `claude-cli/2.1.316 (external, cli)`.
+  A client's own valid CLI user agent and billing `cc_entrypoint` are kept.
+- `agent_sdk`: the Claude Agent SDK 0.3.316,
+  `claude-cli/2.1.316 (external, sdk-ts, agent-sdk/0.3.316)`. A client's
+  Agent SDK user agent (`sdk-ts`/`sdk-py` with `agent-sdk/…`) is kept, any
+  other is replaced. The billing block's `cc_entrypoint` follows the user
+  agent, and the turn is an SDK one (`cc_turn_origin=sdk`, `cc_prompt_index=0`).
+
+`identity_system_block: true` (default `false`) places the identity system
+block right after the billing block, matching the billing `cc_entrypoint`:
+`You are Claude Code, Anthropic's official CLI for Claude.` for `cli`, and
+`You are a Claude agent, built on Anthropic's Claude Agent SDK.` for `sdk-*`
+(a client's SDK identity, including the `running within the Claude Agent SDK`
+variant, is kept). A client's identity block of the other kind is rewritten;
+one is inserted when the client sent none. When off, the client's system
+blocks are left as sent.
+
+The billing checksum (`cch`), the `cc_version` suffix and `metadata.user_id`
+are computed the same way for both identities.
+
+Anthropic may meter Agent SDK traffic on subscriptions separately from
+interactive use; the entrypoint is the signal it reads.
+
 ### Per-operation URL overrides
 
 `operation_endpoints` replaces the whole method URL for one

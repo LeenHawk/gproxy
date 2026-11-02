@@ -248,13 +248,11 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     assert_eq!(shaped["system"][1]["cache_control"]["type"], "ephemeral");
     let billing = normalize_cch(shaped["system"][0]["text"].as_str().unwrap());
     let billing = billing.as_str();
-    let (fixed, prompt) = billing.split_once(" cc_prompt_id=").unwrap();
     assert_eq!(
-        fixed,
-        "x-anthropic-billing-header: cc_version=2.1.316.db3; cc_entrypoint=sdk-cli; cch=00000;"
+        billing,
+        "x-anthropic-billing-header: cc_version=2.1.316.db3; cc_entrypoint=sdk-cli; cch=00000;",
+        "a client block without turn fragments is a side call and stays bare"
     );
-    assert_eq!(prompt.len(), 37, "a derived prompt UUID: {prompt}");
-    assert!(prompt.ends_with(';'));
     let ids: Value = serde_json::from_str(shaped["metadata"]["user_id"].as_str().unwrap()).unwrap();
     assert_eq!(ids["device_id"], "device-meta", "metadata over secret");
     assert_eq!(ids["account_uuid"], "account-meta");
@@ -396,19 +394,18 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
     );
     // Invalid values are dropped rather than forwarded: a prev_req without
     // the CLI shape, a subagent flag that is not `true`, a workload with a
-    // space, an entrypoint with a slash, and a prompt id that is not a UUID
-    // (which is then derived instead). Gateway attribution is also dropped.
+    // space, an entrypoint with a slash, and a prompt id that is not a UUID.
+    // Gateway attribution is also dropped. With no valid turn fragment left
+    // the block is a side call, so nothing is synthesized.
     let derived = billing(concat!(
         "x-anthropic-billing-header: cc_version=2.1.200.zzz; cc_entrypoint=sdk/ts; ",
         "cc_workload=agent run; cc_is_subagent=false; cc_prev_req=nope; cc_prompt_id=prompt-1; cc_gateway=env;",
         "cc_prev_msg=msg_bad-id; cc_prev_prompt_index=0; cc_prev_turn_index=0;"
     ));
-    let (fixed, prompt) = derived.split_once(" cc_prompt_id=").unwrap();
     assert_eq!(
-        fixed,
+        derived,
         "x-anthropic-billing-header: cc_version=2.1.316.db3; cc_entrypoint=cli; cch=00000;"
     );
-    assert_eq!(prompt.len(), 37);
     for invalid in [
         "msg_",
         "msg_bad-id",
@@ -457,7 +454,7 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
         ));
         assert!(shaped.ends_with(&format!(" cc_turn_origin={valid};")));
     }
-    // The same device, session and prompt derive the same id.
+    // Invalid fragments leave the same bare side-call block as none at all.
     assert_eq!(
         billing("x-anthropic-billing-header: cc_version=2.1.200.zzz; cc_entrypoint=cli;"),
         derived
