@@ -127,24 +127,19 @@ Cloudflare、Netlify 和 Vercel 的模板使用 **latest 稳定版** 预编译�
 
 部署入口、平台数据库与外部数据库的选择，以及 WebSocket 等能力差异，统一见[托管平台部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)。
 
-以下三个模板使用 **latest 稳定版** PostgreSQL 预编译程序与轻量容器。部署前请核对应用和数据库的付费套餐。
+以下两个模板使用 **latest 稳定版** PostgreSQL 预编译程序与轻量容器。部署前请核对应用和数据库的付费套餐。
 
 <table>
 <tr>
-<td width="33%" valign="top">
+<td width="50%" valign="top">
 <h3>Render</h3>
 <p>Starter 服务 + Basic PostgreSQL，自动绑定数据库并生成密码与主密钥。</p>
 <p><a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>部署到 Render →</strong></a></p>
 </td>
-<td width="33%" valign="top">
+<td width="50%" valign="top">
 <h3>Heroku</h3>
 <p>Basic dyno + Essential PostgreSQL，填写主密钥后自动创建应用和数据库。</p>
 <p><a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>部署到 Heroku →</strong></a></p>
-</td>
-<td width="33%" valign="top">
-<h3>Northflank</h3>
-<p>导入模板即可创建项目、PostgreSQL 和服务；目前需手动导入，尚无公开分享链接。</p>
-<p><a href="https://gproxy.leenhawk.com/zh-cn/deployment/containers/#northflank"><strong>导入模板 →</strong></a></p>
 </td>
 </tr>
 </table>
@@ -158,7 +153,7 @@ Cloudflare、Netlify 和 Vercel 的模板使用 **latest 稳定版** 预编译�
 | Application | 桌面或移动设备，应用内管理 | [下载与安装](https://gproxy.leenhawk.com/zh-cn/download/) |
 | CLI / 容器 | 常驻服务器，浏览器管理 | [下载与安装](https://gproxy.leenhawk.com/zh-cn/download/) |
 | Cloudflare / Netlify / Vercel | 托管平台，无需自备服务器 | [部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/edge/) |
-| Northflank / Render / Heroku | 原生容器与托管 PostgreSQL | [部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/containers/) |
+| Render / Heroku | 原生容器与托管 PostgreSQL | [部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/containers/) |
 | Rust SDK | 嵌入自己的程序 | [gproxy-sdk](crates/gproxy-sdk/README.zh-CN.md) |
 
 Windows 可从 Microsoft Store 安装两个版本：

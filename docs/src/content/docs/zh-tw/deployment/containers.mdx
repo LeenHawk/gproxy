@@ -1,5 +1,5 @@
 ---
-title: Docker、Northflank、Render 和 Heroku
+title: Docker、Render 和 Heroku
 description: 使用 GPROXY 容器與託管 PostgreSQL 部署閘道。
 ---
 
@@ -15,10 +15,6 @@ import { Card, CardGrid, LinkButton } from "@astrojs/starlight/components";
   <Card title="Heroku" icon="rocket">
     <p>Basic dyno + Essential PostgreSQL，填入主金鑰後自動建立應用與資料庫。</p>
     <LinkButton href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev" variant="secondary" icon="external">部署至 Heroku</LinkButton>
-  </Card>
-  <Card title="Northflank" icon="rocket">
-    <p>匯入範本即可建立專案、PostgreSQL 與服務；目前需手動匯入，尚無公開分享連結。</p>
-    <LinkButton href="https://app.northflank.com/s/account/templates/new" variant="secondary" icon="external">開啟範本編輯器</LinkButton>
   </Card>
 </CardGrid>
 
@@ -64,17 +60,6 @@ docker logs gproxy
 4. 在 **Settings → Reveal Config Vars** 中檢視 `GPROXY_ADMIN_PASSWORD`，開啟 `/console/` 並以 `admin` 登入。
 
 儲存庫根目錄的 `app.json` 與 `heroku.yml` 使用 `deploy/serverless/Dockerfile`。Node.js 入口監聽 Heroku 動態配置的 `PORT`，共用閘道讀取 `DATABASE_URL`，並支援 Heroku 指派的執行使用者。本機檔案是暫存資料；設定、憑證、用量與快取狀態儲存在 PostgreSQL 中。
-
-## Northflank
-
-1. 在 Northflank 帳戶或團隊中建立範本，切換至 JSON 編輯器，貼上[範本 JSON](https://github.com/LeenHawk/gproxy/blob/dev/deploy/northflank/template.json)。
-2. 將範本命名為 GPROXY；依需求調整範本參數 `PROJECT_NAME` 與 Project 節點的 `region`（預設為 `europe-west`），儲存後執行。
-3. 工作流程會建立專案、私有 PostgreSQL 資料庫、密鑰群組與公開的 GPROXY 服務。應用與資料庫皆使用 `nf-compute-20`，資料庫配置 4 GiB 儲存空間；執行前請確認方案。
-4. 在專案的 `gproxy-secrets` 密鑰群組中檢視並保存自動產生的 `GPROXY_ADMIN_PASSWORD` 和 `GPROXY_MASTER_KEY`。開啟服務的公開 HTTPS 網址，在 `/console/` 以 `admin` 登入。
-
-Northflank 的[範本分享連結](https://northflank.com/docs/v1/application/infrastructure-as-code/share-a-template)需要先在帳戶中儲存範本才能產生。儲存庫目前提供可匯入範本，尚未發佈 Northflank 分享連結。若要提供直接部署按鈕，請先儲存範本並產生公開分享連結，分享前檢查存取範圍與有效期限。
-
-密鑰群組會自動將資料庫的 `POSTGRES_URI` 連結為 `GPROXY_DATABASE_URL`。服務從儲存庫的 `dev` 分支建置 `deploy/serverless/Dockerfile`，建置內容目錄為 `deploy/serverless`。重複執行範本時，Northflank 會保留已產生的金鑰。就緒檢查使用連接埠 `8787` 的 `/healthz`。
 
 ## 執行與更新
 

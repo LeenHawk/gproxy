@@ -127,24 +127,19 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
 
 См. [руководство по размещению на хостинге](https://gproxy.leenhawk.com/ru/deployment/edge/), чтобы узнать о кнопках развертывания, платформе или внешних базах данных, а также о таких различиях, как поддержка WebSocket.
 
-Эти три шаблона упаковывают **последнюю стабильную версию** исполняемого файла PostgreSQL в легкий контейнер. Перед развертыванием ознакомьтесь с планами платных услуг и баз данных.
+Эти два шаблона упаковывают **последнюю стабильную версию** исполняемого файла PostgreSQL в легкий контейнер. Перед развертыванием ознакомьтесь с планами платных услуг и баз данных.
 
 <table>
 <tr>
-<td width="33%" valign="top">
+<td width="50%" valign="top">
 <h3>Оказывать</h3>
 <p>Стартовый сервис + Базовый PostgreSQL. Подключение к базе данных и секреты настраиваются автоматически.</p>
 <p><a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>Развертывание для рендеринга →</strong></a></p>
 </td>
-<td width="33%" valign="top">
+<td width="50%" valign="top">
 <h3>Хероку</h3>
 <p>Базовый динамометр + Essential PostgreSQL. Возьмите с собой ключ шифрования; база данных создана для вас.</p>
 <p><a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>Развертывание в Heroku →</strong></a></p>
-</td>
-<td width="33%" valign="top">
-<h3>Северный фланг</h3>
-<p>Импортируйте шаблон, чтобы создать проект, базу данных PostgreSQL и службу. Ссылка для общего доступа пока недоступна.</p>
-<p><a href="https://gproxy.leenhawk.com/ru/deployment/containers/#northflank"><strong>Импортировать шаблон →</strong></a></p>
 </td>
 </tr>
 </table>
@@ -158,7 +153,7 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
 | Приложение | Настольный или мобильный телефон, управление в приложении | [Download & install](https://gproxy.leenhawk.com/ru/download/) |
 | CLI / контейнер | Постоянный сервер с консолью браузера | [Download & install](https://gproxy.leenhawk.com/ru/download/) |
 | Облачная вспышка / Netlify / Vercel | Хостинговый сервис без собственного сервера | [Deployment guide](https://gproxy.leenhawk.com/ru/deployment/edge/) |
-| Северный фланг / Рендер / Хероку | Собственный контейнер с управляемым PostgreSQL | [Deployment guide](https://gproxy.leenhawk.com/ru/deployment/containers/) |
+| Рендер / Хероку | Собственный контейнер с управляемым PostgreSQL | [Deployment guide](https://gproxy.leenhawk.com/ru/deployment/containers/) |
 | Rust SDK | Встроить в свою программу | [gproxy-sdk](crates/gproxy-sdk/README.md) |
 
 В Windows обе версии доступны в Microsoft Store:

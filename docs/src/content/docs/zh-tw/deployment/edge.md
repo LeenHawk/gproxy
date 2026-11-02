@@ -3,7 +3,7 @@ title: "託管平台部署"
 description: "在 Cloudflare Workers、Netlify 或 Vercel 上部署 GPROXY，選擇資料庫並完成首次登入。"
 ---
 
-Northflank、Render 與 Heroku 的部署卡片及容器範本，請參閱[容器託管部署](/zh-tw/deployment/containers/)。
+Render 與 Heroku 的部署卡片及容器範本，請參閱[容器託管部署](/zh-tw/deployment/containers/)。
 
 GPROXY 提供 Cloudflare Workers、Netlify 和 Vercel 的部署模板。模板下載預編譯的釋出包，不需要安裝 Rust。部署後，控制台和 API 使用同一個域名，控制台入口為 `/console/`。
 

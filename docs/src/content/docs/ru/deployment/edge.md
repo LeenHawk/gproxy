@@ -3,7 +3,7 @@ title: "Облачное развёртывание"
 description: "Развёртывание GPROXY на Cloudflare Workers, Netlify и Vercel, подключение базы данных и первый вход."
 ---
 
-Информацию о собственных контейнерах для Northflank, Render и Heroku см. в [хостинг контейнеров](/ru/deployment/containers/).
+Информацию о собственных контейнерах для Render и Heroku см. в [хостинг контейнеров](/ru/deployment/containers/).
 
 GPROXY предоставляет шаблоны развертывания для Cloudflare Workers, Netlify и Vercel. Они загружают готовые пакеты выпусков, поэтому установка Rust не требуется. Консоль и API совместно используют ваш домен развертывания; консоль находится по адресу `/console/`.
 

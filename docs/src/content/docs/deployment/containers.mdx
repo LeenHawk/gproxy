@@ -1,5 +1,5 @@
 ---
-title: Docker, Northflank, Render, and Heroku
+title: Docker, Render, and Heroku
 description: Deploy the native GPROXY container with managed PostgreSQL.
 ---
 
@@ -15,10 +15,6 @@ These templates assemble a lightweight Node.js container around the prebuilt **l
   <Card title="Heroku" icon="rocket">
     <p>Basic dyno + Essential PostgreSQL. Bring your encryption key; the database is created for you.</p>
     <LinkButton href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev" variant="secondary" icon="external">Deploy to Heroku</LinkButton>
-  </Card>
-  <Card title="Northflank" icon="rocket">
-    <p>Import the template to create a project, PostgreSQL database, and service. A public share link is not yet available.</p>
-    <LinkButton href="https://app.northflank.com/s/account/templates/new" variant="secondary" icon="external">Open template editor</LinkButton>
   </Card>
 </CardGrid>
 
@@ -64,17 +60,6 @@ The template does not create a database. The Render web service uses the free pl
 4. Retrieve `GPROXY_ADMIN_PASSWORD` from **Settings → Reveal Config Vars** and sign in as `admin` at `/console/`.
 
 The root `app.json` and `heroku.yml` use `deploy/serverless/Dockerfile`. The Node.js entry listens on Heroku's dynamic `PORT`, and the shared gateway reads `DATABASE_URL`. It supports Heroku's assigned runtime UID. Local files are temporary; configuration, credentials, usage, and cache state are stored in PostgreSQL.
-
-## Northflank
-
-1. Create a template in your Northflank account or team. Switch to the JSON editor and paste the [template JSON](https://github.com/LeenHawk/gproxy/blob/dev/deploy/northflank/template.json).
-2. Set the template name to GPROXY. Adjust the `PROJECT_NAME` argument and the Project node's `region` (`europe-west`) if needed, then save and run it.
-3. The workflow creates a project, private PostgreSQL database, secret group, and public GPROXY service. Both workloads use `nf-compute-20`; the database requests 4 GiB of storage. Review these plans before running.
-4. Open the project's `gproxy-secrets` secret group and save the generated `GPROXY_ADMIN_PASSWORD` and `GPROXY_MASTER_KEY`. Open the service's public HTTPS URL followed by `/console/` and sign in as `admin`.
-
-Northflank's [shareable template links](https://northflank.com/docs/v1/application/infrastructure-as-code/share-a-template) are generated from a saved template in an account. This repository provides an importable template; it does not yet have a published Northflank share link. To provide a direct deployment button, save the template and generate a public share link. Check its access scope and expiry before sharing it.
-
-The secret group links the database's `POSTGRES_URI` to `GPROXY_DATABASE_URL`. The service builds `deploy/serverless/Dockerfile` from the repository's `dev` branch with `deploy/serverless` as its build context. Northflank preserves generated secrets across template runs. Readiness checks use `/healthz` on port `8787`.
 
 ## Operating the service
 

@@ -127,24 +127,19 @@ Templates for Cloudflare, Netlify, and Vercel use prebuilt **latest stable relea
 
 See the [hosted deployment guide](https://gproxy.leenhawk.com/deployment/edge/) for deploy buttons, platform or external databases, and differences such as WebSocket support.
 
-These three templates package the **latest stable release** PostgreSQL executable in a lightweight container. Review the paid service and database plans before deploying.
+These two templates package the **latest stable release** PostgreSQL executable in a lightweight container. Review the paid service and database plans before deploying.
 
 <table>
 <tr>
-<td width="33%" valign="top">
+<td width="50%" valign="top">
 <h3>Render</h3>
 <p>Starter service + Basic PostgreSQL. Database connection and secrets are set up automatically.</p>
 <p><a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>Deploy to Render →</strong></a></p>
 </td>
-<td width="33%" valign="top">
+<td width="50%" valign="top">
 <h3>Heroku</h3>
 <p>Basic dyno + Essential PostgreSQL. Bring your encryption key; the database is created for you.</p>
 <p><a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><strong>Deploy to Heroku →</strong></a></p>
-</td>
-<td width="33%" valign="top">
-<h3>Northflank</h3>
-<p>Import the template to create a project, PostgreSQL database, and service. A public share link is not yet available.</p>
-<p><a href="https://gproxy.leenhawk.com/deployment/containers/#northflank"><strong>Import template →</strong></a></p>
 </td>
 </tr>
 </table>
@@ -158,7 +153,7 @@ These three templates package the **latest stable release** PostgreSQL executabl
 | Application | Desktop or mobile, managed in the app | [Download & install](https://gproxy.leenhawk.com/download/) |
 | CLI / container | Persistent server with a browser console | [Download & install](https://gproxy.leenhawk.com/download/) |
 | Cloudflare / Netlify / Vercel | Hosted service without your own server | [Deployment guide](https://gproxy.leenhawk.com/deployment/edge/) |
-| Northflank / Render / Heroku | Native container with managed PostgreSQL | [Deployment guide](https://gproxy.leenhawk.com/deployment/containers/) |
+| Render / Heroku | Native container with managed PostgreSQL | [Deployment guide](https://gproxy.leenhawk.com/deployment/containers/) |
 | Rust SDK | Embed in your own program | [gproxy-sdk](crates/gproxy-sdk/README.md) |
 
 On Windows, both editions are available from Microsoft Store:

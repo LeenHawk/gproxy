@@ -1,5 +1,5 @@
 ---
-title: "Docker, Northflank, Render и Heroku"
+title: "Docker, Render и Heroku"
 description: "Разверните собственный контейнер GPROXY с управляемым PostgreSQL."
 ---
 
@@ -13,9 +13,6 @@ import { Card, CardGrid, LinkButton } from "@astrojs/starlight/components";
   </Card>
   <Card title="Хероку" icon="rocket">
     <p>Basic Dyno + Essential PostgreSQL. Возьмите с собой ключ шифрования; база данных создана для вас. </p> <LinkButton href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev" variant="secondary" icon="external"> Развернуть в Heroku</LinkButton>
-  </Card>
-  <Card title="Северный фланг" icon="rocket">
-    <p>Импортируйте шаблон, чтобы создать проект, базу данных PostgreSQL и службу. Ссылка для общего доступа пока недоступна. </p> <LinkButton href="https://app.northflank.com/s/account/templates/new" variant="secondary" icon="external">Открыть редактор шаблонов</LinkButton>
   </Card>
 </CardGrid>
 
@@ -67,19 +64,6 @@ docker logs gproxy
 4. Получите `GPROXY_ADMIN_PASSWORD` из **Настройки → Показать параметры конфигурации** и войдите в систему как `admin` на `/console/`.
 
 Корневые `app.json` и `heroku.yml` используют `deploy/serverless/Dockerfile`. Запись Node.js прослушивает динамический `PORT` Heroku, а общий шлюз читает `DATABASE_URL`. Он поддерживает назначенную Heroku среду выполнения UID. Локальные файлы являются временными; конфигурация, учётные данные, использование и состояние кэша хранятся в PostgreSQL.
-
-<a id="northflank"></a>
-
-## Северный фланг
-
-1. Создайте шаблон в своей учётной записи или команде Northflank. Переключитесь в редактор JSON и вставьте [шаблон JSON](https://github.com/LeenHawk/gproxy/blob/dev/deploy/northflank/template.json).
-2. Установите имя шаблона GPROXY. При необходимости настройте аргумент `PROJECT_NAME` и `region` (`europe-west`) узла Project, затем сохраните и запустите его.
-3. Рабочий процесс создает проект, частную базу данных PostgreSQL, секретную группу и общедоступную службу GPROXY. Обе рабочие нагрузки используют `nf-compute-20`; база данных запрашивает 4 ГБ хранилища. Просмотрите эти планы перед запуском.
-4. Откройте секретную группу `gproxy-secrets` проекта и сохраните сгенерированные `GPROXY_ADMIN_PASSWORD` и `GPROXY_MASTER_KEY`. Откройте общедоступный HTTPS URL службы, затем `/console/` и войдите в систему как `admin`.
-
-[общие ссылки на шаблоны](https://northflank.com/docs/v1/application/infrastructure-as-code/share-a-template) Northflank генерируются на основе сохраненного в учётной записи шаблона. Этот репозиторий предоставляет импортируемый шаблон; у него еще нет опубликованной ссылки на ресурс Northflank. Чтобы предоставить кнопку прямого развертывания, сохраните шаблон и создайте общедоступную ссылку. Прежде чем поделиться им, проверьте область доступа и срок его действия.
-
-Секретная группа связывает `POSTGRES_URI` базы данных с `GPROXY_DATABASE_URL`. Служба собирает `deploy/serverless/Dockerfile` из ветки репозитория `dev` с `deploy/serverless` в качестве контекста сборки. Northflank сохраняет сгенерированные секреты при каждом запуске шаблона. При проверке готовности используется `/healthz` на порту `8787`.
 
 <a id="operating-the-service"></a>
 
