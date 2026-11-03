@@ -7,6 +7,19 @@ use gproxy_protocol::{
 /// Two implementations share one caller API. This is also the injection point
 /// for applications that already own a transport.
 pub trait Backend {
+    #[cfg(feature = "realtime")]
+    fn connect(
+        &self,
+        _operation: OperationKey,
+        _model: &str,
+        _request: WireRequest<()>,
+    ) -> CapabilityFuture<'_, Result<gproxy_protocol::capability::UpstreamConnection>> {
+        Box::pin(async {
+            Err(crate::Error::unsupported(
+                "this backend does not support WebSocket connections",
+            ))
+        })
+    }
     fn send(
         &self,
         operation: OperationKey,
@@ -16,6 +29,15 @@ pub trait Backend {
 }
 
 impl<T: Backend + ?Sized> Backend for Box<T> {
+    #[cfg(feature = "realtime")]
+    fn connect(
+        &self,
+        operation: OperationKey,
+        model: &str,
+        request: WireRequest<()>,
+    ) -> CapabilityFuture<'_, Result<gproxy_protocol::capability::UpstreamConnection>> {
+        (**self).connect(operation, model, request)
+    }
     fn send(
         &self,
         operation: OperationKey,

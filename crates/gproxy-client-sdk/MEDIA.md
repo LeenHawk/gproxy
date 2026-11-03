@@ -1,5 +1,9 @@
 # Image, speech and transcription APIs
 
+Long-lived bidirectional audio sessions are a separate opt-in `realtime` feature;
+see [REALTIME.md](REALTIME.md). Their persistence collector stores transcripts and
+interruption markers, with no audio. The APIs below remain request-scoped operations.
+
 These operation families have independent features and explicit models:
 `images::{ImageModel, ImageDialect}`, `speech::{SpeechModel, SpeechDialect}` and
 `transcription::{TranscriptionModel, TranscriptionDialect}`. Each dialect enum has

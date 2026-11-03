@@ -1,6 +1,9 @@
 use super::*;
 impl Walk {
     pub(super) fn block(&mut self, block: &Block, role: &Role, path: &str) -> Result<()> {
+        if matches!(block.content, Content::Interrupted(_)) {
+            return Ok(());
+        }
         self.metadata(&block.provider_metadata, path)?;
         let mut cache_supported = match &block.content {
             Content::Text(_) | Content::Image(_) | Content::Document(_) | Content::File(_) => {

@@ -92,7 +92,7 @@ pub(crate) fn render_block(block: &Block) -> Result<Option<c::ContentBlock>> {
             value.cache_control = media::claude_cache(block)?;
             c::ContentBlock::ToolResult(value)
         }
-        Content::Unknown(_) => return Ok(None),
+        Content::Unknown(_) | Content::Interrupted(_) => return Ok(None),
         Content::Opaque => return read_native(block, Vendor::Claude),
         Content::File(_) | Content::Audio(_) | Content::Video(_) => {
             return Err(Error::invalid(

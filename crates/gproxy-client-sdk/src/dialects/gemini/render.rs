@@ -132,11 +132,11 @@ fn render_messages(messages: &[Message], body: &mut g::GenerateContentRequestBod
     let mut system = Vec::new();
     let mut calls = BTreeMap::new();
     for message in messages {
-        if matches!(&message.role, Role::Unknown(_)) {
+        if message.is_record_only() || matches!(&message.role, Role::Unknown(_)) {
             continue;
         }
         let mut parts = Vec::new();
-        for block in &message.content {
+        for block in message.model_content() {
             if let Some(part) = render_block(block, &calls)? {
                 parts.push(part);
                 parts.extend(trailing_transcripts(block)?);

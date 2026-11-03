@@ -43,7 +43,7 @@ pub fn render_at(
     }
     let mut messages = Vec::new();
     for message in &request.messages {
-        if matches!(&message.role, Role::Unknown(_)) {
+        if message.is_record_only() || matches!(&message.role, Role::Unknown(_)) {
             continue;
         }
         if message.role == Role::Assistant {

@@ -19,6 +19,57 @@ impl<C> Embedded<C> {
     }
 }
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Backend for Embedded<C> {
+    #[cfg(feature = "realtime")]
+    fn connect(
+        &self,
+        operation: OperationKey,
+        model: &str,
+        request: WireRequest<()>,
+    ) -> CapabilityFuture<'_, Result<gproxy_protocol::capability::UpstreamConnection>> {
+        let model = model.to_owned();
+        Box::pin(async move {
+            use gproxy_protocol::{capability::UpstreamConnection, connection::WebSocket};
+            let cancellation = CancellationToken::new();
+            let guard = cancellation.clone().drop_guard();
+            let execution = self
+                .engine
+                .connect(operation, request)
+                .model(model)
+                .scope(&self.scope)
+                .cancellation(cancellation)
+                .send()
+                .await
+                .map_err(|error| {
+                    Error::from_response(
+                        error.status_code(),
+                        &http::HeaderMap::new(),
+                        error.to_string(),
+                    )
+                })?;
+            let (connection, completion) = execution.into_parts();
+            Ok(match connection {
+                UpstreamConnection::Connected { handshake, socket } => {
+                    let incoming = stream::unfold(
+                        (socket.incoming, guard, completion),
+                        |(mut incoming, guard, completion)| async move {
+                            incoming
+                                .next()
+                                .await
+                                .map(|frame| (frame, (incoming, guard, completion)))
+                        },
+                    );
+                    UpstreamConnection::Connected {
+                        handshake,
+                        socket: WebSocket {
+                            incoming: Box::pin(incoming),
+                            outgoing: socket.outgoing,
+                        },
+                    }
+                }
+                rejected => rejected,
+            })
+        })
+    }
     fn send(
         &self,
         operation: OperationKey,

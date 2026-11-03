@@ -1,0 +1,12 @@
+{"type":"session.created","event_id":"s0","session":{"type":"realtime","id":"session-1","object":"realtime.session"}}
+{"type":"session.updated","event_id":"s1","session":{"type":"realtime","id":"session-1","object":"realtime.session"}}
+{"type":"input_audio_buffer.speech_started","event_id":"i1","item_id":"user-1","audio_start_ms":0}
+{"type":"input_audio_buffer.speech_stopped","event_id":"i2","item_id":"user-1","audio_end_ms":1100}
+{"type":"input_audio_buffer.committed","event_id":"i3","item_id":"user-1"}
+{"type":"conversation.item.input_audio_transcription.delta","event_id":"i4","item_id":"user-1","content_index":0,"delta":"Hi"}
+{"type":"conversation.item.input_audio_transcription.completed","event_id":"i5","item_id":"user-1","content_index":0,"transcript":"Hi!","usage":{"type":"duration","seconds":1.1}}
+{"type":"response.created","event_id":"r0","response":{"id":"response-1","status":"in_progress"}}
+{"type":"response.output_audio.delta","event_id":"r1","response_id":"response-1","item_id":"answer","output_index":0,"content_index":0,"delta":"AQIDBA=="}
+{"type":"response.output_audio_transcript.delta","event_id":"r2","response_id":"response-1","item_id":"answer","output_index":0,"content_index":0,"delta":"Hello"}
+{"type":"response.output_audio_transcript.done","event_id":"r3","response_id":"response-1","item_id":"answer","output_index":0,"content_index":0,"transcript":"Hello!"}
+{"type":"response.done","event_id":"r4","response":{"id":"response-1","status":"completed","usage":{"input_tokens":6,"output_tokens":9,"total_tokens":15,"input_token_details":{"cached_tokens":2}}}}

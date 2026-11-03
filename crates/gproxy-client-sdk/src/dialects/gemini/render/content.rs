@@ -159,7 +159,7 @@ pub(super) fn render_block(block: &Block, calls: &BTreeMap<&str, &str>) -> Resul
                 had_metadata,
             );
         }
-        Content::Unknown(_) => return Ok(None),
+        Content::Unknown(_) | Content::Interrupted(_) => return Ok(None),
         Content::Opaque => return Err(Error::invalid("opaque Gemini part has no native value")),
     }
     Ok(Some(part))

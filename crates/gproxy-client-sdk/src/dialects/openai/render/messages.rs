@@ -98,11 +98,11 @@ pub(super) fn message_role(role: &Role) -> Result<i::MessageRole> {
 pub(super) fn render_messages(messages: &[Message]) -> Result<Vec<i::InputItem>> {
     let mut input = Vec::new();
     for message in messages {
-        if matches!(&message.role, Role::Unknown(_)) {
+        if message.is_record_only() || matches!(&message.role, Role::Unknown(_)) {
             continue;
         }
         let mut pending = None;
-        for block in &message.content {
+        for block in message.model_content() {
             match &block.content {
                 Content::Text(text) => {
                     render_text(block, text, &message.role, &mut pending, &mut input)?;
@@ -254,7 +254,7 @@ pub(super) fn render_messages(messages: &[Message]) -> Result<Vec<i::InputItem>>
                     }
                     input.push(i::InputItem::FunctionCallOutput(value));
                 }
-                Content::Unknown(_) => {}
+                Content::Unknown(_) | Content::Interrupted(_) => {}
                 Content::Opaque => {
                     flush(pending.take(), &mut input);
                     if let Some(value) = read_native(block, Vendor::Openai)? {

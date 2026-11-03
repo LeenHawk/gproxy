@@ -31,6 +31,11 @@ pub fn export_types(
     GenerateRequest::export_all(&config)?;
     GenerateResult::export_all(&config)?;
     Event::export_all(&config)?;
+    #[cfg(feature = "realtime")]
+    {
+        realtime::RealtimeConfig::export_all(&config)?;
+        realtime::RealtimeEvent::export_all(&config)?;
+    }
     #[cfg(feature = "embeddings")]
     {
         embeddings::EmbedRequest::export_all(&config)?;

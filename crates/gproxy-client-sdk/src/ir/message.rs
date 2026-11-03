@@ -19,6 +19,24 @@ pub struct Message {
     pub content: Vec<Block>,
 }
 
+#[cfg(any(
+    feature = "claude",
+    feature = "openai",
+    feature = "chat",
+    feature = "gemini",
+    feature = "realtime"
+))]
+impl Message {
+    pub(crate) fn model_content(&self) -> impl Iterator<Item = &Block> {
+        self.content
+            .iter()
+            .filter(|b| !matches!(b.content, Content::Interrupted(_)))
+    }
+    pub(crate) fn is_record_only(&self) -> bool {
+        !self.content.is_empty() && self.model_content().next().is_none()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "schema_version")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]

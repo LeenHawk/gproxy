@@ -17,6 +17,8 @@ mod error;
 pub mod ir;
 pub mod operations;
 pub mod options;
+#[cfg(feature = "realtime")]
+pub mod realtime;
 pub mod stream;
 #[cfg(feature = "ts")]
 mod typescript;

@@ -37,11 +37,11 @@ pub fn render(
     let mut messages = Vec::new();
     let mut system = Vec::new();
     for message in &request.messages {
-        if matches!(&message.role, Role::Unknown(_)) {
+        if message.is_record_only() || matches!(&message.role, Role::Unknown(_)) {
             continue;
         }
         let mut content = Vec::new();
-        for block in &message.content {
+        for block in message.model_content() {
             if let Some(block) = render_block(block)? {
                 content.push(block);
             }

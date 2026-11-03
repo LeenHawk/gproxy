@@ -16,6 +16,7 @@ pub enum ErrorKind {
     Upstream,
     Network,
     InvalidData,
+    Unsupported,
 }
 
 /// Classification and observed transport facts are independent. In-band errors
@@ -55,6 +56,17 @@ enum Envelope {
 }
 
 impl Error {
+    #[cfg(feature = "realtime")]
+    pub(crate) fn unsupported(message: impl Into<String>) -> Self {
+        Self {
+            kind: ErrorKind::Unsupported,
+            status: None,
+            retryable: false,
+            body: None,
+            retry_after: None,
+            message: message.into(),
+        }
+    }
     pub(crate) fn invalid(error: impl std::fmt::Display) -> Self {
         Self {
             kind: ErrorKind::InvalidData,

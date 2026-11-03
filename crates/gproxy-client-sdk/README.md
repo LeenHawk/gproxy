@@ -44,13 +44,17 @@ same API. The embedding host owns engine configuration, scope and access policy.
 
 Each `ContentBlock<T>` has vendor-scoped metadata and an optional cache breakpoint.
 `Block` aliases `ContentBlock<Content>`. Content distinguishes Text, Reasoning,
-Image, Document, File, Audio, Video, ToolCall, ToolResult and Opaque. Text has inline
+Image, Document, File, Audio, Video, ToolCall, ToolResult, Interrupted and Opaque. Text has inline
 citations and a portable `refusal` flag. Tool results contain JSON or restricted
 Text/Image/Document blocks; custom Document chunks contain Text/Image blocks.
 Documents retain title/context, citation settings and detail. PCM Audio requires
 sample rate and channels; Video has clip offsets/fps. Model-generated images are
 Image blocks. Native server-tool history retains `provider_executed`; the SDK does
 not execute tools.
+
+`Interrupted(Interruption { played_ms })` records interrupted speech and implies an
+Interrupted finish reason. It is silently excluded from model input by every
+renderer and from Realtime history seeding, including its metadata and cache fields.
 
 SDK-owned metadata preserves signatures, encrypted/redacted reasoning, native item
 IDs/status, citation anchors, audio ID/expiry, layout boundaries and unknown Rest.
@@ -249,7 +253,7 @@ resolver accepts explicit credentials as described below. Preparation performs n
 local-file reads, media URL fetches, vendor Files API uploads, registration or
 upload-ID caching. Existing native ProviderFile
 IR remains for same-vendor history replay; asset preparation rejects those IDs and
-offers only inline/URL. Realtime remains deferred.
+offers only inline/URL.
 
 ## Built-in S3 resolver (`s3` feature)
 
@@ -323,6 +327,12 @@ streaming and asset preparation. Video remains a native passthrough.
 
 ## Persistence, features and TypeScript
 
+The opt-in `realtime` feature adds `Client::connect_realtime`, a cloneable sender,
+an event stream and a transcript-only Conversation collector for OpenAI Realtime
+GA and Gemini Live. Native and Cloudflare Workers remote WebSockets and the embedded
+backend share the API. See [REALTIME.md](REALTIME.md) for setup, interruption,
+typed options, transport boundaries and offline verification.
+
 Persist `Conversation::V1`: `{"schema_version":"1","messages":[...]}`. This round
 may change V1 in place before any caller persisted it. Unknown content/nested enum
 shapes retain raw JSON; string enums and unified finish categories retain unknown
@@ -331,10 +341,11 @@ recover it. Rendering does not interpret unknown content as a known type: it war
 and omits unsupported content/roles/controls, or returns InvalidData for a required
 unknown media source/format. Schema versions remain explicit and unknown versions
 are rejected. After this round, incompatible shape changes need a new version and
-migration; compatible fields need defaults. Unknown enum variants alone do not.
+migration; compatible fields need defaults. Adding Content variants such as
+Interrupted keeps V1: older readers preserve their raw value through Unknown.
 
 Defaults enable remote, all four renderers and non-chat operation families.
-`embedded`, `ts` and `s3` are opt-in. Dialects: claude/openai/chat/gemini. Operation
+`embedded`, `ts`, `s3` and `realtime` are opt-in. Dialects: claude/openai/chat/gemini. Operation
 families: count-tokens/models/embeddings/rerank/audio/images/speech/transcription/video.
 `audio` controls native audio passthroughs; speech/transcription have independent
 IR features, and content audio belongs to its renderer. Normal remote

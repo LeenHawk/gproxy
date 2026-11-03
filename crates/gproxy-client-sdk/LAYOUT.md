@@ -24,6 +24,9 @@ TypeScript export. The root `s3` path remains an alias of `assets::s3`.
   timestamps, diarization, asset preparation and streams.
 - `media_support/`: shared media wire/codec helpers, observed usage, input
   conversion and multipart encoding. This is independent of language renderers.
+- `realtime/`: opt-in duplex config, sender/session/stream lifecycle, native
+  OpenAI/Gemini mappers, local notifications and transcript-only persistence.
+  See [REALTIME.md](REALTIME.md) for transport and interruption details.
 - `provider_metadata.rs`: SDK-owned Gemini Part metadata shared by language and
   media operations, preserving signatures for same-vendor replay.
 - `operations.rs` and `operations/`: feature-scoped native passthroughs, including
@@ -37,16 +40,27 @@ See [MEDIA.md](MEDIA.md) for mapping choices, warnings and deferred capabilities
 
 | Configuration | Passing tests |
 |---|---:|
-| Default features | 114 |
-| s3,ts | 131 |
+| Default features | 127 |
+| s3,ts | 144 |
+| realtime,s3,ts,embedded | 170 |
 
-Counts include doctests. The media families add 24 tests (7 image, 7 speech,
-10 transcription; two asset/S3 cases require `s3`). Existing native, language,
-embedding, persistence and backend suites remain passing. All 113 exported TS
-files pass strict TypeScript checking. Rust verification covers full s3,ts wasm,
-minimal remote/OpenAI wasm, each media feature alone on wasm, strict Clippy for
-default/s3,ts and each media feature alone, plus rustfmt. These are offline tests;
-they do not establish live provider, browser CORS, S3 or Workers behavior.
+Counts include doctests. Realtime contributes 25 offline tests, including two
+memory/custom embedded routing tests, one for each dialect. Three additional IR
+tests verify typed interruption persistence, the older reader's Unknown fallback,
+and silent exclusion by all four chat renderers. Realtime history tests also
+verify that interruption records and their metadata/cache fields are skipped.
+Saved frame traces are under `tests/realtime/fixtures/`.
+
+All 114 baseline and 127 full-feature exported TS files pass strict TypeScript
+checking, including Interruption. Verification covers minimal remote/OpenAI wasm,
+remote+realtime with Workers WebSocket wasm, strict Clippy for default/s3,ts/full
+realtime embedded configurations, rustfmt and the SDK-scoped diff check. Realtime
+remains off by default; Interrupted is persisted independently of that feature.
+
+These are offline checks. No paid provider smoke test is run; injected embedded
+upstreams are scripted sockets, and Workers compilation does not establish live
+Cloudflare deployment behavior. Review-fix logs are under
+`target/client-sdk-interruption/`.
 
 ## Rust file tree
 
@@ -63,22 +77,22 @@ src/
 │   ├── prepare.rs (310)
 │   ├── resolve.rs (157)
 │   ├── s3.rs (345)
-│   └── validation.rs (252)
+│   └── validation.rs (249)
 ├── backend/
-│   ├── embedded.rs (112)
-│   ├── mod.rs (35)
-│   └── remote.rs (68)
+│   ├── embedded.rs (163)
+│   ├── mod.rs (57)
+│   └── remote.rs (121)
 ├── dialects/
 │   ├── chat/
 │   │   ├── render/
-│   │   │   └── roles.rs (178)
+│   │   │   └── roles.rs (194)
 │   │   ├── stream/
-│   │   │   └── choice.rs (254)
-│   │   ├── audio.rs (69)
+│   │   │   └── choice.rs (260)
+│   │   ├── audio.rs (62)
 │   │   ├── metadata.rs (101)
 │   │   ├── mod.rs (20)
-│   │   ├── parse.rs (302)
-│   │   ├── render.rs (322)
+│   │   ├── parse.rs (298)
+│   │   ├── render.rs (303)
 │   │   ├── stream.rs (215)
 │   │   └── warnings.rs (30)
 │   ├── claude/
@@ -89,9 +103,9 @@ src/
 │   │   ├── metadata.rs (82)
 │   │   ├── mod.rs (15)
 │   │   ├── parse.rs (226)
-│   │   ├── render.rs (285)
-│   │   ├── stream.rs (329)
-│   │   └── warnings.rs (52)
+│   │   ├── render.rs (282)
+│   │   ├── stream.rs (328)
+│   │   └── warnings.rs (50)
 │   ├── gemini/
 │   │   ├── parse/
 │   │   │   └── content.rs (209)
@@ -102,19 +116,19 @@ src/
 │   │   ├── parse.rs (192)
 │   │   ├── parts.rs (387)
 │   │   ├── render.rs (302)
-│   │   ├── stream.rs (202)
+│   │   ├── stream.rs (283)
 │   │   └── warnings.rs (71)
 │   ├── openai/
 │   │   ├── parse/
-│   │   │   └── items.rs (266)
+│   │   │   └── items.rs (276)
 │   │   ├── render/
-│   │   │   ├── assets.rs (192)
+│   │   │   ├── assets.rs (187)
 │   │   │   └── messages.rs (274)
 │   │   ├── metadata.rs (273)
 │   │   ├── mod.rs (20)
 │   │   ├── parse.rs (293)
-│   │   ├── render.rs (301)
-│   │   ├── stream.rs (161)
+│   │   ├── render.rs (299)
+│   │   ├── stream.rs (149)
 │   │   ├── tools.rs (61)
 │   │   └── warnings.rs (21)
 │   ├── shared/
@@ -124,15 +138,15 @@ src/
 │   │   │   ├── mod.rs (112)
 │   │   │   └── openai.rs (121)
 │   │   ├── warnings/
-│   │   │   ├── content.rs (180)
+│   │   │   ├── content.rs (190)
 │   │   │   ├── fields.rs (164)
-│   │   │   └── mod.rs (190)
+│   │   │   └── mod.rs (193)
 │   │   ├── media.rs (282)
 │   │   ├── mod.rs (17)
 │   │   ├── reasoning.rs (243)
 │   │   ├── sources.rs (222)
 │   │   └── wire.rs (125)
-│   ├── mod.rs (103)
+│   ├── mod.rs (104)
 │   └── parse.rs (24)
 ├── embeddings/
 │   ├── client.rs (76)
@@ -148,9 +162,9 @@ src/
 │   └── stream.rs (287)
 ├── ir/
 │   ├── citation.rs (85)
-│   ├── content.rs (102)
+│   ├── content.rs (111)
 │   ├── media.rs (138)
-│   ├── message.rs (39)
+│   ├── message.rs (57)
 │   ├── mod.rs (26)
 │   ├── model.rs (64)
 │   ├── request.rs (102)
@@ -175,11 +189,32 @@ src/
 │   ├── gemini.rs (36)
 │   ├── mod.rs (58)
 │   └── openai.rs (204)
+├── realtime/
+│   ├── gemini/
+│   │   ├── config.rs (246)
+│   │   ├── decode.rs (340)
+│   │   ├── input.rs (148)
+│   │   └── mod.rs (8)
+│   ├── openai/
+│   │   ├── audio.rs (73)
+│   │   ├── config.rs (182)
+│   │   ├── decode.rs (202)
+│   │   ├── dispatch.rs (148)
+│   │   ├── items.rs (140)
+│   │   └── mod.rs (19)
+│   ├── collect.rs (200)
+│   ├── config.rs (94)
+│   ├── events.rs (155)
+│   ├── mod.rs (42)
+│   ├── queue.rs (34)
+│   ├── sender.rs (340)
+│   ├── session.rs (240)
+│   └── stream.rs (170)
 ├── speech/
 │   ├── client.rs (102)
-│   ├── gemini.rs (154)
-│   ├── mod.rs (79)
-│   ├── openai.rs (147)
+│   ├── gemini.rs (161)
+│   ├── mod.rs (78)
+│   ├── openai.rs (156)
 │   ├── state.rs (227)
 │   └── stream.rs (262)
 ├── stream/
@@ -193,11 +228,11 @@ src/
 │   ├── openai.rs (366)
 │   └── stream.rs (286)
 ├── client.rs (258)
-├── error.rs (247)
-├── lib.rs (81)
+├── error.rs (259)
+├── lib.rs (83)
 ├── operations.rs (78)
-├── provider_metadata.rs (159)
-└── typescript.rs (63)
+├── provider_metadata.rs (187)
+└── typescript.rs (68)
 
 tests/
 ├── assets/
@@ -212,12 +247,21 @@ tests/
 │   ├── media_options.rs (53)
 │   ├── provider_options.rs (352)
 │   └── reasoning.rs (120)
+├── realtime/
+│   ├── config.rs (171)
+│   ├── embedded.rs (143)
+│   ├── gemini.rs (286)
+│   ├── lifecycle.rs (290)
+│   ├── openai.rs (283)
+│   ├── support.rs (166)
+│   └── transport.rs (208)
 ├── s3/
 │   ├── client.rs (307)
 │   ├── objects.rs (211)
 │   └── policy.rs (102)
 ├── stream/
-│   ├── aggregation.rs (245)
+│   ├── aggregation.rs (278)
+│   ├── edge_cases.rs (99)
 │   ├── metadata.rs (148)
 │   └── termination.rs (78)
 ├── support/
@@ -230,21 +274,23 @@ tests/
 ├── assets.rs (121)
 ├── backend_embedded.rs (141)
 ├── backend_remote.rs (298)
-├── dialect_chat.rs (281)
+├── dialect_chat.rs (348)
 ├── dialect_claude.rs (245)
-├── dialect_gemini.rs (375)
-├── dialect_openai.rs (130)
+├── dialect_gemini.rs (394)
+├── dialect_openai.rs (193)
 ├── embeddings.rs (392)
 ├── errors_warnings.rs (34)
 ├── images.rs (308)
+├── interruption.rs (122)
 ├── operations.rs (275)
-├── persistence.rs (194)
+├── persistence.rs (195)
+├── realtime.rs (16)
 ├── s3.rs (40)
-├── speech.rs (264)
-├── stream.rs (24)
+├── speech.rs (292)
+├── stream.rs (27)
 └── transcription.rs (351)
 ```
 
-No Rust file exceeds 400 lines. The largest source file is
+No Rust file exceeds 400 lines. The largest source file remains
 `src/dialects/gemini/parts.rs` (387 lines); the largest overall is
-`tests/embeddings.rs` (392 lines).
+`tests/dialect_gemini.rs` (394 lines). Realtime source files are at most 340 lines.

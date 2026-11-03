@@ -16,6 +16,14 @@ pub struct Reasoning {
     pub text: String,
 }
 
+/// Records interrupted speech, implying FinishReasonKind::Interrupted.
+/// This conversation record is never sent as model input.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Interruption {
+    pub played_ms: Option<u64>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -29,6 +37,7 @@ pub enum Content {
     Video(Video),
     ToolCall(ToolCall),
     ToolResult(ToolResult),
+    Interrupted(Interruption),
     Opaque,
     #[serde(untagged)]
     Unknown(Value),

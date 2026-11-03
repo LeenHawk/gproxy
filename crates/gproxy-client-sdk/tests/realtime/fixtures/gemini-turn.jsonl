@@ -1,0 +1,9 @@
+{"setupComplete":{"sessionId":"live-session"}}
+{"voiceActivity":{"type":"ACTIVITY_START","audioOffset":"0s"}}
+{"voiceActivity":{"type":"ACTIVITY_END","audioOffset":"1.1s"}}
+{"serverContent":{"inputTranscription":{"text":"Hi!","finished":true}}}
+{"serverContent":{"modelTurn":{"role":"model","parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"AQIDBA=="}}]},"outputTranscription":{"text":"Hello","finished":false}}}
+{"serverContent":{"outputTranscription":{"text":"!","finished":true}},"usageMetadata":{"promptTokenCount":6,"responseTokenCount":9,"totalTokenCount":15,"cachedContentTokenCount":2}}
+{"serverContent":{"generationComplete":true}}
+{"serverContent":{"turnComplete":true}}
+{"goAway":{"timeLeft":"30s"},"sessionResumptionUpdate":{"newHandle":"resume-1","resumable":true}}

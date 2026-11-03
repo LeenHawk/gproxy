@@ -109,6 +109,9 @@ pub(crate) fn for_request(request: &GenerateRequest, now: Option<u64>) -> Result
         }
     }
     for (index, message) in request.messages.iter().enumerate() {
+        if message.is_record_only() {
+            continue;
+        }
         let path = format!("messages[{index}]");
         if matches!(message.role, Role::Unknown(_)) {
             walk.warn(

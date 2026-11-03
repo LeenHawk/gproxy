@@ -139,6 +139,7 @@ fn typescript_exports_cover_the_persisted_and_streaming_ir() {
     for name in [
         "ContentBlock",
         "Content",
+        "Interruption",
         "Document",
         "Audio",
         "Video",

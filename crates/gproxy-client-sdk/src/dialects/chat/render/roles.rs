@@ -7,7 +7,7 @@ pub(super) fn render_assistant(
     let mut value = c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
     // Apply the message envelope once before portable blocks so moving
     // its owning block cannot overwrite already rendered content.
-    for block in &message.content {
+    for block in message.model_content() {
         if let Some(native) = metadata(block)?.and_then(|m| m.message) {
             value.rest.extend(native.rest);
             value.reasoning_details = native.reasoning_details;
@@ -19,7 +19,7 @@ pub(super) fn render_assistant(
     }
     let mut text = Vec::new();
     let mut parts = false;
-    for content in &message.content {
+    for content in message.model_content() {
         let meta = metadata(content)?.unwrap_or_default();
         match &content.content {
             Content::Text(t) => {
@@ -145,7 +145,7 @@ fn push_tool_result(result: &ToolResult, messages: &mut Vec<c::ChatMessage>) -> 
     Ok(())
 }
 pub(super) fn render_tool(message: &Message, messages: &mut Vec<c::ChatMessage>) -> Result<()> {
-    for content in &message.content {
+    for content in message.model_content() {
         if let Content::ToolResult(result) = &content.content {
             push_tool_result(result, messages)?;
         } else {
@@ -159,7 +159,7 @@ pub(super) fn render_tool(message: &Message, messages: &mut Vec<c::ChatMessage>)
 }
 pub(super) fn render_input(message: &Message, messages: &mut Vec<c::ChatMessage>) -> Result<()> {
     let mut parts = Vec::new();
-    for content in &message.content {
+    for content in message.model_content() {
         // Claude-style history carries tool results in user turns; Chat sends
         // them as tool messages, ahead of the turn's remaining user content.
         if message.role == Role::User
