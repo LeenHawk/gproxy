@@ -6,7 +6,8 @@
     feature = "openai",
     feature = "chat",
     feature = "gemini",
-    feature = "embeddings"
+    feature = "embeddings",
+    feature = "s3"
 ))]
 use crate::{Error, Result};
 use serde::Serialize;
@@ -56,7 +57,8 @@ pub struct DeliveryConstraints {
     feature = "openai",
     feature = "chat",
     feature = "gemini",
-    feature = "embeddings"
+    feature = "embeddings",
+    feature = "s3"
 ))]
 impl DeliveryConstraints {
     pub(crate) fn accepts_mime(&self, mime: Option<&str>) -> bool {
@@ -96,7 +98,8 @@ impl MediaCapability {
         feature = "openai",
         feature = "chat",
         feature = "gemini",
-        feature = "embeddings"
+        feature = "embeddings",
+        feature = "s3"
     ))]
     pub(crate) fn for_mime(mut self, mime: Option<&str>) -> Self {
         self.inline = self.inline.filter(|c| c.accepts_mime(mime));

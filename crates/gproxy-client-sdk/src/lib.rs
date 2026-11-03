@@ -13,6 +13,8 @@ pub mod backend;
 pub mod dialects;
 mod error;
 pub mod ir;
+#[cfg(feature = "s3")]
+pub mod s3;
 pub use asset_capabilities::{
     AssetDialect, DeliveryConstraints, DeliveryMethod, MediaCapability, MediaKind, media_capability,
 };
@@ -21,7 +23,8 @@ pub use asset_capabilities::{
     feature = "openai",
     feature = "chat",
     feature = "gemini",
-    feature = "embeddings"
+    feature = "embeddings",
+    feature = "s3"
 ))]
 mod resolution;
 #[cfg(any(
@@ -36,7 +39,8 @@ pub use resolution::PreparedGenerateRequest;
     feature = "openai",
     feature = "chat",
     feature = "gemini",
-    feature = "embeddings"
+    feature = "embeddings",
+    feature = "s3"
 ))]
 pub use resolution::{AssetLocation, ResolveAsset, ResolvedAsset};
 #[cfg(feature = "embeddings")]
@@ -363,12 +367,15 @@ pub fn export_types(
         feature = "openai",
         feature = "chat",
         feature = "gemini",
-        feature = "embeddings"
+        feature = "embeddings",
+        feature = "s3"
     ))]
     {
         ResolveAsset::export_all(&config)?;
         ResolvedAsset::export_all(&config)?;
     }
+    #[cfg(feature = "s3")]
+    s3::AssetData::export_all(&config)?;
     Conversation::export_all(&config)?;
     GenerateRequest::export_all(&config)?;
     GenerateResult::export_all(&config)?;

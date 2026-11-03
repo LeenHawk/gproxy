@@ -22,6 +22,7 @@ audio = ["dep:getrandom"]
 images = []
 video = ["dep:serde_urlencoded"]
 ts = ["dep:ts-rs"]
+s3 = ["dep:gproxy-file", "dep:sha2"]
 
 [dependencies]
 base64.workspace = true
@@ -29,12 +30,14 @@ futures-core.workspace = true
 futures-util.workspace = true
 gproxy-client = { workspace = true, optional = true }
 gproxy-protocol.workspace = true
+gproxy-file = { workspace = true, optional = true, features = ["s3"] }
 getrandom = { workspace = true, optional = true }
 http.workspace = true
 percent-encoding.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_urlencoded = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
 thiserror.workspace = true
 ts-rs = { workspace = true, optional = true, features = ["no-serde-warnings"] }
 web-time.workspace = true

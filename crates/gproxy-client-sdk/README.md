@@ -237,10 +237,76 @@ are returned without retry. Direct caller URLs/bytes are checked and used as-is,
 without calling the resolver or producing a preference warning. Inline sources
 require a MIME type. No model-name capability heuristics or transcoding are added.
 
-The SDK holds no storage credentials and performs no local-file reads, URL fetches,
-Files API uploads, registration or upload-ID caching. Existing native ProviderFile
+Generic preparation needs no storage credentials. The optional built-in `s3`
+resolver accepts explicit credentials as described below. Preparation performs no
+local-file reads, media URL fetches, vendor Files API uploads, registration or
+upload-ID caching. Existing native ProviderFile
 IR remains for same-vendor history replay; asset preparation rejects those IDs and
 offers only inline/URL. Realtime remains deferred.
+
+## Built-in S3 resolver (`s3` feature)
+
+Enable `s3` to use `s3::{S3AssetConfig, S3AssetResolver, AssetData}`. This adds
+optional workspace dependencies on `gproxy-file` with its S3 service and `sha2`;
+it uses the exported OpenDAL Operator for stat/write/presign. No second S3 client
+or SDK-owned signing implementation is used. Defaults do not include this feature.
+
+Configure endpoint, bucket, region and access/secret keys with
+`S3AssetConfig::new(...)`; optional session_token, key_prefix, presign_expiry and
+virtual_host_style are public fields. The default expiry is five minutes, prefix
+is empty and addressing is path-style. Region `auto` works for R2; MinIO can use
+an HTTP endpoint with a port. Endpoint/addressing/signature behavior comes from
+OpenDAL. Credential file/environment/EC2 discovery is disabled. Credentials are
+held only by the configured store; config/store/client are not serializable.
+
+```rust,no_run
+use gproxy_client_sdk::{*, s3::{AssetData, S3AssetConfig, S3AssetResolver}};
+use std::future::Future;
+async fn send<B, F, Fut>(client: Client<B>, request: &GenerateRequest,
+    access_key: &str, secret_key: &str, load: F) -> Result<GenerateResult>
+where
+    B: Backend,
+    F: FnMut(String) -> Fut,
+    Fut: Future<Output = Result<AssetData>>,
+{
+    let mut config = S3AssetConfig::new(
+        "https://account.r2.cloudflarestorage.com", "assets", "auto",
+        access_key, secret_key,
+    );
+    config.key_prefix = "conversation-assets".into();
+    let client = client.with_s3(S3AssetResolver::new(config)?);
+    client.generate(request, load).await
+}
+```
+
+Keep the configured client and reuse it. `S3Client::generate`, `stream` and `embed`
+accept only an async `reference -> AssetData { bytes, media_type }` callback, without
+a Send bound. Other native operations remain available through `S3Client.client`.
+For explicit preparation, call `request.resolve_assets_s3(&store, load)`. A host can
+inject an Operator via `S3AssetResolver::from_operator`, including an Operator made
+with `gproxy_file::s3_with_transport(config.builder(), transport)`.
+
+Each reference is loaded on each request. The resolver checks known MIME/size
+constraints before storage I/O. If URL is accepted for the resolved MIME, the key
+is `<prefix>/<lowercase SHA-256(bytes)>.<extension>`, for example `.png`, `.pdf` or
+`.mp3`; aliases use canonical extensions and unknown types use `.bin`. The reference
+is never interpreted as a path. `stat` skips an existing object; NotFound triggers
+`write_with(...).content_type(...)`. Every URL result calls `presign_read` afresh;
+URLs are not cached or copied into history. Presigns in the same second can have
+the same URL even though both signing operations ran.
+
+Inline-only media returns bytes without stat/write/presign. When a resolved MIME
+narrows the allowed methods (for example a Claude plain-text document), the ordinary
+round-3 fallback warning still applies. Storage failures propagate without SDK
+retry or silent inline fallback. Injected operators requiring custom GET headers
+cannot be represented by a vendor URL source and return InvalidData.
+
+Deduplication is stat-then-write, not a distributed lock: concurrent first writers
+may upload the same content key. Objects are not deleted by the SDK; callers own
+bucket retention, lifecycle and access policy. Existing objects are trusted to
+match their content keys and retain their original Content-Type. Unit tests use a
+fake HTTP service with the real OpenDAL S3 signer; no live R2/MinIO or Workers
+runtime behavior is claimed.
 
 ## Persistence, features and TypeScript
 
@@ -255,7 +321,7 @@ are rejected. After this round, incompatible shape changes need a new version an
 migration; compatible fields need defaults. Unknown enum variants alone do not.
 
 Defaults enable remote, all four renderers and non-chat operation families.
-`embedded` and `ts` are opt-in. Dialects: claude/openai/chat/gemini. Operation
+`embedded`, `ts` and `s3` are opt-in. Dialects: claude/openai/chat/gemini. Operation
 families: count-tokens/models/embeddings/rerank/audio/images/video. `audio` controls
 standalone audio operations; content audio belongs to its renderer. Normal remote
 dependencies exclude the engine/store/channel/identity crates.

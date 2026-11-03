@@ -1,6 +1,14 @@
 //! Request-scoped asset preparation. The original request retains references.
-//! Resolvers own storage/signing; the SDK does no file I/O, URL fetch or upload.
+//! Generic resolvers own storage/signing. The optional s3 resolver uses OpenDAL;
+//! preparation never reads local files or fetches media URLs.
 use crate::*;
+#[cfg(any(
+    feature = "claude",
+    feature = "openai",
+    feature = "chat",
+    feature = "gemini",
+    feature = "embeddings"
+))]
 use std::future::Future;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -291,6 +299,13 @@ where
     }
     Ok(())
 }
+#[cfg(any(
+    feature = "claude",
+    feature = "openai",
+    feature = "chat",
+    feature = "gemini",
+    feature = "embeddings"
+))]
 pub(crate) async fn prepare_image<F, Fut>(
     image: &mut Image,
     target: AssetDialect,
@@ -315,6 +330,13 @@ where
     )
     .await
 }
+#[cfg(any(
+    feature = "claude",
+    feature = "openai",
+    feature = "chat",
+    feature = "gemini",
+    feature = "embeddings"
+))]
 pub(crate) fn capability_at(
     target: AssetDialect,
     kind: MediaKind,
@@ -337,6 +359,13 @@ pub(crate) fn capability_at(
     cap
 }
 #[allow(clippy::too_many_arguments)] // One media slot plus its render context; no retained resolver state.
+#[cfg(any(
+    feature = "claude",
+    feature = "openai",
+    feature = "chat",
+    feature = "gemini",
+    feature = "embeddings"
+))]
 async fn prepare_media<F, Fut>(
     source: &mut Asset,
     mime: &mut Option<String>,
@@ -407,6 +436,13 @@ where
     *source = value;
     Ok(())
 }
+#[cfg(any(
+    feature = "claude",
+    feature = "openai",
+    feature = "chat",
+    feature = "gemini",
+    feature = "embeddings"
+))]
 pub(crate) fn check_asset(
     target: AssetDialect,
     kind: MediaKind,
