@@ -178,13 +178,28 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         }
     };
 
+    if operation.operation == gproxy_protocol::Operation::ConnectRealtime
+        && (operation.dialect == Dialect::Gemini
+            || (operation.dialect == Dialect::OpenAi && crate::realtime::call_id(&wire)?.is_none()))
+    {
+        let model =
+            request.target.upstream_model.as_deref().ok_or_else(|| {
+                CoreError::InvalidTarget("Realtime requires a resolved model".into())
+            })?;
+        if operation.dialect == Dialect::OpenAi {
+            crate::realtime::connect::apply_query_model(&mut wire, model);
+        }
+    }
+
     if matches!(
         operation.operation,
         gproxy_protocol::Operation::ConnectRealtime | gproxy_protocol::Operation::ConnectLive
     ) {
         funnel.set_realtime_dedup(crate::realtime::SettlementDedup::new(
             core.cache().clone(),
-            if operation.operation == gproxy_protocol::Operation::ConnectLive {
+            if operation.operation == gproxy_protocol::Operation::ConnectLive
+                || operation.dialect == Dialect::Gemini
+            {
                 None
             } else {
                 crate::realtime::call_id(&wire)?
@@ -805,6 +820,19 @@ impl Sink<WsFrame> for ObservedSink {
             .map(|t| t.request_rules.body.clone())
             .unwrap_or_else(|| self.rules.clone());
         let mut frame = rewrite_text(&rules, frame)?;
+        if self.exchange.context.operation.operation == gproxy_protocol::Operation::ConnectRealtime
+            && self.exchange.context.operation.dialect == Dialect::Gemini
+            && let Some(model) = self
+                .exchange
+                .context
+                .attempt
+                .request
+                .target
+                .upstream_model
+                .as_deref()
+        {
+            crate::realtime::connect::apply_setup_model(&mut frame, model);
+        }
         if let (WsFrame::Text(text), Some(model)) = (
             &mut frame,
             self.exchange
@@ -831,6 +859,20 @@ impl Sink<WsFrame> for ObservedSink {
                     if let Some(session) = value
                         .get_mut("session")
                         .and_then(serde_json::Value::as_object_mut)
+                    {
+                        session.insert("model".into(), serde_json::Value::String(model.into()));
+                        *text = value.to_string();
+                    }
+                }
+                Some("session.update")
+                    if self.exchange.context.operation.operation
+                        == gproxy_protocol::Operation::ConnectRealtime
+                        && self.exchange.context.operation.dialect == Dialect::OpenAi =>
+                {
+                    if let Some(session) = value
+                        .get_mut("session")
+                        .and_then(serde_json::Value::as_object_mut)
+                        && session.contains_key("model")
                     {
                         session.insert("model".into(), serde_json::Value::String(model.into()));
                         *text = value.to_string();

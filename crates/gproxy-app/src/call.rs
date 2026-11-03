@@ -336,7 +336,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
         request: DataPlaneRequest,
     ) -> Result<ConnectOutcome, AppError> {
         let request = self.continuation_request(caller, request).await?;
-        let model = request.model.clone();
+        let model = gproxy_core::realtime::connect::model(
+            request.operation,
+            request.parts.uri.path(),
+            request.parts.uri.query(),
+            request.model.as_deref(),
+        )?;
 
         let data = self.data();
         let mut admitted = self
@@ -421,6 +426,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
         caller: &Caller,
         mut request: DataPlaneRequest,
     ) -> Result<DataPlaneRequest, AppError> {
+        if request.operation.dialect == gproxy_protocol::Dialect::Gemini {
+            return Ok(request);
+        }
         if !matches!(
             request.operation.operation,
             gproxy_protocol::Operation::ConnectRealtime

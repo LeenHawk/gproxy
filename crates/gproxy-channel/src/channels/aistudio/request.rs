@@ -1,16 +1,18 @@
 //! URL layout, credential injection and header filtering for AI Studio.
 
 use super::{Aistudio, AistudioConfig, DEFAULT_BASE_URL, ID, OPENAI_PREFIX};
-use crate::channel::{UsageExtras, 
+use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
     ConfigKeyKind, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
-    forwardable,
+    UsageExtras, forwardable,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily, WireRequest};
 use http::{HeaderName, HeaderValue, header};
 
 /// The API key header of the native Gemini surface.
 const GOOG_API_KEY: &str = "x-goog-api-key";
+const LIVE_PATH: &str =
+    "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
 /// Query parameters that carry a client's own credential; never forwarded.
 const QUERY_AUTH: &[&str] = &["access_token", "api_key", "key", "x-api-key"];
 /// Headers this channel sets itself, so a client cannot supply them.
@@ -37,6 +39,9 @@ fn is_openai(dialect: Dialect) -> bool {
 /// serves them. Video jobs are OpenAI-shaped even on the Gemini dialect,
 /// because that is the only place AI Studio exposes them (v3 `prepare.rs`).
 fn upstream_path(dialect: Dialect, operation: Operation, path: &str) -> String {
+    if operation == Operation::ConnectRealtime && dialect == Dialect::Gemini {
+        return LIVE_PATH.to_owned();
+    }
     let path = if path.starts_with('/') {
         path.to_owned()
     } else {
@@ -107,6 +112,12 @@ impl Aistudio {
                 )
             }
         };
+        let url = if ctx.operation.operation == Operation::ConnectRealtime {
+            url.replacen("https://", "wss://", 1)
+                .replacen("http://", "ws://", 1)
+        } else {
+            url
+        };
         let uri = match query(request.query.take()) {
             Some(q) if url.contains('?') => format!("{url}&{q}"),
             Some(q) => format!("{url}?{q}"),
@@ -157,7 +168,7 @@ impl BaseChannel for Aistudio {
             display_name: "Google AI Studio",
             credential_kinds: vec!["api_key"],
             login_modes: vec![LoginMode::ApiKey],
-            capabilities: ChannelCapabilities::default(),
+            capabilities: ChannelCapabilities { websocket: true, ..ChannelCapabilities::default() },
             config_keys: [
                 ConfigKey::optional(
                     "base_url",
@@ -188,6 +199,7 @@ impl BaseChannel for Aistudio {
             Operation::ListModels | Operation::GetModel => vec![Dialect::Gemini, Dialect::OpenAi],
             Operation::CreateEmbedding => vec![Dialect::Gemini, Dialect::OpenAi],
             Operation::CountTokens
+            | Operation::ConnectRealtime
             | Operation::BatchCreateEmbedding
             | Operation::CreateImage
             | Operation::CreateFile
@@ -213,5 +225,20 @@ impl BaseChannel for Aistudio {
 
     fn usage_extras(&self) -> Option<&dyn UsageExtras> {
         Some(self)
+    }
+
+    fn prepare_connect(
+        &self,
+        ctx: PrepareContext<'_, ()>,
+    ) -> Result<http::Request<()>, ChannelError> {
+        if ctx.operation.operation != Operation::ConnectRealtime
+            || ctx.operation.dialect != Dialect::Gemini
+        {
+            return Err(ChannelError::UnsupportedOperation(ctx.operation));
+        }
+        let (builder, _) = self.build(ctx)?;
+        builder
+            .body(())
+            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
 }

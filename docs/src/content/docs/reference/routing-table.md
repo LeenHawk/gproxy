@@ -186,7 +186,7 @@ OAuth grant is a caller of its own) and the credential that served it.
 | `GET` | `/v1/live` | legacy GPT-Live/AVAS WebSocket |
 | `GET` | `/v1/live/{call_id}` | legacy Live sideband continuation |
 | `GET` | `/v1/responses` | `generate_content` / `openai_responses_websocket` |
-| `GET` | `/ws/v1beta/BidiGenerateContent` | `connect_realtime` / `gemini` — Gemini Live |
+| `GET` | `/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent` | `connect_realtime` / `gemini` — Gemini Live |
 
 Standard Realtime and GPT-Live use different protocols and account entitlements. The legacy
 `/v1/live` routes remain for compatibility. New Live routes and custom voice creation are

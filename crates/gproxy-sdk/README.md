@@ -114,6 +114,12 @@ let (response, usage) = execution.into_parts();
 application layer decided — the allowed providers and credentials, the budget
 chain, the session — is passed in; nothing here authenticates anyone.
 
+New OpenAI Realtime connections can select their model through `?model=` when
+the builder has no explicit model. The normal resolver handles aliases and core
+binds the upstream selector. Gemini Live callers supply the model explicitly
+before connecting; the HTTP host obtains it from the first setup frame. OpenAI
+`call_id` continuations retain their existing cached binding.
+
 For Responses, `connect().send()` uses the managed session driver: creates and
 steering successors are admitted separately, including HTTP/SSE bridging, and
 usage is recorded per turn. Hosts that admit turns themselves use

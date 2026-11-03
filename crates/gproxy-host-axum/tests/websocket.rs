@@ -940,7 +940,7 @@ async fn a_caller_with_no_permission_is_refused_over_http_too() {
     // No `allow` rule, so admission refuses before the engine is handed
     // anything — and the client sees it as a failed handshake carrying a 403,
     // not as a socket that opened and closed.
-    let error = dial(&bound, "/v1/realtime", Some("k-bob"))
+    let error = dial(&bound, "/v1/realtime?model=p1/m1", Some("k-bob"))
         .await
         .unwrap_err();
     assert!(
@@ -960,7 +960,7 @@ async fn a_refused_upstream_handshake_arrives_as_the_upstreams_own_response() {
     ));
     let bound = host.bind().await;
 
-    let error = dial(&bound, "/v1/realtime", Some("k-alice"))
+    let error = dial(&bound, "/v1/realtime?model=p1/m1", Some("k-alice"))
         .await
         .unwrap_err();
     let tokio_tungstenite::tungstenite::Error::Http(response) = error else {
@@ -990,7 +990,9 @@ async fn an_accepted_upgrade_pumps_a_frame_each_way() {
     let host = instance(None).await;
     let upstream = host.client.accept_socket();
     let bound = host.bind().await;
-    let mut client = dial(&bound, "/v1/realtime", Some("k-alice")).await.unwrap();
+    let mut client = dial(&bound, "/v1/realtime?model=p1/m1", Some("k-alice"))
+        .await
+        .unwrap();
 
     // Client -> upstream.
     client
@@ -1035,7 +1037,9 @@ async fn a_close_from_the_client_closes_the_upstream_and_settles() {
     let host = instance(None).await;
     let upstream = host.client.accept_socket();
     let bound = host.bind().await;
-    let mut client = dial(&bound, "/v1/realtime", Some("k-alice")).await.unwrap();
+    let mut client = dial(&bound, "/v1/realtime?model=p1/m1", Some("k-alice"))
+        .await
+        .unwrap();
 
     client.send(Message::Text("hello".into())).await.unwrap();
     assert_eq!(upstream.next().await, Some(WsFrame::Text("hello".into())));
@@ -1064,7 +1068,9 @@ async fn a_close_from_the_upstream_closes_the_client() {
     let host = instance(None).await;
     let upstream = host.client.accept_socket();
     let bound = host.bind().await;
-    let mut client = dial(&bound, "/v1/realtime", Some("k-alice")).await.unwrap();
+    let mut client = dial(&bound, "/v1/realtime?model=p1/m1", Some("k-alice"))
+        .await
+        .unwrap();
 
     upstream
         .send
@@ -1087,7 +1093,9 @@ async fn an_upstream_that_vanishes_closes_the_client_too() {
     let host = instance(None).await;
     let upstream = host.client.accept_socket();
     let bound = host.bind().await;
-    let mut client = dial(&bound, "/v1/realtime", Some("k-alice")).await.unwrap();
+    let mut client = dial(&bound, "/v1/realtime?model=p1/m1", Some("k-alice"))
+        .await
+        .unwrap();
 
     // No close frame at all: the upstream stream simply ends.
     drop(upstream.send);
@@ -1117,7 +1125,9 @@ async fn an_oversized_frame_is_refused_with_the_code_the_rfc_reserves_for_it() {
 
     let upstream = host.client.accept_socket();
     let bound = host.bind().await;
-    let mut client = dial(&bound, "/v1/realtime", Some("k-alice")).await.unwrap();
+    let mut client = dial(&bound, "/v1/realtime?model=p1/m1", Some("k-alice"))
+        .await
+        .unwrap();
 
     // Exactly at the limit is fine.
     client
@@ -1160,7 +1170,9 @@ async fn a_socket_holds_its_concurrency_permit_until_it_closes() {
     let host = instance(Some(1)).await;
     let upstream = host.client.accept_socket();
     let bound = host.bind().await;
-    let mut client = dial(&bound, "/v1/realtime", Some("k-alice")).await.unwrap();
+    let mut client = dial(&bound, "/v1/realtime?model=p1/m1", Some("k-alice"))
+        .await
+        .unwrap();
 
     // Open, and doing nothing in particular — which is what a realtime
     // session does most of the time.
@@ -1216,7 +1228,9 @@ async fn a_socket_is_captured_as_one_connection_with_its_frames() {
 
     let upstream = host.client.accept_socket();
     let bound = host.bind().await;
-    let mut client = dial(&bound, "/v1/realtime", Some("k-alice")).await.unwrap();
+    let mut client = dial(&bound, "/v1/realtime?model=p1/m1", Some("k-alice"))
+        .await
+        .unwrap();
 
     client.send(Message::Text("up".into())).await.unwrap();
     assert_eq!(upstream.next().await, Some(WsFrame::Text("up".into())));
@@ -1308,7 +1322,9 @@ async fn a_relayed_close_is_recorded_once_in_the_direction_it_arrived() {
 
     let upstream = host.client.accept_socket();
     let bound = host.bind().await;
-    let mut client = dial(&bound, "/v1/realtime", Some("k-alice")).await.unwrap();
+    let mut client = dial(&bound, "/v1/realtime?model=p1/m1", Some("k-alice"))
+        .await
+        .unwrap();
     upstream
         .send
         .send(Ok(WsFrame::Close(Some(WsClose {
@@ -1348,7 +1364,9 @@ async fn a_socket_records_no_frames_with_the_body_switch_off() {
     let host = instance(None).await;
     let upstream = host.client.accept_socket();
     let bound = host.bind().await;
-    let mut client = dial(&bound, "/v1/realtime", Some("k-alice")).await.unwrap();
+    let mut client = dial(&bound, "/v1/realtime?model=p1/m1", Some("k-alice"))
+        .await
+        .unwrap();
     client.send(Message::Text("secret".into())).await.unwrap();
     assert_eq!(upstream.next().await, Some(WsFrame::Text("secret".into())));
     client.close(None).await.unwrap();
@@ -1524,3 +1542,6 @@ async fn events(
         .await
         .unwrap()
 }
+
+#[path = "websocket/realtime_models.rs"]
+mod realtime_models;

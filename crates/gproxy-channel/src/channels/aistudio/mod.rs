@@ -9,6 +9,8 @@
 //! OpenAI compatibility layer lives under `/v1beta/openai/**` and takes
 //! `Authorization: Bearer`. Client paths addressed at OpenAI's own layout
 //! (`/v1/chat/completions`, `/v1/videos/...`) are moved onto that prefix.
+//! Gemini Live uses the native BidiGenerateContent WebSocket endpoint and the
+//! same assigned API-key header as the Gemini HTTP surface.
 //!
 //! Streaming has two framings: `streamGenerateContent` answers with a single
 //! incrementally delivered JSON array unless the request carries `alt=sse`,

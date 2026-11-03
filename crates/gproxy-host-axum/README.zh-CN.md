@@ -275,7 +275,7 @@ POST   /portal/api/oauth/device      批准或拒绝；需要登录会话或带�
 | `GET {mount}/v1/live` | `ConnectRealtime` / OpenAI | 同上，WebRTC 的那种写法 |
 | `GET {mount}/v1/live/{call_id}` | `ConnectRealtime` / OpenAI | 通话 id 写在路径里的续接 |
 | `GET {mount}/v1/responses` | `GenerateContent` / OpenAI Responses-over-WS | Responses websocket 会话 |
-| `GET {mount}/ws/v1beta/BidiGenerateContent` | `ConnectRealtime` / Gemini | Gemini Live |
+| `GET {mount}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent` | `ConnectRealtime` / Gemini | Gemini Live |
 | `GET {mount}/backend-api/…` | 渠道的 `ServiceRoute`，`ServiceTransport::WebSocket` | Codex 的远程控制服务端 |
 
 Responses 在升级前认证，再根据每条 `response.create` 的模型执行准入和选路。

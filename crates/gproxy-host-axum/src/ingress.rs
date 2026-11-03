@@ -483,7 +483,19 @@ where
         std::borrow::Cow::Borrowed(remainder)
     };
     parts.uri = rewrite_path(&parts.uri, &operation_path);
-    let offer_model = if matches!(
+    let offer_model = if matched.operation.operation == gproxy_protocol::Operation::ConnectRealtime
+        && matched.operation.dialect == gproxy_protocol::Dialect::OpenAi
+    {
+        match gproxy_core::realtime::connect::model(
+            matched.operation,
+            parts.uri.path(),
+            parts.uri.query(),
+            None,
+        ) {
+            Ok(model) => model,
+            Err(error) => return Some(ErrorResponse(error.into()).into_response()),
+        }
+    } else if matches!(
         matched.operation.operation,
         gproxy_protocol::Operation::CreateRealtimeCall
             | gproxy_protocol::Operation::CreateLiveSession
@@ -535,6 +547,23 @@ where
         .flatten();
     let app = Arc::clone(state.app());
     if let Some(upgrade) = upgrade {
+        if matched.operation.operation == gproxy_protocol::Operation::ConnectRealtime
+            && matched.operation.dialect == gproxy_protocol::Dialect::Gemini
+        {
+            let prefix = match mount {
+                Mount::Aggregated => None,
+                Mount::Namespace(name) | Mount::Provider(name) => Some(name.clone()),
+            };
+            return Some(crate::websocket::gemini_live(
+                app,
+                upgrade,
+                caller,
+                request,
+                prefix,
+                core.limits.max_ws_frame_bytes,
+                cancel,
+            ));
+        }
         if matched.operation.operation == gproxy_protocol::Operation::ConnectLive
             && matches!(
                 gproxy_protocol::wire::openai::realtime::RealtimeRoute::from_path(remainder),

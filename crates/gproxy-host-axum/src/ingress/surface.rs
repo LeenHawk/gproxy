@@ -168,7 +168,7 @@ surfaces! { table;
     GET "/v1/live" => ConnectRealtime / OpenAi, upgrade: true;
     GET "/v1/live/{call_id}" => ConnectRealtime / OpenAi, upgrade: true;
     GET "/v1/responses" => GenerateContent / OpenAiResponsesWebSocket, upgrade: true;
-    GET "/ws/v1beta/BidiGenerateContent" => ConnectRealtime / Gemini, upgrade: true;
+    GET "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent" => ConnectRealtime / Gemini, upgrade: true;
 }
 
 // These are Codex wire contracts, available only on a Codex provider mount.
@@ -457,6 +457,28 @@ mod tests {
                     operation: Operation::WebSearch,
                     dialect: Dialect::OpenAi
                 }
+            );
+        }
+    }
+
+    #[test]
+    fn codex_continuation_aliases_select_the_bound_call_on_the_canonical_path() {
+        for path in [
+            "/backend-api/codex/live/rtc_test",
+            "/api/codex/live/rtc_test",
+            "/codex/live/rtc_test",
+        ] {
+            let matched = match_codex_path(&Method::GET, path, &HeaderMap::new(), None).unwrap();
+            assert_eq!(matched.operation.operation, Operation::ConnectRealtime);
+            assert_eq!(
+                gproxy_core::realtime::connect::model(
+                    matched.operation,
+                    &codex_path(path),
+                    None,
+                    None
+                )
+                .unwrap(),
+                None
             );
         }
     }

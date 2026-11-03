@@ -1,5 +1,5 @@
-//! A primary GPT-Live socket names its model in session.start. Authenticate
-//! before upgrading, then admit one model-bound session before connecting upstream.
+//! First-frame model selection for GPT-Live session.start and Gemini Live setup.
+//! Authenticate before upgrading, then admit the model before connecting upstream.
 use std::sync::Arc;
 
 use futures_util::{SinkExt, StreamExt};
@@ -19,6 +19,25 @@ use crate::{
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
     pub fn open_live(
+        self: &Arc<Self>,
+        caller: Caller,
+        request: DataPlaneRequest,
+        prefix: Option<String>,
+    ) -> Result<WebSocket, AppError> {
+        self.open_model_socket(caller, request, prefix)
+    }
+
+    /// Gemini's upstream session stays unopened until setup supplies the model.
+    pub fn open_gemini_realtime(
+        self: &Arc<Self>,
+        caller: Caller,
+        request: DataPlaneRequest,
+        prefix: Option<String>,
+    ) -> Result<WebSocket, AppError> {
+        self.open_model_socket(caller, request, prefix)
+    }
+
+    fn open_model_socket(
         self: &Arc<Self>,
         caller: Caller,
         request: DataPlaneRequest,
@@ -45,16 +64,18 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
     }
 }
 
-async fn error(output: &mpsc::Sender<WsFrame>, message: String) {
-    let _ = output
-        .send(WsFrame::Text(
-            json!({"type":"error", "error":{
-                "type":"invalid_request_error", "message":message
-            }})
-            .to_string(),
-        ))
-        .await;
-    let _ = output.send(WsFrame::Close(None)).await;
+async fn error(output: &mpsc::Sender<WsFrame>, gemini: bool, status: u16, message: String) {
+    let event = if gemini {
+        json!({"error":{"code":status,"message":message}})
+    } else {
+        json!({"type":"error","error":{"type":"invalid_request_error","message":message}})
+    };
+    let _ = output.send(WsFrame::Text(event.to_string())).await;
+    let close = gemini.then(|| gproxy_protocol::connection::WsClose {
+        code: if status < 500 { 1008 } else { 1011 },
+        reason: "Live session refused".into(),
+    });
+    let _ = output.send(WsFrame::Close(close)).await;
 }
 
 fn record(capture: &mut Option<DownstreamCapture>, direction: CaptureDirection, frame: &WsFrame) {
@@ -85,35 +106,65 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
     output: mpsc::Sender<WsFrame>,
 ) {
     let cancellation = request.cancellation.clone().unwrap_or_default();
+    request.cancellation = Some(cancellation.clone());
+    let gemini = request.operation.dialect == gproxy_protocol::Dialect::Gemini;
     let limits = app.gproxy().core().snapshot().limits;
-    let first = tokio::select! {
+    let (first, bytes) = tokio::select! {
         () = cancellation.cancelled() => return,
+        () = output.closed() => return,
         first = crate::rt::timeout(limits.stream_idle_timeout, input.recv()) => {
             match first {
-                Some(Some(WsFrame::Text(text))) => text,
+                Some(Some(WsFrame::Text(text))) => {
+                    let bytes = gproxy_protocol::connection::Bytes::copy_from_slice(text.as_bytes());
+                    (WsFrame::Text(text), bytes)
+                }
+                Some(Some(WsFrame::Binary(bytes))) if gemini => (WsFrame::Binary(bytes.clone()), bytes),
                 Some(Some(WsFrame::Close(_))) | Some(None) => return,
-                _ => { error(&output, "first Live message must be session.start".into()).await; return }
+                _ => { error(&output, gemini, 400, "first Live message must select a model".into()).await; return }
             }
         }
     };
-    if first.len() as u64 > limits.max_ws_frame_bytes {
-        error(&output, "Live message exceeds the frame limit".into()).await;
+    if bytes.len() as u64 > limits.max_ws_frame_bytes {
+        error(
+            &output,
+            gemini,
+            413,
+            "Live message exceeds the frame limit".into(),
+        )
+        .await;
         return;
     }
-    let value: Value = match serde_json::from_str(&first) {
-        Ok(value) => value,
-        Err(_) => {
-            error(&output, "invalid Live message JSON".into()).await;
-            return;
+    let model = if gemini {
+        match gproxy_core::realtime::connect::setup_model(&bytes) {
+            Ok(model) => model,
+            Err(reason) => {
+                error(&output, true, 400, reason.to_string()).await;
+                return;
+            }
         }
-    };
-    let model = value
-        .pointer("/session/model")
-        .and_then(Value::as_str)
-        .filter(|s| !s.is_empty());
-    let Some(model) = model.filter(|_| value["type"] == "session.start") else {
-        error(&output, "session.start requires session.model".into()).await;
-        return;
+    } else {
+        let value: Value = match serde_json::from_slice(&bytes) {
+            Ok(value) => value,
+            Err(_) => {
+                error(&output, false, 400, "invalid Live message JSON".into()).await;
+                return;
+            }
+        };
+        let model = value
+            .pointer("/session/model")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty());
+        let Some(model) = model.filter(|_| value["type"] == "session.start") else {
+            error(
+                &output,
+                false,
+                400,
+                "session.start requires session.model".into(),
+            )
+            .await;
+            return;
+        };
+        model.to_owned()
     };
     request.model = Some(match prefix {
         Some(prefix)
@@ -121,13 +172,18 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
         {
             format!("{prefix}/{model}")
         }
-        _ => model.to_owned(),
+        _ => model,
     });
-    request.body = first.as_bytes().to_vec().into();
-    let outcome = match app.connect(&caller, request).await {
+    request.body = bytes;
+    let connected = tokio::select! {
+        () = cancellation.cancelled() => return,
+        () = output.closed() => { cancellation.cancel(); return },
+        outcome = app.connect(&caller, request) => outcome,
+    };
+    let outcome = match connected {
         Ok(outcome) => outcome,
         Err(reason) => {
-            error(&output, reason.to_string()).await;
+            error(&output, gemini, reason.status_code(), reason.to_string()).await;
             return;
         }
     };
@@ -151,7 +207,7 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
             let message = bytes
                 .and_then(|bytes| String::from_utf8(bytes.to_vec()).ok())
                 .unwrap_or_else(|| format!("Live handshake rejected: {status}"));
-            error(&output, message.clone()).await;
+            error(&output, gemini, status.as_u16(), message.clone()).await;
             outcome = CaptureOutcome::Failed { error: message };
         }
         UpstreamConnection::Connected {
@@ -164,9 +220,9 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
                     &handshake.headers,
                 );
             }
-            let first = WsFrame::Text(first);
             record(&mut capture, CaptureDirection::Request, &first);
             if let Err(reason) = socket.outgoing.send(first).await {
+                error(&output, gemini, 502, reason.to_string()).await;
                 outcome = CaptureOutcome::Failed {
                     error: reason.to_string(),
                 };
@@ -194,7 +250,7 @@ async fn run<C: BatchConnectionTrait + Send + Sync + 'static>(
                                     if output.send(frame).await.is_err() { cancellation.cancel(); outcome = CaptureOutcome::Cancelled; break }
                                     if closing { break }
                                 }
-                                Some(Err(reason)) => { error(&output, reason.to_string()).await; outcome = CaptureOutcome::Failed { error: reason.to_string() }; break }
+                                Some(Err(reason)) => { error(&output, gemini, 502, reason.to_string()).await; outcome = CaptureOutcome::Failed { error: reason.to_string() }; break }
                                 None => break,
                             }
                         }

@@ -16,7 +16,7 @@ No concrete channel is compiled by default; each is a Cargo feature:
 
 | Feature | Id | Upstream | Credential |
 |---|---|---|---|
-| `aistudio` | `aistudio` | Google AI Studio: the native Gemini methods and the `/v1beta/openai` compatibility layer off one origin, SSE and JSON-array streams, `usageMetadata` metering | `{"api_key"}` |
+| `aistudio` | `aistudio` | Google AI Studio: native Gemini HTTP and Live WebSockets, the `/v1beta/openai` compatibility layer, SSE/JSON-array streams and HTTP `usageMetadata` metering | `{"api_key"}` |
 | `antigravity` | `antigravity` | A Google account through the Code Assist host the Antigravity editor talks to: PKCE login that discovers the Cloud project and tier, refresh, the Code Assist request envelope, `fetchAvailableModels` catalogue and per-model quota | `OAuthCredential` |
 | `aws_bedrock` | `aws_bedrock` | AWS Bedrock: SigV4-signed (or API-key) calls on `bedrock-runtime` with the wire chosen per model — `InvokeModel` for Anthropic models, event-stream replies translated into Claude Messages SSE, and the OpenAI-compatible Chat Completions for the rest — plus the control plane's foundation-model directory | AWS access key pair (optionally temporary) or a Bedrock API key |
 | `azure` | `azure` | Azure OpenAI and the Anthropic models Azure AI Foundry hosts: the v1 or the deployment-scoped surface under a resource, `api-key` and `x-api-key` | `{"api_key"}` |

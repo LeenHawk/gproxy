@@ -302,11 +302,11 @@ Anything that reaches the end is a 404.
 
 | Route | Operation / dialect | What it is |
 |---|---|---|
-| `GET {mount}/v1/realtime` | `ConnectRealtime` / OpenAI | the realtime session, optionally continuing a call with `?call_id=` |
+| `GET {mount}/v1/realtime` | `ConnectRealtime` / OpenAI | a new session selects `?model=`; `?call_id=` continues a bound call |
 | `GET {mount}/v1/live` | `ConnectRealtime` / OpenAI | the same, at the WebRTC spelling |
 | `GET {mount}/v1/live/{call_id}` | `ConnectRealtime` / OpenAI | the continuation with the call in the path |
 | `GET {mount}/v1/responses` | `GenerateContent` / OpenAI Responses-over-WS | the Responses websocket session |
-| `GET {mount}/ws/v1beta/BidiGenerateContent` | `ConnectRealtime` / Gemini | Gemini Live |
+| `GET {mount}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent` | `ConnectRealtime` / Gemini | Gemini Live |
 | `GET {mount}/backend-api/…` | a channel `ServiceRoute` with `ServiceTransport::WebSocket` | Codex's remote-control server |
 
 Responses authenticates before upgrading, then admits and routes each
@@ -316,7 +316,20 @@ context warmup, interruption, steering and injected inputs through subsequent
 HTTP segments. Generation permits and usage belong to turns, not idle sockets.
 Connection events can identify their `WsTurn` without duplicating frame bodies.
 
-The remaining handshake and lease rules below describe realtime sessions.
+OpenAI's query model goes through normal mount qualification, model permissions
+and alias/route resolution before the upstream upgrade. Core writes the selected
+upstream model into the query and subsequent response.create frames. Bound call
+continuations retain their cached model/credential and current authorization.
+
+Gemini authenticates and checks the OAuth operation before its local upgrade,
+then waits for one JSON setup frame (text or binary). setup.model supplies the
+selector; no upstream session opens until admission and routing succeed. Core
+writes models/<upstream ID> into setup without changing other controls. Refusals
+after this local upgrade are JSON errors containing the status/body followed by a
+close frame. The application pump retains admission/capture/usage through close;
+the same path runs behind Workers' WebSocketPair.
+
+The remaining pre-upgrade refusal rules below describe model-bearing OpenAI handshakes.
 The three OpenAI realtime paths are exactly the routes
 `Core::connect_realtime_path` dispatches, and a test asserts the two tables
 agree. `POST /v1/realtime/calls` is **not** among them: the SDP offer is an
@@ -326,11 +339,10 @@ the upgrade is the call id — in the path or in `?call_id=` — which core look
 up to pin the socket to the credential that answered the offer. The query is
 forwarded intact for exactly that reason.
 
-**Nothing is upgraded before it is allowed.** Authentication, then the
+**Model-bearing handshakes are admitted before upgrading.** Authentication, then the
 handshake shape, then admission, then the upstream handshake; the `101` is
 written last. Every refusal is therefore an HTTP answer a client can read — a
-socket that is accepted and immediately closed carries no status, no body and
-no code.
+socket that is accepted and immediately closed cannot return an HTTP refusal.
 
 **A refused upstream handshake is relayed verbatim.** The upstream's status,
 headers and body reach the client as they stand; a vendor's

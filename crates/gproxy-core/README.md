@@ -139,6 +139,16 @@ the funnel's `Settled` proof. WebSocket operations run the same loop for the
 handshake; an established socket is captured, metered and rewritten in both
 directions and settles when it ends or is dropped.
 
+New Realtime sessions require a resolved model: OpenAI uses the handshake query;
+Gemini Live receives its selector through the host's first-frame setup path.
+The mapped target is bound into the query/setup and OpenAI response.create frames.
+OpenAI call continuations retain their existing scope/credential/model binding;
+Gemini connections do not interpret an OpenAI call_id as a continuation.
+
+Gemini Live usageMetadata is not yet normalized by the current protocol usage
+reader, which does not implement ConnectRealtime/Gemini. The socket path forwards
+those events unchanged; this implementation adds no substitute usage reading.
+
 ## Conversion
 
 `convert::route` resolves an exact `(operation, incoming dialect)` mapping to

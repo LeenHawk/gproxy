@@ -198,12 +198,11 @@ fn authenticates_each_surface_with_the_header_that_surface_wants() {
         Aistudio.native_dialects(view, Operation::ListModels),
         [Dialect::Gemini, Dialect::OpenAi]
     );
-    assert!(
-        Aistudio
-            .native_dialects(view, Operation::ConnectRealtime)
-            .is_empty(),
-        "the Live API is not this channel's surface"
+    assert_eq!(
+        Aistudio.native_dialects(view, Operation::ConnectRealtime),
+        [Dialect::Gemini]
     );
+    assert!(Aistudio.descriptor().capabilities.websocket);
     assert_eq!(Aistudio.descriptor().display_name, "Google AI Studio");
     assert!(
         Aistudio.default_connection().is_none(),
@@ -233,6 +232,72 @@ fn authenticates_each_surface_with_the_header_that_surface_wants() {
             None
         ),
         Err(ChannelError::InvalidConfig(_))
+    ));
+}
+
+#[test]
+fn gemini_live_prepares_native_websocket_path_and_assigned_api_key() {
+    let config = json!({"headers":{"x-static":"yes"}});
+    let secret = json!({"api_key":"  assigned-key  "});
+    let make = |path: &str, base, endpoint, dialect| {
+        let wire = request(
+            path,
+            Some("key=client-key&access_token=client-token&alt=json"),
+            b"",
+        );
+        Aistudio.prepare_connect(PrepareContext {
+            provider: provider(&config, base),
+            credential: credential(&secret),
+            operation: OperationKey {
+                operation: Operation::ConnectRealtime,
+                dialect,
+            },
+            request: WireRequest {
+                method: Method::GET,
+                path: wire.path,
+                query: wire.query,
+                headers: wire.headers,
+                body: (),
+            },
+            endpoint_override: endpoint,
+        })
+    };
+    let path = "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+    let prepared = make(path, None, None, Dialect::Gemini).unwrap();
+    assert_eq!(prepared.method(), Method::GET);
+    assert_eq!(
+        prepared.uri(),
+        "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?alt=json"
+    );
+    assert_eq!(prepared.headers()["x-goog-api-key"], "assigned-key");
+    assert_eq!(prepared.headers()["x-static"], "yes");
+    assert!(prepared.headers().get("authorization").is_none());
+    assert!(prepared.headers().get("host").is_none());
+    assert_eq!(
+        make(
+            "/ignored",
+            Some("https://relay.example/prefix"),
+            None,
+            Dialect::Gemini
+        )
+        .unwrap()
+        .uri(),
+        "wss://relay.example/prefix/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?alt=json"
+    );
+    assert_eq!(
+        make(
+            "/ignored",
+            None,
+            Some("https://exact.example/live?fixed=1"),
+            Dialect::Gemini
+        )
+        .unwrap()
+        .uri(),
+        "wss://exact.example/live?fixed=1&alt=json"
+    );
+    assert!(matches!(
+        make("/v1/realtime", None, None, Dialect::OpenAi),
+        Err(ChannelError::UnsupportedOperation(_))
     ));
 }
 

@@ -439,7 +439,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ConnectBuilder<'_, C> {
             gproxy,
             operation,
             request,
-            options,
+            mut options,
         } = self;
         let WireRequest {
             method,
@@ -448,6 +448,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ConnectBuilder<'_, C> {
             mut headers,
             body: (),
         } = request;
+        if operation.operation == gproxy_protocol::Operation::ConnectRealtime {
+            options.model = gproxy_core::realtime::connect::model(
+                operation,
+                &path,
+                query.as_deref(),
+                options.model.as_deref(),
+            )?;
+        }
         let snapshot = gproxy.core().snapshot();
         let mut prepared = options
             .prepare(gproxy, snapshot, operation, &headers, None)

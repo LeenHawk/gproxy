@@ -1,4 +1,5 @@
 //! Realtime route dispatch and scope-isolated call-to-credential continuations.
+pub mod connect;
 pub mod request;
 use crate::{Core, CoreError, CoreResult, RequestContext, keys};
 pub use gproxy_protocol::wire::openai::realtime::RealtimeRoute;
@@ -64,7 +65,11 @@ pub(crate) async fn remember_live_socket(
 }
 
 pub(crate) fn call_id<B>(wire: &WireRequest<B>) -> CoreResult<Option<String>> {
-    let path_id = match RealtimeRoute::from_path(&wire.path) {
+    request_call_id(&wire.path, wire.query.as_deref())
+}
+
+fn request_call_id(path: &str, query: Option<&str>) -> CoreResult<Option<String>> {
+    let path_id = match RealtimeRoute::from_path(path) {
         Some(
             RealtimeRoute::Live { call_id: Some(id) }
             | RealtimeRoute::HangupCall { call_id: id }
@@ -80,7 +85,7 @@ pub(crate) fn call_id<B>(wire: &WireRequest<B>) -> CoreResult<Option<String>> {
         ),
         _ => None,
     };
-    let ids: Vec<_> = form_urlencoded::parse(wire.query.as_deref().unwrap_or("").as_bytes())
+    let ids: Vec<_> = form_urlencoded::parse(query.unwrap_or("").as_bytes())
         .filter(|(k, _)| k == "call_id")
         .map(|(_, v)| v.into_owned())
         .collect();
@@ -104,7 +109,7 @@ pub(crate) fn call_id<B>(wire: &WireRequest<B>) -> CoreResult<Option<String>> {
     Ok(id)
 }
 impl<C> Core<C> {
-    /// Recover a continuation's model before application admission, so a
+    /// Recover an OpenAI continuation's model before application admission, so a
     /// model-less sideband URL cannot evade current model permissions.
     pub async fn realtime_request_model(
         &self,
@@ -122,7 +127,16 @@ impl<C> Core<C> {
             .map(String::as_str)
             .collect();
         let Some(bindings) = self
-            .realtime_bindings(scope, operation, path, query, &providers)
+            .realtime_bindings(
+                scope,
+                gproxy_protocol::OperationKey {
+                    operation,
+                    dialect: gproxy_protocol::Dialect::OpenAi,
+                },
+                path,
+                query,
+                &providers,
+            )
             .await?
         else {
             return Ok(None);
@@ -161,11 +175,15 @@ impl<C> Core<C> {
     pub(crate) async fn realtime_bindings(
         &self,
         scope: &str,
-        operation: Operation,
+        operation: gproxy_protocol::OperationKey,
         path: &str,
         query: Option<&str>,
         providers: &[&str],
     ) -> CoreResult<Option<std::collections::BTreeMap<String, Option<String>>>> {
+        if operation.dialect == gproxy_protocol::Dialect::Gemini {
+            return Ok(None);
+        }
+        let operation = operation.operation;
         if !matches!(
             operation,
             Operation::ConnectRealtime
@@ -292,6 +310,9 @@ impl<C> Core<C> {
         context: Arc<RequestContext>,
         wire: &WireRequest<()>,
     ) -> CoreResult<Arc<RequestContext>> {
+        if context.operation.dialect == gproxy_protocol::Dialect::Gemini {
+            return Ok(context);
+        }
         if !matches!(
             context.operation.operation,
             Operation::ConnectRealtime

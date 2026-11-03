@@ -160,7 +160,7 @@ Gemini 把它寫在路徑裡，這也是那個方言有兩行的原因。
 | `GET` | `/v1/live` | 舊 GPT-Live/AVAS WebSocket |
 | `GET` | `/v1/live/{call_id}` | 把 call 放在路徑裡的續接 |
 | `GET` | `/v1/responses` | `generate_content` / `openai_responses_websocket` |
-| `GET` | `/ws/v1beta/BidiGenerateContent` | `connect_realtime` / `gemini`——Gemini Live |
+| `GET` | `/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent` | `connect_realtime` / `gemini`——Gemini Live |
 
 標準 Realtime 與 GPT-Live 的協定和帳號權限不同。舊 `/v1/live` 保留相容；新 Live 和
 自訂音色建立由 OpenAI API Key 渠道支援，Codex 渠道支援標準 Realtime、臨時憑據與明確掛斷。

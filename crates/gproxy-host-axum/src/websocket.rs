@@ -2,24 +2,23 @@
 //! open while it runs.
 //!
 //! Responses is handled by [`responses`]: its model arrives after the upgrade,
-//! so the application admits and settles individual turns. The admission and
-//! connection-lease rules below describe the realtime passthrough path.
+//! so the application admits and settles individual turns. GPT-Live and Gemini
+//! Live also select their models in the first client message; their application
+//! pump holds the model-bound admission for the session's lifetime.
 //!
 //! # Nothing is upgraded before it is allowed
 //!
-//! An accepted socket is an answer. A client that sees `101` believes it is
-//! talking to a model, and a socket that is accepted and then immediately
-//! closed tells it nothing about *why* — there is no status, no body and no
-//! error code once the protocol has switched. So the whole of the decision
-//! happens while this is still an HTTP request: the caller is authenticated,
-//! the handshake shape is checked, admission runs, and the upstream handshake
-//! is performed. Only when all four have succeeded is
-//! `WebSocketUpgrade::on_upgrade` (or the Workers `WebSocketPair`) called.
+//! Authentication and handshake validation always precede the local upgrade.
+//! When HTTP names the model, admission and the upstream handshake precede it
+//! too. OpenAI Realtime therefore returns refused handshakes as HTTP responses.
+//! Gemini must first open the local socket to receive setup.model: no upstream
+//! socket opens until that selector passes admission and routing. Its subsequent
+//! refusals carry the status/body in a JSON error followed by a close frame.
 //!
 //! That order also decides the one rule this module exists to honour:
 //!
-//! > **A refused upstream handshake reaches the client as the upstream's own
-//! > HTTP response, body and all.**
+//! > **A refused upstream handshake reaches a model-bearing HTTP upgrade as
+//! > the upstream's own HTTP response, body and all.**
 //!
 //! [`UpstreamConnection::Rejected`] carries a whole `WireResponse` for exactly
 //! this reason — "the complete response body is retained so the host can
@@ -160,6 +159,33 @@ pub fn live<C: BatchConnectionTrait + Send + Sync + 'static>(
     mut cancel: CancelOnDrop,
 ) -> Response {
     match app.open_live(caller, request, prefix) {
+        Ok(socket) => accept(
+            upgrade,
+            socket,
+            max_frame_bytes,
+            Some(Trailer::service(app, None, cancel)),
+            &HeaderMap::new(),
+        ),
+        Err(error) => {
+            cancel.disarm();
+            crate::ErrorResponse(error).into_response()
+        }
+    }
+}
+
+/// Gemini's model is only available after the local upgrade. Authentication
+/// and OAuth operation checks precede it; model admission and the upstream
+/// handshake wait for setup. Later refusals are native error/close frames.
+pub fn gemini_live<C: BatchConnectionTrait + Send + Sync + 'static>(
+    app: Arc<App<C>>,
+    upgrade: Upgrade,
+    caller: Caller,
+    request: DataPlaneRequest,
+    prefix: Option<String>,
+    max_frame_bytes: u64,
+    mut cancel: CancelOnDrop,
+) -> Response {
+    match app.open_gemini_realtime(caller, request, prefix) {
         Ok(socket) => accept(
             upgrade,
             socket,

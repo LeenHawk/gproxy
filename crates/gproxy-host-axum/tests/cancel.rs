@@ -336,7 +336,10 @@ async fn read_until(stream: &mut TcpStream, needle: &str) -> Option<String> {
 
 /// The client half of one realtime handshake.
 async fn dial(bound: &Bound) -> Socket {
-    let mut request = bound.ws("/v1/realtime").into_client_request().unwrap();
+    let mut request = bound
+        .ws("/v1/realtime?model=p1/m1")
+        .into_client_request()
+        .unwrap();
     request
         .headers_mut()
         .insert("authorization", "Bearer k-alice".parse().unwrap());

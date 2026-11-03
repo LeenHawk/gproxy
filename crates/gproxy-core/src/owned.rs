@@ -703,7 +703,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
     ) -> CoreResult<Option<BTreeMap<String, Option<String>>>> {
         let providers: Vec<&str> = providers.into_iter().collect();
         if let Some(bindings) = self
-            .realtime_bindings(scope, operation.operation, path, query, &providers)
+            .realtime_bindings(scope, operation, path, query, &providers)
             .await?
         {
             return Ok(Some(bindings));
