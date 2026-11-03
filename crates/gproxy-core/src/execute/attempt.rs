@@ -310,14 +310,15 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
     if !converting {
         if let Some(model) = upstream_model.as_deref() {
             prepare::apply_model(&mut wire, operation.dialect, model);
+            let mut codec = limits.codec();
+            codec.max_body_bytes = limits.max_request_body_bytes;
+            prepare::apply_form_model(&mut wire, model, codec).await?;
             if matches!(
                 operation.operation,
                 gproxy_protocol::Operation::CreateRealtimeCall
                     | gproxy_protocol::Operation::CreateLiveSession
                     | gproxy_protocol::Operation::CreateRealtimeClientSecret
             ) {
-                let mut codec = limits.codec();
-                codec.max_body_bytes = limits.max_request_body_bytes;
                 crate::realtime::request::apply_model(&mut wire, model, codec).await?;
             }
         }

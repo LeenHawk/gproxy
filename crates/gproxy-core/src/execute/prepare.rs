@@ -151,6 +151,42 @@ pub(crate) fn credential_view<'a>(
     }
 }
 
+/// Bind the resolved model on a multipart form request (transcription,
+/// translation, image edits): the text field named `model` carries the client's
+/// model selector, which `apply_model` cannot reach. Other parts are re-encoded
+/// unchanged with the original boundary.
+pub(crate) async fn apply_form_model(
+    request: &mut WireRequest<HttpBody>,
+    model: &str,
+    limits: gproxy_protocol::codec::CodecLimits,
+) -> crate::CoreResult<()> {
+    let HttpBody::Bytes(bytes) = &request.body else {
+        return Ok(());
+    };
+    let Some((boundary, mut parts)) =
+        crate::form::multipart(&request.headers, bytes, limits).await?
+    else {
+        return Ok(());
+    };
+    let mut changed = false;
+    for part in &mut parts {
+        if crate::form::field(&part.headers, http::header::CONTENT_DISPOSITION, "name").as_deref()
+            == Some("model")
+            && let HttpBody::Bytes(value) = &part.body
+            && value.as_ref() != model.as_bytes()
+        {
+            part.body = HttpBody::Bytes(Bytes::from(model.to_owned()));
+            part.headers.remove(http::header::CONTENT_LENGTH);
+            changed = true;
+        }
+    }
+    if changed {
+        request.body = HttpBody::Bytes(crate::form::encode(boundary, parts, limits).await?);
+        request.headers.remove(http::header::CONTENT_LENGTH);
+    }
+    Ok(())
+}
+
 /// Bind the resolved model on a native JSON request without changing any other
 /// wire bytes. Gemini also carries its model in the request path.
 pub(crate) fn apply_model(
@@ -182,5 +218,83 @@ pub(crate) fn apply_model(
             .remove(b'/');
         let encoded = percent_encoding::utf8_percent_encode(model, MODEL_PATH);
         request.path = format!("{prefix}/models/{encoded}{suffix}");
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use gproxy_protocol::codec::CodecLimits;
+
+    const LIMITS: CodecLimits = CodecLimits {
+        max_buffer_bytes: 1 << 20,
+        max_value_bytes: 1 << 20,
+        max_body_bytes: 1 << 20,
+        max_line_bytes: 1 << 16,
+        max_part_bytes: 1 << 20,
+        max_parts: 16,
+    };
+
+    fn form(model: &str) -> WireRequest<HttpBody> {
+        let body = format!(
+            "--b\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\n{model}\r\n\
+             --b\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.wav\"\r\n\
+             Content-Type: audio/wav\r\n\r\nRIFF\r\n--b--\r\n"
+        );
+        let mut headers = http::HeaderMap::new();
+        headers.insert(
+            http::header::CONTENT_TYPE,
+            http::HeaderValue::from_static("multipart/form-data; boundary=b"),
+        );
+        headers.insert(http::header::CONTENT_LENGTH, body.len().into());
+        WireRequest {
+            method: http::Method::POST,
+            path: "/v1/audio/transcriptions".into(),
+            query: None,
+            headers,
+            body: HttpBody::Bytes(Bytes::from(body)),
+        }
+    }
+
+    fn text(request: &WireRequest<HttpBody>) -> String {
+        let HttpBody::Bytes(bytes) = &request.body else {
+            panic!("buffered body");
+        };
+        String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn form_model_field_is_bound_to_the_upstream_model() {
+        // Live: a channel-prefixed model reached OpenAI transcription unchanged.
+        let mut request = form("openai/gpt-4o-mini-transcribe");
+        apply_form_model(&mut request, "gpt-4o-mini-transcribe", LIMITS)
+            .await
+            .unwrap();
+        let body = text(&request);
+        assert!(body.contains("name=\"model\"\r\n\r\ngpt-4o-mini-transcribe\r\n"));
+        assert!(!body.contains("openai/"));
+        assert!(body.contains("filename=\"a.wav\""));
+        assert!(body.contains("RIFF"));
+        assert!(request.headers.get(http::header::CONTENT_LENGTH).is_none());
+    }
+
+    #[tokio::test]
+    async fn unchanged_or_non_form_bodies_are_left_byte_for_byte() {
+        let mut request = form("gpt-4o-mini-transcribe");
+        let before = text(&request);
+        apply_form_model(&mut request, "gpt-4o-mini-transcribe", LIMITS)
+            .await
+            .unwrap();
+        assert_eq!(text(&request), before);
+        assert!(request.headers.get(http::header::CONTENT_LENGTH).is_some());
+
+        let mut json = form("x");
+        json.headers.insert(
+            http::header::CONTENT_TYPE,
+            http::HeaderValue::from_static("application/json"),
+        );
+        json.body = HttpBody::Bytes(Bytes::from_static(br#"{"model":"a/b"}"#));
+        apply_form_model(&mut json, "b", LIMITS).await.unwrap();
+        assert_eq!(text(&json), r#"{"model":"a/b"}"#);
     }
 }
