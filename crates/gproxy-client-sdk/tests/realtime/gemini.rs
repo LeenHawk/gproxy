@@ -218,6 +218,7 @@ fn tools_cancellation_native_extensions_and_fatal_error() {
             json!({"toolCall":{"functionCalls":[{"id":"call-1","name":"weather","args":{"city":"Paris"}}]}}),
             json!({"toolCallCancellation":{"ids":["call-1"]}}),
             extension.clone(),
+            json!({}),
             json!({"usageMetadata":{"totalTokenCount":3}}),
             json!({"error":{"code":403,"status":"PERMISSION_DENIED","message":"denied"}}),
         ]));
@@ -263,6 +264,11 @@ fn tools_cancellation_native_extensions_and_fatal_error() {
             kinds
                 .iter()
                 .any(|e| matches!(e, K::Unknown(v) if v == &extension))
+        );
+        assert!(
+            !kinds
+                .iter()
+                .any(|e| matches!(e, K::Unknown(v) if v == &json!({})))
         );
         assert!(
             kinds

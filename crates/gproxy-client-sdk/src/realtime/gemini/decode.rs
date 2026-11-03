@@ -56,6 +56,10 @@ pub(in crate::realtime) fn decode(state: &mut State, raw: Value) -> Result<Vec<K
         "voiceActivityDetectionSignal",
         "voice_activity_detection_signal",
     ];
+    // Live interleaves empty messages with audio; they carry nothing.
+    if raw.as_object().is_some_and(serde_json::Map::is_empty) {
+        return Ok(Vec::new());
+    }
     let Some(&key) = known.iter().find(|key| raw.get(**key).is_some()) else {
         return Ok(vec![K::Unknown(raw)]);
     };
