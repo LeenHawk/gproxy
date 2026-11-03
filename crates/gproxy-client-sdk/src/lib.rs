@@ -39,7 +39,9 @@ pub use assets::{
     feature = "chat",
     feature = "gemini",
     feature = "embeddings",
-    feature = "s3"
+    feature = "s3",
+    feature = "images",
+    feature = "transcription"
 ))]
 pub use assets::{AssetLocation, ResolveAsset, ResolvedAsset};
 pub use backend::Backend;
@@ -65,3 +67,15 @@ pub use ir::*;
 pub use stream::{Event, GenerationStream, aggregate};
 #[cfg(feature = "ts")]
 pub use typescript::export_types;
+
+#[cfg(feature = "images")]
+pub mod images;
+#[cfg(any(feature = "images", feature = "speech", feature = "transcription"))]
+mod media_support;
+#[cfg(any(feature = "gemini", feature = "images", feature = "speech"))]
+mod provider_metadata;
+
+#[cfg(feature = "speech")]
+pub mod speech;
+#[cfg(feature = "transcription")]
+pub mod transcription;

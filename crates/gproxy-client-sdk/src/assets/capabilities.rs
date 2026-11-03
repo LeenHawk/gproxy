@@ -7,7 +7,9 @@
     feature = "chat",
     feature = "gemini",
     feature = "embeddings",
-    feature = "s3"
+    feature = "s3",
+    feature = "images",
+    feature = "transcription"
 ))]
 use crate::{Error, Result};
 use serde::Serialize;
@@ -22,6 +24,10 @@ pub enum AssetDialect {
     Gemini,
     OpenaiEmbedding,
     GeminiEmbedding,
+    OpenaiImages,
+    GeminiImages,
+    OpenaiTranscription,
+    GeminiTranscription,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -68,7 +74,9 @@ pub struct DeliveryConstraints {
     feature = "chat",
     feature = "gemini",
     feature = "embeddings",
-    feature = "s3"
+    feature = "s3",
+    feature = "images",
+    feature = "transcription"
 ))]
 impl DeliveryConstraints {
     pub(crate) fn accepts_mime(&self, mime: Option<&str>) -> bool {
@@ -113,7 +121,9 @@ impl MediaCapability {
         feature = "chat",
         feature = "gemini",
         feature = "embeddings",
-        feature = "s3"
+        feature = "s3",
+        feature = "images",
+        feature = "transcription"
     ))]
     pub(crate) fn for_mime(mut self, mime: Option<&str>) -> Self {
         self.inline = self.inline.filter(|c| c.accepts_mime(mime));
@@ -221,6 +231,34 @@ pub fn media_capability(target: AssetDialect, kind: MediaKind) -> MediaCapabilit
     use AssetDialect as D;
     use MediaKind as K;
     let (inline, url) = match (target, kind) {
+        // Create image edit.md:11-25: JSON URL or base64 data URL image references.
+        // The 20971520-character URI limit is checked after encoding, not guessed as raw bytes.
+        (D::OpenaiImages, K::Image) => (Some(ANY), Some(ANY)),
+        (D::GeminiImages, K::Image) => (Some(GEMINI_IMAGE), Some(GEMINI_IMAGE)),
+        // Create transcription.md:17 documents these upload container formats.
+        // No per-file byte cap is stated in that checked-in endpoint reference.
+        (D::OpenaiTranscription, K::Audio) => (
+            Some(DeliveryConstraints {
+                media_types: &[
+                    "audio/flac",
+                    "audio/mp3",
+                    "audio/mpeg",
+                    "audio/mpga",
+                    "audio/mp4",
+                    "video/mp4",
+                    "audio/m4a",
+                    "audio/ogg",
+                    "audio/wav",
+                    "audio/x-wav",
+                    "audio/webm",
+                    "video/webm",
+                ],
+                exhaustive: true,
+                ..ANY
+            }),
+            None,
+        ),
+        (D::GeminiTranscription, K::Audio) => (Some(GEMINI_AUDIO), Some(GEMINI_AUDIO)),
         // Message.md:372-400,424-475; ImageSource/DocumentSource in protocol.
         (D::Claude, K::Image) => (Some(CLAUDE_IMAGE), Some(CLAUDE_IMAGE)),
         (D::Claude, K::Document) => (Some(CLAUDE_DOCUMENT), Some(PDF)),

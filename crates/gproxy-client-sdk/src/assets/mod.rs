@@ -10,7 +10,9 @@ pub use capabilities::{
     feature = "chat",
     feature = "gemini",
     feature = "embeddings",
-    feature = "s3"
+    feature = "s3",
+    feature = "images",
+    feature = "transcription"
 ))]
 pub mod resolve;
 #[cfg(any(
@@ -26,7 +28,9 @@ pub use resolve::PreparedGenerateRequest;
     feature = "chat",
     feature = "gemini",
     feature = "embeddings",
-    feature = "s3"
+    feature = "s3",
+    feature = "images",
+    feature = "transcription"
 ))]
 pub use resolve::{AssetLocation, ResolveAsset, ResolvedAsset};
 #[cfg(feature = "s3")]
@@ -37,7 +41,9 @@ pub mod s3;
     feature = "openai",
     feature = "chat",
     feature = "gemini",
-    feature = "embeddings"
+    feature = "embeddings",
+    feature = "images",
+    feature = "transcription"
 ))]
 mod prepare;
 #[cfg(any(
@@ -45,6 +51,8 @@ mod prepare;
     feature = "openai",
     feature = "chat",
     feature = "gemini",
-    feature = "embeddings"
+    feature = "embeddings",
+    feature = "images",
+    feature = "transcription"
 ))]
 mod validation;

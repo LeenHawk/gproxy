@@ -340,3 +340,6 @@ impl<B: Backend> S3Client<B> {
         self.client.embed_prepared(prepared).await
     }
 }
+
+#[cfg(any(feature = "images", feature = "speech", feature = "transcription"))]
+mod media;

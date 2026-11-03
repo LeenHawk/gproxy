@@ -19,6 +19,9 @@ pub enum AssetLocation {
     ToolResult,
     DocumentChunk,
     Embedding,
+    ImageInput,
+    ImageMask,
+    Transcription,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -138,7 +141,7 @@ impl GenerateRequest {
 use super::prepare::prepare_block;
 #[cfg(feature = "embeddings")]
 pub(crate) use super::prepare::prepare_image;
-#[cfg(feature = "embeddings")]
+#[cfg(any(feature = "embeddings", feature = "images", feature = "transcription"))]
 pub(crate) use super::validation::check_asset;
 #[cfg(feature = "claude")]
 pub(crate) use super::validation::check_claude_request;
@@ -149,3 +152,6 @@ pub(crate) use super::validation::check_claude_request;
     feature = "gemini"
 ))]
 pub(crate) use super::validation::validate_request;
+
+#[cfg(any(feature = "images", feature = "transcription"))]
+pub(crate) use super::prepare::prepare_media;

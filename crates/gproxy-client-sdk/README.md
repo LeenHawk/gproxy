@@ -314,6 +314,12 @@ match their content keys and retain their original Content-Type. Unit tests use 
 fake HTTP service with the real OpenDAL S3 signer; no live R2/MinIO or Workers
 runtime behavior is claimed.
 
+## Portable media operations
+
+Independent image, speech and transcription IRs are available alongside native
+passthroughs. See [MEDIA.md](MEDIA.md) for APIs, direct Gemini mappings, diagnostics,
+streaming and asset preparation. Video remains a native passthrough.
+
 ## Persistence, features and TypeScript
 
 Persist `Conversation::V1`: `{"schema_version":"1","messages":[...]}`. This round
@@ -328,8 +334,9 @@ migration; compatible fields need defaults. Unknown enum variants alone do not.
 
 Defaults enable remote, all four renderers and non-chat operation families.
 `embedded`, `ts` and `s3` are opt-in. Dialects: claude/openai/chat/gemini. Operation
-families: count-tokens/models/embeddings/rerank/audio/images/video. `audio` controls
-standalone audio operations; content audio belongs to its renderer. Normal remote
+families: count-tokens/models/embeddings/rerank/audio/images/speech/transcription/video.
+`audio` controls native audio passthroughs; speech/transcription have independent
+IR features, and content audio belongs to its renderer. Normal remote
 dependencies exclude the engine/store/channel/identity crates.
 
 ```sh

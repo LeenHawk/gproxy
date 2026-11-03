@@ -17,7 +17,9 @@ pub(crate) fn audio_mime(format: &AudioFormat) -> Result<&str> {
     feature = "openai",
     feature = "chat",
     feature = "gemini",
-    feature = "embeddings"
+    feature = "embeddings",
+    feature = "images",
+    feature = "transcription"
 ))]
 pub(crate) fn capability_at(
     target: AssetDialect,
@@ -46,7 +48,9 @@ pub(crate) fn capability_at(
     feature = "openai",
     feature = "chat",
     feature = "gemini",
-    feature = "embeddings"
+    feature = "embeddings",
+    feature = "images",
+    feature = "transcription"
 ))]
 pub(crate) fn check_asset(
     target: AssetDialect,

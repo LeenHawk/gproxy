@@ -17,7 +17,9 @@ pub fn export_types(
         feature = "chat",
         feature = "gemini",
         feature = "embeddings",
-        feature = "s3"
+        feature = "s3",
+        feature = "images",
+        feature = "transcription"
     ))]
     {
         ResolveAsset::export_all(&config)?;
@@ -33,6 +35,24 @@ pub fn export_types(
     {
         embeddings::EmbedRequest::export_all(&config)?;
         embeddings::EmbedResult::export_all(&config)?;
+    }
+    #[cfg(feature = "images")]
+    {
+        images::ImageRequest::export_all(&config)?;
+        images::ImageResult::export_all(&config)?;
+        images::ImageEvent::export_all(&config)?;
+    }
+    #[cfg(feature = "speech")]
+    {
+        speech::SpeechRequest::export_all(&config)?;
+        speech::SpeechResult::export_all(&config)?;
+        speech::SpeechEvent::export_all(&config)?;
+    }
+    #[cfg(feature = "transcription")]
+    {
+        transcription::TranscriptionRequest::export_all(&config)?;
+        transcription::TranscriptionResult::export_all(&config)?;
+        transcription::TranscriptionEvent::export_all(&config)?;
     }
     operations::Params::<ts_rs::Dummy>::export_all(&config)?;
     #[cfg(feature = "count-tokens")]

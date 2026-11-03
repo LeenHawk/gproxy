@@ -7,7 +7,7 @@ license = "MIT"
 repository.workspace = true
 
 [features]
-default = ["remote", "claude", "openai", "chat", "gemini", "count-tokens", "models", "embeddings", "rerank", "audio", "images", "video"]
+default = ["remote", "claude", "openai", "chat", "gemini", "count-tokens", "models", "embeddings", "rerank", "audio", "images", "speech", "transcription", "video"]
 remote = ["dep:gproxy-client", "gproxy-client/reqwest", "gproxy-client/fetch"]
 embedded = ["dep:gproxy-sdk", "dep:gproxy-seaorm", "dep:tokio-util"]
 claude = []
@@ -19,6 +19,8 @@ models = []
 embeddings = []
 rerank = []
 audio = ["dep:getrandom"]
+speech = []
+transcription = ["dep:getrandom"]
 images = []
 video = ["dep:serde_urlencoded"]
 ts = ["dep:ts-rs"]

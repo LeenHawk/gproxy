@@ -226,9 +226,11 @@ where
     feature = "openai",
     feature = "chat",
     feature = "gemini",
-    feature = "embeddings"
+    feature = "embeddings",
+    feature = "images",
+    feature = "transcription"
 ))]
-async fn prepare_media<F, Fut>(
+pub(crate) async fn prepare_media<F, Fut>(
     source: &mut Asset,
     mime: &mut Option<String>,
     target: AssetDialect,
