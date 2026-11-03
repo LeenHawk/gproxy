@@ -254,6 +254,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
                 limits.codec(),
             )
             .await?
+        } else if request.model.is_none() && json.is_none() {
+            let limits = self
+                .gproxy()
+                .core()
+                .snapshot()
+                .limits
+                .for_operation(request.operation.operation);
+            gproxy_core::form::model(&request.parts.headers, &request.body, limits.codec()).await?
         } else {
             None
         };

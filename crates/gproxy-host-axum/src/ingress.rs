@@ -509,6 +509,15 @@ where
                 return Some(ErrorResponse(AppError::invalid(error.to_string())).into_response());
             }
         }
+    } else if json.is_none() {
+        let mut limits = core.limits.codec();
+        limits.max_body_bytes = allowed;
+        match gproxy_core::form::model(&parts.headers, &body, limits).await {
+            Ok(model) => model,
+            Err(error) => {
+                return Some(ErrorResponse(AppError::invalid(error.to_string())).into_response());
+            }
+        }
     } else {
         None
     };

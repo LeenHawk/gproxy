@@ -10,7 +10,9 @@
 
 mod support;
 
+use axum::body::Body;
 use gproxy_app::AppConfig;
+use http::Request;
 use http::{Method, StatusCode};
 use serde_json::json;
 use support::{Host, Reply, get, keyed, post, with};
@@ -681,4 +683,39 @@ async fn a_buffered_answer_over_a_socket_settles_as_completed() {
         "an answer the client received in full is not a cancelled one"
     );
     drop(socket);
+}
+
+#[tokio::test]
+async fn a_multipart_model_routes_and_reaches_the_upstream_unprefixed() {
+    // Live: `openai/gpt-4o-mini-transcribe` in a transcription form reached
+    // OpenAI unchanged, because only JSON bodies were read for the model.
+    let host = instance().await;
+    host.client
+        .script(vec![Reply::Http(StatusCode::OK, json!({"text": "hi"}))]);
+    let boundary = "gproxy-test-boundary";
+    let body = format!(
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\np1/m1\r\n\
+         --{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.wav\"\r\n\
+         Content-Type: audio/wav\r\n\r\nRIFF\r\n--{boundary}--\r\n"
+    );
+    let request = Request::builder()
+        .method(http::Method::POST)
+        .uri("/v1/audio/transcriptions")
+        .header("host", support::HOST)
+        .header("authorization", "Bearer k-alice")
+        .header(
+            "content-type",
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .body(Body::from(body))
+        .unwrap();
+    let answer = host.send(request).await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text());
+    assert_eq!(
+        host.client.urls(),
+        vec!["https://p1.example/v1/audio/transcriptions"]
+    );
+    let sent = String::from_utf8(host.client.raw_bodies()[0].to_vec()).unwrap();
+    assert!(sent.contains("name=\"model\"\r\n\r\nm1\r\n"), "{sent}");
+    assert!(sent.contains("filename=\"a.wav\""), "{sent}");
 }

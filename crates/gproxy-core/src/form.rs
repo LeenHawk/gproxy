@@ -1,4 +1,5 @@
-//! Multipart form helpers shared by request preparation and realtime offers.
+//! Multipart form helpers shared by request preparation, realtime offers and
+//! model extraction before admission.
 use crate::{CoreError, CoreResult};
 use gproxy_protocol::{
     HttpBody,
@@ -66,4 +67,26 @@ pub(crate) async fn encode(
         bytes.extend_from_slice(&chunk);
     }
     Ok(Bytes::from(bytes))
+}
+
+/// The text field named `model` of a multipart form (transcription,
+/// translation, image edits), read before admission so the request routes
+/// like a JSON body. `None` when the body is not multipart or names no model.
+pub async fn model(
+    headers: &HeaderMap,
+    bytes: &Bytes,
+    limits: CodecLimits,
+) -> CoreResult<Option<String>> {
+    let Some((_, parts)) = multipart(headers, bytes, limits).await? else {
+        return Ok(None);
+    };
+    Ok(parts.into_iter().find_map(|part| {
+        if field(&part.headers, header::CONTENT_DISPOSITION, "name").as_deref() != Some("model") {
+            return None;
+        }
+        let HttpBody::Bytes(value) = part.body else {
+            return None;
+        };
+        String::from_utf8(value.to_vec()).ok()
+    }))
 }
