@@ -25,8 +25,6 @@ pub(crate) fn for_request(walk: &mut Walk, request: &GenerateRequest) {
                 "Claude Messages has no speech-output settings",
             );
         }
-    }
-    if walk.vendor == Vendor::Claude {
         if request.settings.max_output_tokens.is_some() && options.claude.max_tokens.is_some() {
             walk.warn(
                 WarningKind::Compatibility,

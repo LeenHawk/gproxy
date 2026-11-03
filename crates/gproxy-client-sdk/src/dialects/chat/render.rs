@@ -90,15 +90,7 @@ pub fn render_at(
     {
         let voice = q::AudioVoice::String(speech.voice.clone());
         let format = native_format(&speech.format)?;
-        let rest = body
-            .audio
-            .take()
-            .flatten()
-            .map(|value| value.rest)
-            .unwrap_or_default();
-        body.audio = Some(Some(
-            q::ChatAudioParam::builder(voice, format).rest(rest).build(),
-        ));
+        body.audio = Some(Some(q::ChatAudioParam::builder(voice, format).build()));
     }
     if !request.tools.is_empty() {
         let tools = request
@@ -137,22 +129,11 @@ pub fn render_at(
         && opts.response_format.is_none()
     {
         let schema: Rest = serde_json::from_value(schema.clone()).map_err(Error::invalid)?;
-        let mut format = match body.response_format.take() {
-            Some(q::ResponseFormat::JsonSchema(format)) => format,
-            other => {
-                let rest = match other {
-                    Some(q::ResponseFormat::Text(value)) => value.rest,
-                    Some(q::ResponseFormat::JsonObject(value)) => value.rest,
-                    _ => Rest::new(),
-                };
-                q::JsonSchemaResponseFormat::builder(
-                    q::JsonSchemaResponseType::JsonSchema,
-                    q::JsonSchemaFormat::builder("response".into()).build(),
-                )
-                .rest(rest)
-                .build()
-            }
-        };
+        let mut format = q::JsonSchemaResponseFormat::builder(
+            q::JsonSchemaResponseType::JsonSchema,
+            q::JsonSchemaFormat::builder("response".into()).build(),
+        )
+        .build();
         format.json_schema.schema = Some(schema);
         body.response_format = Some(q::ResponseFormat::JsonSchema(format));
     }

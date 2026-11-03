@@ -212,7 +212,6 @@ impl StreamState {
                 item: 4 + index,
                 part: 0,
             };
-            let new = !self.calls.contains_key(&index);
             let value = self.calls.entry(index).or_insert_with(|| {
                 c::ChatToolCall::builder(
                     String::new(),
@@ -221,14 +220,21 @@ impl StreamState {
                 )
                 .build()
             });
-            if let Some(Some(call_id)) = delta.id {
-                value.id.push_str(&call_id);
+            // id and name arrive whole on the call's first delta; OpenAI-compatible
+            // upstreams may repeat them on later deltas, so they are set once.
+            if let Some(Some(call_id)) = delta.id
+                && value.id.is_empty()
+            {
+                value.id = call_id;
             }
             if let Some(Some(function)) = delta.function {
-                if let Some(Some(name)) = function.name {
-                    value.function.name.push_str(&name);
+                let named = !value.function.name.is_empty();
+                if let Some(Some(name)) = function.name
+                    && !named
+                {
+                    value.function.name = name;
                 }
-                if new {
+                if !named && !value.function.name.is_empty() {
                     out.push(Event::ToolCallStart {
                         id,
                         call_id: value.id.clone(),

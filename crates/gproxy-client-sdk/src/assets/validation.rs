@@ -62,12 +62,9 @@ pub(crate) fn check_asset(
 ) -> Result<()> {
     let cap = capability_at(target, kind, location);
     let (constraints, size) = match source {
-        Asset::Inline { bytes } => {
-            if mime.is_none() {
-                return Err(Error::invalid("inline media requires media_type"));
-            }
-            (cap.inline, size.or(Some(bytes.len() as u64)))
-        }
+        // MIME may be absent on native replay (e.g. OpenAI raw-base64 tool output,
+        // generated images without output_format); renderers that need it say so.
+        Asset::Inline { bytes } => (cap.inline, size.or(Some(bytes.len() as u64))),
         Asset::Url { .. } => (cap.url, size),
         // Native history replay remains supported by the typed renderers, but
         // file IDs are not a delivery method offered by asset preparation.

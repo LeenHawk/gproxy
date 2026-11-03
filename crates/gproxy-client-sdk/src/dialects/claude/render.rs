@@ -111,13 +111,10 @@ pub fn render(
         let output = body
             .output_config
             .get_or_insert_with(|| q::OutputConfig::builder().build());
-        let mut format =
+        output.format = Some(
             q::JsonOutputFormat::builder(q::JsonOutputFormatType::JsonSchema, schema.clone())
-                .build();
-        if let Some(original) = output.format.take() {
-            format.rest = original.rest;
-        }
-        output.format = Some(format);
+                .build(),
+        );
     }
     crate::assets::resolve::check_claude_request(&body)?;
     let mut warnings = crate::dialects::shared::warnings::for_request(request, None)?;

@@ -109,22 +109,7 @@ pub fn render(
         let text = body
             .text
             .get_or_insert_with(|| i::TextConfig::builder().build());
-        let mut format = match text.format.take() {
-            Some(i::TextFormat::JsonSchema(format)) => format,
-            Some(i::TextFormat::Text(format)) => {
-                i::TextFormatJsonSchema::builder("response".into(), Rest::new())
-                    .rest(format.rest)
-                    .build()
-            }
-            Some(i::TextFormat::JsonObject(format)) => {
-                i::TextFormatJsonSchema::builder("response".into(), Rest::new())
-                    .rest(format.rest)
-                    .build()
-            }
-            None => i::TextFormatJsonSchema::builder("response".into(), Rest::new()).build(),
-        };
-        format.name = "response".into();
-        format.schema = schema;
+        let format = i::TextFormatJsonSchema::builder("response".into(), schema).build();
         text.format = Some(i::TextFormat::JsonSchema(format));
     }
     let mut warnings = crate::dialects::shared::warnings::for_request(request, None)?;

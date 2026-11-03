@@ -64,12 +64,8 @@ pub(super) fn input_file(
     }
     value.filename = filename.map(str::to_owned);
     match source {
-        Asset::ProviderFile { vendor, id } => {
-            if *vendor != Vendor::Openai {
-                return Err(Error::invalid("provider files cannot cross vendors"));
-            }
-            value.file_id = Some(Some(id.clone()));
-        }
+        // Callers ran media::check_file_vendor.
+        Asset::ProviderFile { id, .. } => value.file_id = Some(Some(id.clone())),
         Asset::Url { url } => value.file_url = Some(url.clone()),
         Asset::Inline { bytes } => {
             value.file_data = Some(if raw {
@@ -77,7 +73,6 @@ pub(super) fn input_file(
             } else {
                 data_url(source, mime)?
             });
-            value.filename = filename.map(str::to_owned);
         }
         Asset::Unknown(_) => return Err(Error::invalid("unknown persisted media source")),
         Asset::Reference { .. } => {

@@ -159,3 +159,35 @@ fn responses_assistant_text_without_native_envelope_uses_the_easy_message_form()
     assert_eq!(rendered["input"][0]["content"][0]["type"], "input_text");
     assert_eq!(rendered["input"][2]["content"][0]["type"], "input_text");
 }
+
+#[cfg(feature = "openai")]
+#[test]
+fn reasoning_without_summary_keeps_the_raw_text_and_replays_losslessly() {
+    let mut native = support::openai();
+    native["output"][0]["summary"] = json!([]);
+    let result = dialects::openai::parse(serde_json::from_value(native.clone()).unwrap()).unwrap();
+    let Content::Reasoning(reasoning) = &result.content[0].content else {
+        panic!("reasoning expected");
+    };
+    // The stream shows reasoning_text deltas; the stored block must match them.
+    assert_eq!(reasoning.text, "raw thought");
+    let request = support::request(Dialect::Openai, support::persisted(result));
+    let rendered = dialects::render(&request, false).unwrap().request;
+    assert_eq!(rendered["input"][0], native["output"][0]);
+}
+
+#[cfg(feature = "openai")]
+#[test]
+fn generated_image_without_output_format_replays_to_responses() {
+    // Parsed inline media may have no MIME type; replay to the same vendor works.
+    let mut native = support::openai();
+    native["output"] = json!([{
+        "type":"image_generation_call","id":"ig_1","status":"completed",
+        "result":"iVBORw0KGgo="
+    }]);
+    let result = dialects::openai::parse(serde_json::from_value(native.clone()).unwrap()).unwrap();
+    let request = support::request(Dialect::Openai, support::persisted(result));
+    let rendered = dialects::render(&request, false).unwrap().request;
+    assert_eq!(rendered["input"][0]["id"], "ig_1");
+    assert_eq!(rendered["input"][0]["result"], "iVBORw0KGgo=");
+}

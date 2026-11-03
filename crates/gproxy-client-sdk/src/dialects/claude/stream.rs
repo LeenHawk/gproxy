@@ -9,7 +9,6 @@ pub(crate) struct StreamState {
     args: BTreeMap<u32, String>,
     usage: Option<Usage>,
     reason: Option<gproxy_protocol::claude::generate_content::StopReason>,
-    stopped: bool,
 }
 impl StreamState {
     pub(crate) fn new() -> Self {
@@ -19,7 +18,6 @@ impl StreamState {
             args: BTreeMap::new(),
             usage: None,
             reason: None,
-            stopped: false,
         }
     }
     pub(crate) fn usage(&self) -> Usage {
@@ -32,7 +30,6 @@ impl StreamState {
             args,
             usage,
             reason,
-            stopped,
         } = self;
 
         let event: s::StreamEvent = serde_json::from_str(data).map_err(Error::invalid)?;
@@ -69,7 +66,6 @@ impl StreamState {
                 let usage = usage
                     .take()
                     .ok_or_else(|| Error::invalid("Claude stopped before message start"))?;
-                *stopped = true;
                 out.push(Event::Finish {
                     reason: dialects::claude::finish_reason(reason),
                     usage,
@@ -109,9 +105,10 @@ impl StreamState {
             if let Content::Text(text) = &mut block.content {
                 text.refusal = refused;
             }
-            if let (Some(arguments), Content::ToolCall(call)) =
-                (args.get(&index), &mut block.content)
-            {
+            if let (Some(arguments), Content::ToolCall(call)) = (
+                args.get(&index).filter(|a| !a.is_empty()),
+                &mut block.content,
+            ) {
                 call.arguments = arguments.clone();
             }
             out.push(Event::BlockEnd {
@@ -257,7 +254,9 @@ fn stop_block(
     let mut block = blocks
         .remove(&index)
         .ok_or_else(|| Error::invalid("Claude stop before block start"))?;
-    if let Some(arguments) = args.remove(&index) {
+    // A tool without arguments streams an empty input_json_delta; its input stays
+    // the `{}` from content_block_start.
+    if let Some(arguments) = args.remove(&index).filter(|a| !a.is_empty()) {
         match &mut block {
             c::ResponseContentBlock::ToolUse(value) => {
                 value.input = serde_json::from_str(&arguments).map_err(Error::invalid)?

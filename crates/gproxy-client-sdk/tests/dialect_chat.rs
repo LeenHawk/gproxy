@@ -279,3 +279,70 @@ fn chat_stream_audio_transcript_tool_calls_and_citations_match_buffered_result()
     .unwrap();
     assert_eq!(result, buffered);
 }
+
+#[cfg(feature = "chat")]
+fn tool_call(id: &str, provider_executed: bool) -> Block {
+    Block::new(Content::ToolCall(ToolCall {
+        id: id.into(),
+        name: "web_search".into(),
+        arguments: "{}".into(),
+        provider_executed,
+    }))
+}
+
+#[cfg(feature = "chat")]
+fn tool_result(id: &str, provider_executed: bool) -> Block {
+    Block::new(Content::ToolResult(ToolResult {
+        id: id.into(),
+        name: "web_search".into(),
+        output: ToolOutput::Json(json!("result")),
+        is_error: false,
+        provider_executed,
+    }))
+}
+
+#[cfg(feature = "chat")]
+#[test]
+fn chat_continues_foreign_history_with_server_tools_reasoning_and_user_tool_results() {
+    let request = support::request(
+        Dialect::OpenaiChat,
+        vec![
+            Message {
+                role: Role::User,
+                content: vec![Block::text("search")],
+            },
+            Message {
+                role: Role::Assistant,
+                content: vec![
+                    // Another vendor's reasoning (no Chat metadata) and server-tool
+                    // history (e.g. Claude web_search) are not replayed.
+                    Block::new(Content::Reasoning(Reasoning {
+                        text: "private".into(),
+                    })),
+                    tool_call("srv_1", true),
+                    tool_result("srv_1", true),
+                    tool_call("call_1", false),
+                ],
+            },
+            // Claude-style: the client tool result travels in a user turn.
+            Message {
+                role: Role::User,
+                content: vec![tool_result("call_1", false), Block::text("thanks")],
+            },
+        ],
+    );
+    let rendered = dialects::render(&request, false).unwrap();
+    let messages = &rendered.request["messages"];
+    assert!(messages[1].get("reasoning_content").is_none());
+    assert_eq!(messages[1]["tool_calls"].as_array().unwrap().len(), 1);
+    assert_eq!(messages[1]["tool_calls"][0]["id"], "call_1");
+    assert_eq!(messages[2]["role"], "tool");
+    assert_eq!(messages[2]["tool_call_id"], "call_1");
+    assert_eq!(messages[3]["role"], "user");
+    assert!(
+        rendered
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("Reasoning without"))
+    );
+}

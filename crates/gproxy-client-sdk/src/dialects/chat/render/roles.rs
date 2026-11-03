@@ -44,19 +44,20 @@ pub(super) fn render_assistant(
                 Some(ReasoningSource::Details) => {
                     render_reasoning_details(&mut value, &reasoning.text, &meta.reasoning_layout)?
                 }
-                Some(ReasoningSource::Content) | None => {
+                Some(ReasoningSource::Content) => {
                     value
                         .reasoning_content
                         .get_or_insert_with(|| Some(String::new()))
                         .get_or_insert_with(String::new)
                         .push_str(&reasoning.text);
                 }
+                // Another vendor's reasoning is not replayed (warned).
+                None => {}
             },
             Content::Audio(audio) => {
                 if let Some(native) = meta.audio
                     && let (Some(expiry), Some(id)) = (native.expires_at, native.id)
-                    && expiry > 0
-                    && count(expiry)? > now
+                    && u64::try_from(expiry).is_ok_and(|expiry| expiry > now)
                 {
                     value.audio = Some(Some(
                         c::AssistantAudio::builder(id).rest(native.rest).build(),
@@ -69,6 +70,7 @@ pub(super) fn render_assistant(
                 ));
                 value.audio = None;
             }
+            Content::ToolResult(result) if result.provider_executed => {}
             Content::ToolCall(call) => {
                 if call.provider_executed {
                     continue;
@@ -133,16 +135,19 @@ pub(super) fn render_assistant(
 
     Ok(())
 }
+fn push_tool_result(result: &ToolResult, messages: &mut Vec<c::ChatMessage>) -> Result<()> {
+    if !result.provider_executed {
+        let output = tool_output(result)?;
+        messages.push(c::ChatMessage::Tool(
+            c::ToolMessage::builder(c::ToolRole::Tool, output, result.id.clone()).build(),
+        ));
+    }
+    Ok(())
+}
 pub(super) fn render_tool(message: &Message, messages: &mut Vec<c::ChatMessage>) -> Result<()> {
     for content in &message.content {
         if let Content::ToolResult(result) = &content.content {
-            if result.provider_executed {
-                continue;
-            }
-            let output = tool_output(result)?;
-            messages.push(c::ChatMessage::Tool(
-                c::ToolMessage::builder(c::ToolRole::Tool, output, result.id.clone()).build(),
-            ));
+            push_tool_result(result, messages)?;
         } else {
             return Err(Error::invalid(
                 "Chat tool messages require tool-result blocks",
@@ -155,7 +160,18 @@ pub(super) fn render_tool(message: &Message, messages: &mut Vec<c::ChatMessage>)
 pub(super) fn render_input(message: &Message, messages: &mut Vec<c::ChatMessage>) -> Result<()> {
     let mut parts = Vec::new();
     for content in &message.content {
+        // Claude-style history carries tool results in user turns; Chat sends
+        // them as tool messages, ahead of the turn's remaining user content.
+        if message.role == Role::User
+            && let Content::ToolResult(result) = &content.content
+        {
+            push_tool_result(result, messages)?;
+            continue;
+        }
         parts.push(user_part(content)?);
+    }
+    if parts.is_empty() && message.role == Role::User {
+        return Ok(());
     }
     if message.role == Role::System {
         let text = parts

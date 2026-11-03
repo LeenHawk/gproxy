@@ -1,4 +1,4 @@
-use super::parse::{optional_count_chat, parse_message_inner};
+use super::parse::parse_message_inner;
 use super::*;
 /// Native Chat chunks do not contain a complete audio object. Accumulate their
 /// observed fields without inventing an audio ID or an expiration timestamp.
@@ -123,21 +123,21 @@ impl StreamState {
             self.usage = Usage {
                 input_tokens: Some(count(value.prompt_tokens)?),
                 output_tokens: Some(count(value.completion_tokens)?),
-                reasoning_tokens: optional_count_chat(
+                reasoning_tokens: crate::dialects::optional_count(
                     value
                         .completion_tokens_details
                         .as_ref()
                         .and_then(Option::as_ref)
                         .and_then(|v| v.reasoning_tokens.flatten()),
                 )?,
-                cache_read_tokens: optional_count_chat(
+                cache_read_tokens: crate::dialects::optional_count(
                     value
                         .prompt_tokens_details
                         .as_ref()
                         .and_then(Option::as_ref)
                         .and_then(|v| v.cached_tokens.flatten()),
                 )?,
-                cache_write_tokens: optional_count_chat(
+                cache_write_tokens: crate::dialects::optional_count(
                     value
                         .prompt_tokens_details
                         .as_ref()

@@ -22,3 +22,6 @@ mod aggregation;
 
 #[path = "stream/metadata.rs"]
 mod metadata;
+
+#[path = "stream/edge_cases.rs"]
+mod edge_cases;

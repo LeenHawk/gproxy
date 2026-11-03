@@ -1,19 +1,15 @@
 use super::*;
 use crate::dialects;
 use crate::stream::{BlockId, Event};
-pub(crate) struct StreamState {
-    stopped: bool,
-}
+pub(crate) struct StreamState;
 impl StreamState {
     pub(crate) fn new() -> Self {
-        Self { stopped: false }
+        Self
     }
     pub(crate) fn usage(&self) -> Usage {
         Usage::default()
     }
     pub(crate) fn push(&mut self, data: &str) -> Result<Vec<Event>> {
-        let Self { stopped } = self;
-
         use gproxy_protocol::openai::responses::{response as r, stream as s};
         let event: s::StreamEvent = serde_json::from_str(data).map_err(Error::invalid)?;
         let mut out = Vec::new();
@@ -113,15 +109,9 @@ impl StreamState {
                     out.push(Event::BlockEnd { id, block });
                 }
             }
-            s::StreamEvent::Completed(value) => {
-                out.extend(responses_finish(&value.response, stopped)?)
-            }
-            s::StreamEvent::Incomplete(value) => {
-                out.extend(responses_finish(&value.response, stopped)?)
-            }
-            s::StreamEvent::Failed(value) => {
-                out.extend(responses_finish(&value.response, stopped)?)
-            }
+            s::StreamEvent::Completed(value) => out.extend(responses_finish(&value.response)?),
+            s::StreamEvent::Incomplete(value) => out.extend(responses_finish(&value.response)?),
+            s::StreamEvent::Failed(value) => out.extend(responses_finish(&value.response)?),
             s::StreamEvent::Error(_) => {
                 return Err(Error::from_event(data.to_owned()));
             }
@@ -141,7 +131,6 @@ impl StreamState {
 #[cfg(feature = "openai")]
 fn responses_finish(
     response: &gproxy_protocol::openai::responses::response::GenerateContentResponseBody,
-    stopped: &mut bool,
 ) -> Result<Vec<Event>> {
     let mut out = vec![Event::ResponseMetadata {
         metadata: dialects::openai::response_metadata(response),
@@ -156,6 +145,5 @@ fn responses_finish(
             });
         }
     }
-    *stopped = true;
     Ok(out)
 }

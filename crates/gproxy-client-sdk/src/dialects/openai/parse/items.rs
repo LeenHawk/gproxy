@@ -190,7 +190,17 @@ fn parse_function_call(mut call: i::FunctionCall) -> Result<Vec<Block>> {
 }
 fn parse_reasoning(item: i::ReasoningItem) -> Result<Vec<Block>> {
     Ok({
-        let text = item.summary.iter().map(|v| v.text.as_str()).collect();
+        // Prefer the summary; models that stream raw reasoning_text without a
+        // summary keep that text (the native content is replayed from metadata).
+        let text = if item.summary.is_empty() {
+            item.content
+                .iter()
+                .flatten()
+                .map(|v| v.text.as_str())
+                .collect()
+        } else {
+            item.summary.iter().map(|v| v.text.as_str()).collect()
+        };
         let summary = item
             .summary
             .into_iter()

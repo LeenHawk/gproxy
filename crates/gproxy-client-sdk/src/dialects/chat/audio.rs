@@ -58,12 +58,5 @@ pub(crate) fn output_format(request: &GenerateRequest) -> Result<Option<AudioFor
     if let Some(speech) = &request.settings.speech {
         return Ok(Some(speech.format.clone()));
     }
-    Ok(request
-        .provider_options
-        .openai
-        .chat
-        .audio
-        .as_ref()
-        .and_then(Option::as_ref)
-        .map(|audio| ir_format(audio.format)))
+    Ok(None)
 }

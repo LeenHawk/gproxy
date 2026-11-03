@@ -213,26 +213,22 @@ pub(crate) fn parse_usage(usage: Option<&r::Usage>) -> Result<Usage> {
     Ok(Usage {
         input_tokens: Some(count(v.prompt_tokens)?),
         output_tokens: Some(count(v.completion_tokens)?),
-        reasoning_tokens: optional_count_chat(
+        reasoning_tokens: optional_count(
             v.completion_tokens_details
                 .as_ref()
                 .and_then(|v| v.reasoning_tokens),
         )?,
-        cache_read_tokens: optional_count_chat(
+        cache_read_tokens: optional_count(
             v.prompt_tokens_details
                 .as_ref()
                 .and_then(|v| v.cached_tokens),
         )?,
-        cache_write_tokens: optional_count_chat(
+        cache_write_tokens: optional_count(
             v.prompt_tokens_details
                 .as_ref()
                 .and_then(|v| v.cache_write_tokens),
         )?,
     })
-}
-
-pub(super) fn optional_count_chat(value: Option<i64>) -> Result<Option<u64>> {
-    value.map(count).transpose()
 }
 
 fn parse_reasoning(message: &mut r::ResponseMessage, result: &mut Vec<(u32, Block)>) -> Result<()> {

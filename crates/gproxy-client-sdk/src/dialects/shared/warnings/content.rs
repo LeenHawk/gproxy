@@ -59,7 +59,14 @@ impl Walk {
             Content::Image(image) => self.detail(&image.detail, false, path),
             Content::Document(document) => self.document(document, path)?,
             Content::Reasoning(_)
-                if !self.is_chat() && !presence(&block.provider_metadata, &self.vendor)?.native =>
+                if {
+                    let present = presence(&block.provider_metadata, &self.vendor)?;
+                    !(if self.is_chat() {
+                        present.chat
+                    } else {
+                        present.native
+                    })
+                } =>
             {
                 self.warn(
                     WarningKind::Compatibility,

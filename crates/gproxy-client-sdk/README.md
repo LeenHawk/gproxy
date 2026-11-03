@@ -240,8 +240,9 @@ resolver follows the same preference and only touches the store for URLs;
 `resolve_assets_s3` uses `PreferUrl`. Unsupported methods, known format
 violations and exceeded documented byte limits return InvalidData. Resolver errors
 are returned without retry. Direct caller URLs/bytes are checked and used as-is,
-without calling the resolver or producing a preference warning. Inline sources
-require a MIME type. No model-name capability heuristics or transcoding are added.
+without calling the resolver or producing a preference warning. Resolver bytes
+always carry a MIME type; native replay may omit it, and renderers that need one
+return InvalidData. No model-name capability heuristics or transcoding are added.
 
 Generic preparation needs no storage credentials. The optional built-in `s3`
 resolver accepts explicit credentials as described below. Preparation performs no

@@ -62,7 +62,7 @@ pub(crate) fn with_native<C>(
 pub(crate) fn count(value: i64) -> Result<u64> {
     value.try_into().map_err(Error::invalid)
 }
-#[cfg(any(feature = "claude", feature = "gemini"))]
+#[cfg(any(feature = "claude", feature = "chat", feature = "gemini"))]
 pub(crate) fn optional_count(value: Option<i64>) -> Result<Option<u64>> {
     value.map(count).transpose()
 }

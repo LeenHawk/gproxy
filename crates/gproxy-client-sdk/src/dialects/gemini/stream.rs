@@ -7,6 +7,9 @@ pub(crate) struct StreamState {
     /// Text/reasoning arrives split across chunks; it stays open so the
     /// aggregated block matches the non-streaming single-part shape.
     pending_text: Option<Box<(BlockId, Block)>>,
+    /// Ids of blocks in the order they opened. Grounding `partIndex` counts
+    /// parts of the aggregated response, which merged fragments do not add to.
+    opened: Vec<BlockId>,
     has_tool_calls: bool,
     usage: Usage,
     reason: Option<gproxy_protocol::gemini::FinishReason>,
@@ -17,6 +20,7 @@ impl StreamState {
             next_index: 0,
             pending_audio: None,
             pending_text: None,
+            opened: Vec::new(),
             has_tool_calls: false,
             usage: Usage::default(),
             reason: None,
@@ -30,6 +34,7 @@ impl StreamState {
             next_index,
             pending_audio,
             pending_text,
+            opened,
             has_tool_calls,
             usage,
             reason,
@@ -76,12 +81,8 @@ impl StreamState {
             for source in crate::dialects::shared::sources::gemini_candidate(&candidate)? {
                 out.push(Event::Source { source });
             }
-            for (part, citation) in dialects::citations::gemini_citations(&candidate)? {
-                out.push(Event::Citation {
-                    id: BlockId::item(part.try_into().map_err(Error::invalid)?),
-                    citation,
-                });
-            }
+            let citations = dialects::citations::gemini_citations(&candidate)?;
+            let finish_reason = candidate.finish_reason;
             for part in candidate
                 .content
                 .into_iter()
@@ -162,6 +163,7 @@ impl StreamState {
                     }
                     _ => {}
                 }
+                opened.push(id);
                 if matches!(block.content, Content::Audio(_)) {
                     *pending_audio = Some(Box::new((id, block)));
                 } else if matches!(block.content, Content::Text(_) | Content::Reasoning(_)) {
@@ -171,7 +173,14 @@ impl StreamState {
                 }
                 *next_index += 1;
             }
-            if let Some(value) = candidate.finish_reason {
+            // After this chunk's parts, so a citation can target a block opened here.
+            for (part, citation) in citations {
+                let id = *opened
+                    .get(part)
+                    .ok_or_else(|| Error::invalid("Gemini grounding partIndex has no part"))?;
+                out.push(Event::Citation { id, citation });
+            }
+            if let Some(value) = finish_reason {
                 *reason = Some(value);
             }
         }
