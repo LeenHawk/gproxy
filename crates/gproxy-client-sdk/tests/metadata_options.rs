@@ -307,7 +307,7 @@ fn caller_reference_resolution_covers_nested_media_without_uploading() {
         citations: None,
         detail: Detail::Auto,
     };
-    let mut request = support::request(
+    let request = support::request(
         Dialect::Claude,
         vec![Message {
             role: Role::Tool,
@@ -323,9 +323,9 @@ fn caller_reference_resolution_covers_nested_media_without_uploading() {
         }],
     );
     let mut calls = 0;
-    futures_executor::block_on(request.resolve_assets(|reference| {
+    let prepared = futures_executor::block_on(request.resolve_assets(|reference| {
         calls += 1;
-        assert_eq!(reference, "image");
+        assert_eq!(reference.reference, "image");
         async {
             Ok(ResolvedAsset::Bytes {
                 bytes: vec![1, 2, 3],
@@ -335,7 +335,7 @@ fn caller_reference_resolution_covers_nested_media_without_uploading() {
     }))
     .unwrap();
     assert_eq!(calls, 1);
-    let native = dialects::render(&request, false).unwrap().request;
+    let native = prepared.render(false).unwrap().request;
     assert_eq!(
         native["messages"][0]["content"][0]["content"][0]["source"]["content"][0]["source"]["data"],
         "AQID"

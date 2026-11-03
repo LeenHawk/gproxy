@@ -192,6 +192,7 @@ fn trailing_transcripts(block: &Block) -> Result<Vec<g::Part>> {
     Ok(parts)
 }
 pub fn render(request: &GenerateRequest) -> Result<Rendered<g::GenerateContentRequestBody>> {
+    crate::resolution::validate_request(request)?;
     let opts = &request.provider_options.gemini;
     let mut body = g::GenerateContentRequestBody::builder(Vec::new()).build();
     body.generation_config = opts.generation_config.clone();

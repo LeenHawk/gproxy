@@ -165,9 +165,9 @@ fn gemini_embeds_images_and_text_with_native_purpose_and_dimensions() {
         );
         request.dimensions = NonZeroU32::new(2);
         request.purpose = Some(EmbeddingPurpose::Document);
-        request
+        let prepared = request
             .resolve_assets(|id| async move {
-                assert_eq!(id, "blob");
+                assert_eq!(id.reference, "blob");
                 Ok(ResolvedAsset::Bytes {
                     bytes: vec![1, 2, 3],
                     media_type: "image/png".into(),
@@ -175,7 +175,7 @@ fn gemini_embeds_images_and_text_with_native_purpose_and_dimensions() {
             })
             .await
             .unwrap();
-        let result = client.embed(&request).await.unwrap();
+        let result = client.embed_prepared(prepared).await.unwrap();
         assert_eq!(result.vectors, vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
         assert_eq!(result.usage.input_tokens, Some(7));
         assert!(result.warnings.iter().any(|w| w.field.ends_with(".detail")));

@@ -22,6 +22,7 @@ pub fn render(
     request: &GenerateRequest,
     streaming: bool,
 ) -> Result<Rendered<r::GenerateContentRequestBody>> {
+    crate::resolution::validate_request(request)?;
     if request
         .settings
         .output_modalities
@@ -136,6 +137,7 @@ pub fn render(
         }
         output.format = Some(format);
     }
+    crate::resolution::check_claude_request(&body)?;
     let mut warnings = crate::warnings::for_request(request, None)?;
     warnings.extend(crate::reasoning::claude(request, &mut body));
     Ok(Rendered {

@@ -116,6 +116,7 @@ pub fn render_at(
     streaming: bool,
     now: u64,
 ) -> Result<Rendered<q::GenerateContentRequestBody>> {
+    crate::resolution::validate_request(request)?;
     let opts = &request.provider_options.openai.chat;
     let mut body =
         q::GenerateContentRequestBody::builder(Vec::new(), request.model.id.clone()).build();
@@ -572,7 +573,7 @@ fn chat_file(
         } => file.file_id = Some(id.clone()),
         _ => {
             return Err(Error::invalid(
-                "Chat documents require inline bytes or an OpenAI file ID; prepare_assets can upload bytes",
+                "Chat documents require inline bytes; resolve application references before rendering",
             ));
         }
     }

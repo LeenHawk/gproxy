@@ -673,6 +673,7 @@ pub fn render(
     request: &GenerateRequest,
     streaming: bool,
 ) -> Result<Rendered<q::GenerateContentRequestBody>> {
+    crate::resolution::validate_request(request)?;
     let opts = &request.provider_options.openai.responses;
     let mut body = q::GenerateContentRequestBody::builder().build();
     body.reasoning = opts.reasoning.clone();

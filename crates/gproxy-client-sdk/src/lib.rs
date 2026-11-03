@@ -2,6 +2,7 @@
 //! `gproxy-sdk`; the outbound HTTP transport is `gproxy-client`.
 #![cfg_attr(target_arch = "wasm32", allow(clippy::arc_with_non_send_sync))]
 
+mod asset_capabilities;
 pub mod backend;
 #[cfg(any(
     feature = "claude",
@@ -12,8 +13,32 @@ pub mod backend;
 pub mod dialects;
 mod error;
 pub mod ir;
+pub use asset_capabilities::{
+    AssetDialect, DeliveryConstraints, DeliveryMethod, MediaCapability, MediaKind, media_capability,
+};
+#[cfg(any(
+    feature = "claude",
+    feature = "openai",
+    feature = "chat",
+    feature = "gemini",
+    feature = "embeddings"
+))]
 mod resolution;
-pub use resolution::ResolvedAsset;
+#[cfg(any(
+    feature = "claude",
+    feature = "openai",
+    feature = "chat",
+    feature = "gemini"
+))]
+pub use resolution::PreparedGenerateRequest;
+#[cfg(any(
+    feature = "claude",
+    feature = "openai",
+    feature = "chat",
+    feature = "gemini",
+    feature = "embeddings"
+))]
+pub use resolution::{AssetLocation, ResolveAsset, ResolvedAsset};
 #[cfg(feature = "embeddings")]
 pub mod embeddings;
 pub mod operations;
@@ -125,13 +150,56 @@ impl<B: Backend> Client<B> {
         feature = "gemini"
     ))]
     pub async fn stream(&self, request: &GenerateRequest) -> Result<GenerationStream> {
+        self.stream_with_asset_warnings(request, Vec::new()).await
+    }
+    #[cfg(any(
+        feature = "claude",
+        feature = "openai",
+        feature = "chat",
+        feature = "gemini"
+    ))]
+    pub async fn generate_prepared(
+        &self,
+        prepared: PreparedGenerateRequest,
+    ) -> Result<GenerateResult> {
+        let mut result = self.generate(&prepared.request).await?;
+        let mut warnings = prepared.warnings;
+        warnings.extend(result.warnings);
+        result.warnings = warnings;
+        Ok(result)
+    }
+    #[cfg(any(
+        feature = "claude",
+        feature = "openai",
+        feature = "chat",
+        feature = "gemini"
+    ))]
+    pub async fn stream_prepared(
+        &self,
+        prepared: PreparedGenerateRequest,
+    ) -> Result<GenerationStream> {
+        self.stream_with_asset_warnings(&prepared.request, prepared.warnings)
+            .await
+    }
+    #[cfg(any(
+        feature = "claude",
+        feature = "openai",
+        feature = "chat",
+        feature = "gemini"
+    ))]
+    async fn stream_with_asset_warnings(
+        &self,
+        request: &GenerateRequest,
+        mut asset_warnings: Vec<Warning>,
+    ) -> Result<GenerationStream> {
         let (key, wire, warnings) = generation_wire(request, true)?;
+        asset_warnings.extend(warnings);
         let response = self.send(key, Some(&request.model.id), wire).await?;
         stream::decode(
             response.body,
             request,
             self.limits,
-            warnings,
+            asset_warnings,
             response.status.as_u16(),
             response.headers,
         )
@@ -288,6 +356,19 @@ pub fn export_types(
     let config = ts_rs::Config::new()
         .with_out_dir(directory)
         .with_large_int("number");
+    AssetDialect::export_all(&config)?;
+    MediaCapability::export_all(&config)?;
+    #[cfg(any(
+        feature = "claude",
+        feature = "openai",
+        feature = "chat",
+        feature = "gemini",
+        feature = "embeddings"
+    ))]
+    {
+        ResolveAsset::export_all(&config)?;
+        ResolvedAsset::export_all(&config)?;
+    }
     Conversation::export_all(&config)?;
     GenerateRequest::export_all(&config)?;
     GenerateResult::export_all(&config)?;

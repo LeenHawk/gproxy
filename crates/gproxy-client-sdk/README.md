@@ -161,11 +161,86 @@ the native response transport because it may contain binary, text, JSON or SSE.
 Operations are split into feature-scoped modules, with no module-wide dead-code or
 unused-import exemption.
 
-Sources remain Inline, URL, application Reference or vendor-scoped ProviderFile.
-`GenerateRequest::resolve_assets` and `EmbedRequest::resolve_assets` call the
-application resolver (`ResolvedAsset::Bytes { bytes, media_type }` or `Url`). The
-SDK does not read local files, fetch arbitrary URLs, upload or transcode. Asset
-preparation/uploads and Realtime remain deferred.
+## Request-scoped asset preparation
+
+`GenerateRequest::resolve_assets` and `EmbedRequest::resolve_assets` now borrow the
+original request and return a send-only snapshot. They accept an async
+`FnMut(ResolveAsset) -> Future<Output = Result<ResolvedAsset>>`, with no Send bound.
+The input carries the application reference, explicit target dialect, media kind,
+content location, known MIME, accepted methods/constraints and preferred method.
+The resolver returns `Bytes { bytes, media_type }` or
+`Url { url, media_type, byte_len }`. URL MIME/size metadata is optional; it can come
+from the caller's object store. The SDK never fetches the URL to discover it.
+
+```rust,no_run
+use gproxy_client_sdk::*;
+use std::future::Future;
+async fn send<B, F, Fut>(client: &Client<B>, request: &GenerateRequest, resolve: F)
+    -> Result<GenerateResult>
+where
+    B: Backend,
+    F: FnMut(ResolveAsset) -> Fut,
+    Fut: Future<Output = Result<ResolvedAsset>>,
+{
+    let prepared = request.resolve_assets(resolve).await?;
+    client.generate_prepared(prepared).await
+}
+```
+
+`Client::generate_prepared`, `stream_prepared`, `embed_prepared` and the language
+snapshot's `render` consume the snapshot. Snapshots have no Serialize, Clone or
+Deref implementation. Prepare again for every send, obtaining fresh presigned URLs;
+persist the original `Conversation` with application references. The persisted IR
+shape is unchanged. Resolver URLs and bytes never replace those references in the
+original request. Preparation warnings reach results and the first stream Start.
+
+The public `media_capability(AssetDialect, MediaKind)` table remains available even
+with all renderer features disabled. Its message-part delivery support is:
+
+| Dialect | Image | Document | Audio | Video | File |
+|---|---|---|---|---|---|
+| Claude Messages | Inline / URL | Inline PDF/text; URL PDF | — | — | — |
+| OpenAI Responses | Inline / URL | Inline / URL | — | — | Inline / URL |
+| OpenAI Chat | Inline / URL | Inline | Inline WAV/MP3 | — | Inline |
+| Gemini GenerateContent | Inline / URL | Inline / URL | Inline / URL | Inline / URL | Inline / URL |
+
+Gemini tool-result media accepts inline only; Chat tool messages have no media
+representation. Claude custom document chunks recurse through their Image blocks.
+Chat assistant audio reuses a native audio ID or transcript; it does not send its
+source as input audio. Embedding preparation is independent of renderer features:
+Gemini accepts images via both methods; standard OpenAI embeddings accept text only.
+
+Sources for delivery and formats are
+[Claude Messages](<../../upstream_docs/claude/docs/Create a Message.md>),
+[Responses](<../../upstream_docs/openai/docs/Create a model response.md>),
+[Chat](<../../upstream_docs/openai/docs/Create chat completion.md>), and
+[Gemini content](<../../upstream_docs/gemini/docs/Generating content.md>), matched to
+protocol's typed sources/parts. Claude images accept JPEG/PNG/GIF/WebP. Gemini's
+video list follows [Video understanding](<../../upstream_docs/gemini/docs/Video understanding.md>).
+Gemini MIME examples are marked non-exhaustive, rather than converted into a whitelist.
+
+Documented byte constraints, with exact source lines in the table implementation:
+
+- Claude: 32 MB for the entire serialized native request, including base64 and text
+  ([API overview, line 111](<../../upstream_docs/claude/docs/API overview.md>)).
+- Gemini: 100 MB per file input, including external URLs when the resolver reports
+  object size ([Changelog, line 522](../../upstream_docs/gemini/docs/Changelog.md));
+  inline video is strictly less than 100 MB (Video understanding, line 23).
+- The local OpenAI endpoint references and Claude image schemas do not specify
+  additional per-asset byte caps. Their table entries remain unknown. MB uses SI bytes.
+
+URL is preferred when the content envelope and known format accept it; otherwise
+inline is preferred. A resolver returning allowed inline bytes instead of the
+preferred URL produces a compatibility warning. Unsupported methods, known format
+violations and exceeded documented byte limits return InvalidData. Resolver errors
+are returned without retry. Direct caller URLs/bytes are checked and used as-is,
+without calling the resolver or producing a preference warning. Inline sources
+require a MIME type. No model-name capability heuristics or transcoding are added.
+
+The SDK holds no storage credentials and performs no local-file reads, URL fetches,
+Files API uploads, registration or upload-ID caching. Existing native ProviderFile
+IR remains for same-vendor history replay; asset preparation rejects those IDs and
+offers only inline/URL. Realtime remains deferred.
 
 ## Persistence, features and TypeScript
 

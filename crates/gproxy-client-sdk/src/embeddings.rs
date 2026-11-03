@@ -118,28 +118,43 @@ impl EmbedRequest {
             provider_options: EmbeddingOptions::default(),
         }
     }
-    pub async fn resolve_assets<F, Fut>(&mut self, mut resolve: F) -> Result<()>
+    pub async fn resolve_assets<F, Fut>(&self, mut resolve: F) -> Result<PreparedEmbedRequest>
     where
-        F: FnMut(String) -> Fut,
+        F: FnMut(ResolveAsset) -> Fut,
         Fut: std::future::Future<Output = Result<ResolvedAsset>>,
     {
-        for input in &mut self.inputs {
+        let mut request = self.clone();
+        let target = match request.model.dialect {
+            EmbeddingDialect::Openai => AssetDialect::OpenaiEmbedding,
+            EmbeddingDialect::Gemini => AssetDialect::GeminiEmbedding,
+            EmbeddingDialect::Unknown(_) => {
+                return Err(Error::invalid("unknown embedding dialect"));
+            }
+        };
+        let mut warnings = Vec::new();
+        for (i, input) in request.inputs.iter_mut().enumerate() {
             match input {
                 EmbeddingInput::Image(image) => {
-                    crate::resolution::resolve_media(
-                        &mut image.source,
-                        &mut image.media_type,
+                    crate::resolution::prepare_image(
+                        image,
+                        target,
+                        AssetLocation::Embedding,
+                        &format!("inputs[{i}]"),
                         &mut resolve,
+                        &mut warnings,
                     )
                     .await?
                 }
                 EmbeddingInput::Parts(parts) => {
-                    for part in parts {
+                    for (j, part) in parts.iter_mut().enumerate() {
                         if let EmbeddingPart::Image(image) = part {
-                            crate::resolution::resolve_media(
-                                &mut image.source,
-                                &mut image.media_type,
+                            crate::resolution::prepare_image(
+                                image,
+                                target,
+                                AssetLocation::Embedding,
+                                &format!("inputs[{i}].parts[{j}]"),
                                 &mut resolve,
+                                &mut warnings,
                             )
                             .await?;
                         }
@@ -148,7 +163,7 @@ impl EmbedRequest {
                 _ => {}
             }
         }
-        Ok(())
+        Ok(PreparedEmbedRequest { request, warnings })
     }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -158,12 +173,29 @@ pub struct EmbedResult {
     pub usage: Usage,
     pub warnings: Vec<Warning>,
 }
+/// Send-only embedding snapshot; resolved URLs cannot be serialized as history.
+pub struct PreparedEmbedRequest {
+    request: EmbedRequest,
+    warnings: Vec<Warning>,
+}
+impl PreparedEmbedRequest {
+    pub fn warnings(&self) -> &[Warning] {
+        &self.warnings
+    }
+}
 struct Batch {
     vectors: Vec<Vec<f64>>,
     input_tokens: Option<u64>,
     warnings: Vec<Warning>,
 }
 impl<B: Backend> Client<B> {
+    pub async fn embed_prepared(&self, prepared: PreparedEmbedRequest) -> Result<EmbedResult> {
+        let mut result = self.embed(&prepared.request).await?;
+        let mut warnings = prepared.warnings;
+        warnings.extend(result.warnings);
+        result.warnings = warnings;
+        Ok(result)
+    }
     pub async fn embed(&self, request: &EmbedRequest) -> Result<EmbedResult> {
         let mut warnings = Vec::new();
         let mut vectors = Vec::with_capacity(request.inputs.len());
@@ -509,6 +541,16 @@ fn gemini_input(
     Ok(g::Content::builder().parts(parts).build())
 }
 fn gemini_image(image: &Image, index: usize, warnings: &mut Vec<Warning>) -> Result<g::Part> {
+    if !matches!(image.source, Asset::ProviderFile { .. }) {
+        crate::resolution::check_asset(
+            AssetDialect::GeminiEmbedding,
+            MediaKind::Image,
+            AssetLocation::Embedding,
+            &image.source,
+            image.media_type.as_deref(),
+            None,
+        )?;
+    }
     if image.detail != Detail::Auto {
         warnings.push(Warning::new(
             WarningKind::Unsupported,
