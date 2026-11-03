@@ -128,3 +128,34 @@ fn responses_generated_images_and_builtin_tools_roundtrip_as_portable_blocks() {
         native["output"]
     );
 }
+
+#[cfg(feature = "openai")]
+#[test]
+fn responses_assistant_text_without_native_envelope_uses_the_easy_message_form() {
+    // Live upstream rejects `input_text` parts on assistant messages; history from
+    // another vendor or built by the application has no output-message envelope.
+    let request = support::request(
+        Dialect::Openai,
+        vec![
+            Message {
+                role: Role::User,
+                content: vec![Block::text("What is 17*23?")],
+            },
+            Message {
+                role: Role::Assistant,
+                content: vec![Block::text("391")],
+            },
+            Message {
+                role: Role::User,
+                content: vec![Block::text("Add 9.")],
+            },
+        ],
+    );
+    let rendered = dialects::render(&request, false).unwrap().request;
+    assert_eq!(
+        rendered["input"][1],
+        json!({"type":"message","role":"assistant","content":"391"})
+    );
+    assert_eq!(rendered["input"][0]["content"][0]["type"], "input_text");
+    assert_eq!(rendered["input"][2]["content"][0]["type"], "input_text");
+}

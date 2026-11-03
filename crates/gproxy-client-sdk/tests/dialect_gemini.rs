@@ -373,3 +373,22 @@ fn gemini_file_audio_transcript_and_video_without_mime_keep_their_media_kinds() 
     ));
     replay_gemini(parts);
 }
+
+#[cfg(feature = "gemini")]
+#[test]
+fn plain_part_metadata_persists_without_null_fields() {
+    // Live: every Gemini part persisted a block of null/false/[] metadata fields.
+    let native = json!({"candidates":[{"content":{"role":"model","parts":[
+        {"text":"hello"},
+        {"text":"thinking","thought":true,"thoughtSignature":"c2ln"}
+    ]},"finishReason":"STOP"}]});
+    let parsed = dialects::gemini::parse(serde_json::from_value(native).unwrap()).unwrap();
+    assert_eq!(
+        serde_json::to_value(&parsed.content[0].provider_metadata).unwrap(),
+        json!({"gemini":{"native":{}}})
+    );
+    assert_eq!(
+        serde_json::to_value(&parsed.content[1].provider_metadata).unwrap(),
+        json!({"gemini":{"native":{"thought":true,"thoughtSignature":"c2ln"}}})
+    );
+}

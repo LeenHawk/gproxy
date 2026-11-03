@@ -10,6 +10,7 @@ pub mod openai;
 pub(crate) mod shared;
 use crate::{Error, Result, ir::*};
 use base64::Engine;
+#[cfg(any(feature = "claude", feature = "openai", feature = "chat"))]
 use gproxy_protocol::Rest;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

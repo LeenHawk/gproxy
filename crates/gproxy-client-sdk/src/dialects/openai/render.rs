@@ -198,6 +198,19 @@ fn render_text(
             },
             part,
         )?;
+    } else if *role == Role::Assistant {
+        // Without a native output-message envelope (other vendor, or built by the
+        // application), assistant text uses the easy-message form: Responses
+        // rejects `input_text` parts on assistant messages.
+        flush(pending.take(), input);
+        input.push(i::InputItem::Easy(
+            i::EasyInputMessage::builder(
+                i::MessageContent::Text(text.text.clone()),
+                i::MessageRole::Assistant,
+            )
+            .type_(i::MessageType::Message)
+            .build(),
+        ));
     } else {
         let mut text = i::ResponseInputText::builder(
             i::ResponseInputTextType::ResponseInputText,

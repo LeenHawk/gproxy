@@ -73,10 +73,19 @@ pub fn render(
     })
 }
 pub(super) fn format(
-    value: &AudioFormat,
+    value: &Option<AudioFormat>,
     warnings: &mut Vec<Warning>,
 ) -> (o::AudioResponseFormat, AudioFormat) {
     use o::AudioResponseFormat as F;
+    let Some(value) = value else {
+        // CreateSpeech's documented default response_format.
+        return (
+            F::Mp3,
+            AudioFormat::Encoded {
+                media_type: "audio/mpeg".into(),
+            },
+        );
+    };
     let native = match value {
         AudioFormat::Encoded { media_type } => match media_type.as_str() {
             "audio/mpeg" | "audio/mp3" => F::Mp3,

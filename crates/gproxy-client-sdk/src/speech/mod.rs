@@ -39,7 +39,8 @@ pub struct SpeechRequest {
     pub instructions: Option<String>,
     pub speed: Option<f64>,
     pub language: Option<String>,
-    pub format: AudioFormat,
+    /// None leaves the output format to the vendor default (OpenAI MP3, Gemini WAV).
+    pub format: Option<AudioFormat>,
     #[serde(default)]
     pub provider_options: SpeechOptions,
 }
@@ -52,9 +53,7 @@ impl SpeechRequest {
             instructions: None,
             speed: None,
             language: None,
-            format: AudioFormat::Encoded {
-                media_type: "audio/mpeg".into(),
-            },
+            format: None,
             provider_options: SpeechOptions::default(),
         }
     }

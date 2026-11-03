@@ -80,21 +80,28 @@ pub fn render(request: &SpeechRequest) -> Result<Rendered<g::GenerateContentRequ
             "Gemini speech generation has no portable speed control",
         );
     }
-    let format = if let Some(format) = &options.response_format {
-        compatibility(
-            &mut warnings,
-            "format",
-            "Native Gemini response_format overrides portable format",
-        );
-        format.clone()
-    } else {
-        format(&request.format, &mut warnings)
+    // Only send response_format when asked: some speech models reject it, and
+    // the vendor default (WAV) is reported back in the response MIME type.
+    let format = match (&options.response_format, &request.format) {
+        (Some(native), portable) => {
+            if portable.is_some() {
+                compatibility(
+                    &mut warnings,
+                    "format",
+                    "Native Gemini response_format overrides portable format",
+                );
+            }
+            Some(native.clone())
+        }
+        (None, Some(portable)) => Some(format(portable, &mut warnings)),
+        (None, None) => None,
     };
     let mut config = g::GenerationConfig::builder()
         .response_modalities(vec![g::Modality::Audio])
         .speech_config(speech)
         .build();
-    config.response_format = Some(g::ResponseFormatConfig::builder().audio(format).build());
+    config.response_format =
+        format.map(|format| g::ResponseFormatConfig::builder().audio(format).build());
     let body = g::GenerateContentRequestBody::builder(vec![
         g::Content::builder().role("user").parts(vec![part]).build(),
     ])

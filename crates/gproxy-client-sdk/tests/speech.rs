@@ -21,9 +21,9 @@ fn openai_binary_synthesis_maps_controls_without_guessing_usage() {
     futures_executor::block_on(async {
         let client = Client::new(Mock::new(vec![Reply::binary("audio/wav", vec![1, 2, 3])]));
         let mut req = request(SpeechDialect::Openai);
-        req.format = AudioFormat::Encoded {
+        req.format = Some(AudioFormat::Encoded {
             media_type: "audio/wav".into(),
-        };
+        });
         req.instructions = Some("warm".into());
         req.speed = Some(1.1);
         req.language = Some("en".into());
@@ -49,9 +49,9 @@ fn gemini_uses_generate_content_style_format_and_multispeaker_options() {
     req.instructions = Some("warm".into());
     req.speed = Some(1.2);
     req.language = Some("en-US".into());
-    req.format = AudioFormat::Encoded {
+    req.format = Some(AudioFormat::Encoded {
         media_type: "audio/wav".into(),
-    };
+    });
     let rendered = gproxy_client_sdk::speech::gemini::render(&req).unwrap();
     let value = serde_json::to_value(rendered.request).unwrap();
     assert_eq!(
@@ -167,7 +167,7 @@ fn custom_voice_precedence_unknown_settings_and_claude_errors_are_visible() {
         let mut req = request(SpeechDialect::Openai);
         req.provider_options.openai.custom_voice =
             Some(protocol::openai::audio::CustomVoice::builder("custom".into()).build());
-        req.format = AudioFormat::Unknown(json!({"type":"future"}));
+        req.format = Some(AudioFormat::Unknown(json!({"type":"future"})));
         let native = gproxy_client_sdk::speech::openai::render(&req, false).unwrap();
         assert!(native.warnings.iter().any(|w| w.field == "voice"));
         assert!(native.warnings.iter().any(|w| w.field == "format"));
@@ -218,7 +218,7 @@ fn raw_pcm_headers_and_buffered_gemini_signatures_retain_the_real_audio_format()
     futures_executor::block_on(async {
         let client = Client::new(Mock::new(vec![Reply::binary("audio/pcm", vec![1, 2])]));
         let mut req = request(SpeechDialect::Openai);
-        req.format = AudioFormat::pcm(24000, 1);
+        req.format = Some(AudioFormat::pcm(24000, 1));
         let result = client.synthesize(&req).await.unwrap();
         assert_eq!(
             result.audio.unwrap().content.format,
@@ -261,4 +261,32 @@ fn raw_pcm_headers_and_buffered_gemini_signatures_retain_the_real_audio_format()
             );
         }
     });
+}
+#[test]
+fn unspecified_format_leaves_the_vendor_default() {
+    // Live: gemini-3.8-flash-tts rejects a responseFormat it was not asked for
+    // (400 INVALID_ARGUMENT); without it the model returns audio/wav.
+    let mut req = request(SpeechDialect::Gemini);
+    req.voice = Some("Kore".into());
+    let value = serde_json::to_value(
+        gproxy_client_sdk::speech::gemini::render(&req)
+            .unwrap()
+            .request,
+    )
+    .unwrap();
+    assert!(value["generationConfig"].get("responseFormat").is_none());
+    assert_eq!(
+        value["generationConfig"]["speechConfig"]["voiceConfig"]["voice"],
+        "Kore"
+    );
+
+    let mut req = request(SpeechDialect::Openai);
+    req.voice = Some("alloy".into());
+    let value = serde_json::to_value(
+        gproxy_client_sdk::speech::openai::render(&req, false)
+            .unwrap()
+            .request,
+    )
+    .unwrap();
+    assert_eq!(value["response_format"], "mp3");
 }

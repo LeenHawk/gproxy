@@ -4,6 +4,9 @@ use crate::stream::{BlockId, Event};
 pub(crate) struct StreamState {
     next_index: u32,
     pending_audio: Option<Box<(BlockId, Block)>>,
+    /// Text/reasoning arrives split across chunks; it stays open so the
+    /// aggregated block matches the non-streaming single-part shape.
+    pending_text: Option<Box<(BlockId, Block)>>,
     has_tool_calls: bool,
     usage: Usage,
     reason: Option<gproxy_protocol::gemini::FinishReason>,
@@ -13,6 +16,7 @@ impl StreamState {
         Self {
             next_index: 0,
             pending_audio: None,
+            pending_text: None,
             has_tool_calls: false,
             usage: Usage::default(),
             reason: None,
@@ -25,6 +29,7 @@ impl StreamState {
         let Self {
             next_index,
             pending_audio,
+            pending_text,
             has_tool_calls,
             usage,
             reason,
@@ -99,6 +104,17 @@ impl StreamState {
                     out.push(Event::BlockEnd { id, block });
                 }
                 let block = dialects::gemini::parse_block(part, id.item)?;
+                if let Some(pending) = pending_text.as_mut()
+                    && let Some(delta) = append(&mut pending.1, &block)
+                {
+                    out.push(delta.into_event(pending.0));
+                    *next_index += 1;
+                    continue;
+                }
+                if let Some(pending) = pending_text.take() {
+                    let (id, block) = *pending;
+                    out.push(Event::BlockEnd { id, block });
+                }
                 match &block.content {
                     Content::Text(Text { text, .. }) => out.push(Event::TextDelta {
                         id,
@@ -148,6 +164,8 @@ impl StreamState {
                 }
                 if matches!(block.content, Content::Audio(_)) {
                     *pending_audio = Some(Box::new((id, block)));
+                } else if matches!(block.content, Content::Text(_) | Content::Reasoning(_)) {
+                    *pending_text = Some(Box::new((id, block)));
                 } else {
                     out.push(Event::BlockEnd { id, block });
                 }
@@ -180,10 +198,15 @@ impl StreamState {
             has_tool_calls,
             usage,
             pending_audio,
+            pending_text,
             ..
         } = self;
         let mut out = Vec::new();
 
+        if let Some(pending) = pending_text {
+            let (id, block) = *pending;
+            out.push(Event::BlockEnd { id, block });
+        }
         if let Some(pending) = pending_audio {
             let (id, block) = *pending;
             out.push(Event::BlockEnd { id, block });
@@ -199,4 +222,53 @@ impl StreamState {
 
         Ok(out)
     }
+}
+
+enum Delta {
+    Text(String),
+    Reasoning(String),
+}
+impl Delta {
+    fn into_event(self, id: BlockId) -> Event {
+        match self {
+            Self::Text(delta) => Event::TextDelta { id, delta },
+            Self::Reasoning(delta) => Event::ReasoningDelta { id, delta },
+        }
+    }
+}
+
+/// Appends `next` to the open block when it continues it: both plain text (or
+/// both reasoning), same cache breakpoint, and part metadata identical apart from
+/// a thought signature the open block does not have yet. The signature usually
+/// arrives on the last fragment, so the later metadata replaces the open block's.
+/// Returns None, leaving the open block unchanged, when `next` starts a new block.
+fn append(open: &mut Block, next: &Block) -> Option<Delta> {
+    let unsigned = |block: &Block| {
+        let mut meta = block.provider_metadata.clone();
+        let signed = meta
+            .get_mut(&Vendor::Gemini)
+            .and_then(|m| m.get_mut("native"))
+            .and_then(|n| n.as_object_mut())
+            .and_then(|n| n.remove("thoughtSignature"))
+            .is_some();
+        (meta, signed)
+    };
+    let (open_meta, open_signed) = unsigned(open);
+    if open_signed || open.cache != next.cache || open_meta != unsigned(next).0 {
+        return None;
+    }
+    let delta = match (&mut open.content, &next.content) {
+        (Content::Text(open_text), Content::Text(text)) if open_text.refusal == text.refusal => {
+            open_text.text.push_str(&text.text);
+            open_text.citations.extend(text.citations.iter().cloned());
+            Delta::Text(text.text.clone())
+        }
+        (Content::Reasoning(open_text), Content::Reasoning(text)) => {
+            open_text.text.push_str(&text.text);
+            Delta::Reasoning(text.text.clone())
+        }
+        _ => return None,
+    };
+    open.provider_metadata = next.provider_metadata.clone();
+    Some(delta)
 }

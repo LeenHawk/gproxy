@@ -1,10 +1,13 @@
 use crate::protocol::{Rest, gemini as g};
 use serde::{Deserialize, Serialize};
-// Only native fields without a portable payload are persisted.
+// Only native fields without a portable payload are persisted; absent and
+// default values are skipped so a plain part stores an empty object.
 #[derive(Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub(crate) struct MediaMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) mime_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) display_name: Option<String>,
     #[serde(flatten)]
     pub(crate) rest: Rest,
@@ -13,7 +16,9 @@ pub(crate) struct MediaMetadata {
 #[derive(Default, Serialize, Deserialize)]
 #[serde(default)]
 pub(crate) struct FunctionMetadata {
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub(crate) id_present: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub(crate) args_present: bool,
     #[serde(flatten)]
     pub(crate) rest: Rest,
@@ -22,9 +27,13 @@ pub(crate) struct FunctionMetadata {
 #[derive(Default, Serialize, Deserialize)]
 #[serde(default)]
 pub(crate) struct ResultMetadata {
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub(crate) id_present: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub(crate) parts_present: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) will_continue: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) scheduling: Option<g::Scheduling>,
     #[serde(flatten)]
     pub(crate) rest: Rest,
@@ -52,7 +61,9 @@ pub(crate) struct ServerResponseMetadata {
 #[derive(Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub(crate) struct AudioMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) speaker_label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) words: Option<Vec<g::audio::WordInfo>>,
     #[serde(flatten)]
     pub(crate) rest: Rest,
@@ -61,12 +72,19 @@ pub(crate) struct AudioMetadata {
 #[derive(Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub(crate) struct PartFields {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) thought: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) thought_signature: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) part_metadata: Option<Rest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) media_resolution: Option<g::MediaResolution>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) media_processing: Option<g::MediaProcessing>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) speech_metadata: Option<g::audio::SpeechMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) video_metadata: Option<g::VideoMetadata>,
     #[serde(flatten)]
     pub(crate) rest: Rest,
@@ -120,15 +138,25 @@ pub(crate) fn transcription(text: String, meta: AudioMetadata) -> g::audio::Audi
 #[derive(Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub(crate) struct PartMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) inline_data: Option<MediaMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) file_data: Option<MediaMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) function_call: Option<FunctionMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) function_response: Option<ResultMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) audio_transcription: Option<AudioMetadata>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub(crate) response_json_text: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) tool_call: Option<ServerCallMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) tool_response: Option<ServerResponseMetadata>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) trailing_transcripts: Vec<TranscriptMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) primary_transcript_chars: Option<usize>,
     #[serde(flatten)]
     pub(crate) fields: PartFields,

@@ -243,3 +243,36 @@ fn refusal_is_portable_and_claude_stream_block_end_is_authoritative() {
         Content::Text(Text { refusal: true, .. })
     ));
 }
+
+#[cfg(feature = "gemini")]
+#[test]
+fn gemini_text_split_across_chunks_aggregates_to_the_non_streaming_shape() {
+    // Live: "1 2 3 4 5" streamed as three text parts became three blocks.
+    let chunks = [
+        json!({"candidates":[{"content":{"role":"model","parts":[{"text":"1 2 "}]}}]}),
+        json!({"candidates":[{"content":{"role":"model","parts":[{"text":"3 4 "}]}}]}),
+        json!({"candidates":[{"content":{"role":"model","parts":[{"text":"5","thoughtSignature":"c2ln"}]},"finishReason":"STOP"}]}),
+    ];
+    let single = json!({"candidates":[{"content":{"role":"model","parts":[{"text":"1 2 3 4 5","thoughtSignature":"c2ln"}]},"finishReason":"STOP"}]});
+    let parsed = dialects::gemini::parse(serde_json::from_value(single).unwrap()).unwrap();
+
+    let mut decoder = stream::StreamDecoder::new(Dialect::Gemini);
+    let mut events = Vec::new();
+    for chunk in &chunks {
+        events.extend(decoder.push_json(&chunk.to_string()).unwrap());
+    }
+    events.extend(decoder.finish().unwrap());
+    let deltas: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::TextDelta { id, delta } => Some((*id, delta.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(deltas.len(), 3);
+    assert!(deltas.iter().all(|(id, _)| *id == deltas[0].0));
+
+    let aggregated =
+        futures_executor::block_on(aggregate(futures_util::stream::iter(events))).unwrap();
+    assert_eq!(aggregated.content, parsed.content);
+}
