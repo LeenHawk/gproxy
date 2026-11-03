@@ -74,43 +74,11 @@ impl RealtimeCollector {
                 if finish_reason.unified == FinishReasonKind::Interrupted {
                     self.interrupt_pending();
                 }
-                for index in std::mem::take(&mut self.assistant) {
-                    if let Some(message) = &mut self.entries[index] {
-                        for block in &mut message.content {
-                            if !matches!(block.content, Content::Interrupted(_)) {
-                                let meta =
-                                    block.provider_metadata.entry(vendor.clone()).or_default();
-                                meta.insert(
-                                    "realtime_finish_reason".into(),
-                                    serde_json::json!(finish_reason),
-                                );
-                            }
-                        }
-                    }
-                }
+                self.assistant.clear();
             }
             K::Closed { .. } => {
                 self.interrupt_pending();
-                for index in std::mem::take(&mut self.assistant) {
-                    if let Some(message) = &mut self.entries[index] {
-                        for block in &mut message.content {
-                            if matches!(block.content, Content::Interrupted(_)) {
-                                continue;
-                            }
-                            block
-                                .provider_metadata
-                                .entry(vendor.clone())
-                                .or_default()
-                                .insert(
-                                    "realtime_finish_reason".into(),
-                                    serde_json::json!(FinishReason::new(
-                                        FinishReasonKind::Interrupted,
-                                        None
-                                    )),
-                                );
-                        }
-                    }
-                }
+                self.assistant.clear();
             }
             _ => {}
         }
@@ -187,14 +155,31 @@ impl RealtimeCollector {
         });
     }
 }
+/// SDK-owned per-block realtime metadata, stored under the session vendor.
+/// Default values are skipped so the archive only carries what matters.
+#[derive(Serialize)]
+struct BlockMetadata<'a> {
+    realtime_item_id: &'a str,
+    #[serde(skip_serializing_if = "is_zero")]
+    realtime_content_index: i64,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    realtime_speech_transcript: bool,
+}
+fn is_zero(value: &i64) -> bool {
+    *value == 0
+}
 fn set_meta(block: &mut Block, vendor: &Vendor, item: &RealtimeItem, speech: bool) {
-    let meta = block.provider_metadata.entry(vendor.clone()).or_default();
-    meta.insert("realtime_item_id".into(), Value::String(item.id.clone()));
-    meta.insert(
-        "realtime_content_index".into(),
-        Value::from(item.content_index),
-    );
-    if speech {
-        meta.insert("realtime_speech_transcript".into(), Value::Bool(true));
-    }
+    let meta = BlockMetadata {
+        realtime_item_id: &item.id,
+        realtime_content_index: item.content_index,
+        realtime_speech_transcript: speech,
+    };
+    let Ok(Value::Object(fields)) = serde_json::to_value(meta) else {
+        unreachable!("a struct serializes to an object");
+    };
+    block
+        .provider_metadata
+        .entry(vendor.clone())
+        .or_default()
+        .extend(fields);
 }

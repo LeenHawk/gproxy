@@ -218,6 +218,7 @@ fn tools_cancellation_native_extensions_and_fatal_error() {
             json!({"toolCall":{"functionCalls":[{"id":"call-1","name":"weather","args":{"city":"Paris"}}]}}),
             json!({"toolCallCancellation":{"ids":["call-1"]}}),
             extension.clone(),
+            json!({"usageMetadata":{"totalTokenCount":3}}),
             json!({"error":{"code":403,"status":"PERMISSION_DENIED","message":"denied"}}),
         ]));
         let mut c = config(RealtimeDialect::Gemini);
@@ -262,6 +263,11 @@ fn tools_cancellation_native_extensions_and_fatal_error() {
             kinds
                 .iter()
                 .any(|e| matches!(e, K::Unknown(v) if v == &extension))
+        );
+        assert!(
+            kinds
+                .iter()
+                .any(|e| matches!(e, K::Native { event } if event == "usageMetadata"))
         );
         assert!(kinds.iter().any(|e| matches!(e, K::Error { fatal: true, error } if error.kind == ErrorKind::Auth && error.status.is_none())));
         let sent = client.backend.values();

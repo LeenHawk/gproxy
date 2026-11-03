@@ -14,6 +14,9 @@ pub(in crate::realtime) fn decode(state: &mut State, raw: Value) -> Result<Vec<R
     let Some(event) = dispatch::dispatch(raw.clone())? else {
         return Ok(vec![K::Unknown(raw)]);
     };
+    let native = || K::Native {
+        event: raw["type"].as_str().unwrap_or_default().to_owned(),
+    };
     let kind = match event {
         E::SessionUpdatedEvent(e) => {
             if let o::SessionUpdatedEventSession::RealtimeSessionCreateRequest(session) = e.session
@@ -51,7 +54,7 @@ pub(in crate::realtime) fn decode(state: &mut State, raw: Value) -> Result<Vec<R
                 item: RealtimeItem::new(e.item_id, e.content_index.flatten().unwrap_or(0)),
                 delta,
             },
-            None => K::Unknown(raw),
+            None => native(),
         },
         E::ConversationItemInputAudioTranscriptionCompletedEvent(e) => K::InputTranscriptDone {
             item: RealtimeItem::new(e.item_id, e.content_index),
@@ -196,7 +199,7 @@ pub(in crate::realtime) fn decode(state: &mut State, raw: Value) -> Result<Vec<R
         E::RateLimitsUpdatedEvent(e) => K::RateLimits {
             limits: json(e.rate_limits)?,
         },
-        _ => K::Unknown(raw),
+        _ => native(),
     };
     Ok(vec![kind])
 }

@@ -133,7 +133,7 @@ async fn check(dialect: RealtimeDialect) {
         assert_eq!(auth, "upstream-key");
         assert_eq!(
             upstream.script.values()[0]["setup"]["model"],
-            "models/local/native-model"
+            "models/native-model"
         );
         assert_eq!(
             upstream.script.values()[1]["clientContent"]["turns"][0]["parts"][0]["text"],

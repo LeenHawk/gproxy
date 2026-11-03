@@ -56,9 +56,9 @@ pub(in crate::realtime) fn decode(state: &mut State, raw: Value) -> Result<Vec<K
         "voiceActivityDetectionSignal",
         "voice_activity_detection_signal",
     ];
-    if !known.iter().any(|key| raw.get(key).is_some()) {
+    let Some(&key) = known.iter().find(|key| raw.get(**key).is_some()) else {
         return Ok(vec![K::Unknown(raw)]);
-    }
+    };
     let message: l::LiveServerMessage =
         serde_json::from_value(raw.clone()).map_err(Error::invalid)?;
     let mut events = Vec::new();
@@ -306,7 +306,7 @@ pub(in crate::realtime) fn decode(state: &mut State, raw: Value) -> Result<Vec<K
         });
     }
     if events.is_empty() {
-        events.push(K::Unknown(raw));
+        events.push(K::Native { event: key.into() });
     }
     Ok(events)
 }

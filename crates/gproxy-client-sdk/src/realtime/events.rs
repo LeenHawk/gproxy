@@ -150,6 +150,12 @@ pub enum RealtimeEventKind {
         code: Option<u16>,
         reason: String,
     },
+    /// A recognized vendor event with no portable meaning (lifecycle and
+    /// bookkeeping frames). The payload is in `RealtimeMetadata::native`.
+    Native {
+        event: String,
+    },
+    /// A frame the SDK does not recognize.
     #[serde(untagged)]
     Unknown(Value),
 }

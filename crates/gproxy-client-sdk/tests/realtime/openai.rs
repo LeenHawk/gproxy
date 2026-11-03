@@ -20,7 +20,7 @@ fn vad_turn_dispatch_and_transcript_archive() {
             collector.push(&event);
             kinds.push(event.kind);
         }
-        assert!(matches!(kinds[0], K::Unknown(_)));
+        assert!(matches!(&kinds[0], K::Native { event } if event == "session.created"));
         assert!(matches!(kinds[1], K::Ready));
         let sequence = kinds
             .iter()
@@ -34,7 +34,7 @@ fn vad_turn_dispatch_and_transcript_archive() {
         assert_eq!(
             sequence,
             [
-                "session.created",
+                "native",
                 "ready",
                 "speech_started",
                 "speech_stopped",
@@ -279,5 +279,38 @@ fn transcription_failure_recoverable_error_rate_limit_unknown_and_close_code() {
         assert!(!archive.contains("discard me"));
         let persisted: RealtimeEventKind = serde_json::from_value(unknown.clone()).unwrap();
         assert_eq!(serde_json::to_value(persisted).unwrap(), unknown);
+    });
+}
+#[test]
+fn ga_lifecycle_events_are_native_not_unknown() {
+    futures_executor::block_on(async {
+        let item = json!({"id":"item_1","type":"message","object":"realtime.item","status":"completed","role":"assistant","content":[{"type":"output_text","text":"Hi"}]});
+        let part = json!({"type":"text","text":"Hi"});
+        let frames = vec![
+            ready(),
+            json!({"type":"conversation.item.added","event_id":"e1","previous_item_id":null,"item":item}),
+            json!({"type":"conversation.item.done","event_id":"e2","previous_item_id":null,"item":item}),
+            json!({"type":"response.output_item.added","event_id":"e3","response_id":"r","output_index":0,"item":item}),
+            json!({"type":"response.content_part.added","event_id":"e4","response_id":"r","item_id":"item_1","output_index":0,"content_index":0,"part":part}),
+            json!({"type":"response.content_part.done","event_id":"e5","response_id":"r","item_id":"item_1","output_index":0,"content_index":0,"part":part}),
+            json!({"type":"response.output_item.done","event_id":"e6","response_id":"r","output_index":0,"item":item}),
+        ];
+        let expected = frames[1..]
+            .iter()
+            .map(|f| f["type"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        let mut session = Client::new(Script::new(frames))
+            .connect_realtime(&config(RealtimeDialect::Openai))
+            .await
+            .unwrap();
+        let mut native = Vec::new();
+        while let Some(e) = session.events.next().await {
+            assert!(!matches!(e.kind, K::Unknown(_)), "{:?}", e.kind);
+            if let K::Native { event } = e.kind {
+                assert!(e.metadata.native.is_some());
+                native.push(event);
+            }
+        }
+        assert_eq!(native, expected);
     });
 }

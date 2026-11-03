@@ -166,10 +166,7 @@ fn server_cancellation_discards_speech_without_poisoning_the_next_text_turn() {
             messages[0].content[0].content,
             Content::Interrupted(_)
         ));
-        assert_eq!(
-            messages[1].content[0].provider_metadata[&Vendor::Openai]["realtime_finish_reason"]["unified"],
-            "stop"
-        );
+        assert!(!archive.contains("finish_reason"));
     });
 }
 #[test]
