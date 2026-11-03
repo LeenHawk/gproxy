@@ -16,7 +16,8 @@ pub mod ir;
 #[cfg(feature = "s3")]
 pub mod s3;
 pub use asset_capabilities::{
-    AssetDialect, DeliveryConstraints, DeliveryMethod, MediaCapability, MediaKind, media_capability,
+    AssetDialect, DeliveryConstraints, DeliveryMethod, DeliveryMode, MediaCapability, MediaKind,
+    media_capability,
 };
 #[cfg(any(
     feature = "claude",

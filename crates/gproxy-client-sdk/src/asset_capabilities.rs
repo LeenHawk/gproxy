@@ -40,6 +40,16 @@ pub enum DeliveryMethod {
     Inline,
     Url,
 }
+/// Which delivery a client asks for when a target accepts both. `Inline` needs
+/// no object store; `PreferUrl` keeps long histories from resending large files.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub enum DeliveryMode {
+    #[default]
+    Inline,
+    PreferUrl,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct DeliveryConstraints {
@@ -87,10 +97,14 @@ pub struct MediaCapability {
     pub max_request_bytes: Option<u64>,
 }
 impl MediaCapability {
-    pub fn preferred(&self) -> Option<DeliveryMethod> {
-        self.url
-            .map(|_| DeliveryMethod::Url)
-            .or(self.inline.map(|_| DeliveryMethod::Inline))
+    /// The mode's method when the target accepts it, otherwise the other one.
+    pub fn preferred(&self, mode: DeliveryMode) -> Option<DeliveryMethod> {
+        let url = self.url.map(|_| DeliveryMethod::Url);
+        let inline = self.inline.map(|_| DeliveryMethod::Inline);
+        match mode {
+            DeliveryMode::Inline => inline.or(url),
+            DeliveryMode::PreferUrl => url.or(inline),
+        }
     }
     #[cfg(any(
         test,

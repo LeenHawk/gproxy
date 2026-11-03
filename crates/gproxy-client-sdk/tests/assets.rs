@@ -111,7 +111,7 @@ fn delivery_table_matches_the_four_native_shapes_and_embedding_modes() {
                 "{target:?}/{kind:?}"
             );
             assert_eq!(
-                cap.preferred(),
+                cap.preferred(DeliveryMode::PreferUrl),
                 if url {
                     Some(DeliveryMethod::Url)
                 } else if inline {
@@ -149,7 +149,7 @@ fn fresh_url_snapshots_leave_request_and_persisted_history_unchanged() {
             // This future intentionally holds Rc across await: no Send bound on wasm resolvers.
             let count = generations.clone();
             let prepared = request
-                .resolve_assets(move |input| {
+                .resolve_assets(DeliveryMode::PreferUrl, move |input| {
                     let count = count.clone();
                     async move {
                         std::future::ready(()).await;
@@ -193,7 +193,7 @@ fn inline_fallback_warns_but_plain_inline_and_urls_are_not_rewritten() {
     futures_executor::block_on(async {
         let req = request(Dialect::Claude, image(reference(), None));
         let prepared = req
-            .resolve_assets(|input| async move {
+            .resolve_assets(DeliveryMode::PreferUrl, |input| async move {
                 assert_eq!(input.preferred, DeliveryMethod::Url);
                 Ok(bytes("image/png"))
             })
@@ -218,7 +218,9 @@ fn inline_fallback_warns_but_plain_inline_and_urls_are_not_rewritten() {
             let req = request(Dialect::Claude, image(source, Some("image/png")));
             let original = dialects::render(&req, false).unwrap().request;
             let prepared = req
-                .resolve_assets(|_| async { panic!("direct values must not call the resolver") })
+                .resolve_assets(DeliveryMode::PreferUrl, |_| async {
+                    panic!("direct values must not call the resolver")
+                })
                 .await
                 .unwrap();
             assert!(prepared.warnings().is_empty());
@@ -238,7 +240,7 @@ fn chat_audio_and_files_choose_inline_and_cannot_accept_a_url() {
         });
         let req = request(Dialect::OpenaiChat, audio);
         let prepared = req
-            .resolve_assets(|input| async move {
+            .resolve_assets(DeliveryMode::PreferUrl, |input| async move {
                 assert_eq!(input.kind, MediaKind::Audio);
                 assert_eq!(input.preferred, DeliveryMethod::Inline);
                 assert!(input.capability.url.is_none());
@@ -252,7 +254,7 @@ fn chat_audio_and_files_choose_inline_and_cannot_accept_a_url() {
             "wav"
         );
         assert_invalid(
-            req.resolve_assets(|_| async {
+            req.resolve_assets(DeliveryMode::PreferUrl, |_| async {
                 Ok(url("https://s3.example/audio", Some("audio/wav"), None))
             })
             .await,
@@ -266,7 +268,7 @@ fn chat_audio_and_files_choose_inline_and_cannot_accept_a_url() {
             }),
         );
         let prepared = req
-            .resolve_assets(|input| async move {
+            .resolve_assets(DeliveryMode::PreferUrl, |input| async move {
                 assert_eq!(input.kind, MediaKind::File);
                 assert!(input.capability.url.is_none());
                 Ok(bytes("text/plain"))
@@ -296,7 +298,7 @@ fn document_mime_narrows_the_method_and_all_five_kinds_reach_the_resolver() {
             }),
         );
         let prepared = req
-            .resolve_assets(|input| async move {
+            .resolve_assets(DeliveryMode::PreferUrl, |input| async move {
                 assert_eq!(input.kind, MediaKind::Document);
                 assert!(input.capability.url.is_none()); // Claude URL source is a PDF source.
                 assert_eq!(input.preferred, DeliveryMethod::Inline);
@@ -351,7 +353,7 @@ fn document_mime_narrows_the_method_and_all_five_kinds_reach_the_resolver() {
         for (kind, content) in kinds.into_iter().zip(contents) {
             let req = request(Dialect::Gemini, content);
             let prepared = req
-                .resolve_assets(|input| async move {
+                .resolve_assets(DeliveryMode::PreferUrl, |input| async move {
                     assert_eq!(input.kind, kind);
                     assert_eq!(input.target, AssetDialect::Gemini);
                     assert_eq!(input.preferred, DeliveryMethod::Url);
@@ -386,7 +388,7 @@ fn tool_result_envelopes_narrow_gemini_to_inline_and_reject_chat_media() {
         });
         let req = request(Dialect::Gemini, result.clone());
         let prepared = req
-            .resolve_assets(|input| async move {
+            .resolve_assets(DeliveryMode::PreferUrl, |input| async move {
                 assert_eq!(input.location, AssetLocation::ToolResult);
                 assert_eq!(input.preferred, DeliveryMethod::Inline);
                 assert!(input.capability.url.is_none());
@@ -400,13 +402,17 @@ fn tool_result_envelopes_narrow_gemini_to_inline_and_reject_chat_media() {
             "AQID"
         );
         assert_invalid(
-            req.resolve_assets(|_| async { Ok(url("https://s3.example/image", None, None)) })
-                .await,
+            req.resolve_assets(DeliveryMode::PreferUrl, |_| async {
+                Ok(url("https://s3.example/image", None, None))
+            })
+            .await,
         );
         let req = request(Dialect::OpenaiChat, result);
         assert_invalid(
-            req.resolve_assets(|_| async { panic!("Chat tool messages have no media delivery") })
-                .await,
+            req.resolve_assets(DeliveryMode::PreferUrl, |_| async {
+                panic!("Chat tool messages have no media delivery")
+            })
+            .await,
         );
     });
 }
@@ -416,14 +422,18 @@ fn unsupported_formats_methods_sizes_and_legacy_file_ids_fail_without_mutating_h
         let req = request(Dialect::Claude, image(reference(), Some("image/png")));
         let original = serde_json::to_value(&req).unwrap();
         assert_invalid(
-            req.resolve_assets(|_| async { Ok(bytes("image/tiff")) })
-                .await,
+            req.resolve_assets(DeliveryMode::PreferUrl, |_| async {
+                Ok(bytes("image/tiff"))
+            })
+            .await,
         );
         assert_eq!(serde_json::to_value(&req).unwrap(), original);
         let req = request(Dialect::Claude, image(reference(), None));
         assert_invalid(
-            req.resolve_assets(|_| async { Ok(bytes("image/tiff")) })
-                .await,
+            req.resolve_assets(DeliveryMode::PreferUrl, |_| async {
+                Ok(bytes("image/tiff"))
+            })
+            .await,
         );
         let req = request(
             Dialect::Claude,
@@ -434,14 +444,14 @@ fn unsupported_formats_methods_sizes_and_legacy_file_ids_fail_without_mutating_h
             }),
         );
         assert_invalid(
-            req.resolve_assets(|_| async {
+            req.resolve_assets(DeliveryMode::PreferUrl, |_| async {
                 panic!("unsupported media must fail before resolution")
             })
             .await,
         );
         let req = request(Dialect::Gemini, image(reference(), None));
         assert_invalid(
-            req.resolve_assets(|_| async {
+            req.resolve_assets(DeliveryMode::PreferUrl, |_| async {
                 Ok(url(
                     "https://s3.example/huge",
                     Some("image/png"),
@@ -461,7 +471,7 @@ fn unsupported_formats_methods_sizes_and_legacy_file_ids_fail_without_mutating_h
             ),
         );
         assert_invalid(
-            req.resolve_assets(|_| async {
+            req.resolve_assets(DeliveryMode::PreferUrl, |_| async {
                 panic!("preparation never uploads or resolves provider IDs")
             })
             .await,
@@ -499,7 +509,7 @@ fn resolver_errors_are_returned_once_without_retry_or_partial_changes() {
         );
         let mut calls = 0;
         let result = req
-            .resolve_assets(|_| {
+            .resolve_assets(DeliveryMode::PreferUrl, |_| {
                 calls += 1;
                 let error = error.clone();
                 async move { Err(error) }
@@ -575,7 +585,9 @@ fn prepared_generation_sends_only_native_media_and_attaches_fallback_warnings_to
                 stream: streaming,
             });
             let prepared = req
-                .resolve_assets(|_| async { Ok(bytes("image/png")) })
+                .resolve_assets(DeliveryMode::PreferUrl, |_| async {
+                    Ok(bytes("image/png"))
+                })
                 .await
                 .unwrap();
             let warnings = prepared.warnings().to_vec();
@@ -600,4 +612,60 @@ fn prepared_generation_sends_only_native_media_and_attaches_fallback_warnings_to
             assert!(!sent[0].to_string().contains("blob:sha256"));
         }
     });
+}
+#[test]
+fn inline_mode_is_the_default_and_asks_for_bytes_without_fallback_warnings() {
+    assert_eq!(DeliveryMode::default(), DeliveryMode::Inline);
+    futures_executor::block_on(async {
+        // Claude images accept both inline and URL; Inline mode must not prefer the URL.
+        let req = request(Dialect::Claude, image(reference(), None));
+        let prepared = req
+            .resolve_assets(DeliveryMode::Inline, |input| async move {
+                assert_eq!(input.preferred, DeliveryMethod::Inline);
+                Ok(bytes("image/png"))
+            })
+            .await
+            .unwrap();
+        assert!(prepared.warnings().is_empty());
+        let native = prepared.render(false).unwrap();
+        assert_eq!(
+            native.request["messages"][0]["content"][0]["source"]["data"],
+            "AQID"
+        );
+
+        // A resolver that still returns a URL is honored, but the deviation is reported.
+        let prepared = req
+            .resolve_assets(DeliveryMode::Inline, |_| async {
+                Ok(url("https://s3.example/image", Some("image/png"), None))
+            })
+            .await
+            .unwrap();
+        assert_eq!(prepared.warnings().len(), 1);
+        assert_eq!(prepared.warnings()[0].kind, WarningKind::Compatibility);
+    });
+}
+#[test]
+fn preferred_method_follows_the_mode_and_falls_back_to_what_the_target_accepts() {
+    let both = media_capability(AssetDialect::Claude, MediaKind::Image);
+    assert_eq!(
+        both.preferred(DeliveryMode::Inline),
+        Some(DeliveryMethod::Inline)
+    );
+    assert_eq!(
+        both.preferred(DeliveryMode::PreferUrl),
+        Some(DeliveryMethod::Url)
+    );
+
+    let mut url_only = both;
+    url_only.inline = None;
+    assert_eq!(
+        url_only.preferred(DeliveryMode::Inline),
+        Some(DeliveryMethod::Url)
+    );
+    let mut inline_only = both;
+    inline_only.url = None;
+    assert_eq!(
+        inline_only.preferred(DeliveryMode::PreferUrl),
+        Some(DeliveryMethod::Inline)
+    );
 }

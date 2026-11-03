@@ -323,16 +323,19 @@ fn caller_reference_resolution_covers_nested_media_without_uploading() {
         }],
     );
     let mut calls = 0;
-    let prepared = futures_executor::block_on(request.resolve_assets(|reference| {
-        calls += 1;
-        assert_eq!(reference.reference, "image");
-        async {
-            Ok(ResolvedAsset::Bytes {
-                bytes: vec![1, 2, 3],
-                media_type: "image/png".into(),
-            })
-        }
-    }))
+    let prepared = futures_executor::block_on(request.resolve_assets(
+        DeliveryMode::PreferUrl,
+        |reference| {
+            calls += 1;
+            assert_eq!(reference.reference, "image");
+            async {
+                Ok(ResolvedAsset::Bytes {
+                    bytes: vec![1, 2, 3],
+                    media_type: "image/png".into(),
+                })
+            }
+        },
+    ))
     .unwrap();
     assert_eq!(calls, 1);
     let native = prepared.render(false).unwrap().request;

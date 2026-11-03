@@ -20,7 +20,7 @@ fn input(target: AssetDialect, kind: MediaKind, mime: Option<&str>) -> ResolveAs
         kind,
         location: AssetLocation::Message,
         media_type: mime.map(str::to_owned),
-        preferred: capability.preferred().unwrap(),
+        preferred: capability.preferred(DeliveryMode::PreferUrl).unwrap(),
         capability,
     }
 }
@@ -614,4 +614,18 @@ async fn configured_embedding_client_uploads_gemini_images_and_leaves_openai_tex
     assert_eq!(result.vectors, vec![vec![0.5]]);
     assert_eq!(fixture.probe.presigns.load(Ordering::SeqCst), 1);
     assert_eq!(fixture.transport.requests.lock().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn inline_preference_returns_bytes_without_touching_the_store() {
+    let fixture = storage::fixture(storage::config());
+    let mut request = input(AssetDialect::Openai, MediaKind::Image, None);
+    request.preferred = DeliveryMethod::Inline;
+    let resolved = fixture
+        .store
+        .resolve(request, data("image/png"))
+        .await
+        .unwrap();
+    assert!(matches!(resolved, ResolvedAsset::Bytes { .. }));
+    assert!(fixture.transport.requests.lock().unwrap().is_empty());
 }

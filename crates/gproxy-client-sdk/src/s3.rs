@@ -130,10 +130,14 @@ impl S3AssetResolver {
             ));
         }
         let capability = input.capability.for_mime(Some(&data.media_type));
-        let (method, constraints) = match (capability.url, capability.inline) {
-            (Some(url), _) => (DeliveryMethod::Url, url),
-            (None, Some(inline)) => (DeliveryMethod::Inline, inline),
-            (None, None) => {
+        // Follow the caller's mode as narrowed by the MIME type; the store is only
+        // touched when the result is a URL.
+        let (method, constraints) = match (input.preferred, capability.url, capability.inline) {
+            (DeliveryMethod::Url, Some(url), _) | (DeliveryMethod::Inline, Some(url), None) => {
+                (DeliveryMethod::Url, url)
+            }
+            (_, _, Some(inline)) => (DeliveryMethod::Inline, inline),
+            (_, None, None) => {
                 return Err(Error::invalid(
                     "no supported asset delivery method for the resolved MIME type",
                 ));
@@ -245,7 +249,7 @@ impl GenerateRequest {
         F: FnMut(String) -> Fut,
         Fut: Future<Output = Result<AssetData>>,
     {
-        self.resolve_assets(|input| {
+        self.resolve_assets(DeliveryMode::PreferUrl, |input| {
             let data = load(input.reference.clone());
             async move { store.resolve(input, data.await?).await }
         })
@@ -263,7 +267,7 @@ impl crate::embeddings::EmbedRequest {
         F: FnMut(String) -> Fut,
         Fut: Future<Output = Result<AssetData>>,
     {
-        self.resolve_assets(|input| {
+        self.resolve_assets(DeliveryMode::PreferUrl, |input| {
             let data = load(input.reference.clone());
             async move { store.resolve(input, data.await?).await }
         })

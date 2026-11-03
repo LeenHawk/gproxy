@@ -267,13 +267,16 @@ fn caller_blob_references_are_resolved_explicitly() {
         }],
     );
     assert!(dialects::render(&request, false).is_err());
-    let prepared = futures_executor::block_on(request.resolve_assets(|reference| async move {
-        assert_eq!(reference.reference, "sha256:blob");
-        Ok(ResolvedAsset::Bytes {
-            media_type: "image/png".into(),
-            bytes: vec![1, 2, 3],
-        })
-    }))
+    let prepared = futures_executor::block_on(request.resolve_assets(
+        DeliveryMode::PreferUrl,
+        |reference| async move {
+            assert_eq!(reference.reference, "sha256:blob");
+            Ok(ResolvedAsset::Bytes {
+                media_type: "image/png".into(),
+                bytes: vec![1, 2, 3],
+            })
+        },
+    ))
     .unwrap();
     assert_eq!(
         prepared.render(false).unwrap().request["contents"][0]["parts"][0]["inlineData"]["data"],

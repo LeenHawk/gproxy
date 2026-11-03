@@ -118,7 +118,11 @@ impl EmbedRequest {
             provider_options: EmbeddingOptions::default(),
         }
     }
-    pub async fn resolve_assets<F, Fut>(&self, mut resolve: F) -> Result<PreparedEmbedRequest>
+    pub async fn resolve_assets<F, Fut>(
+        &self,
+        mode: DeliveryMode,
+        mut resolve: F,
+    ) -> Result<PreparedEmbedRequest>
     where
         F: FnMut(ResolveAsset) -> Fut,
         Fut: std::future::Future<Output = Result<ResolvedAsset>>,
@@ -140,6 +144,7 @@ impl EmbedRequest {
                         target,
                         AssetLocation::Embedding,
                         &format!("inputs[{i}]"),
+                        mode,
                         &mut resolve,
                         &mut warnings,
                     )
@@ -153,6 +158,7 @@ impl EmbedRequest {
                                 target,
                                 AssetLocation::Embedding,
                                 &format!("inputs[{i}].parts[{j}]"),
+                                mode,
                                 &mut resolve,
                                 &mut warnings,
                             )

@@ -182,7 +182,7 @@ where
     F: FnMut(ResolveAsset) -> Fut,
     Fut: Future<Output = Result<ResolvedAsset>>,
 {
-    let prepared = request.resolve_assets(resolve).await?;
+    let prepared = request.resolve_assets(DeliveryMode::Inline, resolve).await?;
     client.generate_prepared(prepared).await
 }
 ```
@@ -229,9 +229,13 @@ Documented byte constraints, with exact source lines in the table implementation
 - The local OpenAI endpoint references and Claude image schemas do not specify
   additional per-asset byte caps. Their table entries remain unknown. MB uses SI bytes.
 
-URL is preferred when the content envelope and known format accept it; otherwise
-inline is preferred. A resolver returning allowed inline bytes instead of the
-preferred URL produces a compatibility warning. Unsupported methods, known format
+`resolve_assets` takes a `DeliveryMode`. `Inline` (the default) asks for inline
+bytes and needs no object store; `PreferUrl` asks for a URL when the content
+envelope and known format accept one. Either mode falls back to the other method
+when the target accepts only that one. A resolver returning an allowed method
+other than the preferred one produces a compatibility warning. The built-in S3
+resolver follows the same preference and only touches the store for URLs;
+`resolve_assets_s3` uses `PreferUrl`. Unsupported methods, known format
 violations and exceeded documented byte limits return InvalidData. Resolver errors
 are returned without retry. Direct caller URLs/bytes are checked and used as-is,
 without calling the resolver or producing a preference warning. Inline sources

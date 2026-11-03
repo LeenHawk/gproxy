@@ -95,7 +95,11 @@ impl PreparedGenerateRequest {
 impl GenerateRequest {
     /// Prepare a fresh send-only snapshot. Call again for every send to obtain
     /// fresh presigned URLs. No resolved value is written into this request.
-    pub async fn resolve_assets<F, Fut>(&self, mut resolve: F) -> Result<PreparedGenerateRequest>
+    pub async fn resolve_assets<F, Fut>(
+        &self,
+        mode: DeliveryMode,
+        mut resolve: F,
+    ) -> Result<PreparedGenerateRequest>
     where
         F: FnMut(ResolveAsset) -> Fut,
         Fut: Future<Output = Result<ResolvedAsset>>,
@@ -111,6 +115,7 @@ impl GenerateRequest {
                     &message.role,
                     target,
                     &path,
+                    mode,
                     &mut resolve,
                     &mut warnings,
                 )
@@ -131,6 +136,7 @@ async fn prepare_block<F, Fut>(
     role: &Role,
     target: AssetDialect,
     path: &str,
+    mode: DeliveryMode,
     resolve: &mut F,
     warnings: &mut Vec<Warning>,
 ) -> Result<()>
@@ -141,10 +147,10 @@ where
     let location = AssetLocation::Message;
     match content {
         Content::Image(image) => {
-            prepare_image(image, target, location, path, resolve, warnings).await?
+            prepare_image(image, target, location, path, mode, resolve, warnings).await?
         }
         Content::Document(doc) => {
-            prepare_document(doc, target, location, path, resolve, warnings).await?
+            prepare_document(doc, target, location, path, mode, resolve, warnings).await?
         }
         Content::File(file) => {
             prepare_media(
@@ -154,6 +160,7 @@ where
                 MediaKind::File,
                 location,
                 path,
+                mode,
                 resolve,
                 warnings,
             )
@@ -171,6 +178,7 @@ where
                 MediaKind::Audio,
                 location,
                 path,
+                mode,
                 resolve,
                 warnings,
             )
@@ -184,6 +192,7 @@ where
                 MediaKind::Video,
                 location,
                 path,
+                mode,
                 resolve,
                 warnings,
             )
@@ -200,6 +209,7 @@ where
                                 target,
                                 AssetLocation::ToolResult,
                                 &path,
+                                mode,
                                 resolve,
                                 warnings,
                             )
@@ -211,6 +221,7 @@ where
                                 target,
                                 AssetLocation::ToolResult,
                                 &path,
+                                mode,
                                 resolve,
                                 warnings,
                             )
@@ -248,6 +259,7 @@ async fn prepare_document<F, Fut>(
     target: AssetDialect,
     location: AssetLocation,
     path: &str,
+    mode: DeliveryMode,
     resolve: &mut F,
     warnings: &mut Vec<Warning>,
 ) -> Result<()>
@@ -264,6 +276,7 @@ where
                 MediaKind::Document,
                 location,
                 path,
+                mode,
                 resolve,
                 warnings,
             )
@@ -288,6 +301,7 @@ where
                         target,
                         AssetLocation::DocumentChunk,
                         &format!("{path}.chunks[{i}]"),
+                        mode,
                         resolve,
                         warnings,
                     )
@@ -311,6 +325,7 @@ pub(crate) async fn prepare_image<F, Fut>(
     target: AssetDialect,
     location: AssetLocation,
     path: &str,
+    mode: DeliveryMode,
     resolve: &mut F,
     warnings: &mut Vec<Warning>,
 ) -> Result<()>
@@ -325,6 +340,7 @@ where
         MediaKind::Image,
         location,
         path,
+        mode,
         resolve,
         warnings,
     )
@@ -373,6 +389,7 @@ async fn prepare_media<F, Fut>(
     kind: MediaKind,
     location: AssetLocation,
     path: &str,
+    mode: DeliveryMode,
     resolve: &mut F,
     warnings: &mut Vec<Warning>,
 ) -> Result<()>
@@ -385,7 +402,7 @@ where
     };
     let cap = capability_at(target, kind, location).for_mime(mime.as_deref());
     let preferred = cap
-        .preferred()
+        .preferred(mode)
         .ok_or_else(|| Error::invalid(format!("{path}: no supported asset delivery method")))?;
     let resolution = resolve(ResolveAsset {
         reference: reference.clone(),
@@ -430,7 +447,14 @@ where
         warnings.push(Warning::new(
             WarningKind::Compatibility,
             path,
-            "Resolver returned inline bytes instead of the preferred URL",
+            match preferred {
+                DeliveryMethod::Url => {
+                    "Resolver returned inline bytes instead of the preferred URL"
+                }
+                DeliveryMethod::Inline => {
+                    "Resolver returned a URL instead of the preferred inline bytes"
+                }
+            },
         ));
     }
     *source = value;

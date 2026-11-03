@@ -166,7 +166,7 @@ fn gemini_embeds_images_and_text_with_native_purpose_and_dimensions() {
         request.dimensions = NonZeroU32::new(2);
         request.purpose = Some(EmbeddingPurpose::Document);
         let prepared = request
-            .resolve_assets(|id| async move {
+            .resolve_assets(DeliveryMode::PreferUrl, |id| async move {
                 assert_eq!(id.reference, "blob");
                 Ok(ResolvedAsset::Bytes {
                     bytes: vec![1, 2, 3],
