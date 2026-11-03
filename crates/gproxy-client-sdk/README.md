@@ -1,5 +1,7 @@
 # gproxy-client-sdk
 
+Review the module boundaries, test groups and per-file line counts in [LAYOUT.md](LAYOUT.md).
+
 A caller-facing SDK for programs calling GPROXY over HTTP or through an embedded
 `gproxy-sdk::Gproxy`. Its IR stays outside the engine. Native mapping uses existing
 protocol structs/enums/builders; HTTP/SSE reuse `gproxy-client`, including wasm fetch.
