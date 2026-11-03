@@ -10,7 +10,7 @@ use futures_util::{FutureExt, StreamExt};
 use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireResponse,
     capability::{CapabilityError, CapabilityErrorKind, CapabilityErrorStage},
-    codec::{CodecError, CodecErrorKind, CodecLimits, MultipartDecoder},
+    codec::{CodecError, CodecErrorKind, MultipartDecoder},
     connection::Bytes,
     wire::openai::realtime::RealtimeRoute,
 };
@@ -176,14 +176,7 @@ async fn multipart(body: HttpBody, boundary: String) -> Result<Bytes, ChannelErr
     let mut decoder = MultipartDecoder::new(
         body,
         boundary,
-        CodecLimits {
-            max_buffer_bytes: 64 * 1024,
-            max_line_bytes: 64 * 1024,
-            max_value_bytes: 4 * 1024 * 1024,
-            max_body_bytes: 4 * 1024 * 1024,
-            max_part_bytes: 4 * 1024 * 1024,
-            max_parts: 32,
-        },
+        crate::channel::UNBOUNDED,
     )
     .map_err(codec_error)?;
     let mut output = serde_json::Map::new();

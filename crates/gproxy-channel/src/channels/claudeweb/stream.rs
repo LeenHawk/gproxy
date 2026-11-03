@@ -10,7 +10,7 @@
 //! codec feeds the SSE encoder and the non-streaming collector.
 
 use gproxy_protocol::{
-    codec::{CodecLimits, SseDecoder, SseFrame},
+    codec::{SseDecoder, SseFrame},
     connection::Bytes,
 };
 use serde::{Deserialize, Serialize};
@@ -19,15 +19,6 @@ use serde_json::{Value, json};
 use super::request::estimate_tokens;
 use crate::channel::ChannelError;
 
-/// Bounds for the upstream SSE decoder; the host enforces transfer limits.
-pub(super) const SSE_LIMITS: CodecLimits = CodecLimits {
-    max_buffer_bytes: 16 * 1024 * 1024,
-    max_value_bytes: 16 * 1024 * 1024,
-    max_body_bytes: u64::MAX,
-    max_line_bytes: 16 * 1024 * 1024,
-    max_part_bytes: 0,
-    max_parts: 0,
-};
 
 /// What a continuation must remember between the tool boundary and the
 /// tool result; this is the JSON stored under `tool:{tool_use_id}`.
@@ -66,7 +57,7 @@ pub(super) struct Codec {
 impl Codec {
     pub(super) fn new(state: SessionState) -> Self {
         Self {
-            decoder: SseDecoder::new(SSE_LIMITS),
+            decoder: SseDecoder::new(crate::channel::UNBOUNDED),
             carry: Vec::new(),
             state,
             output: String::new(),

@@ -14,7 +14,7 @@ fn encode(events: &[Value]) -> String {
         .collect()
 }
 fn decode(chunks: Vec<Bytes>) -> Vec<Value> {
-    let mut decoder = SseDecoder::new(SSE_LIMITS);
+    let mut decoder = SseDecoder::new(crate::channel::UNBOUNDED);
     chunks
         .iter()
         .flat_map(|chunk| decoder.push(chunk).unwrap())

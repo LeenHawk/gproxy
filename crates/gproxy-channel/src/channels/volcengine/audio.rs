@@ -10,7 +10,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures_util::StreamExt;
 use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireResponse,
-    codec::{CodecLimits, NdjsonDecoder},
+    codec::NdjsonDecoder,
     connection::ByteStream,
 };
 use http::{HeaderValue, StatusCode, header};
@@ -134,14 +134,7 @@ pub(super) async fn call(
         HttpBody::Bytes(bytes) => Box::pin(futures_util::stream::once(async { Ok(bytes) })),
         HttpBody::Stream(stream) => stream,
     };
-    let mut decoder = NdjsonDecoder::new(CodecLimits {
-        max_buffer_bytes: 8 * 1024 * 1024,
-        max_value_bytes: 8 * 1024 * 1024,
-        max_body_bytes: 64 * 1024 * 1024,
-        max_line_bytes: 8 * 1024 * 1024,
-        max_part_bytes: 0,
-        max_parts: 0,
-    });
+    let mut decoder = NdjsonDecoder::new(crate::channel::UNBOUNDED);
     let mut audio = Vec::new();
     let mut finished = false;
     let mut words = None;

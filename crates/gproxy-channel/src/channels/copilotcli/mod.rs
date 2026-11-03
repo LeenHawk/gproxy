@@ -60,7 +60,6 @@ use crate::channel::{
     CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, OperationContext,
     OperationFuture, PrepareContext, ProviderView, QuotaQuery,
 };
-use futures_util::StreamExt;
 use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
@@ -231,7 +230,7 @@ impl BaseChannel for CopilotCli {
         Box::pin(async move {
             let mut response = send(self, Operation::ListModels, context).await?;
             if response.status.is_success() {
-                let body = read_catalogue(std::mem::replace(
+                let body = crate::channel::read_body(std::mem::replace(
                     &mut response.body,
                     HttpBody::Bytes(Bytes::new()),
                 ))
@@ -293,25 +292,3 @@ async fn send(
     Ok(context.client.send(request).await?)
 }
 
-/// A catalogue past this is not one.
-const MAX_CATALOGUE_BYTES: usize = 16 * 1024 * 1024;
-
-async fn read_catalogue(body: HttpBody) -> Result<Bytes, ChannelError> {
-    match body {
-        HttpBody::Bytes(bytes) => Ok(bytes),
-        HttpBody::Stream(mut stream) => {
-            let mut out = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                let chunk =
-                    chunk.map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
-                out.extend_from_slice(&chunk);
-                if out.len() > MAX_CATALOGUE_BYTES {
-                    return Err(ChannelError::InvalidResponse(
-                        "model catalogue exceeds the read limit".into(),
-                    ));
-                }
-            }
-            Ok(Bytes::from(out))
-        }
-    }
-}

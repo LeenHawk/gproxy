@@ -10,21 +10,11 @@ use event::{Event, invalid};
 use futures_util::{StreamExt, stream};
 use gproxy_protocol::{
     HttpBody,
-    codec::{CodecLimits, SseDecoder, SseEncoder, SseEvent, SseFrame},
+    codec::{SseDecoder, SseEncoder, SseEvent, SseFrame},
     connection::{ByteStream, Bytes, TransportError},
 };
 use std::collections::VecDeque;
 
-/// Bounds for re-framing a Responses SSE stream; the host enforces the real
-/// transfer limits, this only keeps the codec's buffers finite.
-const SSE_LIMITS: CodecLimits = CodecLimits {
-    max_buffer_bytes: 4 * 1024 * 1024,
-    max_value_bytes: 4 * 1024 * 1024,
-    max_body_bytes: u64::MAX,
-    max_line_bytes: 4 * 1024 * 1024,
-    max_part_bytes: 0,
-    max_parts: 0,
-};
 
 struct Codec {
     decoder: SseDecoder,
@@ -33,19 +23,17 @@ struct Codec {
     started: bool,
     sequence: i64,
     pending: Vec<(Event, SseEvent)>,
-    pending_bytes: usize,
 }
 
 impl Codec {
     fn new(aliases: Aliases) -> Self {
         Self {
-            decoder: SseDecoder::new(SSE_LIMITS),
-            encoder: SseEncoder::new(SSE_LIMITS),
+            decoder: SseDecoder::new(crate::channel::UNBOUNDED),
+            encoder: SseEncoder::new(crate::channel::UNBOUNDED),
             lifecycle: lifecycle::Lifecycle::new(aliases),
             started: false,
             sequence: 0,
             pending: Vec::new(),
-            pending_bytes: 0,
         }
     }
     fn push(&mut self, bytes: &[u8]) -> Result<Vec<Bytes>, ChannelError> {
@@ -73,12 +61,10 @@ impl Codec {
                     for (pending, original) in std::mem::take(&mut self.pending) {
                         output.extend(self.normalize(pending, &original)?);
                     }
-                    self.pending_bytes = 0;
                     continue;
                 }
                 if event.kind == "error" {
                     self.pending.clear();
-                    self.pending_bytes = 0;
                     output.extend(self.normalize(event, &source)?);
                     continue;
                 }
@@ -93,7 +79,6 @@ impl Codec {
                     for (pending, original) in std::mem::take(&mut self.pending) {
                         output.extend(self.normalize(pending, &original)?);
                     }
-                    self.pending_bytes = 0;
                 } else {
                     if event.terminal() {
                         return Err(invalid(
@@ -102,10 +87,6 @@ impl Codec {
                     }
                     // Wait for real response metadata rather than inventing an id
                     // that cannot be used for previous_response_id continuations.
-                    self.pending_bytes += source.data.len();
-                    if self.pending_bytes as u64 > SSE_LIMITS.max_buffer_bytes {
-                        return Err(invalid("missing response metadata exceeds buffer limit"));
-                    }
                     self.pending.push((event, source));
                     continue;
                 }

@@ -9,7 +9,6 @@ use crate::channel::{
     QuotaHeaderContext, QuotaHeaders, QuotaQuery, QuotaScope, QuotaSnapshot, QuotaSubject,
     QuotaValue,
 };
-use futures_util::StreamExt;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{HttpBody, WireResponse};
 use http::{HeaderMap, HeaderValue, Method, header};
@@ -25,8 +24,6 @@ const DIMENSIONS: &[&str] = &["requests", "tokens", "input-tokens", "output-toke
 const DAY_SECONDS: i64 = 24 * 60 * 60;
 /// The report covers the seven complete UTC days before today.
 const REPORT_DAYS: i64 = 7;
-/// The report is one small JSON page; nothing here streams.
-const MAX_REPORT_BYTES: usize = 1024 * 1024;
 
 fn invalid_response(message: impl Into<String>) -> ChannelError {
     ChannelError::InvalidResponse(message.into())
@@ -119,20 +116,7 @@ impl QuotaHeaders for Claudeapi {
 }
 
 async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
-    match body {
-        HttpBody::Bytes(bytes) => Ok(bytes),
-        HttpBody::Stream(mut stream) => {
-            let mut out = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk.map_err(|error| invalid_response(error.to_string()))?;
-                out.extend_from_slice(&chunk);
-                if out.len() > MAX_REPORT_BYTES {
-                    return Err(invalid_response("cost report exceeds the read limit"));
-                }
-            }
-            Ok(Bytes::from(out))
-        }
-    }
+    crate::channel::read_body(body).await
 }
 
 async fn get(client: &dyn OutboundClient, url: &str, key: &str) -> Result<Bytes, ChannelError> {

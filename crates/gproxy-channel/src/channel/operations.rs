@@ -37,6 +37,30 @@ pub struct OperationContext<'a, B = HttpBody> {
     pub endpoint_override: Option<&'a str>,
 }
 
+/// Codec bounds for a body a channel decodes or buffers itself: none. The
+/// host bounds what reaches it (`max_request_body_bytes`) and what it returns
+/// (`max_response_body_bytes`); a channel adds no size limits of its own.
+#[allow(dead_code)] // unused when no channel feature is enabled
+pub(crate) const UNBOUNDED: gproxy_protocol::codec::CodecLimits =
+    gproxy_protocol::codec::CodecLimits {
+        max_buffer_bytes: u64::MAX,
+        max_value_bytes: u64::MAX,
+        max_body_bytes: u64::MAX,
+        max_line_bytes: u64::MAX,
+        max_part_bytes: u64::MAX,
+        max_parts: usize::MAX,
+    };
+
+/// Buffer a body the channel has to look at whole.
+#[allow(dead_code)] // unused when no channel feature is enabled
+pub(crate) async fn read_body(
+    body: HttpBody,
+) -> Result<gproxy_protocol::connection::Bytes, ChannelError> {
+    gproxy_protocol::codec::read_http_body(body, UNBOUNDED)
+        .await
+        .map_err(|error| ChannelError::InvalidResponse(error.to_string()))
+}
+
 pub(super) fn http<'a>(
     channel: &'a (impl BaseChannel + ?Sized),
     operation: Operation,

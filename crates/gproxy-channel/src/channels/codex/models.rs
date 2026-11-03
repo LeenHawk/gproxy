@@ -4,7 +4,6 @@ use super::common::{invalid_config, invalid_response};
 use super::headers::{account, backend_headers, base_urls};
 use super::{CLI_HEADERS, CLI_VERSION, CodexConfig};
 use crate::channel::{ChannelError, HeaderAllowlist, OperationContext, PrepareContext};
-use futures_util::StreamExt;
 use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireResponse,
     connection::Bytes,
@@ -13,8 +12,6 @@ use gproxy_protocol::{
 use http::{HeaderValue, Method, StatusCode, header};
 use serde_json::json;
 use url::Url;
-
-const MAX_CATALOG_BYTES: usize = 16 * 1024 * 1024;
 
 pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
     let config = CodexConfig::from_view(ctx.provider)?;
@@ -89,7 +86,7 @@ pub(super) async fn invoke(
     if !response.status.is_success() {
         return Ok(response);
     }
-    let bytes = read(response.body).await?;
+    let bytes = crate::channel::read_body(response.body).await?;
     let catalog: ListModelsResponseBody = serde_json::from_slice(&bytes)
         .map_err(|e| invalid_response(format!("Codex model catalog: {e}")))?;
     let data = catalog
@@ -147,34 +144,4 @@ fn normalize(mut model: Model) -> Result<Model, ChannelError> {
         model.context_window = Some(ceiling);
     }
     Ok(model)
-}
-
-async fn read(body: HttpBody) -> Result<Bytes, ChannelError> {
-    let bytes = match body {
-        HttpBody::Bytes(bytes) => bytes,
-        HttpBody::Stream(mut stream) => {
-            let mut data = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk.map_err(|e| {
-                    ChannelError::Transport(
-                        gproxy_protocol::capability::CapabilityError::with_source(
-                            gproxy_protocol::capability::CapabilityErrorKind::Transport,
-                            gproxy_protocol::capability::CapabilityErrorStage::BodyTransfer,
-                            "model catalog read failed",
-                            e,
-                        ),
-                    )
-                })?;
-                if data.len().saturating_add(chunk.len()) > MAX_CATALOG_BYTES {
-                    return Err(invalid_response("model catalog exceeds read limit"));
-                }
-                data.extend_from_slice(&chunk);
-            }
-            Bytes::from(data)
-        }
-    };
-    if bytes.len() > MAX_CATALOG_BYTES {
-        return Err(invalid_response("model catalog exceeds read limit"));
-    }
-    Ok(bytes)
 }

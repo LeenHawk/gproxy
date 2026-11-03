@@ -38,11 +38,9 @@ pub(super) fn prepare(
     if width <= 4096 && height <= 4096 && bytes.len() <= MAX_FILE_BYTES {
         return Ok((bytes, mime, extension));
     }
-    let mut reader = ImageReader::with_format(Cursor::new(&bytes), format);
-    let mut limits = image::Limits::default();
-    limits.max_alloc = Some(128 * 1024 * 1024);
-    reader.limits(limits);
-    let mut decoder = reader
+    // The image crate's default allocation cap (512 MiB) still guards
+    // against decompression bombs.
+    let mut decoder = ImageReader::with_format(Cursor::new(&bytes), format)
         .into_decoder()
         .map_err(|_| bad("image cannot be decoded within limits"))?;
     let orientation = decoder

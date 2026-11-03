@@ -16,21 +16,11 @@
 use crate::channel::ChannelError;
 use futures_util::{StreamExt, stream};
 use gproxy_protocol::HttpBody;
-use gproxy_protocol::codec::{CodecLimits, SseDecoder, SseEncoder, SseEvent, SseFrame};
+use gproxy_protocol::codec::{SseDecoder, SseEncoder, SseEvent, SseFrame};
 use gproxy_protocol::connection::{ByteStream, Bytes, TransportError};
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 
-/// Bounds for re-framing the stream; the host enforces the real transfer
-/// limits, this only keeps the decoder's buffers finite.
-const SSE_LIMITS: CodecLimits = CodecLimits {
-    max_buffer_bytes: 8 * 1024 * 1024,
-    max_value_bytes: 8 * 1024 * 1024,
-    max_body_bytes: u64::MAX,
-    max_line_bytes: 8 * 1024 * 1024,
-    max_part_bytes: 0,
-    max_parts: 0,
-};
 
 fn invalid(error: impl std::fmt::Display) -> ChannelError {
     ChannelError::InvalidResponse(error.to_string())
@@ -150,8 +140,8 @@ pub(super) fn stabilize(body: HttpBody) -> HttpBody {
         HttpBody::Bytes(bytes) => Box::pin(stream::once(async move { Ok(bytes) })),
     };
     let codec = Codec {
-        decoder: SseDecoder::new(SSE_LIMITS),
-        encoder: SseEncoder::new(SSE_LIMITS),
+        decoder: SseDecoder::new(crate::channel::UNBOUNDED),
+        encoder: SseEncoder::new(crate::channel::UNBOUNDED),
         ids: Ids::default(),
     };
     let state = (

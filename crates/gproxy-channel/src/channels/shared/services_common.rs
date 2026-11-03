@@ -6,15 +6,12 @@
 use crate::channel::{
     ChannelError, CredentialContext, ResourceBindingRecord, ServiceCaller, ServiceRoute,
 };
-use futures_util::StreamExt;
 use gproxy_protocol::{HttpBody, WireResponse, connection::Bytes};
 use http::{HeaderMap, HeaderValue, StatusCode, header};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 /// Bodies the channel buffers itself (creation replies) are small.
-const MAX_LOCAL_BODY: usize = 4 * 1024 * 1024;
-
 /// The first declared route matching `method` and `path`, with its captured
 /// parameters. Tables list specific routes before prefix families, so the
 /// first match is the most specific one.
@@ -66,24 +63,9 @@ pub(crate) fn unix_now_ms() -> i64 {
         .unwrap_or(0)
 }
 
-/// Buffer a body the channel needs to look at, bounded.
+/// Buffer a service body; the host already bounded the client request.
 pub(crate) async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
-    match body {
-        HttpBody::Bytes(bytes) => Ok(bytes),
-        HttpBody::Stream(mut stream) => {
-            let mut out = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk.map_err(|e| ChannelError::InvalidResponse(e.to_string()))?;
-                out.extend_from_slice(&chunk);
-                if out.len() > MAX_LOCAL_BODY {
-                    return Err(ChannelError::InvalidResponse(
-                        "service body exceeds the read limit".into(),
-                    ));
-                }
-            }
-            Ok(Bytes::from(out))
-        }
-    }
+    crate::channel::read_body(body).await
 }
 
 pub(crate) fn json_of(bytes: &[u8]) -> Option<Value> {

@@ -58,13 +58,10 @@ use crate::channel::{
     OAuthDeviceCode, OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaQuery,
     forwardable,
 };
-use futures_util::StreamExt as _;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 
-/// Login, refresh, quota and the catalogue all answer small documents.
-const MAX_ABILITY_BODY: usize = 1024 * 1024;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct WorkBuddy;
@@ -150,23 +147,7 @@ pub(super) fn json_headers() -> HeaderMap {
 }
 
 pub(super) async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
-    match body {
-        HttpBody::Bytes(bytes) => Ok(bytes),
-        HttpBody::Stream(mut stream) => {
-            let mut out = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                let chunk =
-                    chunk.map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
-                out.extend_from_slice(&chunk);
-                if out.len() > MAX_ABILITY_BODY {
-                    return Err(ChannelError::InvalidResponse(
-                        "the reply exceeds the read limit".into(),
-                    ));
-                }
-            }
-            Ok(Bytes::from(out))
-        }
-    }
+    crate::channel::read_body(body).await
 }
 
 /// One bounded exchange outside the operation path: login, refresh and quota.
@@ -283,7 +264,7 @@ impl WorkBuddy {
         if !response.status.is_success() {
             return Ok(response);
         }
-        let body = read_body(response.body).await?;
+        let body = crate::channel::read_body(response.body).await?;
         let body = match operation {
             Operation::ListModels => models::rewrite(&body)?,
             _ => images::response(body),

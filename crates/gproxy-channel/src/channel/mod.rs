@@ -31,6 +31,9 @@ pub use oauth::{
     OAuthDeviceCode,
 };
 pub use operations::{OperationContext, OperationFuture};
+// Unused when no channel feature is enabled.
+#[allow(unused_imports)]
+pub(crate) use operations::{UNBOUNDED, read_body};
 pub use quota::{
     QuotaAllowance, QuotaBalance, QuotaBreakdownRow, QuotaDimension, QuotaEntry,
     QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel, QuotaQuery, QuotaReset,

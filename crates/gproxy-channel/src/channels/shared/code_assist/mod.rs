@@ -22,14 +22,10 @@ pub(crate) mod stream;
 
 use crate::OutboundClient;
 use crate::channel::ChannelError;
-use futures_util::StreamExt;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{HttpBody, WireResponse};
 use http::{HeaderMap, Method, StatusCode};
 use serde_json::{Map, Value, json};
-
-/// Bodies these channels read themselves (login, refresh, quota, catalogs).
-const MAX_SERVICE_BODY: usize = 8 * 1024 * 1024;
 
 pub(crate) fn invalid_request(message: impl Into<String>) -> ChannelError {
     ChannelError::InvalidConfig(message.into())
@@ -261,22 +257,7 @@ pub(crate) fn encode(
         .map_err(|cause| error(cause.to_string()))
 }
 
-pub(crate) async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
-    match body {
-        HttpBody::Bytes(bytes) => Ok(bytes),
-        HttpBody::Stream(mut stream) => {
-            let mut out = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk.map_err(|error| invalid_response(error.to_string()))?;
-                out.extend_from_slice(&chunk);
-                if out.len() > MAX_SERVICE_BODY {
-                    return Err(invalid_response("response exceeds the read limit"));
-                }
-            }
-            Ok(Bytes::from(out))
-        }
-    }
-}
+pub(crate) use crate::channel::read_body;
 
 /// One bounded JSON exchange through the assigned client.
 pub(crate) async fn send(

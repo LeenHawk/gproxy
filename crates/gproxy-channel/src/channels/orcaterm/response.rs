@@ -11,22 +11,13 @@ use crate::channels::shared::compatible::http::read_body;
 use futures_util::StreamExt;
 use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireResponse,
-    codec::{CodecLimits, SseDecoder, SseFrame},
+    codec::{SseDecoder, SseFrame},
     connection::{ByteStream, Bytes},
 };
 use http::{HeaderValue, header};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, sync::Arc};
 
-const MAX_MESSAGE: usize = 4 * 1024 * 1024;
-const LIMITS: CodecLimits = CodecLimits {
-    max_buffer_bytes: MAX_MESSAGE as u64,
-    max_value_bytes: MAX_MESSAGE as u64,
-    max_body_bytes: 64 * 1024 * 1024,
-    max_line_bytes: MAX_MESSAGE as u64,
-    max_part_bytes: 0,
-    max_parts: 0,
-};
 
 /// Locate a JSON string's closing quote without mistaking an escaped quote for
 /// the delimiter. Outer SSE JSON already guarantees valid UTF-8.
@@ -162,7 +153,7 @@ impl Translator {
         input_tokens: u64,
     ) -> Result<Self, ChannelError> {
         Ok(Self {
-            decoder: SseDecoder::new(LIMITS),
+            decoder: SseDecoder::new(crate::channel::UNBOUNDED),
             id: format!("chatcmpl-{}", new_id()?),
             model,
             created: now_ms() / 1000,
@@ -363,9 +354,6 @@ impl Translator {
                     .entry(id)
                     .or_insert_with(|| (value["tool"].clone(), String::new()));
                 if let Some(content) = value["content"].as_str() {
-                    if entry.1.len().saturating_add(content.len()) > MAX_MESSAGE {
-                        return Err(invalid("web tool result exceeds the size limit"));
-                    }
                     entry.1.push_str(content);
                 }
             }
@@ -390,9 +378,6 @@ impl Translator {
             }
         }
         if let Some(content) = value["content"].as_str() {
-            if self.current.len().saturating_add(content.len()) > MAX_MESSAGE {
-                return Err(invalid("Agent message exceeds the size limit"));
-            }
             self.current.push_str(content);
             if self.current.starts_with("{ERROR}:") {
                 return Err(invalid("upstream reported an Agent error"));

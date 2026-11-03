@@ -1,13 +1,10 @@
-//! Shared bounded service I/O and channel errors.
+//! Shared service I/O and channel errors.
 
 use crate::OutboundClient;
 use crate::channel::ChannelError;
-use futures_util::StreamExt;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{HttpBody, WireResponse};
 use http::{HeaderMap, Method, StatusCode};
-
-const MAX_SERVICE_BODY: usize = 1024 * 1024;
 
 pub(super) fn invalid_config(message: impl Into<String>) -> ChannelError {
     ChannelError::InvalidConfig(message.into())
@@ -17,22 +14,6 @@ pub(super) fn invalid_response(message: impl Into<String>) -> ChannelError {
     ChannelError::InvalidResponse(message.into())
 }
 
-async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
-    match body {
-        HttpBody::Bytes(bytes) => Ok(bytes),
-        HttpBody::Stream(mut stream) => {
-            let mut out = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk.map_err(|e| invalid_response(e.to_string()))?;
-                out.extend_from_slice(&chunk);
-                if out.len() > MAX_SERVICE_BODY {
-                    return Err(invalid_response("service response exceeds the read limit"));
-                }
-            }
-            Ok(Bytes::from(out))
-        }
-    }
-}
 
 pub(super) async fn send_json(
     client: &dyn OutboundClient,
@@ -56,5 +37,5 @@ pub(super) async fn send_json(
         headers,
         body,
     } = client.send(request).await?;
-    Ok((status, headers, read_body(body).await?))
+    Ok((status, headers, crate::channel::read_body(body).await?))
 }

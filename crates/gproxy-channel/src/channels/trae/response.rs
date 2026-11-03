@@ -8,21 +8,13 @@ use crate::channel::{ChannelError, OperationContext, PrepareContext};
 use futures_util::{StreamExt, stream};
 use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireResponse,
-    codec::{CodecLimits, SseDecoder, SseFrame},
+    codec::{SseDecoder, SseFrame},
     connection::{ByteStream, Bytes, TransportError},
 };
 use http::{HeaderValue, StatusCode, header};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, VecDeque};
 
-const LIMITS: CodecLimits = CodecLimits {
-    max_buffer_bytes: 8 * 1024 * 1024,
-    max_value_bytes: 8 * 1024 * 1024,
-    max_body_bytes: u64::MAX,
-    max_line_bytes: 8 * 1024 * 1024,
-    max_part_bytes: 0,
-    max_parts: 0,
-};
 
 fn encode(value: &Value, out: &mut Vec<Bytes>) {
     out.push(Bytes::from(format!("data: {value}\n\n")));
@@ -58,7 +50,7 @@ struct Translator {
 impl Translator {
     fn new(model: String, collect: bool) -> Result<Self, ChannelError> {
         Ok(Self {
-            decoder: SseDecoder::new(LIMITS),
+            decoder: SseDecoder::new(crate::channel::UNBOUNDED),
             id: format!("chatcmpl-{}", random_hex::<16>()?),
             model,
             created: now_ms() / 1000,

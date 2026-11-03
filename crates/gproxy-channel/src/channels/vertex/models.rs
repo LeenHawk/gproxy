@@ -3,7 +3,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use futures_util::StreamExt;
 use gproxy_protocol::{HttpBody, Operation, OperationKey, WireResponse, connection::Bytes};
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
@@ -12,8 +11,6 @@ use url::Url;
 
 use super::Vertex;
 use crate::channel::{BaseChannel, ChannelError, OperationContext, PrepareContext};
-
-const MAX_MODEL_BODY: usize = 8 * 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -76,7 +73,7 @@ pub(super) async fn list(
             if !response.status.is_success() {
                 return Ok(response);
             }
-            let page: Page = serde_json::from_slice(&read_body(response.body).await?)
+            let page: Page = serde_json::from_slice(&crate::channel::read_body(response.body).await?)
                 .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
             for model in page.publisher_models {
                 let model = normalize(model)?;
@@ -138,7 +135,7 @@ pub(super) async fn get(
     if !response.status.is_success() {
         return Ok(response);
     }
-    let value = serde_json::from_slice(&read_body(response.body).await?)
+    let value = serde_json::from_slice(&crate::channel::read_body(response.body).await?)
         .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
     response.body = HttpBody::Bytes(Bytes::from(
         serde_json::to_vec(&normalize(value)?)
@@ -179,29 +176,3 @@ fn normalize(mut model: Value) -> Result<Value, ChannelError> {
     Ok(model)
 }
 
-async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
-    let bytes = match body {
-        HttpBody::Bytes(bytes) => bytes,
-        HttpBody::Stream(mut stream) => {
-            let mut bytes = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                let chunk =
-                    chunk.map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
-                bytes.extend_from_slice(&chunk);
-                check_size(bytes.len())?;
-            }
-            Bytes::from(bytes)
-        }
-    };
-    check_size(bytes.len())?;
-    Ok(bytes)
-}
-
-fn check_size(size: usize) -> Result<(), ChannelError> {
-    if size > MAX_MODEL_BODY {
-        return Err(ChannelError::InvalidResponse(
-            "the Vertex model directory exceeds the read limit".into(),
-        ));
-    }
-    Ok(())
-}
