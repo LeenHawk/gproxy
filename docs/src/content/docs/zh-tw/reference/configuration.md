@@ -298,7 +298,7 @@ curl -s -X PATCH http://127.0.0.1:8787/admin/api/settings \
 | `maxAttempts` | `6` | 一個計劃上游嘗試次數的硬上限；路由自己的預算被它鉗住 |
 | `requestTimeoutMs` | `1200000` | 等上游開始應答（拿到回應頭，或讀完一個轉換過的非串流應答）；持續有輸出的流不受它限制 |
 | `streamIdleTimeoutMs` | `300000` | 流單元之間的間隔 |
-| `maxRequestBodyBytes` | `52428800` | 除檔案上傳外的所有請求體，在鑑權之前檢查；壓縮請求體解壓後也不能超過它 |
+| `maxRequestBodyBytes` | `134217728` | 除檔案上傳外的所有請求體，在鑑權之前檢查；壓縮請求體解壓後也不能超過它 |
 | `maxUploadBodyBytes` | `536870912` | 檔案上傳的請求體 |
 | `maxResponseBodyBytes` | `268435456` | 緩衝回應上限 |
 | `maxStreamEventBytes` | `33554432` | 一個 SSE 事件或陣列元素 |

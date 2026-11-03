@@ -38,7 +38,7 @@ impl Default for ExecutionLimits {
         Self {
             request_timeout: Duration::from_millis(1_200_000),
             stream_idle_timeout: Duration::from_millis(300_000),
-            max_request_body_bytes: 50 * 1024 * 1024,
+            max_request_body_bytes: 128 * 1024 * 1024,
             max_upload_body_bytes: 512 * 1024 * 1024,
             max_response_body_bytes: 256 * 1024 * 1024,
             max_stream_event_bytes: 32 * 1024 * 1024,

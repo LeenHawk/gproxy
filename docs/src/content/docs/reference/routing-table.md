@@ -55,7 +55,7 @@ Anything that reaches the end is a 404.
 
 ## The Data Plane
 
-A request body is held to `settings.maxRequestBodyBytes` (50 MiB by default;
+A request body is held to `settings.maxRequestBodyBytes` (128 MiB by default;
 `maxUploadBodyBytes`, 512 MiB, for a file upload) before anything else happens,
 authentication included.
 

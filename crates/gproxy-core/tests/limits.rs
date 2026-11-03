@@ -20,7 +20,7 @@ fn settings() -> setting::Model {
         config_revision: 0,
         request_timeout_ms: 1_200_000,
         stream_idle_timeout_ms: 300_000,
-        max_request_body_bytes: 52_428_800,
+        max_request_body_bytes: 134_217_728,
         max_upload_body_bytes: 536_870_912,
         max_response_body_bytes: 268_435_456,
         max_stream_event_bytes: 33_554_432,
@@ -85,7 +85,7 @@ fn only_a_file_upload_gets_the_upload_cap() {
     for operation in [Operation::GenerateContent, Operation::CreateTranscription] {
         assert_eq!(
             limits.for_operation(operation).max_request_body_bytes,
-            50 * 1024 * 1024
+            128 * 1024 * 1024
         );
     }
 }

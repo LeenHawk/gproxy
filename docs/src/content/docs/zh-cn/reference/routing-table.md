@@ -48,7 +48,7 @@ curl -s http://127.0.0.1:8787/healthz
 
 ## 数据面
 
-请求体在做任何事之前（包括鉴权）先受 `settings.maxRequestBodyBytes` 约束：默认 50 MiB，
+请求体在做任何事之前（包括鉴权）先受 `settings.maxRequestBodyBytes` 约束：默认 128 MiB，
 文件上传用 `maxUploadBodyBytes`，默认 512 MiB。
 
 ### 内容生成

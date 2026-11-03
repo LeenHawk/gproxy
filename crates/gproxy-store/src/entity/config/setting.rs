@@ -70,7 +70,7 @@ pub struct Model {
     pub stream_idle_timeout_ms: u32,
     /// Every data-plane request body except a file upload, and the size a
     /// compressed request body may inflate to.
-    #[sea_orm(default_value = 52428800)]
+    #[sea_orm(default_value = 134217728)]
     pub max_request_body_bytes: i64,
     /// A file upload's body. Provider file APIs take hundreds of megabytes.
     #[sea_orm(default_value = 536870912)]
