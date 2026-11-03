@@ -887,6 +887,48 @@ async fn discovery_reads_both_directory_shapes() {
 }
 
 #[tokio::test]
+async fn discovery_follows_gemini_page_tokens() {
+    let gproxy = instance(None, false).await;
+    let gemini = gproxy
+        .manage()
+        .providers()
+        .create(ProviderWrite {
+            name: "gemini-like".to_owned(),
+            channel: "test".to_owned(),
+            base_url: Some("https://gemini.example".to_owned()),
+            config: Some(json!({ "dialects": ["gemini"] })),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    credential(&gproxy, &gemini.id, "k1").await;
+    gproxy.client.script(vec![
+        json_reply(json!({
+            "models": [{ "name": "models/gemini-3.8-flash" }],
+            "nextPageToken": "a+b/c=",
+        })),
+        json_reply(json!({
+            "models": [{ "name": "models/gemini-live-flash" }],
+        })),
+    ]);
+    let found = gproxy
+        .manage()
+        .connectivity()
+        .discover_models(&gemini.id, None)
+        .await
+        .unwrap();
+    let names: Vec<&str> = found
+        .iter()
+        .map(|model| model.upstream_name.as_str())
+        .collect();
+    assert_eq!(names, vec!["gemini-3.8-flash", "gemini-live-flash"]);
+    let seen = gproxy.client.seen();
+    assert_eq!(seen.len(), 2);
+    assert!(!seen[0].contains("pageToken"), "{}", seen[0]);
+    assert!(seen[1].contains("pageToken=a%2Bb%2Fc%3D"), "{}", seen[1]);
+}
+
+#[tokio::test]
 async fn discovery_applies_catalog_and_local_overrides_without_replacing_provider_edits() {
     let gproxy = instance(None, false).await;
     let provider = provider(&gproxy, "metadata").await;

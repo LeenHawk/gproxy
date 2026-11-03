@@ -249,48 +249,78 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             return Err(SdkError::NoTarget(provider_id.into()));
         }
         let dialect = native_dialect(provider, Operation::ListModels)?;
-        let path = directory_path(dialect);
-        let wire = WireRequest {
-            method: http::Method::GET,
-            path: path.to_owned(),
-            query: None,
-            headers: HeaderMap::new(),
-            body: HttpBody::Bytes(Bytes::new()),
-        };
         // Discovery is an upstream read, independent of downstream list/get
         // routing rules. Keep transport, credentials and endpoint overrides.
         let mut discovery_provider = provider.as_ref().clone();
         discovery_provider
             .operation_rules
             .retain(|rule| rule.operation != Operation::ListModels.id());
-        let context = self.context(
-            &snapshot,
-            OperationKey {
-                operation: Operation::ListModels,
-                dialect,
-            },
-            &Arc::new(discovery_provider),
-            credentials,
-            None,
-        );
-        let execution = self.writer.core().list_models(context, wire).await?;
-        let (response, settled) = execution.into_parts();
-        let status = response.status;
-        let payload = read(
-            response.body,
-            snapshot.limits.max_response_body_bytes as usize,
-        )
-        .await;
-        drop(rt::timeout(TRACE_TIMEOUT, settled).await);
-        if !status.is_success() {
-            return Err(SdkError::Upstream {
-                status: status.as_u16(),
-                body: upstream_error(status, &payload),
-            });
+        let discovery_provider = Arc::new(discovery_provider);
+        // Gemini pages its directory (50 models by default); follow
+        // `nextPageToken` and merge every page into one document.
+        let mut document: Option<Value> = None;
+        let mut query = None;
+        let mut seen = BTreeSet::new();
+        loop {
+            let wire = WireRequest {
+                method: http::Method::GET,
+                path: directory_path(dialect),
+                query: query.take(),
+                headers: HeaderMap::new(),
+                body: HttpBody::Bytes(Bytes::new()),
+            };
+            let context = self.context(
+                &snapshot,
+                OperationKey {
+                    operation: Operation::ListModels,
+                    dialect,
+                },
+                &discovery_provider,
+                credentials.clone(),
+                None,
+            );
+            let execution = self.writer.core().list_models(context, wire).await?;
+            let (response, settled) = execution.into_parts();
+            let status = response.status;
+            let payload = read(
+                response.body,
+                snapshot.limits.max_response_body_bytes as usize,
+            )
+            .await;
+            drop(rt::timeout(TRACE_TIMEOUT, settled).await);
+            if !status.is_success() {
+                return Err(SdkError::Upstream {
+                    status: status.as_u16(),
+                    body: upstream_error(status, &payload),
+                });
+            }
+            let mut page: Value = serde_json::from_slice(&payload).map_err(|error| {
+                SdkError::invalid(format!("the model directory is not JSON: {error}"))
+            })?;
+            let token = (dialect == Dialect::Gemini)
+                .then(|| page.get("nextPageToken").and_then(Value::as_str))
+                .flatten()
+                .filter(|token| !token.is_empty() && seen.insert(token.to_string()))
+                .map(str::to_owned);
+            match &mut document {
+                None => document = Some(page),
+                Some(merged) => {
+                    if let (Some(all), Some(Value::Array(more))) = (
+                        merged.get_mut("models").and_then(Value::as_array_mut),
+                        page.get_mut("models").map(Value::take),
+                    ) {
+                        all.extend(more);
+                    }
+                }
+            }
+            let Some(token) = token else { break };
+            query = Some(
+                url::form_urlencoded::Serializer::new(String::new())
+                    .append_pair("pageToken", &token)
+                    .finish(),
+            );
         }
-        let document: Value = serde_json::from_slice(&payload).map_err(|error| {
-            SdkError::invalid(format!("the model directory is not JSON: {error}"))
-        })?;
+        let document = document.unwrap_or_default();
         let known: BTreeSet<&str> = provider
             .models
             .iter()

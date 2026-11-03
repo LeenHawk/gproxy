@@ -140,9 +140,14 @@ impl BaseChannel for TestChannel {
         let url = match ctx.endpoint_override {
             Some(url) => url.to_owned(),
             None => format!(
-                "{}{}",
+                "{}{}{}",
                 ctx.provider.base_url.unwrap_or_default(),
-                ctx.request.path
+                ctx.request.path,
+                ctx.request
+                    .query
+                    .as_deref()
+                    .map(|query| format!("?{query}"))
+                    .unwrap_or_default()
             ),
         };
         let mut builder = http::Request::builder()
