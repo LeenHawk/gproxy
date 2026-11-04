@@ -15,7 +15,7 @@ if [ -n "${TARGET_TRIPLE:-}" ]; then
   export TARGET_OS="$(jq -r .os <<< "$row")" ARTIFACT_NAME="$(jq -r .artifact <<< "$row")"
   export APPLICATION_ARTIFACT="$(jq -r '.application_artifact // empty' <<< "$row")"
   export BUILDER="$(jq -r .builder <<< "$row")" UPX_ENABLED="$(jq -r .upx <<< "$row")"
-  export UPX_VERSION="$(jq -r '.upx_version // "5.2.1"' <<< "$row")"
+  export UPX_VERSION="$(jq -r '.upx_version // empty' <<< "$row")"  # empty: install-upx.sh's default
   export NDK_TARGET="$(jq -r '.ndk_target // empty' <<< "$row")"
 fi
 release_tool_paths() {

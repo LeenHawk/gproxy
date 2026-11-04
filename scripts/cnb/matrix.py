@@ -26,7 +26,7 @@ for row in json.loads(Path("scripts/release-targets.json").read_text())["include
         "docker": {"build": image, "volumes": ["/usr/local/cargo/registry:copy-on-write", "/usr/local/cargo/git:copy-on-write", "/root/.cache:copy-on-write", "/root/.gradle:copy-on-write", "target:copy-on-write"]},
         "env": {"TARGET_TRIPLE": target, "TARGET_OS": os_name, "ARTIFACT_NAME": row["artifact"],
                 "APPLICATION_ARTIFACT": row.get("application_artifact", ""), "BUILDER": row["builder"],
-                "UPX_ENABLED": str(row["upx"]).lower(), "UPX_VERSION": row.get("upx_version", "5.2.1"),
+                "UPX_ENABLED": str(row["upx"]).lower(), "UPX_VERSION": row.get("upx_version", ""),
                 "NDK_TARGET": row.get("ndk_target", "")},
         "stages": stages,
     }
