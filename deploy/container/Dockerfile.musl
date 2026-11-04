@@ -1,6 +1,6 @@
 # Stable Alpine supplies the C libraries; edge rebuilds each architecture at a
 # different time. Rust comes from rustup at the version used by other releases.
-FROM docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+FROM docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
 
 ARG RUST_VERSION=1.99.0
 ENV RUSTUP_HOME=/opt/rustup RUSTC=/usr/local/bin/rustc RUSTUP_INIT_SKIP_PATH_CHECK=yes \
