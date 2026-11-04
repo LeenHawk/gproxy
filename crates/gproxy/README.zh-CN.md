@@ -69,7 +69,7 @@ gproxy bootstrap admin --user admin --password "…" --api-key "sk-…"
 
 保持原数据库地址、数据目录和 `GPROXY_MASTER_KEY`，按原命令启动即可。SQLite 使用文件快照并在成功后替换原库，保留 `.v3-*.bak`；PostgreSQL 和 MySQL 在库内将旧表保留为 `gproxy_v3_*`，记录进度后分批转换。密码、API Key 和历史用量保留，迁移完成前不开放服务。`gproxy migrate` 使用同一路径。
 
-失败后修正实际错误并重新启动，可以续跑。`import --from-v3` 仍用于另行导入 SQLite 备份或 JSON，普通升级无需手动导出。详见[迁移指南](../../docs/src/content/docs/zh-cn/deployment/v3-to-v4.md)。
+失败后修正实际错误并重新启动，可以续跑。`import --from-v3` 仍用于另行导入 SQLite 备份或 JSON，普通升级无需手动导出。详见[迁移指南](https://gproxy.leenhawk.com/zh-cn/deployment/v3-to-v4/)。
 
 ### `export` / `import`
 

@@ -67,7 +67,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 pnpm --dir console lint       # includes TypeScript, ESLint and i18n parity
 pnpm --dir console test
-pnpm --dir docs check && pnpm --dir docs build
+git submodule update --init docs && pnpm --dir docs check && pnpm --dir docs build
 ```
 
 See [Building from source](https://gproxy.leenhawk.com/deployment/release-build/)
@@ -84,6 +84,8 @@ for desktop, mobile and WASM builds.
   checks parity.
 - **Documentation** — user-visible changes should update the docs in
   `docs/src/content/docs/`, in English and in `zh-cn/`, `zh-tw/` and `ru/`.
+  `docs/` is the [gproxy-docs](https://github.com/LeenHawk/gproxy-docs)
+  submodule: open the docs change there.
 - **Generated types** — if you change DTOs exported to TypeScript, run
   `pnpm --dir console types` and commit the result.
 - **Secrets and captures** — never commit API keys, OAuth tokens, cookies,
@@ -181,7 +183,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 pnpm --dir console lint       # 包括 TypeScript、ESLint 和多语言一致性检查
 pnpm --dir console test
-pnpm --dir docs check && pnpm --dir docs build
+git submodule update --init docs && pnpm --dir docs check && pnpm --dir docs build
 ```
 
 桌面端、移动端和 WASM 构建见
@@ -196,6 +198,7 @@ pnpm --dir docs check && pnpm --dir docs build
   新增键需在四种语言中都添加；`pnpm --dir console lint` 会检查一致性。
 - **文档**——用户可见的改动请同步更新 `docs/src/content/docs/` 中的文档，
   英文、`zh-cn/`、`zh-tw/` 和 `ru/` 都要改。
+  `docs/` 是 [gproxy-docs](https://github.com/LeenHawk/gproxy-docs) 子模块，文档改动请在那里提交。
 - **生成类型**——修改了导出到 TypeScript 的 DTO 时，请运行
   `pnpm --dir console types` 并提交生成结果。
 - **密钥与抓包**——切勿提交 API Key、OAuth Token、Cookie、账号标识或未脱敏的
@@ -300,7 +303,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 pnpm --dir console lint       # включает TypeScript, ESLint и проверку согласованности i18n
 pnpm --dir console test
-pnpm --dir docs check && pnpm --dir docs build
+git submodule update --init docs && pnpm --dir docs check && pnpm --dir docs build
 ```
 
 О сборках для настольных систем, мобильных устройств и WASM см.
@@ -320,6 +323,7 @@ pnpm --dir docs check && pnpm --dir docs build
 - **Документация** — видимые пользователю изменения должны сопровождаться
   обновлением документации в `docs/src/content/docs/` — английской версии,
   а также `zh-cn/`, `zh-tw/` и `ru/`.
+  `docs/` — это подмодуль [gproxy-docs](https://github.com/LeenHawk/gproxy-docs): изменения документации отправляйте туда.
 - **Генерируемые типы** — если вы изменяете DTO, экспортируемые в TypeScript,
   выполните `pnpm --dir console types` и зафиксируйте результат.
 - **Секреты и перехваченный трафик** — никогда не фиксируйте ключи API,

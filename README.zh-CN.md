@@ -72,18 +72,18 @@ v4 提供带设置向导的桌面与移动应用，也可以作为命令行服�
 
 **供应商与模型** — 在同一页面管理上游账户和模型目录。
 
-![供应商与模型管理](docs/images/readme/providers-zh-CN.webp)
+![供应商与模型管理](.github/readme/providers-zh-CN.webp)
 
 <details>
 <summary>查看模型路由与请求规则</summary>
 
 **模型路由** — 为固定模型名配置供应商、权重和回退层级。
 
-![模型路由管理](docs/images/readme/routes-zh-CN.webp)
+![模型路由管理](.github/readme/routes-zh-CN.webp)
 
 **请求规则** — 为供应商设置系统提示词和缓存断点。
 
-![请求规则配置](docs/images/readme/rules-zh-CN.webp)
+![请求规则配置](.github/readme/rules-zh-CN.webp)
 
 </details>
 
@@ -226,6 +226,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 pnpm --dir console lint
 pnpm --dir console test
+git submodule update --init docs
 pnpm --dir docs install --frozen-lockfile
 pnpm --dir docs check
 pnpm --dir docs build

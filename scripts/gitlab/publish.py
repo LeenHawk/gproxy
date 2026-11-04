@@ -330,7 +330,7 @@ def main():
         return
     hosts[2].sync()
     source_version = os.environ.get("GPROXY_SOURCE_VERSION", os.environ["GPROXY_BUILD_VERSION"])
-    notes = Path(f"docs/release-notes/v{source_version}.md").read_text()
+    notes = Path(f"release-notes/v{source_version}.md").read_text()
     builder = ("GitHub Actions" if os.environ.get("GITHUB_ACTIONS") == "true"
                else "CNB CI" if os.environ.get("CNB_BUILD_ID") else "GitLab CI")
     notes += f"\n\nBuilt once by [{builder}]({os.environ['CI_PIPELINE_URL']}). CLI (`gproxy-*`) and Application (`gproxy-tauri-*`) packages are separate.\n"

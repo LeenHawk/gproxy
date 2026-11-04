@@ -1,9 +1,9 @@
 # Application icons
 
 `icon.png` is the existing project globe icon copied from
-`docs/public/web-app-manifest-512x512.png`. Do not replace it with Tauri's
+gproxy-docs' `public/web-app-manifest-512x512.png`. Do not replace it with Tauri's
 placeholder image. The PNGs used by the Console are the same globe design;
-`docs/public/favicon.svg` contains an older illustration.
+gproxy-docs' `public/favicon.svg` contains an older illustration.
 
 Generate platform variants with the pinned CLI:
 

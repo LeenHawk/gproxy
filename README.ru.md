@@ -72,18 +72,18 @@ GPROXY — это автономный шлюз LLM API, написанный н
 
 **Провайдеры и модели**. Управляйте учётными записями провайдеров и каталогами моделей в одном месте.
 
-![Провайдеры и модели](docs/images/readme/providers-en.webp)
+![Провайдеры и модели](.github/readme/providers-en.webp)
 
 <details>
 <summary>Просмотр моделей маршрутов и правил запроса</summary>
 
 **Маршруты модели** — настройте провайдеров, веса и резервные уровни для фиксированного имени модели.
 
-![Маршруты моделей](docs/images/readme/routes-en.webp)
+![Маршруты моделей](.github/readme/routes-en.webp)
 
 **Правила запроса** — настройка системного текста и точек кэширования для провайдера.
 
-![Правила запросов](docs/images/readme/rules-en.webp)
+![Правила запросов](.github/readme/rules-en.webp)
 
 </details>
 
@@ -218,6 +218,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 pnpm --dir console lint
 pnpm --dir console test
+git submodule update --init docs
 pnpm --dir docs install --frozen-lockfile
 pnpm --dir docs check
 pnpm --dir docs build

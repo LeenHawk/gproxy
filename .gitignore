@@ -1,5 +1,4 @@
 /target
-/docs/public/generated/
 /data
 *.db
 *.db-*
@@ -15,6 +14,7 @@ __pycache__/
 !.cnb/
 !.gitlab-ci.yml
 !.gitlab/
+!.gitmodules
 
 # local reference library (v2 snapshot lives at samples/gproxy-v2)
 samples/
@@ -41,4 +41,3 @@ probe-out/
 
 /tmp
 # Local Alpine release signing material
-/dev_docs/alpine-signing/

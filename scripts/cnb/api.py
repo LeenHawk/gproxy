@@ -145,7 +145,7 @@ class Cnb:
         manifest = json.loads((directory / "manifest.json").read_text())
         channel = manifest["channel"]
         tag = os.environ["RELEASE_TAG"]
-        notes = Path(f"docs/release-notes/v{os.environ['GPROXY_BUILD_VERSION']}.md").read_text()
+        notes = Path(f"release-notes/v{os.environ['GPROXY_BUILD_VERSION']}.md").read_text()
         notes += ("\n\nCNB packages: `gproxy-*` are CLI/server builds; `gproxy-tauri-*` are "
                   "Application builds. Windows Application uses an NSIS installer; macOS "
                   "Application uses an ad-hoc signed `.app.zip`. Store submissions and "

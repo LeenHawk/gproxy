@@ -40,17 +40,6 @@ console:
       - crates/gproxy-host-axum/assets/web/
       - crates/gproxy-host-tauri/ui/
 
-docs:
-  stage: verify
-  image: docker.io/library/node:24.21.0-trixie@sha256:1278a37eb510ec1606fba0e80f554bcc941ae0b44f35ae373c4822ae7717c64d
-  tags: [saas-linux-medium-amd64]
-  needs: []
-  script:
-    - npm install -g pnpm@9.15.9
-    - pnpm --dir docs install --frozen-lockfile
-    - pnpm --dir docs check
-    - pnpm --dir docs build
-
 .verify-base:
   stage: verify
   image: "$VERIFY_IMAGE"
@@ -364,8 +353,6 @@ publish:
     - job: backend
       artifacts: false
     - job: wasm-verify
-      artifacts: false
-    - job: docs
       artifacts: false
     - linux
     - linux-arm64

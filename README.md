@@ -72,18 +72,18 @@ Screenshots of the v4 console, using a separate demo instance with example data.
 
 **Providers and models** — Manage upstream accounts and model catalogs in one place.
 
-![Provider and model management](docs/images/readme/providers-en.webp)
+![Provider and model management](.github/readme/providers-en.webp)
 
 <details>
 <summary>View model routes and request rules</summary>
 
 **Model routes** — Configure providers, weights, and fallback tiers for a fixed model name.
 
-![Model route management](docs/images/readme/routes-en.webp)
+![Model route management](.github/readme/routes-en.webp)
 
 **Request rules** — Configure system text and cache breakpoints for a provider.
 
-![Request rule configuration](docs/images/readme/rules-en.webp)
+![Request rule configuration](.github/readme/rules-en.webp)
 
 </details>
 
@@ -228,6 +228,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 pnpm --dir console lint
 pnpm --dir console test
+git submodule update --init docs
 pnpm --dir docs install --frozen-lockfile
 pnpm --dir docs check
 pnpm --dir docs build

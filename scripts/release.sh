@@ -6,7 +6,7 @@ cd "$root"
 version="$(scripts/release-metadata.sh version)"
 tag="v$version"
 scripts/release-metadata.sh verify-tag "$tag"
-test -f "docs/release-notes/v$version.md" || { echo "release notes are required" >&2; exit 1; }
+test -f "release-notes/v$version.md" || { echo "release notes are required" >&2; exit 1; }
 
 if ! git diff --quiet || ! git diff --cached --quiet; then
   echo "release requires a clean tracked worktree" >&2
@@ -43,7 +43,6 @@ if [[ "$version" != *-* ]]; then
     exit 1
   }
   pnpm --dir console update --latest
-  pnpm --dir docs update --latest
   # These bridge upstream version-specific types/backends; see Cargo.toml.
   # cargo update still refreshes every compatible version in their lock entries.
   cargo upgrade --manifest-path Cargo.toml --incompatible allow --pinned allow \

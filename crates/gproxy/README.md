@@ -77,7 +77,7 @@ work on `serve`.
 
 Keep the database URL, data directory, and `GPROXY_MASTER_KEY`. SQLite uses a file snapshot and replaces the original only after success, retaining a `.v3-*.bak` backup. PostgreSQL and MySQL archive the old tables as `gproxy_v3_*` and checkpoint the data conversion. Passwords, API keys, and historical usage survive. The host serves traffic only after migration completes; `gproxy migrate` uses the same path.
 
-Fix a reported failure and restart to resume. `import --from-v3` remains available for separately importing a SQLite backup or JSON document; normal upgrades do not require an export. See the [migration guide](../../docs/src/content/docs/deployment/v3-to-v4.md).
+Fix a reported failure and restart to resume. `import --from-v3` remains available for separately importing a SQLite backup or JSON document; normal upgrades do not require an export. See the [migration guide](https://gproxy.leenhawk.com/deployment/v3-to-v4/).
 
 ### `export` / `import`
 
