@@ -53,7 +53,7 @@ if [ "${GPROXY_UNSIGNED_BUILD:-0}" != 1 ]; then
   if [ -n "${ALPINE_SIGNING_PRIVATE_KEY_B64:-}" ]; then
     printf '%s' "$ALPINE_SIGNING_PRIVATE_KEY_B64" | base64 -d > "$work/signing.rsa"
   else
-    cp "${ALPINE_SIGNING_KEY_FILE:-$root/dev_docs/alpine-signing/gproxy-alpine.rsa}" "$work/signing.rsa"
+    cp "${ALPINE_SIGNING_KEY_FILE:-$root/dev-docs/alpine-signing/gproxy-alpine.rsa}" "$work/signing.rsa"
   fi
   openssl pkey -in "$work/signing.rsa" -pubout -out "$work/signing.rsa.pub"
   cmp "$work/signing.rsa.pub" distribution/alpine/gproxy-alpine.rsa.pub

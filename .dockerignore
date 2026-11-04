@@ -16,4 +16,4 @@ deploy/netlify/pkg
 deploy/netlify/public
 
 # Signing keys and local deployment notes never enter build contexts.
-dev_docs
+dev-docs

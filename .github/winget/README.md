@@ -46,7 +46,7 @@ published. It verifies MSIX checksums, Authenticode trust and timestamps, identi
 then submits one PR per edition using the `WINGET_TOKEN` repository secret.
 Existing MSIX versions/open PRs are skipped. Unsigned MSIX packages are skipped;
 release signing uses SignPath with unsigned fallback when unavailable. Manual
-dispatch defaults to validation only (`dry_run`); see [configuration and maintenance](../../dev_docs/winget.md).
+dispatch defaults to validation only (`dry_run`).
 
 Headless uses version-independent metadata templates in `templates/Headless/`;
 no historical Headless release is implied by these templates. The generator
