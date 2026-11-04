@@ -56,8 +56,10 @@ jobs:
         run: |
           git add -A
           if git diff --cached --quiet; then echo "feed unchanged"; exit 0; fi
-          git -c user.name=github-actions[bot] -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
-            commit -q -m "chore(notifications): publish the announcement feed"
+          # The rebase below replays this commit, so it needs the identity too.
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -q -m "chore(notifications): publish the announcement feed"
           for attempt in 1 2 3; do
             git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0
             sleep 5

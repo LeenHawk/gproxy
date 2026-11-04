@@ -381,8 +381,10 @@ jobs:
           # Mintlify layout the reference snippets rendered from it.
           git add -A
           if git diff --cached --quiet; then echo "reference unchanged"; exit 0; fi
-          git -c user.name=github-actions[bot] -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
-            commit -q -m "chore(reference): export from gproxy ${GITHUB_SHA::12}"
+          # The rebase below replays this commit, so it needs the identity too.
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -q -m "chore(reference): export from gproxy ${GITHUB_SHA::12}"
           # A docs commit may have landed since the checkout; the export only
           # touches public/generated, so replaying it on top is always clean.
           for attempt in 1 2 3; do
