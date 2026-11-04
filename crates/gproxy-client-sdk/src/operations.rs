@@ -55,6 +55,8 @@ mod json;
 mod models;
 #[cfg(feature = "count-tokens")]
 pub use count_tokens::{CountTokensParams, TokenCount};
+#[cfg(feature = "models")]
+pub use models::ModelInfo;
 #[cfg(feature = "audio")]
 mod audio;
 #[cfg(feature = "video")]

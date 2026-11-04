@@ -156,22 +156,90 @@ fn image_generation_and_json_edit_preserve_options_and_sources() {
         );
     });
 }
-#[cfg(feature = "models")]
+#[cfg(all(
+    feature = "models",
+    feature = "openai",
+    feature = "claude",
+    feature = "gemini"
+))]
 #[test]
-fn model_listing_has_no_model_constraint_or_upstream_discovery() {
+fn model_listing_reads_the_catalog_in_the_chosen_dialect() {
     futures_executor::block_on(async {
         let client = Client::new(BackendScript::new(vec![
-            json!({"object":"list","data":[{"object":"model","id":"p/m","created":1,"owned_by":"local"}]}),
+            // The Codex projection in `models` is not the list.
+            json!({"object":"list","data":[{"object":"model","id":"p/m","created":1,"owned_by":"local","context_window":200000}],"models":[]}),
+            json!({"data":[{"id":"p/m","type":"model","display_name":"M","created_at":"1970-01-01T00:00:00Z","max_input_tokens":1000,"max_tokens":64}],"first_id":"p/m","last_id":"p/m","has_more":false}),
+            json!({"models":[{"name":"models/p/m","baseModelId":"p/m","displayName":"M","inputTokenLimit":1000,"outputTokenLimit":64}]}),
+            json!({"name":"models/p/m","baseModelId":"p/m"}),
         ]));
-        assert_eq!(client.list_models().await.unwrap().data[0].id, "p/m");
+
+        let openai = client.list_models(Dialect::Openai).await.unwrap();
+        assert_eq!(
+            openai[0].model,
+            Model {
+                id: "p/m".into(),
+                dialect: Dialect::Openai
+            }
+        );
+        assert_eq!(openai[0].context_window, Some(200000));
+        assert_eq!(
+            openai[0].provider_metadata[&Vendor::Openai]["native"]["owned_by"],
+            "local"
+        );
         let request = client.backend.take();
         assert_eq!(
             request.key.operation,
             gproxy_protocol::Operation::ListModels
         );
-        assert_eq!(request.method, Method::GET);
-        assert!(request.model.is_none());
-        assert!(request.body.is_empty());
+        assert_eq!(request.key.dialect, gproxy_protocol::Dialect::OpenAi);
+        assert_eq!(
+            (request.method, request.path.as_str()),
+            (Method::GET, "/v1/models")
+        );
+        assert!(request.model.is_none() && request.body.is_empty());
+        assert!(request.headers.get("anthropic-version").is_none());
+
+        let claude = client.list_models(Dialect::Claude).await.unwrap();
+        assert_eq!(
+            claude[0].model,
+            Model {
+                id: "p/m".into(),
+                dialect: Dialect::Claude
+            }
+        );
+        assert_eq!(
+            (claude[0].context_window, claude[0].max_output_tokens),
+            (Some(1000), Some(64))
+        );
+        let request = client.backend.take();
+        assert_eq!(request.path, "/v1/models");
+        assert_eq!(request.key.dialect, gproxy_protocol::Dialect::Claude);
+        assert!(request.headers.get("anthropic-version").is_some());
+
+        // Gemini's resource name is `models/{id}`; requests take the bare id.
+        let gemini = client.list_models(Dialect::Gemini).await.unwrap();
+        assert_eq!(
+            gemini[0].model,
+            Model {
+                id: "p/m".into(),
+                dialect: Dialect::Gemini
+            }
+        );
+        assert_eq!(gemini[0].display_name.as_deref(), Some("M"));
+        assert_eq!(client.backend.take().path, "/v1beta/models");
+
+        let one = client
+            .get_model(&Model {
+                id: "p/m".into(),
+                dialect: Dialect::Gemini,
+            })
+            .await
+            .unwrap();
+        assert_eq!(one.model.id, "p/m");
+        let request = client.backend.take();
+        assert_eq!(request.key.operation, gproxy_protocol::Operation::GetModel);
+        assert_eq!(request.path, "/v1beta/models/p%2Fm");
+        assert_eq!(request.model.as_deref(), Some("p/m"));
     });
 }
 #[cfg(feature = "video")]

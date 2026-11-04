@@ -826,6 +826,9 @@ where
                 }
                 Dialect::Gemini => {
                     object.insert("name".into(), json!(format!("models/{name}")));
+                    // Required by the Gemini Model resource; the catalog name
+                    // is what a generation request passes.
+                    object.entry("baseModelId").or_insert(json!(name));
                     object.entry("displayName").or_insert(json!(name));
                 }
                 _ => {

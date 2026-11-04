@@ -161,7 +161,13 @@ are not submitted; completed calls are not retried or rolled back. There is no
 concurrency, retry or failover scheduler. The native `Client::embeddings` passthrough
 with `operations::Params<protocol::openai::embeddings::...>` remains available.
 
-Other thin native families cover count tokens, local models, rerank,
+`list_models(dialect)` and `get_model(&model)` read the gateway's local catalog in
+the caller's chosen dialect (OpenAI `/v1/models`, Claude the same path with
+`anthropic-version`, Gemini `/v1beta/models`) and return `ModelInfo` entries whose
+`model` is ready to use in that dialect at the same endpoint; Gemini's `models/`
+prefix is removed. The dialect is the caller's choice, not a property of a model.
+
+Other thin native families cover count tokens, rerank,
 TTS/transcription, images and asynchronous video jobs. Speech/transcription retain
 the native response transport because it may contain binary, text, JSON or SSE.
 Operations are split into feature-scoped modules, with no module-wide dead-code or

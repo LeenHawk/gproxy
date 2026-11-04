@@ -719,3 +719,36 @@ async fn a_multipart_model_routes_and_reaches_the_upstream_unprefixed() {
     assert!(sent.contains("name=\"model\"\r\n\r\nm1\r\n"), "{sent}");
     assert!(sent.contains("filename=\"a.wav\""), "{sent}");
 }
+
+#[tokio::test]
+async fn the_catalog_parses_as_each_dialect_s_own_model_resource() {
+    let host = instance().await;
+    // Listing refreshes the catalog from upstream first; a failed refresh
+    // keeps the saved catalog, which is what is asserted here.
+    host.client.script((0..8).map(|_| Reply::Failed).collect());
+    let list = |path: &str| keyed(get(path), "k-alice");
+    let openai = host.send(list("/v1/models")).await;
+    assert_eq!(openai.status, StatusCode::OK, "{}", openai.text());
+    let openai: gproxy_protocol::openai::models::ListModelsResponseBody =
+        serde_json::from_slice(&openai.bytes).unwrap();
+    assert_eq!(openai.data[0].id, "p1/m1");
+
+    let claude = host
+        .send(with(list("/v1/models"), "anthropic-version", "2023-06-01"))
+        .await;
+    let claude: gproxy_protocol::claude::models::ListModelsResponseBody =
+        serde_json::from_slice(&claude.bytes).unwrap();
+    assert_eq!(claude.data[0].id, "p1/m1");
+
+    let gemini = host.send(list("/v1beta/models")).await;
+    let gemini: gproxy_protocol::gemini::models::ListModelsResponseBody =
+        serde_json::from_slice(&gemini.bytes).unwrap_or_else(|e| panic!("{e}"));
+    let model = &gemini.models.unwrap()[0];
+    assert_eq!(model.name, "models/p1/m1");
+    assert_eq!(model.base_model_id, "p1/m1");
+
+    let one = host.send(list("/v1beta/models/p1%2Fm1")).await;
+    assert_eq!(one.status, StatusCode::OK, "{}", one.text());
+    let one: gproxy_protocol::gemini::models::Model = serde_json::from_slice(&one.bytes).unwrap();
+    assert_eq!(one.name, "models/p1/m1");
+}

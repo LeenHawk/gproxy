@@ -135,7 +135,22 @@ async fn embedded_uses_call_scope_native_generation_and_the_local_catalog() {
     );
     #[cfg(feature = "models")]
     {
-        let models = client.list_models().await.unwrap();
-        assert!(models.data.iter().any(|m| m.id == "local/native-model"));
+        for dialect in [Dialect::Openai, Dialect::Claude, Dialect::Gemini] {
+            let models = client.list_models(dialect).await.unwrap();
+            let model = Model {
+                id: "local/native-model".into(),
+                dialect,
+            };
+            assert!(models.iter().any(|m| m.model == model), "{dialect:?}");
+            assert_eq!(client.get_model(&model).await.unwrap().model, model);
+        }
+        let missing = client
+            .get_model(&Model {
+                id: "local/absent".into(),
+                dialect: Dialect::Gemini,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(missing.status, Some(404));
     }
 }
