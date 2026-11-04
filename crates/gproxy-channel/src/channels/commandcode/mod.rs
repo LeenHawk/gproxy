@@ -1,7 +1,7 @@
-//! Command Code CLI 1.84.0. Wire evidence: the npm release's `createModelClient`,
+//! Command Code CLI 1.88.2. Wire evidence: the npm release's `createModelClient`,
 //! `toWireMessages`, `consumeStream`, `buildCommandAuthHeaders` and
-//! `fetchUsageData`, recovered in samples/command-code-1.84.0/decompiled/cli.mjs.
-//! See design/commandcode-1.84.0.md for the audit and reproduction commands.
+//! `fetchUsageData`, recovered in samples/command-code-1.88.2/cli.readable.mjs.
+//! See design/commandcode-1.88.2.md for the audit and reproduction commands.
 //!
 //! The CLI uses /alpha/generate with AI SDK messages and NDJSON events. This
 //! channel presents Claude Messages to the host; other dialects use the host's

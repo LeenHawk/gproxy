@@ -12,7 +12,7 @@ use http::{HeaderMap, HeaderValue, Method, header};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
-pub const CLI_VERSION: &str = "1.84.0";
+pub const CLI_VERSION: &str = "1.88.2";
 pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
     names: &["x-session-id"],
     prefixes: &[],
@@ -70,6 +70,31 @@ fn text_blocks(value: &Value) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// Match the CLI's non-git buildServerConfig without reading the gateway's
+/// workspace or machine identity. The upstream requires all nine fields.
+fn workspace_config() -> Result<Value, ChannelError> {
+    let elapsed = web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
+        .map_err(|e| invalid(&format!("invalid system clock: {e}")))?;
+    let seconds =
+        i64::try_from(elapsed.as_secs()).map_err(|_| invalid("system clock is out of range"))?;
+    let date = time::OffsetDateTime::from_unix_timestamp(seconds)
+        .map_err(|e| invalid(&format!("invalid system date: {e}")))?
+        .date()
+        .to_string();
+    Ok(json!({
+        "workingDir": "/workspace/gproxy",
+        "date": date,
+        "environment": "linux",
+        "structure": [],
+        "isGitRepo": false,
+        "currentBranch": "",
+        "mainBranch": "",
+        "gitStatus": "",
+        "recentCommits": [],
+    }))
 }
 
 /// CLI toWireMessages/toWireTools: Claude blocks become AI SDK model messages.
@@ -162,7 +187,7 @@ fn envelope(body: &[u8]) -> Result<Value, ChannelError> {
         params["reasoning_effort"] = value.clone();
     }
     Ok(
-        json!({"config":{}, "memory":null, "taste":null, "skills":null,
+        json!({"config":workspace_config()?, "memory":null, "taste":null, "skills":null,
         "permissionMode":"standard", "params":params}),
     )
 }
