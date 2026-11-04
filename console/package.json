@@ -55,5 +55,10 @@
     "typescript-eslint": "^8.72.1",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
+  },
+  "pnpm": {
+    "overrides": {
+      "minimatch": "^11.0.4"
+    }
   }
 }
