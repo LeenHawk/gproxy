@@ -7,7 +7,7 @@ use super::{AudioTranscription, NoiseReductionType};
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/realtime_audio_config.py`, `RealtimeAudioConfig`.
+// Source: `openai/types/realtime/realtime_audio_config.py`, `RealtimeAudioConfig`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -29,7 +29,7 @@ pub struct RealtimeAudioConfig {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_audio_config_input.py`, `RealtimeAudioConfigInput`.
+// Source: `openai/types/realtime/realtime_audio_config_input.py`, `RealtimeAudioConfigInput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -63,7 +63,7 @@ pub struct RealtimeAudioConfigInput {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_audio_config_output.py`, `RealtimeAudioConfigOutput`.
+// Source: `openai/types/realtime/realtime_audio_config_output.py`, `RealtimeAudioConfigOutput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -91,7 +91,7 @@ pub struct RealtimeAudioConfigOutput {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_audio_formats.py`, `RealtimeAudioFormats`.
+// Source: `openai/types/realtime/realtime_audio_formats.py`, `RealtimeAudioFormats`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -103,7 +103,7 @@ pub enum RealtimeAudioFormats {
     RealtimeAudioFormatsAudioPCMA(RealtimeAudioFormatsAudioPCMA),
 }
 
-/// Source: `openai/types/realtime/realtime_audio_config_input.py`, `NoiseReduction`.
+// Source: `openai/types/realtime/realtime_audio_config_input.py`, `NoiseReduction`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -120,7 +120,7 @@ pub struct RealtimeAudioConfigInputNoiseReduction {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_audio_input_turn_detection.py`, `RealtimeAudioInputTurnDetection`.
+// Source: `openai/types/realtime/realtime_audio_input_turn_detection.py`, `RealtimeAudioInputTurnDetection`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -132,7 +132,7 @@ pub enum RealtimeAudioInputTurnDetection {
     Variant3(()),
 }
 
-/// Source: `openai/types/realtime/realtime_audio_config_output.py`, `Voice`.
+// Source: `openai/types/realtime/realtime_audio_config_output.py`, `Voice`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -143,7 +143,7 @@ pub enum RealtimeAudioConfigOutputVoice {
     RealtimeAudioConfigOutputVoiceID(RealtimeAudioConfigOutputVoiceID),
 }
 
-/// Source: `openai/types/realtime/realtime_audio_formats.py`, `AudioPCM`.
+// Source: `openai/types/realtime/realtime_audio_formats.py`, `AudioPCM`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -166,7 +166,7 @@ pub struct RealtimeAudioFormatsAudioPCM {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_audio_formats.py`, `AudioPCMU`.
+// Source: `openai/types/realtime/realtime_audio_formats.py`, `AudioPCMU`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -183,7 +183,7 @@ pub struct RealtimeAudioFormatsAudioPCMU {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_audio_formats.py`, `AudioPCMA`.
+// Source: `openai/types/realtime/realtime_audio_formats.py`, `AudioPCMA`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -200,7 +200,7 @@ pub struct RealtimeAudioFormatsAudioPCMA {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_audio_input_turn_detection.py`, `ServerVad`.
+// Source: `openai/types/realtime/realtime_audio_input_turn_detection.py`, `ServerVad`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -248,7 +248,7 @@ pub struct RealtimeAudioInputTurnDetectionServerVad {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_audio_input_turn_detection.py`, `SemanticVad`.
+// Source: `openai/types/realtime/realtime_audio_input_turn_detection.py`, `SemanticVad`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -278,7 +278,7 @@ pub struct RealtimeAudioInputTurnDetectionSemanticVad {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_audio_config_output.py`, `VoiceID`.
+// Source: `openai/types/realtime/realtime_audio_config_output.py`, `VoiceID`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

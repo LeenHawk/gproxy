@@ -7,7 +7,7 @@ use super::wire::present_nullable;
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/audio/transcription_language.py`, `TranscriptionLanguage`.
+// Source: `openai/types/audio/transcription_language.py`, `TranscriptionLanguage`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -18,7 +18,7 @@ pub struct TranscriptionLanguage {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/log_prob_properties.py`, `LogProbProperties`.
+// Source: `openai/types/realtime/log_prob_properties.py`, `LogProbProperties`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -31,7 +31,7 @@ pub struct LogProbProperties {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_transcription_session_create_request.py`, `RealtimeTranscriptionSessionCreateRequest`.
+// Source: `openai/types/realtime/realtime_transcription_session_create_request.py`, `RealtimeTranscriptionSessionCreateRequest`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -55,7 +55,7 @@ pub struct RealtimeTranscriptionSessionCreateRequest {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/audio_transcription.py`, `AudioTranscription`.
+// Source: `openai/types/realtime/audio_transcription.py`, `AudioTranscription`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -101,7 +101,7 @@ pub struct AudioTranscription {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_transcription_session_audio.py`, `RealtimeTranscriptionSessionAudio`.
+// Source: `openai/types/realtime/realtime_transcription_session_audio.py`, `RealtimeTranscriptionSessionAudio`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -117,7 +117,7 @@ pub struct RealtimeTranscriptionSessionAudio {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/noise_reduction_type.py`, `NoiseReductionType`.
+// Source: `openai/types/realtime/noise_reduction_type.py`, `NoiseReductionType`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -129,7 +129,7 @@ pub enum NoiseReductionType {
     FarField,
 }
 
-/// Source: `openai/types/realtime/realtime_transcription_session_audio_input.py`, `RealtimeTranscriptionSessionAudioInput`.
+// Source: `openai/types/realtime/realtime_transcription_session_audio_input.py`, `RealtimeTranscriptionSessionAudioInput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -163,7 +163,7 @@ pub struct RealtimeTranscriptionSessionAudioInput {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_transcription_session_audio_input.py`, `NoiseReduction`.
+// Source: `openai/types/realtime/realtime_transcription_session_audio_input.py`, `NoiseReduction`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -180,7 +180,7 @@ pub struct RealtimeTranscriptionSessionAudioInputNoiseReduction {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_transcription_session_audio_input_turn_detection.py`, `RealtimeTranscriptionSessionAudioInputTurnDetection`.
+// Source: `openai/types/realtime/realtime_transcription_session_audio_input_turn_detection.py`, `RealtimeTranscriptionSessionAudioInputTurnDetection`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -196,7 +196,7 @@ pub enum RealtimeTranscriptionSessionAudioInputTurnDetection {
     Variant3(()),
 }
 
-/// Source: `openai/types/realtime/realtime_transcription_session_audio_input_turn_detection.py`, `ServerVad`.
+// Source: `openai/types/realtime/realtime_transcription_session_audio_input_turn_detection.py`, `ServerVad`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -244,7 +244,7 @@ pub struct RealtimeTranscriptionSessionAudioInputTurnDetectionServerVad {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_transcription_session_audio_input_turn_detection.py`, `SemanticVad`.
+// Source: `openai/types/realtime/realtime_transcription_session_audio_input_turn_detection.py`, `SemanticVad`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

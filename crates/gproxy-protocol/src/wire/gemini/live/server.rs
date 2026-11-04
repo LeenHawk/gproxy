@@ -331,9 +331,9 @@ pub enum VoiceActivityType {
     ActivityEnd,
 }
 
-/// ai.google.dev/api/live exposes deprecated speechState but provides no value
-/// table; current public proto/SDK omit its declaration. Preserve the named enum
-/// representation without inventing constants. ProtoJSON enums can be names/ints.
+// ai.google.dev/api/live exposes deprecated speechState but provides no value
+// table; current public proto/SDK omit its declaration. Preserve the named enum
+// representation without inventing constants. ProtoJSON enums can be names/ints.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]

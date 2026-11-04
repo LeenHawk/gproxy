@@ -10,7 +10,7 @@ use super::{
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/conversation_item.py`, `ConversationItem`.
+// Source: `openai/types/realtime/conversation_item.py`, `ConversationItem`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -28,7 +28,7 @@ pub enum ConversationItem {
     RealtimeMcpApprovalRequest(RealtimeMcpApprovalRequest),
 }
 
-/// Source: `openai/types/realtime/realtime_conversation_item_system_message.py`, `RealtimeConversationItemSystemMessage`.
+// Source: `openai/types/realtime/realtime_conversation_item_system_message.py`, `RealtimeConversationItemSystemMessage`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -60,7 +60,7 @@ pub struct RealtimeConversationItemSystemMessage {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_conversation_item_user_message.py`, `RealtimeConversationItemUserMessage`.
+// Source: `openai/types/realtime/realtime_conversation_item_user_message.py`, `RealtimeConversationItemUserMessage`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -92,7 +92,7 @@ pub struct RealtimeConversationItemUserMessage {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_conversation_item_assistant_message.py`, `RealtimeConversationItemAssistantMessage`.
+// Source: `openai/types/realtime/realtime_conversation_item_assistant_message.py`, `RealtimeConversationItemAssistantMessage`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -124,7 +124,7 @@ pub struct RealtimeConversationItemAssistantMessage {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_conversation_item_function_call.py`, `RealtimeConversationItemFunctionCall`.
+// Source: `openai/types/realtime/realtime_conversation_item_function_call.py`, `RealtimeConversationItemFunctionCall`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -162,7 +162,7 @@ pub struct RealtimeConversationItemFunctionCall {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_conversation_item_function_call_output.py`, `RealtimeConversationItemFunctionCallOutput`.
+// Source: `openai/types/realtime/realtime_conversation_item_function_call_output.py`, `RealtimeConversationItemFunctionCallOutput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -194,7 +194,7 @@ pub struct RealtimeConversationItemFunctionCallOutput {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_conversation_item_system_message.py`, `Content`.
+// Source: `openai/types/realtime/realtime_conversation_item_system_message.py`, `Content`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -217,7 +217,7 @@ pub struct RealtimeConversationItemSystemMessageContent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_conversation_item_user_message.py`, `Content`.
+// Source: `openai/types/realtime/realtime_conversation_item_user_message.py`, `Content`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -264,7 +264,7 @@ pub struct RealtimeConversationItemUserMessageContent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_conversation_item_assistant_message.py`, `Content`.
+// Source: `openai/types/realtime/realtime_conversation_item_assistant_message.py`, `Content`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

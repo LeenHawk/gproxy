@@ -7,7 +7,7 @@ use super::{LogProbProperties, TranscriptionLanguage};
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/conversation_item_input_audio_transcription_completed_event.py`, `ConversationItemInputAudioTranscriptionCompletedEvent`.
+// Source: `openai/types/realtime/conversation_item_input_audio_transcription_completed_event.py`, `ConversationItemInputAudioTranscriptionCompletedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -36,7 +36,7 @@ pub struct ConversationItemInputAudioTranscriptionCompletedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/conversation_item_input_audio_transcription_delta_event.py`, `ConversationItemInputAudioTranscriptionDeltaEvent`.
+// Source: `openai/types/realtime/conversation_item_input_audio_transcription_delta_event.py`, `ConversationItemInputAudioTranscriptionDeltaEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -68,7 +68,7 @@ pub struct ConversationItemInputAudioTranscriptionDeltaEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/conversation_item_input_audio_transcription_failed_event.py`, `ConversationItemInputAudioTranscriptionFailedEvent`.
+// Source: `openai/types/realtime/conversation_item_input_audio_transcription_failed_event.py`, `ConversationItemInputAudioTranscriptionFailedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -84,7 +84,7 @@ pub struct ConversationItemInputAudioTranscriptionFailedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/conversation_item_input_audio_transcription_segment.py`, `ConversationItemInputAudioTranscriptionSegment`.
+// Source: `openai/types/realtime/conversation_item_input_audio_transcription_segment.py`, `ConversationItemInputAudioTranscriptionSegment`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -104,7 +104,7 @@ pub struct ConversationItemInputAudioTranscriptionSegment {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/conversation_item_input_audio_transcription_completed_event.py`, `Usage`.
+// Source: `openai/types/realtime/conversation_item_input_audio_transcription_completed_event.py`, `Usage`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -119,7 +119,7 @@ pub enum ConversationItemInputAudioTranscriptionCompletedEventUsage {
     ),
 }
 
-/// Source: `openai/types/realtime/conversation_item_input_audio_transcription_failed_event.py`, `Error`.
+// Source: `openai/types/realtime/conversation_item_input_audio_transcription_failed_event.py`, `Error`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -154,7 +154,7 @@ pub struct ConversationItemInputAudioTranscriptionFailedEventError {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/conversation_item_input_audio_transcription_completed_event.py`, `UsageTranscriptTextUsageTokens`.
+// Source: `openai/types/realtime/conversation_item_input_audio_transcription_completed_event.py`, `UsageTranscriptTextUsageTokens`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -171,7 +171,7 @@ pub struct ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptT
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/conversation_item_input_audio_transcription_completed_event.py`, `UsageTranscriptTextUsageDuration`.
+// Source: `openai/types/realtime/conversation_item_input_audio_transcription_completed_event.py`, `UsageTranscriptTextUsageDuration`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -185,7 +185,7 @@ pub struct ConversationItemInputAudioTranscriptionCompletedEventUsageTranscriptT
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/conversation_item_input_audio_transcription_completed_event.py`, `UsageTranscriptTextUsageTokensInputTokenDetails`.
+// Source: `openai/types/realtime/conversation_item_input_audio_transcription_completed_event.py`, `UsageTranscriptTextUsageTokensInputTokenDetails`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

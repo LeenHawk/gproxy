@@ -5,8 +5,8 @@ use crate::Rest;
 /// Request/response shapes for `GET /v1/models` and `GET /v1/models/{model_id}`.
 /// `after_id`, `before_id`, and `limit` are query parameters; `anthropic_beta`
 /// is the repeated `anthropic-beta` request header; `model_id` is a path
-/// parameter. Source: `upstream_docs/claude/docs/List Models.md` and
-/// `Get a Model.md`.
+/// parameter.
+// Source: `upstream_docs/claude/docs/List Models.md` and `Get a Model.md`.
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]

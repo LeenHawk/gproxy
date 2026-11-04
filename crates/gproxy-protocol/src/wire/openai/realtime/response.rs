@@ -7,7 +7,7 @@ use super::{ConversationItem, Metadata, RealtimeAudioFormats};
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/realtime_response.py`, `RealtimeResponse`.
+// Source: `openai/types/realtime/realtime_response.py`, `RealtimeResponse`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -83,7 +83,7 @@ pub struct RealtimeResponse {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response.py`, `Audio`.
+// Source: `openai/types/realtime/realtime_response.py`, `Audio`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -99,7 +99,7 @@ pub struct RealtimeResponseAudio {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_status.py`, `RealtimeResponseStatus`.
+// Source: `openai/types/realtime/realtime_response_status.py`, `RealtimeResponseStatus`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -128,7 +128,7 @@ pub struct RealtimeResponseStatus {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_usage.py`, `RealtimeResponseUsage`.
+// Source: `openai/types/realtime/realtime_response_usage.py`, `RealtimeResponseUsage`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -168,7 +168,7 @@ pub struct RealtimeResponseUsage {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response.py`, `AudioOutput`.
+// Source: `openai/types/realtime/realtime_response.py`, `AudioOutput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -190,7 +190,7 @@ pub struct RealtimeResponseAudioOutput {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_status.py`, `Error`.
+// Source: `openai/types/realtime/realtime_response_status.py`, `Error`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -213,7 +213,7 @@ pub struct RealtimeResponseStatusError {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_usage_input_token_details.py`, `RealtimeResponseUsageInputTokenDetails`.
+// Source: `openai/types/realtime/realtime_response_usage_input_token_details.py`, `RealtimeResponseUsageInputTokenDetails`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -254,7 +254,7 @@ pub struct RealtimeResponseUsageInputTokenDetails {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_usage_output_token_details.py`, `RealtimeResponseUsageOutputTokenDetails`.
+// Source: `openai/types/realtime/realtime_response_usage_output_token_details.py`, `RealtimeResponseUsageOutputTokenDetails`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -276,7 +276,7 @@ pub struct RealtimeResponseUsageOutputTokenDetails {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_usage_input_token_details.py`, `CachedTokensDetails`.
+// Source: `openai/types/realtime/realtime_response_usage_input_token_details.py`, `CachedTokensDetails`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

@@ -10,7 +10,7 @@ use super::{
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/realtime_session_create_response.py`, `RealtimeSessionCreateResponse`.
+// Source: `openai/types/realtime/realtime_session_create_response.py`, `RealtimeSessionCreateResponse`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -102,7 +102,7 @@ pub struct RealtimeSessionCreateResponse {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_session_create_response.py`, `Tracing`.
+// Source: `openai/types/realtime/realtime_session_create_response.py`, `Tracing`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -116,7 +116,7 @@ pub enum RealtimeSessionCreateResponseTracing {
     Variant3(()),
 }
 
-/// Source: `openai/types/realtime/realtime_session_create_response.py`, `TracingTracingConfiguration`.
+// Source: `openai/types/realtime/realtime_session_create_response.py`, `TracingTracingConfiguration`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

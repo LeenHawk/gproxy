@@ -6,7 +6,7 @@ use super::wire::present_nullable;
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/mcp_list_tools_in_progress.py`, `McpListToolsInProgress`.
+// Source: `openai/types/realtime/mcp_list_tools_in_progress.py`, `McpListToolsInProgress`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -20,7 +20,7 @@ pub struct McpListToolsInProgress {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/mcp_list_tools_completed.py`, `McpListToolsCompleted`.
+// Source: `openai/types/realtime/mcp_list_tools_completed.py`, `McpListToolsCompleted`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -34,7 +34,7 @@ pub struct McpListToolsCompleted {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/mcp_list_tools_failed.py`, `McpListToolsFailed`.
+// Source: `openai/types/realtime/mcp_list_tools_failed.py`, `McpListToolsFailed`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -48,7 +48,7 @@ pub struct McpListToolsFailed {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_mcp_call_arguments_delta.py`, `ResponseMcpCallArgumentsDelta`.
+// Source: `openai/types/realtime/response_mcp_call_arguments_delta.py`, `ResponseMcpCallArgumentsDelta`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -71,7 +71,7 @@ pub struct ResponseMcpCallArgumentsDelta {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_mcp_call_arguments_done.py`, `ResponseMcpCallArgumentsDone`.
+// Source: `openai/types/realtime/response_mcp_call_arguments_done.py`, `ResponseMcpCallArgumentsDone`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -88,7 +88,7 @@ pub struct ResponseMcpCallArgumentsDone {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_mcp_call_in_progress.py`, `ResponseMcpCallInProgress`.
+// Source: `openai/types/realtime/response_mcp_call_in_progress.py`, `ResponseMcpCallInProgress`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -103,7 +103,7 @@ pub struct ResponseMcpCallInProgress {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_mcp_call_completed.py`, `ResponseMcpCallCompleted`.
+// Source: `openai/types/realtime/response_mcp_call_completed.py`, `ResponseMcpCallCompleted`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -118,7 +118,7 @@ pub struct ResponseMcpCallCompleted {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_mcp_call_failed.py`, `ResponseMcpCallFailed`.
+// Source: `openai/types/realtime/response_mcp_call_failed.py`, `ResponseMcpCallFailed`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

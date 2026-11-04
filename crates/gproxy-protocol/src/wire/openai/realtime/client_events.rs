@@ -10,7 +10,7 @@ use super::{
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/conversation_item_create_event.py`, `ConversationItemCreateEvent`.
+// Source: `openai/types/realtime/conversation_item_create_event.py`, `ConversationItemCreateEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -35,7 +35,7 @@ pub struct ConversationItemCreateEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/conversation_item_delete_event.py`, `ConversationItemDeleteEvent`.
+// Source: `openai/types/realtime/conversation_item_delete_event.py`, `ConversationItemDeleteEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -54,7 +54,7 @@ pub struct ConversationItemDeleteEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/conversation_item_retrieve_event.py`, `ConversationItemRetrieveEvent`.
+// Source: `openai/types/realtime/conversation_item_retrieve_event.py`, `ConversationItemRetrieveEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -73,7 +73,7 @@ pub struct ConversationItemRetrieveEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/conversation_item_truncate_event.py`, `ConversationItemTruncateEvent`.
+// Source: `openai/types/realtime/conversation_item_truncate_event.py`, `ConversationItemTruncateEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -94,7 +94,7 @@ pub struct ConversationItemTruncateEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/input_audio_buffer_append_event.py`, `InputAudioBufferAppendEvent`.
+// Source: `openai/types/realtime/input_audio_buffer_append_event.py`, `InputAudioBufferAppendEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -113,7 +113,7 @@ pub struct InputAudioBufferAppendEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/input_audio_buffer_clear_event.py`, `InputAudioBufferClearEvent`.
+// Source: `openai/types/realtime/input_audio_buffer_clear_event.py`, `InputAudioBufferClearEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -131,7 +131,7 @@ pub struct InputAudioBufferClearEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/output_audio_buffer_clear_event.py`, `OutputAudioBufferClearEvent`.
+// Source: `openai/types/realtime/output_audio_buffer_clear_event.py`, `OutputAudioBufferClearEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -149,7 +149,7 @@ pub struct OutputAudioBufferClearEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/input_audio_buffer_commit_event.py`, `InputAudioBufferCommitEvent`.
+// Source: `openai/types/realtime/input_audio_buffer_commit_event.py`, `InputAudioBufferCommitEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -167,7 +167,7 @@ pub struct InputAudioBufferCommitEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_cancel_event.py`, `ResponseCancelEvent`.
+// Source: `openai/types/realtime/response_cancel_event.py`, `ResponseCancelEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -191,7 +191,7 @@ pub struct ResponseCancelEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_create_event.py`, `ResponseCreateEvent`.
+// Source: `openai/types/realtime/response_create_event.py`, `ResponseCreateEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -215,7 +215,7 @@ pub struct ResponseCreateEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/session_update_event.py`, `SessionUpdateEvent`.
+// Source: `openai/types/realtime/session_update_event.py`, `SessionUpdateEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -234,7 +234,7 @@ pub struct SessionUpdateEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/session_update_event.py`, `Session`.
+// Source: `openai/types/realtime/session_update_event.py`, `Session`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]

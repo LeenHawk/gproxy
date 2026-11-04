@@ -219,7 +219,7 @@ pub struct GenerateContentRequestBody {
     pub rest: Rest,
 }
 
-/// Source: upstream_docs/openai/docs/Create a model response.md, access_programs.
+// Source: upstream_docs/openai/docs/Create a model response.md, access_programs.
 #[derive(
     Debug,
     Clone,

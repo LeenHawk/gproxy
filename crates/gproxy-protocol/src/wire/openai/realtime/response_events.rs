@@ -7,7 +7,7 @@ use super::{ConversationItem, RealtimeError, RealtimeResponse};
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/realtime_error_event.py`, `RealtimeErrorEvent`.
+// Source: `openai/types/realtime/realtime_error_event.py`, `RealtimeErrorEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -21,7 +21,7 @@ pub struct RealtimeErrorEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/rate_limits_updated_event.py`, `RateLimitsUpdatedEvent`.
+// Source: `openai/types/realtime/rate_limits_updated_event.py`, `RateLimitsUpdatedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -35,7 +35,7 @@ pub struct RateLimitsUpdatedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_content_part_added_event.py`, `ResponseContentPartAddedEvent`.
+// Source: `openai/types/realtime/response_content_part_added_event.py`, `ResponseContentPartAddedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -53,7 +53,7 @@ pub struct ResponseContentPartAddedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_content_part_done_event.py`, `ResponseContentPartDoneEvent`.
+// Source: `openai/types/realtime/response_content_part_done_event.py`, `ResponseContentPartDoneEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -71,7 +71,7 @@ pub struct ResponseContentPartDoneEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_created_event.py`, `ResponseCreatedEvent`.
+// Source: `openai/types/realtime/response_created_event.py`, `ResponseCreatedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -85,7 +85,7 @@ pub struct ResponseCreatedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_done_event.py`, `ResponseDoneEvent`.
+// Source: `openai/types/realtime/response_done_event.py`, `ResponseDoneEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -99,7 +99,7 @@ pub struct ResponseDoneEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_function_call_arguments_delta_event.py`, `ResponseFunctionCallArgumentsDeltaEvent`.
+// Source: `openai/types/realtime/response_function_call_arguments_delta_event.py`, `ResponseFunctionCallArgumentsDeltaEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -117,7 +117,7 @@ pub struct ResponseFunctionCallArgumentsDeltaEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_function_call_arguments_done_event.py`, `ResponseFunctionCallArgumentsDoneEvent`.
+// Source: `openai/types/realtime/response_function_call_arguments_done_event.py`, `ResponseFunctionCallArgumentsDoneEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -136,7 +136,7 @@ pub struct ResponseFunctionCallArgumentsDoneEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_output_item_added_event.py`, `ResponseOutputItemAddedEvent`.
+// Source: `openai/types/realtime/response_output_item_added_event.py`, `ResponseOutputItemAddedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -152,7 +152,7 @@ pub struct ResponseOutputItemAddedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_output_item_done_event.py`, `ResponseOutputItemDoneEvent`.
+// Source: `openai/types/realtime/response_output_item_done_event.py`, `ResponseOutputItemDoneEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -168,7 +168,7 @@ pub struct ResponseOutputItemDoneEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_text_delta_event.py`, `ResponseTextDeltaEvent`.
+// Source: `openai/types/realtime/response_text_delta_event.py`, `ResponseTextDeltaEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -186,7 +186,7 @@ pub struct ResponseTextDeltaEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_text_done_event.py`, `ResponseTextDoneEvent`.
+// Source: `openai/types/realtime/response_text_done_event.py`, `ResponseTextDoneEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -204,7 +204,7 @@ pub struct ResponseTextDoneEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/rate_limits_updated_event.py`, `RateLimit`.
+// Source: `openai/types/realtime/rate_limits_updated_event.py`, `RateLimit`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -238,7 +238,7 @@ pub struct RateLimitsUpdatedEventRateLimit {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_content_part_added_event.py`, `Part`.
+// Source: `openai/types/realtime/response_content_part_added_event.py`, `Part`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -273,7 +273,7 @@ pub struct ResponseContentPartAddedEventPart {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_content_part_done_event.py`, `Part`.
+// Source: `openai/types/realtime/response_content_part_done_event.py`, `Part`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

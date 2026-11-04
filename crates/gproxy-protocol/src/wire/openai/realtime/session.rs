@@ -11,7 +11,7 @@ use super::{
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/realtime_session_create_request.py`, `RealtimeSessionCreateRequest`.
+// Source: `openai/types/realtime/realtime_session_create_request.py`, `RealtimeSessionCreateRequest`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -101,7 +101,7 @@ pub struct RealtimeSessionCreateRequest {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/session_created_event.py`, `SessionCreatedEvent`.
+// Source: `openai/types/realtime/session_created_event.py`, `SessionCreatedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -115,7 +115,7 @@ pub struct SessionCreatedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/session_updated_event.py`, `SessionUpdatedEvent`.
+// Source: `openai/types/realtime/session_updated_event.py`, `SessionUpdatedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -129,7 +129,7 @@ pub struct SessionUpdatedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/session_created_event.py`, `Session`.
+// Source: `openai/types/realtime/session_created_event.py`, `Session`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -141,7 +141,7 @@ pub enum SessionCreatedEventSession {
     RealtimeTranscriptionSessionCreateRequest(RealtimeTranscriptionSessionCreateRequest),
 }
 
-/// Source: `openai/types/realtime/session_updated_event.py`, `Session`.
+// Source: `openai/types/realtime/session_updated_event.py`, `Session`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]

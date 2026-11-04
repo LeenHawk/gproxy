@@ -7,7 +7,7 @@ use super::{ToolChoiceFunction, ToolChoiceMcp, ToolChoiceOptions};
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/realtime_reasoning.py`, `RealtimeReasoning`.
+// Source: `openai/types/realtime/realtime_reasoning.py`, `RealtimeReasoning`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -23,7 +23,7 @@ pub struct RealtimeReasoning {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_tool_choice_config.py`, `RealtimeToolChoiceConfig`.
+// Source: `openai/types/realtime/realtime_tool_choice_config.py`, `RealtimeToolChoiceConfig`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -35,7 +35,7 @@ pub enum RealtimeToolChoiceConfig {
     ToolChoiceMcp(ToolChoiceMcp),
 }
 
-/// Source: `openai/types/realtime/realtime_tracing_config.py`, `RealtimeTracingConfig`.
+// Source: `openai/types/realtime/realtime_tracing_config.py`, `RealtimeTracingConfig`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -47,7 +47,7 @@ pub enum RealtimeTracingConfig {
     Variant3(()),
 }
 
-/// Source: `openai/types/realtime/realtime_truncation.py`, `RealtimeTruncation`.
+// Source: `openai/types/realtime/realtime_truncation.py`, `RealtimeTruncation`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -58,7 +58,7 @@ pub enum RealtimeTruncation {
     RealtimeTruncationRetentionRatio(RealtimeTruncationRetentionRatio),
 }
 
-/// Source: `openai/types/realtime/realtime_error.py`, `RealtimeError`.
+// Source: `openai/types/realtime/realtime_error.py`, `RealtimeError`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -89,7 +89,7 @@ pub struct RealtimeError {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_reasoning_effort.py`, `RealtimeReasoningEffort`.
+// Source: `openai/types/realtime/realtime_reasoning_effort.py`, `RealtimeReasoningEffort`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -107,7 +107,7 @@ pub enum RealtimeReasoningEffort {
     Xhigh,
 }
 
-/// Source: `openai/types/realtime/realtime_tracing_config.py`, `TracingConfiguration`.
+// Source: `openai/types/realtime/realtime_tracing_config.py`, `TracingConfiguration`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -135,7 +135,7 @@ pub struct RealtimeTracingConfigTracingConfiguration {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_truncation_retention_ratio.py`, `RealtimeTruncationRetentionRatio`.
+// Source: `openai/types/realtime/realtime_truncation_retention_ratio.py`, `RealtimeTruncationRetentionRatio`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -154,7 +154,7 @@ pub struct RealtimeTruncationRetentionRatio {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_function_tool.py`, `RealtimeFunctionTool`.
+// Source: `openai/types/realtime/realtime_function_tool.py`, `RealtimeFunctionTool`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -189,7 +189,7 @@ pub struct RealtimeFunctionTool {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_truncation_retention_ratio.py`, `TokenLimits`.
+// Source: `openai/types/realtime/realtime_truncation_retention_ratio.py`, `TokenLimits`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -205,7 +205,7 @@ pub struct RealtimeTruncationRetentionRatioTokenLimits {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_mcphttp_error.py`, `RealtimeMcphttpError`.
+// Source: `openai/types/realtime/realtime_mcphttp_error.py`, `RealtimeMcphttpError`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

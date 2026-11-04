@@ -7,7 +7,7 @@ use crate::Rest;
 use serde::{Deserialize, Serialize};
 // The local Markdown describes item_reference in prose despite omitting it from its literal list.
 
-/// Source: `upstream_docs/openai/docs/Realtime.md`, Conversation Item With Reference, `ConversationItemWithReference`.
+// Source: `upstream_docs/openai/docs/Realtime.md`, Conversation Item With Reference, `ConversationItemWithReference`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -78,7 +78,7 @@ pub struct ConversationItemWithReferencePayload {
     pub rest: Rest,
 }
 
-/// Source: `upstream_docs/openai/docs/Realtime.md`, Conversation Item With Reference, `ConversationItemWithReferenceContent`.
+// Source: `upstream_docs/openai/docs/Realtime.md`, Conversation Item With Reference, `ConversationItemWithReferenceContent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

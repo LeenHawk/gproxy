@@ -6,7 +6,7 @@ use super::wire::present_nullable;
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/responses/response_prompt.py`, `ResponsePrompt`.
+// Source: `openai/types/responses/response_prompt.py`, `ResponsePrompt`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -29,7 +29,7 @@ pub struct ResponsePrompt {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/responses/response_prompt.py`, `Variables`.
+// Source: `openai/types/responses/response_prompt.py`, `Variables`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -42,7 +42,7 @@ pub enum ResponsePromptVariables {
     ResponseInputFile(ResponseInputFile),
 }
 
-/// Source: `openai/types/responses/tool_choice_options.py`, `ToolChoiceOptions`.
+// Source: `openai/types/responses/tool_choice_options.py`, `ToolChoiceOptions`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -56,7 +56,7 @@ pub enum ToolChoiceOptions {
     Required,
 }
 
-/// Source: `openai/types/responses/tool_choice_function.py`, `ToolChoiceFunction`.
+// Source: `openai/types/responses/tool_choice_function.py`, `ToolChoiceFunction`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -69,7 +69,7 @@ pub struct ToolChoiceFunction {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/responses/tool_choice_mcp.py`, `ToolChoiceMcp`.
+// Source: `openai/types/responses/tool_choice_mcp.py`, `ToolChoiceMcp`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -88,10 +88,10 @@ pub struct ToolChoiceMcp {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/shared/metadata.py`, `Metadata`.
+// Source: `openai/types/shared/metadata.py`, `Metadata`.
 pub type Metadata = std::collections::BTreeMap<String, String>;
 
-/// Source: `openai/types/responses/response_input_text.py`, `ResponseInputText`.
+// Source: `openai/types/responses/response_input_text.py`, `ResponseInputText`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -110,7 +110,7 @@ pub struct ResponseInputText {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/responses/response_input_image.py`, `ResponseInputImage`.
+// Source: `openai/types/responses/response_input_image.py`, `ResponseInputImage`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -141,7 +141,7 @@ pub struct ResponseInputImage {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/responses/response_input_file.py`, `ResponseInputFile`.
+// Source: `openai/types/responses/response_input_file.py`, `ResponseInputFile`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -189,7 +189,7 @@ pub struct ResponseInputFile {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/responses/response_input_text.py`, `PromptCacheBreakpoint`.
+// Source: `openai/types/responses/response_input_text.py`, `PromptCacheBreakpoint`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -202,7 +202,7 @@ pub struct ResponseInputTextPromptCacheBreakpoint {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/responses/image_detail.py`, `ImageDetail`.
+// Source: `openai/types/responses/image_detail.py`, `ImageDetail`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -218,7 +218,7 @@ pub enum ImageDetail {
     Original,
 }
 
-/// Source: `openai/types/responses/response_input_image.py`, `PromptCacheBreakpoint`.
+// Source: `openai/types/responses/response_input_image.py`, `PromptCacheBreakpoint`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -231,7 +231,7 @@ pub struct ResponseInputImagePromptCacheBreakpoint {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/responses/response_input_file.py`, `PromptCacheBreakpoint`.
+// Source: `openai/types/responses/response_input_file.py`, `PromptCacheBreakpoint`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -302,8 +302,8 @@ pub enum ResponseInputFileDetail {
     High,
 }
 
-/// Source: Realtime.md `prompt_cache_breakpoint.ttl` (2026-10-27); omitted
-/// inherits the request TTL.
+// Source: Realtime.md `prompt_cache_breakpoint.ttl` (2026-10-27).
+/// Omitted inherits the request TTL.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

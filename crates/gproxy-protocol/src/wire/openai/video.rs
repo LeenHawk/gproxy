@@ -753,7 +753,7 @@ pub type NativeDeleteVideoResponse = WireResponse<NativeDeleteVideoResponseBody>
 pub type NativeDownloadVideoRequest = WireRequest<()>;
 pub type NativeDownloadVideoResponse = WireResponse<HttpBody>;
 
-/// video_create_error.py in the pinned SDK includes structured safety context.
+// video_create_error.py in the pinned SDK includes structured safety context.
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]

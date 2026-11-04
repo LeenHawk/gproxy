@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 pub type HandshakeRequest = crate::WireRequest<()>;
 pub type HandshakeResponse = crate::WireResponse<()>;
 
-/// Source: `openai/types/realtime/realtime_client_event.py`, `RealtimeClientEvent`.
+// Source: `openai/types/realtime/realtime_client_event.py`, `RealtimeClientEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -52,7 +52,7 @@ pub enum RealtimeClientEvent {
     SessionUpdateEvent(SessionUpdateEvent),
 }
 
-/// Source: `openai/types/realtime/realtime_server_event.py`, `RealtimeServerEvent`.
+// Source: `openai/types/realtime/realtime_server_event.py`, `RealtimeServerEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -113,7 +113,7 @@ pub enum RealtimeServerEvent {
     ResponseMcpCallFailed(ResponseMcpCallFailed),
 }
 
-/// Source: `openai/types/realtime/realtime_server_event.py`, `ConversationItemRetrieved`.
+// Source: `openai/types/realtime/realtime_server_event.py`, `ConversationItemRetrieved`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -127,7 +127,7 @@ pub struct ConversationItemRetrieved {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_server_event.py`, `OutputAudioBufferStarted`.
+// Source: `openai/types/realtime/realtime_server_event.py`, `OutputAudioBufferStarted`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -141,7 +141,7 @@ pub struct RealtimeServerEventOutputAudioBufferStarted {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_server_event.py`, `OutputAudioBufferStopped`.
+// Source: `openai/types/realtime/realtime_server_event.py`, `OutputAudioBufferStopped`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -155,7 +155,7 @@ pub struct RealtimeServerEventOutputAudioBufferStopped {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_server_event.py`, `OutputAudioBufferCleared`.
+// Source: `openai/types/realtime/realtime_server_event.py`, `OutputAudioBufferCleared`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

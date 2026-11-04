@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use crate::Rest;
 
 /// Query/path request shapes for `GET /models` and `GET /models/{model}`.
-/// Source: `upstream_docs/openai/docs/List models.md` and `Retrieve model.md`.
-/// Extended catalog fields follow `samples/codex/codex-rs/protocol/src/openai_models.rs`.
+// Source: `upstream_docs/openai/docs/List models.md` and `Retrieve model.md`.
+// Extended catalog fields follow `samples/codex/codex-rs/protocol/src/openai_models.rs`.
 pub type ListModelsRequest = crate::WireRequest<()>;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

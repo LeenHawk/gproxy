@@ -20,8 +20,8 @@ pub type CreateRealtimeCallResponse = WireResponse<HttpBody>;
 pub type RealtimeCallSessionJson = RealtimeSessionCreateRequest;
 
 /// Frameless WebRTC setup at `POST /v1/live`. Unlike Realtime, this session
-/// has no required `type: realtime`. Source: samples/codex/codex-rs/codex-api/
-/// src/endpoint/realtime_websocket/methods_frameless_bidi.rs::session_json.
+/// has no required `type: realtime`.
+// Source: samples/codex/codex-rs/codex-api/src/endpoint/realtime_websocket/methods_frameless_bidi.rs::session_json.
 #[derive(
     Debug,
     Clone,

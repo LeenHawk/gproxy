@@ -4,7 +4,8 @@ use crate::{Rest, WireRequest, WireResponse};
 
 /// Request/response shapes for `models.list` and `models.get`.
 /// `page_size` and `page_token` are query parameters; `name` is the
-/// `models/{model}` path resource. Source: `upstream_docs/gemini/docs/Models.md`.
+/// `models/{model}` path resource.
+// Source: `upstream_docs/gemini/docs/Models.md`.
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]

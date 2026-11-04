@@ -7,7 +7,7 @@ use super::{AudioTranscription, NoiseReductionType, RealtimeAudioFormats};
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/realtime_session_create_response.py`, `Audio`.
+// Source: `openai/types/realtime/realtime_session_create_response.py`, `Audio`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -29,7 +29,7 @@ pub struct RealtimeSessionCreateResponseAudio {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInput`.
+// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -63,7 +63,7 @@ pub struct RealtimeSessionCreateResponseAudioInput {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioOutput`.
+// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioOutput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -91,7 +91,7 @@ pub struct RealtimeSessionCreateResponseAudioOutput {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInputNoiseReduction`.
+// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInputNoiseReduction`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -108,7 +108,7 @@ pub struct RealtimeSessionCreateResponseAudioInputNoiseReduction {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInputTurnDetection`.
+// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInputTurnDetection`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -124,7 +124,7 @@ pub enum RealtimeSessionCreateResponseAudioInputTurnDetection {
     Variant3(()),
 }
 
-/// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInputTurnDetectionServerVad`.
+// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInputTurnDetectionServerVad`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -172,7 +172,7 @@ pub struct RealtimeSessionCreateResponseAudioInputTurnDetectionServerVad {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInputTurnDetectionSemanticVad`.
+// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInputTurnDetectionSemanticVad`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

@@ -10,7 +10,7 @@ use super::{
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/realtime_response_create_params.py`, `RealtimeResponseCreateParams`.
+// Source: `openai/types/realtime/realtime_response_create_params.py`, `RealtimeResponseCreateParams`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -92,7 +92,7 @@ pub struct RealtimeResponseCreateParams {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_audio_output.py`, `RealtimeResponseCreateAudioOutput`.
+// Source: `openai/types/realtime/realtime_response_create_audio_output.py`, `RealtimeResponseCreateAudioOutput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -108,7 +108,7 @@ pub struct RealtimeResponseCreateAudioOutput {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_params.py`, `ToolChoice`.
+// Source: `openai/types/realtime/realtime_response_create_params.py`, `ToolChoice`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -120,7 +120,7 @@ pub enum RealtimeResponseCreateParamsToolChoice {
     ToolChoiceMcp(ToolChoiceMcp),
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_params.py`, `Tool`.
+// Source: `openai/types/realtime/realtime_response_create_params.py`, `Tool`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -132,7 +132,7 @@ pub enum RealtimeResponseCreateParamsTool {
     RealtimeResponseCreateMcpTool(RealtimeResponseCreateMcpTool),
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_audio_output.py`, `Output`.
+// Source: `openai/types/realtime/realtime_response_create_audio_output.py`, `Output`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -154,7 +154,7 @@ pub struct RealtimeResponseCreateAudioOutputOutput {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `RealtimeResponseCreateMcpTool`.
+// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `RealtimeResponseCreateMcpTool`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -227,7 +227,7 @@ pub struct RealtimeResponseCreateMcpTool {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_audio_output.py`, `OutputVoice`.
+// Source: `openai/types/realtime/realtime_response_create_audio_output.py`, `OutputVoice`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -238,7 +238,7 @@ pub enum RealtimeResponseCreateAudioOutputOutputVoice {
     RealtimeResponseCreateAudioOutputOutputVoiceID(RealtimeResponseCreateAudioOutputOutputVoiceID),
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `AllowedTools`.
+// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `AllowedTools`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -252,7 +252,7 @@ pub enum RealtimeResponseCreateMcpToolAllowedTools {
     Variant3(()),
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `RequireApproval`.
+// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `RequireApproval`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
@@ -266,7 +266,7 @@ pub enum RealtimeResponseCreateMcpToolRequireApproval {
     Variant3(()),
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_audio_output.py`, `OutputVoiceID`.
+// Source: `openai/types/realtime/realtime_response_create_audio_output.py`, `OutputVoiceID`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -277,7 +277,7 @@ pub struct RealtimeResponseCreateAudioOutputOutputVoiceID {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `AllowedToolsMcpToolFilter`.
+// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `AllowedToolsMcpToolFilter`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -299,7 +299,7 @@ pub struct RealtimeResponseCreateMcpToolAllowedToolsMcpToolFilter {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `RequireApprovalMcpToolApprovalFilter`.
+// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `RequireApprovalMcpToolApprovalFilter`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -323,7 +323,7 @@ pub struct RealtimeResponseCreateMcpToolRequireApprovalMcpToolApprovalFilter {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `RequireApprovalMcpToolApprovalFilterAlways`.
+// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `RequireApprovalMcpToolApprovalFilterAlways`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -345,7 +345,7 @@ pub struct RealtimeResponseCreateMcpToolRequireApprovalMcpToolApprovalFilterAlwa
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `RequireApprovalMcpToolApprovalFilterNever`.
+// Source: `openai/types/realtime/realtime_response_create_mcp_tool.py`, `RequireApprovalMcpToolApprovalFilterNever`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

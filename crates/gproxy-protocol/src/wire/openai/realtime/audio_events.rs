@@ -6,7 +6,7 @@ use super::wire::present_nullable;
 use crate::Rest;
 use serde::{Deserialize, Serialize};
 
-/// Source: `openai/types/realtime/input_audio_buffer_cleared_event.py`, `InputAudioBufferClearedEvent`.
+// Source: `openai/types/realtime/input_audio_buffer_cleared_event.py`, `InputAudioBufferClearedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -19,7 +19,7 @@ pub struct InputAudioBufferClearedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/input_audio_buffer_committed_event.py`, `InputAudioBufferCommittedEvent`.
+// Source: `openai/types/realtime/input_audio_buffer_committed_event.py`, `InputAudioBufferCommittedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -39,7 +39,7 @@ pub struct InputAudioBufferCommittedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/input_audio_buffer_dtmf_event_received_event.py`, `InputAudioBufferDtmfEventReceivedEvent`.
+// Source: `openai/types/realtime/input_audio_buffer_dtmf_event_received_event.py`, `InputAudioBufferDtmfEventReceivedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -53,7 +53,7 @@ pub struct InputAudioBufferDtmfEventReceivedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/input_audio_buffer_speech_started_event.py`, `InputAudioBufferSpeechStartedEvent`.
+// Source: `openai/types/realtime/input_audio_buffer_speech_started_event.py`, `InputAudioBufferSpeechStartedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -68,7 +68,7 @@ pub struct InputAudioBufferSpeechStartedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/input_audio_buffer_speech_stopped_event.py`, `InputAudioBufferSpeechStoppedEvent`.
+// Source: `openai/types/realtime/input_audio_buffer_speech_stopped_event.py`, `InputAudioBufferSpeechStoppedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -83,7 +83,7 @@ pub struct InputAudioBufferSpeechStoppedEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_audio_delta_event.py`, `ResponseAudioDeltaEvent`.
+// Source: `openai/types/realtime/response_audio_delta_event.py`, `ResponseAudioDeltaEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -101,7 +101,7 @@ pub struct ResponseAudioDeltaEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_audio_done_event.py`, `ResponseAudioDoneEvent`.
+// Source: `openai/types/realtime/response_audio_done_event.py`, `ResponseAudioDoneEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -118,7 +118,7 @@ pub struct ResponseAudioDoneEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_audio_transcript_delta_event.py`, `ResponseAudioTranscriptDeltaEvent`.
+// Source: `openai/types/realtime/response_audio_transcript_delta_event.py`, `ResponseAudioTranscriptDeltaEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -136,7 +136,7 @@ pub struct ResponseAudioTranscriptDeltaEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/response_audio_transcript_done_event.py`, `ResponseAudioTranscriptDoneEvent`.
+// Source: `openai/types/realtime/response_audio_transcript_done_event.py`, `ResponseAudioTranscriptDoneEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -154,7 +154,7 @@ pub struct ResponseAudioTranscriptDoneEvent {
     pub rest: Rest,
 }
 
-/// Source: `openai/types/realtime/input_audio_buffer_timeout_triggered.py`, `InputAudioBufferTimeoutTriggered`.
+// Source: `openai/types/realtime/input_audio_buffer_timeout_triggered.py`, `InputAudioBufferTimeoutTriggered`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

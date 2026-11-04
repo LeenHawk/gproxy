@@ -478,7 +478,7 @@ pub struct ResponseInputTokensDetails {
 }
 
 /// Non-overlapping write counts by lifetime; their sum is `cache_write_tokens`.
-/// Source: upstream_docs/openai/docs/Prompt caching.md, Monitor cache performance.
+// Source: upstream_docs/openai/docs/Prompt caching.md, Monitor cache performance.
 #[derive(
     Debug,
     Clone,
