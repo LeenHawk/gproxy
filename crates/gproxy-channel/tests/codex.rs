@@ -2053,7 +2053,7 @@ fn shapes_converted_responses_and_avoids_cli_tool_name_collisions() {
         "temperature":1,"top_p":1,"top_logprobs":2,"safety_identifier":"x","user":"client-user","truncation":"auto",
         "input":[
             {"role":"system","content":"policy"},
-            {"type":"reasoning","id":"r1","summary":[],"status":"completed","future_item":1},
+            {"type":"reasoning","id":"r1","summary":[],"encrypted_content":"enc","status":"completed","future_item":1},
             {"type":"shell_call","id":"shell_old","call_id":"call_old","action":{"commands":["pwd"]}},
             {"type":"local_shell_call_output","id":"out1","call_id":"call-real","output":"ok","status":"completed"}
         ],

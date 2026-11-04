@@ -56,6 +56,8 @@ pub(super) fn request(
                     }
                     instructions.push_str(&text);
                 }
+            } else if unresolvable(&item) {
+                continue;
             } else {
                 if let InputItem::Reasoning(reasoning) = &mut item {
                     reasoning.status = None;
@@ -91,6 +93,21 @@ pub(super) fn request(
     })
     .map_err(invalid)?;
     Ok((Bytes::from(bytes), aliases))
+}
+
+// The backend forces `store=false` and persists nothing, so an item that only
+// names a prior output by id cannot resolve and fails the whole request.
+// Clients that assume the public API's default `store=true` send these: a bare
+// `item_reference`, or a reasoning item without its `encrypted_content`.
+fn unresolvable(item: &InputItem) -> bool {
+    match item {
+        InputItem::ItemReference(_) => true,
+        InputItem::Reasoning(reasoning) => !matches!(
+            &reasoning.encrypted_content,
+            Some(Some(content)) if !content.is_empty()
+        ),
+        _ => false,
+    }
 }
 
 // A cached system prefix must stay in input: flattening it into instructions
