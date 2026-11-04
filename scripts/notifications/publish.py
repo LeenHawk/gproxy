@@ -217,7 +217,9 @@ def main():
     sign(feed, args.out)
     print(feed)
     if args.docs:
-        (args.docs / "public" / FILES[0]).write_text(feed)
+        # Starlight served public/ at the site root; Mintlify serves the repository root.
+        site = args.docs / "public" if (args.docs / "public").is_dir() else args.docs
+        (site / FILES[0]).write_text(feed)
     if not args.dry_run:
         upload(args.out, repo)
 

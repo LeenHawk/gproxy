@@ -49,11 +49,12 @@ jobs:
           CI_PIPELINE_ID: github-${{ github.run_id }}-${{ github.run_attempt }}
         run: python3 scripts/notifications/publish.py --out dist/notifications --docs docs
       # Clients that predate the release hosts read the feed from the
-      # documentation site, which signs its own copy when it deploys.
+      # documentation site. On Mintlify, /notifications.json.sig redirects to
+      # the signature published above, which matches this copy byte for byte.
       - name: Copy the feed to the documentation site
         working-directory: docs
         run: |
-          git add public/notifications.json
+          git add -A
           if git diff --cached --quiet; then echo "feed unchanged"; exit 0; fi
           git -c user.name=github-actions[bot] -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
             commit -q -m "chore(notifications): publish the announcement feed"

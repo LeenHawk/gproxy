@@ -377,7 +377,9 @@ jobs:
         if: ${{ env.PUBLISH == 'true' }}
         working-directory: docs
         run: |
-          git add public/generated
+          # Whatever generate-reference.mjs wrote: generated JSON, and on the
+          # Mintlify layout the reference snippets rendered from it.
+          git add -A
           if git diff --cached --quiet; then echo "reference unchanged"; exit 0; fi
           git -c user.name=github-actions[bot] -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
             commit -q -m "chore(reference): export from gproxy ${GITHUB_SHA::12}"
