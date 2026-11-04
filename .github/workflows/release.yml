@@ -216,14 +216,10 @@ jobs:
         if: ${{ matrix.kind == 'cli' && matrix.os == 'macos' }}
         run: codesign --force --sign - "target/${{ matrix.target }}/release/gproxy"
       - name: Install pinned UPX
-        if: ${{ matrix.upx && matrix.target != 'aarch64-pc-windows-msvc' }}
+        if: ${{ matrix.upx }}
         env:
           UPX_VERSION: ${{ matrix.upx_version }}
         run: scripts/install-upx.sh
-      - name: Install UPX with ARM64 TLS and loader fixes
-        if: matrix.upx && matrix.target == 'aarch64-pc-windows-msvc'
-        shell: pwsh
-        run: scripts/install-windows-arm64-upx.ps1
       - name: Pack and run Windows executable
         if: ${{ matrix.kind == 'cli' && matrix.upx && matrix.os == 'windows' }}
         shell: pwsh
@@ -473,7 +469,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: image
         env:
-          TOOLCHAIN_HASH: ${{ hashFiles('.gitlab/Dockerfile.ohos', 'scripts/install-android-upx.sh', 'scripts/install-android-upx.patch', 'scripts/ohos/compiler-warnings.patch') }}
+          TOOLCHAIN_HASH: ${{ hashFiles('.gitlab/Dockerfile.ohos', 'scripts/install-android-upx.sh', 'scripts/ohos/compiler-warnings.patch') }}
         run: |
           image="ghcr.io/leenhawk/gproxy-build-ohos:$TOOLCHAIN_HASH"
           echo "image=$image" >> "$GITHUB_OUTPUT"
@@ -890,12 +886,8 @@ jobs:
         if: matrix.os == 'macos'
         run: codesign --force --sign - "target/$TARGET_TRIPLE/release/gproxy"
       - name: Install UPX
-        if: matrix.upx && matrix.target != 'aarch64-pc-windows-msvc'
+        if: matrix.upx
         run: bash scripts/install-upx.sh
-      - name: Install UPX with ARM64 TLS and loader fixes
-        if: matrix.upx && matrix.target == 'aarch64-pc-windows-msvc'
-        shell: pwsh
-        run: scripts/install-windows-arm64-upx.ps1
       - name: Compress Windows executable
         if: matrix.upx && matrix.os == 'windows'
         shell: pwsh

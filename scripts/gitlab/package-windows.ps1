@@ -34,12 +34,8 @@ $env:GITHUB_PATH = Join-Path $env:RUNNER_TEMP 'paths'
 if (-not (Test-Path $env:GITHUB_PATH)) { New-Item -ItemType File $env:GITHUB_PATH | Out-Null }
 if ($target -eq 'aarch64-pc-windows-msvc') {
     $env:CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_msvc = (Resolve-Path scripts/cmake/windows-arm64.cmake).Path
-    if (-not (Test-Path "$env:RUNNER_TEMP/gproxy-windows-arm64-upx/build/Release/upx.exe")) {
-        & scripts/install-windows-arm64-upx.ps1
-    }
-} else {
-    Run-Checked bash @('--login', 'scripts/install-upx.sh')
 }
+Run-Checked bash @('--login', 'scripts/install-upx.sh')
 foreach ($directory in Get-Content $env:GITHUB_PATH) { $env:PATH = "$directory;$env:PATH" }
 
 if ($Mode -eq 'cli') {

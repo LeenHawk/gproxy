@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
-# UPX 5.2.1 cannot pack our ARM64 shared library (upx/upx#18916).
-# Use the upstream Android shared-library stub fix until it is released.
-# UPX also mishandles x86_64 --android-shlib output (upx/upx#18936). The
-# adjacent patch keeps 16 KiB PT_LOAD alignment, forwards section headers as
-# for ARM64, and lets the x86_64 stubs fall back to 4 KiB pages when Android
-# denies /proc/self/auxv instead of trapping. Its stub headers were rebuilt
-# with upx-stubtools 20221212; keep the patch beside this script.
+# Builds gproxy's UPX fork from source, for builds that must not use a
+# prebuilt packer: F-Droid, and the Android and OHOS toolchain images.
+# scripts/install-upx.sh downloads the same revision's release binaries.
+#
+# LeenHawk/upx `gproxy` is upstream devel plus two fixes:
+# - x86_64 Android shared libraries no longer trap when Android denies
+#   /proc/self/auxv (upx/upx#18936; upstream fixed the entry stub only).
+# - AArch64 Linux executables no longer die with SIGTRAP when the escape hatch
+#   does not fit on the last page of .text: upx_mmap_and_fd had no body.
 set -euo pipefail
-revision=d5faee0886bb35ea24d7ff07b5bab518b9153796
+revision=64b6aae95b9aa6d44992f8a6be422c2d77fc3728  # tag gproxy-5.3.0-1
 source_dir="${1:-${RUNNER_TEMP:?}/gproxy-android-upx}"
 git init "$source_dir"
 if ! git -C "$source_dir" remote get-url origin >/dev/null 2>&1; then
-  git -C "$source_dir" remote add origin https://github.com/upx/upx.git
+  git -C "$source_dir" remote add origin https://github.com/LeenHawk/upx.git
 fi
 git -C "$source_dir" fetch --depth 1 origin "$revision"
 git -C "$source_dir" checkout --force --detach FETCH_HEAD
 git -C "$source_dir" submodule update --init --recursive --depth 1
-git -C "$source_dir" apply - < "${BASH_SOURCE[0]%.sh}.patch"
 cmake -S "$source_dir" -B "$source_dir/build" \
   -DCMAKE_BUILD_TYPE=Release -DUPX_CONFIG_DISABLE_WERROR=ON
 cmake --build "$source_dir/build" --parallel 4

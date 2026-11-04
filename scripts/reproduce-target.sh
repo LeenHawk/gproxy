@@ -46,10 +46,8 @@ if [ "$TARGET_OS" = windows ]; then
   export RUSTFLAGS='-C target-feature=+crt-static'
   if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
     export CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_msvc="$(cygpath -m "$PWD/scripts/cmake/windows-arm64.cmake")"
-    pwsh -NoProfile -File scripts/install-windows-arm64-upx.ps1
-  else
-    bash scripts/install-upx.sh
   fi
+  bash scripts/install-upx.sh
 elif [ "$UPX_ENABLED" = true ]; then
   bash scripts/install-upx.sh
 fi

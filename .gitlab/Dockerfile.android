@@ -29,6 +29,5 @@ RUN sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.1.0' 'bui
     && cargo install cargo-ndk --locked --version 4.1.2 \
     && python3 -m pip install --break-system-packages apksigcopier==1.1.1
 COPY scripts/install-android-upx.sh /tmp/install-android-upx.sh
-COPY scripts/install-android-upx.patch /tmp/install-android-upx.patch
 RUN bash /tmp/install-android-upx.sh /opt/gproxy-android-upx
 ENV PATH="/opt/gproxy-android-upx/bin:${PATH}"

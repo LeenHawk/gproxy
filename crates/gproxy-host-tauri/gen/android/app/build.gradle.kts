@@ -154,7 +154,6 @@ tasks.configureEach {
     if (name.startsWith("strip") && name.endsWith("ReleaseDebugSymbols")) {
         inputs.file(nativePacker)
         inputs.file(rootProject.file("../../../../scripts/install-android-upx.sh"))
-        inputs.file(rootProject.file("../../../../scripts/install-android-upx.patch"))
         doLast {
             val ndk = providers.environmentVariable("ANDROID_NDK_HOME").get()
             val strip = fileTree("$ndk/toolchains/llvm/prebuilt") {

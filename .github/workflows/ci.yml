@@ -280,15 +280,11 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: scripts/build-windows-release.ps1 -Target $env:TARGET
       - name: Install release packer
-        if: ${{ matrix.upx && matrix.target != 'aarch64-pc-windows-msvc' }}
+        if: ${{ matrix.upx }}
         shell: bash
         env:
           UPX_VERSION: ${{ matrix.upx_version }}
         run: scripts/install-upx.sh
-      - name: Install UPX with ARM64 entry-stub fix
-        if: matrix.upx && matrix.target == 'aarch64-pc-windows-msvc'
-        shell: pwsh
-        run: scripts/install-windows-arm64-upx.ps1
       - name: Pack and verify Windows executable
         if: ${{ matrix.upx }}
         shell: pwsh
