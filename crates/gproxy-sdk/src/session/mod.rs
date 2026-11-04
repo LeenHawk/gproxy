@@ -132,7 +132,7 @@ pub fn from_body(dialect: Dialect, body: &Value) -> Option<SessionIdentity> {
         // Chat Completions defines no session field. `prompt_cache_key` and
         // `previous_response_id` have their own protocol meanings and are not
         // cross-client session ids.
-        Dialect::OpenAiChat => None,
+        Dialect::OpenAiChat | Dialect::GeminiInteractions => None,
         // `pair_dialect` never returns this one.
         Dialect::OpenAiResponsesWebSocket => None,
     }

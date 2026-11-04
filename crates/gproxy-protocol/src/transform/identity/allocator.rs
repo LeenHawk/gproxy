@@ -695,6 +695,7 @@ fn dialect_key(dialect: DialectId) -> &'static str {
         DialectId::OpenAi => "o",
         DialectId::Claude => "c",
         DialectId::Gemini => "g",
+        DialectId::GeminiInteractions => "i",
         DialectId::OpenAiChat => "h",
         DialectId::OpenAiResponsesWebSocket => "w",
     }

@@ -13,6 +13,7 @@ pub mod generate;
 pub mod identity;
 pub mod images;
 mod instructions;
+pub mod interactions;
 pub mod memory;
 pub mod models;
 pub mod video;

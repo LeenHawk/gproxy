@@ -36,10 +36,10 @@ fn dialect(target: Dialect) -> Result<CompactDialectRequest, TransformError> {
         Dialect::OpenAiChat => CompactDialectRequest::Chat,
         Dialect::Claude => CompactDialectRequest::Claude,
         Dialect::Gemini => CompactDialectRequest::Gemini,
-        Dialect::OpenAiResponsesWebSocket => {
+        Dialect::GeminiInteractions | Dialect::OpenAiResponsesWebSocket => {
             return Err(TransformError::unsupported(
                 "compact",
-                "the Responses WebSocket dialect cannot host compaction",
+                "this generation dialect cannot host compaction",
             ));
         }
     })

@@ -246,6 +246,7 @@
     "openai_chat": "OpenAI Chat",
     "claude": "Claude Messages",
     "gemini": "Gemini",
+    "gemini_interactions": "Gemini Interactions",
     "openai_responses_websocket": "OpenAI WebSocket",
     "exacto": "Exacto",
     "model": "По модели",
@@ -431,6 +432,7 @@
       "openai_chat": "OpenAI Chat Completions",
       "claude": "Claude",
       "gemini": "Gemini",
+      "gemini_interactions": "Gemini Interactions",
       "openai_responses_websocket": "OpenAI Responses WebSocket"
     },
     "applyDefaults": "Применить стандартные маршруты",

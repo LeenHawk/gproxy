@@ -36,7 +36,8 @@ const fn edge(
 
 pub const CONVERSION_EDGES: &[ConversionEdge] = {
     use Dialect::{
-        Claude as C, Gemini as G, OpenAi as R, OpenAiChat as H, OpenAiResponsesWebSocket as W,
+        Claude as C, Gemini as G, GeminiInteractions as I, OpenAi as R, OpenAiChat as H,
+        OpenAiResponsesWebSocket as W,
     };
     use Operation::{GenerateContent as Generate, StreamGenerateContent as Stream, *};
     &[
@@ -122,6 +123,31 @@ pub const CONVERSION_EDGES: &[ConversionEdge] = {
         edge((Stream, G), (Stream, C)),
         edge((Stream, G), (Stream, H)),
         edge((Stream, G), (Stream, W)),
+        // Direct Interactions generation pairs; CRUD remains native.
+        edge((Generate, I), (Generate, R)),
+        edge((Generate, R), (Generate, I)),
+        edge((Generate, I), (Stream, R)),
+        edge((Generate, R), (Stream, I)),
+        edge((Generate, I), (Generate, H)),
+        edge((Generate, H), (Generate, I)),
+        edge((Generate, I), (Stream, H)),
+        edge((Generate, H), (Stream, I)),
+        edge((Generate, I), (Generate, C)),
+        edge((Generate, C), (Generate, I)),
+        edge((Generate, I), (Stream, C)),
+        edge((Generate, C), (Stream, I)),
+        edge((Stream, I), (Generate, R)),
+        edge((Stream, R), (Generate, I)),
+        edge((Stream, I), (Stream, R)),
+        edge((Stream, R), (Stream, I)),
+        edge((Stream, I), (Generate, H)),
+        edge((Stream, H), (Generate, I)),
+        edge((Stream, I), (Stream, H)),
+        edge((Stream, H), (Stream, I)),
+        edge((Stream, I), (Generate, C)),
+        edge((Stream, C), (Generate, I)),
+        edge((Stream, I), (Stream, C)),
+        edge((Stream, C), (Stream, I)),
         // CompactContent
         edge((CompactContent, R), (Generate, R)),
         edge((CompactContent, R), (Generate, C)),

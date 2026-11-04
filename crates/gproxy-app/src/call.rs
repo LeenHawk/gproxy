@@ -266,6 +266,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
             None
         };
         let model = request.model.clone().or(session_model).or_else(|| {
+            if request.operation.dialect == gproxy_protocol::Dialect::GeminiInteractions {
+                return json
+                    .as_ref()
+                    .and_then(gproxy_protocol::gemini::interactions::request_target)
+                    .map(str::to_owned);
+            }
             (request.operation.operation != gproxy_protocol::Operation::CreateVoice)
                 .then(|| body_model(json.as_ref()).map(str::to_owned))
                 .flatten()
@@ -434,6 +440,20 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
         caller: &Caller,
         mut request: DataPlaneRequest,
     ) -> Result<DataPlaneRequest, AppError> {
+        if let Some((provider, model)) = self
+            .gproxy()
+            .core()
+            .interaction_request_model(
+                &crate::admission::scope::render(caller),
+                request.operation.operation,
+                request.parts.uri.path(),
+                request.provider_id.as_deref(),
+            )
+            .await?
+        {
+            request.provider_id = Some(provider);
+            request.model = model.or(request.model);
+        }
         if request.operation.dialect == gproxy_protocol::Dialect::Gemini {
             return Ok(request);
         }

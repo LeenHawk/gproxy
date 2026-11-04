@@ -194,11 +194,21 @@ pub(crate) fn apply_model(
     dialect: gproxy_protocol::Dialect,
     model: &str,
 ) {
+    let selector = if dialect == Dialect::GeminiInteractions
+        && let HttpBody::Bytes(bytes) = &request.body
+        && let Ok(value) = serde_json::from_slice::<serde_json::Value>(bytes)
+        && value.get("agent").is_some()
+        && value.get("model").is_none()
+    {
+        "agent"
+    } else {
+        "model"
+    };
     if let HttpBody::Bytes(bytes) = &request.body
         && let Ok(text) = std::str::from_utf8(bytes)
         && let Some(rewritten) = crate::rewrite::json_path::rewrite_at_paths(
             text,
-            &[vec![crate::PathSegment::Key("model".into())]],
+            &[vec![crate::PathSegment::Key(selector.into())]],
             &mut |old| (old != model).then(|| model.to_owned()),
         )
     {

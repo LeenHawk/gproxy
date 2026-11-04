@@ -72,10 +72,9 @@ impl Family {
             Dialect::OpenAi | Dialect::OpenAiChat => Ok(Self::OpenAi),
             Dialect::Claude => Ok(Self::Claude),
             Dialect::Gemini => Ok(Self::Gemini),
-            Dialect::OpenAiResponsesWebSocket => Err(TransformError::unsupported(
-                "files",
-                "the Responses WebSocket dialect has no files API",
-            )),
+            Dialect::GeminiInteractions | Dialect::OpenAiResponsesWebSocket => Err(
+                TransformError::unsupported("files", "this generation dialect has no files API"),
+            ),
         }
     }
 }

@@ -188,7 +188,11 @@ fn authenticates_each_surface_with_the_header_that_surface_wants() {
     let view = provider(&config, None);
     assert_eq!(
         Aistudio.native_dialects(view, Operation::GenerateContent),
-        [Dialect::Gemini, Dialect::OpenAiChat]
+        [
+            Dialect::Gemini,
+            Dialect::OpenAiChat,
+            Dialect::GeminiInteractions
+        ]
     );
     assert_eq!(
         Aistudio.native_dialects(view, Operation::CountTokens),

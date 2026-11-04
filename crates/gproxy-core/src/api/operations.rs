@@ -47,6 +47,9 @@ http_operations! {
     count_tokens => CountTokens,
     generate_content => GenerateContent,
     stream_generate_content => StreamGenerateContent,
+    retrieve_interaction => RetrieveInteraction,
+    cancel_interaction => CancelInteraction,
+    delete_interaction => DeleteInteraction,
     create_moderation => CreateModeration,
     create_decision => CreateDecision,
     compact_content => CompactContent,
@@ -127,7 +130,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
             .bind_realtime_continuation(context, &continuation)
             .await?;
         let context = self.bind_upload_session(context, &mut request).await?;
-        let context = self.bind_owned_resource(context, &request.path).await?;
         let context = if crate::owned::scans_references(context.operation.operation) {
             // Files referenced inside the body are checked against the
             // registry before dispatch, so a streamed body is buffered here
@@ -171,6 +173,16 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
         } else {
             context
         };
+        let context = self
+            .bind_owned_resource(
+                context,
+                &request.path,
+                match &request.body {
+                    HttpBody::Bytes(bytes) => Some(bytes.as_ref()),
+                    HttpBody::Stream(_) => None,
+                },
+            )
+            .await?;
         crate::execute::run_http(self, context, request).await
     }
     /// Handshake through the attempt loop; an established socket is observed

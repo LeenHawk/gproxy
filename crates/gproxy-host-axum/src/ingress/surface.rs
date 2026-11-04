@@ -98,6 +98,15 @@ surfaces! { table;
     POST "/v1beta/models/{model}:countTokens" => CountTokens / Gemini, model: "model";
     POST "/v1beta/models/{model}:embedContent" => CreateEmbedding / Gemini, model: "model";
     POST "/v1beta/models/{model}:batchEmbedContents" => BatchCreateEmbedding / Gemini, model: "model";
+    // Interactions keeps its native stateful lifecycle, for stable and beta.
+    POST "/v1beta/interactions" => GenerateContent / GeminiInteractions, stream: StreamGenerateContent;
+    GET "/v1beta/interactions/{id}" => RetrieveInteraction / GeminiInteractions;
+    POST "/v1beta/interactions/{id}/cancel" => CancelInteraction / GeminiInteractions;
+    DELETE "/v1beta/interactions/{id}" => DeleteInteraction / GeminiInteractions;
+    POST "/v1/interactions" => GenerateContent / GeminiInteractions, stream: StreamGenerateContent;
+    GET "/v1/interactions/{id}" => RetrieveInteraction / GeminiInteractions;
+    POST "/v1/interactions/{id}/cancel" => CancelInteraction / GeminiInteractions;
+    DELETE "/v1/interactions/{id}" => DeleteInteraction / GeminiInteractions;
     // ------------------------------------------------------------- models --
     // The OpenAI rows come first because they are the default when a client
     // supplied no evidence about which vendor it is.

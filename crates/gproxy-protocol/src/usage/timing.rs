@@ -7,8 +7,18 @@ pub(super) fn has_output(name: Option<&str>, data: &str) -> bool {
 
 pub(super) fn value_has_output(name: Option<&str>, value: &Value) -> bool {
     let nonempty = |value: &Value| value.as_str().is_some_and(|text| !text.is_empty());
-    let kind = value["type"].as_str().or(name);
+    let kind = value["event_type"]
+        .as_str()
+        .or_else(|| value["type"].as_str())
+        .or(name);
     match kind {
+        Some("step.delta") => {
+            let delta = &value["delta"];
+            nonempty(&delta["text"])
+                || nonempty(&delta["arguments"])
+                || nonempty(&delta["content"]["text"])
+                || nonempty(&delta["data"])
+        }
         Some("content_block_delta") => {
             let delta = &value["delta"];
             nonempty(&delta["text"])

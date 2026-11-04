@@ -33,7 +33,7 @@ impl HttpExecution {
         dialect: Dialect,
     ) -> Result<Self, E> {
         let heartbeat = match dialect {
-            Dialect::OpenAi | Dialect::OpenAiChat => SSE_COMMENT,
+            Dialect::OpenAi | Dialect::OpenAiChat | Dialect::GeminiInteractions => SSE_COMMENT,
             Dialect::Claude => CLAUDE_PING,
             Dialect::Gemini => b"\n\n",
             _ => return pending.await,

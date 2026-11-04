@@ -287,6 +287,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
                 gproxy_protocol::Dialect::OpenAi
                     | gproxy_protocol::Dialect::OpenAiChat
                     | gproxy_protocol::Dialect::Claude
+                    | gproxy_protocol::Dialect::GeminiInteractions
             ) || (operation.dialect == gproxy_protocol::Dialect::Gemini
                 && query
                     .as_deref()
@@ -294,7 +295,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
             && prepared.plan.targets.iter().any(|target| {
                 matches!(gproxy_core::convert::route_for_model(&target.provider, operation, target.upstream_model.as_deref()),
                     Ok(gproxy_core::convert::Route::TransformTo { target })
-                        if target.operation == gproxy_protocol::Operation::GenerateContent)
+                        if target.operation == gproxy_protocol::Operation::GenerateContent
+                            || target.dialect == gproxy_protocol::Dialect::GeminiInteractions
+                            || operation.dialect == gproxy_protocol::Dialect::GeminiInteractions)
             });
         let gproxy = gproxy.clone();
         let pending = Box::pin(async move {
@@ -560,6 +563,11 @@ impl Options {
         let model = self.model.or_else(|| {
             if operation.operation == gproxy_protocol::Operation::CreateVoice {
                 return None;
+            }
+            if operation.dialect == gproxy_protocol::Dialect::GeminiInteractions {
+                return body
+                    .and_then(gproxy_protocol::gemini::interactions::request_target)
+                    .map(str::to_owned);
             }
             body?.get("model")?.as_str().map(str::to_owned)
         });

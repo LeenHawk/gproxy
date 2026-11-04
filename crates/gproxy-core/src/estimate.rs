@@ -283,6 +283,68 @@ fn wire_text(operation: OperationKey, body: &[u8], out: &mut Text) -> Option<()>
             let b: openai::chat::GenerateContentRequestBody = parse(body)?;
             chat_request(&b, out);
         }
+        (Dialect::GeminiInteractions, GenerateContent | StreamGenerateContent) => {
+            use gemini::interactions::{
+                CreateInteractionRequestBody, InteractionContent, InteractionInput,
+                InteractionInputItem,
+            };
+            let b: CreateInteractionRequestBody = parse(body)?;
+            // Stored context and agent internals are unavailable to local counting.
+            if b.previous_interaction_id.is_some()
+                || b.continuation_token.is_some()
+                || b.agent.is_some()
+                || b.background == Some(true)
+            {
+                return None;
+            }
+            b.system_instruction
+                .as_ref()
+                .iter()
+                .for_each(|s| out.push(s));
+            let content = |value: &InteractionContent, out: &mut Text| {
+                if let InteractionContent::Text(value) = value {
+                    out.push(&value.text);
+                }
+            };
+            match b.input.as_ref() {
+                Some(InteractionInput::Text(text)) => out.push(text),
+                Some(InteractionInput::Content(value)) => content(value, out),
+                Some(InteractionInput::Items(items)) => {
+                    for item in items {
+                        match item {
+                            InteractionInputItem::Content(value) => content(value, out),
+                            InteractionInputItem::Step(step) => {
+                                let step = step.body();
+                                for value in step.content.iter().chain(&step.summary) {
+                                    content(value, out);
+                                }
+                                if let Some(name) = &step.name {
+                                    out.push(name);
+                                }
+                                if let Some(value) = &step.arguments {
+                                    out.push_json(value);
+                                }
+                                if let Some(value) = &step.result {
+                                    out.push_json(value);
+                                }
+                            }
+                        }
+                    }
+                }
+                None => {}
+            }
+            for tool in &b.tools {
+                if let Some(name) = &tool.name {
+                    out.push(name);
+                }
+                if let Some(description) = &tool.description {
+                    out.push(description);
+                }
+                if let Some(parameters) = &tool.parameters {
+                    out.push_json(parameters);
+                }
+            }
+        }
         (Dialect::Gemini, GenerateContent | StreamGenerateContent) => {
             let b: gemini::GenerateContentRequestBody = parse(body)?;
             gemini_request(

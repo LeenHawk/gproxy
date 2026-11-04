@@ -364,6 +364,30 @@ pub trait BaseChannel: Send + Sync {
         operations::http(self, Operation::StreamGenerateContent, context)
     }
 
+    /// Invoke the native RetrieveInteraction endpoint.
+    fn retrieve_interaction<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        operations::http(self, Operation::RetrieveInteraction, context)
+    }
+
+    /// Invoke the native CancelInteraction endpoint.
+    fn cancel_interaction<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        operations::http(self, Operation::CancelInteraction, context)
+    }
+
+    /// Invoke the native DeleteInteraction endpoint.
+    fn delete_interaction<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        operations::http(self, Operation::DeleteInteraction, context)
+    }
+
     /// Standard OpenAI content moderation, returning category scores as JSON.
     fn create_moderation<'a>(
         &'a self,

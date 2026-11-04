@@ -46,6 +46,10 @@ pub enum Operation {
     // generation
     GenerateContent,
     StreamGenerateContent,
+    // Gemini server-side interaction resources.
+    RetrieveInteraction,
+    CancelInteraction,
+    DeleteInteraction,
     // moderation
     /// Standard OpenAI moderation JSON, distinct from Codex Guardian's SSE.
     CreateModeration,
@@ -138,6 +142,9 @@ impl Operation {
             | Self::GetModel
             | Self::CountTokens
             | Self::CreateConversation
+            | Self::RetrieveInteraction
+            | Self::CancelInteraction
+            | Self::DeleteInteraction
             | Self::CreateFile
             | Self::ListFiles
             | Self::RetrieveFile
@@ -253,6 +260,9 @@ pub enum Dialect {
     Claude,
     /// Gemini's shape for the operation; GenerateContent for content generation.
     Gemini,
+    /// Gemini Interactions, distinct from GenerateContent. Generation uses
+    /// GenerateContent / StreamGenerateContent with native step-based bodies.
+    GeminiInteractions,
     /// OpenAI Chat Completions, for conversation operations only.
     #[serde(rename = "openai_chat")]
     #[strum(serialize = "openai_chat")]
@@ -279,7 +289,7 @@ impl Dialect {
         match self {
             Self::OpenAi | Self::OpenAiChat | Self::OpenAiResponsesWebSocket => WireFamily::OpenAi,
             Self::Claude => WireFamily::Claude,
-            Self::Gemini => WireFamily::Gemini,
+            Self::Gemini | Self::GeminiInteractions => WireFamily::Gemini,
         }
     }
 
@@ -367,6 +377,9 @@ mod tests {
                 "count_tokens",
                 "generate_content",
                 "stream_generate_content",
+                "retrieve_interaction",
+                "cancel_interaction",
+                "delete_interaction",
                 "create_moderation",
                 "create_decision",
                 "compact_content",
@@ -413,6 +426,7 @@ mod tests {
                 "openai",
                 "claude",
                 "gemini",
+                "gemini_interactions",
                 "openai_chat",
                 "openai_responses_websocket",
             ]

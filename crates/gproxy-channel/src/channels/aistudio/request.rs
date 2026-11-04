@@ -194,10 +194,11 @@ impl BaseChannel for Aistudio {
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent | Operation::StreamGenerateContent => {
-                vec![Dialect::Gemini, Dialect::OpenAiChat]
+                vec![Dialect::Gemini, Dialect::OpenAiChat, Dialect::GeminiInteractions]
             }
             Operation::ListModels | Operation::GetModel => vec![Dialect::Gemini, Dialect::OpenAi],
             Operation::CreateEmbedding => vec![Dialect::Gemini, Dialect::OpenAi],
+            Operation::RetrieveInteraction | Operation::CancelInteraction | Operation::DeleteInteraction => vec![Dialect::GeminiInteractions],
             Operation::CountTokens
             | Operation::ConnectRealtime
             | Operation::BatchCreateEmbedding

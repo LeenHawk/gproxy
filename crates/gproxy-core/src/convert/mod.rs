@@ -14,6 +14,7 @@ mod embeddings;
 mod files;
 pub(crate) mod generate;
 mod images;
+mod interactions;
 mod memory;
 mod models;
 pub(crate) mod responses_ws;

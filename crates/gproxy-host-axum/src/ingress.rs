@@ -526,6 +526,12 @@ where
         .clone()
         .or(offer_model)
         .or_else(|| {
+            if matched.operation.dialect == gproxy_protocol::Dialect::GeminiInteractions {
+                return json
+                    .as_ref()
+                    .and_then(gproxy_protocol::gemini::interactions::request_target)
+                    .map(str::to_owned);
+            }
             (matched.operation.operation != gproxy_protocol::Operation::CreateVoice)
                 .then(|| body_model(json.as_ref()))
                 .flatten()

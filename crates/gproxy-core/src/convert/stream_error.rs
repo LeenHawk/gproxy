@@ -57,6 +57,16 @@ pub(crate) fn is_error_frame(frame: &gproxy_protocol::codec::SseFrame) -> bool {
     let Ok(value) = serde_json::from_str::<Value>(&event.data) else {
         return false;
     };
+    if (value["event_type"] == "interaction.completed"
+        && matches!(
+            value["interaction"]["status"].as_str(),
+            Some("failed" | "cancelled")
+        ))
+        || (value["event_type"] == "interaction.status_update"
+            && matches!(value["status"].as_str(), Some("failed" | "cancelled")))
+    {
+        return true;
+    }
     match value["type"].as_str() {
         Some("error" | "response.failed") => true,
         None => value.get("error").is_some_and(Value::is_object),

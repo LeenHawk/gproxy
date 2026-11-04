@@ -253,9 +253,9 @@ fn files_path(dialect: gproxy_protocol::Dialect) -> Result<String, CapabilityErr
     match dialect {
         Dialect::OpenAi | Dialect::OpenAiChat | Dialect::Claude => Ok("/v1/files".into()),
         Dialect::Gemini => Ok("/v1beta/files".into()),
-        Dialect::OpenAiResponsesWebSocket => Err(resource_error(
+        Dialect::GeminiInteractions | Dialect::OpenAiResponsesWebSocket => Err(resource_error(
             CapabilityErrorKind::Unsupported,
-            "the Responses WebSocket dialect has no files API",
+            "this generation dialect has no files API",
         )),
     }
 }
@@ -280,9 +280,9 @@ fn file_content_path(
             CapabilityErrorKind::Unsupported,
             "Gemini files cannot be downloaded",
         )),
-        Dialect::OpenAiResponsesWebSocket => Err(resource_error(
+        Dialect::GeminiInteractions | Dialect::OpenAiResponsesWebSocket => Err(resource_error(
             CapabilityErrorKind::Unsupported,
-            "the Responses WebSocket dialect has no files API",
+            "this generation dialect has no files API",
         )),
     }
 }
@@ -610,10 +610,10 @@ impl<C: BatchConnectionTrait + Send + Sync> Resources<'_, C> {
                     }
                 }
             }
-            Dialect::OpenAiResponsesWebSocket => {
+            Dialect::GeminiInteractions | Dialect::OpenAiResponsesWebSocket => {
                 return Err(resource_error(
                     CapabilityErrorKind::Unsupported,
-                    "the Responses WebSocket dialect has no files API",
+                    "this generation dialect has no files API",
                 ));
             }
         };

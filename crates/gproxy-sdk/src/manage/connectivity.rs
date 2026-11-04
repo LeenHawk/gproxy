@@ -680,7 +680,10 @@ fn native_dialect(provider: &Arc<ProviderData>, operation: Operation) -> SdkResu
             operation,
         )
         .into_iter()
-        .find(|dialect| !matches!(dialect, Dialect::OpenAiResponsesWebSocket))
+        .find(|dialect| {
+            !matches!(dialect, Dialect::OpenAiResponsesWebSocket)
+                && !(operation == Operation::ListModels && *dialect == Dialect::GeminiInteractions)
+        })
         .ok_or_else(|| {
             SdkError::invalid(if operation == Operation::ListModels {
                 format!(
@@ -725,6 +728,9 @@ fn probe_body(dialect: Dialect, model: &str) -> Value {
             "messages": [{ "role": "user", "content": "ping" }],
             "max_tokens": 16,
         }),
+        Dialect::GeminiInteractions => {
+            json!({"model":model,"input":"ping","store":false,"generation_config":{"max_output_tokens":16}})
+        }
         Dialect::Gemini => json!({
             "contents": [{ "role": "user", "parts": [{ "text": "ping" }] }],
             "generationConfig": { "maxOutputTokens": 16 },

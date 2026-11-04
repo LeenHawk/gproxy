@@ -72,6 +72,20 @@ fn strip_value(dialect: Dialect, body: &mut Value) -> bool {
             }
             changed
         }
+        Dialect::GeminiInteractions => {
+            let Some(items) = body.get_mut("input").and_then(Value::as_array_mut) else {
+                return false;
+            };
+            let before = items.len();
+            items.retain(|item| item["type"] != "thought");
+            let mut changed = items.len() != before;
+            for item in items {
+                if let Some(object) = item.as_object_mut() {
+                    changed |= object.remove("signature").is_some();
+                }
+            }
+            changed
+        }
         Dialect::Gemini => {
             // countTokens can wrap its history in generateContentRequest.
             let mut changed = false;

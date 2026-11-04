@@ -38,10 +38,10 @@ fn dialect(target: Dialect) -> Result<MemoryDialect, TransformError> {
         Dialect::OpenAiChat => MemoryDialect::OpenAiChat,
         Dialect::Claude => MemoryDialect::Claude,
         Dialect::Gemini => MemoryDialect::Gemini,
-        Dialect::OpenAiResponsesWebSocket => {
+        Dialect::GeminiInteractions | Dialect::OpenAiResponsesWebSocket => {
             return Err(TransformError::unsupported(
                 "memory",
-                "the Responses WebSocket dialect cannot host summarisation",
+                "this generation dialect cannot host summarisation",
             ));
         }
     })

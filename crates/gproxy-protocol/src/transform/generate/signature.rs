@@ -34,6 +34,8 @@
 
 /// A Gemini thought part's signature.
 pub const GEMINI: &str = "gemini:";
+/// Interactions step signatures are kept separate from GenerateContent parts.
+pub const INTERACTIONS: &str = "gemini-interactions:";
 /// A Gemini signature for the part after the carrier.
 pub const GEMINI_NEXT: &str = "gemini-next:";
 /// A Claude thinking block's signature.
@@ -83,7 +85,7 @@ pub fn is_gemini(value: &str) -> bool {
 
 /// True for a value with any source prefix gproxy adds.
 pub fn is_carried(value: &str) -> bool {
-    Carried::parse(value).is_some()
+    value.starts_with(INTERACTIONS) || Carried::parse(value).is_some()
 }
 
 /// The carried form of a Gemini thought part's signature; `None` marks an
@@ -117,7 +119,7 @@ pub fn openai(id: &str, encrypted: Option<&str>) -> String {
 /// upstream as it is, without conversion: that upstream decrypts its own
 /// ciphertext only, and refuses a Claude or Gemini signature it finds there.
 pub fn without_carried_reasoning(body: &[u8]) -> Option<Vec<u8>> {
-    let needles = [GEMINI, GEMINI_NEXT, CLAUDE].map(str::as_bytes);
+    let needles = [GEMINI, GEMINI_NEXT, CLAUDE, INTERACTIONS].map(str::as_bytes);
     if !needles
         .iter()
         .any(|needle| body.windows(needle.len()).any(|window| window == *needle))

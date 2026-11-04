@@ -105,6 +105,7 @@
 //! walked, so a tool argument that happens to be called `file_id` is not
 //! mistaken for a reference.
 
+mod interactions;
 pub(crate) mod socket;
 pub mod upload;
 
@@ -129,6 +130,7 @@ pub const FILE_KIND: &str = "upstream_file";
 /// `resource_bindings.kind` of an upstream video job owned through the gateway.
 pub const VIDEO_KIND: &str = "upstream_video";
 pub const VOICE_KIND: &str = "upstream_voice";
+pub const INTERACTION_KIND: &str = "upstream_interaction";
 
 /// The upstream resource families the registry covers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -136,6 +138,7 @@ pub enum OwnedKind {
     File,
     Video,
     Voice,
+    Interaction,
 }
 
 impl OwnedKind {
@@ -145,6 +148,7 @@ impl OwnedKind {
             Self::File => FILE_KIND,
             Self::Video => VIDEO_KIND,
             Self::Voice => VOICE_KIND,
+            Self::Interaction => INTERACTION_KIND,
         }
     }
 
@@ -154,6 +158,7 @@ impl OwnedKind {
             Self::File => "file",
             Self::Video => "video",
             Self::Voice => "voice",
+            Self::Interaction => "interaction",
         }
     }
 
@@ -163,6 +168,7 @@ impl OwnedKind {
             Self::File => "files",
             Self::Video => "videos",
             Self::Voice => "voices",
+            Self::Interaction => "interactions",
         }
     }
 }
@@ -181,10 +187,14 @@ impl OwnedAccess {
     /// The access an operation performs, or `None` for one the registry does
     /// not govern.
     pub const fn of(operation: Operation) -> Option<Self> {
-        use OwnedKind::{File, Video, Voice};
+        use OwnedKind::{File, Interaction, Video, Voice};
         Some(match operation {
             Operation::CreateFile => Self::Create(File),
             Operation::CreateVoice => Self::Create(Voice),
+            Operation::RetrieveInteraction | Operation::CancelInteraction => {
+                Self::Read(Interaction)
+            }
+            Operation::DeleteInteraction => Self::Delete(Interaction),
             Operation::RetrieveFile | Operation::RetrieveFileContent => Self::Read(File),
             Operation::DeleteFile => Self::Delete(File),
             Operation::ListFiles => Self::List(File),
@@ -194,6 +204,20 @@ impl OwnedAccess {
             Operation::ListVideos => Self::List(Video),
             _ => return None,
         })
+    }
+
+    /// Generation in the Interactions dialect also creates an owned resource.
+    pub const fn for_key(key: OperationKey) -> Option<Self> {
+        if matches!(key.dialect, Dialect::GeminiInteractions)
+            && matches!(
+                key.operation,
+                Operation::GenerateContent | Operation::StreamGenerateContent
+            )
+        {
+            Some(Self::Create(OwnedKind::Interaction))
+        } else {
+            Self::of(key.operation)
+        }
     }
 
     /// The kind of an access that names one existing resource in its path.
@@ -247,7 +271,7 @@ fn object_id(kind: OwnedKind, object: &Value) -> Option<String> {
     let field = |name: &str| object.get(name).and_then(Value::as_str);
     let id = match kind {
         OwnedKind::File => field("id").or_else(|| field("name")),
-        OwnedKind::Voice => field("id"),
+        OwnedKind::Voice | OwnedKind::Interaction => field("id"),
         OwnedKind::Video => field("id")
             .or_else(|| field("request_id"))
             .or_else(|| field("task_id")),
@@ -349,7 +373,14 @@ fn gemini_file_id(uri: &str) -> Option<String> {
 }
 
 /// Keys whose values are caller data or schemas, never request structure.
-const OPAQUE_KEYS: &[&str] = &["parameters", "input_schema", "schema", "metadata"];
+const OPAQUE_KEYS: &[&str] = &[
+    "parameters",
+    "input_schema",
+    "schema",
+    "metadata",
+    "user_metadata",
+    "labels",
+];
 
 fn walk_references(value: &Value, gemini: bool, out: &mut BTreeSet<String>) {
     match value {
@@ -370,14 +401,29 @@ fn walk_references(value: &Value, gemini: bool, out: &mut BTreeSet<String>) {
                 }
                 if gemini {
                     match key {
-                        "fileUri" | "file_uri" => {
+                        "fileUri" | "file_uri" | "uri" => {
                             if let Some(id) = child.as_str().and_then(gemini_file_id) {
                                 out.insert(id);
                             }
                             continue;
                         }
                         // functionCall arguments and functionResponse payloads.
-                        "args" | "response" => continue,
+                        "args" | "response" | "arguments" => continue,
+                        "result" => {
+                            // Interactions tool results can contain native media.
+                            // Ordinary tool payloads remain opaque caller data.
+                            if map.get("type").and_then(Value::as_str) == Some("function_result") {
+                                for part in child.as_array().into_iter().flatten() {
+                                    if matches!(
+                                        part["type"].as_str(),
+                                        Some("image" | "document" | "audio" | "video")
+                                    ) {
+                                        walk_references(part, gemini, out);
+                                    }
+                                }
+                            }
+                            continue;
+                        }
                         _ => {}
                     }
                 } else {
@@ -418,7 +464,7 @@ fn walk_references(value: &Value, gemini: bool, out: &mut BTreeSet<String>) {
 fn may_reference(body: &[u8], gemini: bool) -> bool {
     let contains = |needle: &[u8]| body.windows(needle.len()).any(|window| window == needle);
     let named = if gemini {
-        contains(b"fileUri") || contains(b"file_uri")
+        contains(b"fileUri") || contains(b"file_uri") || contains(b"uri")
     } else {
         contains(b"file_id")
     };
@@ -432,7 +478,10 @@ pub fn referenced_files(operation: OperationKey, body: &[u8]) -> BTreeSet<String
     if !scans_references(operation.operation) || body.is_empty() {
         return BTreeSet::new();
     }
-    if !may_reference(body, operation.dialect == Dialect::Gemini) {
+    if !may_reference(
+        body,
+        operation.dialect.family() == gproxy_protocol::WireFamily::Gemini,
+    ) {
         return BTreeSet::new();
     }
     serde_json::from_slice::<Value>(body)
@@ -519,7 +568,7 @@ async fn multipart_references(
         limits,
     )
     .map_err(unreadable)?;
-    let gemini = operation.dialect == Dialect::Gemini;
+    let gemini = operation.dialect.family() == gproxy_protocol::WireFamily::Gemini;
     let mut out = BTreeSet::new();
     while let Some(part) = decoder.next_part().await.map_err(unreadable)? {
         let (name, file) = part_name(&part.headers);
@@ -569,7 +618,7 @@ pub async fn request_references(
     }
     match multipart_boundary(headers) {
         Some(boundary) => {
-            let gemini = operation.dialect == Dialect::Gemini;
+            let gemini = operation.dialect.family() == gproxy_protocol::WireFamily::Gemini;
             let contains =
                 |needle: &[u8]| body.windows(needle.len()).any(|window| window == needle);
             // Field names are plain in a form; an RFC 2231 `name*` could
@@ -596,7 +645,11 @@ fn scan_limits(limits: &crate::ExecutionLimits) -> CodecLimits {
 pub fn referenced_files_in(operation: OperationKey, body: &Value) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     if scans_references(operation.operation) {
-        walk_references(body, operation.dialect == Dialect::Gemini, &mut out);
+        walk_references(
+            body,
+            operation.dialect.family() == gproxy_protocol::WireFamily::Gemini,
+            &mut out,
+        );
     }
     out
 }
@@ -718,20 +771,23 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                     .collect(),
             ));
         }
-        let addressed = if let Some(kind) =
-            OwnedAccess::of(operation.operation).and_then(OwnedAccess::addressed)
-        {
-            Some((kind, path_id(kind, path)?))
-        } else {
-            request_voice(
-                operation.operation,
-                headers,
-                body.unwrap_or_default(),
-                scan_limits(&self.snapshot().limits.for_operation(operation.operation)),
-            )
-            .await?
-            .map(|id| (OwnedKind::Voice, id))
-        };
+        let addressed =
+            if let Some(kind) = OwnedAccess::for_key(operation).and_then(OwnedAccess::addressed) {
+                Some((kind, path_id(kind, path)?))
+            } else {
+                if let Some(id) = interactions::reference(operation, body.unwrap_or_default()) {
+                    Some((OwnedKind::Interaction, id))
+                } else {
+                    request_voice(
+                        operation.operation,
+                        headers,
+                        body.unwrap_or_default(),
+                        scan_limits(&self.snapshot().limits.for_operation(operation.operation)),
+                    )
+                    .await?
+                    .map(|id| (OwnedKind::Voice, id))
+                }
+            };
         if let Some((kind, id)) = addressed {
             let columns: Vec<String> = providers
                 .iter()
@@ -867,13 +923,19 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         &self,
         context: Arc<RequestContext>,
         path: &str,
+        body: Option<&[u8]>,
     ) -> CoreResult<Arc<RequestContext>> {
-        let Some(kind) =
-            OwnedAccess::of(context.operation.operation).and_then(OwnedAccess::addressed)
-        else {
+        let (kind, id) = if let Some(kind) =
+            OwnedAccess::for_key(context.operation).and_then(OwnedAccess::addressed)
+        {
+            (kind, path_id(kind, path)?)
+        } else if let Some(id) =
+            interactions::reference(context.operation, body.unwrap_or_default())
+        {
+            (OwnedKind::Interaction, id)
+        } else {
             return Ok(context);
         };
-        let id = path_id(kind, path)?;
         let provider_id = &context.target.provider.entity.id;
         let not_found = || CoreError::ResourceNotFound {
             kind: kind.noun(),
@@ -916,10 +978,15 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         response: &mut WireResponse<HttpBody>,
         limits: CodecLimits,
     ) -> CoreResult<()> {
-        let Some(access) = OwnedAccess::of(request.operation.operation) else {
+        let Some(access) = OwnedAccess::for_key(request.operation) else {
             return Ok(());
         };
         if !response.status.is_success() {
+            return Ok(());
+        }
+        // A stateless cross-protocol Interaction has a client identity, not
+        // a stored resource at an Interactions upstream.
+        if converted && request.operation.dialect == Dialect::GeminiInteractions {
             return Ok(());
         }
         let provider_id = request.target.provider.entity.id.as_str();
@@ -956,13 +1023,25 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                 {
                     return Ok(());
                 }
-                let body = buffer(response, limits).await?;
+                let stream_id = if kind == OwnedKind::Interaction
+                    && crate::convert::response_framing(request.operation, &response.headers)
+                        == Some(gproxy_protocol::connection::StreamFraming::Sse)
+                {
+                    Some(interactions::created_stream_id(response, limits).await?)
+                } else {
+                    None
+                };
+                let id = if let Some(id) = stream_id {
+                    id
+                } else {
+                    let body = buffer(response, limits).await?;
+                    serde_json::from_slice::<Value>(&body)
+                        .ok()
+                        .and_then(|value| created_id(kind, &value))
+                };
                 // Gemini's resumable start answers with no body: the file is
                 // finished at the upload URL, out of the gateway's sight.
-                let Some(id) = serde_json::from_slice::<Value>(&body)
-                    .ok()
-                    .and_then(|value| created_id(kind, &value))
-                else {
+                let Some(id) = id else {
                     tracing::warn!(
                         provider = provider_id,
                         operation = ?request.operation.operation,
@@ -982,6 +1061,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                     "user_id": request.attribution.user_id,
                     "api_key_id": request.attribution.api_key_id,
                     "operation": request.operation.operation.id(),
+                    "requested_model": request.target.requested_model,
                 });
                 self.bindings()
                     .create_many(vec![resource_binding::ActiveModel {

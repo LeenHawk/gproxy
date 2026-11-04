@@ -40,6 +40,7 @@
 mod claude;
 mod common;
 mod gemini;
+mod interactions;
 mod live;
 mod media;
 mod openai;
@@ -64,6 +65,7 @@ enum Reader {
     Chat,
     Responses,
     Gemini,
+    Interactions,
     Realtime,
     Live,
     OpenAiEmbedding,
@@ -82,6 +84,7 @@ fn reader(operation: Operation, dialect: Dialect) -> Option<Reader> {
         Dialect::OpenAiChat => Reader::Chat,
         Dialect::OpenAi | Dialect::OpenAiResponsesWebSocket => Reader::Responses,
         Dialect::Gemini => Reader::Gemini,
+        Dialect::GeminiInteractions => Reader::Interactions,
     };
     let openai = dialect.family() == WireFamily::OpenAi;
     Some(match operation {
@@ -131,6 +134,7 @@ fn read(reader: Reader, body: &[u8]) -> Option<NormalizedUsage> {
         Reader::Chat | Reader::Responses | Reader::Realtime => openai::whole(body),
         Reader::Live => None,
         Reader::Gemini => gemini::whole(body),
+        Reader::Interactions => interactions::whole(body),
         Reader::OpenAiEmbedding => media::openai_embedding(body),
         Reader::GeminiEmbedding => gemini::embedding(body),
         Reader::Image => media::image(body),
@@ -172,6 +176,7 @@ enum Watch {
     Responses(openai::ResponsesStream),
     Live(live::LiveStream),
     Gemini(gemini::Stream),
+    Interactions(interactions::Stream),
     Transcription(media::TranscriptionStream),
 }
 
@@ -184,6 +189,7 @@ impl Watch {
             Self::Responses(stream) => stream.event(name, data),
             Self::Live(stream) => stream.event(data),
             Self::Gemini(stream) => stream.event(data),
+            Self::Interactions(stream) => stream.event(data),
             Self::Transcription(stream) => stream.event(name, data),
         }
     }
@@ -197,6 +203,7 @@ impl Watch {
             Self::Responses(stream) => stream.snapshot(),
             Self::Live(stream) => stream.snapshot(),
             Self::Gemini(stream) => stream.reading(settled),
+            Self::Interactions(stream) => stream.reading(settled),
             Self::Transcription(stream) => stream.snapshot(),
         }
     }
@@ -253,6 +260,7 @@ impl UsageReader {
             }
             Reader::Image => Watch::Responses(openai::ResponsesStream::new(openai::Mode::Image)),
             Reader::Gemini => Watch::Gemini(gemini::Stream::default()),
+            Reader::Interactions => Watch::Interactions(interactions::Stream::default()),
             Reader::Transcription => Watch::Transcription(media::TranscriptionStream::default()),
             Reader::OpenAiEmbedding
             | Reader::GeminiEmbedding

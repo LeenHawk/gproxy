@@ -9,6 +9,9 @@
 //! OpenAI compatibility layer lives under `/v1beta/openai/**` and takes
 //! `Authorization: Bearer`. Client paths addressed at OpenAI's own layout
 //! (`/v1/chat/completions`, `/v1/videos/...`) are moved onto that prefix.
+//! Interactions uses /v1beta/interactions (also /v1/interactions), modeled as
+//! GeminiInteractions with generation and native resource lifecycle operations.
+//! Source: https://ai.google.dev/api/interactions.md.txt (2026-11-04).
 //! Gemini Live uses the native BidiGenerateContent WebSocket endpoint and the
 //! same assigned API-key header as the Gemini HTTP surface.
 //!

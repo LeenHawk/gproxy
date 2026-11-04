@@ -21,6 +21,7 @@ pub(crate) fn detail(error: &TransformError) -> Option<Value> {
     }
     payload!(
         gemini::GenerateContentError,
+        gemini::interactions::InteractionError,
         claude::stream::StreamError,
         chat::stream::StreamError,
         responses::stream::ResponseStreamError,
@@ -73,7 +74,7 @@ fn classify(code: &str) -> Option<u16> {
         "authentication_error" | "invalid_api_key" | "UNAUTHENTICATED" => 401,
         "billing_error" => 402,
         "permission_error" | "permission_denied" | "PERMISSION_DENIED" => 403,
-        "not_found_error" | "model_not_found" | "NOT_FOUND" => 404,
+        "not_found" | "not_found_error" | "model_not_found" | "NOT_FOUND" => 404,
         "conflict_error" | "ALREADY_EXISTS" | "ABORTED" => 409,
         "request_too_large" => 413,
         "invalid_request_error"
@@ -221,6 +222,9 @@ pub(crate) fn body(detail: &Value, status: u16, dialect: Dialect) -> Option<Valu
             };
             json!({"type": "error", "error": {"type": kind(status), "message": message}})
         }
+        Dialect::GeminiInteractions => {
+            json!({"error":{"code":code(detail),"message":detail["message"]}})
+        }
         Dialect::Gemini => {
             let mut error = json!({
                 "code": status, "message": detail["message"],
@@ -240,6 +244,11 @@ pub(crate) fn body(detail: &Value, status: u16, dialect: Dialect) -> Option<Valu
 }
 
 pub(crate) fn event(detail: &Value, status: u16, dialect: Dialect, sequence: i64) -> Option<Value> {
+    if dialect == Dialect::GeminiInteractions {
+        return Some(
+            json!({"event_type":"error","error":{"code":code(detail),"message":detail["message"]}}),
+        );
+    }
     if dialect == Dialect::OpenAi {
         return Some(json!({
             "type": "error", "code": code(detail), "message": detail["message"],

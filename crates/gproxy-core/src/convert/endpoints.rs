@@ -25,6 +25,7 @@ pub fn generate_endpoint(
 ) -> Result<Endpoint, TransformError> {
     match dialect {
         Dialect::OpenAi => Endpoint::new("/v1/responses"),
+        Dialect::GeminiInteractions => Endpoint::new("/v1beta/interactions"),
         Dialect::OpenAiChat => Endpoint::new("/v1/chat/completions"),
         Dialect::Claude => Endpoint::new("/v1/messages"),
         Dialect::Gemini => {
@@ -68,10 +69,12 @@ pub fn list_models_path(dialect: Dialect) -> Result<&'static str, TransformError
     match dialect {
         Dialect::OpenAi | Dialect::OpenAiChat | Dialect::Claude => Ok("/v1/models"),
         Dialect::Gemini => Ok("/v1beta/models"),
-        Dialect::OpenAiResponsesWebSocket => Err(TransformError::unsupported(
-            "endpoint",
-            "the Responses WebSocket dialect has no model directory path",
-        )),
+        Dialect::GeminiInteractions | Dialect::OpenAiResponsesWebSocket => {
+            Err(TransformError::unsupported(
+                "endpoint",
+                "this generation dialect has no model directory path",
+            ))
+        }
     }
 }
 
@@ -101,7 +104,7 @@ pub fn embedding_template(
             };
             format!("/v1beta/models/{model}:{method}")
         }
-        Dialect::Claude | Dialect::OpenAiResponsesWebSocket => {
+        Dialect::Claude | Dialect::GeminiInteractions | Dialect::OpenAiResponsesWebSocket => {
             return Err(TransformError::unsupported(
                 "endpoint",
                 format!("{dialect:?} has no embeddings path"),
@@ -123,10 +126,9 @@ pub fn files_endpoint(dialect: Dialect) -> Result<Endpoint, TransformError> {
     match dialect {
         Dialect::OpenAi | Dialect::OpenAiChat | Dialect::Claude => Endpoint::new("/v1/files"),
         Dialect::Gemini => Endpoint::new("/v1beta/files"),
-        Dialect::OpenAiResponsesWebSocket => Err(TransformError::unsupported(
-            "endpoint",
-            "the Responses WebSocket dialect has no files path",
-        )),
+        Dialect::GeminiInteractions | Dialect::OpenAiResponsesWebSocket => Err(
+            TransformError::unsupported("endpoint", "this generation dialect has no files path"),
+        ),
     }
 }
 
@@ -153,9 +155,8 @@ pub fn file_content_endpoint(dialect: Dialect, id: &str) -> Result<Endpoint, Tra
             "endpoint",
             "Gemini files cannot be downloaded",
         )),
-        Dialect::OpenAiResponsesWebSocket => Err(TransformError::unsupported(
-            "endpoint",
-            "the Responses WebSocket dialect has no files path",
-        )),
+        Dialect::GeminiInteractions | Dialect::OpenAiResponsesWebSocket => Err(
+            TransformError::unsupported("endpoint", "this generation dialect has no files path"),
+        ),
     }
 }

@@ -53,12 +53,42 @@ fn gemini(value: &Value) -> u64 {
         .sum()
 }
 
+fn interaction_step(step: &Value) -> u64 {
+    match step["type"].as_str() {
+        Some("model_output") => items(&step["content"])
+            .map(|part| text(&part["text"]))
+            .sum(),
+        Some("thought") => items(&step["summary"])
+            .map(|part| text(&part["text"]))
+            .sum(),
+        Some("function_call") => arguments(&step["arguments"]),
+        _ => 0,
+    }
+}
+
+fn interaction_delta(value: &Value) -> u64 {
+    let delta = &value["delta"];
+    match delta["type"].as_str() {
+        Some("text") => text(&delta["text"]),
+        Some("arguments_delta") => arguments(&delta["arguments"]),
+        Some("thought_summary") => text(&delta["content"]["text"]),
+        _ => 0,
+    }
+}
+
 pub(super) fn stream(dialect: Dialect, name: Option<&str>, value: &Value) -> u64 {
     let kind = value["type"].as_str().or(name);
     match dialect {
         Dialect::OpenAiChat => items(&value["choices"])
             .map(|choice| chat(&choice["delta"]))
             .sum(),
+        Dialect::GeminiInteractions => {
+            if value["event_type"] == "step.delta" {
+                interaction_delta(value)
+            } else {
+                0
+            }
+        }
         Dialect::Gemini => gemini(value),
         Dialect::Claude => match kind {
             Some("content_block_start") => claude(&value["content_block"]),
@@ -111,6 +141,7 @@ pub fn whole_output_characters(operation: Operation, dialect: Dialect, body: &[u
         Dialect::OpenAiChat => items(&value["choices"])
             .map(|choice| chat(&choice["message"]))
             .sum(),
+        Dialect::GeminiInteractions => items(&value["steps"]).map(interaction_step).sum(),
         Dialect::Gemini => gemini(&value),
         Dialect::Claude => items(&value["content"]).map(claude).sum(),
         Dialect::OpenAi | Dialect::OpenAiResponsesWebSocket => items(&value["output"])

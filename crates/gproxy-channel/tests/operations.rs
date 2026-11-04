@@ -130,6 +130,9 @@ impl BaseChannel for Overrides {
     http_overrides! {
         list_models => ListModels, get_model => GetModel, count_tokens => CountTokens,
         generate_content => GenerateContent, stream_generate_content => StreamGenerateContent,
+        retrieve_interaction => RetrieveInteraction,
+        cancel_interaction => CancelInteraction,
+        delete_interaction => DeleteInteraction,
         create_moderation => CreateModeration,
         create_decision => CreateDecision,
         compact_content => CompactContent, summarize_memory => SummarizeMemory,

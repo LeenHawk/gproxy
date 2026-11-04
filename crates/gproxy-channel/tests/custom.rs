@@ -154,7 +154,7 @@ fn config_overrides_auth_and_adds_headers_and_declares_dialects() {
         Custom
             .native_dialects(provider(&json!({}), None), Operation::ListModels)
             .len(),
-        4
+        5
     );
 
     assert!(matches!(

@@ -27,6 +27,7 @@ pub fn fingerprint(dialect: Dialect, body: &Value) -> Option<SessionIdentity> {
             (b"gemini".as_slice(), gemini_segments(body)?)
         }
         Dialect::OpenAi => (b"responses".as_slice(), responses_segments(body)?),
+        Dialect::GeminiInteractions => (b"interactions".as_slice(), interactions_segments(body)?),
         Dialect::OpenAiResponsesWebSocket => unreachable!("paired dialect"),
     };
 
@@ -114,6 +115,60 @@ fn gemini_segments(body: &Value) -> Option<Vec<Segment<'_>>> {
         }
     }
     None
+}
+
+fn interactions_segments(body: &Value) -> Option<Vec<Segment<'_>>> {
+    if body.get("previous_interaction_id").is_some() || body.get("continuation_token").is_some() {
+        return None;
+    }
+    let mut segments = Vec::new();
+    push_system(
+        &mut segments,
+        b"system",
+        b"system_instruction",
+        system_content(body.get("system_instruction"))?,
+    );
+    let input = body.get("input")?;
+    if input.is_null()
+        || input.as_str().is_some_and(str::is_empty)
+        || input.as_array().is_some_and(Vec::is_empty)
+        || input.as_object().is_some_and(serde_json::Map::is_empty)
+    {
+        return None;
+    }
+    if let Some(items) = input.as_array()
+        && items.iter().any(|item| {
+            matches!(
+                item["type"].as_str(),
+                Some(
+                    "user_input" | "model_output" | "function_call" | "function_result" | "thought"
+                )
+            )
+        })
+    {
+        for item in items {
+            if item["type"] == "user_input" {
+                segments.push(Segment {
+                    role: b"user",
+                    source: b"input",
+                    content: user_content(item.get("content"))?,
+                });
+                return Some(segments);
+            }
+            segments.push(Segment {
+                role: b"prefix",
+                source: b"input",
+                content: item,
+            });
+        }
+        return None;
+    }
+    segments.push(Segment {
+        role: b"user",
+        source: b"input",
+        content: input,
+    });
+    Some(segments)
 }
 
 fn responses_segments(body: &Value) -> Option<Vec<Segment<'_>>> {

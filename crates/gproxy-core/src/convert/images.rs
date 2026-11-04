@@ -210,7 +210,7 @@ pub(crate) async fn run<C: BatchConnectionTrait + Send + Sync>(
     let dialect = match call.target {
         Dialect::OpenAi | Dialect::OpenAiChat => ImageDialect::Responses,
         Dialect::Gemini => ImageDialect::Gemini,
-        Dialect::Claude | Dialect::OpenAiResponsesWebSocket => {
+        Dialect::Claude | Dialect::GeminiInteractions | Dialect::OpenAiResponsesWebSocket => {
             return Err(TransformError::unsupported(
                 "images",
                 format!("{:?} has no image generation API", call.target),

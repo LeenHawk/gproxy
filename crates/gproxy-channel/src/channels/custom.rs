@@ -28,7 +28,7 @@ pub struct CustomConfig {
     pub fallback_models: Vec<String>,
     /// Dialects the upstream accepts. Empty means the
     /// canonical dialect of every family (`openai`, `claude`, `gemini`) plus
-    /// `openai_chat`, i.e. "whatever the client sends, forward it".
+    /// `openai_chat` and `gemini_interactions`, i.e. "whatever the client sends, forward it".
     pub dialects: Vec<Dialect>,
     /// Override the authentication header for every family, e.g. an
     /// OpenAI-compatible vendor that wants `api-key`.
@@ -173,7 +173,7 @@ impl BaseChannel for Custom {
                 ConfigKey::optional(
                     "dialects",
                     ConfigKeyKind::Json,
-                    "Wire dialects the upstream accepts natively. Empty accepts openai, openai_chat, claude and gemini.",
+                    "Wire dialects the upstream accepts natively. Empty accepts openai, openai_chat, claude, gemini and gemini_interactions.",
                 ),
                 ConfigKey::optional(
                     "auth_header",
@@ -218,6 +218,7 @@ impl BaseChannel for Custom {
                 Dialect::OpenAiChat,
                 Dialect::Claude,
                 Dialect::Gemini,
+                Dialect::GeminiInteractions,
             ]
         } else {
             configured

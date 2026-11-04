@@ -25,7 +25,7 @@ export const choices: Record<string, Array<string>> = {
   oauth_provider: ["wechat", "txcloud", "google", "github"],
 }
 
-export const dialects = ["openai", "openai_chat", "claude", "gemini", "openai_responses_websocket"]
+export const dialects = ["openai", "openai_chat", "claude", "gemini", "gemini_interactions", "openai_responses_websocket"]
 
 export function controlFor(field: ConfigKey): ControlKind {
   if (choices[field.name]) return "choice"

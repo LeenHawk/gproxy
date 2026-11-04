@@ -147,6 +147,25 @@ pub fn payloads(s: &mut Schemas, key: OperationKey, path: &str) -> Payloads {
                 .response("application/json", json!({"type":"array","items":event}))
                 .query(vec![json!({"in":"query","name":"alt","required":false,"schema":{"type":"string","enum":["sse","json"]}})])
         }
+        (GenerateContent, GeminiInteractions) => pair!(
+            g::interactions::CreateInteractionRequestBody,
+            g::interactions::Interaction
+        )
+        .sse(s.output::<g::interactions::InteractionStreamEvent>()),
+        (StreamGenerateContent, GeminiInteractions) => empty()
+            .request(
+                "application/json",
+                s.input::<g::interactions::CreateInteractionRequestBody>(),
+            )
+            .sse(s.output::<g::interactions::InteractionStreamEvent>()),
+        (RetrieveInteraction, GeminiInteractions) => output!(g::interactions::Interaction)
+            .sse(s.output::<g::interactions::InteractionStreamEvent>())
+            .query(s.query::<g::interactions::RetrieveInteractionQuery>()),
+        (CancelInteraction, GeminiInteractions) => output!(g::interactions::Interaction),
+        (DeleteInteraction, GeminiInteractions) => Payloads {
+            empty_response: true,
+            ..empty()
+        },
         (CreateModeration, OpenAi) => pair!(
             o::moderation::CreateModerationRequestBody,
             o::moderation::CreateModerationResponseBody

@@ -9,6 +9,7 @@ pub mod embeddings;
 pub mod files;
 pub mod generate;
 pub mod images;
+pub mod interactions;
 mod json;
 pub mod memory;
 pub mod models;
