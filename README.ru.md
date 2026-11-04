@@ -221,7 +221,6 @@ pnpm --dir console test
 git submodule update --init docs
 pnpm --dir docs install --frozen-lockfile
 pnpm --dir docs check
-pnpm --dir docs build
 ```
 
 См. [Сборка из исходников](https://gproxy.leenhawk.com/ru/deployment/release-build/) для рабочего стола и проверки WASM, [Архитектура](https://gproxy.leenhawk.com/ru/introduction/architecture/) для макета рабочей области и [Добавление канала](https://gproxy.leenhawk.com/ru/guides/adding-a-channel/) для расширений.

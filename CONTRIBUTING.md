@@ -67,7 +67,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 pnpm --dir console lint       # includes TypeScript, ESLint and i18n parity
 pnpm --dir console test
-git submodule update --init docs && pnpm --dir docs check && pnpm --dir docs build
+git submodule update --init docs && pnpm --dir docs install && pnpm --dir docs check
 ```
 
 See [Building from source](https://gproxy.leenhawk.com/deployment/release-build/)
@@ -183,7 +183,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 pnpm --dir console lint       # 包括 TypeScript、ESLint 和多语言一致性检查
 pnpm --dir console test
-git submodule update --init docs && pnpm --dir docs check && pnpm --dir docs build
+git submodule update --init docs && pnpm --dir docs install && pnpm --dir docs check
 ```
 
 桌面端、移动端和 WASM 构建见
@@ -303,7 +303,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 pnpm --dir console lint       # включает TypeScript, ESLint и проверку согласованности i18n
 pnpm --dir console test
-git submodule update --init docs && pnpm --dir docs check && pnpm --dir docs build
+git submodule update --init docs && pnpm --dir docs install && pnpm --dir docs check
 ```
 
 О сборках для настольных систем, мобильных устройств и WASM см.

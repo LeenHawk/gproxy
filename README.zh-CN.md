@@ -229,7 +229,6 @@ pnpm --dir console test
 git submodule update --init docs
 pnpm --dir docs install --frozen-lockfile
 pnpm --dir docs check
-pnpm --dir docs build
 ```
 
 桌面和 WASM 的独立检查见[从源码构建](https://gproxy.leenhawk.com/zh-cn/deployment/release-build/)。工作区结构见[架构](https://gproxy.leenhawk.com/zh-cn/introduction/architecture/)，扩展方式见[新增渠道](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)。

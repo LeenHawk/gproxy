@@ -36,9 +36,11 @@ Application fonts belong to the application's data directory, independently of
 a custom gateway instance directory. CLI fonts use the instance data directory.
 Headless packages exclude the Console and its font metadata.
 
-Clients released before the CDN switch download from
-`https://gproxy.leenhawk.com/fonts/<sha256>.woff2`. The documentation site
-keeps those files, frozen, for them; nothing new is added there.
+Clients up to v4.1.14 download from
+`https://gproxy.leenhawk.com/fonts/<sha256>.woff2`. Since the documentation
+site moved to Mintlify those files are no longer served, so on those versions
+the optional download fails and the Console keeps system fonts; upgrading
+restores it.
 
 ## Updating
 
