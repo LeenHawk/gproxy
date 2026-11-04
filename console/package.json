@@ -6,7 +6,6 @@
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "vite",
-    "fonts:update": "node scripts/update-fonts.mjs",
     "build": "tsc -b && vite build && node scripts/sync-to-embed.mjs",
     "lint": "tsc -b --pretty false && eslint . && pnpm i18n:check",
     "test": "vitest run",

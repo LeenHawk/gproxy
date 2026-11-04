@@ -1,16 +1,60 @@
 //! Optional fonts. Reads never access the network; only `download` does.
-use std::{io, path::PathBuf, sync::Mutex, time::Duration};
+use std::{collections::BTreeMap, io, path::PathBuf, sync::Mutex, time::Duration};
 
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-const CDN: &str = "https://gproxy.leenhawk.com/fonts";
+/// Public npm CDNs, tried in order for each file. Every font is a file of a
+/// pinned Fontsource package, and the hash check below is what makes any of
+/// them trustworthy. npmmirror first: it is the one reachable from mainland
+/// China, and it is fast everywhere else too.
+const MIRRORS: [fn(&str, &str, &str) -> String; 3] = [
+    |package, version, path| {
+        format!("https://registry.npmmirror.com/{package}/{version}/files/{path}")
+    },
+    |package, version, path| format!("https://cdn.jsdelivr.net/npm/{package}@{version}/{path}"),
+    |package, version, path| format!("https://unpkg.com/{package}@{version}/{path}"),
+];
 
 #[derive(Deserialize)]
 pub(super) struct FontPackage {
     pub stylesheet: String,
-    files: Vec<String>,
+    /// npm package name to the exact version the stylesheet was built from.
+    packages: BTreeMap<String, String>,
+    files: Vec<FontFile>,
+}
+
+/// One font file: the content-addressed name the stylesheet uses, and where
+/// that content lives in its npm package.
+#[derive(Clone, Deserialize)]
+struct FontFile {
+    name: String,
+    package: String,
+    path: String,
+}
+
+impl FontFile {
+    /// The source is spliced into CDN URLs, so it is held to exactly the shape
+    /// Fontsource publishes: a scoped package and a plain `files/` path.
+    fn is_valid(&self, packages: &BTreeMap<String, String>) -> bool {
+        let plain = |value: &str| {
+            !value.is_empty()
+                && value != ".."
+                && value
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+        };
+        filename(&format!("fonts/{}", self.name)).is_some()
+            && packages
+                .get(&self.package)
+                .is_some_and(|version| plain(version))
+            && self
+                .package
+                .strip_prefix("@fontsource-variable/")
+                .is_some_and(plain)
+            && self.path.strip_prefix("files/").is_some_and(plain)
+    }
 }
 
 #[derive(Clone, Default, Serialize)]
@@ -99,7 +143,7 @@ impl FontCache {
         if package
             .files
             .iter()
-            .any(|name| filename(&format!("fonts/{name}")).is_none())
+            .any(|file| !file.is_valid(&package.packages))
         {
             return Err(io::Error::other("Invalid font manifest"));
         }
@@ -112,29 +156,15 @@ impl FontCache {
             .build()
             .map_err(io::Error::other)?;
         tokio::fs::create_dir_all(&self.root).await?;
-        stream::iter(package.files.clone().into_iter().map(|name| {
+        stream::iter(package.files.clone().into_iter().map(|file| {
             let client = client.clone();
+            let version = package.packages[&file.package].clone();
             async move {
-                if self.cached(&name).await.is_none() {
-                    let bytes = client
-                        .get(format!("{CDN}/{name}"))
-                        .send()
-                        .await
-                        .map_err(io::Error::other)?
-                        .error_for_status()
-                        .map_err(io::Error::other)?
-                        .bytes()
-                        .await
-                        .map_err(io::Error::other)?;
-                    if !matches_hash(&name, &bytes) {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            "Font checksum mismatch",
-                        ));
-                    }
-                    let pending = self.root.join(format!("{name}.part"));
+                if self.cached(&file.name).await.is_none() {
+                    let bytes = fetch(&client, &file, &version).await?;
+                    let pending = self.root.join(format!("{}.part", file.name));
                     tokio::fs::write(&pending, bytes).await?;
-                    tokio::fs::rename(pending, self.root.join(name)).await?;
+                    tokio::fs::rename(pending, self.root.join(&file.name)).await?;
                 }
                 if let Some((completed, _)) = self.progress.lock().unwrap().as_mut() {
                     *completed += 1;
@@ -152,6 +182,35 @@ impl FontCache {
         drop(progress);
         Ok(self.status().await)
     }
+}
+
+/// The first mirror that returns the right bytes. A mirror that is down, slow
+/// or serves something else is skipped; the last failure is what is reported.
+async fn fetch(client: &reqwest::Client, file: &FontFile, version: &str) -> io::Result<Vec<u8>> {
+    let mut failure = io::Error::other("no font mirror configured");
+    for mirror in MIRRORS {
+        let url = mirror(&file.package, version, &file.path);
+        let response = client
+            .get(&url)
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status);
+        let bytes = match response {
+            Ok(response) => response.bytes().await,
+            Err(error) => Err(error),
+        };
+        match bytes {
+            Ok(bytes) if matches_hash(&file.name, &bytes) => return Ok(bytes.to_vec()),
+            Ok(_) => {
+                failure = io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Font checksum mismatch from {url}"),
+                );
+            }
+            Err(error) => failure = io::Error::other(error),
+        }
+    }
+    Err(failure)
 }
 
 pub(super) fn filename(asset: &str) -> Option<&str> {
