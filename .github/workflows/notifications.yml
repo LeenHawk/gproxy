@@ -1,0 +1,64 @@
+name: Notifications
+
+# The announcement feed GPROXY instances read is built from the discussions in
+# the Announcements category (format in scripts/notifications/publish.py),
+# signed, and published as the `notifications` release on GitHub, CNB and
+# GitLab. Discussion events run this from the default branch only.
+on:
+  discussion:
+    types: [created, edited, deleted, closed, reopened, category_changed, transferred]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  discussions: read
+
+concurrency:
+  group: notifications
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish feed
+    # Another category cannot change the feed unless a discussion left
+    # Announcements; the feed is rebuilt from scratch either way.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch'
+      || github.event.discussion.category.slug == 'announcements'
+      || contains(fromJSON('["category_changed","deleted","transferred"]'), github.event.action) }}
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: LeenHawk/gproxy-docs
+          ref: main
+          path: docs
+          ssh-key: ${{ secrets.DOCS_DEPLOY_KEY }}
+      - name: Build, sign and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITLAB_RELEASE_TOKEN: ${{ secrets.GITLAB_RELEASE_TOKEN }}
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+          UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
+          UPDATE_SIGNING_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+          CI_API_V4_URL: https://gitlab.com/api/v4
+          CI_PROJECT_ID: "86976712"
+          CI_PROJECT_URL: https://gitlab.com/leenhawk1/gproxy
+          CI_PIPELINE_ID: github-${{ github.run_id }}-${{ github.run_attempt }}
+        run: python3 scripts/notifications/publish.py --out dist/notifications --docs docs
+      # Clients that predate the release hosts read the feed from the
+      # documentation site, which signs its own copy when it deploys.
+      - name: Copy the feed to the documentation site
+        working-directory: docs
+        run: |
+          git add public/notifications.json
+          if git diff --cached --quiet; then echo "feed unchanged"; exit 0; fi
+          git -c user.name=github-actions[bot] -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
+            commit -q -m "chore(notifications): publish the announcement feed"
+          for attempt in 1 2 3; do
+            git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0
+            sleep 5
+          done
+          exit 1
