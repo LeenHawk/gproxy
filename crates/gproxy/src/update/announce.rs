@@ -1,18 +1,29 @@
-//! The publisher's announcement feed: fetched from the documentation site,
+//! The publisher's announcement feed: fetched from the release hosts,
 //! verified under the update signing key, and reduced to the notices that
 //! apply to this build.
 //!
 //! # Why it lives next to the updater
 //!
 //! The feed is signed by the same Ed25519 identity that signs every update
-//! manifest (`.github/workflows/ci.yml` signs `notifications.json` on deploy
-//! with `UPDATE_SIGNING_PRIVATE_KEY_B64`), so the trust root is the one
+//! manifest (`.github/workflows/notifications.yml` builds it from the
+//! Announcements discussions and signs it with `UPDATE_SIGNING_PRIVATE_KEY_B64`),
+//! and published as a `notifications` release on the same three hosts as the
+//! packages. The trust root is therefore the one
 //! [`super::config::SIGNING_PUBLIC_KEY`] already compiles in. A notice that
 //! says "upgrade now, 4.0.3 leaks credentials" is exactly the kind of text a
 //! mirror or a captive portal must not be able to forge, which is why
 //! verification here is **not** subject to the operator's
 //! `verify_signature` switch: that switch trusts a *source they chose*, and
 //! nobody chose this feed.
+//!
+//! # Where it is fetched from
+//!
+//! The host this instance updates from goes first, then the others in
+//! GitHub, CNB, GitLab order: a network that cannot reach one usually reaches
+//! another, and any of them is as trustworthy as the signature. A host that
+//! is down or serves a feed that does not verify is skipped. The feed and its
+//! signature always come from the same host, so a host that is mid-upload
+//! cannot pair one revision's feed with another's signature.
 //!
 //! # Failure is silence
 //!
@@ -40,10 +51,28 @@ use semver::{Version, VersionReq};
 use serde::Deserialize;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
-use super::signature;
+use super::{config::Source, signature};
 
-const FEED_URL: &str = "https://gproxy.leenhawk.com/notifications.json";
-const SIGNATURE_URL: &str = "https://gproxy.leenhawk.com/notifications.json.sig";
+const FEED: &str = "notifications.json";
+const SIGNATURE: &str = "notifications.json.sig";
+
+/// One host's `notifications` release, to which a file name is appended.
+fn release(source: Source) -> &'static str {
+    match source {
+        Source::Github => "https://github.com/LeenHawk/gproxy/releases/download/notifications",
+        Source::Cnb => "https://cnb.cool/LeenHawk/gproxy/-/releases/download/notifications",
+        Source::Gitlab => "https://gitlab.com/leenhawk1/gproxy/-/releases/notifications/downloads",
+    }
+}
+
+/// `preferred`, then the remaining hosts in a fixed order.
+fn hosts(preferred: Source) -> impl Iterator<Item = Source> {
+    std::iter::once(preferred).chain(
+        [Source::Github, Source::Cnb, Source::Gitlab]
+            .into_iter()
+            .filter(move |source| *source != preferred),
+    )
+}
 
 /// How long one fetch is served from memory. A console polls the page; the
 /// documentation site should see one request per instance per quarter day.
@@ -92,13 +121,14 @@ pub(super) async fn applicable(
     cache: &Cache,
     client: &reqwest::Client,
     key: Option<&str>,
+    preferred: Source,
     version: &str,
     channel: &str,
 ) -> Vec<Announcement> {
     if let Some(notices) = cache.fresh() {
         return notices;
     }
-    let Some(feed) = fetch(client, key).await else {
+    let Some(feed) = fetch(client, key, preferred).await else {
         cache.store(Vec::new(), RETRY_AFTER);
         return Vec::new();
     };
@@ -108,21 +138,35 @@ pub(super) async fn applicable(
     notices
 }
 
-async fn fetch(client: &reqwest::Client, key: Option<&str>) -> Option<Feed> {
-    let bytes = get(client, FEED_URL).await?;
-    let signature = get(client, SIGNATURE_URL).await?;
-    let signature = String::from_utf8(signature).ok()?;
-    let feed = verified(&bytes, &signature, key);
-    if feed.is_none() {
-        tracing::warn!("announcement feed failed signature verification; ignoring it");
+async fn fetch(client: &reqwest::Client, key: Option<&str>, preferred: Source) -> Option<Feed> {
+    for source in hosts(preferred) {
+        let base = release(source);
+        let Some(bytes) = get(client, &format!("{base}/{FEED}")).await else {
+            continue;
+        };
+        let Some(signature) = get(client, &format!("{base}/{SIGNATURE}")).await else {
+            continue;
+        };
+        let Ok(signature) = String::from_utf8(signature) else {
+            continue;
+        };
+        match verified(&bytes, &signature, key) {
+            Some(feed) => return Some(feed),
+            None => tracing::warn!(
+                source = source.as_str(),
+                "announcement feed failed signature verification; ignoring it"
+            ),
+        }
     }
-    feed
+    None
 }
 
 async fn get(client: &reqwest::Client, url: &str) -> Option<Vec<u8>> {
     let response = client
         .get(url)
-        .timeout(Duration::from_secs(30))
+        // Short: a host that hangs, as GitHub can from some networks, should
+        // hand over to the next one rather than hold the whole fetch.
+        .timeout(Duration::from_secs(10))
         .send()
         .await
         .ok()?;

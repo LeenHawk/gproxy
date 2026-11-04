@@ -770,10 +770,14 @@ impl UpdateService for Updater {
             let channel = self
                 .channel(None)
                 .map_or(BUILD_CHANNEL, |channel| channel.as_str());
+            // The host this instance updates from is the one most likely to
+            // be reachable from its network, so the feed is tried there first.
+            let source = self.source(None).unwrap_or_default();
             Ok(announce::applicable(
                 &self.announcements,
                 &self.client,
                 self.signing_key.as_deref(),
+                source,
                 BUILD_VERSION,
                 channel,
             )
