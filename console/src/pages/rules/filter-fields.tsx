@@ -29,7 +29,7 @@ export function FilterFields({ providerId, ruleSetId, model, onModel, operations
   } catch { selected = null }
   return <>
     <Field data-field-span="full"><FieldLabel htmlFor={`${id}-model`}>{t("fields.filterModelPattern")}</FieldLabel>
-      <SearchableSelect id={`${id}-model`} label={t("fields.filterModelPattern")} value={model} onChange={onModel} allowCustom wrap emptyLabel={t("rules.allModels")} source={{ key: ["model-names", providerId, ruleSetId], list: async (search, page, pageSize) => { const result = await api<Page<string>>(`/admin/api/model-names${query({ providerId, ruleSetId: providerId ? undefined : ruleSetId, search, page, pageSize })}`); return { items: result.items.map(value => ({ value, label: value })), total: result.total } } }} />
+      <SearchableSelect id={`${id}-model`} label={t("fields.filterModelPattern")} value={model} onChange={onModel} allowCustom wrap emptyLabel={t("rules.allModels")} source={{ key: ["model-names", providerId, ruleSetId], storageKey: "model-names", list: async (search, page, pageSize) => { const result = await api<Page<string>>(`/admin/api/model-names${query({ providerId, ruleSetId: providerId ? undefined : ruleSetId, search, page, pageSize })}`); return { items: result.items.map(value => ({ value, label: value })), total: result.total } } }} />
     </Field>
     <Field><FieldLabel htmlFor={`${id}-operations`}>{t("fields.filterOperationKeys")}</FieldLabel>
       <Textarea id={`${id}-operations`} value={operations} onChange={e => onOperations(e.target.value)} />

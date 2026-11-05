@@ -8,6 +8,7 @@ import * as portal from "./portal"
 export function optionSource<D, W, P>(family: Family<D, W, P>, option: (row: D) => SelectOption, filter: ListFilter = {}): OptionSource {
   return {
     key: ["admin", family.path, filter],
+    storageKey: family.path,
     list: async (search, page, pageSize) => {
       const result = await family.list({ ...filter, search: search.trim() || undefined, page, pageSize })
       return { items: result.items.map(option), total: result.total }
@@ -24,6 +25,7 @@ export function modelSource(has: (capability: string) => boolean, providerId?: s
   if (has("configuration.models")) return optionSource(models, row => ({ value: row.name, label: row.name }))
   return {
     key: ["portal", "models"],
+    storageKey: "portal-models",
     list: async (search, page, pageSize) => {
       const needle = search.trim().toLowerCase()
       const names = (await portal.models()).map(row => row.name).filter(name => name.toLowerCase().includes(needle))
