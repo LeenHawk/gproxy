@@ -241,9 +241,13 @@ Report bugs through [Issues](https://github.com/LeenHawk/gproxy/issues), or emai
 
 The gateway application is **AGPL-3.0-or-later**; see [LICENSE](LICENSE). `gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`, `gproxy-file`, `gproxy-seaorm`, and `gproxy-tokenizer` are **MIT**, with a license in each directory.
 
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FLeenHawk%2Fgproxy.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FLeenHawk%2Fgproxy?ref=badge_large)
+
 ## Powered by
 
 [![JetBrains logo](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)](https://jb.gg/OpenSource)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FLeenHawk%2Fgproxy.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FLeenHawk%2Fgproxy?ref=badge_shield)
 
 ## Star History
 
