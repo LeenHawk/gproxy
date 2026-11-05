@@ -15,6 +15,7 @@ __pycache__/
 !.gitlab-ci.yml
 !.gitlab/
 !.gitmodules
+!.fossa.yml
 
 # local reference library (v2 snapshot lives at samples/gproxy-v2)
 samples/

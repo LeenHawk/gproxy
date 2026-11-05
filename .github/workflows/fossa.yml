@@ -1,0 +1,27 @@
+name: FOSSA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fossa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: License scan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Cargo analysis runs `cargo metadata` over the workspace.
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # 1.99.0
+        with:
+          toolchain: 1.99.0
+      - uses: fossas/fossa-action@29693cc50323968e039056be419b32989fc5880c # v2.0.0
+        with:
+          api-key: ${{ secrets.FOSSA_API_KEY }}

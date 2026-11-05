@@ -1,0 +1,17 @@
+# FOSSA CLI configuration (`fossa analyze` in .github/workflows/fossa.yml).
+version: 3
+
+project:
+  name: gproxy
+
+paths:
+  exclude:
+    # Deployment templates and their tooling (wrangler, miniflare, sharp) are
+    # not part of any shipped gproxy artifact.
+    - ./deploy
+    # The out-of-tree channel plugin template.
+    - ./examples
+    # Patched crates are analyzed through the root workspace's Cargo.lock.
+    - ./vendor
+    # The gproxy-docs submodule is a separate site.
+    - ./docs
