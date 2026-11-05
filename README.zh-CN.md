@@ -150,6 +150,10 @@ Windows 可从 Microsoft Store 安装两个版本：
 | :---: | :---: |
 | <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/zh-cn%20dark.svg" alt="从 Microsoft 获取：GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/zh-cn%20dark.svg" alt="从 Microsoft 获取：GPROXY CLI" height="48"></a> |
 
+Android 版 Application 也可从 F-Droid 安装：
+
+<a href="https://f-droid.org/packages/com.leenhawk.gproxy.desktop/"><img src="https://f-droid.org/badge/get-it-on.png" alt="从 F-Droid 获取" height="72"></a>
+
 Release 中的 MSIX 是商店提交包，直接安装请选 ZIP；macOS 应用尚未公证；鸿蒙 HAP 已完成模拟器验证，安装前需要自行签名。各平台要求见安装说明。
 
 ## 性能

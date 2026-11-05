@@ -150,6 +150,10 @@ On Windows, both editions are available from Microsoft Store:
 | :---: | :---: |
 | <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY CLI" height="48"></a> |
 
+On Android, the Application is also available from F-Droid:
+
+<a href="https://f-droid.org/packages/com.leenhawk.gproxy.desktop/"><img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="72"></a>
+
 MSIX release attachments are Store submission packages; use ZIP for a direct installation. macOS apps are not notarized. The HarmonyOS HAP has been verified on an emulator and requires your own signature. See the installation guide for platform requirements.
 
 ## Performance

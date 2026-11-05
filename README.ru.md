@@ -150,6 +150,10 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
 | :---: | :---: |
 | <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY CLI" height="48"></a> |
 
+На Android приложение также доступно в F-Droid:
+
+<a href="https://f-droid.org/packages/com.leenhawk.gproxy.desktop/"><img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="72"></a>
+
 Вложения выпуска MSIX представляют собой пакеты отправки в Магазин; используйте ZIP для прямой установки. Приложения macOS не заверяются нотариально. HarmonyOS HAP проверен на эмуляторе и требует вашей собственной подписи. Требования к платформе см. в руководстве по установке.
 
 ## Производительность
