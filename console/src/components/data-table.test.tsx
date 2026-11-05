@@ -24,7 +24,7 @@ describe("list pagination", () => {
     expect(screen.queryByRole("combobox", { name: "Per page" })).not.toBeInTheDocument()
   })
 
-  it("offers only 10/20/50 and resets to the first page when the size changes", async () => {
+  it("offers only 10/20/50/100 and resets to the first page when the size changes", async () => {
     const user = userEvent.setup()
     render(<DataTable paginate rows={rows} columns={columns} rowKey={row => row.id} empty="Empty" />)
     expect(count()).toBe(10)
@@ -39,7 +39,7 @@ describe("list pagination", () => {
     expect(count()).toBe(1)
     expect(screen.getByRole("button", { name: "Next" })).toBeDisabled()
     fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" })
-    expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual(["10", "20", "50"])
+    expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual(["10", "20", "50", "100"])
   })
 
   it("keeps a size selector on one page and resets filtered results without changing its size", async () => {

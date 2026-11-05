@@ -33,7 +33,7 @@ export function SearchableSelect(props: Props) {
 
 function RemoteSelect(props: Props & { source: OptionSource }) {
   const [open, setOpen] = useState(false), [search, setSearch] = useState("")
-  const { page, pageSize, setPage, setPageSize } = usePagination("", JSON.stringify([props.source.key, search]))
+  const { page, pageSize, setPage, setPageSize } = usePagination("select-options", JSON.stringify([props.source.key, search]))
   const remote = useQuery({ queryKey: [...props.source.key, "options", props.id, search, page, pageSize], queryFn: () => props.source.list(search, page, pageSize), enabled: open })
   return <SelectControl {...props} remote={{ open, search, onOpen: next => { setOpen(next); setSearch(""); setPage(1) }, onSearch: setSearch, items: remote.data?.items ?? [], loading: remote.isFetching,
     footer: <>{remote.error ? <ErrorNotice error={remote.error} /> : null}<div className="border-t p-2"><Pagination page={page} pageSize={pageSize} total={remote.data?.total ?? 0} onPage={setPage} onPageSize={setPageSize} /></div></>,

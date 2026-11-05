@@ -1,6 +1,6 @@
 import { useState } from "react"
 
-export const PAGE_SIZES = [10, 20, 50] as const
+export const PAGE_SIZES = [10, 20, 50, 100] as const
 export type PageSize = typeof PAGE_SIZES[number]
 
 function readPageSize(storageKey: string): PageSize {
