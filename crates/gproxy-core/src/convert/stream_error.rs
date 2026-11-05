@@ -20,9 +20,15 @@ pub(super) fn converted(
     framing: SourceFraming,
     sequence: i64,
 ) -> TransportError {
-    let Some(detail) = super::upstream_error::detail(&error) else {
-        return super::generate::transport(error);
-    };
+    // gproxy's own conversion failures still reach the client as an error
+    // event carrying the transform detail, not a bare connection close.
+    let detail = super::upstream_error::detail(&error).unwrap_or_else(|| {
+        serde_json::json!({
+            "type": "api_error",
+            "code": "transform_error",
+            "message": error.to_string(),
+        })
+    });
     let Some(value) = super::upstream_error::event(
         &detail,
         super::upstream_error::status(&detail),
