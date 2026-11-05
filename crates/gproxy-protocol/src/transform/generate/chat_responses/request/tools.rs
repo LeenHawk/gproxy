@@ -58,7 +58,7 @@ pub(super) fn to_chat(tools: Vec<r::Tool>) -> Result<Vec<c::ChatTool>, Transform
                     let mut function = c::FunctionDefinition::builder(tool.name).build();
                     function.parameters = tool.parameters;
                     function.description = tool.description.flatten();
-                    function.strict = Some(tool.strict);
+                    function.strict = tool.strict.map(Some);
                     c::ChatTool::Function(
                         c::FunctionTool::builder(c::FunctionToolType::Function, function).build(),
                     )
