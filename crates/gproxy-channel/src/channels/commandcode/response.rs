@@ -68,12 +68,16 @@ impl Translator {
             .usage
             .pointer("/inputTokenDetails/cacheReadTokens")
             .and_then(Value::as_u64);
-        let write = self
+        let reported_write = self
             .usage
             .pointer("/inputTokenDetails/cacheWriteTokens")
-            .and_then(Value::as_u64)
+            .and_then(Value::as_u64);
+        // A separate cache event can supplement a zero finish count, but an
+        // explicitly reported zero remains factual when no event supplies one.
+        let write = reported_write
             .filter(|n| *n > 0)
-            .or(self.cache_write);
+            .or(self.cache_write)
+            .or(reported_write);
         if let Some(total) = self.usage.get("inputTokens").and_then(Value::as_u64) {
             usage["input_tokens"] = json!(
                 self.usage
@@ -86,6 +90,13 @@ impl Translator {
         }
         if let Some(value) = self.usage.get("outputTokens") {
             usage["output_tokens"] = value.clone();
+        }
+        if let Some(value) = self
+            .usage
+            .pointer("/outputTokenDetails/reasoningTokens")
+            .and_then(Value::as_u64)
+        {
+            usage["output_tokens_details"] = json!({"thinking_tokens":value});
         }
         if let Some(value) = read {
             usage["cache_read_input_tokens"] = json!(value);
