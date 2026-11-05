@@ -8,11 +8,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot/assert-windows-signature.ps1"
 function Assert-Signature([string]$Path) {
-    $signature = Get-AuthenticodeSignature -LiteralPath $Path
-    if ($signature.Status -ne 'Valid' -or -not $signature.TimeStamperCertificate) {
-        throw "Missing trusted timestamped signature: $Path ($($signature.Status))"
-    }
+    $signature = Assert-WindowsSignature $Path
     if ($signature.SignerCertificate.Subject -cne $Publisher) {
         throw "Signing certificate does not match the configured MSIX publisher: $Path"
     }

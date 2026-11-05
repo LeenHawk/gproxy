@@ -23,7 +23,10 @@ inputs:
     description: SignPath project slug
     required: false
   signing-policy-slug:
-    description: SignPath production signing policy slug
+    description: SignPath signing policy slug; test-signing submits and verifies but keeps the unsigned package
+    required: false
+  test-certificate-thumbprint:
+    description: SHA-1 thumbprint of the SignPath test certificate, required for test-signing
     required: false
 runs:
   using: composite
@@ -45,11 +48,14 @@ runs:
         SIGNPATH_ORGANIZATION_ID: ${{ inputs.organization-id }}
         SIGNPATH_PROJECT_SLUG: ${{ inputs.project-slug }}
         SIGNPATH_SIGNING_POLICY_SLUG: ${{ inputs.signing-policy-slug }}
+        SIGNPATH_TEST_CERTIFICATE_THUMBPRINT: ${{ inputs.test-certificate-thumbprint }}
       run: |
         foreach ($name in @('SIGNPATH_API_TOKEN', 'SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG', 'SIGNPATH_SIGNING_POLICY_SLUG')) {
           if (-not [Environment]::GetEnvironmentVariable($name)) { throw "Missing $name" }
         }
-        if ($env:SIGNPATH_SIGNING_POLICY_SLUG -eq 'test-signing') { throw 'Release signing requires a production policy' }
+        if ($env:SIGNPATH_SIGNING_POLICY_SLUG -eq 'test-signing' -and -not $env:SIGNPATH_TEST_CERTIFICATE_THUMBPRINT) {
+          throw 'Test signing requires SIGNPATH_TEST_CERTIFICATE_THUMBPRINT'
+        }
     - name: Upload unsigned packages for SignPath
       if: ${{ inputs.sign == 'true' && steps.config.outcome == 'success' }}
       id: unsigned
@@ -77,18 +83,19 @@ runs:
         service-unavailable-timeout-in-seconds: 60
         download-signed-artifact-timeout-in-seconds: 60
         output-artifact-directory: ${{ runner.temp }}/signed-${{ inputs.artifact }}
-    - name: Verify production signature and stage signed package
+    - name: Verify signature and stage signed package
       id: verify
       continue-on-error: true
       if: ${{ steps.sign.outcome == 'success' }}
       shell: pwsh
       env:
+        SIGNPATH_TEST_CERTIFICATE_THUMBPRINT: ${{ inputs.signing-policy-slug == 'test-signing' && inputs.test-certificate-thumbprint || '' }}
         SIGNED_DIRECTORY: ${{ runner.temp }}/signed-${{ inputs.artifact }}
         ARTIFACT_NAME: ${{ inputs.artifact }}
         VERIFIED_DIRECTORY: ${{ runner.temp }}/verified-${{ inputs.artifact }}
       run: scripts/verify-windows-signatures.ps1 -Directory $env:SIGNED_DIRECTORY -Artifact $env:ARTIFACT_NAME -OutputDirectory $env:VERIFIED_DIRECTORY
     - name: Use verified signed portable package
-      if: ${{ steps.verify.outcome == 'success' }}
+      if: ${{ steps.verify.outcome == 'success' && inputs.signing-policy-slug != 'test-signing' }}
       shell: pwsh
       env:
         VERIFIED_DIRECTORY: ${{ runner.temp }}/verified-${{ inputs.artifact }}
@@ -96,6 +103,13 @@ runs:
       run: |
         Copy-Item "$env:VERIFIED_DIRECTORY/$env:ARTIFACT.zip", "$env:VERIFIED_DIRECTORY/$env:ARTIFACT.zip.sha256" dist/release -Force
         "$env:ARTIFACT.zip: production signature verified." >> $env:GITHUB_STEP_SUMMARY
+    - name: Report test signature
+      if: ${{ steps.verify.outcome == 'success' && inputs.signing-policy-slug == 'test-signing' }}
+      shell: pwsh
+      env:
+        ARTIFACT: ${{ inputs.artifact }}
+      run: |
+        "$env:ARTIFACT.zip: SignPath test signature verified; original unsigned package retained." >> $env:GITHUB_STEP_SUMMARY
     - name: Report unsigned fallback
       if: ${{ !cancelled() && inputs.sign == 'true' && steps.package.outcome == 'success' && steps.verify.outcome != 'success' }}
       shell: pwsh

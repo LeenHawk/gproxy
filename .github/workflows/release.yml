@@ -286,6 +286,7 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          test-certificate-thumbprint: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
       - name: Package Windows CLI MSIX
         if: matrix.kind == 'cli' && matrix.os == 'windows'
         shell: pwsh
@@ -322,6 +323,7 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          test-certificate-thumbprint: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
       - name: Record build provenance
         if: matrix.kind == 'cli'
         env:
@@ -398,6 +400,7 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          test-certificate-thumbprint: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
       - name: Record application build provenance
         if: matrix.kind == 'application'
         env:
@@ -913,6 +916,7 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          test-certificate-thumbprint: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
       - name: Package Windows Headless MSIX
         if: matrix.os == 'windows'
         shell: pwsh
@@ -938,6 +942,7 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          test-certificate-thumbprint: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
       - run: bash scripts/build-provenance.sh
       - uses: ./.github/actions/attest-release
         with:

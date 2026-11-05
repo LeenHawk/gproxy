@@ -95,9 +95,17 @@ release/prerelease builds according to the existing channel rules. All use the
 same production signing policy (`release-signing`) and certificate. A missing
 certificate, unavailable signing service, rejected request, timeout or failed
 signature verification does not fail the build or block other release jobs.
-`test-signing` is rejected by the release actions. No temporary test-certificate
-trust is enabled in this workflow.
-Disabling the variable later permits unsigned builds again; protect who
+
+Setting `SIGNPATH_SIGNING_POLICY_SLUG=test-signing` keeps submitting real
+signing requests during onboarding. It requires
+`SIGNPATH_TEST_CERTIFICATE_THUMBPRINT` (SHA-1, 40 hex characters); the
+verifiers (`scripts/assert-windows-signature.ps1`) require that exact signer,
+trust it in the runner's current-user root store only for the check, and relax
+the timestamp requirement. Test-signed packages are never published: the
+original packages and checksums are kept and the job summary records the
+verified test signature. `SIGNPATH_MSIX_PUBLISHER` must then be the test
+certificate's full Subject; a test Publisher is rejected under any other policy.
+Setting `SIGNPATH_ENABLED=false` later permits unsigned builds again; protect who
 can edit repository Actions variables.
 
 The composite action packages each architecture's portable ZIP, uploads it as

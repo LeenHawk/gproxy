@@ -1,5 +1,5 @@
 name: SignPath MSIX
-description: Attempt production signing; preserve the original release MSIX on failure
+description: Attempt SignPath signing; preserve the original release MSIX on failure or test signing
 inputs:
   target:
     description: Rust target triple
@@ -32,8 +32,11 @@ inputs:
     description: SignPath project slug
     required: true
   signing-policy-slug:
-    description: SignPath production signing policy slug
+    description: SignPath signing policy slug; test-signing submits and verifies but keeps the original MSIX
     required: true
+  test-certificate-thumbprint:
+    description: SHA-1 thumbprint of the SignPath test certificate, required for test-signing
+    required: false
 runs:
   using: composite
   steps:
@@ -53,12 +56,15 @@ runs:
         SIGNPATH_ORGANIZATION_ID: ${{ inputs.organization-id }}
         SIGNPATH_PROJECT_SLUG: ${{ inputs.project-slug }}
         SIGNPATH_SIGNING_POLICY_SLUG: ${{ inputs.signing-policy-slug }}
+        SIGNPATH_TEST_CERTIFICATE_THUMBPRINT: ${{ inputs.test-certificate-thumbprint }}
       run: |
         foreach ($name in @('IDENTITY', 'DISPLAY', 'PUBLISHER', 'SIGNPATH_API_TOKEN', 'SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG', 'SIGNPATH_SIGNING_POLICY_SLUG')) {
           if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "Missing $name" }
         }
-        if ($env:SIGNPATH_SIGNING_POLICY_SLUG -eq 'test-signing' -or $env:PUBLISHER -like '*Test certificate*') {
-          throw 'Release MSIX signing requires a production policy and certificate publisher'
+        $test = $env:SIGNPATH_SIGNING_POLICY_SLUG -eq 'test-signing'
+        if ($test -and -not $env:SIGNPATH_TEST_CERTIFICATE_THUMBPRINT) { throw 'Test signing requires SIGNPATH_TEST_CERTIFICATE_THUMBPRINT' }
+        if (-not $test -and $env:PUBLISHER -like '*Test certificate*') {
+          throw 'Production MSIX signing requires the production certificate publisher'
         }
         switch ($env:MODE) {
           cli { $executable = 'gproxy.exe' }
@@ -97,12 +103,13 @@ runs:
         service-unavailable-timeout-in-seconds: 60
         download-signed-artifact-timeout-in-seconds: 60
         output-artifact-directory: ${{ runner.temp }}/signed-${{ inputs.artifact }}
-    - name: Verify production signatures and stage signed MSIX
+    - name: Verify signatures and stage signed MSIX
       id: verify
       if: ${{ steps.sign.outcome == 'success' }}
       continue-on-error: true
       shell: pwsh
       env:
+        SIGNPATH_TEST_CERTIFICATE_THUMBPRINT: ${{ inputs.signing-policy-slug == 'test-signing' && inputs.test-certificate-thumbprint || '' }}
         SIGNED_DIRECTORY: ${{ runner.temp }}/signed-${{ inputs.artifact }}
         VERIFIED_DIRECTORY: ${{ runner.temp }}/verified-msix-${{ inputs.artifact }}
         ARTIFACT: ${{ inputs.artifact }}
@@ -113,7 +120,7 @@ runs:
         scripts/verify-windows-msix.ps1 -Directory $env:SIGNED_DIRECTORY -Artifact $env:ARTIFACT `
           -IdentityName $env:IDENTITY -Executable $env:EXECUTABLE -Publisher $env:PUBLISHER -OutputDirectory $env:VERIFIED_DIRECTORY
     - name: Use verified signed MSIX
-      if: ${{ steps.verify.outcome == 'success' }}
+      if: ${{ steps.verify.outcome == 'success' && inputs.signing-policy-slug != 'test-signing' }}
       shell: pwsh
       env:
         VERIFIED_DIRECTORY: ${{ runner.temp }}/verified-msix-${{ inputs.artifact }}
@@ -121,6 +128,13 @@ runs:
       run: |
         Copy-Item "$env:VERIFIED_DIRECTORY/$env:ARTIFACT.msix", "$env:VERIFIED_DIRECTORY/$env:ARTIFACT.msix.sha256" dist/release -Force
         "$env:ARTIFACT.msix: production signatures verified." >> $env:GITHUB_STEP_SUMMARY
+    - name: Report test signatures
+      if: ${{ steps.verify.outcome == 'success' && inputs.signing-policy-slug == 'test-signing' }}
+      shell: pwsh
+      env:
+        ARTIFACT: ${{ inputs.artifact }}
+      run: |
+        "$env:ARTIFACT.msix: SignPath test signatures verified; original MSIX retained." >> $env:GITHUB_STEP_SUMMARY
     - name: Report unsigned fallback
       if: ${{ !cancelled() && steps.verify.outcome != 'success' }}
       shell: pwsh
