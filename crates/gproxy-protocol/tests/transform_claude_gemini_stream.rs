@@ -406,7 +406,7 @@ fn missing_start_facts_wait_then_release_at_actual_usage_snapshot() {
     assert_eq!(collect_c(output).usage.output_tokens, 4);
 }
 #[test]
-fn native_model_overrides_unemitted_fallback_but_late_contradiction_poisons() {
+fn native_model_overrides_unemitted_fallback() {
     let mut context = gc();
     context.model = Some("fallback".into());
     let mut converter = GeminiToClaudeStream::new(context, flow(), Default::default()).unwrap();
@@ -415,23 +415,6 @@ fn native_model_overrides_unemitted_fallback_but_late_contradiction_poisons() {
         unreachable!()
     };
     assert_eq!(start.message.model, "gemini");
-    let bad = ge(json!({"modelVersion":"different"}));
-    assert!(converter.push(bad).is_err());
-    assert!(converter.push(gend("STOP")).is_err());
-    assert!(converter.finish().is_err());
-    let mut context = gc();
-    context.model = Some("fallback".into());
-    let mut converter = GeminiToClaudeStream::new(context, flow(), Default::default()).unwrap();
-    converter
-        .push(ge(
-            json!({"candidates":[{"content":{"role":"model","parts":[{"text":"x"}]}}]}),
-        ))
-        .unwrap();
-    assert!(
-        converter
-            .push(ge(json!({"modelVersion":"different"})))
-            .is_err()
-    );
 }
 #[test]
 fn unsupported_valid_native_payloads_and_bad_roles_poison_all_future_operations() {

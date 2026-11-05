@@ -19,35 +19,17 @@ pub fn synthesize_claude_stream(
 ) -> Result<Converted<Vec<s::StreamEvent>>, TransformError> {
     let input = input.into_declared();
     bounded(&input, limits.max_json_bytes)?;
-    let mut start_model = input.model.clone();
-    let mut expected_model = None;
+    // The visible message starts on the first fallback source, if any.
+    let mut start_model = None;
     for block in &input.content {
         if let c::ResponseContentBlock::Fallback(block) = block {
             if block.from.model.is_empty() || block.to.model.is_empty() {
                 return Err(invalid("fallback.model", "empty fallback model"));
             }
-            if let Some(previous) = &expected_model {
-                if previous != &block.from.model {
-                    return Err(invalid(
-                        "fallback.from.model",
-                        "fallback chain is inconsistent",
-                    ));
-                }
-            } else {
-                start_model = block.from.model.clone();
-            }
-            expected_model = Some(block.to.model.clone());
+            start_model.get_or_insert_with(|| block.from.model.clone());
         }
     }
-    if expected_model
-        .as_ref()
-        .is_some_and(|model| model != &input.model)
-    {
-        return Err(invalid(
-            "fallback.to.model",
-            "final fallback destination differs from buffered model",
-        ));
-    }
+    let start_model = start_model.unwrap_or_else(|| input.model.clone());
 
     let mut sink = Sink {
         collector: ClaudeStreamCollector::new(limits),

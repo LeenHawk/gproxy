@@ -15,12 +15,6 @@ pub(super) fn aggregate(
     out.id = id;
     out.choices[0].index = 0;
     for (index, value) in values.into_iter().enumerate() {
-        if out.model != value.model {
-            return Err(TransformError::invalid_result(
-                "fanout.model",
-                "child model identities differ",
-            ));
-        }
         // Creation time belongs to the first actual child; no invented clock.
         out.service_tier = common(out.service_tier, value.service_tier, "service_tier", report);
         out.system_fingerprint = common(

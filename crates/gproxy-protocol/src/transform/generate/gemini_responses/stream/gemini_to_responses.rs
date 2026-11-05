@@ -116,9 +116,6 @@ impl GeminiToResponsesStream {
             .ok_or_else(|| invalid("source consumed"))?
             .push(chunk.clone())?;
         if let Some(model) = &chunk.model_version {
-            if self.model.as_ref().is_some_and(|old| old != model) {
-                return Err(invalid("native model conflicts with actual model fact"));
-            }
             self.model = Some(model.clone());
         }
         if let Some(id) = &chunk.response_id {

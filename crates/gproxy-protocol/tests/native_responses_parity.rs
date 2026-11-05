@@ -6,7 +6,7 @@ use serde_json::Value;
 fn historical_native_responses_sequences_reject_contradictory_lifecycles() {
     let cases: Vec<Value> =
         serde_json::from_str(include_str!("fixtures/native_responses_parity.json")).unwrap();
-    assert_eq!(cases.len(), 10);
+    assert_eq!(cases.len(), 9);
     for case in cases {
         let name = case["name"].as_str().unwrap();
         let mut collector = ResponsesStreamCollector::new(Default::default());

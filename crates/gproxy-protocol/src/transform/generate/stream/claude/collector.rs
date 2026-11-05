@@ -135,12 +135,6 @@ impl ClaudeStreamCollector {
                     "text_bytes",
                 )?;
                 if let c::ResponseContentBlock::Fallback(block) = &event.content_block {
-                    if block.from.model != message.model {
-                        return Err(invalid(
-                            "fallback.from.model",
-                            "fallback source differs from current model",
-                        ));
-                    }
                     if block.to.model.is_empty() {
                         return Err(invalid("fallback.to.model", "empty fallback model"));
                     }

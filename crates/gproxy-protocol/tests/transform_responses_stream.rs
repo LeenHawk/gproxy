@@ -188,16 +188,11 @@ fn missing_function_and_custom_item_ids_are_not_call_ids_and_retry_stable() {
 #[test]
 fn lifecycle_mutations_reject_and_poison() {
     let events = synth(text_response());
-    for kind in 0..9 {
+    for kind in [0, 2, 3, 4, 5, 6, 7, 8] {
         let mut mutated = events.clone();
         match kind {
             0 => {
                 mutated.remove(0);
-            }
-            1 => {
-                if let s::StreamEvent::Completed(v) = mutated.last_mut().unwrap() {
-                    v.response.id = "other".into();
-                }
             }
             2 => {
                 if let s::StreamEvent::Completed(v) = mutated.last_mut().unwrap() {

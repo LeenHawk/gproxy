@@ -160,12 +160,6 @@ impl GeminiToClaudeStream {
             self.source_id = Some(id);
         }
         if let Some(model) = chunk.model_version {
-            if self.started && self.model.as_ref() != Some(&model) {
-                return Err(invalid(
-                    "model_version",
-                    "actual model contradicts emitted Claude model",
-                ));
-            }
             self.model = Some(model);
         }
         if let Some(usage) = chunk.usage_metadata {

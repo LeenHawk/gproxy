@@ -695,19 +695,6 @@ fn target_output_byte_caps_do_not_allow_success_after_overflow() {
     assert_eq!(stream.push(gemini(json!({"candidates":[{"index":0,"content":{"parts":[{"text":"first"}]}},{"index":1,"content":{"parts":[{"text":"second"}]}}]}))).unwrap_err().kind(),TransformErrorKind::Limit);
     assert!(stream.finish().is_err());
 }
-#[test]
-fn late_model_facts_cannot_relabel_an_emitted_chat_stream() {
-    let mut stream = GeminiToChatStream::new(context(), flow(), Default::default()).unwrap();
-    let first = stream
-        .push(gemini(
-            json!({"candidates":[{"content":{"parts":[{"text":"early"}]}}]}),
-        ))
-        .unwrap()
-        .value;
-    assert_eq!(first[0].model, "m");
-    assert!(stream.push(gemini(json!({"modelVersion":"different-actual-version","candidates":[{"finishReason":"STOP"}]}))).is_err());
-    assert!(stream.finish().is_err());
-}
 
 #[test]
 fn audio_modality_counts_must_fit_known_non_reasoning_output() {

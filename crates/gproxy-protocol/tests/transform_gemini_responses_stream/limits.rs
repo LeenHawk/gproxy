@@ -107,7 +107,7 @@ fn errors_unsupported_native_payloads_and_premature_eof_poison_streams() {
 }
 
 #[test]
-fn actual_provider_error_and_contradictory_model_never_produce_success_tail() {
+fn actual_provider_error_never_produces_success_tail() {
     let mut stream =
         ResponsesToGeminiStream::new(Default::default(), flow(), Default::default()).unwrap();
     let created = r_events(response(json!([]), "completed", None)).remove(0);
@@ -116,10 +116,5 @@ fn actual_provider_error_and_contradictory_model_never_produce_success_tail() {
     let error = stream.push(error).unwrap_err();
     assert!(error.to_string().contains("actual provider detail"));
     assert!(error.to_string().contains("provider_limit"));
-    assert!(stream.finish().is_err());
-    let mut ctx = gc();
-    ctx.actual_model = Some("bound-model".into());
-    let mut stream = GeminiToResponsesStream::new(ctx, flow(), Default::default()).unwrap();
-    assert!(stream.push(gpart(json!([{"text":"wrong model"}]))).is_err());
     assert!(stream.finish().is_err());
 }

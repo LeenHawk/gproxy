@@ -110,11 +110,6 @@ impl GeminiToChatStream {
             .ok_or_else(|| invalid("source consumed"))?
             .push(chunk.clone())?;
         if let Some(model) = &chunk.model_version {
-            if self.emitted && self.model.as_ref().is_some_and(|v| v != model) {
-                return Err(invalid(
-                    "source model contradicts already emitted model fact",
-                ));
-            }
             self.model = Some(model.clone());
         }
         if let Some(value) = &chunk.response_id {

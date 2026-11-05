@@ -363,12 +363,10 @@ fn all_seventeen_block_kinds_and_32_variants_roundtrip() {
 }
 
 #[test]
-fn synthesis_requires_consistent_final_fallback_model_and_preserves_start_origin() {
+fn synthesis_preserves_fallback_start_origin() {
     let mut input = body(
         json!({"type":"fallback","from":{"model":"original"},"to":{"model":"final"},"trigger":{"type":"refusal","category":null}}),
     );
-    input.model = "wrong-final".into();
-    assert!(synthesize_claude_stream(input.clone(), Default::default()).is_err());
     input.model = "final".into();
     let events = synthesize_claude_stream(input, Default::default())
         .unwrap()

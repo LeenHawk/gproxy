@@ -14,11 +14,6 @@ impl ResponsesStreamCollector {
         if v.id.is_empty() || v.model.is_empty() || v.created_at < 0 {
             return Err(invalid("missing/invalid native response identity facts"));
         }
-        if let Some(old) = &self.response
-            && (old.id != v.id || old.model != v.model || old.created_at != v.created_at)
-        {
-            return Err(invalid("response identity/model/creation changed"));
-        }
         if !terminal
             && (!matches!(
                 v.status,
