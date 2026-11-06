@@ -199,6 +199,9 @@ opencode = [
     "dep:time",
     "dep:web-time",
 ]
+# OpenDesign Go / Cloud (amr-link.open-design.ai): API key, Chat Completions,
+# Responses and Claude Messages on one origin, the model list.
+opendesign = []
 # OrcaTerm desktop account: LightAI Agent JSON/SSE, browser OAuth, refresh, live models and AI quota.
 orcaterm = ["dep:image", "dep:sha2", "dep:base64", "dep:futures-util", "dep:getrandom", "dep:time", "dep:url", "dep:web-time"]
 # OpenRouter: provider routing preferences, app attribution headers,

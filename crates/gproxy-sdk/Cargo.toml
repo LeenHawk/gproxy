@@ -39,6 +39,7 @@ kiro = ["gproxy-channel/kiro", "gproxy-client/wreq"]
 nvidia = ["gproxy-channel/nvidia"]
 openai = ["gproxy-channel/openai"]
 opencode = ["gproxy-channel/opencode"]
+opendesign = ["gproxy-channel/opendesign"]
 orcaterm = ["gproxy-channel/orcaterm"]
 openrouter = ["gproxy-channel/openrouter"]
 vercel = ["gproxy-channel/vercel"]
@@ -75,6 +76,7 @@ channels = [
     "nvidia",
     "openai",
     "opencode",
+    "opendesign",
     "orcaterm",
     "openrouter",
     "vercel",

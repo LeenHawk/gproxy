@@ -65,6 +65,7 @@ channels! {
     "nvidia" => nvidia, nvidia::Nvidia;
     "openai" => openai, openai::OpenAi;
     "opencode" => opencode, opencode::OpenCode::ZEN, opencode::OpenCode::GO;
+    "opendesign" => opendesign, opendesign::OpenDesign;
     "orcaterm" => orcaterm, orcaterm::OrcaTerm;
     "openrouter" => openrouter, openrouter::OpenRouter;
     "vercel" => vercel, vercel::Vercel;

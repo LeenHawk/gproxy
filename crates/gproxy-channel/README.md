@@ -45,6 +45,7 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `openai` | `openai` | OpenAI's own platform: the full OpenAI surface, Responses and Realtime over a WebSocket, `x-ratelimit-*` headers, `/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
 | `opencode` | `opencodezen` | OpenCode Zen, pay-as-you-go from the Console balance: Chat Completions, Responses and Claude Messages, the CLI's `x-opencode-session` affinity header, a Console device login and refresh | `{"api_key"}` or `OAuthCredential` |
 | `opencode` | `opencodego` | OpenCode Go, the subscription: the same three surfaces on its own origin, the affinity header and the `/usage` windows | `{"api_key"}` |
+| `opendesign` | `opendesign` | OpenDesign Go / Cloud subscription at `amr-link.open-design.ai`: Chat Completions, Responses and Claude Messages on one origin, bearer or `x-api-key`, the model list | `{"api_key"}` |
 | `openrouter` | `openrouter` | OpenRouter: provider routing preferences filled into the body, `HTTP-Referer`/`X-Title` attribution, the price the reply says it charged, `/v1/auth/key` | `{"api_key"}` |
 | `vercel` | `vercel` | Vercel AI Gateway: Chat, Responses, Claude Messages and embeddings, dual key headers, the team's `/v1/credits` balance | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
