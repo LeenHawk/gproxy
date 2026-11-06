@@ -362,14 +362,14 @@ fn list(value: &str) -> Vec<String> {
 }
 
 /// `./data`, except for a Windows install that has no setup step of its own:
-/// an MSIX package or a WinGet portable install. Those are started from the
-/// Start menu, a shell in any directory, or the WinGet validator, often with
-/// `System32` as the working directory, which only an elevated process can
-/// write. They keep their data per user, in the directory `install.ps1`
-/// offers too. A ZIP unpacked by hand stays portable.
+/// an MSIX package, or a portable install by WinGet or Scoop. Those are
+/// started from the Start menu, a shell in any directory, or the WinGet
+/// validator, often with `System32` as the working directory, which only an
+/// elevated process can write. They keep their data per user, in the
+/// directory `install.ps1` offers too. A ZIP unpacked by hand stays portable.
 fn default_data_dir() -> String {
     #[cfg(windows)]
-    if (packaged() || winget_installed())
+    if (packaged() || package_manager_installed())
         && let Some(local) = std::env::var_os("LOCALAPPDATA")
     {
         return Path::new(&local)
@@ -380,19 +380,39 @@ fn default_data_dir() -> String {
     DEFAULT_DATA_DIR.to_owned()
 }
 
-/// Whether this executable is a WinGet portable install: WinGet unpacks it
-/// under `…\WinGet\Packages\` (per user or per machine) and starts it
-/// through a link in `…\WinGet\Links\`. Both the path as started and the
-/// resolved one are checked.
+/// Whether a package manager put this executable where it is: a portable
+/// install by WinGet or Scoop. Both the path as started and the resolved one
+/// are checked: WinGet starts it through a link, Scoop through a junction.
 #[cfg(windows)]
-fn winget_installed() -> bool {
+fn package_manager_installed() -> bool {
     let Ok(exe) = std::env::current_exe() else {
         return false;
     };
     let resolved = std::fs::canonicalize(&exe).ok();
-    std::iter::once(exe).chain(resolved).any(|path| {
-        let path = path.to_string_lossy().to_ascii_lowercase();
-        path.contains("\\winget\\packages\\") || path.contains("\\winget\\links\\")
+    std::iter::once(exe)
+        .chain(resolved)
+        .any(|path| winget_path(&path) || scoop_path(&path))
+}
+
+/// WinGet unpacks a portable package under `…\WinGet\Packages\` (per user
+/// or per machine) and starts it through a link in `…\WinGet\Links\`.
+#[cfg(windows)]
+fn winget_path(path: &Path) -> bool {
+    let path = path.to_string_lossy().to_ascii_lowercase();
+    path.contains("\\winget\\packages\\") || path.contains("\\winget\\links\\")
+}
+
+/// Scoop unpacks an app into `<root>\apps\<app>\<version>\` (`current` is a
+/// junction to it) and starts it through a shim in `<root>\shims\`. The root
+/// is wherever `SCOOP` points, so the layout is checked, not a fixed name.
+#[cfg(windows)]
+fn scoop_path(path: &Path) -> bool {
+    path.ancestors().nth(3).is_some_and(|apps| {
+        apps.file_name()
+            .is_some_and(|name| name.eq_ignore_ascii_case("apps"))
+            && apps
+                .parent()
+                .is_some_and(|root| root.join("shims").is_dir())
     })
 }
 
