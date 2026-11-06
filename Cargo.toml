@@ -85,7 +85,7 @@ fastcdc = "5"
 zstd = "0.14"
 clap = { version = "4", features = ["derive", "env", "wrap_help"] }
 clap_complete = "4"
-clap_mangen = "0.2"
+clap_mangen = "0.3"
 chacha20poly1305 = "0.11"
 gproxy-app = { path = "crates/gproxy-app", version = "=4.1.14", default-features = false }
 gproxy = { path = "crates/gproxy", version = "=4.1.14", default-features = false }
