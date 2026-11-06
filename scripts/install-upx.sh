@@ -1,41 +1,31 @@
 #!/usr/bin/env bash
-# Installs the release packer. The default is gproxy's UPX fork, LeenHawk/upx
-# (scripts/install-android-upx.sh builds the same revision from source): upx
-# 5.2.1 and 5.3.0 pack AArch64 Linux executables whose loader dies with SIGTRAP
-# when the escape hatch does not fit on the last page of .text.
+# Installs the release packer: gproxy's UPX fork, LeenHawk/upx
+# (scripts/install-android-upx.sh builds the same revision from source and
+# lists its fixes). Upstream 5.3.0 packs 64-bit Linux executables whose loader
+# dies at startup when the escape hatch does not fit on the last page of
+# .text, and its RISC-V AUIPC filter can corrupt data. The fork publishes no
+# RISC-V host build; RISC-V targets are packed on x86_64 and AArch64 hosts.
 set -euo pipefail
 
-version="${UPX_VERSION:-gproxy-5.3.0-1}"
+version="${UPX_VERSION:-gproxy-5.3.0-2}"
 fork="https://github.com/LeenHawk/upx/releases/download/$version"
 case "$version:$(uname -s):$(uname -m)" in
-  4.2.4:Linux:x86_64)
-    url=https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-amd64_linux.tar.xz
-    checksum=75cab4e57ab72fb4585ee45ff36388d280c7afd72aa03e8d4b9c3cbddb474193
-    member=upx-4.2.4-amd64_linux/upx
-    ;;
-  gproxy-5.3.0-1:Linux:x86_64)
+  gproxy-5.3.0-2:Linux:x86_64)
     url="$fork/upx-linux-x86_64"
-    checksum=96d0cbf041e2ed80e6c05344f5065518466dd625f79a6757ecb283d763a0f43b
+    checksum=880b1f6b1fec3041d6969ad9be48af9dddcf8b9a80d5aaf4e0d186f10333ed8b
     ;;
-  gproxy-5.3.0-1:Linux:aarch64)
+  gproxy-5.3.0-2:Linux:aarch64)
     url="$fork/upx-linux-aarch64"
-    checksum=79b16b6a9bfea491b720a599c9564ff722bf897d7924d05f545cdeeb598d8c14
+    checksum=0ff2e1c6b66b3d73cb808295177a4d1b4cd53904ec50a454ed52987a99b04026
     ;;
-  gproxy-5.3.0-1:Linux:riscv64)
-    # The fork publishes no RISC-V build; this host packs only RISC-V, which
-    # the AArch64 loader bug does not affect.
-    url=https://github.com/upx/upx/releases/download/v5.2.1/upx-5.2.1-riscv64_linux.tar.xz
-    checksum=a8663b4cb6523104a8a807362d0da6f5d6d55f6083152f78fa27fa9c05443c17
-    member=upx-5.2.1-riscv64_linux/upx
-    ;;
-  gproxy-5.3.0-1:MINGW*:x86_64 | gproxy-5.3.0-1:MSYS*:x86_64)
+  gproxy-5.3.0-2:MINGW*:x86_64 | gproxy-5.3.0-2:MSYS*:x86_64)
     url="$fork/upx-windows-x64.exe"
-    checksum=97898b22803b927ec9c95f6cf33a78242fee3acfefbd8fa4eb59f833142f1505
+    checksum=6a8b239520b2b91b75896abe76c67b3ce4e8b3fb319b010df906fbf86fbf06ec
     ;;
-  gproxy-5.3.0-1:MINGW*:aarch64 | gproxy-5.3.0-1:MSYS*:aarch64 | \
-  gproxy-5.3.0-1:MINGW*:arm64 | gproxy-5.3.0-1:MSYS*:arm64)
+  gproxy-5.3.0-2:MINGW*:aarch64 | gproxy-5.3.0-2:MSYS*:aarch64 | \
+  gproxy-5.3.0-2:MINGW*:arm64 | gproxy-5.3.0-2:MSYS*:arm64)
     url="$fork/upx-windows-arm64.exe"
-    checksum=593e2f0f3cadfc00b48d8403352901ff7f140b0a0417096d7855a70f7ec3fdc6
+    checksum=04a91297bf38e6ec796a70b19586202420ad20b5299d703f917691b7203d66fd
     ;;
   *) echo "unsupported UPX version or build host" >&2; exit 1 ;;
 esac
@@ -47,12 +37,7 @@ curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-all-errors "$url" -o "$d
 printf '%s  %s\n' "$checksum" "$download" | sha256sum -c -
 executable=upx
 case "$url" in *.exe) executable=upx.exe ;; esac
-if [ -n "${member:-}" ]; then
-  tar -xJf "$download" -C "$directory" "$member"
-  mv "$directory/$member" "$directory/bin/$executable"
-else
-  mv "$download" "$directory/bin/$executable"
-fi
+mv "$download" "$directory/bin/$executable"
 chmod +x "$directory/bin/$executable"
 printf '%s\n' "$directory/bin" >> "${GITHUB_PATH:?GITHUB_PATH is required}"
 "$directory/bin/$executable" --version

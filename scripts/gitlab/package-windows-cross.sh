@@ -6,12 +6,8 @@ export RUSTFLAGS='-C target-feature=+crt-static'
 export WINEDEBUG=-all
 export WINEPREFIX="$RUNNER_TEMP/wine"
 mkdir -p dist/release
-if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
-  export PATH="/opt/upx-arm64/bin:$PATH"
-else
-  scripts/install-upx.sh
-  release_tool_paths
-fi
+scripts/install-upx.sh
+release_tool_paths
 
 pack_executable() {
   upx --best --lzma "$1"

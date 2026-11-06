@@ -3,13 +3,14 @@
 # prebuilt packer: F-Droid, and the Android and OHOS toolchain images.
 # scripts/install-upx.sh downloads the same revision's release binaries.
 #
-# LeenHawk/upx `gproxy` is upstream devel plus two fixes:
-# - x86_64 Android shared libraries no longer trap when Android denies
-#   /proc/self/auxv (upx/upx#18936; upstream fixed the entry stub only).
-# - AArch64 Linux executables no longer die with SIGTRAP when the escape hatch
-#   does not fit on the last page of .text: upx_mmap_and_fd had no body.
+# LeenHawk/upx `gproxy` is upstream devel plus two pull requests:
+# - upx/upx#18968: 64-bit Linux executables no longer die at startup when the
+#   escape hatch does not fit on the last page of .text (x86_64, RISC-V,
+#   PowerPC64; AArch64 is already fixed upstream).
+# - upx/upx#18970: the RISC-V AUIPC filter matches the stub's unfilter, stays
+#   inside its buffer and accepts gangs of any length.
 set -euo pipefail
-revision=64b6aae95b9aa6d44992f8a6be422c2d77fc3728  # tag gproxy-5.3.0-1
+revision=da64eda7aee2d43f91fc0ae43e6404235579d0c7  # tag gproxy-5.3.0-2
 source_dir="${1:-${RUNNER_TEMP:?}/gproxy-android-upx}"
 git init "$source_dir"
 if ! git -C "$source_dir" remote get-url origin >/dev/null 2>&1; then

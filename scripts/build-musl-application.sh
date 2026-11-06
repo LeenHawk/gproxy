@@ -11,6 +11,8 @@ case "$TARGET_TRIPLE:$(uname -m)" in
   riscv64gc-unknown-linux-musl:aarch64) platform=linux/arm64 ;;
   *) echo "unsupported musl application target/host: $TARGET_TRIPLE:$(uname -m)" >&2; exit 1 ;;
 esac
+# Pack with the host's release packer (scripts/install-upx.sh; static).
+upx="$(command -v upx)" || { echo "upx not found; run scripts/install-upx.sh first" >&2; exit 1; }
 engine="${CONTAINER_ENGINE:-docker}"
 image=gproxy-musl-application-builder
 "$engine" build --platform "$platform" --build-arg APPLICATION=true \
@@ -23,6 +25,7 @@ fi
 "$engine" run --rm --platform "$platform" \
   --user "$(id -u):$(id -g)" \
   --volume "$root:/workspace" --workdir /workspace \
+  --volume "$upx:/usr/local/bin/upx:ro" \
   --env CARGO_HOME=/workspace/target/.cache/cargo-musl \
   --env GOCACHE=/workspace/target/.cache/go-build \
   --env GOMODCACHE=/workspace/target/.cache/go-mod \

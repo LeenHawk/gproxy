@@ -15,25 +15,8 @@ download_console() {
 
 install_upx() {
   if [ "${UPX_ENABLED:-false}" != true ]; then return; fi
-  if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
-    # Same upstream UPX revision as the native Windows release job, built
-    # for the Linux host. The compressed output is still Windows ARM64.
-    local source_dir="${XDG_CACHE_HOME:-$HOME/.cache}/gproxy/windows-arm64-upx-b39171b1"
-    mkdir -p "$(dirname "$source_dir")"
-    if [ ! -x "$source_dir/build/upx" ]; then
-      git init "$source_dir"
-      git -C "$source_dir" config remote.origin.url https://github.com/upx/upx.git
-      git -C "$source_dir" fetch --depth 1 origin b39171b1d215cd6427ff0f4939f0cadc316d17f2
-      git -C "$source_dir" checkout --detach FETCH_HEAD
-      git -C "$source_dir" submodule update --init --recursive --depth 1
-      cmake -S "$source_dir" -B "$source_dir/build" -DCMAKE_BUILD_TYPE=Release -DUPX_CONFIG_DISABLE_WERROR=ON
-      cmake --build "$source_dir/build" --parallel 4
-    fi
-    export PATH="$source_dir/build:$PATH"
-  else
-    scripts/install-upx.sh
-    cnb_tool_paths
-  fi
+  scripts/install-upx.sh
+  cnb_tool_paths
 }
 
 cross_environment() {
