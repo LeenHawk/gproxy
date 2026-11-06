@@ -254,8 +254,7 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
             return Err(error);
         }
     };
-    let snapshot = request.snapshot.clone();
-    let limits = snapshot.limits;
+    let limits = request.execution_limits();
     let provider = request.target.provider.clone();
     let credential = selection.credential;
     session.bind(

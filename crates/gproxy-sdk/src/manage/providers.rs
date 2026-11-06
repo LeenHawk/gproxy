@@ -162,6 +162,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Providers<'_,
             channel: Set(self.channel(&write.channel)?),
             base_url: Set(base_url),
             connection_profile_id: Set(self.profile(write.connection_profile_id).await?),
+            request_timeout_ms: Set(crud::timeout_override(
+                write.request_timeout_ms,
+                "requestTimeoutMs",
+            )?),
+            stream_idle_timeout_ms: Set(crud::timeout_override(
+                write.stream_idle_timeout_ms,
+                "streamIdleTimeoutMs",
+            )?),
             proxy: Set(crud::proxy(write.proxy)?),
             config: Set(crud::object(write.config, "config")?),
             enabled: Set(write.enabled.unwrap_or(true)),
@@ -241,6 +249,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Providers<'_,
         }
         if let Some(profile) = patch.connection_profile_id {
             model.connection_profile_id = Set(self.profile(profile).await?);
+        }
+        if let Some(value) = patch.request_timeout_ms {
+            model.request_timeout_ms = Set(crud::timeout_override(value, "requestTimeoutMs")?);
+        }
+        if let Some(value) = patch.stream_idle_timeout_ms {
+            model.stream_idle_timeout_ms =
+                Set(crud::timeout_override(value, "streamIdleTimeoutMs")?);
         }
         if let Some(config) = patch.config {
             model.config = Set(crud::object(Some(config), "config")?);

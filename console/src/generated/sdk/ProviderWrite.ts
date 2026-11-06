@@ -4,4 +4,12 @@ export type ProviderWrite = {
 /**
  * Supplied ids let a host import its own; blank or absent mints one.
  */
-id: string | null, name: string, displayName: string | null, channel: string, baseUrl: string | null, connectionProfileId: string | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null, config: unknown | null, enabled: boolean | null, };
+id: string | null, name: string, displayName: string | null, channel: string, baseUrl: string | null, connectionProfileId: string | null,
+/**
+ * Upstream response wait in milliseconds; None inherits the global setting.
+ */
+requestTimeoutMs: number | null,
+/**
+ * Maximum stream silence in milliseconds; None inherits the global setting.
+ */
+streamIdleTimeoutMs: number | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null, config: unknown | null, enabled: boolean | null, };

@@ -88,7 +88,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     funnel.set_meter(core.usage_meter());
     super::attempt::reject_when_over_budget(core, &request, &funnel).await?;
     let snapshot = request.snapshot.clone();
-    let limits = snapshot.limits;
+    let limits = request.execution_limits();
     let provider = request.target.provider.clone();
     let operation = request.operation;
     let upstream_model = request.target.upstream_model.clone();

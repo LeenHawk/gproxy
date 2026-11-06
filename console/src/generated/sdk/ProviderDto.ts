@@ -9,7 +9,15 @@ name: string, displayName: string | null,
  * The channel implementation this provider speaks through; must be one
  * of `Gproxy::channels()`.
  */
-channel: string, baseUrl: string | null, connectionProfileId: string | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null,
+channel: string, baseUrl: string | null, connectionProfileId: string | null,
+/**
+ * Upstream response wait in milliseconds; None inherits the global setting.
+ */
+requestTimeoutMs: number | null,
+/**
+ * Maximum stream silence in milliseconds; None inherits the global setting.
+ */
+streamIdleTimeoutMs: number | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null,
 /**
  * Channel-specific configuration; always a JSON object.
  */

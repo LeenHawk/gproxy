@@ -79,6 +79,15 @@ pub struct RequestContext {
     pub cancellation: CancellationToken,
 }
 
+impl RequestContext {
+    /// Effective limits for the selected provider, before any caller deadline.
+    pub fn execution_limits(&self) -> crate::ExecutionLimits {
+        self.snapshot
+            .limits
+            .for_provider(&self.target.provider.entity)
+    }
+}
+
 /// One invocation attempt may issue multiple physical calls. Its provider/model
 /// come from request.target and credential must come from that target's permitted
 /// set. It pins one version rather than observing later refreshes in place.

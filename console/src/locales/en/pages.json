@@ -276,6 +276,7 @@
     "preferred_max_latency": "Preferred maximum latency"
   },
   "providerForm": {
+    "inheritGlobalTimeout": "Leave blank to inherit the global setting",
     "autoRefreshModels": "Refresh model suggestions from upstream",
     "dynamicAddress": "Chosen automatically from channel settings or credentials",
     "displayName": "Display name",

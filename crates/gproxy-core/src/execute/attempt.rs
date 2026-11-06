@@ -230,7 +230,9 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
     reject_when_over_budget(core, &request, &funnel).await?;
     let snapshot = request.snapshot.clone();
     let operation = request.operation;
-    let limits = snapshot.limits.for_operation(operation.operation);
+    let limits = request
+        .execution_limits()
+        .for_operation(operation.operation);
     let provider = request.target.provider.clone();
     let upstream_model = request.target.upstream_model.clone();
 

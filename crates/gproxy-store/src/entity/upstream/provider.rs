@@ -19,6 +19,10 @@ pub struct Model {
     /// None inherits Setting.connection_profile_id; a credential may override it.
     #[sea_orm(indexed)]
     pub connection_profile_id: Option<String>,
+    /// None inherits the global request timeout. Milliseconds; positive when set.
+    pub request_timeout_ms: Option<u32>,
+    /// None inherits the global stream idle timeout. Milliseconds; positive when set.
+    pub stream_idle_timeout_ms: Option<u32>,
     /// Outbound proxy override. None inherits the parent scope; global None is direct.
     pub proxy: Option<Json>,
     pub config: Json,

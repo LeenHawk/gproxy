@@ -90,6 +90,20 @@ impl ExecutionLimits {
         })
     }
 
+    /// Each provider timeout independently inherits the current global setting.
+    pub fn for_provider(
+        mut self,
+        provider: &gproxy_store::entity::upstream::provider::Model,
+    ) -> Self {
+        if let Some(ms) = provider.request_timeout_ms {
+            self.request_timeout = Duration::from_millis(ms.into());
+        }
+        if let Some(ms) = provider.stream_idle_timeout_ms {
+            self.stream_idle_timeout = Duration::from_millis(ms.into());
+        }
+        self
+    }
+
     /// These limits as `operation` sees them. A file upload is the one request
     /// whose body is meant to be large — provider file APIs take hundreds of
     /// megabytes — so it gets `max_upload_body_bytes` as its request cap.

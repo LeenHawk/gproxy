@@ -23,6 +23,10 @@ pub struct ProviderDto {
     pub channel: String,
     pub base_url: Option<String>,
     pub connection_profile_id: Option<String>,
+    /// Upstream response wait in milliseconds; None inherits the global setting.
+    pub request_timeout_ms: Option<u32>,
+    /// Maximum stream silence in milliseconds; None inherits the global setting.
+    pub stream_idle_timeout_ms: Option<u32>,
     #[serde(default)]
     #[cfg_attr(
         feature = "ts",
@@ -47,6 +51,8 @@ impl From<provider::Model> for ProviderDto {
             channel: row.channel,
             base_url: row.base_url,
             connection_profile_id: row.connection_profile_id,
+            request_timeout_ms: row.request_timeout_ms,
+            stream_idle_timeout_ms: row.stream_idle_timeout_ms,
             proxy: row.proxy,
             config: row.config,
             enabled: row.enabled,
@@ -72,6 +78,12 @@ pub struct ProviderWrite {
     pub base_url: Option<String>,
     #[serde(default)]
     pub connection_profile_id: Option<String>,
+    /// Upstream response wait in milliseconds; None inherits the global setting.
+    #[serde(default)]
+    pub request_timeout_ms: Option<u32>,
+    /// Maximum stream silence in milliseconds; None inherits the global setting.
+    #[serde(default)]
+    pub stream_idle_timeout_ms: Option<u32>,
     #[serde(default)]
     #[cfg_attr(
         feature = "ts",
@@ -101,6 +113,11 @@ pub struct ProviderPatch {
     pub base_url: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub connection_profile_id: Option<Option<String>>,
+    /// Omitted preserves the override; null restores global inheritance.
+    #[serde(default, deserialize_with = "double_option")]
+    pub request_timeout_ms: Option<Option<u32>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub stream_idle_timeout_ms: Option<Option<u32>>,
     #[serde(default, deserialize_with = "double_option")]
     #[cfg_attr(
         feature = "ts",

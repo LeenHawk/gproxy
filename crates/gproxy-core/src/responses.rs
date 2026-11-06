@@ -376,6 +376,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
         };
         let request_rules = select_rules(&context.snapshot, provider, Phase::Request, &rules);
         let response_rules = select_rules(&context.snapshot, provider, Phase::Response, &rules);
+        let limits = context.execution_limits();
         let exchange = binding.connection_id.as_ref().map(|connection_id| {
             let exchange = Exchange::new(
                 funnel.clone(),
@@ -383,7 +384,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
                 context.operation,
                 provider.channel.clone(),
                 response_rules.body.clone(),
-                context.snapshot.limits.capability(None),
+                limits.capability(None),
                 now_ms(),
             );
             exchange.record(CaptureEvent::TurnStart {

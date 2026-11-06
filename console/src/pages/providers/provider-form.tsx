@@ -45,6 +45,10 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
   }
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? "")
   const [profile, setProfile] = useState(provider?.connectionProfileId ?? "__default")
+  const [timeouts, setTimeouts] = useState({
+    requestTimeoutMs: provider?.requestTimeoutMs == null ? "" : String(provider.requestTimeoutMs),
+    streamIdleTimeoutMs: provider?.streamIdleTimeoutMs == null ? "" : String(provider.streamIdleTimeoutMs),
+  })
   const [proxy, setProxy] = useState<ProxySettings>(provider?.proxy ?? null)
   const [configs, setConfigs] = useState<Record<string, ConfigObject>>({
     [channel]: (provider?.config ?? {}) as ConfigObject,
@@ -67,6 +71,8 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
       ...(provider ? {} : { channel }),
       baseUrl: baseUrl.trim() || null,
       connectionProfileId: profile === "__default" ? null : profile,
+      requestTimeoutMs: timeouts.requestTimeoutMs.trim() === "" ? null : Number(timeouts.requestTimeoutMs),
+      streamIdleTimeoutMs: timeouts.streamIdleTimeoutMs.trim() === "" ? null : Number(timeouts.streamIdleTimeoutMs),
       proxy,
       enabled: provider?.enabled ?? true,
       config,
@@ -116,6 +122,17 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
           <FieldLabel htmlFor={`${id}-profile`}>{t("providerForm.connection")}</FieldLabel>
           <SearchableSelect id={`${id}-profile`} label={t("providerForm.connection")} value={profile} onChange={setProfile} emptyValue="__default" emptyLabel={t("form.unset")} source={optionSource(connectionProfiles, row => ({ value: row.id, label: row.name }))} />
         </Field>
+        <FieldGroup>{([
+          ["requestTimeoutMs", t("setting.requestTimeoutMs")],
+          ["streamIdleTimeoutMs", t("setting.streamIdleTimeoutMs")],
+        ] as const).map(([key, label]) => (
+          <Field key={key} data-disabled={pending}>
+            <FieldLabel htmlFor={`${id}-${key}`}>{label}</FieldLabel>
+            <Input id={`${id}-${key}`} type="number" min={1} max={4294967295} step={1}
+              value={timeouts[key]} disabled={pending} placeholder={t("providerForm.inheritGlobalTimeout")}
+              onChange={event => setTimeouts(previous => ({ ...previous, [key]: event.target.value }))} />
+          </Field>
+        ))}</FieldGroup>
         <Field data-field-span="full"><FieldLabel htmlFor={`${id}-proxy`}>{t("proxy.provider")}</FieldLabel><ProxyControl id={`${id}-proxy`} value={proxy} onChange={setProxy} scope={provider ? { scope: "provider", provider_id: provider.id } : { scope: "global", parent: true }} /></Field>
         <Field>
           <FieldLabel htmlFor={`${id}-auto-refresh-models`}>{t("providerForm.autoRefreshModels")}</FieldLabel>

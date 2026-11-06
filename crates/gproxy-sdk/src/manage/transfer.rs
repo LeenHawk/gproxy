@@ -942,6 +942,14 @@ mod rows {
             channel: Set(crud::text(&dto.channel, "channel")?),
             base_url: Set(dto.base_url.clone()),
             connection_profile_id: Set(dto.connection_profile_id.clone()),
+            request_timeout_ms: Set(crud::timeout_override(
+                dto.request_timeout_ms,
+                "requestTimeoutMs",
+            )?),
+            stream_idle_timeout_ms: Set(crud::timeout_override(
+                dto.stream_idle_timeout_ms,
+                "streamIdleTimeoutMs",
+            )?),
             proxy: Set(crud::proxy(dto.proxy.clone())?),
             config: Set(crud::object(Some(dto.config.clone()), "config")?),
             enabled: Set(dto.enabled),

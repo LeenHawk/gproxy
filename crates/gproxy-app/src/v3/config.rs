@@ -497,6 +497,8 @@ fn providers(
             channel: translated.channel,
             base_url: translated.base_url,
             connection_profile_id: None,
+            request_timeout_ms: None,
+            stream_idle_timeout_ms: None,
             proxy: proxy(row.proxy_url.as_ref()),
             config,
             enabled: row.enabled,

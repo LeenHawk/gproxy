@@ -276,6 +276,7 @@
     "preferred_max_latency": "最高延遲偏好"
   },
   "providerForm": {
+    "inheritGlobalTimeout": "留空繼承全域設定",
     "autoRefreshModels": "從上游重新整理模型候選",
     "dynamicAddress": "依渠道設定或憑證自動選擇",
     "displayName": "顯示名稱",

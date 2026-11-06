@@ -455,3 +455,11 @@ pub(crate) fn proxy(value: Option<serde_json::Value>) -> SdkResult<Option<serde_
         serde_json::to_value(proxy).expect("proxy serialization"),
     ))
 }
+
+/// A nullable timeout override: absence inherits, zero is never unlimited.
+pub(super) fn timeout_override(value: Option<u32>, field: &str) -> SdkResult<Option<u32>> {
+    if value == Some(0) {
+        return Err(SdkError::invalid(format!("{field} must be positive")));
+    }
+    Ok(value)
+}
