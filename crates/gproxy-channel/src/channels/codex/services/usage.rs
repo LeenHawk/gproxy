@@ -4,7 +4,7 @@
 //! into zeros, nor expose another user's tasks or plugin invocations.
 use crate::channel::ChannelError;
 use crate::channels::shared::services_common::{json_response, read_body};
-use gproxy_protocol::wire::openai::codex::{analytics::*, usage::*};
+use super::super::wire::{analytics::*, usage::*};
 use gproxy_protocol::{HttpBody, Rest, WireRequest, WireResponse};
 use http::StatusCode;
 use serde::Serialize;

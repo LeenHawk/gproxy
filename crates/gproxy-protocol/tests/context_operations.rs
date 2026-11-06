@@ -122,7 +122,7 @@ fn client_items() -> Vec<serde_json::Value> {
 }
 #[test]
 fn codex_native_client_items_do_not_use_public_ir() {
-    use gproxy_protocol::openai::codex::ClientResponseItem;
+    use gproxy_protocol::openai::compact::ClientResponseItem;
     use serde_json::json;
     for item in client_items() {
         exact::<ClientResponseItem>(item);

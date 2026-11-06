@@ -2,7 +2,7 @@ use crate::{
     transform::TransformError,
     wire::{
         DeclaredFields,
-        openai::{codex as c, compact::ClientCompactResponseBody},
+        openai::compact::{self as c, ClientCompactResponseBody},
     },
 };
 

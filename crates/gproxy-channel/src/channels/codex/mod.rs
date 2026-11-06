@@ -34,6 +34,7 @@ mod request;
 mod services;
 mod shape;
 mod sse;
+mod wire;
 
 pub use agent::CLI_VERSION;
 pub use config::{

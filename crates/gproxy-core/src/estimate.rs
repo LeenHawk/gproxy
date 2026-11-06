@@ -688,8 +688,8 @@ fn responses_input_contents(parts: &[openai::responses::InputContent], out: &mut
 
 // ---- OpenAI client-shaped items (native compaction) -------------
 
-fn client_item(item: &openai::codex::ClientResponseItem, out: &mut Text) {
-    use openai::codex::{
+fn client_item(item: &openai::compact::ClientResponseItem, out: &mut Text) {
+    use openai::compact::{
         AgentMessageInputContent, ClientResponseItem, ContentItem, FunctionCallOutputBody,
         FunctionCallOutputContentItem, LocalShellAction, ReasoningItemContent,
         ReasoningItemReasoningSummary, WebSearchAction,

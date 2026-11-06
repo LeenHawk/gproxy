@@ -2,7 +2,7 @@
 //! Sources: samples/codex/codex-rs/backend-client/src/client/{task_usage,plan_history}.rs.
 //! Credit strings and JSON numbers retain upstream precision; missing amounts
 //! remain unknown. These services do not introduce inference OperationKeys.
-use crate::{Rest, WireRequest, WireResponse};
+use gproxy_protocol::Rest;
 use serde::{Deserialize, Serialize};
 use serde_json::Number;
 
@@ -12,11 +12,9 @@ use serde_json::Number;
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TaskUsageRequestBody {
     pub threads: Vec<TaskUsageThread>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -29,11 +27,9 @@ pub struct TaskUsageRequestBody {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TaskUsageThread {
     pub thread_id: String,
     pub created_at: Option<String>,
@@ -48,11 +44,9 @@ pub struct TaskUsageThread {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TaskUsageResponseBody {
     pub data_as_of: Option<String>,
     pub threads: Vec<TaskUsage>,
@@ -66,11 +60,9 @@ pub struct TaskUsageResponseBody {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TaskUsage {
     pub thread_id: String,
     pub data_status: TaskUsageStatus,
@@ -91,11 +83,9 @@ pub struct TaskUsage {
     Eq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::DeclaredFields,
+    
 )]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum TaskUsageStatus {
     Available,
     Partial,
@@ -108,11 +98,9 @@ pub enum TaskUsageStatus {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TaskUsageGroup {
     pub product_experience: Option<String>,
     pub model: Option<String>,
@@ -131,11 +119,9 @@ pub struct TaskUsageGroup {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PlanLimitHistory {
     pub data_as_of: Option<String>,
     pub coverage_start: Option<String>,
@@ -158,11 +144,9 @@ fn approximate_by_default() -> bool {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PlanLimitPeriod {
     pub id: String,
     pub window_minutes: u32,
@@ -182,11 +166,9 @@ pub struct PlanLimitPeriod {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PlanLimitBreakdown {
     pub dimension: String,
     pub rows: Vec<PlanLimitValue>,
@@ -200,19 +182,12 @@ pub struct PlanLimitBreakdown {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PlanLimitValue {
     pub key: String,
     pub basis_points: Number,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
-
-pub type TaskUsageRequest = WireRequest<TaskUsageRequestBody>;
-pub type TaskUsageResponse = WireResponse<TaskUsageResponseBody>;
-pub type PlanLimitHistoryRequest = WireRequest<()>;
-pub type PlanLimitHistoryResponse = WireResponse<PlanLimitHistory>;

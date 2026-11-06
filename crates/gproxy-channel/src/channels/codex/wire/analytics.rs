@@ -1,7 +1,7 @@
 //! Codex account analytics contracts. Source: samples/codex/codex-rs/
 //! codex-backend-openapi-models/src/models/analytics.rs (schema 8dad4dcab85a).
 //! Attribution, extensions, null amounts and numeric precision are retained.
-use crate::{Rest, WireRequest, WireResponse};
+use gproxy_protocol::Rest;
 use serde::{Deserialize, Serialize};
 use serde_json::Number;
 
@@ -11,11 +11,9 @@ use serde_json::Number;
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ActiveUsersSummary {
     pub total_users: i64,
     pub clients: Vec<ClientActiveUsersCount>,
@@ -30,11 +28,9 @@ pub struct ActiveUsersSummary {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientActiveUsersCount {
     pub client_id: String,
     pub users: i64,
@@ -48,11 +44,9 @@ pub struct ClientActiveUsersCount {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ClientWorkspaceUsageCount {
     pub client_id: String,
     pub users: i64,
@@ -75,11 +69,9 @@ pub struct ClientWorkspaceUsageCount {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ConsumptionUsageGroup {
     pub dimensions: std::collections::BTreeMap<String, String>,
     pub is_other: Option<bool>,
@@ -100,11 +92,9 @@ pub struct ConsumptionUsageGroup {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreditUsageEventBySurface {
     pub date: String,
     pub product_surface: String,
@@ -120,11 +110,9 @@ pub struct CreditUsageEventBySurface {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreditUsageEventsResponse {
     pub data: Vec<CreditUsageEventBySurface>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -137,11 +125,9 @@ pub struct CreditUsageEventsResponse {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CurrentUserCreditUsageDatum {
     pub date: String,
     pub values: std::collections::BTreeMap<String, Number>,
@@ -155,11 +141,9 @@ pub struct CurrentUserCreditUsageDatum {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CurrentUserCreditUsageResponse {
     pub breakdown: String,
     pub data: Vec<CurrentUserCreditUsageDatum>,
@@ -176,11 +160,9 @@ pub struct CurrentUserCreditUsageResponse {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CurrentUserCreditUsageSeries {
     pub key: String,
     pub label: String,
@@ -195,11 +177,9 @@ pub struct CurrentUserCreditUsageSeries {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DailyProductSurfaceUsage {
     pub attribution: Option<Vec<PersonalUsageAttribution>>,
     pub date: String,
@@ -217,11 +197,9 @@ pub struct DailyProductSurfaceUsage {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DailyProductSurfaceUsageResponse {
     pub data: Vec<DailyProductSurfaceUsage>,
     pub units: Option<String>,
@@ -238,11 +216,9 @@ pub struct DailyProductSurfaceUsageResponse {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DailySkillUsageMetricsResponse {
     pub data: Vec<DailySkillUsageOverview>,
     pub data_freshness_ts: Option<String>,
@@ -257,11 +233,9 @@ pub struct DailySkillUsageMetricsResponse {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DailySkillUsageOverview {
     pub date: String,
     pub skill_usage_overviews: Vec<SkillUsageOverview>,
@@ -275,11 +249,9 @@ pub struct DailySkillUsageOverview {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DailyWorkspaceUsageCount {
     pub date: String,
     pub totals: WorkspaceUsageCount,
@@ -296,11 +268,9 @@ pub struct DailyWorkspaceUsageCount {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DailyWorkspaceUsageCountResponse {
     pub data: Vec<DailyWorkspaceUsageCount>,
     pub balance_unit: Option<String>,
@@ -317,11 +287,9 @@ pub struct DailyWorkspaceUsageCountResponse {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModelActivitySummary {
     pub model: String,
     pub users: i64,
@@ -337,11 +305,9 @@ pub struct ModelActivitySummary {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ModelUsage {
     pub model: String,
     pub speed: Option<String>,
@@ -366,11 +332,9 @@ pub struct ModelUsage {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PersonalUsageAttribution {
     pub thread_source: String,
     pub turn_trigger: String,
@@ -387,11 +351,9 @@ pub struct PersonalUsageAttribution {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PluginUsageBucket {
     pub date: String,
     pub plugin_usage_overviews: Vec<PluginUsageOverview>,
@@ -405,11 +367,9 @@ pub struct PluginUsageBucket {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PluginUsageMetricsResponse {
     pub data: Vec<PluginUsageBucket>,
     pub data_freshness_ts: Option<String>,
@@ -424,11 +384,9 @@ pub struct PluginUsageMetricsResponse {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PluginUsageOverview {
     pub plugin_id: Option<String>,
     pub plugin_name: String,
@@ -445,11 +403,9 @@ pub struct PluginUsageOverview {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ProductSurfacePremiumUsageValues {
     pub total_usage_credits: std::collections::BTreeMap<String, Number>,
     pub credit_usage_credits: std::collections::BTreeMap<String, Number>,
@@ -468,11 +424,9 @@ pub struct ProductSurfacePremiumUsageValues {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct SkillUsageOverview {
     pub skill_name: String,
     pub display_name: String,
@@ -488,11 +442,9 @@ pub struct SkillUsageOverview {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WorkspaceUsageCount {
     pub users: i64,
     pub threads: i64,
@@ -514,11 +466,9 @@ pub struct WorkspaceUsageCount {
     PartialEq,
     Serialize,
     Deserialize,
-    gproxy_protocol_macros::WireBuilder,
-    gproxy_protocol_macros::DeclaredFields,
+    
+    
 )]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct WorkspaceUsageGroup {
     pub dimensions: std::collections::BTreeMap<String, String>,
     pub is_other: Option<bool>,
@@ -528,16 +478,3 @@ pub struct WorkspaceUsageGroup {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
-
-pub type DailyProductSurfaceUsageRequest = WireRequest<()>;
-pub type DailyProductSurfaceUsageWireResponse = WireResponse<DailyProductSurfaceUsageResponse>;
-pub type CreditUsageEventsRequest = WireRequest<()>;
-pub type CreditUsageEventsWireResponse = WireResponse<CreditUsageEventsResponse>;
-pub type CurrentUserCreditUsageRequest = WireRequest<()>;
-pub type CurrentUserCreditUsageWireResponse = WireResponse<CurrentUserCreditUsageResponse>;
-pub type DailyWorkspaceUsageCountRequest = WireRequest<()>;
-pub type DailyWorkspaceUsageCountWireResponse = WireResponse<DailyWorkspaceUsageCountResponse>;
-pub type PluginUsageMetricsRequest = WireRequest<()>;
-pub type PluginUsageMetricsWireResponse = WireResponse<PluginUsageMetricsResponse>;
-pub type DailySkillUsageMetricsRequest = WireRequest<()>;
-pub type DailySkillUsageMetricsWireResponse = WireResponse<DailySkillUsageMetricsResponse>;

@@ -3,10 +3,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::{
         DeclaredFields,
-        openai::{
-            codex::{self as client, ClientResponseItem as Item},
-            compact::ClientCompactRequestBody,
-        },
+        openai::compact::{self as client, ClientCompactRequestBody, ClientResponseItem as Item},
     },
 };
 

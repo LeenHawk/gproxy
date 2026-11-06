@@ -1,6 +1,5 @@
 pub mod audio;
 pub mod chat;
-pub mod codex;
 pub mod compact;
 pub mod conversation;
 pub mod count_tokens;
