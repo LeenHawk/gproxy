@@ -230,10 +230,7 @@ jobs:
         if: ${{ matrix.kind == 'cli' && matrix.upx && matrix.os != 'windows' }}
         run: |
           binary="target/${{ matrix.target }}/release/gproxy${{ matrix.os == 'windows' && '.exe' || '' }}"
-          upx_args=(--best --lzma)
-          # UPX 5.2.1's AUIPC filter rejects large RISC-V executables.
-          if [[ "${{ matrix.target }}" == riscv64gc-* ]]; then upx_args+=(--no-filter); fi
-          upx "${upx_args[@]}" "$binary"
+          upx --best --lzma "$binary"
           upx --test "$binary"
       - name: Smoke check Windows executable
         if: ${{ matrix.kind == 'cli' && matrix.run_check && matrix.os == 'windows' }}

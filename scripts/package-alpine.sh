@@ -33,9 +33,7 @@ if [ "$mode" = application ]; then
   install -Dm644 distribution/alpine/gproxy.desktop "$payload/usr/share/applications/gproxy.desktop"
   # Include ELF SONAME requirements, plus the tray library loaded with dlopen.
   dependencies="$(scanelf --needed --nobanner --format '%n#F' "$binary" | tr ',' '\n' | sort -u | sed 's/^/so:/' | tr '\n' ' ')libayatana-appindicator librsvg"
-  upx_args=(--best --lzma)
-  [ "$arch" != riscv64 ] || upx_args+=(--no-filter)
-  upx "${upx_args[@]}" "$payload/usr/bin/$executable"
+  upx --best --lzma "$payload/usr/bin/$executable"
   upx --test "$payload/usr/bin/$executable"
 elif [ "$mode" = cli ]; then
   dependencies='!gproxy-headless'

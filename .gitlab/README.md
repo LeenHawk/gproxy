@@ -74,8 +74,7 @@ for x86_64. App bundles are ad-hoc signed, not notarized.
 
 UPX runs for supported Linux, Windows and Android binaries. Linux CLI binaries
 run before and after compression in GitLab (QEMU for ARM64/RISC-V).
-RISC-V CLI and Application use `--no-filter` with UPX 5.2.1 to avoid its
-AUIPC filter failure. GNU provides the GTK/WebKit Application DEB; musl
+GNU provides the GTK/WebKit Application DEB; musl
 provides the static CLI. GitHub cross-compiles RISC-V on AMD64 using the same
 GitLab toolchain image and packaging script, including QEMU checks before
 and after compression. Other GitHub targets retain their native runners. The uncompressed Windows

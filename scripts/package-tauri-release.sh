@@ -24,9 +24,7 @@ case "$TARGET_OS:$TARGET_TRIPLE" in
     if [ "$TARGET_OS" = linux ]; then
       bash "$root/scripts/with-tauri-desktop-lib.sh" pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
       binary="$root/target/$TARGET_TRIPLE/release/gproxy-desktop"
-      upx_args=(--best --lzma)
-      if [[ "$TARGET_TRIPLE" == riscv64gc-* ]]; then upx_args+=(--no-filter); fi
-      upx "${upx_args[@]}" "$binary"
+      upx --best --lzma "$binary"
       upx --test "$binary"
       pnpm exec tauri bundle --target "$TARGET_TRIPLE" --bundles "$bundle" --config "$config" --no-binary-patching
     else
