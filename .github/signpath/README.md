@@ -1,8 +1,9 @@
 # SignPath activation
 
 The project has completed test-certificate onboarding. Production certificate
-issuance is still pending. Release builds attempt production signing; unsuccessful
-signing keeps the original unsigned package.
+issuance is still pending. Version releases sign their Windows packages once a
+maintainer approves the signing requests in SignPath; see the pipeline contract
+below.
 
 ## Review material
 
@@ -35,8 +36,8 @@ because the policy describes them.
 Open the organization linked in your invitation, then configure:
 
 - **Trusted Build Systems**: connect GitHub and authorize `LeenHawk/gproxy`.
-  Use `.github/workflows/release.yml`; allow both `main` and `dev` branches
-  in origin verification and permit intended version tag (`v*`) builds.
+  Use `.github/workflows/release.yml` and permit intended version tag (`v*`)
+  builds in origin verification.
   See the [official GitHub integration guide](https://about.signpath.io/documentation/trusted-build-systems/github).
 - **Projects**: create/select the GPROXY project and record its project slug.
 - **Artifact Configurations**: add slug **`windows-release`**, paste
@@ -47,9 +48,10 @@ Open the organization linked in your invitation, then configure:
   [windows-msix.xml](windows-msix.xml). It signs the application EXE inside the
   MSIX and then the outer MSIX, matching `gproxy*.msix` and `gproxy*.exe`.
   Allow both artifact configurations in the signing policy.
-- **Signing Policies**: select the production certificate when available,
-  enable automatic signing without an additional approval process, and grant
-  the CI user permission to submit requests. Record the signing policy slug.
+- **Signing Policies**: select the production certificate, grant the CI user
+  permission to submit requests and make the maintainers approvers. SignPath
+  Foundation requires manual approval of every release signing request.
+  Record the signing policy slug.
 - **CI user API token**: create a token for that submitter and store it directly
   in GitHub as described below. Record the organization ID from SignPath.
 
@@ -68,58 +70,38 @@ select the existing **`release`** environment, then add:
 | Environment variable | `SIGNPATH_SIGNING_POLICY_SLUG` | Production signing policy slug |
 | Environment variable | `SIGNPATH_MSIX_PUBLISHER` | Exact full Subject of the production signing certificate, including all DN fields |
 | Environment secret | `SIGNPATH_API_TOKEN` | CI submitter API token |
-| Environment variable | `SIGNPATH_ENABLED` | `true` when the production certificate and policy are ready; otherwise `false` |
+| Environment variable | `SIGNPATH_ENABLED` | `true` once the production certificate and policy are ready; otherwise `false` |
 
 Alternatively, enter the secret interactively with
 `gh secret set SIGNPATH_API_TOKEN --env release`. Never paste the token into chat,
 command arguments, logs, or committed files.
 
-The existing Release workflow consumes these settings for Windows x86_64 and
-ARM64, for regular/Headless CLI ZIPs and CLI/Headless/Desktop MSIX packages.
-No extra workflow is required; signing runs in the Release workflow on `main`,
-`dev` and version tags. MSIX builds retain the existing package names
-and filenames; their Publisher uses `SIGNPATH_MSIX_PUBLISHER`. Copy the complete
-Subject from the certificate, not the Store Publisher ID or organization name.
-With signing enabled, beta, dev and release builds upload the unsigned packages,
-request production signing, and verify the downloaded signatures and timestamps.
-Only verified packages replace the originals. A signing failure is recorded as a
-warning and the original package and checksum continue to publication. Update
-public code-signing documentation after production activation is confirmed.
-
 ## Pipeline contract
 
-`SIGNPATH_ENABLED` unset or `false` preserves unsigned builds during onboarding.
-When `true`, all three channels attempt signing: `main` publishes beta (`staging`)
-builds, `dev` publishes dev (`nightly`) builds, and version tags publish
-release/prerelease builds according to the existing channel rules. All use the
-same production signing policy (`release-signing`) and certificate. A missing
-certificate, unavailable signing service, rejected request, timeout or failed
-signature verification does not fail the build or block other release jobs.
+Only version tags (the `release` channel) are signed; `main` (beta) and `dev`
+(nightly) builds stay unsigned. With `SIGNPATH_ENABLED=true` a tagged release:
 
-Setting `SIGNPATH_SIGNING_POLICY_SLUG=test-signing` keeps submitting real
-signing requests during onboarding. It requires
-`SIGNPATH_TEST_CERTIFICATE_THUMBPRINT` (SHA-1, 40 hex characters); the
-verifiers (`scripts/assert-windows-signature.ps1`) require that exact signer,
-trust it in the runner's local-machine root store only for the check (the
-current-user store would block on a confirmation dialog), and relax
-the timestamp requirement. Test-signed packages are never published: the
-original packages and checksums are kept and the job summary records the
-verified test signature. `SIGNPATH_MSIX_PUBLISHER` must then be the test
-certificate's full Subject; a test Publisher is rejected under any other policy.
-Setting `SIGNPATH_ENABLED=false` later permits unsigned builds again; protect who
-can edit repository Actions variables.
+1. Builds the Windows packages as usual. Each Windows build job also uploads
+   its portable ZIP (CLI and Headless) as `signpath-<artifact>.zip` and a
+   release MSIX (CLI, Headless and Desktop), packaged with
+   `SIGNPATH_MSIX_PUBLISHER` as Publisher, as `signpath-<artifact>.msix`.
+   The Store submission MSIX keeps its Partner Center identity and is not signed
+   here.
+2. The `windows-sign` job submits those ten artifacts to SignPath at once
+   (`windows-release` for ZIPs, `windows-msix` for MSIX) and waits up to five
+   hours for each request to be approved and signed. Approve them in SignPath.
+3. Each signed package is verified on Windows: a trusted, timestamped
+   signature on the executable and, for MSIX, on the package, with the
+   configured identity and Publisher. The signed file gets its own build
+   provenance attestation.
+4. `publish` uses the signed packages in place of the unsigned builds, so
+   GitHub, GitLab, CNB, `SHA256SUMS`, the update manifests, WinGet and Scoop
+   only ever see signed Windows packages.
 
-The composite action packages each architecture's portable ZIP, uploads it as
-`unsigned-gproxy-windows-*` / `unsigned-gproxy-headless-windows-*`, and submits that GitHub artifact. The root ZIP in
-the XML is GitHub's artifact envelope. SignPath signs the EXE inside the portable
-ZIP. The unsigned Store submission is preserved as an Actions artifact before
-CI rebuilds the release MSIX with the signing certificate's Publisher. SignPath
-signs that release MSIX and its main executable, then CI verifies both signatures,
-timestamps, publisher and package name before replacing the original release
-file and regenerating its checksum. Third-party DLLs are not re-signed.
-Store submissions keep their original Publisher and go to Partner Center.
-The former daily Store synchronization workflow has been removed; WinGet uses
-the signed release MSIX directly.
+A request that is denied, fails verification or is not approved within the
+wait fails `windows-sign`, and the release is not published. Re-run the failed
+jobs (`gh run rerun <run-id> --failed`) to submit new requests; the builds are
+not repeated. Set `SIGNPATH_ENABLED=false` to release unsigned packages.
 
 Changing Publisher changes the Windows PackageFamilyName, even when Name and
 filename stay the same. A SignPath-signed release is not an in-place update of
@@ -129,27 +111,6 @@ These configurations do not use subscription-gated user-defined parameters.
 Each wildcard must match exactly one file (SignPath defaults to one match).
 Version-specific PE metadata constraints are omitted; the ZIP configuration
 retains its fixed product name and original filename constraints.
-`wait-for-completion: true` waits for signing and downloads the result; it does
-not configure an approval process. CI waits up to 300 seconds for completion,
-with 60-second service retry and signed-artifact download timeouts.
 
-Signed output is downloaded to a separate directory. Windows must validate
-the trusted Authenticode signature and timestamp on the portable EXE before
-the unsigned archive is replaced. Verification and checksum generation use a
-separate staging directory, leaving the original package and checksum untouched
-on failure. Only successful verification promotes the signed package; otherwise
-CI reports an unsigned fallback in the job summary. Packaging, build, provenance
-and publication failures still fail normally. Microsoft Store submissions keep
-their existing identity and are not replaced by this signing attempt.
-
-Set `SIGNPATH_ENABLED=true` and `SIGNPATH_SIGNING_POLICY_SLUG=release-signing`
-in the `release` environment to attempt production signing. Allow `main`, `dev`
-and intended `v*` tags in the policy's origin verification for
-`.github/workflows/release.yml`. Update `SIGNPATH_MSIX_PUBLISHER` with the exact
-production certificate Subject when it is issued; a missing or test Publisher
-keeps the original MSIX. The standalone `signpath` onboarding branch is not a
-release dependency.
-
-This repository change does not provision accounts or certificates. A real
-SignPath request and Windows verification remain required;
-local syntax checks cannot prove the remote configuration or certificate trust.
+Allow `.github/workflows/release.yml` on intended `v*` tags in the policy's
+origin verification.

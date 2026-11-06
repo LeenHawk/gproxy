@@ -44,13 +44,13 @@ winget install --id 9ND7FQQMV566 --source msstore
 Stable releases automatically call `winget-publish.yml` after release assets are
 published. It verifies MSIX checksums, Authenticode trust and timestamps, identity and manifest schemas,
 then submits one PR per edition using the `WINGET_TOKEN` repository secret.
-Existing MSIX versions/open PRs are skipped. Unsigned MSIX packages are skipped;
-release signing uses SignPath with unsigned fallback when unavailable. Manual
+Existing MSIX versions/open PRs are skipped. Unsigned MSIX packages are skipped:
+a release with `SIGNPATH_ENABLED=false` publishes unsigned MSIX. Manual
 dispatch defaults to validation only (`dry_run`).
 
 Headless uses version-independent metadata templates in `templates/Headless/`;
 no historical Headless release is implied by these templates. The generator
 requires x64 and ARM64 `gproxy-headless-windows-*.msix` assets and verifies their
 identity, executable, distinct command alias and trusted signature before producing
-manifests. Unsigned fallback MSIX files remain release artifacts but are skipped
-by WinGet submission. Local preparation does not register or publish a WinGet package.
+manifests. Unsigned MSIX files remain release artifacts but are skipped by
+WinGet submission. Local preparation does not register or publish a WinGet package.

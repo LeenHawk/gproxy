@@ -271,19 +271,13 @@ jobs:
           ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
           ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
         run: scripts/package-native-release.sh
-      - name: Package and sign Windows release
+      - name: Package Windows release
         if: ${{ matrix.kind == 'cli' && matrix.os == 'windows' }}
-        uses: ./.github/actions/windows-release
-        with:
-          target: ${{ matrix.target }}
-          artifact: ${{ matrix.artifact }}
-          version: ${{ needs.prepare.outputs.version }}
-          sign: ${{ vars.SIGNPATH_ENABLED == 'true' }}
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          test-certificate-thumbprint: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
+        shell: pwsh
+        env:
+          TARGET_TRIPLE: ${{ matrix.target }}
+          ARTIFACT_NAME: ${{ matrix.artifact }}
+        run: scripts/package-native-release.ps1
       - name: Package Windows CLI MSIX
         if: matrix.kind == 'cli' && matrix.os == 'windows'
         shell: pwsh
@@ -293,7 +287,7 @@ jobs:
           MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
           MS_STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
         run: |
-          # Use the final portable executable, including its signature when enabled.
+          # Use the portable executable, as packed for the ZIP.
           Expand-Archive -Path "dist/release/${{ matrix.artifact }}.zip" -DestinationPath "$env:RUNNER_TEMP/cli-msix" -Force
           Copy-Item "$env:RUNNER_TEMP/cli-msix/gproxy.exe" "target/${{ matrix.target }}/release/gproxy.exe" -Force
           ./scripts/package-windows-msix.ps1 -Target '${{ matrix.target }}' -Artifact '${{ matrix.artifact }}' -Version '${{ needs.prepare.outputs.version }}' -Mode cli -OutputDir dist/release
@@ -305,9 +299,9 @@ jobs:
           path: dist/release/${{ matrix.artifact }}.msix
           if-no-files-found: error
           retention-days: 30
-      - name: Sign Windows cli MSIX
-        if: matrix.kind == 'cli' && matrix.os == 'windows' && vars.SIGNPATH_ENABLED == 'true'
-        uses: ./.github/actions/windows-msix-sign
+      - name: Upload SignPath inputs
+        if: matrix.kind == 'cli' && matrix.os == 'windows' && needs.prepare.outputs.channel == 'release' && vars.SIGNPATH_ENABLED == 'true'
+        uses: ./.github/actions/signpath-input
         with:
           target: ${{ matrix.target }}
           artifact: ${{ matrix.artifact }}
@@ -316,11 +310,7 @@ jobs:
           identity-name: ${{ vars.MS_STORE_CLI_IDENTITY_NAME }}
           display-name: ${{ vars.MS_STORE_CLI_DISPLAY_NAME }}
           publisher: ${{ vars.SIGNPATH_MSIX_PUBLISHER }}
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          test-certificate-thumbprint: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
+          zip: true
       - name: Record build provenance
         if: matrix.kind == 'cli'
         env:
@@ -382,9 +372,9 @@ jobs:
           path: dist/release/${{ matrix.application_artifact }}.msix
           if-no-files-found: error
           retention-days: 30
-      - name: Sign Windows application MSIX
-        if: matrix.kind == 'application' && matrix.os == 'windows' && vars.SIGNPATH_ENABLED == 'true'
-        uses: ./.github/actions/windows-msix-sign
+      - name: Upload SignPath inputs
+        if: matrix.kind == 'application' && matrix.os == 'windows' && needs.prepare.outputs.channel == 'release' && vars.SIGNPATH_ENABLED == 'true'
+        uses: ./.github/actions/signpath-input
         with:
           target: ${{ matrix.target }}
           artifact: ${{ matrix.application_artifact }}
@@ -393,11 +383,7 @@ jobs:
           identity-name: ${{ vars.MS_STORE_IDENTITY_NAME }}
           display-name: ${{ vars.MS_STORE_DISPLAY_NAME }}
           publisher: ${{ vars.SIGNPATH_MSIX_PUBLISHER }}
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          test-certificate-thumbprint: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
+          zip: false
       - name: Record application build provenance
         if: matrix.kind == 'application'
         env:
@@ -901,19 +887,13 @@ jobs:
           # Android also gets a Termux .deb; other headless installers are separate.
           PACKAGE_INSTALLERS: ${{ matrix.os == 'android' }}
         run: bash scripts/package-native-release.sh
-      - name: Package and sign Windows release
+      - name: Package Windows release
         if: matrix.os == 'windows'
-        uses: ./.github/actions/windows-release
-        with:
-          target: ${{ matrix.target }}
-          artifact: ${{ matrix.headless_artifact }}
-          version: ${{ needs.prepare.outputs.version }}
-          sign: ${{ vars.SIGNPATH_ENABLED == 'true' }}
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          test-certificate-thumbprint: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
+        shell: pwsh
+        env:
+          TARGET_TRIPLE: ${{ matrix.target }}
+          ARTIFACT_NAME: ${{ matrix.headless_artifact }}
+        run: scripts/package-native-release.ps1
       - name: Package Windows Headless MSIX
         if: matrix.os == 'windows'
         shell: pwsh
@@ -932,9 +912,9 @@ jobs:
           path: dist/release/${{ matrix.headless_artifact }}.msix
           if-no-files-found: error
           retention-days: 30
-      - name: Sign Windows Headless MSIX
-        if: matrix.os == 'windows' && vars.SIGNPATH_ENABLED == 'true'
-        uses: ./.github/actions/windows-msix-sign
+      - name: Upload SignPath inputs
+        if: matrix.os == 'windows' && needs.prepare.outputs.channel == 'release' && vars.SIGNPATH_ENABLED == 'true'
+        uses: ./.github/actions/signpath-input
         with:
           target: ${{ matrix.target }}
           artifact: ${{ matrix.headless_artifact }}
@@ -943,11 +923,7 @@ jobs:
           identity-name: LeenHawk.GPROXYHeadless
           display-name: GPROXY Headless
           publisher: ${{ vars.SIGNPATH_MSIX_PUBLISHER }}
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          test-certificate-thumbprint: ${{ vars.SIGNPATH_TEST_CERTIFICATE_THUMBPRINT }}
+          zip: true
       - run: bash scripts/build-provenance.sh
       - uses: ./.github/actions/attest-release
         with:
@@ -1314,12 +1290,106 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  windows-sign:
+    # SignPath Foundation requires a maintainer to approve every release
+    # signing request in SignPath, so each request waits here for approval.
+    # A request that is not approved in time fails the release; re-run the
+    # failed jobs to submit it again.
+    name: Sign ${{ matrix.artifact }}.${{ matrix.kind }}
+    needs: [prepare, native, headless]
+    if: ${{ needs.prepare.outputs.channel == 'release' && vars.SIGNPATH_ENABLED == 'true' }}
+    runs-on: windows-2025
+    environment: release
+    timeout-minutes: 330
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { artifact: gproxy-windows-x86_64, kind: zip, build: native-x86_64-pc-windows-msvc, mode: cli }
+          - { artifact: gproxy-windows-aarch64, kind: zip, build: native-aarch64-pc-windows-msvc, mode: cli }
+          - { artifact: gproxy-headless-windows-x86_64, kind: zip, build: headless-x86_64-pc-windows-msvc, mode: headless }
+          - { artifact: gproxy-headless-windows-aarch64, kind: zip, build: headless-aarch64-pc-windows-msvc, mode: headless }
+          - { artifact: gproxy-windows-x86_64, kind: msix, build: native-x86_64-pc-windows-msvc, mode: cli }
+          - { artifact: gproxy-windows-aarch64, kind: msix, build: native-aarch64-pc-windows-msvc, mode: cli }
+          - { artifact: gproxy-headless-windows-x86_64, kind: msix, build: headless-x86_64-pc-windows-msvc, mode: headless }
+          - { artifact: gproxy-headless-windows-aarch64, kind: msix, build: headless-aarch64-pc-windows-msvc, mode: headless }
+          - { artifact: gproxy-tauri-windows-x86_64, kind: msix, build: application-x86_64-pc-windows-msvc, mode: application }
+          - { artifact: gproxy-tauri-windows-aarch64, kind: msix, build: application-aarch64-pc-windows-msvc, mode: application }
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      FILE: ${{ matrix.artifact }}.${{ matrix.kind }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Find the unsigned package
+        id: unsigned
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $id = gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts?name=signpath-$env:FILE" --jq '.artifacts[0].id // empty'
+          if (-not $id) { throw "No signpath-$env:FILE artifact in this run" }
+          "artifact-id=$id" >> $env:GITHUB_OUTPUT
+      - name: Sign with SignPath
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ matrix.kind == 'zip' && 'windows-release' || 'windows-msix' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 18000
+          output-artifact-directory: ${{ runner.temp }}/signed
+      - name: Verify signatures
+        env:
+          SIGNED: ${{ runner.temp }}/signed
+          ARTIFACT: ${{ matrix.artifact }}
+          IDENTITY: ${{ matrix.mode == 'cli' && vars.MS_STORE_CLI_IDENTITY_NAME || matrix.mode == 'application' && vars.MS_STORE_IDENTITY_NAME || 'LeenHawk.GPROXYHeadless' }}
+          EXECUTABLE: ${{ matrix.mode == 'application' && 'gproxy-desktop.exe' || 'gproxy.exe' }}
+          PUBLISHER: ${{ vars.SIGNPATH_MSIX_PUBLISHER }}
+        run: |
+          if ('${{ matrix.kind }}' -eq 'zip') {
+            scripts/verify-windows-signatures.ps1 -Directory $env:SIGNED -Artifact $env:ARTIFACT
+          } else {
+            scripts/verify-windows-msix.ps1 -Directory $env:SIGNED -Artifact $env:ARTIFACT `
+              -IdentityName $env:IDENTITY -Executable $env:EXECUTABLE -Publisher $env:PUBLISHER
+          }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ matrix.build }}
+          path: ${{ runner.temp }}/build
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/release/${{ env.FILE }}
+      - name: Attest resolved build environment
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/release/${{ env.FILE }}
+          predicate-type: https://gproxy.leenhawk.com/attestations/build-environment/v1
+          predicate-path: ${{ runner.temp }}/build/${{ matrix.artifact }}.provenance.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: signed-${{ env.FILE }}
+          path: |
+            dist/release/${{ env.FILE }}
+            dist/release/${{ env.FILE }}.sha256
+          if-no-files-found: error
+          retention-days: 1
+
   publish:
     if: ${{ always() && !failure() && !cancelled() && needs.prepare.result == 'success' }}
     name: Publish GitHub, GitLab and CNB releases
     env:
       GPROXY_CONTAINER_SOURCE: ${{ needs.container-manifest.outputs.source }}
-    needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, alpine-packages, serverless, edge, edge-check, container-manifest, publish-crates, android-packages]
+    needs: [prepare, native, riscv, ohos-cli, ohos-application, headless, headless-riscv, windows-sign, alpine-packages, serverless, edge, edge-check, container-manifest, publish-crates, android-packages]
     runs-on: ubuntu-24.04
     concurrency:
       group: gproxy-release-publication
@@ -1357,6 +1427,13 @@ jobs:
         with:
           name: alpine-cli-packages
           path: dist/release
+      # Last, so the signed Windows packages replace the unsigned builds.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: ${{ needs.windows-sign.result == 'success' }}
+        with:
+          pattern: signed-*
+          path: dist/release
+          merge-multiple: true
       - name: Install container mirror tool
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends skopeo
       - name: Publish the same artifacts to all three platforms
