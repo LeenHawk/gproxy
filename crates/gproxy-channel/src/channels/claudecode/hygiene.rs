@@ -363,9 +363,13 @@ const PROJECT_SOURCES: &[&str] = &[
     "admin_default",
 ];
 
-/// `^claude_proj_(?:staging_|local_)?01[1-9A-HJ-NP-Za-km-z]{22}$` (2.1.316 `Mns`).
+/// `^(?:claude_proj|chan)_(?:staging_|local_)?01[1-9A-HJ-NP-Za-km-z]{22}$`
+/// (2.1.318 `DSs`; 2.1.316 accepted only `claude_proj_`).
 fn is_project_id(value: &str) -> bool {
-    let Some(rest) = value.strip_prefix("claude_proj_") else {
+    let Some(rest) = value
+        .strip_prefix("claude_proj_")
+        .or_else(|| value.strip_prefix("chan_"))
+    else {
         return false;
     };
     let rest = rest
