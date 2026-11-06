@@ -12,8 +12,7 @@ must not be rewritten to point at a newer binary.
 | Headless (without Web Console) | `LeenHawk.GPROXY.Headless` | `gproxy-headless` |
 
 Headless has the independent MSIX identity `LeenHawk.GPROXYHeadless` and the
-`gproxy-headless.exe` execution alias, so it does not take over CLI's `gproxy.exe` alias. Its ZIP continues to contain `gproxy.exe`. Headless does
-not require a Microsoft Store listing.
+`gproxy-headless.exe` execution alias, so it does not take over CLI's `gproxy.exe` alias. Its ZIP continues to contain `gproxy.exe`.
 
 Desktop declares `Microsoft.EdgeWebView2Runtime`. Each edition supports x64 and
 ARM64 with separate hashes, plus English, Simplified Chinese and Traditional
@@ -33,12 +32,13 @@ winget install --id LeenHawk.GPROXY.CLI --exact --source winget
 winget install --id LeenHawk.GPROXY.Headless --exact --source winget
 ```
 
-The Microsoft Store source is separate. Desktop and CLI are published there with
-product IDs `9P2FJRB9RS4Z` (Desktop) and `9NBMH3S5K0L9` (CLI):
+The Microsoft Store source is separate, with product IDs `9P2FJRB9RS4Z`
+(Desktop), `9NBMH3S5K0L9` (CLI) and `9ND7FQQMV566` (Headless):
 
 ```powershell
 winget install --id 9P2FJRB9RS4Z --source msstore
 winget install --id 9NBMH3S5K0L9 --source msstore
+winget install --id 9ND7FQQMV566 --source msstore
 ```
 
 Stable releases automatically call `winget-publish.yml` after release assets are

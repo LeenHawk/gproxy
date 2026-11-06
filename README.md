@@ -144,11 +144,11 @@ Render and Heroku templates package the **latest stable release** PostgreSQL exe
 | Render / Heroku | Native container with managed PostgreSQL | [Deployment guide](https://gproxy.leenhawk.com/deployment/containers/) |
 | Rust SDK | Embed in your own program | [gproxy-sdk](crates/gproxy-sdk/README.md) |
 
-On Windows, both editions are available from Microsoft Store:
+On Windows, GPROXY Desktop, CLI and Headless are available from Microsoft Store:
 
-| GPROXY Desktop | GPROXY CLI |
-| :---: | :---: |
-| <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY CLI" height="48"></a> |
+| GPROXY Desktop | GPROXY CLI | GPROXY Headless |
+| :---: | :---: | :---: |
+| <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY CLI" height="48"></a> | <a href="https://apps.microsoft.com/detail/9ND7FQQMV566?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Headless" height="48"></a> |
 
 On Android, the Application is also available from F-Droid:
 

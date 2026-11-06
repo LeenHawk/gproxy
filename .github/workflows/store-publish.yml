@@ -60,6 +60,13 @@ jobs:
             product_id: ${{ vars.MS_STORE_CLI_PRODUCT_ID }}
             identity_name: ${{ vars.MS_STORE_CLI_IDENTITY_NAME }}
             display_name: ${{ vars.MS_STORE_CLI_DISPLAY_NAME }}
+          - edition: Headless
+            mode: headless
+            artifact_prefix: gproxy-headless-windows
+            executable: gproxy.exe
+            product_id: ${{ vars.MS_STORE_HEADLESS_PRODUCT_ID }}
+            identity_name: LeenHawk.GPROXYHeadless
+            display_name: GPROXY Headless
     env:
       MS_STORE_PRODUCT_ID: ${{ matrix.product_id }}
       MS_STORE_TENANT_ID: ${{ vars.MS_STORE_TENANT_ID }}

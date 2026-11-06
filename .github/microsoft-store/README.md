@@ -1,14 +1,16 @@
 # Microsoft Store publication
 
-GPROXY has two independent Microsoft Store products, both published:
-[GPROXY Desktop](https://apps.microsoft.com/detail/9P2FJRB9RS4Z) and
-[GPROXY CLI](https://apps.microsoft.com/detail/9NBMH3S5K0L9). Renaming the original
+GPROXY has three independent Microsoft Store products:
+[GPROXY Desktop](https://apps.microsoft.com/detail/9P2FJRB9RS4Z),
+[GPROXY CLI](https://apps.microsoft.com/detail/9NBMH3S5K0L9) and
+[GPROXY Headless](https://apps.microsoft.com/detail/9ND7FQQMV566). Renaming the original
 product keeps its package identity and update history.
 
 | Edition | Display name | Product ID | Package identity |
 | --- | --- | --- | --- |
 | Desktop | GPROXY Desktop | 9P2FJRB9RS4Z | LeenHawk.GPROXYGateway |
 | CLI | GPROXY CLI | 9NBMH3S5K0L9 | LeenHawk.GPROXYCLI |
+| Headless | GPROXY Headless | 9ND7FQQMV566 | LeenHawk.GPROXYHeadless |
 
 The shared publisher is `CN=7D76D0DD-9AFE-4262-832E-3A611C4CB5C3`; its display
 name is `Leen Hawk`. The CLI identity is assigned by Partner Center, not derived
@@ -32,7 +34,11 @@ Configure these repository Actions variables from Partner Center:
 | `MS_STORE_IDENTITY_NAME` | `MS_STORE_CLI_IDENTITY_NAME` |
 | `MS_STORE_DISPLAY_NAME` | `MS_STORE_CLI_DISPLAY_NAME` |
 
-Both editions use `MS_STORE_IDENTITY_PUBLISHER`,
+Headless sets only `MS_STORE_HEADLESS_PRODUCT_ID`; its identity
+`LeenHawk.GPROXYHeadless` and display name `GPROXY Headless` are fixed in the
+workflows and `scripts/package-windows-msix.ps1 -Mode headless`.
+
+All editions use `MS_STORE_IDENTITY_PUBLISHER`,
 `MS_STORE_PUBLISHER_DISPLAY_NAME`, `MS_STORE_TENANT_ID`, `MS_STORE_SELLER_ID`,
 `MS_STORE_CLIENT_ID`, and the `MS_STORE_CLIENT_SECRET` Actions secret. Set
 `MS_STORE_PUBLISH_ENABLED=true` to enable stable-release submissions.
@@ -46,7 +52,7 @@ the automatic publisher skips products that have not yet been published.
 ## Stable release updates
 
 Tagged stable releases call `store-publish.yml` after publishing the GitHub
-release. Desktop and CLI jobs each download their own x64 and ARM64 artifacts,
+release. Desktop, CLI and Headless jobs each download their own x64 and ARM64 artifacts,
 validate the exact package identity, publisher, architecture and release
 version, and create a bundle. Every version comes from the release workflow's
 `version` input; no release version is embedded in these scripts.
@@ -69,7 +75,7 @@ Dispatch **Publish Microsoft Store** with an existing stable version (without
 `v`) and the corresponding Release workflow run ID. The workflow verifies the
 source workflow, tag, commit and public stable release before using its files.
 
-- Default: use the retained MSIX artifacts and submit both edition updates.
+- Default: use the retained MSIX artifacts and submit every edition update.
 - `prepare_only=true`: produce upload bundles without accessing Store
   credentials or submitting. This uses the `store-packaging` environment,
   keeping package preparation separate from protected release publication.
@@ -79,7 +85,7 @@ source workflow, tag, commit and public stable release before using its files.
   submissions or a reserved display-name change without modifying released
   binaries or replacing public release attachments.
 
-The two `microsoft-store-<edition>-<version>` artifacts contain the bundles for
+The `microsoft-store-<edition>-<version>` artifacts contain the bundles for
 manual upload. A preparation job succeeding means the packages were built and
 validated; it does not mean they were submitted or certified. A publishing job
 succeeding means the submission was committed; certification remains a Store

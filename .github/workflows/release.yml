@@ -924,6 +924,14 @@ jobs:
           Expand-Archive -Path "dist/release/${{ matrix.headless_artifact }}.zip" -DestinationPath "$env:RUNNER_TEMP/headless-msix" -Force
           Copy-Item "$env:RUNNER_TEMP/headless-msix/gproxy.exe" "target/${{ matrix.target }}/release/gproxy.exe" -Force
           ./scripts/package-windows-msix.ps1 -Target '${{ matrix.target }}' -Artifact '${{ matrix.headless_artifact }}' -Version '${{ needs.prepare.outputs.version }}' -Mode headless -OutputDir dist/release
+      - name: Preserve Headless Store submission
+        if: matrix.os == 'windows' && needs.prepare.outputs.channel == 'release'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: microsoft-store-unsigned-${{ matrix.headless_artifact }}
+          path: dist/release/${{ matrix.headless_artifact }}.msix
+          if-no-files-found: error
+          retention-days: 30
       - name: Sign Windows Headless MSIX
         if: matrix.os == 'windows' && vars.SIGNPATH_ENABLED == 'true'
         uses: ./.github/actions/windows-msix-sign

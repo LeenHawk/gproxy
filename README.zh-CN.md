@@ -144,11 +144,11 @@ Render 和 Heroku 模板使用 **latest 稳定版** PostgreSQL 预编译程序�
 | Render / Heroku | 原生容器与托管 PostgreSQL | [部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/containers/) |
 | Rust SDK | 嵌入自己的程序 | [gproxy-sdk](crates/gproxy-sdk/README.zh-CN.md) |
 
-Windows 可从 Microsoft Store 安装两个版本：
+Windows 可从 Microsoft Store 安装 GPROXY Desktop、CLI 和 Headless：
 
-| GPROXY Desktop | GPROXY CLI |
-| :---: | :---: |
-| <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/zh-cn%20dark.svg" alt="从 Microsoft 获取：GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/zh-cn%20dark.svg" alt="从 Microsoft 获取：GPROXY CLI" height="48"></a> |
+| GPROXY Desktop | GPROXY CLI | GPROXY Headless |
+| :---: | :---: | :---: |
+| <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/zh-cn%20dark.svg" alt="从 Microsoft 获取：GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/zh-cn%20dark.svg" alt="从 Microsoft 获取：GPROXY CLI" height="48"></a> | <a href="https://apps.microsoft.com/detail/9ND7FQQMV566?mode=direct"><img src="https://get.microsoft.com/images/zh-cn%20dark.svg" alt="从 Microsoft 获取：GPROXY Headless" height="48"></a> |
 
 Android 版 Application 也可从 F-Droid 安装：
 

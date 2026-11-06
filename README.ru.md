@@ -144,11 +144,11 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
 | Рендер / Хероку | Собственный контейнер с управляемым PostgreSQL | [Deployment guide](https://gproxy.leenhawk.com/ru/deployment/containers/) |
 | Rust SDK | Встроить в свою программу | [gproxy-sdk](crates/gproxy-sdk/README.md) |
 
-В Windows обе версии доступны в Microsoft Store:
+В Windows GPROXY Desktop, CLI и Headless доступны в Microsoft Store:
 
-| GPROXY Рабочий стол | GPROXY CLI |
-| :---: | :---: |
-| <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY CLI" height="48"></a> |
+| GPROXY Рабочий стол | GPROXY CLI | GPROXY Headless |
+| :---: | :---: | :---: |
+| <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY CLI" height="48"></a> | <a href="https://apps.microsoft.com/detail/9ND7FQQMV566?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Headless" height="48"></a> |
 
 На Android приложение также доступно в F-Droid:
 
