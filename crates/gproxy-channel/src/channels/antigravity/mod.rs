@@ -17,7 +17,7 @@
 //!   and `internal/api/handlers/management/auth_files_provider_oauth.go`).
 //! - Since 2.6.0 the IDE ships no language server: its bundled `agy`
 //!   extension downloads the Antigravity CLI and runs it as
-//!   `antigravity --hub` (CLI 1.4.10, hub server 2.28.1), and that Go
+//!   `antigravity --hub` (CLI 1.5.2, hub server 2.29.0), and that Go
 //!   process makes the model calls: `POST /v1internal:generateContent`,
 //!   `:streamGenerateContent?alt=sse` and `:countTokens` carrying the Code
 //!   Assist envelope, the catalogue from `POST /v1internal:fetchAvailableModels`
@@ -56,7 +56,8 @@
 //! Envelope fields: the hub does not send the Gemini CLI's
 //! `user_prompt_id`. It names itself (`userAgent: "antigravity"`) and the
 //! kind of call (`requestType: "agent"`, `"image_gen"` for an image model).
-//! An agent call (captured from the hub and CLI 1.4.10, 2026-10-29) carries
+//! An agent call (captured from the hub and CLI 1.4.10 on 2026-10-29, and
+//! unchanged from the hub and CLI 1.5.2 on 2026-11-06) carries
 //! `requestId: agent/<cascade>/<ms>/<trajectory>/<step>`, where the cascade
 //! and trajectory ids stay put across a conversation and the step is the
 //! number of `contents`; `request.labels` repeating those ids
@@ -145,16 +146,16 @@ pub const EDITOR_USER_AGENT: &str = concat!(
     " linux/amd64 google-api-nodejs-client/10.3.0"
 );
 /// The user agent of the hub the IDE runs (`antigravity --hub`, CLI
-/// 1.4.10), which makes the catalogue, quota and generation calls
+/// 1.5.2), which makes the catalogue, quota and generation calls
 /// (`codeassistclient.UserAgent`): `%s/%s/%s (%s)` of the agent name
 /// (`antigravity`), the subclient type (`hub` under `--hub`, `cli`
-/// otherwise), the hub server's version (2.28.1; the CLI's own version under
+/// otherwise), the hub server's version (2.29.0; the CLI's own version under
 /// `cli`), and `aidev_client`, `os_type=<GOOS>`, `arch=<GOARCH>` and the
 /// build's `cl=<changelist>` joined by `; `. The hub's sign-in records no
 /// `auth_method` (the standalone CLI's adds `auth_method=consumer`). Captured
-/// from the Linux amd64 build on 2026-10-29.
+/// from the Linux amd64 build of CLI 1.5.2 on 2026-11-06.
 pub const USER_AGENT: &str =
-    "antigravity/hub/2.28.1 (aidev_client; os_type=linux; arch=amd64; cl=1009308193)";
+    "antigravity/hub/2.29.0 (aidev_client; os_type=linux; arch=amd64; cl=1015175089)";
 
 /// Provider `config` JSON understood by this channel. Unknown keys ignored.
 #[derive(Debug, Deserialize)]
@@ -207,7 +208,7 @@ const CHANNEL_HEADERS: &[&str] = &[
 ];
 
 /// The Go Code Assist transport of the Antigravity CLI the IDE runs as its
-/// hub (captured from CLI 1.2.16, unchanged in CLI 1.4.10): no ALPN or
+/// hub (captured from CLI 1.2.16, unchanged in CLI 1.5.2): no ALPN or
 /// GREASE, TLS 1.2 floor, Go's cipher preferences and its extension order. BoringSSL puts TLS
 /// 1.3 suites first even though Go advertises them last.
 /// BoringSSL lacks the captured SecP256r1MLKEM768/SecP384r1MLKEM1024 groups
