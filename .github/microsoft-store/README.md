@@ -3,7 +3,9 @@
 GPROXY has three independent Microsoft Store products:
 [GPROXY Desktop](https://apps.microsoft.com/detail/9P2FJRB9RS4Z),
 [GPROXY CLI](https://apps.microsoft.com/detail/9NBMH3S5K0L9) and
-[GPROXY Headless](https://apps.microsoft.com/detail/9ND7FQQMV566). Renaming the original
+[GPROXY Headless](https://apps.microsoft.com/detail/9ND7FQQMV566). The
+Headless package family name is `LeenHawk.GPROXYHeadless_955pnp7k5bzxc`.
+Renaming the original
 product keeps its package identity and update history.
 
 | Edition | Display name | Product ID | Package identity |
@@ -84,6 +86,13 @@ source workflow, tag, commit and public stable release before using its files.
   using the current Partner Center names and identities. This supports first
   submissions or a reserved display-name change without modifying released
   binaries or replacing public release attachments.
+
+Headless's first submission (`1152921505702330472`, 2026-11-06) was prepared this way by hand: the v4.1.14 Headless
+Windows x86_64 and aarch64 ZIPs, checked against `SHA256SUMS`, were packaged
+with `scripts/package-windows-msix.ps1 -Mode headless` and
+`scripts/bundle-windows-msix.ps1` without changing the executables. The
+uploaded bundle is package version 4.1.14.0 (x64 and ARM64), SHA-256
+`8be49bcc07f6c7a54ffaefb1f132560136ea61e265a157bbea2bb96868b3ab41`.
 
 The `microsoft-store-<edition>-<version>` artifacts contain the bundles for
 manual upload. A preparation job succeeding means the packages were built and

@@ -44,6 +44,9 @@ try {
     $publisherDisplayXml = [System.Security.SecurityElement]::Escape($PublisherDisplayName)
     $applicationAttributes = if ($Mode -ne 'application') { 'desktop4:SupportsMultipleInstances="true"' } else { '' }
     $alias = if ($Mode -eq 'headless') { 'gproxy-headless.exe' } else { 'gproxy.exe' }
+    # Declare a language only once its Store listing exists; Headless has no ru-ru listing yet.
+    $languages = if ($Mode -eq 'headless') { @('en-us', 'zh-cn', 'zh-tw') } else { @('en-us', 'ru-ru', 'zh-cn', 'zh-tw') }
+    $resources = ($languages | ForEach-Object { "<Resource Language=`"$_`" />" }) -join ''
     $extensions = if ($Mode -ne 'application') {
         '<uap5:Extension Category="windows.appExecutionAlias" Executable="gproxy.exe" EntryPoint="Windows.FullTrustApplication"><uap5:AppExecutionAlias desktop4:Subsystem="console"><uap5:ExecutionAlias Alias="{0}" /></uap5:AppExecutionAlias></uap5:Extension>' -f $alias
     } else {
@@ -62,7 +65,7 @@ try {
  <Identity Name="$identityXml" Publisher="$publisherXml" Version="$packageVersion" ProcessorArchitecture="$arch" />
  <Properties><DisplayName>$displayXml</DisplayName><PublisherDisplayName>$publisherDisplayXml</PublisherDisplayName><Logo>Assets\StoreLogo.png</Logo></Properties>
  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
- <Resources><Resource Language="en-us" /><Resource Language="zh-cn" /><Resource Language="zh-tw" /></Resources>
+ <Resources>$resources</Resources>
  <Applications><Application Id="GPROXY" Executable="$executable" EntryPoint="Windows.FullTrustApplication" $applicationAttributes>
   <uap:VisualElements DisplayName="$displayXml" Description="$displayXml" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
   <Extensions>$extensions</Extensions>
