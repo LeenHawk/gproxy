@@ -11,9 +11,10 @@ pub(super) fn request(
     request.store = Some(Some(false));
     request.max_output_tokens = None;
     request.metadata = None;
-    // The ChatGPT backend's CLI wire has no public-API cache options. Keep
-    // its block breakpoints; API support does not establish backend support.
-    request.prompt_cache_options = None;
+    request.prompt_cache_options = request
+        .prompt_cache_options
+        .take()
+        .and_then(cli_prompt_cache_options);
     request.temperature = None;
     request.top_p = None;
     request.top_logprobs = None;
@@ -162,4 +163,19 @@ fn parts_text(parts: &[InputContent]) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// `prompt_cache_options` as the CLI sends it: only `ttl`, the minimum
+/// lifetime of new cache entries (codex-api `PromptCacheOptions`, openai/codex
+/// 41cbd5b9b2), on HTTP and WebSocket requests alike. The public API's mode,
+/// prewarm and comparison options are not part of the backend's CLI wire;
+/// without a `ttl` the field is left out. Block breakpoints stay as sent.
+fn cli_prompt_cache_options(options: PromptCacheOptions) -> Option<PromptCacheOptions> {
+    Some(PromptCacheOptions {
+        comparison_response_id: None,
+        prewarm: None,
+        mode: None,
+        ttl: Some(options.ttl?),
+        rest: Default::default(),
+    })
 }

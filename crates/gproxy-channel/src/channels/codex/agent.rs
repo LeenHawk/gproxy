@@ -8,9 +8,9 @@
 
 use std::sync::OnceLock;
 
-/// The release this channel impersonates (openai/codex `rust-v0.166.0`;
+/// The release this channel impersonates (openai/codex `rust-v0.167.0`;
 /// the mirrored checkout carries the placeholder `0.0.0`).
-pub const CLI_VERSION: &str = "0.166.0";
+pub const CLI_VERSION: &str = "0.167.0";
 
 pub(super) fn user_agent(originator: &str) -> String {
     static HOST: OnceLock<String> = OnceLock::new();
