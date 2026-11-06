@@ -277,7 +277,6 @@
   },
   "providerForm": {
     "autoRefreshModels": "从上游刷新模型候选",
-    "autoRefreshModelsHelp": "每次客户端查询模型列表或详情时，从上游刷新并合并到本地，再按本地配置返回；关闭后仅使用已保存的模型。",
     "dynamicAddress": "根据渠道设置或凭证自动选择",
     "displayName": "显示名",
     "routeName": "路由名",

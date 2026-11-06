@@ -8,7 +8,7 @@ import { connectionProfiles } from "@/api/configuration"
 import { ProxyControl, type ProxySettings } from "@/components/proxy-control"
 import { ErrorNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -46,7 +46,6 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? "")
   const [profile, setProfile] = useState(provider?.connectionProfileId ?? "__default")
   const [proxy, setProxy] = useState<ProxySettings>(provider?.proxy ?? null)
-  const [enabled, setEnabled] = useState(provider?.enabled ?? true)
   const [configs, setConfigs] = useState<Record<string, ConfigObject>>({
     [channel]: (provider?.config ?? {}) as ConfigObject,
   })
@@ -69,7 +68,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
       baseUrl: baseUrl.trim() || null,
       connectionProfileId: profile === "__default" ? null : profile,
       proxy,
-      enabled,
+      enabled: provider?.enabled ?? true,
       config,
     })
   }
@@ -120,12 +119,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
         <Field data-field-span="full"><FieldLabel htmlFor={`${id}-proxy`}>{t("proxy.provider")}</FieldLabel><ProxyControl id={`${id}-proxy`} value={proxy} onChange={setProxy} scope={provider ? { scope: "provider", provider_id: provider.id } : { scope: "global", parent: true }} /></Field>
         <Field>
           <FieldLabel htmlFor={`${id}-auto-refresh-models`}>{t("providerForm.autoRefreshModels")}</FieldLabel>
-          <Switch aria-describedby={`${id}-auto-refresh-models-description-0`} id={`${id}-auto-refresh-models`} checked={config.auto_refresh_models !== false} onCheckedChange={value => change("auto_refresh_models", value)} />
-          <FieldDescription id={`${id}-auto-refresh-models-description-0`}>{t("providerForm.autoRefreshModelsHelp")}</FieldDescription>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor={`${id}-enabled`}>{t("fields.enabled")}</FieldLabel>
-          <Switch id={`${id}-enabled`} checked={enabled} onCheckedChange={setEnabled} />
+          <Switch id={`${id}-auto-refresh-models`} checked={config.auto_refresh_models !== false} onCheckedChange={value => change("auto_refresh_models", value)} />
         </Field>
       </FieldGroup>
       <FieldGroup key={channel} className="grid gap-5 border-t pt-6 sm:grid-cols-2">

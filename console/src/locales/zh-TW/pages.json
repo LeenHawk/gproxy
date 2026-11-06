@@ -277,7 +277,6 @@
   },
   "providerForm": {
     "autoRefreshModels": "從上游重新整理模型候選",
-    "autoRefreshModelsHelp": "每次用戶端查詢模型清單或詳情時，從上游重新整理並合併到本機，再依本機設定回傳；關閉後僅使用已儲存的模型。",
     "dynamicAddress": "依渠道設定或憑證自動選擇",
     "displayName": "顯示名稱",
     "routeName": "路由名稱",
