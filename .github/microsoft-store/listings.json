@@ -86,6 +86,34 @@
         "shortTitle": "GPROXY Desktop",
         "voiceTitle": "G Proxy Desktop",
         "devStudio": "Leen Hawk"
+      },
+      "ru-ru": {
+        "description": "GPROXY Desktop — графическая версия для Windows шлюза API ИИ с открытым исходным кодом. Подключите своих поставщиков ИИ за одной локальной точкой доступа и управляйте шлюзом в окне приложения.\n\nМастер первого запуска поможет выбрать расположение данных, настроить адрес прослушивания и создать учётную запись администратора. Во встроенной консоли можно управлять ключами поставщиков, маршрутизацией моделей, балансировкой нагрузки, переключением при сбоях, ключами доступа, квотами и использованием. Поддерживаемые маршруты предоставляют форматы API, совместимые с OpenAI, Claude и Gemini.\n\nШлюз работает на вашем компьютере и отправляет запросы настроенным вами поставщикам. Учётные записи поставщиков, доступ к моделям, оплата и условия обслуживания не входят в это приложение. Подписка на модели и ключи поставщиков не включены.\n\nЭто настольное приложение. Для работы из терминала с консолью в браузере выберите GPROXY CLI. Обновления копий, установленных из Microsoft Store, выполняет Microsoft Store. Для интерфейса требуется Microsoft Edge WebView2 Runtime.\n\nGPROXY распространяется с открытым исходным кодом по лицензии AGPL-3.0-or-later. Документация: https://gproxy.leenhawk.com/  Исходный код: https://github.com/LeenHawk/gproxy",
+        "features": [
+          "Собственные учётные записи и ключи поставщиков ИИ",
+          "Форматы API, совместимые с OpenAI, Claude и Gemini, на поддерживаемых маршрутах",
+          "Маршрутизация моделей, балансировка нагрузки и переключение при сбоях",
+          "Ключи доступа, права и управление квотами",
+          "Учёт использования и диагностика запросов",
+          "Открытый исходный код под AGPL-3.0-or-later"
+        ],
+        "keywords": [
+          "AI gateway",
+          "API proxy",
+          "LLM",
+          "developer tools",
+          "load balancing",
+          "self hosted",
+          "desktop app"
+        ],
+        "websiteUrl": "https://gproxy.leenhawk.com/",
+        "supportContact": "https://github.com/LeenHawk/gproxy/issues",
+        "copyrightAndTrademarkInfo": "Участники проекта GPROXY. OpenAI, Claude и Gemini — товарные знаки соответствующих владельцев; их названия указывают на совместимость API.",
+        "licenseTerms": "GPROXY распространяется по лицензии GNU AGPL версии 3 или более поздней (AGPL-3.0-or-later). Лицензия и исходный код: https://github.com/LeenHawk/gproxy . Сторонние сервисы ИИ имеют собственные условия и тарифы.",
+        "shortDescription": "Шлюз API ИИ с открытым исходным кодом и настольной консолью для Windows. Подключайте своих поставщиков и управляйте маршрутами, ключами, квотами и использованием в одном месте.",
+        "shortTitle": "GPROXY Desktop",
+        "voiceTitle": "G Proxy Desktop",
+        "devStudio": "Leen Hawk"
       }
     }
   },
@@ -175,6 +203,124 @@
         "shortDescription": "在終端機啟動開源 AI API 閘道，透過瀏覽器管理介面統一管理自己的供應商、路由、憑證、配額與用量。",
         "shortTitle": "GPROXY CLI",
         "voiceTitle": "G Proxy C L I",
+        "devStudio": "Leen Hawk"
+      },
+      "ru-ru": {
+        "description": "GPROXY CLI — версия шлюза API ИИ с открытым исходным кодом для командной строки. Запускайте шлюз из Windows Terminal или PowerShell и управляйте им во встроенной консоли в браузере.\n\nЗапуск: gproxy serve --data-dir \"$env:LOCALAPPDATA\\GPROXY\" --port 8787\nЗатем откройте в браузере http://127.0.0.1:8787/console/. Сохраните учётные данные администратора, выведенные при первом запуске. Если ключи поставщиков нужно хранить в зашифрованном виде, перед их добавлением задайте и сохраните постоянный GPROXY_MASTER_KEY.\n\nПодключайте своих поставщиков ИИ и управляйте ключами, маршрутизацией моделей, балансировкой нагрузки, переключением при сбоях, ключами доступа, квотами и использованием. Поддерживаемые маршруты предоставляют форматы API, совместимые с OpenAI, Claude и Gemini. По умолчанию шлюз слушает только локальный адрес; хранилище и сетевой доступ определяете вы.\n\nЭта версия управляется из терминала. Для графического приложения с мастером настройки и окном управления выберите GPROXY Desktop.\n\nУчётные записи поставщиков, доступ к моделям, оплата и условия обслуживания не входят в это приложение. Запросы отправляются настроенным вами поставщикам. Подписка на модели и ключи поставщиков не включены. Обновления копий, установленных из Microsoft Store, выполняет Microsoft Store.\n\nGPROXY распространяется с открытым исходным кодом по лицензии AGPL-3.0-or-later. Документация: https://gproxy.leenhawk.com/  Исходный код: https://github.com/LeenHawk/gproxy",
+        "features": [
+          "Собственные учётные записи и ключи поставщиков ИИ",
+          "Форматы API, совместимые с OpenAI, Claude и Gemini, на поддерживаемых маршрутах",
+          "Маршрутизация моделей, балансировка нагрузки и переключение при сбоях",
+          "Ключи доступа, права и управление квотами",
+          "Учёт использования и диагностика запросов",
+          "Открытый исходный код под AGPL-3.0-or-later"
+        ],
+        "keywords": [
+          "AI gateway",
+          "API proxy",
+          "LLM",
+          "developer tools",
+          "load balancing",
+          "self hosted",
+          "command line"
+        ],
+        "websiteUrl": "https://gproxy.leenhawk.com/",
+        "supportContact": "https://github.com/LeenHawk/gproxy/issues",
+        "copyrightAndTrademarkInfo": "Участники проекта GPROXY. OpenAI, Claude и Gemini — товарные знаки соответствующих владельцев; их названия указывают на совместимость API.",
+        "licenseTerms": "GPROXY распространяется по лицензии GNU AGPL версии 3 или более поздней (AGPL-3.0-or-later). Лицензия и исходный код: https://github.com/LeenHawk/gproxy . Сторонние сервисы ИИ имеют собственные условия и тарифы.",
+        "shortDescription": "Запускайте шлюз API ИИ с открытым исходным кодом из терминала. Подключайте своих поставщиков и управляйте маршрутами, ключами, квотами и использованием в консоли браузера.",
+        "shortTitle": "GPROXY CLI",
+        "voiceTitle": "G Proxy C L I",
+        "devStudio": "Leen Hawk"
+      }
+    }
+  },
+  "headless": {
+    "title": "GPROXY Headless",
+    "productId": "9ND7FQQMV566",
+    "locales": {
+      "en-us": {
+        "description": "GPROXY Headless is the command-line edition of an open-source AI API gateway without the web console, for servers, CI and scripted setups. Run it from Windows Terminal or PowerShell as gproxy-headless, and configure it through the command line or the management API.\n\nStart with: gproxy-headless serve --data-dir \"$env:LOCALAPPDATA\\GPROXY\" --port 8787\nSave the administrator credentials printed on first startup. Configure a persistent GPROXY_MASTER_KEY before adding provider credentials if you want those credentials encrypted in storage.\n\nConnect your own AI providers and manage credentials, model routing, load balancing, failover, access keys, quotas and usage. Supported routes provide OpenAI-, Claude- and Gemini-compatible API formats. The default listener is local to your computer; you control storage and network exposure.\n\nThis edition has no browser console. For the same gateway with a built-in browser console, choose GPROXY CLI; for a graphical application, choose GPROXY Desktop. The gproxy-headless command does not replace the gproxy command of GPROXY CLI.\n\nProvider accounts, model access, charges and service terms are separate from this app. Requests are sent to your configured providers. No model subscription or provider credentials are included. Microsoft Store manages updates for Store-installed copies.\n\nGPROXY is open source under AGPL-3.0-or-later. Documentation: https://gproxy.leenhawk.com/  Source: https://github.com/LeenHawk/gproxy",
+        "features": [
+          "Bring your own AI provider accounts and credentials",
+          "OpenAI-, Claude- and Gemini-compatible API formats on supported routes",
+          "Model routing, load balancing and failover",
+          "Access keys, permissions and quota management through the management API",
+          "No bundled web console or frontend assets",
+          "Open source under AGPL-3.0-or-later"
+        ],
+        "keywords": [
+          "AI gateway",
+          "API proxy",
+          "LLM",
+          "developer tools",
+          "load balancing",
+          "self hosted",
+          "headless"
+        ],
+        "websiteUrl": "https://gproxy.leenhawk.com/",
+        "supportContact": "https://github.com/LeenHawk/gproxy/issues",
+        "copyrightAndTrademarkInfo": "GPROXY contributors. OpenAI, Claude and Gemini are trademarks of their respective owners; their names describe API compatibility.",
+        "licenseTerms": "GPROXY is licensed under GNU AGPL version 3 or later (AGPL-3.0-or-later). License and source code: https://github.com/LeenHawk/gproxy . Third-party AI services have their own terms and charges.",
+        "shortDescription": "Run an open-source AI API gateway from your terminal, without a web console. Bring your own providers and configure routes, credentials and quotas through the CLI or management API.",
+        "shortTitle": "GPROXY Headless",
+        "voiceTitle": "G Proxy Headless",
+        "devStudio": "Leen Hawk"
+      },
+      "zh-cn": {
+        "description": "GPROXY Headless 是开源 AI API 网关的无前端命令行版，不含 Web 控制台，适合服务器、CI 和脚本化部署。在 Windows Terminal 或 PowerShell 中以 gproxy-headless 命令运行，通过命令行或管理 API 配置。\n\n启动命令：gproxy-headless serve --data-dir \"$env:LOCALAPPDATA\\GPROXY\" --port 8787\n请保存首次启动时输出的管理员凭据。如需加密存储供应商凭据，请在添加凭据前配置并妥善保存 GPROXY_MASTER_KEY。\n\n接入你自己的 AI 供应商，管理凭据、模型路由、负载均衡、故障切换、访问密钥、额度与用量。在支持的路由中，可使用 OpenAI、Claude 和 Gemini 兼容 API 格式。默认仅监听本机地址，存储位置和网络开放范围由你决定。\n\n本版本不含浏览器控制台。如需内置浏览器控制台的同一网关，请选择 GPROXY CLI；如需图形应用，请选择 GPROXY Desktop。gproxy-headless 命令不会替换 GPROXY CLI 的 gproxy 命令。\n\n供应商账号、模型访问权限、费用和服务条款独立于本应用，请求会发送到你配置的供应商。本应用不附带模型订阅或供应商凭据。商店安装版本由 Microsoft Store 管理更新。\n\nGPROXY 以 AGPL-3.0-or-later 开源。文档：https://gproxy.leenhawk.com/  源码：https://github.com/LeenHawk/gproxy",
+        "features": [
+          "使用自己的 AI 供应商账号和凭据",
+          "支持的路由提供 OpenAI、Claude 和 Gemini 兼容 API 格式",
+          "模型路由、负载均衡与故障切换",
+          "通过管理 API 管理访问密钥、权限与额度",
+          "不包含 Web 控制台和前端资源",
+          "以 AGPL-3.0-or-later 开源"
+        ],
+        "keywords": [
+          "AI gateway",
+          "API proxy",
+          "LLM",
+          "developer tools",
+          "load balancing",
+          "self hosted",
+          "headless"
+        ],
+        "websiteUrl": "https://gproxy.leenhawk.com/",
+        "supportContact": "https://github.com/LeenHawk/gproxy/issues",
+        "copyrightAndTrademarkInfo": "GPROXY contributors. OpenAI, Claude and Gemini are trademarks of their respective owners; their names describe API compatibility.",
+        "licenseTerms": "GPROXY is licensed under GNU AGPL version 3 or later (AGPL-3.0-or-later). License and source code: https://github.com/LeenHawk/gproxy . Third-party AI services have their own terms and charges.",
+        "shortDescription": "在终端中运行不含 Web 控制台的开源 AI API 网关。接入自己的供应商，通过命令行或管理 API 配置路由、凭据与额度。",
+        "shortTitle": "GPROXY Headless",
+        "voiceTitle": "G Proxy Headless",
+        "devStudio": "Leen Hawk"
+      },
+      "zh-tw": {
+        "description": "GPROXY Headless 是開源 AI API 閘道的無前端命令列版，不含 Web 主控台，適合伺服器、CI 和指令碼化部署。在 Windows Terminal 或 PowerShell 中以 gproxy-headless 命令執行，透過命令列或管理 API 設定。\n\n啟動命令：gproxy-headless serve --data-dir \"$env:LOCALAPPDATA\\GPROXY\" --port 8787\n請保存首次啟動時輸出的管理員憑證。如需加密儲存供應商憑證，請在新增憑證前設定並妥善保存 GPROXY_MASTER_KEY。\n\n接入你自己的 AI 供應商，管理憑證、模型路由、負載平衡、容錯移轉、存取金鑰、額度與用量。在支援的路由中，可使用 OpenAI、Claude 和 Gemini 相容 API 格式。預設僅監聽本機位址，儲存位置和網路開放範圍由你決定。\n\n本版本不含瀏覽器主控台。如需內建瀏覽器主控台的同一閘道，請選擇 GPROXY CLI；如需圖形應用程式，請選擇 GPROXY Desktop。gproxy-headless 命令不會取代 GPROXY CLI 的 gproxy 命令。\n\n供應商帳號、模型存取權限、費用和服務條款獨立於本應用程式，請求會傳送到你設定的供應商。本應用程式不附帶模型訂閱或供應商憑證。商店安裝版本由 Microsoft Store 管理更新。\n\nGPROXY 以 AGPL-3.0-or-later 開源。文件：https://gproxy.leenhawk.com/  原始碼：https://github.com/LeenHawk/gproxy",
+        "features": [
+          "使用自己的 AI 供應商帳號和憑證",
+          "支援的路由提供 OpenAI、Claude 和 Gemini 相容 API 格式",
+          "模型路由、負載平衡與容錯移轉",
+          "透過管理 API 管理存取金鑰、權限與額度",
+          "不包含 Web 主控台和前端資源",
+          "以 AGPL-3.0-or-later 開源"
+        ],
+        "keywords": [
+          "AI gateway",
+          "API proxy",
+          "LLM",
+          "developer tools",
+          "load balancing",
+          "self hosted",
+          "headless"
+        ],
+        "websiteUrl": "https://gproxy.leenhawk.com/",
+        "supportContact": "https://github.com/LeenHawk/gproxy/issues",
+        "copyrightAndTrademarkInfo": "GPROXY contributors. OpenAI, Claude and Gemini are trademarks of their respective owners; their names describe API compatibility.",
+        "licenseTerms": "GPROXY is licensed under GNU AGPL version 3 or later (AGPL-3.0-or-later). License and source code: https://github.com/LeenHawk/gproxy . Third-party AI services have their own terms and charges.",
+        "shortDescription": "在終端機中執行不含 Web 主控台的開源 AI API 閘道。接入自己的供應商，透過命令列或管理 API 設定路由、憑證與額度。",
+        "shortTitle": "GPROXY Headless",
+        "voiceTitle": "G Proxy Headless",
         "devStudio": "Leen Hawk"
       }
     }
