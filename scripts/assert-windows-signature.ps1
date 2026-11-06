@@ -18,8 +18,10 @@ function Assert-WindowsSignature([string]$Path) {
     }
     # An untrusted self-signed root reports UnknownError. Trust the pinned
     # certificate for this check only, then let Windows verify again.
+    # LocalMachine (runners are elevated): adding to CurrentUser\Root opens a
+    # confirmation dialog that blocks a non-interactive runner forever.
     $certificate = $signature.SignerCertificate
-    $store = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'CurrentUser')
+    $store = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'LocalMachine')
     $added = $false
     try {
         $store.Open('ReadWrite')

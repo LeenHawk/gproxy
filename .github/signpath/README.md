@@ -100,7 +100,8 @@ Setting `SIGNPATH_SIGNING_POLICY_SLUG=test-signing` keeps submitting real
 signing requests during onboarding. It requires
 `SIGNPATH_TEST_CERTIFICATE_THUMBPRINT` (SHA-1, 40 hex characters); the
 verifiers (`scripts/assert-windows-signature.ps1`) require that exact signer,
-trust it in the runner's current-user root store only for the check, and relax
+trust it in the runner's local-machine root store only for the check (the
+current-user store would block on a confirmation dialog), and relax
 the timestamp requirement. Test-signed packages are never published: the
 original packages and checksums are kept and the job summary records the
 verified test signature. `SIGNPATH_MSIX_PUBLISHER` must then be the test
