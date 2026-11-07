@@ -7,6 +7,12 @@
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B37316%2Fgithub.com%2FLeenHawk%2Fgproxy.svg?type=shield)](https://app.fossa.com/projects/custom%2B37316%2Fgithub.com%2FLeenHawk%2Fgproxy?ref=badge_shield)
 
+<a href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32"></a>
+<a href="https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless"><img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" height="32"></a>
+<a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D"><img src="https://vercel.com/button" alt="Deploy with Vercel" height="32"></a>
+<a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
+<a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
+
 GPROXY — самостоятельно размещаемый шлюз для API языковых моделей, написанный
 на Rust. Вы передаёте ему свои учётные записи у провайдеров (API-ключи,
 OAuth-вход вроде Codex или Claude Code, cookie браузера), а клиенты получают
@@ -22,25 +28,6 @@ API-ключи, права, ограничения частоты и бюдже�
 Сам GPROXY модели не запускает: генерацию выполняет вышестоящий сервис.
 
 Документация: **<https://gproxy.leenhawk.com/ru/>**
-
-## Размещение на платформах
-
-Шаблоны для Cloudflare, Netlify и Vercel разворачивают готовую сборку последней
-стабильной версии, ничего не компилируя. Cloudflare использует D1 или
-libSQL/Turso, две другие платформы — PostgreSQL. Render и Heroku запускают
-обычный исполняемый файл в небольшом контейнере, тоже с PostgreSQL.
-
-<a href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32"></a>
-<a href="https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless"><img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" height="32"></a>
-<a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D"><img src="https://vercel.com/button" alt="Deploy with Vercel" height="32"></a>
-<a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
-<a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
-
-При развёртывании понадобятся пароль администратора и мастер-ключ. Сначала
-прочитайте [Размещение на платформах](https://gproxy.leenhawk.com/ru/deployment/edge)
-и [Docker, Render и Heroku](https://gproxy.leenhawk.com/ru/deployment/containers):
-там описаны выбор базы данных, стоимость тарифов и то, что не работает на
-бессерверных платформах (например, WebSocket).
 
 ![Страница провайдеров в консоли](.github/readme/providers-en.webp)
 
@@ -151,6 +138,20 @@ Gemini (`/v1beta/models/fast:generateContent`). Пошагово всё это �
 
 В настольном и мобильном приложении те же шаги выполняет мастер настройки, а
 консоль встроена в само приложение.
+
+## Размещение на платформах
+
+Кнопки развёртывания в начале страницы используют описанные здесь шаблоны. Шаблоны для
+Cloudflare, Netlify и Vercel разворачивают готовую сборку последней
+стабильной версии, ничего не компилируя. Cloudflare использует D1 или
+libSQL/Turso, две другие платформы — PostgreSQL. Render и Heroku запускают
+обычный исполняемый файл в небольшом контейнере, тоже с PostgreSQL.
+
+При развёртывании понадобятся пароль администратора и мастер-ключ. Сначала
+прочитайте [Размещение на платформах](https://gproxy.leenhawk.com/ru/deployment/edge)
+и [Docker, Render и Heroku](https://gproxy.leenhawk.com/ru/deployment/containers):
+там описаны выбор базы данных, стоимость тарифов и то, что не работает на
+бессерверных платформах (например, WebSocket).
 
 ## Обновление с v3
 
