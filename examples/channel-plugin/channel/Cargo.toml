@@ -15,7 +15,7 @@ publish = false
 # Workspace members so CI keeps them compiling against the current contract,
 # but not default members: nothing in the product depends on them. Outside this
 # repository, replace each `workspace = true` with a path dependency on a
-# gproxy checkout; see docs/src/content/docs/guides/adding-a-channel.md.
+# gproxy checkout; see docs/development/adding-a-channel.mdx.
 
 [dependencies]
 # The contract: `BaseChannel`, its context types and errors.

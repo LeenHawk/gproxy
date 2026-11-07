@@ -6,46 +6,46 @@
 
 ## English
 
-Thank you for your interest in GPROXY. Bug reports, fixes, new channels,
-translations and documentation improvements are all welcome. By participating
-you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+Bug reports, fixes, new channels, translations and documentation fixes are all
+welcome. By taking part you agree to follow the [Code of
+Conduct](CODE_OF_CONDUCT.md).
 
-### Before you start
+### Where to go
 
-- **Security vulnerabilities** must not be reported publicly; see
-  [SECURITY.md](SECURITY.md).
-- **Questions** about configuration, deployment or usage go to
-  [Discussions](https://github.com/LeenHawk/gproxy/discussions/categories/q-a).
-- **Bugs and feature requests** go to
-  [Issues](https://github.com/LeenHawk/gproxy/issues). Search existing issues
-  first. For anything you prefer not to post publicly, email
-  <leenhawk@leenhawk.com>.
-- **Accessibility barriers** are bugs; see [ACCESSIBILITY.md](ACCESSIBILITY.md)
-  for how to report them.
-- **Larger changes** — a new channel, a new protocol, a schema change or a new
-  page in the console — should start with an issue so the design can be agreed
-  before you write a lot of code.
-- New upstream channels follow
-  [Adding a channel](https://gproxy.leenhawk.com/guides/adding-a-channel/).
-  A channel you would rather not upstream can ship from your own crate instead;
-  the same page covers that.
+Security vulnerabilities must not be reported in public; follow
+[SECURITY.md](SECURITY.md) instead.
+
+Questions about configuration, deployment or usage belong in
+[Discussions](https://github.com/LeenHawk/gproxy/discussions/categories/q-a).
+Bugs and feature requests go to
+[Issues](https://github.com/LeenHawk/gproxy/issues); please search first. If
+you would rather not post something publicly, email <leenhawk@leenhawk.com>.
+Accessibility problems are bugs too; [ACCESSIBILITY.md](ACCESSIBILITY.md)
+explains how to report them.
+
+Open an issue before starting on anything large, such as a new channel, a new
+protocol, a schema change or a new console page, so that the design can be
+agreed before you write a lot of code. A new upstream channel follows [Adding
+a channel](https://gproxy.leenhawk.com/development/adding-a-channel/). If you
+would rather not have your channel in this repository, you can ship it from
+your own crate; the same page explains how.
 
 ### Branches
 
-| Branch | Purpose | Target your PR here when… |
-| --- | --- | --- |
-| `main` | Released functionality and bug fixes; publishes to the beta channel | you fix a bug in the current stable release |
-| `dev` | New features and the next major version; publishes to the nightly channel | you add a feature or change behavior |
+`main` holds the released version and receives bug fixes; pushes to it
+publish to the beta update channel. `dev` is where new features and the next
+major version are developed; pushes to it publish to the nightly channel. Base
+a bug fix for the current stable release on `main`, and anything that adds a
+feature or changes behaviour on `dev`.
 
-`dev` is regularly rebased onto `main`. Keep your branch up to date by
-**rebasing** rather than merging, and keep each pull request focused on one
-change.
+`dev` is rebased onto `main` regularly, so keep your branch up to date by
+rebasing rather than merging. Keep each pull request to one change.
 
-### Development setup
+### Setting up
 
-Native builds require stable Rust, Go and Clang. The console and docs require
-Node.js 22.12+ (24 LTS recommended) and pnpm. Linux desktop builds also require
-the WebKitGTK 4.1, GTK 3 and libsoup 3 development packages.
+Native builds need stable Rust, Go and Clang. The console and the docs need
+Node.js 22.12 or later (24 LTS recommended) and pnpm. Linux desktop builds
+also need the development packages for WebKitGTK 4.1, GTK 3 and libsoup 3.
 
 ```sh
 pnpm --dir console install --frozen-lockfile
@@ -53,13 +53,13 @@ pnpm --dir console build      # also syncs the embedded console assets
 cargo run -p gproxy -- serve
 ```
 
-Use a fresh data directory for local testing, and never point a development
-instance at a production database or reuse production upstream credentials.
+Test against a fresh data directory. Do not point a development instance at a
+production database or give it production upstream credentials.
 
 ### Checks
 
-Run the checks relevant to your change before opening a pull request; CI runs
-all of them:
+CI runs all of the following. Before opening a pull request, run the ones that
+your change touches:
 
 ```sh
 cargo fmt --all --check
@@ -70,38 +70,44 @@ pnpm --dir console test
 git submodule update --init docs && pnpm --dir docs install && pnpm --dir docs check
 ```
 
-See [Building from source](https://gproxy.leenhawk.com/deployment/release-build/)
-for desktop, mobile and WASM builds.
+Desktop, mobile and WebAssembly builds are described in [Building from
+source](https://gproxy.leenhawk.com/development/building/).
 
 ### Guidelines
 
-- **Code style** — follow the surrounding code: naming, comment density and
-  idioms. Keep changes minimal and avoid unrelated reformatting.
-- **Tests** — bug fixes should come with a regression test where practical.
-  Do not commit scratch or one-off reproduction tests.
-- **Translations** — console strings live in `console/src/locales/`
-  (`en`, `ru`, `zh-CN`, `zh-TW`); add a key to all four. `pnpm --dir console lint`
-  checks parity.
-- **Documentation** — user-visible changes should update the docs in
-  `docs/src/content/docs/`, in English and in `zh-cn/`, `zh-tw/` and `ru/`.
-  `docs/` is the [gproxy-docs](https://github.com/LeenHawk/gproxy-docs)
-  submodule: open the docs change there.
-- **Generated types** — if you change DTOs exported to TypeScript, run
-  `pnpm --dir console types` and commit the result.
-- **Secrets and captures** — never commit API keys, OAuth tokens, cookies,
-  account identifiers or unredacted upstream responses, including in tests,
-  fixtures, screenshots and issue comments.
+Follow the style of the code around your change: its naming, how much it
+comments and the idioms it uses. Keep the diff small and leave unrelated
+formatting alone.
+
+A bug fix should come with a regression test where that is practical. Do not
+commit scratch tests or one-off reproductions.
+
+Console strings live in `console/src/locales/` (`en`, `ru`, `zh-CN`, `zh-TW`).
+A new key has to be added in all four; `pnpm --dir console lint` checks this.
+
+A change that users can see should also update the documentation, in English
+and in `zh-cn/`, `zh-tw/` and `ru/`. The documentation lives in `docs/`, which
+is the [gproxy-docs](https://github.com/LeenHawk/gproxy-docs) submodule, so
+open the docs change in that repository.
+
+If you change a DTO that is exported to TypeScript, run
+`pnpm --dir console types` and commit the result.
+
+Never commit API keys, OAuth tokens, cookies, account identifiers or
+unredacted upstream responses. That includes tests, fixtures, screenshots and
+issue comments.
 
 ### Commit messages
 
-Use [Conventional Commits](https://www.conventionalcommits.org/):
+Commit messages follow [Conventional
+Commits](https://www.conventionalcommits.org/):
 
 ```text
 <type>(<optional scope>): <summary in imperative mood>
 ```
 
-Common types: `feat`, `fix`, `docs`, `ci`, `build`, `refactor`, `perf`,
-`test`, `chore`. Examples:
+The usual types are `feat`, `fix`, `docs`, `ci`, `build`, `refactor`, `perf`,
+`test` and `chore`. For example:
 
 ```text
 fix(claude): keep the signature on empty thinking blocks
@@ -110,60 +116,46 @@ feat(console): add a credential health filter
 
 ### Pull requests
 
-1. Fork the repository and create a branch from `main` (bug fix) or `dev`
-   (feature).
-2. Make your change, with tests and documentation.
+1. Fork the repository and branch from `main` for a bug fix or from `dev` for
+   a feature.
+2. Make the change, including tests and documentation.
 3. Run the checks above.
-4. Open a pull request against the matching branch and fill in the template.
+4. Open the pull request against the same branch and fill in the template.
 
-The maintainer may ask for changes, squash commits, or rebase your branch when
-merging.
+The maintainer may ask for changes, and may squash your commits or rebase your
+branch when merging.
 
 ### License
 
-GPROXY is licensed under **AGPL-3.0-or-later**; some crates
-(`gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`,
-`gproxy-file`, `gproxy-seaorm`, `gproxy-tokenizer`) are **MIT**. By submitting
-a contribution, you agree that it is licensed under the license of the files
-or crate you change.
+GPROXY is licensed under the AGPL-3.0-or-later. The crates `gproxy-protocol`,
+`gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`, `gproxy-file`,
+`gproxy-seaorm` and `gproxy-tokenizer` are MIT-licensed. By submitting a
+contribution you agree that it is licensed under the license of the files or
+crate it changes.
 
 ---
 
 ## 简体中文
 
-感谢你关注 GPROXY。欢迎提交问题反馈、修复、新渠道、翻译和文档改进。
-参与本项目即表示你同意遵守[行为准则](CODE_OF_CONDUCT.md)。
+欢迎提交问题反馈、修复、新渠道、翻译和文档修正。参与本项目即表示你同意遵守[行为准则](CODE_OF_CONDUCT.md)。
 
-### 开始之前
+### 问题发到哪里
 
-- **安全漏洞**请勿公开报告，详见 [SECURITY.md](SECURITY.md)。
-- **使用问题**（配置、部署、使用方法）请发到
-  [Discussions](https://github.com/LeenHawk/gproxy/discussions/categories/q-a)。
-- **Bug 与功能建议**请提交到 [Issues](https://github.com/LeenHawk/gproxy/issues)，
-  提交前请先搜索是否已有相同问题。不便公开的内容可以发邮件到
-  <leenhawk@leenhawk.com>。
-- **无障碍障碍**同样按 Bug 处理，报告方式见 [ACCESSIBILITY.md](ACCESSIBILITY.md)。
-- **较大的改动**——新渠道、新协议、数据库结构变更或控制台新页面——请先开 Issue
-  讨论方案，再动手写大量代码。
-- 新增上游渠道请参考
-  [添加渠道](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)。
-  不打算合进上游的渠道也可以放在你自己的 crate 里发布，同一页有说明。
+安全漏洞不要公开报告，请按 [SECURITY.md](SECURITY.md) 的方式联系。
+
+配置、部署和使用上的问题请发到 [Discussions](https://github.com/LeenHawk/gproxy/discussions/categories/q-a)。Bug 和功能建议提交到 [Issues](https://github.com/LeenHawk/gproxy/issues)，提交前请先搜索有没有相同的问题。不方便公开的内容可以发邮件到 <leenhawk@leenhawk.com>。无障碍方面的问题同样算作 Bug，报告方式见 [ACCESSIBILITY.md](ACCESSIBILITY.md)。
+
+新渠道、新协议、数据库结构变更、控制台新页面这类较大的改动，请先开 Issue 把方案讨论清楚，再开始写大量代码。新增上游渠道的步骤见[添加渠道](https://gproxy.leenhawk.com/zh-cn/development/adding-a-channel/)；不想合进本仓库的渠道也可以放在你自己的 crate 里发布，同一页有说明。
 
 ### 分支
 
-| 分支 | 用途 | 何时向它提 PR |
-| --- | --- | --- |
-| `main` | 已发布功能与 Bug 修复；发布到 beta 通道 | 修复当前稳定版中的 Bug |
-| `dev` | 新功能和下一个大版本；发布到 nightly 通道 | 新增功能或改变现有行为 |
+`main` 是已发布的版本，接收 Bug 修复，推送后发布到 beta 更新通道。`dev` 用来开发新功能和下一个大版本，推送后发布到 nightly 通道。修复当前稳定版的 Bug 请基于 `main`；新增功能或改变现有行为的改动请基于 `dev`。
 
-`dev` 会定期 rebase 到 `main` 上。请用 **rebase** 而不是 merge 来同步你的分支，
-每个 Pull Request 只做一件事。
+`dev` 会定期 rebase 到 `main` 上，所以同步你的分支时请用 rebase，不要用 merge。每个 Pull Request 只做一件事。
 
 ### 开发环境
 
-原生构建需要 stable Rust、Go 和 Clang。控制台和文档需要 Node.js 22.12+
-（推荐 24 LTS）和 pnpm。Linux 桌面端构建还需要 WebKitGTK 4.1、GTK 3 和
-libsoup 3 的开发包。
+原生构建需要 stable Rust、Go 和 Clang。控制台和文档需要 Node.js 22.12 或更高版本（推荐 24 LTS）以及 pnpm。在 Linux 上构建桌面端，还需要 WebKitGTK 4.1、GTK 3 和 libsoup 3 的开发包。
 
 ```sh
 pnpm --dir console install --frozen-lockfile
@@ -171,11 +163,11 @@ pnpm --dir console build      # 同时同步内嵌的控制台资源
 cargo run -p gproxy -- serve
 ```
 
-本地测试请使用全新的数据目录，切勿让开发实例连接生产数据库或复用生产环境的上游凭据。
+本地测试请使用全新的数据目录。不要让开发实例连接生产数据库，也不要给它使用生产环境的上游凭证。
 
 ### 检查
 
-提交 Pull Request 前请运行与你的改动相关的检查，CI 会全部运行：
+以下检查 CI 都会运行。提交 Pull Request 之前，请至少运行与你的改动有关的几项：
 
 ```sh
 cargo fmt --all --check
@@ -186,34 +178,31 @@ pnpm --dir console test
 git submodule update --init docs && pnpm --dir docs install && pnpm --dir docs check
 ```
 
-桌面端、移动端和 WASM 构建见
-[从源码构建](https://gproxy.leenhawk.com/zh-cn/deployment/release-build/)。
+桌面端、移动端和 WebAssembly 的构建见[从源码构建](https://gproxy.leenhawk.com/zh-cn/development/building/)。
 
 ### 约定
 
-- **代码风格**——与周边代码保持一致：命名、注释密度和惯用写法。改动尽量精简，
-  不要夹带无关的格式调整。
-- **测试**——修复 Bug 时尽量附上回归测试。不要提交临时的复现测试。
-- **翻译**——控制台文案位于 `console/src/locales/`（`en`、`ru`、`zh-CN`、`zh-TW`），
-  新增键需在四种语言中都添加；`pnpm --dir console lint` 会检查一致性。
-- **文档**——用户可见的改动请同步更新 `docs/src/content/docs/` 中的文档，
-  英文、`zh-cn/`、`zh-tw/` 和 `ru/` 都要改。
-  `docs/` 是 [gproxy-docs](https://github.com/LeenHawk/gproxy-docs) 子模块，文档改动请在那里提交。
-- **生成类型**——修改了导出到 TypeScript 的 DTO 时，请运行
-  `pnpm --dir console types` 并提交生成结果。
-- **密钥与抓包**——切勿提交 API Key、OAuth Token、Cookie、账号标识或未脱敏的
-  上游响应，测试、fixture、截图和 Issue 评论中同样如此。
+代码风格跟随周围的代码，包括命名、注释的多少和惯用写法。改动尽量小，不要顺手调整无关的格式。
+
+修复 Bug 时，能写回归测试的话请一并提交。临时测试和一次性的复现代码不要提交。
+
+控制台文案在 `console/src/locales/` 下（`en`、`ru`、`zh-CN`、`zh-TW`），新增的键四种语言都要加，`pnpm --dir console lint` 会检查。
+
+用户能感知到的改动需要同步更新文档，英文以及 `zh-cn/`、`zh-tw/`、`ru/` 都要改。文档在 `docs/` 目录，它是 [gproxy-docs](https://github.com/LeenHawk/gproxy-docs) 子模块，文档改动请提交到那个仓库。
+
+修改了导出到 TypeScript 的 DTO 时，请运行 `pnpm --dir console types` 并提交生成的文件。
+
+不要提交 API Key、OAuth Token、Cookie、账号标识或未脱敏的上游响应。测试、fixture、截图和 Issue 评论里也一样。
 
 ### 提交信息
 
-使用 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 格式：
+提交信息使用 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 格式，摘要用英文祈使句：
 
 ```text
-<type>(<可选 scope>): <祈使语气的英文摘要>
+<type>(<可选 scope>): <summary in imperative mood>
 ```
 
-常用类型：`feat`、`fix`、`docs`、`ci`、`build`、`refactor`、`perf`、
-`test`、`chore`。示例：
+常用的类型有 `feat`、`fix`、`docs`、`ci`、`build`、`refactor`、`perf`、`test` 和 `chore`。例如：
 
 ```text
 fix(claude): keep the signature on empty thinking blocks
@@ -222,125 +211,128 @@ feat(console): add a credential health filter
 
 ### Pull Request
 
-1. Fork 本仓库，从 `main`（Bug 修复）或 `dev`（新功能）创建分支。
-2. 完成改动，并附上测试和文档。
-3. 运行上述检查。
-4. 向对应分支提交 Pull Request，并填写模板。
+1. Fork 本仓库。修 Bug 从 `main` 建分支，加功能从 `dev` 建分支。
+2. 完成改动，包括测试和文档。
+3. 运行上面的检查。
+4. 向对应的分支提交 Pull Request，并填写模板。
 
-维护者可能会要求修改，或在合并时压缩提交、rebase 你的分支。
+维护者可能会要求修改，合并时也可能压缩你的提交或 rebase 你的分支。
 
 ### 许可证
 
-GPROXY 采用 **AGPL-3.0-or-later** 许可；部分 crate（`gproxy-protocol`、
-`gproxy-protocol-macros`、`gproxy-client`、`gproxy-cache`、`gproxy-file`、
-`gproxy-seaorm`、`gproxy-tokenizer`）采用 **MIT** 许可。提交贡献即表示你同意
-该贡献以你所修改的文件或 crate 的许可证授权。
+GPROXY 采用 AGPL-3.0-or-later 许可证；`gproxy-protocol`、`gproxy-protocol-macros`、`gproxy-client`、`gproxy-cache`、`gproxy-file`、`gproxy-seaorm` 和 `gproxy-tokenizer` 这几个 crate 采用 MIT 许可证。提交贡献即表示你同意这份贡献按它所修改的文件或 crate 的许可证授权。
 
 ---
 
 ## Русский
 
-Спасибо за интерес к GPROXY. Мы рады сообщениям об ошибках, исправлениям, новым
-каналам, переводам и улучшениям документации. Участвуя в проекте, вы
-соглашаетесь соблюдать [Кодекс поведения](CODE_OF_CONDUCT.md).
+Мы принимаем сообщения об ошибках, исправления, новые каналы, переводы и
+правки документации. Участвуя в проекте, вы соглашаетесь соблюдать [Кодекс
+поведения](CODE_OF_CONDUCT.md).
 
-### Прежде чем начать
+### Куда обращаться
 
-- **Об уязвимостях безопасности** нельзя сообщать публично; см.
-  [SECURITY.md](SECURITY.md).
-- **Вопросы** о настройке, развертывании или использовании задавайте в
-  [Discussions](https://github.com/LeenHawk/gproxy/discussions/categories/q-a).
-- **Ошибки и предложения функций** отправляйте в
-  [Issues](https://github.com/LeenHawk/gproxy/issues). Сначала поищите среди
-  существующих issue. Если что-то вы предпочитаете не публиковать открыто,
-  напишите на <leenhawk@leenhawk.com>.
-- **Барьеры доступности** считаются ошибками; о том, как о них сообщить, см.
-  [ACCESSIBILITY.md](ACCESSIBILITY.md).
-- **Крупные изменения** — новый канал, новый протокол, изменение схемы или новая
-  страница в консоли — следует начинать с issue, чтобы согласовать архитектуру
-  до того, как вы напишете много кода.
-- Новые вышестоящие каналы добавляются по руководству
-  [Добавление канала](https://gproxy.leenhawk.com/ru/guides/adding-a-channel/).
-  Канал, который вы не хотите передавать в основной репозиторий, можно
-  поставлять из собственного crate; это описано на той же странице.
+Об уязвимостях нельзя сообщать публично; порядок описан в
+[SECURITY.md](SECURITY.md).
+
+Вопросы о настройке, развёртывании и использовании задавайте в
+[Discussions](https://github.com/LeenHawk/gproxy/discussions/categories/q-a).
+Ошибки и предложения отправляйте в
+[Issues](https://github.com/LeenHawk/gproxy/issues), предварительно поискав
+похожие. Если что-то не хочется публиковать, напишите на
+<leenhawk@leenhawk.com>. Проблемы доступности тоже считаются ошибками; как о
+них сообщать, написано в [ACCESSIBILITY.md](ACCESSIBILITY.md).
+
+Прежде чем браться за крупное изменение (новый канал, новый протокол,
+изменение схемы базы данных, новую страницу консоли), откройте issue и
+согласуйте подход, пока не написано много кода. Новый канал добавляется по
+руководству [Добавление
+канала](https://gproxy.leenhawk.com/ru/development/adding-a-channel/). Канал,
+который вы не хотите включать в этот репозиторий, можно поставлять из
+собственного крейта; это описано там же.
 
 ### Ветки
 
-| Ветка | Назначение | Направляйте PR сюда, когда… |
-| --- | --- | --- |
-| `main` | Выпущенная функциональность и исправления ошибок; публикуется в канал beta | вы исправляете ошибку в текущем стабильном выпуске |
-| `dev` | Новые функции и следующая мажорная версия; публикуется в канал nightly | вы добавляете функцию или меняете поведение |
+В `main` находится выпущенная версия, туда попадают исправления ошибок;
+отправка в неё публикует сборку в бета-канале обновлений. В `dev`
+разрабатываются новые возможности и следующая мажорная версия; отправка в неё
+публикует сборку в канале nightly. Исправление ошибки текущей стабильной
+версии делайте от `main`, а новые возможности и изменения поведения — от `dev`.
 
-`dev` регулярно перебазируется на `main`. Поддерживайте свою ветку в актуальном
-состоянии с помощью **rebase**, а не merge, и ограничивайте каждый pull request
-одним изменением.
+`dev` регулярно перебазируется на `main`, поэтому обновляйте свою ветку
+через rebase, а не merge. Один pull request — одно изменение.
 
 ### Среда разработки
 
-Для нативных сборок нужны stable Rust, Go и Clang. Для консоли и документации
-нужны Node.js 22.12+ (рекомендуется 24 LTS) и pnpm. Для сборки настольного
-приложения под Linux также нужны пакеты разработки WebKitGTK 4.1, GTK 3 и
-libsoup 3.
+Для нативной сборки нужны стабильный Rust, Go и Clang. Для консоли и
+документации — Node.js 22.12 или новее (рекомендуется 24 LTS) и pnpm. Для
+сборки настольного приложения в Linux также нужны пакеты разработки WebKitGTK
+4.1, GTK 3 и libsoup 3.
 
 ```sh
 pnpm --dir console install --frozen-lockfile
-pnpm --dir console build      # также синхронизирует встроенные ресурсы консоли
+pnpm --dir console build      # заодно синхронизирует встроенные файлы консоли
 cargo run -p gproxy -- serve
 ```
 
-Для локального тестирования используйте новый каталог данных и никогда не
-подключайте экземпляр для разработки к рабочей базе данных и не используйте
-повторно рабочие учётные данные провайдеров.
+Для проверки используйте новый каталог данных. Не подключайте
+разработческий экземпляр к рабочей базе данных и не давайте ему рабочие
+учётные данные провайдеров.
 
 ### Проверки
 
-Перед открытием pull request запустите проверки, относящиеся к вашему изменению;
-CI запускает их все:
+CI выполняет все перечисленные ниже проверки. Перед отправкой pull request
+запустите те, которые затрагивает ваше изменение:
 
 ```sh
 cargo fmt --all --check
 cargo clippy --all-targets -- -D warnings
 cargo test
-pnpm --dir console lint       # включает TypeScript, ESLint и проверку согласованности i18n
+pnpm --dir console lint       # включает TypeScript, ESLint и проверку переводов
 pnpm --dir console test
 git submodule update --init docs && pnpm --dir docs install && pnpm --dir docs check
 ```
 
-О сборках для настольных систем, мобильных устройств и WASM см.
-[Сборка из исходного кода](https://gproxy.leenhawk.com/ru/deployment/release-build/).
+Сборка настольных и мобильных приложений и WebAssembly описана в разделе
+[Сборка из исходного кода](https://gproxy.leenhawk.com/ru/development/building/).
 
 ### Правила
 
-- **Стиль кода** — следуйте окружающему коду: именованию, плотности комментариев
-  и идиомам. Делайте изменения минимальными и избегайте несвязанного
-  переформатирования.
-- **Тесты** — исправления ошибок по возможности должны сопровождаться
-  регрессионным тестом. Не фиксируйте черновые или одноразовые тесты
-  воспроизведения.
-- **Переводы** — строки консоли находятся в `console/src/locales/`
-  (`en`, `ru`, `zh-CN`, `zh-TW`); добавляйте ключ во все четыре.
-  `pnpm --dir console lint` проверяет их согласованность.
-- **Документация** — видимые пользователю изменения должны сопровождаться
-  обновлением документации в `docs/src/content/docs/` — английской версии,
-  а также `zh-cn/`, `zh-tw/` и `ru/`.
-  `docs/` — это подмодуль [gproxy-docs](https://github.com/LeenHawk/gproxy-docs): изменения документации отправляйте туда.
-- **Генерируемые типы** — если вы изменяете DTO, экспортируемые в TypeScript,
-  выполните `pnpm --dir console types` и зафиксируйте результат.
-- **Секреты и перехваченный трафик** — никогда не фиксируйте ключи API,
-  токены OAuth, файлы cookie, идентификаторы учётных записей или неотредактированные
-  ответы провайдеров, в том числе в тестах, фикстурах, снимках экрана и
-  комментариях к issue.
+Пишите в стиле окружающего кода: те же имена, та же плотность комментариев,
+те же приёмы. Делайте изменения небольшими и не трогайте форматирование там,
+где вы ничего не меняли.
+
+К исправлению ошибки по возможности прилагайте регрессионный тест. Черновые
+тесты и одноразовые воспроизведения не коммитьте.
+
+Строки консоли лежат в `console/src/locales/` (`en`, `ru`, `zh-CN`, `zh-TW`).
+Новый ключ нужно добавить во все четыре файла; `pnpm --dir console lint` это
+проверяет.
+
+Если изменение заметно пользователю, обновите и документацию: английскую
+версию, а также `zh-cn/`, `zh-tw/` и `ru/`. Документация находится в `docs/`,
+это подмодуль [gproxy-docs](https://github.com/LeenHawk/gproxy-docs), поэтому
+изменения документации отправляйте в тот репозиторий.
+
+Если вы изменили DTO, экспортируемый в TypeScript, выполните
+`pnpm --dir console types` и закоммитьте результат.
+
+Никогда не коммитьте API-ключи, токены OAuth, cookie, идентификаторы учётных
+записей и неочищенные ответы провайдеров — ни в тестах, ни в фикстурах, ни на
+скриншотах, ни в комментариях к issue.
 
 ### Сообщения коммитов
 
-Используйте [Conventional Commits](https://www.conventionalcommits.org/ru/):
+Сообщения коммитов следуют [Conventional
+Commits](https://www.conventionalcommits.org/ru/), краткое описание пишется
+по-английски в повелительном наклонении:
 
 ```text
 <type>(<optional scope>): <summary in imperative mood>
 ```
 
-Распространённые типы: `feat`, `fix`, `docs`, `ci`, `build`, `refactor`, `perf`,
-`test`, `chore`. Примеры:
+Обычные типы: `feat`, `fix`, `docs`, `ci`, `build`, `refactor`, `perf`, `test`
+и `chore`. Например:
 
 ```text
 fix(claude): keep the signature on empty thinking blocks
@@ -349,19 +341,19 @@ feat(console): add a credential health filter
 
 ### Pull request
 
-1. Сделайте fork репозитория и создайте ветку от `main` (исправление ошибки) или
-   `dev` (новая функция).
+1. Сделайте форк репозитория и создайте ветку от `main` для исправления ошибки
+   или от `dev` для новой возможности.
 2. Внесите изменение вместе с тестами и документацией.
-3. Запустите перечисленные выше проверки.
-4. Откройте pull request в соответствующую ветку и заполните шаблон.
+3. Запустите проверки, перечисленные выше.
+4. Откройте pull request в ту же ветку и заполните шаблон.
 
-Сопровождающий может попросить внести правки, объединить коммиты (squash) или
-перебазировать вашу ветку при слиянии.
+Сопровождающий может попросить доработок, а при слиянии — объединить ваши
+коммиты или перебазировать ветку.
 
 ### Лицензия
 
-GPROXY распространяется по лицензии **AGPL-3.0-or-later**; некоторые crate
-(`gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`,
-`gproxy-file`, `gproxy-seaorm`, `gproxy-tokenizer`) распространяются по
-лицензии **MIT**. Отправляя вклад, вы соглашаетесь с тем, что он
-лицензируется на условиях лицензии изменяемых вами файлов или crate.
+GPROXY распространяется по лицензии AGPL-3.0-or-later. Крейты
+`gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`,
+`gproxy-file`, `gproxy-seaorm` и `gproxy-tokenizer` распространяются по лицензии
+MIT. Отправляя вклад, вы соглашаетесь, что он лицензируется на условиях
+лицензии тех файлов или крейта, которые он изменяет.

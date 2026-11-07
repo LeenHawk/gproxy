@@ -1,8 +1,4 @@
-<div align="center">
-
 # GPROXY
-
-**Одна конечная точка API для ваших сервисов LLM.**
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [Русский](README.ru.md)
 
@@ -10,11 +6,139 @@
 [![CI](https://github.com/LeenHawk/gproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/LeenHawk/gproxy/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B37316%2Fgithub.com%2FLeenHawk%2Fgproxy.svg?type=shield)](https://app.fossa.com/projects/custom%2B37316%2Fgithub.com%2FLeenHawk%2Fgproxy?ref=badge_shield)
-[![Stars](https://img.shields.io/github/stars/LeenHawk/gproxy?style=flat)](https://github.com/LeenHawk/gproxy/stargazers)
 
-[Документация](https://gproxy.leenhawk.com/ru/) · [Загрузки](https://github.com/LeenHawk/gproxy/releases) · [Обсуждения](https://github.com/LeenHawk/gproxy/discussions) · [Поддержать](https://github.com/sponsors/LeenHawk)
+GPROXY — самостоятельно размещаемый шлюз для API языковых моделей, написанный
+на Rust. Вы передаёте ему свои учётные записи у провайдеров (API-ключи,
+OAuth-вход вроде Codex или Claude Code, cookie браузера), а клиенты получают
+один базовый URL, один API-ключ GPROXY и имена моделей, которые вы задаёте сами.
 
-[![Документация](https://img.shields.io/badge/Documentation-gproxy.leenhawk.com-2563eb?style=for-the-badge)](https://gproxy.leenhawk.com/ru/)
+Для каждого запроса GPROXY определяет по имени модели провайдера, выбирает
+рабочие учётные данные, при необходимости преобразует запрос между форматами
+OpenAI, Claude и Gemini и записывает число токенов и стоимость. Если учётные
+данные или провайдер дают сбой, запрос повторяется на следующих. Пользователи,
+API-ключи, права, ограничения частоты и бюджеты настраиваются в веб-консоли или
+через API управления.
+
+Сам GPROXY модели не запускает: генерацию выполняет вышестоящий сервис.
+
+Документация: **<https://gproxy.leenhawk.com/ru/>**
+
+![Страница провайдеров в консоли](.github/readme/providers-en.webp)
+
+## Возможности
+
+- Клиентские API: OpenAI Chat Completions и Responses, Claude Messages и Gemini
+  GenerateContent, включая потоковую передачу, с преобразованием между ними
+  в обе стороны. Эмбеддинги, изображения, аудио, видео, файлы и Realtime
+  доступны в тех каналах, где их предоставляет вышестоящий сервис.
+- Встроенные каналы для OpenAI, Claude API, Claude Code, Claude Web, Codex,
+  Gemini CLI, Antigravity, Google AI Studio, Vertex AI, AWS Bedrock, Azure,
+  GitHub Copilot CLI, OpenRouter, DeepSeek, GLM, Kimi, MiniMax, DashScope,
+  Volcengine, xAI, Kiro и других; полный список — в
+  [руководстве по провайдерам](https://gproxy.leenhawk.com/ru/guides/providers).
+  Любой сервис с одним из трёх протоколов подключается через канал `custom`.
+- Маршруты моделей: клиент запрашивает `fast` или `coding`, а вы решаете,
+  какие провайдеры и модели за этим стоят, с весами и уровнями резервирования.
+- Пулы учётных данных с обновлением OAuth, отслеживанием состояния, запросом
+  квот у провайдера и переключением при отказе.
+- Правила переписывания для каждого провайдера: системные подсказки, точки
+  кэширования промптов, поля JSON, регулярные выражения и заголовки.
+- Пользователи, организации, команды и администраторы с ограниченной областью;
+  права, ограничения частоты и бюджеты для каждого ключа; статистика,
+  журналы запросов и журнал аудита.
+- Работает как обычный сервер, настольное или мобильное приложение, контейнер,
+  а также как Cloudflare Worker или функция Netlify / Vercel. Программы на Rust
+  могут встроить шлюз через `gproxy-sdk`.
+
+## Установка
+
+Linux и macOS:
+
+```sh
+curl -fsSL https://gproxy.leenhawk.com/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://gproxy.leenhawk.com/install.ps1 | iex
+```
+
+Скрипт скачивает последнюю стабильную версию CLI, задаёт несколько вопросов
+(каталог данных, порт, пароль администратора) и может зарегистрировать фоновую
+службу. Параметры смотрите в `--help`; например, `--edition headless`
+устанавливает сборку без веб-консоли.
+
+Пакеты можно скачать и вручную со страницы
+[Releases](https://github.com/LeenHawk/gproxy/releases/latest). В каждом выпуске
+есть:
+
+- `gproxy-*` — CLI со встроенной веб-консолью;
+- `gproxy-headless-*` — CLI без консоли, для CI и небольших серверов;
+- `gproxy-tauri-*` — настольное и мобильное приложение.
+
+GPROXY Desktop, CLI и Headless есть в Microsoft Store
+([Desktop](https://apps.microsoft.com/detail/9P2FJRB9RS4Z),
+[CLI](https://apps.microsoft.com/detail/9NBMH3S5K0L9),
+[Headless](https://apps.microsoft.com/detail/9ND7FQQMV566)), приложение для
+Android — в [F-Droid](https://f-droid.org/packages/com.leenhawk.gproxy.desktop/).
+Сборки для macOS не нотаризованы. Все платформы и требования к ним перечислены
+на [странице загрузки](https://gproxy.leenhawk.com/ru/download).
+
+Стабильные выпуски помечаются тегами `vX.Y.Z`; выпуски `staging` и `nightly`
+соответствуют бета-каналу и каналу разработки.
+
+## Начало работы
+
+Запустите сервер, указав каталог данных:
+
+```sh
+./gproxy serve --data-dir ./data --port 8787
+```
+
+При первом запуске в терминале GPROXY задаст несколько вопросов настройки. Без
+терминала он сам создаёт учётную запись администратора и печатает её пароль и
+API-ключ шлюза; сохраните оба. По умолчанию сервер слушает 127.0.0.1, а база
+SQLite лежит в `./data/gproxy.db`.
+
+Задайте `GPROXY_MASTER_KEY` до того, как добавлять учётные данные провайдеров:
+без него секреты хранятся в открытом виде. При переносе и обновлении держите
+ключ и каталог данных вместе; см.
+[Конфигурация](https://gproxy.leenhawk.com/ru/reference/configuration).
+
+Затем откройте <http://127.0.0.1:8787/console/>:
+
+1. В разделе **Провайдеры** добавьте провайдера (например, `openai-main` на
+   канале `openai`) и его API-ключ, затем проверьте учётные данные.
+2. В разделе **Маршруты моделей** создайте маршрут `fast` и добавьте в него
+   этого провайдера с проверенной моделью.
+
+Теперь любой клиент, совместимый с OpenAI, может обращаться к шлюзу с его
+API-ключом:
+
+```sh
+export GPROXY_KEY='your-gproxy-api-key'
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer $GPROXY_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"fast","messages":[{"role":"user","content":"Привет"}]}'
+```
+
+Тот же маршрут отвечает и на запросы в форматах Claude (`/v1/messages`) и
+Gemini (`/v1beta/models/fast:generateContent`). Пошагово всё это разобрано в
+[быстром старте](https://gproxy.leenhawk.com/ru/getting-started/quick-start), а
+подключение Codex CLI и Claude Code описано в разделе
+[CLI-клиенты](https://gproxy.leenhawk.com/ru/guides/cli-clients).
+
+В настольном и мобильном приложении те же шаги выполняет мастер настройки, а
+консоль встроена в само приложение.
+
+## Размещение на платформах
+
+Шаблоны для Cloudflare, Netlify и Vercel разворачивают готовую сборку последней
+стабильной версии, ничего не компилируя. Cloudflare использует D1 или
+libSQL/Turso, две другие платформы — PostgreSQL. Render и Heroku запускают
+обычный исполняемый файл в небольшом контейнере, тоже с PostgreSQL.
 
 <a href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32"></a>
 <a href="https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless"><img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" height="32"></a>
@@ -22,192 +146,55 @@
 <a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
 <a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
 
-</div>
+При развёртывании понадобятся пароль администратора и мастер-ключ. Сначала
+прочитайте [Размещение на платформах](https://gproxy.leenhawk.com/ru/deployment/edge)
+и [Docker, Render и Heroku](https://gproxy.leenhawk.com/ru/deployment/containers):
+там описаны выбор базы данных, стоимость тарифов и то, что не работает на
+бессерверных платформах (например, WebSocket).
 
-GPROXY — это автономный шлюз LLM API, написанный на Rust. Добавляйте учётные записи своих провайдеров, настраивайте маршруты моделей в консоли и вызывайте различные службы через одну и ту же конечную точку и ключ API шлюза. Изменения провайдеров, обновления учётных данных, использование и расходы управляются в одном месте.
+## Обновление с v3
 
-Версия 4 работает как настольное или мобильное приложение с мастером настройки, службой CLI, контейнером или в Cloudflare, Netlify и Vercel. Используйте [последнюю стабильную версию](https://github.com/LeenHawk/gproxy/releases/latest) для регулярных развертываний; снимки разработки доступны под [nightly](https://github.com/LeenHawk/gproxy/releases/tag/nightly).
-
-## Функции
-
-<table>
-<tr>
-<td width="50%" valign="top">
-<h3>Протоколы и клиенты</h3>
-<p>Принимает OpenAI Chat Completions, Responses, Claude Messages и Gemini GenerateContent с преобразованием протокола и потоковой передачей. Руководства для клиентов охватывают Codex CLI, Claude Code и другие инструменты.</p>
-</td>
-<td width="50%" valign="top">
-<h3>Пулы учётных данных</h3>
-<p>Используйте ключи API, OAuth или файлы cookie, поддерживаемые каждым каналом. Управляйте обновлением, работоспособностью и квотами с помощью настраиваемого переключения при сбое с использованием других учётных данных или провайдеров аутентификации.</p>
-</td>
-</tr>
-<tr>
-<td valign="top">
-<h3>Маршруты моделей</h3>
-<p>Дайте клиентам фиксированное имя модели, например <code>fast</code>. Меняйте провайдеров, модели провайдеров, веса и резервные уровни в шлюзе, не редактируя каждого клиента.</p>
-</td>
-<td valign="top">
-<h3>Перезапись запросов</h3>
-<p>Настройте системный текст, точки кэширования, изменения JSON, регулярные выражения и правила заголовков для каждого провайдера для поддержки разных клиентов.</p>
-</td>
-</tr>
-<tr>
-<td valign="top">
-<h3>Доступ, использование и стоимость</h3>
-<p>Управляйте пользователями, организациями, командами, ключами API, разрешениями и бюджетами расходов. Просматривайте журналы использования, запросов провайдеров и клиентов, а также записи аудита в консоли.</p>
-</td>
-<td valign="top">
-<h3>Локальные и серверные развертывания</h3>
-<p>Используйте приложение на личном устройстве, запустите CLI или контейнер на сервере или разверните его в Cloudflare, Netlify и Vercel. Проекты Rust могут встраивать шлюз через SDK.</p>
-</td>
-</tr>
-</table>
-
-Встроенные каналы включают OpenAI, Claude API/Code/Web, Codex, Gemini CLI, Google AI Studio, Copilot, DeepSeek, GLM, MiniMax, Kimi, OpenRouter, AWS Bedrock, Azure, Vertex и xAI. Другие службы, поддерживающие протоколы OpenAI, Claude или Gemini, могут использовать канал `custom`.
-
-Поддержка изображений, аудио, файлов, WebSocket/Realtime и других операций зависит от канала и провайдера. См. [Провайдеры и учётные данные](https://gproxy.leenhawk.com/ru/guides/providers/) и [руководства для клиентов](https://gproxy.leenhawk.com/ru/guides/cli-clients/).
-
-## Консоль
-
-Снимки экрана консоли v4 с использованием отдельного демонстрационного экземпляра с примерами данных.
-
-**Провайдеры и модели**. Управляйте учётными записями провайдеров и каталогами моделей в одном месте.
-
-![Провайдеры и модели](.github/readme/providers-en.webp)
-
-<details>
-<summary>Просмотр моделей маршрутов и правил запроса</summary>
-
-**Маршруты модели** — настройте провайдеров, веса и резервные уровни для фиксированного имени модели.
-
-![Маршруты моделей](.github/readme/routes-en.webp)
-
-**Правила запроса** — настройка системного текста и точек кэширования для провайдера.
-
-![Правила запросов](.github/readme/rules-en.webp)
-
-</details>
-
-## Быстрый старт
-
-### На компьютере или телефоне
-
-1. Загрузите **Приложение** (`gproxy-tauri-*`) для своей платформы с сайта [Релизы](https://github.com/LeenHawk/gproxy/releases/latest).
-2. Откройте его и следуйте инструкциям мастера, чтобы настроить экземпляр, учётную запись администратора и дополнительный импорт конфигурации.
-3. Сохраните адрес сервиса и ключ API шлюза. Откройте консоль и добавьте провайдера и учётные данные провайдера.
-4. Проверьте учётные данные, создайте маршрут модели с именем `fast` и добавьте рабочую модель в качестве участника.
-
-Приложение использует консоль внутри приложения; его порт HTTP обслуживает вызовы шлюза API.
-
-### На сервере
-
-Загрузите **CLI** (`gproxy-*`), распакуйте его и запустите:
-
-```sh
-chmod +x ./gproxy
-./gproxy serve --data-dir ./data --port 8787
-```
-
-В Windows используйте `gproxy.exe`. Сохраните пароль администратора и ключ API, напечатанные при первом запуске, затем откройте **http://127.0.0.1:8787/console/**. Добавьте провайдера, проверьте его учётные данные и создайте маршрут модели, как указано выше.
-
-CLI по умолчанию прослушивает локальный хост, а SQLite — `./data/gproxy.db`. Настройте и сохраните `GPROXY_MASTER_KEY` перед добавлением учётных данных; без него секреты провайдера хранятся в незашифрованном виде. Сохраняйте каталог данных и мастер-ключ при обновлении. Настройте адрес прослушивания и HTTPS для удаленного доступа. См. [ссылка на конфигурацию](https://gproxy.leenhawk.com/ru/reference/configuration/).
-
-### Отправить запрос
-
-Замените ключ ниже ключом вашего шлюза API. `fast` — это маршрут, созданный выше:
-
-```sh
-export GPROXY_KEY='your-gproxy-api-key'
-curl -sS http://127.0.0.1:8787/v1/chat/completions \
-  -H "Authorization: Bearer $GPROXY_KEY" \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"fast","messages":[{"role":"user","content":"Hello"}],"stream":true}'
-```
-
-### Хостинговые развертывания
-
-В шаблонах Cloudflare, Netlify и Vercel используются готовые пакеты **последней стабильной версии** без компиляции Rust. Cloudflare поддерживает D1 или libSQL/Turso; два других используют PostgreSQL. Настройте базу данных, пароль администратора и мастер-ключ, затем выполните развертывание и войдите в систему `/console/`.
-
-См. [руководство по размещению на хостинге](https://gproxy.leenhawk.com/ru/deployment/edge/), чтобы узнать о кнопках развертывания, платформе или внешних базах данных, а также о таких различиях, как поддержка WebSocket.
-
-Шаблоны Render и Heroku упаковывают **последнюю стабильную версию** исполняемого файла PostgreSQL в лёгкий контейнер. Render запускает бесплатный веб-сервис с вашей внешней базой данных PostgreSQL; Heroku создаёт Basic dyno с Essential PostgreSQL. Перед развертыванием ознакомьтесь с тарифами сервиса и базы данных.
-
-[Setup and operating instructions](https://gproxy.leenhawk.com/ru/deployment/containers/)
-
-### Другие варианты развертывания
-
-| Вариант | Вариант использования | Путеводитель |
-| --- | --- | --- |
-| Приложение | Настольный или мобильный телефон, управление в приложении | [Download & install](https://gproxy.leenhawk.com/ru/download/) |
-| CLI / контейнер | Постоянный сервер с консолью браузера | [Download & install](https://gproxy.leenhawk.com/ru/download/) |
-| Облачная вспышка / Netlify / Vercel | Хостинговый сервис без собственного сервера | [Deployment guide](https://gproxy.leenhawk.com/ru/deployment/edge/) |
-| Рендер / Хероку | Собственный контейнер с управляемым PostgreSQL | [Deployment guide](https://gproxy.leenhawk.com/ru/deployment/containers/) |
-| Rust SDK | Встроить в свою программу | [gproxy-sdk](crates/gproxy-sdk/README.md) |
-
-В Windows GPROXY Desktop, CLI и Headless доступны в Microsoft Store:
-
-| GPROXY Рабочий стол | GPROXY CLI | GPROXY Headless |
-| :---: | :---: | :---: |
-| <a href="https://apps.microsoft.com/detail/9P2FJRB9RS4Z?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Desktop" height="48"></a> | <a href="https://apps.microsoft.com/detail/9NBMH3S5K0L9?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY CLI" height="48"></a> | <a href="https://apps.microsoft.com/detail/9ND7FQQMV566?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft: GPROXY Headless" height="48"></a> |
-
-На Android приложение также доступно в F-Droid:
-
-<a href="https://f-droid.org/packages/com.leenhawk.gproxy.desktop/"><img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="72"></a>
-
-Вложения выпуска MSIX представляют собой пакеты отправки в Магазин; используйте ZIP для прямой установки. Приложения macOS не заверяются нотариально. HarmonyOS HAP проверен на эмуляторе и требует вашей собственной подписи. Требования к платформе см. в руководстве по установке.
+Остановите v3 и сделайте резервную копию базы данных, мастер-ключа и
+конфигурации запуска. Затем запустите v4 с той же конфигурацией. Базы SQLite,
+PostgreSQL, MySQL и D1 переносятся при первом запуске; учётные записи, пароли,
+API-ключи и история использования сохраняются, а всё, что не удалось
+перенести, попадает в отчёт о миграции. Не подключайте v3 и v4 к одной базе
+одновременно. Подробности — в разделе
+[Переход с v3 на v4](https://gproxy.leenhawk.com/ru/deployment/v3-to-v4).
 
 ## Производительность
 
-Конфигурация загружается в снимки в памяти, а исходящие клиенты повторно используются конфигурацией подключения. Захват журнала можно отключить с отдельными настройками для регистрации тела.
+Замеры сделаны на [выпуске v4.0.0 для Linux
+x86_64](https://github.com/LeenHawk/gproxy/releases/tag/v4.0.0), процессор
+Ryzen 7 8745H (8 ядер, 16 потоков), SQLite на NVMe; генератор нагрузки
+(`oha 1.16.0`), шлюз и имитация провайдера работали на одной машине. Запросы —
+непотоковые Chat Completions с полной обработкой: аутентификация,
+маршрутизация, извлечение статистики, расчёт стоимости и запись в базу.
+Имитация возвращала 25 входных и 18 выходных токенов без задержки. Запись тел
+запросов была выключена, учёт использования и расчёт стоимости — включены.
+Каждое значение — медиана трёх 10-секундных прогонов после 2-секундного
+прогрева.
 
-В этих измерениях используется официальный **[Версия 4.0.0 Linux x86_64](https://github.com/LeenHawk/gproxy/releases/tag/v4.0.0)** на Ryzen 7 8745H (8 ядер, 16 потоков) с SQLite на NVMe. Генератор нагрузки, шлюз и фиктивный провайдер используют одну машину. Запросы на завершение чата без потоковой передачи проходят проверку подлинности, маршрутизацию модели, извлечение данных об использовании, определение цен и сохранение. Макет сообщает о 25 входных токенах и 18 выходных токенах без искусственной задержки.
-
-Каждый раунд прогревает каждую конфигурацию регистрации в течение 2 секунд, затем измеряет количество каждого соединения в течение 10 секунд с помощью `oha 1.16.0`. Есть три раунда. Каждый показатель ниже представляет собой медиану этих трех прогонов. Регистрация тела отключена; запись использования и расчет затрат включены в обеих конфигурациях журналирования.
-
-| Запросить журналы | Соединения | Запросов/ов | p50 | p99 |
+| Журнал запросов | Соединения | Запросов/с | p50 | p99 |
 | --- | ---: | ---: | ---: | ---: |
-| Выключенный | 1 | 2,882 | 0,34 мс | 0,50 мс |
-| Выключенный | 32 | 28,303 | 0,76 мс | 2,71 мс |
-| Выключенный | 64 | 27,263 | 1,47 мс | 41,91 мс |
-| метаданные провайдера и клиента | 64 | 7,765 | 2,81 мс | 45,16 мс |
+| Выключен | 1 | 2 882 | 0,34 мс | 0,50 мс |
+| Выключен | 32 | 28 303 | 0,76 мс | 2,71 мс |
+| Выключен | 64 | 27 263 | 1,47 мс | 41,91 мс |
+| Метаданные входящих и исходящих запросов | 64 | 7 765 | 2,81 мс | 45,16 мс |
 
-При одном подключении шлюз увеличивает среднюю задержку примерно на **0,30 мс** по сравнению с прямым вызовом макета. Все **1 989 395** измеренных запросов вернули HTTP 200. После завершения записи постоянное количество использований соответствовало количеству запросов, и каждая строка проходила проверку токена и стоимости. Ввод и вывод были оценены в 1 доллар за миллион токенов, что привело к зарегистрированной стоимости 0,000043 доллара за запрос.
+На одном соединении шлюз добавляет к медианной задержке около 0,30 мс по
+сравнению с прямым обращением к имитации. Все 1 989 395 запросов вернули 200, а
+число записанных строк статистики совпало с числом запросов, с верными токенами
+и стоимостью. Примерно на 64 соединениях пропускная способность перестаёт
+расти, а p99 поднимается до 42 мс. Эти цифры относятся к коротким ответам,
+пересылке без смены протокола и локальной SQLite; для длинных потоков,
+преобразования протоколов, удалённой базы или настоящих провайдеров проведите
+собственные замеры.
 
-При 64 соединениях пропускная способность перестает увеличиваться, а p99 возрастает примерно до 42 мс или 45 мс при регистрации метаданных. Этот тест охватывает короткие ответы, пересылку по тому же протоколу и локальный SQLite. Длинные потоки, преобразование протоколов, удаленные базы данных и реальные провайдеры требуют измерений с предполагаемой рабочей нагрузкой.
+## Сборка из исходного кода
 
-## Обновление с версии 3
-
-Остановите версию 3, создайте резервную копию базы данных, мастер-ключа и конфигурации запуска, затем запустите версию 4 с той же конфигурацией. Поддерживаемые базы данных SQLite, PostgreSQL, MySQL и D1 v3 автоматически переносятся с сохранением учётных записей, паролей, ключей API и истории использования. В отчете о миграции перечислены конфигурации, которые не удалось сопоставить. Не запускайте версии 3 и 4 одновременно для одной и той же базы данных.
-
-См. [Миграция v3 на v4](https://gproxy.leenhawk.com/ru/deployment/v3-to-v4/) для получения информации об области миграции, резервном копировании и обработке сбоев.
-
-## CLI без веб-интерфейса для CI
-
-Рабочий процесс Release создает безголовые пакеты ZIP независимо от внешнего интерфейса:
-
-| Платформа | Архитектуры | Пакет |
-| --- | --- | --- |
-| Линукс GNU | x86_64, aarch64, riscv64 | `gproxy-headless-linux-<arch>.zip` |
-| Linux musl | x86_64, aarch64, riscv64 | `gproxy-headless-linux-<arch>-musl.zip` |
-| Окна | x86_64, аарх64 | `gproxy-headless-windows-<arch>.zip` |
-| macOS | x86_64, аарх64 | `gproxy-headless-macos-<arch>.zip` |
-| Андроид (Термукс) | x86_64, аарх64 | `gproxy-headless-android-<arch>.zip` |
-
-Загрузите с [Релизы](https://github.com/LeenHawk/gproxy/releases): `nightly` для разработчиков, `staging` для бета-версии или стабильную версию. Самообновление выбирает соответствующий безголовый пакет. На Android запустите `pkg install libc++ openssl ca-certificates`, извлеките ZIP из домашнего каталога Termux, затем запустите `./gproxy serve --console=false`. В Windows используйте `gproxy.exe` вместо `gproxy`.
-
-Этот вариант исключает встроенную веб-консоль и сохраняет прокси-маршруты, API управления, все каналы, SQLite, кэш памяти, локальное хранилище файлов и встроенный словарь. Настройте его через CLI или управление API. Для сборки не нужны библиотеки Node.js, pnpm или настольные системы:
-
-```sh
-cargo build --locked --release -p gproxy --bin gproxy \
-  --no-default-features --features channels,memory,fs,bundled-vocabulary,postgres,mysql
-./target/release/gproxy serve --console=false
-```
-
-Если пропустить `embedded-console`, будут исключены ресурсы внешнего интерфейса, даже если оформление заказа уже содержит встроенную консоль. `--console=false` также отключает обслуживание каталога внешней консоли. Чтобы создать консольный вариант с настраиваемым набором функций, добавьте `embedded-console`.
-
-## Разработка
-
-Для собственных сборок требуются стабильные Rust, Go и Clang. Для консоли и документации требуется Node.js 22.12+ (рекомендуется 24 LTS) и pnpm. Для настольных сборок Linux также требуются пакеты разработки WebKitGTK 4.1, GTK 3 и libsoup 3.
+Нужны стабильный Rust, Go и Clang, а для консоли — Node.js 22.12 или новее и
+pnpm. Консоль собирается до исполняемого файла, иначе ему нечего будет отдавать:
 
 ```sh
 pnpm --dir console install --frozen-lockfile
@@ -215,31 +202,34 @@ pnpm --dir console build
 cargo run -p gproxy -- serve
 ```
 
-Консольная сборка синхронизирует встроенные ресурсы. Новая касса, созданная только с использованием `cargo build`, не имеет пакета консоли.
+Сборка без консоли, настольного приложения и пакета для Workers, а также
+проверки, которые выполняет CI, описаны в разделе [Сборка из исходного
+кода](https://gproxy.leenhawk.com/ru/development/building). Участникам стоит
+прочитать [CONTRIBUTING.md](CONTRIBUTING.md) и
+[Архитектуру](https://gproxy.leenhawk.com/ru/development/architecture); о
+подключении нового провайдера — [Добавление
+канала](https://gproxy.leenhawk.com/ru/development/adding-a-channel).
 
-```sh
-cargo fmt --all --check
-cargo clippy --all-targets -- -D warnings
-cargo test
-pnpm --dir console lint
-pnpm --dir console test
-git submodule update --init docs
-pnpm --dir docs install --frozen-lockfile
-pnpm --dir docs check
-```
+## Сообщения об ошибках
 
-См. [Сборка из исходников](https://gproxy.leenhawk.com/ru/deployment/release-build/) для рабочего стола и проверки WASM, [Архитектура](https://gproxy.leenhawk.com/ru/introduction/architecture/) для макета рабочей области и [Добавление канала](https://gproxy.leenhawk.com/ru/guides/adding-a-channel/) для расширений.
-
-Сообщайте об ошибках через [Проблемы](https://github.com/LeenHawk/gproxy/issues) или отправляйте по электронной почте [leenhawk@leenhawk.com](mailto:leenhawk@leenhawk.com) все, что вы предпочитаете не публиковать публично. Сообщайте об уязвимостях лично через [Безопасность](https://github.com/LeenHawk/gproxy/security) или по электронной почте; см. [SECURITY.md](SECURITY.md).
+Ошибки сообщайте в [Issues](https://github.com/LeenHawk/gproxy/issues), вопросы
+задавайте в [Discussions](https://github.com/LeenHawk/gproxy/discussions). То,
+что не хочется публиковать, можно отправить на
+[leenhawk@leenhawk.com](mailto:leenhawk@leenhawk.com). Об уязвимостях сообщайте
+закрыто, как описано в [SECURITY.md](SECURITY.md).
 
 ## Лицензия
 
-Приложение-шлюз: **AGPL-3.0 или более поздняя версия**; см. [LICENSE](LICENSE). `gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`, `gproxy-file`, `gproxy-seaorm` и `gproxy-tokenizer` — это **MIT**, с лицензией в каждом каталоге.
+GPROXY распространяется по лицензии GNU Affero General Public License версии 3
+или более поздней; см. [LICENSE](LICENSE). Библиотечные крейты
+`gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`,
+`gproxy-file`, `gproxy-seaorm` и `gproxy-tokenizer` распространяются по
+лицензии MIT, у каждого свой файл лицензии.
 
-## Инструменты разработки
+## Благодарности
 
-[![JetBrains logo](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)](https://jb.gg/OpenSource)
-
-## История звёзд
+Инструменты разработки предоставлены [программой JetBrains для открытых
+проектов](https://jb.gg/OpenSource). Если GPROXY вам полезен, можно
+[поддержать](https://github.com/sponsors/LeenHawk) разработку.
 
 [![Star History Chart](https://api.star-history.com/svg?repos=LeenHawk/gproxy&type=Date)](https://www.star-history.com/#LeenHawk/gproxy&Date)
