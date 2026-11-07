@@ -223,9 +223,9 @@ problems privately as described in [SECURITY.md](SECURITY.md).
 
 GPROXY is licensed under the GNU Affero General Public License, version 3 or
 later; see [LICENSE](LICENSE). The library crates `gproxy-protocol`,
-`gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`, `gproxy-file`,
-`gproxy-seaorm` and `gproxy-tokenizer` are MIT-licensed; each has its own
-license file.
+`gproxy-protocol-macros`, `gproxy-client`, `gproxy-client-sdk`,
+`gproxy-cache`, `gproxy-file`, `gproxy-seaorm`, `gproxy-store` and
+`gproxy-tokenizer` are MIT-licensed; each has its own license file.
 
 ## Acknowledgements
 

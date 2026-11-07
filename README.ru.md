@@ -223,9 +223,10 @@ cargo run -p gproxy -- serve
 
 GPROXY распространяется по лицензии GNU Affero General Public License версии 3
 или более поздней; см. [LICENSE](LICENSE). Библиотечные крейты
-`gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`,
-`gproxy-file`, `gproxy-seaorm` и `gproxy-tokenizer` распространяются по
-лицензии MIT, у каждого свой файл лицензии.
+`gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`,
+`gproxy-client-sdk`, `gproxy-cache`, `gproxy-file`, `gproxy-seaorm`,
+`gproxy-store` и `gproxy-tokenizer` распространяются по лицензии MIT, у
+каждого свой файл лицензии.
 
 ## Благодарности
 

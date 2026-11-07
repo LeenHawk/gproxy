@@ -128,8 +128,9 @@ branch when merging.
 ### License
 
 GPROXY is licensed under the AGPL-3.0-or-later. The crates `gproxy-protocol`,
-`gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`, `gproxy-file`,
-`gproxy-seaorm` and `gproxy-tokenizer` are MIT-licensed. By submitting a
+`gproxy-protocol-macros`, `gproxy-client`, `gproxy-client-sdk`,
+`gproxy-cache`, `gproxy-file`, `gproxy-seaorm`, `gproxy-store` and
+`gproxy-tokenizer` are MIT-licensed. By submitting a
 contribution you agree that it is licensed under the license of the files or
 crate it changes.
 
@@ -220,7 +221,7 @@ feat(console): add a credential health filter
 
 ### 许可证
 
-GPROXY 采用 AGPL-3.0-or-later 许可证；`gproxy-protocol`、`gproxy-protocol-macros`、`gproxy-client`、`gproxy-cache`、`gproxy-file`、`gproxy-seaorm` 和 `gproxy-tokenizer` 这几个 crate 采用 MIT 许可证。提交贡献即表示你同意这份贡献按它所修改的文件或 crate 的许可证授权。
+GPROXY 采用 AGPL-3.0-or-later 许可证；`gproxy-protocol`、`gproxy-protocol-macros`、`gproxy-client`、`gproxy-client-sdk`、`gproxy-cache`、`gproxy-file`、`gproxy-seaorm`、`gproxy-store` 和 `gproxy-tokenizer` 这几个 crate 采用 MIT 许可证。提交贡献即表示你同意这份贡献按它所修改的文件或 crate 的许可证授权。
 
 ---
 
@@ -353,7 +354,7 @@ feat(console): add a credential health filter
 ### Лицензия
 
 GPROXY распространяется по лицензии AGPL-3.0-or-later. Крейты
-`gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`,
-`gproxy-file`, `gproxy-seaorm` и `gproxy-tokenizer` распространяются по лицензии
-MIT. Отправляя вклад, вы соглашаетесь, что он лицензируется на условиях
+`gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`,
+`gproxy-client-sdk`, `gproxy-cache`, `gproxy-file`, `gproxy-seaorm`,
+`gproxy-store` и `gproxy-tokenizer` распространяются по лицензии MIT. Отправляя вклад, вы соглашаетесь, что он лицензируется на условиях
 лицензии тех файлов или крейта, которые он изменяет.

@@ -131,7 +131,7 @@ Bug 请提交到 [Issues](https://github.com/LeenHawk/gproxy/issues)，使用问
 
 ## 许可证
 
-GPROXY 以 GNU Affero 通用公共许可证第 3 版或更新版本（AGPL-3.0-or-later）发布，见 [LICENSE](LICENSE)。其中的库 crate `gproxy-protocol`、`gproxy-protocol-macros`、`gproxy-client`、`gproxy-cache`、`gproxy-file`、`gproxy-seaorm` 和 `gproxy-tokenizer` 采用 MIT 许可证，各自目录下有许可证文件。
+GPROXY 以 GNU Affero 通用公共许可证第 3 版或更新版本（AGPL-3.0-or-later）发布，见 [LICENSE](LICENSE)。其中的库 crate `gproxy-protocol`、`gproxy-protocol-macros`、`gproxy-client`、`gproxy-client-sdk`、`gproxy-cache`、`gproxy-file`、`gproxy-seaorm`、`gproxy-store` 和 `gproxy-tokenizer` 采用 MIT 许可证，各自目录下有许可证文件。
 
 ## 致谢
 
