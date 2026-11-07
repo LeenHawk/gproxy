@@ -76,8 +76,7 @@ def msix_metadata(path):
         if 'AppxSignature.p7x' not in archive.namelist():
             return None
         manifest = ET.fromstring(archive.read('AppxManifest.xml'))
-    # Require a trusted timestamped package signature, whether the release
-    # was signed by SignPath or Microsoft Store.
+    # Require a trusted timestamped package signature.
     subprocess.run(['pwsh', '-NoProfile', '-Command',
         "$s = Get-AuthenticodeSignature -LiteralPath $env:WINGET_MSIX_PATH; "
         "if ($s.Status -ne 'Valid' -or -not $s.TimeStamperCertificate) "

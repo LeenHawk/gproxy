@@ -112,11 +112,9 @@ Store submission artifacts and preparation bundles retain their Partner Center
 identity and are unsigned for submission. Microsoft signs the Store-distributed
 copies after certification.
 
-GitHub release MSIX packages keep the existing filenames. When SignPath is
-enabled, CI rebuilds them with the certificate's Publisher, signs the main EXE
-and MSIX, verifies the signatures, and publishes them directly. See
-[SignPath configuration](../signpath/README.md). The daily Store package
-synchronization workflow has been removed; WinGet consumes signed release assets.
+GitHub release MSIX packages keep the existing filenames and are not
+code-signed. The daily Store package synchronization workflow has been
+removed; WinGet only consumes signed release assets.
 
 Use [listing.md](listing.md), [listings.json](listings.json) and
 [PRIVACY.md](../../PRIVACY.md) for the bilingual/trilingual submission material.
