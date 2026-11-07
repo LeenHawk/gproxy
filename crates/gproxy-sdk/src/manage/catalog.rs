@@ -751,8 +751,8 @@ fn rule_presets() -> Vec<RulePresetDto> {
     vec![
         opencode(),
         sanitize(
-            "the agent",
-            "the agent-mono",
+            "pi",
+            "pi-mono",
             None,
             &[
                 (r"\bPi documentation\b", "Harness documentation"),
