@@ -1,6 +1,6 @@
 # GPROXY privacy information
 
-Last updated: 2026-10-02
+Last updated: 2026-11-07
 
 This information applies to the open-source GPROXY Desktop, Android, HarmonyOS and GPROXY CLI
 applications published by Leen Hawk. Source code and the AGPL-3.0-or-later
@@ -41,10 +41,11 @@ include a hosted AI service operated by the project publisher.
 Network connections can also be made for the features you use, including
 provider sign-in, model and quota queries, remote databases, and downloading
 model resources or application updates. The receiving service can see ordinary
-connection information such as your IP address. Direct-distribution interface fonts may be fetched
-from `https://gproxy.leenhawk.com/fonts/`; font requests do not include gateway
-credentials or model request content. Mobile store builds include these fonts
-locally. Store-installed application updates are
+connection information such as your IP address. Interface fonts are fetched only
+if you choose to download them, from public npm CDNs (`registry.npmmirror.com`,
+`cdn.jsdelivr.net` or `unpkg.com`), and each file is checked against its
+SHA-256; font requests do not include gateway credentials or model request
+content. Store-installed application updates are
 delivered by the corresponding store, subject to that store's policies.
 
 Mobile store builds show the bundled privacy notice before starting the gateway
