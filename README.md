@@ -23,6 +23,25 @@ GPROXY does not run models. Inference is done by the upstream service.
 
 The full manual is at **<https://gproxy.leenhawk.com/>**.
 
+## Hosted deployment
+
+The Cloudflare, Netlify and Vercel templates deploy a prebuilt bundle of the
+latest stable release; nothing is compiled. Cloudflare uses D1 or
+libSQL/Turso, the other two use PostgreSQL. Render and Heroku run the native
+binary in a small container with PostgreSQL.
+
+<a href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32"></a>
+<a href="https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless"><img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" height="32"></a>
+<a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D"><img src="https://vercel.com/button" alt="Deploy with Vercel" height="32"></a>
+<a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
+<a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
+
+You will be asked for an administrator password and a master key. Read
+[Hosted deployments](https://gproxy.leenhawk.com/deployment/edge) and
+[Docker, Render and Heroku](https://gproxy.leenhawk.com/deployment/containers)
+first; they cover database choice, plan costs and what does not work on
+serverless platforms (WebSocket support, for example).
+
 ![The console's provider page](.github/readme/providers-en.webp)
 
 ## Features
@@ -133,25 +152,6 @@ Codex CLI and Claude Code at the gateway.
 
 The desktop and mobile app runs the same steps as a setup wizard and has the
 console built in.
-
-## Hosted deployment
-
-The Cloudflare, Netlify and Vercel templates deploy a prebuilt bundle of the
-latest stable release; nothing is compiled. Cloudflare uses D1 or
-libSQL/Turso, the other two use PostgreSQL. Render and Heroku run the native
-binary in a small container with PostgreSQL.
-
-<a href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32"></a>
-<a href="https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless"><img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" height="32"></a>
-<a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD%2CGPROXY_MASTER_KEY&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D"><img src="https://vercel.com/button" alt="Deploy with Vercel" height="32"></a>
-<a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
-<a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
-
-You will be asked for an administrator password and a master key. Read
-[Hosted deployments](https://gproxy.leenhawk.com/deployment/edge) and
-[Docker, Render and Heroku](https://gproxy.leenhawk.com/deployment/containers)
-first; they cover database choice, plan costs and what does not work on
-serverless platforms (WebSocket support, for example).
 
 ## Upgrading from v3
 
