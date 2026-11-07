@@ -28,10 +28,7 @@ use std::{
     },
 };
 
-use sea_orm::{
-    ConnectionTrait, DatabaseConnection, DbBackend, DbErr,
-    sqlx::sqlite::{SqliteBatchStatement, SqlitePool},
-};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, sqlx::sqlite::SqlitePool};
 use tokio::sync::oneshot;
 
 use crate::{BatchResult, BatchStatement};
@@ -45,10 +42,10 @@ type Reply = oneshot::Sender<Result<Vec<BatchResult>, DbErr>>;
 
 struct Job {
     /// Encoded before enqueueing; moved into the worker command without cloning.
-    statements: Vec<SqliteBatchStatement>,
+    statements: Vec<sqlite::Step>,
     /// Keep originals for the rare rollback/retry path. The caller also retains
     /// this allocation so normal completion frees payloads outside the drainer.
-    replay: Arc<[SqliteBatchStatement]>,
+    replay: Arc<[sqlite::Step]>,
     /// Ordinary queries need a transaction only when combined with other jobs.
     transactional: bool,
     reply: Reply,
@@ -56,7 +53,7 @@ struct Job {
 
 impl Job {
     fn new(statements: Vec<BatchStatement>, transactional: bool, reply: Reply) -> Self {
-        let replay: Arc<[SqliteBatchStatement]> = sqlite::encode(statements).into();
+        let replay: Arc<[sqlite::Step]> = sqlite::encode(statements).into();
         Self {
             statements: replay.to_vec(),
             replay,

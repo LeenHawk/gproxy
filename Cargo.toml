@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-exclude = ["vendor/sqlx-sqlite", "vendor/glib"]
+exclude = ["vendor/glib"]
 members = [
     "crates/gproxy-protocol",
     "crates/gproxy-protocol-macros",
@@ -230,7 +230,18 @@ strip = "symbols"
 # Remove this entry, vendor/glib and its workspace exclusion, then regenerate
 # Cargo.lock once Tauri/GTK resolves to a fixed upstream glib (0.20+ or backport).
 glib = { path = "vendor/glib" }
-# Preserve individual statement caches while sending one SQLite worker command per batch.
-sqlx-sqlite = { path = "vendor/sqlx-sqlite" }
+# SQLx 0.9.0 plus `SqliteConnection::execute_batch` (one SQLite worker command per
+# batch, with per-statement cache reuse), proposed upstream in
+# https://github.com/transact-rs/sqlx/pull/4511. Branch `gproxy-0.9` of the fork is
+# v0.9.0 + that commit + upstream #4317 (time 0.3.48+ format builders). All SQLx
+# crates must come from the same source, or two `sqlx-core` copies are built.
+# Remove these entries once a release includes `execute_batch`.
+sqlx = { git = "https://github.com/LeenHawk/sqlx", rev = "278e61a175c7e52dbfcedd94d332922f58ccf4e9" }
+sqlx-core = { git = "https://github.com/LeenHawk/sqlx", rev = "278e61a175c7e52dbfcedd94d332922f58ccf4e9" }
+sqlx-macros = { git = "https://github.com/LeenHawk/sqlx", rev = "278e61a175c7e52dbfcedd94d332922f58ccf4e9" }
+sqlx-macros-core = { git = "https://github.com/LeenHawk/sqlx", rev = "278e61a175c7e52dbfcedd94d332922f58ccf4e9" }
+sqlx-mysql = { git = "https://github.com/LeenHawk/sqlx", rev = "278e61a175c7e52dbfcedd94d332922f58ccf4e9" }
+sqlx-postgres = { git = "https://github.com/LeenHawk/sqlx", rev = "278e61a175c7e52dbfcedd94d332922f58ccf4e9" }
+sqlx-sqlite = { git = "https://github.com/LeenHawk/sqlx", rev = "278e61a175c7e52dbfcedd94d332922f58ccf4e9" }
 # Native BoringSSL prefixing fixes macOS/Windows and cross-compiled archive layouts.
 btls-sys = { git = "https://github.com/0x676e67/btls", rev = "609f955e6de4df4a215ee9b273d327af1c0771db" }
