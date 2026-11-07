@@ -1,13 +1,21 @@
-//! The gateway's local model catalog, read in the caller's chosen dialect.
+//! The gateway's model catalog as portable [`ModelInfo`] entries, read in the
+//! caller's chosen dialect; each dialect's catalog is mapped in its own file.
 //!
 //! The dialect is the caller's choice, not a property of a model: the same
 //! catalog is served in OpenAI, Claude and Gemini shapes, and the ids it
 //! returns are the ones that dialect's requests accept at the same endpoint.
-use super::empty_request;
+use crate::operations::empty_request;
 use crate::*;
 use gproxy_protocol::{Operation, WireRequest, connection::Bytes};
 use http::Method;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "claude")]
+mod claude;
+#[cfg(feature = "gemini")]
+mod gemini;
+#[cfg(any(feature = "openai", feature = "chat"))]
+mod openai;
 
 /// One catalog entry. `model` is ready to use in a request at the same endpoint.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -27,41 +35,33 @@ pub struct ModelInfo {
 impl<B: Backend> Client<B> {
     /// The permission-filtered catalog as `dialect` sees it.
     pub async fn list_models(&self, dialect: Dialect) -> Result<Vec<ModelInfo>> {
+        #[allow(unused_variables)]
         let bytes = self.catalog(dialect, None).await?;
         match dialect {
             #[cfg(feature = "claude")]
-            Dialect::Claude => {
-                let body: gproxy_protocol::claude::models::ListModelsResponseBody = parse(&bytes)?;
-                body.data.into_iter().map(claude).collect()
-            }
+            Dialect::Claude => claude::list(&bytes),
             #[cfg(feature = "gemini")]
-            Dialect::Gemini => {
-                let body: gproxy_protocol::gemini::models::ListModelsResponseBody = parse(&bytes)?;
-                body.models
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(gemini)
-                    .collect()
-            }
+            Dialect::Gemini => gemini::list(&bytes),
             #[cfg(feature = "openai")]
-            Dialect::Openai => openai_list(&bytes, dialect),
+            Dialect::Openai => openai::list(&bytes, dialect),
             #[cfg(feature = "chat")]
-            Dialect::OpenaiChat => openai_list(&bytes, dialect),
+            Dialect::OpenaiChat => openai::list(&bytes, dialect),
         }
     }
 
     /// One catalog entry, by the id and dialect a request would use.
     pub async fn get_model(&self, model: &Model) -> Result<ModelInfo> {
+        #[allow(unused_variables)]
         let bytes = self.catalog(model.dialect, Some(&model.id)).await?;
         match model.dialect {
             #[cfg(feature = "claude")]
-            Dialect::Claude => claude(parse(&bytes)?),
+            Dialect::Claude => claude::one(parse(&bytes)?),
             #[cfg(feature = "gemini")]
-            Dialect::Gemini => gemini(parse(&bytes)?),
+            Dialect::Gemini => gemini::one(parse(&bytes)?),
             #[cfg(feature = "openai")]
-            Dialect::Openai => openai(parse(&bytes)?, model.dialect),
+            Dialect::Openai => openai::one(parse(&bytes)?, model.dialect),
             #[cfg(feature = "chat")]
-            Dialect::OpenaiChat => openai(parse(&bytes)?, model.dialect),
+            Dialect::OpenaiChat => openai::one(parse(&bytes)?, model.dialect),
         }
     }
 
@@ -111,11 +111,23 @@ fn request(dialect: Dialect, id: Option<&str>) -> (OperationKey, WireRequest<pro
     )
 }
 
-fn parse<T: serde::de::DeserializeOwned>(bytes: &Bytes) -> Result<T> {
+#[cfg(any(
+    feature = "claude",
+    feature = "gemini",
+    feature = "openai",
+    feature = "chat"
+))]
+pub(super) fn parse<T: serde::de::DeserializeOwned>(bytes: &Bytes) -> Result<T> {
     serde_json::from_slice(bytes).map_err(|error| Error::invalid(error).with_body(bytes))
 }
 
-fn metadata(vendor: Vendor, native: &impl Serialize) -> Result<ProviderMetadata> {
+#[cfg(any(
+    feature = "claude",
+    feature = "gemini",
+    feature = "openai",
+    feature = "chat"
+))]
+pub(super) fn metadata(vendor: Vendor, native: &impl Serialize) -> Result<ProviderMetadata> {
     let native = serde_json::to_value(native).map_err(Error::invalid)?;
     Ok([(
         vendor,
@@ -125,64 +137,6 @@ fn metadata(vendor: Vendor, native: &impl Serialize) -> Result<ProviderMetadata>
 }
 
 #[cfg(any(feature = "claude", feature = "gemini"))]
-fn limit(value: Option<i64>) -> Result<Option<u64>> {
+pub(super) fn limit(value: Option<i64>) -> Result<Option<u64>> {
     value.map(u64::try_from).transpose().map_err(Error::invalid)
-}
-
-#[cfg(feature = "claude")]
-fn claude(native: gproxy_protocol::claude::models::ModelInfo) -> Result<ModelInfo> {
-    Ok(ModelInfo {
-        provider_metadata: metadata(Vendor::Claude, &native)?,
-        model: Model {
-            id: native.id,
-            dialect: Dialect::Claude,
-        },
-        display_name: Some(native.display_name),
-        description: None,
-        context_window: limit(native.max_input_tokens)?,
-        max_output_tokens: limit(native.max_tokens)?,
-    })
-}
-
-#[cfg(feature = "gemini")]
-fn gemini(native: gproxy_protocol::gemini::models::Model) -> Result<ModelInfo> {
-    // Gemini names the resource `models/{id}`; requests take the bare id.
-    let id = native
-        .name
-        .strip_prefix("models/")
-        .unwrap_or(&native.name)
-        .to_owned();
-    Ok(ModelInfo {
-        provider_metadata: metadata(Vendor::Gemini, &native)?,
-        model: Model {
-            id,
-            dialect: Dialect::Gemini,
-        },
-        display_name: native.display_name,
-        description: native.description,
-        context_window: limit(native.input_token_limit)?,
-        max_output_tokens: limit(native.output_token_limit)?,
-    })
-}
-
-#[cfg(any(feature = "openai", feature = "chat"))]
-fn openai_list(bytes: &Bytes, dialect: Dialect) -> Result<Vec<ModelInfo>> {
-    // `models` is the Codex projection of the same catalog; `data` is the list.
-    let body: gproxy_protocol::openai::models::ListModelsResponseBody = parse(bytes)?;
-    body.data.into_iter().map(|m| openai(m, dialect)).collect()
-}
-
-#[cfg(any(feature = "openai", feature = "chat"))]
-fn openai(native: gproxy_protocol::openai::models::Model, dialect: Dialect) -> Result<ModelInfo> {
-    Ok(ModelInfo {
-        provider_metadata: metadata(Vendor::Openai, &native)?,
-        model: Model {
-            id: native.id,
-            dialect,
-        },
-        display_name: native.display_name,
-        description: native.description,
-        context_window: native.context_window,
-        max_output_tokens: native.max_output_tokens,
-    })
 }

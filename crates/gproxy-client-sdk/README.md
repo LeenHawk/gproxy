@@ -162,13 +162,23 @@ are not submitted; completed calls are not retried or rolled back. There is no
 concurrency, retry or failover scheduler. The native `Client::embeddings` passthrough
 with `operations::Params<protocol::openai::embeddings::...>` remains available.
 
-`list_models(dialect)` and `get_model(&model)` read the gateway's local catalog in
+`count(&request)` counts a portable generation request the way `generate` sends
+it: rendered for its model's dialect, then the parts a count endpoint reads
+(messages, system, tools, reasoning settings) go into that dialect's count request
+(Claude `/v1/messages/count_tokens`, OpenAI `/v1/responses/input_tokens`, Gemini
+`:countTokens` with the generation request embedded). Generation-only fields such as
+`max_tokens`, `stream` and sampling are left out. Chat Completions has no count
+endpoint: `count` returns `Unsupported` without sending anything.
+`count::params(&request)` builds the native request for callers that send it
+themselves through `count_tokens`.
+
+`list_models(dialect)` and `get_model(&model)` (module `models`) read the gateway's local catalog in
 the caller's chosen dialect (OpenAI `/v1/models`, Claude the same path with
 `anthropic-version`, Gemini `/v1beta/models`) and return `ModelInfo` entries whose
 `model` is ready to use in that dialect at the same endpoint; Gemini's `models/`
 prefix is removed. The dialect is the caller's choice, not a property of a model.
 
-Other thin native families cover count tokens, rerank,
+Other thin native families cover native count requests, rerank,
 TTS/transcription, images and asynchronous video jobs. Speech/transcription retain
 the native response transport because it may contain binary, text, JSON or SSE.
 Operations are split into feature-scoped modules, with no module-wide dead-code or

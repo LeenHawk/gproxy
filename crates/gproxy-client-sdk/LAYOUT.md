@@ -17,6 +17,9 @@ TypeScript export. The root `s3` path remains an alias of `assets::s3`.
   cross-vendor diagnostics and shared traversal.
 - `stream/`: language events, aggregation, lifecycle and bytes-to-SSE framing.
 - `embeddings/`: embedding IR, execution and OpenAI/Gemini native mappings.
+- `count/`: token counting of a portable generation request, rendered per
+  dialect into that dialect's count request (Chat Completions has none).
+- `models/`: the model catalog as portable `ModelInfo`, mapped per dialect.
 - `images/`: generation/editing IR, dimensions, native options/mappings, asset
   preparation and partial-image streams.
 - `speech/`: synthesis IR/options, native mappings, chunk streams and explicit
@@ -30,8 +33,8 @@ TypeScript export. The root `s3` path remains an alias of `assets::s3`.
   See [REALTIME.md](REALTIME.md) for transport and interruption details.
 - `provider_metadata.rs`: SDK-owned Gemini Part metadata shared by language and
   media operations, preserving signatures for same-vendor replay.
-- `operations.rs` and `operations/`: feature-scoped native passthroughs, including
-  the unchanged asynchronous video API.
+- `operations.rs` and `operations/`: feature-scoped native passthroughs (native
+  count requests among them), including the unchanged asynchronous video API.
 
 Tests are grouped by dialect, operation, assets, stream, persistence, errors and
 backend. Shared fixtures and scripted transports live in `tests/support/`.
@@ -83,6 +86,11 @@ src/
 ├── backend/
 │   ├── mod.rs (55)
 │   └── remote.rs (121)
+├── count/
+│   ├── claude.rs (29)
+│   ├── gemini.rs (28)
+│   ├── mod.rs (59)
+│   └── openai.rs (22)
 ├── dialects/
 │   ├── chat/
 │   │   ├── render/
@@ -179,11 +187,15 @@ src/
 │   ├── io.rs (212)
 │   ├── mod.rs (107)
 │   └── multipart.rs (132)
+├── models/
+│   ├── claude.rs (21)
+│   ├── gemini.rs (31)
+│   ├── mod.rs (142)
+│   └── openai.rs (25)
 ├── operations/
 │   ├── audio.rs (132)
-│   ├── count_tokens.rs (126)
+│   ├── count_tokens.rs (123)
 │   ├── json.rs (83)
-│   ├── models.rs (20)
 │   └── video.rs (62)
 ├── options/
 │   ├── claude.rs (48)
@@ -230,10 +242,10 @@ src/
 │   └── stream.rs (286)
 ├── client.rs (258)
 ├── error.rs (259)
-├── lib.rs (83)
-├── operations.rs (78)
+├── lib.rs (91)
+├── operations.rs (76)
 ├── provider_metadata.rs (187)
-└── typescript.rs (68)
+└── typescript.rs (70)
 
 tests/
 ├── assets/
@@ -269,12 +281,14 @@ tests/
 │   ├── content.rs (70)
 │   ├── generation.rs (95)
 │   ├── media.rs (156)
-│   ├── mod.rs (196)
+│   ├── mod.rs (197)
 │   ├── native.rs (299)
-│   └── s3.rs (246)
+│   ├── s3.rs (246)
+│   └── script.rs (64)
 ├── assets.rs (121)
 ├── backend_embedded.rs (141)
 ├── backend_remote.rs (298)
+├── count.rs (86)
 ├── dialect_chat.rs (348)
 ├── dialect_claude.rs (245)
 ├── dialect_gemini.rs (394)
@@ -283,7 +297,7 @@ tests/
 ├── errors_warnings.rs (34)
 ├── images.rs (308)
 ├── interruption.rs (122)
-├── operations.rs (275)
+├── operations.rs (288)
 ├── persistence.rs (195)
 ├── realtime.rs (16)
 ├── s3.rs (40)

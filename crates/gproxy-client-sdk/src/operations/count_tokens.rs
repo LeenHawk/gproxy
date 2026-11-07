@@ -1,5 +1,10 @@
+//! Native count requests, passed through as each vendor writes them. The
+//! portable entry point, from a generation request, is [`crate::count`].
 #[cfg(any(feature = "claude", feature = "openai", feature = "gemini"))]
 use super::Params;
+#[cfg(any(feature = "claude", feature = "openai", feature = "gemini"))]
+use crate::count::TokenCount;
+#[cfg(any(feature = "claude", feature = "openai", feature = "gemini"))]
 use crate::*;
 #[cfg(any(feature = "claude", feature = "openai", feature = "gemini"))]
 use gproxy_protocol::Operation;
@@ -9,7 +14,6 @@ use gproxy_protocol::openai;
 use http::HeaderValue;
 #[cfg(any(feature = "claude", feature = "openai", feature = "gemini"))]
 use http::Method;
-use serde::{Deserialize, Serialize};
 #[cfg(feature = "count-tokens")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum CountTokensParams {
@@ -22,13 +26,6 @@ pub enum CountTokensParams {
         model: String,
         params: Box<Params<gproxy_protocol::gemini::count_tokens::CountTokensRequestBody>>,
     },
-}
-#[cfg(feature = "count-tokens")]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-pub struct TokenCount {
-    pub input_tokens: Option<u64>,
-    pub provider_metadata: ProviderMetadata,
 }
 #[cfg(all(
     feature = "count-tokens",
