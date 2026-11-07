@@ -3,7 +3,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# The MIT library crates. `cargo publish` orders them by their dependencies.
+# The library crates published to crates.io: the MIT ones and gproxy-store.
+# `cargo publish` orders them by their dependencies.
 crates=(
   gproxy-protocol-macros
   gproxy-protocol
@@ -12,6 +13,8 @@ crates=(
   gproxy-cache
   gproxy-file
   gproxy-tokenizer
+  gproxy-client-sdk
+  gproxy-store
 )
 dry=0
 if [ "${1:-}" = "--dry-run" ]; then

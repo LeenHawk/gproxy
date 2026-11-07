@@ -35,6 +35,8 @@
 
 pub mod builder;
 pub mod call;
+#[cfg(all(feature = "client-sdk", not(target_arch = "wasm32")))]
+mod client_backend;
 pub mod dto;
 mod error;
 pub mod handle;
@@ -49,6 +51,8 @@ pub mod sync;
 
 pub use builder::{GproxyBuilder, LoginTtl};
 pub use call::{CallBuilder, ConnectBuilder};
+#[cfg(all(feature = "client-sdk", not(target_arch = "wasm32")))]
+pub use client_backend::ClientBackend;
 /// How every family asks for a list and answers with one. The rest of the
 /// DTOs stay behind `dto::` so a host's own names cannot collide with them.
 pub use dto::{ListQuery, Page};

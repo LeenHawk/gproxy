@@ -1,16 +1,26 @@
-use super::*;
-use crate::Error;
+//! A `gproxy-client-sdk` backend that drives this handle in process.
+//!
+//! It lives here rather than in the client SDK so that the MIT-licensed client
+//! does not depend on the engine: this crate depends on the client instead.
+
+use crate::Gproxy;
 use futures_util::{StreamExt, stream};
-use gproxy_sdk::Gproxy;
+use gproxy_client_sdk::{Error, Result, backend::Backend};
+use gproxy_protocol::{
+    HttpBody, OperationKey, WireRequest, WireResponse, capability::CapabilityFuture,
+};
 use gproxy_seaorm::BatchConnectionTrait;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-pub struct Embedded<C> {
+/// Serves a `gproxy_client_sdk::Client` from an in-process [`Gproxy`]
+/// instead of over HTTP. Calls run under `scope`; access policy is the
+/// embedding application's responsibility.
+pub struct ClientBackend<C> {
     engine: Arc<Gproxy<C>>,
     scope: String,
 }
-impl<C> Embedded<C> {
+impl<C> ClientBackend<C> {
     pub fn new(engine: Arc<Gproxy<C>>, scope: impl Into<String>) -> Self {
         Self {
             engine,
@@ -18,8 +28,7 @@ impl<C> Embedded<C> {
         }
     }
 }
-impl<C: BatchConnectionTrait + Send + Sync + 'static> Backend for Embedded<C> {
-    #[cfg(feature = "realtime")]
+impl<C: BatchConnectionTrait + Send + Sync + 'static> Backend for ClientBackend<C> {
     fn connect(
         &self,
         operation: OperationKey,
@@ -187,6 +196,10 @@ fn catalog(
     Ok(WireResponse {
         status: http::StatusCode::OK,
         headers: http::HeaderMap::new(),
-        body: HttpBody::Bytes(serde_json::to_vec(&body).map_err(Error::invalid)?.into()),
+        body: HttpBody::Bytes(
+            serde_json::to_vec(&body)
+                .expect("a JSON value serializes")
+                .into(),
+        ),
     })
 }

@@ -107,7 +107,7 @@ async fn check(dialect: RealtimeDialect) {
         })
         .await
         .unwrap();
-    let client = Client::new(backend::Embedded::new(engine, "app:test"));
+    let client = Client::new(gproxy_sdk::ClientBackend::new(engine, "app:test"));
     let mut c = config(dialect);
     c.model.id = "local/native-model".into();
     let mut session = client.connect_realtime(&c).await.unwrap();

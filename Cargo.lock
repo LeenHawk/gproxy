@@ -3098,7 +3098,6 @@ dependencies = [
  "gproxy-file",
  "gproxy-protocol",
  "gproxy-sdk",
- "gproxy-seaorm",
  "http",
  "percent-encoding",
  "serde",
@@ -3107,7 +3106,6 @@ dependencies = [
  "sha2 0.11.1",
  "thiserror 2.0.21",
  "tokio",
- "tokio-util",
  "ts-rs",
  "web-time",
 ]
@@ -3341,6 +3339,7 @@ dependencies = [
  "gproxy-cache",
  "gproxy-channel",
  "gproxy-client",
+ "gproxy-client-sdk",
  "gproxy-core",
  "gproxy-file",
  "gproxy-protocol",

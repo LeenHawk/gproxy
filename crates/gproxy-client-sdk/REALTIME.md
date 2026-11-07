@@ -164,7 +164,7 @@ With remote + realtime on wasm, `gproxy-client/workers` uses Fetch with Upgrade 
 accepts the returned Cloudflare `response.webSocket`. It does not use the browser
 WebSocket constructor. Browser direct connection, WebRTC and SIP are outside scope.
 
-Embedded passes the model explicitly to `Gproxy::connect`, with host scope and
+`gproxy_sdk::ClientBackend` passes the model explicitly to `Gproxy::connect`, with host scope and
 cancellation. It retains the engine's usage completion for the connection lifetime.
 The Backend trait supplies a default Unsupported connection method, preserving
 existing HTTP-only implementations, and boxed backends forward it.

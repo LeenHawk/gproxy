@@ -1,4 +1,4 @@
-#![cfg(all(feature = "embedded", feature = "openai", not(target_arch = "wasm32")))]
+#![cfg(all(feature = "openai", not(target_arch = "wasm32")))]
 mod support;
 use gproxy_client_sdk::*;
 use gproxy_protocol::{
@@ -107,7 +107,7 @@ async fn embedded_uses_call_scope_native_generation_and_the_local_catalog() {
         })
         .await
         .unwrap();
-    let client = Client::new(backend::Embedded::new(engine, "app:test"));
+    let client = Client::new(gproxy_sdk::ClientBackend::new(engine, "app:test"));
     let request = GenerateRequest::new(
         Model {
             id: "local/native-model".into(),

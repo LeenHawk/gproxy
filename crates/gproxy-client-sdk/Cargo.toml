@@ -9,7 +9,6 @@ repository.workspace = true
 [features]
 default = ["remote", "claude", "openai", "chat", "gemini", "count-tokens", "models", "embeddings", "rerank", "audio", "images", "speech", "transcription", "video"]
 remote = ["dep:gproxy-client", "gproxy-client/reqwest", "gproxy-client/fetch"]
-embedded = ["dep:gproxy-sdk", "dep:gproxy-seaorm", "dep:tokio-util"]
 claude = []
 openai = []
 gemini = []
@@ -45,14 +44,11 @@ thiserror.workspace = true
 ts-rs = { workspace = true, optional = true, features = ["no-serde-warnings"] }
 web-time.workspace = true
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-gproxy-sdk = { workspace = true, optional = true }
-gproxy-seaorm = { workspace = true, optional = true }
-tokio-util = { workspace = true, optional = true }
-
 [dev-dependencies]
 futures-executor.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-gproxy-sdk = { workspace = true, features = ["memory", "custom"] }
+# Path only, so `cargo publish` drops it: gproxy-sdk depends on this crate and
+# is published after it. The in-process backend tests run against it.
+gproxy-sdk = { path = "../gproxy-sdk", default-features = false, features = ["memory", "custom", "client-sdk"] }
 tokio = { workspace = true, features = ["macros", "rt", "net", "io-util"] }

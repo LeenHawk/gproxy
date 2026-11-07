@@ -4,8 +4,10 @@ use gproxy_protocol::{
     HttpBody, OperationKey, WireRequest, WireResponse, capability::CapabilityFuture,
 };
 
-/// Two implementations share one caller API. This is also the injection point
-/// for applications that already own a transport.
+/// The transport behind a [`Client`](crate::Client). [`Remote`] calls a GPROXY
+/// instance over HTTP; `gproxy_sdk::ClientBackend` (in the `gproxy-sdk` crate,
+/// feature `client-sdk`) drives an in-process engine. Applications that
+/// already own a transport implement it themselves.
 pub trait Backend {
     #[cfg(feature = "realtime")]
     fn connect(
@@ -51,7 +53,3 @@ impl<T: Backend + ?Sized> Backend for Box<T> {
 mod remote;
 #[cfg(feature = "remote")]
 pub use remote::Remote;
-#[cfg(all(feature = "embedded", not(target_arch = "wasm32")))]
-mod embedded;
-#[cfg(all(feature = "embedded", not(target_arch = "wasm32")))]
-pub use embedded::Embedded;

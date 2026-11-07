@@ -2,8 +2,9 @@
 
 Review the module boundaries, test groups and per-file line counts in [LAYOUT.md](LAYOUT.md).
 
-A caller-facing SDK for programs calling GPROXY over HTTP or through an embedded
-`gproxy-sdk::Gproxy`. Its IR stays outside the engine. Native mapping uses existing
+A caller-facing SDK for programs calling GPROXY over HTTP, or an in-process
+`gproxy_sdk::Gproxy` through `gproxy_sdk::ClientBackend`. Its IR stays outside the
+engine, and this crate does not depend on it. Native mapping uses existing
 protocol structs/enums/builders; HTTP/SSE reuse `gproxy-client`, including wasm fetch.
 
 ```rust,no_run
@@ -37,8 +38,8 @@ let persisted = serde_json::to_string(&history)?;
 Chat Completions (`OpenaiChat`), or Gemini GenerateContent. The local model catalog
 and permissions are unchanged; `owned_by` is not a dialect guarantee. Claude
 requires `settings.max_output_tokens` or `provider_options.claude.max_tokens`.
-Use `Client::new(backend::Embedded::new(engine, scope))` on native targets for the
-same API. The embedding host owns engine configuration, scope and access policy.
+For the same API in process, enable `gproxy-sdk`'s `client-sdk` feature and use
+`Client::new(gproxy_sdk::ClientBackend::new(engine, scope))` on native targets. The embedding host owns engine configuration, scope and access policy.
 
 ## Content, diagnostics and native mapping
 
@@ -335,8 +336,8 @@ streaming and asset preparation. Video remains a native passthrough.
 
 The opt-in `realtime` feature adds `Client::connect_realtime`, a cloneable sender,
 an event stream and a transcript-only Conversation collector for OpenAI Realtime
-GA and Gemini Live. Native and Cloudflare Workers remote WebSockets and the embedded
-backend share the API. See [REALTIME.md](REALTIME.md) for setup, interruption,
+GA and Gemini Live. Native and Cloudflare Workers remote WebSockets and
+`gproxy_sdk::ClientBackend` share the API. See [REALTIME.md](REALTIME.md) for setup, interruption,
 typed options, transport boundaries and offline verification.
 
 Persist `Conversation::V1`: `{"schema_version":"1","messages":[...]}`. This round
@@ -351,7 +352,7 @@ migration; compatible fields need defaults. Adding Content variants such as
 Interrupted keeps V1: older readers preserve their raw value through Unknown.
 
 Defaults enable remote, all four renderers and non-chat operation families.
-`embedded`, `ts`, `s3` and `realtime` are opt-in. Dialects: claude/openai/chat/gemini. Operation
+`ts`, `s3` and `realtime` are opt-in. Dialects: claude/openai/chat/gemini. Operation
 families: count-tokens/models/embeddings/rerank/audio/images/speech/transcription/video.
 `audio` controls native audio passthroughs; speech/transcription have independent
 IR features, and content audio belongs to its renderer. Normal remote

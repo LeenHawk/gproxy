@@ -48,6 +48,7 @@ settings 行、装配引擎、载入首个快照，并在 `SyncMode::Background`
 | `s3` | S3／R2 对象存储 |
 | `bundled-vocabulary`（默认） | 内置 DeepSeek 词表用于 token 估算 |
 | `ts` | 为每个 DTO 与渠道描述符生成 `ts-rs` 声明，并带导出测试——见[类型导出](#类型导出) |
+| `client-sdk` | `ClientBackend`：在进程内用这个句柄驱动 `gproxy-client-sdk` 的 `Client`（仅原生平台） |
 
 默认集可在 `wasm32-unknown-unknown` 上编译，`libsql` 亦然。wasm 上 cache 默认是
 `gproxy_store::StoreCache`，同步一律手动：isolate 活不过一次请求，在请求开头调用

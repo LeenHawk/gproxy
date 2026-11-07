@@ -795,7 +795,7 @@ jobs:
         with:
           key: linux-checks
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish MIT crates
+      - name: Publish library crates
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           VERSION: ${{ needs.prepare.outputs.version }}

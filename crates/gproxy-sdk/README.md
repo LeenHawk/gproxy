@@ -53,6 +53,7 @@ opt-out, and a build with neither is refused.
 | `s3` | S3/R2 object storage |
 | `bundled-vocabulary` (default) | Ship DeepSeek's vocabulary for token estimation |
 | `ts` | `ts-rs` declarations for every DTO and for the channel descriptors, plus the export test — see [Type export](#type-export) |
+| `client-sdk` | `ClientBackend`: serve a `gproxy-client-sdk` `Client` from this handle in process (native only) |
 
 The default set compiles for `wasm32-unknown-unknown`, and so does `libsql`.
 On wasm the cache defaults to `gproxy_store::StoreCache` and synchronization is

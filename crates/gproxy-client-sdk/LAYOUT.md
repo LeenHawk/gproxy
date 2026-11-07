@@ -6,7 +6,8 @@ execution, and the selected operation family for its request/result/event models
 `lib.rs` declares modules and exports the public API; `typescript.rs` owns explicit
 TypeScript export. The root `s3` path remains an alias of `assets::s3`.
 
-- `backend/`: transport trait and remote/embedded implementations.
+- `backend/`: transport trait and the remote implementation. The in-process
+  implementation is `gproxy_sdk::ClientBackend`, in the `gproxy-sdk` crate.
 - `options/`: common ProviderOptions and SDK-owned language options per vendor.
 - `assets/`: delivery modes/capabilities, prepared snapshots, traversal and
   validation; optional S3 support, with media client methods in `s3/media.rs`.
@@ -42,10 +43,11 @@ See [MEDIA.md](MEDIA.md) for mapping choices, warnings and deferred capabilities
 |---|---:|
 | Default features | 127 |
 | s3,ts | 144 |
-| realtime,s3,ts,embedded | 170 |
+| realtime,s3,ts | 170 |
 
 Counts include doctests. Realtime contributes 25 offline tests, including two
-memory/custom embedded routing tests, one for each dialect. Three additional IR
+memory/custom in-process routing tests (through `gproxy_sdk::ClientBackend`, a
+path-only dev-dependency), one for each dialect. Three additional IR
 tests verify typed interruption persistence, the older reader's Unknown fallback,
 and silent exclusion by all four chat renderers. Realtime history tests also
 verify that interruption records and their metadata/cache fields are skipped.
@@ -54,7 +56,7 @@ Saved frame traces are under `tests/realtime/fixtures/`.
 All 114 baseline and 127 full-feature exported TS files pass strict TypeScript
 checking, including Interruption. Verification covers minimal remote/OpenAI wasm,
 remote+realtime with Workers WebSocket wasm, strict Clippy for default/s3,ts/full
-realtime embedded configurations, rustfmt and the SDK-scoped diff check. Realtime
+realtime configurations, rustfmt and the SDK-scoped diff check. Realtime
 remains off by default; Interrupted is persisted independently of that feature.
 
 These are offline checks. No paid provider smoke test is run; injected embedded
@@ -79,8 +81,7 @@ src/
 │   ├── s3.rs (345)
 │   └── validation.rs (249)
 ├── backend/
-│   ├── embedded.rs (163)
-│   ├── mod.rs (57)
+│   ├── mod.rs (55)
 │   └── remote.rs (121)
 ├── dialects/
 │   ├── chat/
