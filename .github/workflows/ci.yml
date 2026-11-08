@@ -334,27 +334,25 @@ jobs:
 
   # The documentation is LeenHawk/gproxy-docs, checked out here as `docs/`. Its
   # API, configuration and channel reference is exported from this code, so a
-  # push of main or dev commits the export to the docs branch of the same name,
-  # whose own workflow builds and deploys the site. Other refs only check that
-  # the export still runs. Not gated on `scope`: dev pushed right after main is
-  # skipped there, but its docs branch still needs its own export.
+  # push of main commits the export to docs/main. Other refs only check that
+  # the export still runs against the same documentation tooling.
   docs-reference:
     name: Docs reference
     permissions:
       contents: read
       packages: write
     needs: scope
-    if: ${{ needs.scope.outputs.run == 'true' || (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'dev')) }}
+    if: ${{ needs.scope.outputs.run == 'true' || (github.event_name == 'push' && github.ref_name == 'main') }}
     runs-on: ubuntu-24.04
     env:
       CARGO_PROFILE_DEV_DEBUG: "0"
-      PUBLISH: ${{ github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'dev') }}
+      PUBLISH: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: LeenHawk/gproxy-docs
-          ref: ${{ (github.ref_name == 'dev' || github.base_ref == 'dev') && 'dev' || 'main' }}
+          ref: main
           path: docs
           ssh-key: ${{ env.PUBLISH == 'true' && secrets.DOCS_DEPLOY_KEY || '' }}
       - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # 1.99.0
@@ -384,7 +382,7 @@ jobs:
           # A docs commit may have landed since the checkout; the export only
           # touches public/generated, so replaying it on top is always clean.
           for attempt in 1 2 3; do
-            git pull -q --rebase origin "$GITHUB_REF_NAME" && git push -q origin "HEAD:$GITHUB_REF_NAME" && exit 0
+            git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0
             sleep 5
           done
           exit 1
