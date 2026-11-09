@@ -51,12 +51,8 @@ mod count_tokens;
     feature = "video"
 ))]
 mod json;
-#[cfg(feature = "models")]
-mod models;
 #[cfg(feature = "count-tokens")]
-pub use count_tokens::{CountTokensParams, TokenCount};
-#[cfg(feature = "models")]
-pub use models::ModelInfo;
+pub use count_tokens::CountTokensParams;
 #[cfg(feature = "audio")]
 mod audio;
 #[cfg(feature = "video")]
@@ -64,7 +60,7 @@ mod video;
 #[cfg(feature = "audio")]
 pub use audio::TranscriptionParams;
 #[cfg(any(feature = "models", feature = "video"))]
-fn empty_request(
+pub(crate) fn empty_request(
     method: http::Method,
     path: String,
 ) -> crate::protocol::WireRequest<crate::protocol::HttpBody> {

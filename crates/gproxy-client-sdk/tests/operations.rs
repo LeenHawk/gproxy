@@ -1,66 +1,11 @@
-use gproxy_client_sdk::*;
-use gproxy_protocol::{
-    HttpBody, OperationKey, WireRequest, WireResponse, capability::CapabilityFuture,
-    connection::Bytes,
-};
-use http::{Method, StatusCode};
-use serde_json::{Value, json};
-use std::{collections::VecDeque, sync::Mutex};
+mod support;
 
-#[derive(Debug)]
-struct Recorded {
-    key: OperationKey,
-    model: Option<String>,
-    method: Method,
-    path: String,
-    query: Option<String>,
-    headers: http::HeaderMap,
-    body: Bytes,
-}
-struct BackendScript {
-    replies: Mutex<VecDeque<Bytes>>,
-    requests: Mutex<Vec<Recorded>>,
-}
-impl BackendScript {
-    fn new(replies: Vec<Value>) -> Self {
-        Self {
-            replies: Mutex::new(replies.into_iter().map(|v| v.to_string().into()).collect()),
-            requests: Mutex::new(vec![]),
-        }
-    }
-    fn take(&self) -> Recorded {
-        self.requests.lock().unwrap().remove(0)
-    }
-}
-impl Backend for BackendScript {
-    fn send(
-        &self,
-        key: OperationKey,
-        model: Option<&str>,
-        request: WireRequest<HttpBody>,
-    ) -> CapabilityFuture<'_, Result<WireResponse<HttpBody>>> {
-        let model = model.map(str::to_owned);
-        Box::pin(async move {
-            let body = gproxy_protocol::codec::read_http_body(request.body, DEFAULT_LIMITS)
-                .await
-                .unwrap();
-            self.requests.lock().unwrap().push(Recorded {
-                key,
-                model,
-                method: request.method,
-                path: request.path,
-                query: request.query,
-                headers: request.headers,
-                body,
-            });
-            Ok(WireResponse {
-                status: StatusCode::OK,
-                headers: http::HeaderMap::new(),
-                body: HttpBody::Bytes(self.replies.lock().unwrap().pop_front().unwrap()),
-            })
-        })
-    }
-}
+use gproxy_client_sdk::*;
+use gproxy_protocol::HttpBody;
+use http::Method;
+use serde_json::{Value, json};
+use support::script::{BackendScript, Recorded};
+
 fn params<T: serde::de::DeserializeOwned>(value: Value) -> operations::Params<T> {
     let mut params =
         operations::Params::new(serde_json::from_value(value).unwrap(), Vendor::Claude);

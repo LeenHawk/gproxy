@@ -61,9 +61,9 @@ pub fn export_types(
     }
     operations::Params::<ts_rs::Dummy>::export_all(&config)?;
     #[cfg(feature = "count-tokens")]
-    operations::TokenCount::export_all(&config)?;
+    count::TokenCount::export_all(&config)?;
     #[cfg(feature = "models")]
-    operations::ModelInfo::export_all(&config)?;
+    models::ModelInfo::export_all(&config)?;
     #[cfg(feature = "audio")]
     operations::TranscriptionParams::export_all(&config)?;
     Ok(())

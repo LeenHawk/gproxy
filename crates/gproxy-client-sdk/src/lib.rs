@@ -4,6 +4,8 @@
 pub mod assets;
 pub mod backend;
 mod client;
+#[cfg(feature = "count-tokens")]
+pub mod count;
 #[cfg(any(
     feature = "claude",
     feature = "openai",
@@ -15,6 +17,8 @@ pub mod dialects;
 pub mod embeddings;
 mod error;
 pub mod ir;
+#[cfg(feature = "models")]
+pub mod models;
 pub mod operations;
 pub mod options;
 #[cfg(feature = "realtime")]
@@ -47,7 +51,11 @@ pub use assets::{
 ))]
 pub use assets::{AssetLocation, ResolveAsset, ResolvedAsset};
 pub use backend::Backend;
-#[cfg(any(feature = "embeddings", feature = "video"))]
+#[cfg(any(
+    feature = "embeddings",
+    feature = "video",
+    all(feature = "count-tokens", feature = "gemini")
+))]
 pub(crate) use client::path_segment;
 #[cfg(any(
     feature = "embeddings",

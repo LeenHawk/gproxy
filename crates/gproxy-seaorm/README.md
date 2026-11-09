@@ -135,9 +135,9 @@ failed group rolls back before each job is retried alone. Scripts and numbered
 parameters keep SQLx's native per-statement binding scope, and a script still
 produces one batch result (combined execution metadata or collected rows).
 
-This uses the small `sqlx-sqlite` 0.9.0 extension in `vendor/sqlx-sqlite`, selected
-by the root Cargo patch. See its `GPROXY_PATCH.md` for the upstream source and
-patch boundaries. Other database drivers are unchanged.
+This uses `SqliteConnection::execute_batch`, which is not in a SQLx release yet
+(proposed in transact-rs/sqlx#4511). The root Cargo patch selects SQLx 0.9.0 with
+that commit from a fork; see the comment there.
 
 | Method | Input | Result |
 |---|---|---|

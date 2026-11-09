@@ -56,7 +56,7 @@ enum Envelope {
 }
 
 impl Error {
-    #[cfg(feature = "realtime")]
+    #[cfg(any(feature = "realtime", all(feature = "count-tokens", feature = "chat")))]
     pub(crate) fn unsupported(message: impl Into<String>) -> Self {
         Self {
             kind: ErrorKind::Unsupported,
