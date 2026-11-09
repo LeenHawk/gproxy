@@ -37,7 +37,7 @@ pub fn claude_to_responses_request(
     let mut input = input.into_declared();
     let mut ids = flow.clone();
     let mut report = Report::default();
-    super::super::claude_controls::project(&mut input, &mut report);
+    super::super::claude_controls::project(&mut input, &mut report)?;
     let explicit_cache = cache::prepare_claude(&mut input, &mut report);
     let mut out = r::GenerateContentRequestBody::builder().build();
     controls::to_responses(&input, &mut out, &mut report)?;

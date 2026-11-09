@@ -29,7 +29,7 @@ pub fn claude_to_gemini_request(
     let mut input = input.into_declared();
     let mut ids = flow.clone();
     let mut report = Report::default();
-    super::super::claude_controls::project(&mut input, &mut report);
+    super::super::claude_controls::project(&mut input, &mut report)?;
     let config = super::config::to_gemini(&input, &mut report)?;
     let (tools, tool_config) =
         super::tools::to_gemini(input.tools, input.tool_choice, &mut report)?;

@@ -57,6 +57,8 @@ pub struct GenerateContentRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thinking: Option<ThinkingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub thread: Option<MessageThreadParam>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<ToolChoice>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<ToolUnion>>,
@@ -64,6 +66,23 @@ pub struct GenerateContentRequestBody {
     pub rest: Rest,
 }
 pub type GenerateContentRequest = crate::WireRequest<GenerateContentRequestBody>;
+
+/// Server-held Messages conversation state (`message-threads-2026-08-12`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum MessageThreadParam {
+    Create {
+        #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+        rest: Rest,
+    },
+    Continue {
+        previous_message_id: String,
+        #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+        rest: Rest,
+    },
+}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]

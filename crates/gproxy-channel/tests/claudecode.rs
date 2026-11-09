@@ -188,7 +188,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     );
     headers.insert(
         "user-agent",
-        HeaderValue::from_static("claude-cli/2.1.318 (external, sdk-cli)"),
+        HeaderValue::from_static("claude-cli/2.1.321 (external, sdk-cli)"),
     );
     headers.insert("x-request-id", HeaderValue::from_static("req-1"));
     let body = json!({
@@ -198,7 +198,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
         "top_p": 0.9,
         "top_k": 40,
         "system": [
-            {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.318.abc; cc_entrypoint=sdk-cli;"},
+            {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.321.abc; cc_entrypoint=sdk-cli;"},
             {"type":"text", "text":" policy "},
             {"type":"text", "text":" ", "cache_control":{"type":"ephemeral"}}
         ],
@@ -228,7 +228,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
         "oauth beta first, client betas kept, context-1m stripped, fast mode derived"
     );
     assert_eq!(h["x-app"], "cli");
-    assert_eq!(h["user-agent"], "claude-cli/2.1.318 (external, sdk-cli)");
+    assert_eq!(h["user-agent"], "claude-cli/2.1.321 (external, sdk-cli)");
     assert_eq!(h["x-claude-code-session-id"], "session-1");
     assert_eq!(h["x-stainless-package-version"], "0.128.0");
     assert_eq!(h["anthropic-dangerous-direct-browser-access"], "true");
@@ -250,7 +250,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     let billing = billing.as_str();
     assert_eq!(
         billing,
-        "x-anthropic-billing-header: cc_version=2.1.318.886; cc_entrypoint=sdk-cli; cch=00000;",
+        "x-anthropic-billing-header: cc_version=2.1.321.ad5; cc_entrypoint=sdk-cli; cch=00000;",
         "a client block without turn fragments is a side call and stays bare"
     );
     let ids: Value = serde_json::from_str(shaped["metadata"]["user_id"].as_str().unwrap()).unwrap();
@@ -382,14 +382,14 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
         billing(concat!(
             "x-anthropic-billing-header: cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D; ",
             "cc_version=2.1.200.zzz; cc_prev_req=req_0123abc-XYZ_; cc_is_subagent=true; ",
-            "cc_prev_turn_index=12; cc_prev_msg=msg_0123abc_XYZ; cc_prev_prompt_index=0; ",
+            "cc_dispatch_entrypoint=claude-desktop; cc_prev_turn_index=12; cc_prev_msg=msg_0123abc_XYZ; cc_prev_prompt_index=0; ",
             "cc_workload=agent_run; cc_entrypoint=sdk-ts; cc_secret=leak; cch=11111; cc_turn_origin=user; cc_gateway=1;"
         )),
         concat!(
-            "x-anthropic-billing-header: cc_version=2.1.318.886; cc_entrypoint=sdk-ts; cch=00000; ",
+            "x-anthropic-billing-header: cc_version=2.1.321.ad5; cc_entrypoint=sdk-ts; cch=00000; ",
             "cc_workload=agent_run; cc_is_subagent=true; cc_prev_req=req_0123abc-XYZ_; ",
             "cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D; cc_turn_origin=user; ",
-            "cc_prev_msg=msg_0123abc_XYZ; cc_prev_prompt_index=0; cc_prev_turn_index=12;"
+            "cc_prev_msg=msg_0123abc_XYZ; cc_prev_prompt_index=0; cc_prev_turn_index=12; cc_dispatch_entrypoint=claude-desktop;"
         )
     );
     // Invalid values are dropped rather than forwarded: a prev_req without
@@ -400,11 +400,11 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
     let derived = billing(concat!(
         "x-anthropic-billing-header: cc_version=2.1.200.zzz; cc_entrypoint=sdk/ts; ",
         "cc_workload=agent run; cc_is_subagent=false; cc_prev_req=nope; cc_prompt_id=prompt-1; cc_gateway=env;",
-        "cc_prev_msg=msg_bad-id; cc_prev_prompt_index=0; cc_prev_turn_index=0;"
+        "cc_prev_msg=msg_bad-id; cc_prev_prompt_index=0; cc_prev_turn_index=0; cc_dispatch_entrypoint=other;"
     ));
     assert_eq!(
         derived,
-        "x-anthropic-billing-header: cc_version=2.1.318.886; cc_entrypoint=cli; cch=00000;"
+        "x-anthropic-billing-header: cc_version=2.1.321.ad5; cc_entrypoint=cli; cch=00000;"
     );
     for invalid in [
         "msg_",
@@ -1523,7 +1523,7 @@ fn service_request(method: Method, path: &str, query: Option<&str>, body: &str) 
     headers.insert("x-organization-uuid", HeaderValue::from_static("org-1"));
     headers.insert(
         "user-agent",
-        HeaderValue::from_static("claude-cli/2.1.318 (external, sdk-cli)"),
+        HeaderValue::from_static("claude-cli/2.1.321 (external, sdk-cli)"),
     );
     WireRequest {
         method,
@@ -1610,7 +1610,7 @@ async fn catalog_routes_forward_under_every_view_with_the_cli_identity() {
     assert_eq!(h["authorization"], "Bearer at");
     assert_eq!(h["anthropic-beta"], "oauth-2025-04-20");
     assert_eq!(h["anthropic-version"], "2026-10-21");
-    assert_eq!(h["user-agent"], "claude-cli/2.1.318 (external, sdk-cli)");
+    assert_eq!(h["user-agent"], "claude-cli/2.1.321 (external, sdk-cli)");
     assert_eq!(h["x-app"], "cli");
     assert_eq!(h["cache-control"], "no-cache");
     assert_eq!(h["x-organization-uuid"], "org-1");
@@ -2542,5 +2542,70 @@ async fn public_mcp_directories_forward_without_account_credentials() {
         assert!(headers.get("x-api-key").is_none());
         assert!(headers.get("cookie").is_none());
         assert!(headers.get("x-organization-uuid").is_none());
+    }
+}
+
+#[test]
+fn continued_message_threads_do_not_receive_a_system_prompt() {
+    let config = json!({"identity_system_block":true});
+    let secret = secret("at-1");
+    let metadata = json!({"device_id":"device-1", "account_uuid":"account-1"});
+    for thread in [
+        json!({"type":"create"}),
+        json!({"type":"continue", "previous_message_id":"msg_previous"}),
+    ] {
+        let mut body = json!({
+            "model":"claude-fable-5-2", "max_tokens":32, "thread":thread,
+            "messages":[{"role":"user", "content":"next turn"}]
+        });
+        if thread["type"] == "create" {
+            body["system"] = json!("original instructions");
+        } else {
+            body["speed"] = json!("fast");
+        }
+        let request = Claudecode
+            .prepare(PrepareContext {
+                provider: provider(&config, None),
+                credential: credential(&secret, &metadata),
+                operation: key(Operation::GenerateContent),
+                request: messages_request(HeaderMap::new(), body),
+                endpoint_override: None,
+            })
+            .unwrap();
+        assert!(
+            !request.headers()["anthropic-beta"]
+                .to_str()
+                .unwrap()
+                .contains("fast-mode-2026-02-01")
+        );
+        assert!(
+            request.headers()["anthropic-beta"]
+                .to_str()
+                .unwrap()
+                .split(',')
+                .any(|beta| beta == "message-threads-2026-08-12")
+        );
+        let HttpBody::Bytes(bytes) = request.into_body() else {
+            panic!("buffered");
+        };
+        let shaped: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(shaped["thread"], thread);
+        if thread["type"] == "continue" {
+            assert!(shaped.get("system").is_none());
+            assert!(shaped.get("tools").is_none());
+        } else {
+            assert!(
+                shaped["system"]
+                    .to_string()
+                    .contains("original instructions")
+            );
+            assert!(shaped["system"].to_string().contains("cc_version=2.1.321"));
+        }
+        assert!(
+            shaped["metadata"]["user_id"]
+                .as_str()
+                .unwrap()
+                .contains("account-1")
+        );
     }
 }
