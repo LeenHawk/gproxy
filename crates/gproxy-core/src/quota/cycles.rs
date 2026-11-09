@@ -782,15 +782,19 @@ impl<C: BatchConnectionTrait> Cycles<'_, C> {
     }
 
     /// A redeemed reset credit reopened the windows in `clears` (every
-    /// window when empty): close their cycles now and open `manual_reset`
+    /// window when None): close their cycles now and open `manual_reset`
     /// ones in their place. The calendar-month cycle of an undeclared
     /// credential is not an upstream window and is left alone.
     pub async fn manual_reset(
         &self,
         subject: &CycleSubject<'_>,
-        clears: &[String],
+        clears: Option<&[String]>,
         now_ms: i64,
     ) -> CoreResult<()> {
+        if clears.is_some_and(<[String]>::is_empty) {
+            return Ok(());
+        }
+        let clears = clears.unwrap_or_default();
         let credential_id = subject.credential_id;
         let open = self.reload(credential_id).await?;
         let mut changes = Vec::new();
@@ -1510,8 +1514,28 @@ mod tests {
             )
             .await
             .unwrap();
+        // An explicitly empty scope must preserve every cycle.
+        let before = store
+            .credential_cycles()
+            .open_of(&["c".into()])
+            .await
+            .unwrap();
         cycles
-            .manual_reset(&subject(&dimensions), &["five_hour".into()], NOW + HOUR)
+            .manual_reset(&subject(&dimensions), Some(&[]), NOW + HOUR / 2)
+            .await
+            .unwrap();
+        let after = store
+            .credential_cycles()
+            .open_of(&["c".into()])
+            .await
+            .unwrap();
+        assert_eq!(before, after);
+        cycles
+            .manual_reset(
+                &subject(&dimensions),
+                Some(&["five_hour".into()]),
+                NOW + HOUR,
+            )
             .await
             .unwrap();
         let open = store
@@ -1545,9 +1569,44 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(links[0].as_ref().unwrap().cycle_id, five.id);
-        // An empty `clears` is every window.
+        // Fable resets its own window while the refunded weekly usage is
+        // refreshed separately. Keep the total weekly cycle and its cost.
         cycles
-            .manual_reset(&subject(&dimensions), &[], NOW + 3 * HOUR)
+            .manual_reset(
+                &subject(&dimensions),
+                Some(&["seven_day_fable".into()]),
+                NOW + 2 * HOUR,
+            )
+            .await
+            .unwrap();
+        let scoped = store
+            .credential_cycles()
+            .open_of(&["c".into()])
+            .await
+            .unwrap();
+        let weekly_before = before.iter().find(|r| r.window_id == "seven_day").unwrap();
+        assert_eq!(
+            scoped.iter().find(|r| r.window_id == "seven_day").unwrap(),
+            weekly_before
+        );
+        assert_eq!(
+            scoped
+                .iter()
+                .find(|r| r.window_id == "five_hour")
+                .unwrap()
+                .id,
+            five.id
+        );
+        let fable = scoped
+            .iter()
+            .find(|r| r.window_id == "seven_day_fable")
+            .unwrap();
+        assert_eq!(fable.opened_by, CycleOpening::ManualReset);
+        assert_eq!(fable.cost_usd, FixedDecimal::ZERO);
+        assert_eq!(fable.starts_at_ms, NOW + 2 * HOUR);
+        // An explicit all-window reset still reopens every window.
+        cycles
+            .manual_reset(&subject(&dimensions), None, NOW + 3 * HOUR)
             .await
             .unwrap();
         let open = store

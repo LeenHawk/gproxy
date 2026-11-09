@@ -66,15 +66,15 @@ it("requires confirmation and refreshes usage and cards after a mocked reset", a
 
 it("shows Claude eligibility separately and preserves the selected grant and request id on retry", async () => {
   vi.mocked(quotaResetCredits).mockResolvedValue({ creditExpirationsMs: [], availableCount: null, expiresAtMs: null, options: [
-    { program: "juniper_tide", grantId: null, label: null, availableCount: null, expiresAtMs: null, nextAvailableAtMs: null, usable: false, ineligibleReason: "cli_version", clears: ["five_hour"] },
-    { program: "cedar_ember", grantId: "gift-1", label: "Gift reset", availableCount: 2, expiresAtMs: 2_000_000_000_000, nextAvailableAtMs: null, usable: true, ineligibleReason: null, clears: ["five_hour", "seven_day"] },
+    { program: "juniper_tide", title: "5-hour reset (once a week)", description: "Resets the 5-hour limit once a week. Usage still counts toward the weekly limit.", scopeLabels: ["5-hour quota"], grantId: null, label: null, availableCount: null, expiresAtMs: null, nextAvailableAtMs: null, usable: false, ineligibleReason: "cli_version", clears: ["five_hour"] },
+    { program: "cedar_ember", title: "Full reset", description: null, scopeLabels: ["5-hour quota", "7-day quota"], grantId: "gift-1", label: "Gift reset", availableCount: 2, expiresAtMs: 2_000_000_000_000, nextAvailableAtMs: null, usable: true, ineligibleReason: null, clears: ["five_hour", "seven_day"] },
   ] })
   vi.mocked(resetUpstreamQuota).mockRejectedValueOnce(new Error("Uncertain reply"))
     .mockResolvedValue({ outcome: "reset", windowsReset: 2, reason: null })
   mount("claudecode")
   expect(await screen.findByText(/client version is not eligible/)).toBeInTheDocument()
-  expect(within(screen.getByRole("region", { name: "Weekly session reset" })).getByRole("button")).toBeDisabled()
-  const gift = screen.getByRole("region", { name: "Gift reset" })
+  expect(within(screen.getByRole("region", { name: "5-hour reset (once a week)" })).getByRole("button")).toBeDisabled()
+  const gift = screen.getByRole("region", { name: "Full reset" })
   await waitFor(() => expect(within(gift).getByRole("button")).toBeEnabled())
   fireEvent.click(within(gift).getByRole("button"))
   const dialog = screen.getByRole("alertdialog")
@@ -139,4 +139,27 @@ it("shows a separate expiry for each available reset card", async () => {
     expect(card.querySelector("time")).toHaveAttribute("datetime", new Date(expiry).toISOString())
   }
   expect(resetUpstreamQuota).not.toHaveBeenCalled()
+})
+
+it("shows all four reset kinds and explains Fable refunds before confirmation", async () => {
+  vi.mocked(quotaResetCredits).mockResolvedValue({ creditExpirationsMs: [], availableCount: null, expiresAtMs: null, options: [
+    ...["5-hour reset", "Weekly reset", "Full reset", "Fable reset"].map((title, index) => ({ program: "plugin-reset", title, description: index === 3 ? "Resets the Fable limit and returns this week's Fable usage to your weekly allowance. Other usage and your weekly reset date stay unchanged." : null, scopeLabels: [["5-hour quota"], ["7-day quota"], ["5-hour quota", "7-day quota", "Fable · 7-day quota"], ["Fable · 7-day quota"]][index], grantId: index === 3 ? "fable" : String(index), label: null, availableCount: 1, expiresAtMs: null, nextAvailableAtMs: null, usable: true, ineligibleReason: null, clears: [["five_hour"], ["seven_day"], ["five_hour", "seven_day", "seven_day_fable"], ["seven_day_fable"]][index] })),
+    { program: "plugin-reset", title: "Fable reset", description: null, scopeLabels: ["Fable · 7-day quota"], grantId: "blocked", label: "Unavailable grant", availableCount: 1, expiresAtMs: null, nextAvailableAtMs: null, usable: false, ineligibleReason: "no_fable_usage", clears: [] },
+  ] })
+  mount("custom")
+  await screen.findByRole("region", { name: "5-hour reset" })
+  expect(screen.getByRole("region", { name: "Weekly reset" })).toBeInTheDocument()
+  expect(screen.getByRole("region", { name: "Full reset" })).toBeInTheDocument()
+  const fable = screen.getAllByRole("region", { name: "Fable reset" })
+  expect(within(fable[1]).getByRole("button")).toBeDisabled()
+  expect(within(fable[1]).getByText("There is no Fable usage this week to give back.")).toBeInTheDocument()
+  expect(resetUpstreamQuota).not.toHaveBeenCalled()
+  fireEvent.click(within(fable[0]).getByRole("button"))
+  const dialog = screen.getByRole("alertdialog")
+  expect(within(dialog).getByText(/Resets the Fable limit/)).toBeInTheDocument()
+  expect(within(dialog).getByText(/Other usage and your weekly reset date stay unchanged/)).toBeInTheDocument()
+  expect(within(dialog).getByText("Resets: Fable · 7-day quota")).toBeInTheDocument()
+  expect(resetUpstreamQuota).not.toHaveBeenCalled()
+  fireEvent.click(within(dialog).getByRole("button", { name: "Reset upstream quota" }))
+  await waitFor(() => expect(resetUpstreamQuota).toHaveBeenCalledWith("c", { program: "plugin-reset", grantId: "fable", requestId: expect.any(String) }))
 })

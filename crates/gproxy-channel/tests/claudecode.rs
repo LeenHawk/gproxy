@@ -2609,3 +2609,88 @@ fn continued_message_threads_do_not_receive_a_system_prompt() {
         );
     }
 }
+
+#[tokio::test]
+async fn reset_kinds_clear_the_fable_window_without_resetting_total_weekly_usage() {
+    use gproxy_channel::channel::{QuotaResetOutcome, QuotaResetRequest};
+    let status = json!({"cedar_ember": {
+        "eligible":true, "at_limit":true, "exhausted":["seven_day"],
+        "grants":[
+            {"id":"session", "resets_left":1, "usable_now":true, "clears":["five_hour"]},
+            {"id":"weekly", "resets_left":2, "usable_now":true, "clears":["seven_day"]},
+            {"id":"full", "resets_left":3, "usable_now":true, "clears":["five_hour","seven_day"]},
+            {"id":"fable", "resets_left":4, "usable_now":true, "type":"weekly", "gives_back_weekly":true, "clears":["seven_day_overage_included"]},
+            {"id":"fable-blocked", "resets_left":1, "usable_now":false, "gives_back_weekly":true, "blocking":["seven_day"], "clears":[]}
+        ]
+    }});
+    let client = ScriptClient::new(vec![
+        reply(
+            StatusCode::OK,
+            json!({"juniper_tide":{"eligible":true,"arm":"reset","available":true}}),
+        ),
+        reply(StatusCode::OK, status.clone()),
+    ]);
+    let config = json!({});
+    let secret = secret("at");
+    let metadata = json!({"organization_uuid":"org-123"});
+    let context = |client| CredentialContext {
+        provider: provider(&config, None),
+        credential: credential(&secret, &metadata),
+        client,
+    };
+    let reset = Claudecode.quota_reset().unwrap();
+    let credits = reset.credits(context(&client)).await.unwrap();
+    assert_eq!(
+        credits
+            .options
+            .iter()
+            .map(|option| option.title.as_deref())
+            .collect::<Vec<_>>(),
+        vec![
+            Some("5-hour reset (once a week)"),
+            Some("5-hour reset"),
+            Some("Weekly reset"),
+            Some("Full reset"),
+            Some("Fable reset"),
+            Some("Fable reset")
+        ]
+    );
+    assert!(credits.options[..5].iter().all(|option| option.usable));
+    assert_eq!(credits.options[4].available_count, Some(4));
+    assert_eq!(
+        credits.options[5].ineligible_reason.as_deref(),
+        Some("no_fable_usage")
+    );
+    assert!(client.sent().iter().all(|request| request.0 == Method::GET));
+
+    let client = ScriptClient::new(vec![
+        reply(StatusCode::OK, status),
+        reply(
+            StatusCode::OK,
+            json!({"result":"reset", "cleared":["seven_day_overage_included"]}),
+        ),
+    ]);
+    let result = reset
+        .reset(
+            context(&client),
+            QuotaResetRequest {
+                redeem_request_id: "fable-request",
+                program: Some("cedar_ember"),
+                grant_id: Some("fable"),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.outcome, QuotaResetOutcome::Reset);
+    assert_eq!(result.clears, Some(vec!["seven_day_fable".into()]));
+    assert_eq!(
+        credits.options[4].clears,
+        vec!["seven_day_fable".to_owned()]
+    );
+    let sent = client.sent();
+    assert_eq!(sent.len(), 2);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&sent[1].3).unwrap(),
+        json!({"program":"cedar_ember", "grant_id":"fable", "request_id":"fable-request"})
+    );
+}

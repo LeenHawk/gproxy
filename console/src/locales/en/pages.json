@@ -882,7 +882,6 @@
     "cyclePeriod": "Period",
     "cycleFinalPercent": "Final",
     "monthCycle": "Calendar month",
-    "fullReset": "Full reset",
     "resetCardNumber": "Card {{number}}",
     "weeklyBreakdown": "Weekly usage breakdown",
     "usageSources": {
@@ -894,7 +893,20 @@
     "resetCount": "Available resets",
     "queryResetEligibility": "Refresh eligibility",
     "resetEligibility": "Reset eligibility",
-    "weeklyReset": "Weekly session reset",
+    "resetText": {
+      "5-hour reset": "5-hour reset",
+      "Weekly reset": "Weekly reset",
+      "Full reset": "Full reset",
+      "Fable reset": "Fable reset",
+      "5-hour reset (once a week)": "5-hour reset (once a week)",
+      "Resets the 5-hour limit once a week. Usage still counts toward the weekly limit.": "Resets the 5-hour limit once a week. Usage still counts toward the weekly limit.",
+      "Resets the Fable limit and returns this week's Fable usage to your weekly allowance. Other usage and your weekly reset date stay unchanged.": "Resets the Fable limit and returns this week's Fable usage to your weekly allowance. Other usage and your weekly reset date stay unchanged.",
+      "5-hour quota": "5-hour quota",
+      "7-day quota": "7-day quota",
+      "Fable · 7-day quota": "Fable · 7-day quota",
+      "Opus · 7-day quota": "Opus · 7-day quota",
+      "Sonnet · 7-day quota": "Sonnet · 7-day quota"
+    },
     "grantReset": "Granted reset",
     "resetScope": "Resets: {{scope}}",
     "nextResetAvailable": "Next available: {{at}}",
@@ -906,6 +918,7 @@
     "expiresAt": "Expires",
     "scopedWeeklyQuota": "{{scope}} · 7-day quota",
     "resetReasons": {
+      "no_fable_usage": "There is no Fable usage this week to give back.",
       "cli_version": "The client version is not eligible; the number of grants is unknown.",
       "no_grant": "No reset grants available.",
       "other_experiment": "Unavailable for this account’s experiment group.",

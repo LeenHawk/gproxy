@@ -281,6 +281,11 @@ pub struct QuotaResetCredits {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuotaResetOption {
     pub program: String,
+    /// Display text supplied by the channel; the host does not infer reset semantics.
+    pub title: Option<String>,
+    pub description: Option<String>,
+    /// Display labels for `clears`, in the same order.
+    pub scope_labels: Vec<String>,
     pub grant_id: Option<String>,
     pub label: Option<String>,
     pub available_count: Option<u64>,
@@ -314,10 +319,9 @@ pub struct QuotaResetResult {
     pub reason: Option<String>,
     pub outcome: QuotaResetOutcome,
     pub windows_reset: Option<u64>,
-    /// Dimension ids the redeemed option reopens, as its `QuotaResetOption`
-    /// listed them; empty when the channel does not say, which the host
-    /// reads as every window.
-    pub clears: Vec<String>,
+    /// Dimension ids the redeemed option reopens. None explicitly means all
+    /// windows; Some(empty) only refreshes usage, for example after a refund.
+    pub clears: Option<Vec<String>>,
 }
 
 /// Independent from quota querying: ClaudeCode need not implement resets just
