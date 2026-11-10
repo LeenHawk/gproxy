@@ -17,7 +17,7 @@
 //!   and `internal/api/handlers/management/auth_files_provider_oauth.go`).
 //! - Since 2.6.0 the IDE ships no language server: its bundled `agy`
 //!   extension downloads the Antigravity CLI and runs it as
-//!   `antigravity --hub` (CLI 1.5.2, hub server 2.29.0), and that Go
+//!   `antigravity --hub` (CLI 1.5.4, hub server 2.30.0), and that Go
 //!   process makes the model calls: `POST /v1internal:generateContent`,
 //!   `:streamGenerateContent?alt=sse` and `:countTokens` carrying the Code
 //!   Assist envelope, the catalogue from `POST /v1internal:fetchAvailableModels`
@@ -57,7 +57,7 @@
 //! `user_prompt_id`. It names itself (`userAgent: "antigravity"`) and the
 //! kind of call (`requestType: "agent"`, `"image_gen"` for an image model).
 //! An agent call (captured from the hub and CLI 1.4.10 on 2026-10-29, and
-//! unchanged from the hub and CLI 1.5.2 on 2026-11-06) carries
+//! unchanged from the hub and CLI 1.5.4 on 2026-11-10) carries
 //! `requestId: agent/<cascade>/<ms>/<trajectory>/<step>`, where the cascade
 //! and trajectory ids stay put across a conversation and the step is the
 //! number of `contents`; `request.labels` repeating those ids
@@ -87,7 +87,10 @@ use crate::channel::{
     QuotaModel, QuotaQuery, forwardable,
 };
 use crate::channels::shared::code_assist;
-use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
+use gproxy_client::{
+    Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, Http2Setting, Http2Settings,
+    PseudoHeader, TlsVersion,
+};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse, connection::Bytes,
 };
@@ -146,16 +149,16 @@ pub const EDITOR_USER_AGENT: &str = concat!(
     " linux/amd64 google-api-nodejs-client/10.3.0"
 );
 /// The user agent of the hub the IDE runs (`antigravity --hub`, CLI
-/// 1.5.2), which makes the catalogue, quota and generation calls
+/// 1.5.4), which makes the catalogue, quota and generation calls
 /// (`codeassistclient.UserAgent`): `%s/%s/%s (%s)` of the agent name
 /// (`antigravity`), the subclient type (`hub` under `--hub`, `cli`
-/// otherwise), the hub server's version (2.29.0; the CLI's own version under
+/// otherwise), the hub server's version (2.30.0; the CLI's own version under
 /// `cli`), and `aidev_client`, `os_type=<GOOS>`, `arch=<GOARCH>` and the
 /// build's `cl=<changelist>` joined by `; `. The hub's sign-in records no
 /// `auth_method` (the standalone CLI's adds `auth_method=consumer`). Captured
-/// from the Linux amd64 build of CLI 1.5.2 on 2026-11-06.
+/// from the Linux amd64 build of CLI 1.5.4 on 2026-11-10.
 pub const USER_AGENT: &str =
-    "antigravity/hub/2.29.0 (aidev_client; os_type=linux; arch=amd64; cl=1015175089)";
+    "antigravity/hub/2.30.0 (aidev_client; os_type=linux; arch=amd64; cl=1017748741)";
 
 /// Provider `config` JSON understood by this channel. Unknown keys ignored.
 #[derive(Debug, Deserialize)]
@@ -208,12 +211,22 @@ const CHANNEL_HEADERS: &[&str] = &[
 ];
 
 /// The Go Code Assist transport of the Antigravity CLI the IDE runs as its
-/// hub (captured from CLI 1.2.16, unchanged in CLI 1.5.2): no ALPN or
-/// GREASE, TLS 1.2 floor, Go's cipher preferences and its extension order. BoringSSL puts TLS
-/// 1.3 suites first even though Go advertises them last.
+/// hub (captured from CLI 1.5.4 on 2026-11-10): no GREASE, TLS 1.2 floor,
+/// Go's cipher preferences and its extension order. BoringSSL puts TLS 1.3
+/// suites first even though Go advertises them last.
 /// BoringSSL lacks the captured SecP256r1MLKEM768/SecP384r1MLKEM1024 groups
 /// and signature_algorithms_cert extension; keep the
 /// supported subset rather than configuring algorithms it cannot negotiate.
+///
+/// Up to CLI 1.5.2 the Code Assist transport sent no ALPN and spoke
+/// HTTP/1.1. Since 1.5.4 it offers `h2, http/1.1` and speaks HTTP/2 with
+/// Go's `x/net/http2` preamble: SETTINGS `ENABLE_PUSH 0`,
+/// `INITIAL_WINDOW_SIZE 4194304`, `MAX_FRAME_SIZE 1048576`,
+/// `MAX_HEADER_LIST_SIZE 10485760` in that order, a connection
+/// `WINDOW_UPDATE` of 1073741824 (on top of the initial 65535), no stream
+/// priority, and the pseudo-headers ordered `:authority`, `:method`,
+/// `:path`, `:scheme`. Go writes the regular headers in map order, so their
+/// order varies from request to request.
 pub fn default_connection() -> ConnectionConfig {
     ConnectionConfig {
         backend: Backend::Wreq,
@@ -221,8 +234,8 @@ pub fn default_connection() -> ConnectionConfig {
         // client's encoding preferences cannot describe this channel's parser.
         gzip: true,
         emulation: Some(EmulationConfig::Custom(Fingerprint {
-            alpn: Vec::<Alpn>::new(),
-            disable_alpn: Some(true),
+            alpn: vec![Alpn::Http2, Alpn::Http1],
+            disable_alpn: None,
             min_tls: Some(TlsVersion::Tls12),
             max_tls: Some(TlsVersion::Tls13),
             cipher_list: Some(
@@ -249,12 +262,33 @@ pub fn default_connection() -> ConnectionConfig {
             ),
             preserve_tls13_cipher_list: Some(true),
             grease: Some(false),
-            extension_permutation: Some(vec![0, 11, 65281, 23, 18, 5, 10, 13, 43, 51]),
+            extension_permutation: Some(vec![0, 11, 65281, 23, 18, 5, 10, 13, 16, 43, 51]),
             ocsp_stapling: Some(true),
             signed_cert_timestamps: Some(true),
             session_ticket: Some(false),
             psk_dhe_ke: Some(false),
-            http2: None,
+            http2: Some(Http2Settings {
+                enable_push: Some(false),
+                initial_window_size: Some(4_194_304),
+                // The target window: the initial 65535 plus Go's 1 << 30
+                // WINDOW_UPDATE.
+                initial_connection_window_size: Some(65_535 + (1 << 30)),
+                max_frame_size: Some(1_048_576),
+                max_header_list_size: Some(10_485_760),
+                pseudo_header_order: Some(vec![
+                    PseudoHeader::Authority,
+                    PseudoHeader::Method,
+                    PseudoHeader::Path,
+                    PseudoHeader::Scheme,
+                ]),
+                settings_order: Some(vec![
+                    Http2Setting::EnablePush,
+                    Http2Setting::InitialWindowSize,
+                    Http2Setting::MaxFrameSize,
+                    Http2Setting::MaxHeaderListSize,
+                ]),
+                ..Http2Settings::default()
+            }),
             headers: None,
         })),
         ..ConnectionConfig::default()

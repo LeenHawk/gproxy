@@ -534,14 +534,13 @@ fn tls_presets() -> Vec<TlsPresetDto> {
         TlsPresetDto {
             id: "antigravity".to_owned(),
             label: "Antigravity".to_owned(),
-            // The Code Assist TLS profile captured from CLI 1.2.16 and
-            // unchanged in 1.5.2 (the IDE runs the CLI as its hub), using the algorithms the compiled
-            // BoringSSL supports (same as the channel default). The user
-            // agent is the IDE hub's.
+            // The Code Assist TLS and HTTP/2 profile captured from CLI 1.5.4
+            // (the IDE runs the CLI as its hub), using the algorithms the
+            // compiled BoringSSL supports (same as the channel default). The
+            // user agent is the IDE hub's.
             emulation: json!({
                 "kind": "custom",
-                "alpn": [],
-                "disable_alpn": true,
+                "alpn": ["http2", "http1"],
                 "min_tls": "tls12",
                 "max_tls": "tls13",
                 "grease": false,
@@ -562,14 +561,28 @@ fn tls_presets() -> Vec<TlsPresetDto> {
                     "ecdsa_secp521r1_sha512"
                 ),
                 "preserve_tls13_cipher_list": true,
-                "extension_permutation": [0, 11, 65281, 23, 18, 5, 10, 13, 43, 51],
+                "extension_permutation": [0, 11, 65281, 23, 18, 5, 10, 13, 16, 43, 51],
                 "ocsp_stapling": true,
                 "signed_cert_timestamps": true,
                 "session_ticket": false,
                 "psk_dhe_ke": false,
+                "http2": {
+                    "enable_push": false,
+                    "initial_window_size": 4194304,
+                    "initial_connection_window_size": 1073807359,
+                    "max_frame_size": 1048576,
+                    "max_header_list_size": 10485760,
+                    "pseudo_header_order": ["authority", "method", "path", "scheme"],
+                    "settings_order": [
+                        "enable_push",
+                        "initial_window_size",
+                        "max_frame_size",
+                        "max_header_list_size",
+                    ],
+                },
                 "headers": [[
                     "user-agent",
-                    "antigravity/hub/2.29.0 (aidev_client; os_type=linux; arch=amd64; cl=1015175089)"
+                    "antigravity/hub/2.30.0 (aidev_client; os_type=linux; arch=amd64; cl=1017748741)"
                 ]],
             }),
         },
