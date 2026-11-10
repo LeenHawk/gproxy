@@ -375,7 +375,9 @@ fn conversation_ids(request: &Value) -> Result<(String, String), ChannelError> {
 /// The catalogue's internal model numbers (`fetchAvailableModels`
 /// `models.<id>.model`) the hub repeats as the `model_enum` label, from a
 /// Google AI Pro account's catalogue on 2026-10-30 (identical on the
-/// production and `daily-` hosts). A model missing here gets no label.
+/// production and `daily-` hosts), checked again on the `daily-` host on
+/// 2026-11-11 when the `gemini-4-carbon-*` models appeared. A model missing
+/// here gets no label.
 const MODEL_ENUMS: &[(&str, &str)] = &[
     ("claude-opus-5-5-high", "MODEL_PLACEHOLDER_M402"),
     ("claude-opus-5-5-low", "MODEL_PLACEHOLDER_M400"),
@@ -398,6 +400,9 @@ const MODEL_ENUMS: &[(&str, &str)] = &[
     ("gemini-4-argon-high", "MODEL_PLACEHOLDER_M417"),
     ("gemini-4-argon-low", "MODEL_PLACEHOLDER_M419"),
     ("gemini-4-argon-medium", "MODEL_PLACEHOLDER_M418"),
+    ("gemini-4-carbon-high", "MODEL_PLACEHOLDER_M427"),
+    ("gemini-4-carbon-low", "MODEL_PLACEHOLDER_M438"),
+    ("gemini-4-carbon-medium", "MODEL_PLACEHOLDER_M437"),
     ("gpt-oss-120b-medium", "MODEL_OPENAI_GPT_OSS_120B_MEDIUM"),
 ];
 
