@@ -15,9 +15,7 @@
 <a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
 <a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
 
-GPROXY 是一个用 Rust 编写、自行部署的大模型 API 网关。上游账户（API Key、Codex 或 Claude Code 这类 OAuth 登录、浏览器 Cookie）统一交给 GPROXY 保管，客户端只需要一个网关地址、一个 GPROXY API Key，以及你自己定义的模型名。
-
-每个请求进来后，GPROXY 先把模型名解析到具体的供应商，再挑一份可用的凭证；客户端和上游使用的协议不同时（OpenAI、Claude、Gemini 三种格式之间），由网关负责转换；最后记录 token 用量和费用。某个凭证或供应商出错时，会换下一个重试。用户、API Key、权限、限流和费用预算都可以在 Web 控制台或管理 API 中配置。
+GPROXY 是一个自己部署的大模型 API 网关，用 Rust 写的。你把手里的上游账号交给它保管：API Key、Claude Code 或 Codex 这类订阅的 OAuth 登录、浏览器 Cookie 都可以。用的人只拿到一个网关地址、一把 GPROXY 的 Key 和你起的模型名，上游的密钥他们接触不到。
 
 GPROXY 本身不运行模型，推理由上游服务完成。
 
@@ -25,15 +23,62 @@ GPROXY 本身不运行模型，推理由上游服务完成。
 
 ![控制台的供应商页面](.github/readme/providers-zh-CN.webp)
 
+## 什么情况下用得上
+
+- 手里有几个 Claude、ChatGPT 订阅和一堆 API Key，想分给团队或朋友用。每人一把 Key，各有各的权限、限流和预算，谁用了多少事后能查到。
+- 同一个模型有好几个来源，想让它们互为备份。某个账号被限流或者出错时，请求自动换到下一个，客户端不需要知道。
+- 客户端只支持 OpenAI 格式，上游却是 Claude 或 Gemini，或者反过来。
+- 网关要长期运行在服务器、NAS、容器或 Cloudflare Workers 上。
+
+如果只是想在自己电脑上给 Claude Code、Codex 这些工具换个模型，桌面上的切换工具更省事。GPROXY 不会替你修改这些工具的配置文件，网关地址和 Key 需要自己填。
+
 ## 功能
 
-- 对客户端提供 OpenAI Chat Completions、Responses、Claude Messages 和 Gemini GenerateContent 接口，支持流式，三种格式之间可以互相转换。嵌入、图像、音频、视频、文件和 Realtime 等接口，在上游提供时同样可用。
-- 内置渠道包括 OpenAI、Claude API、Claude Code、Claude Web、Codex、Gemini CLI、Antigravity、Google AI Studio、Vertex AI、AWS Bedrock、Azure、GitHub Copilot CLI、OpenRouter、DeepSeek、智谱 GLM、Kimi、MiniMax、阿里云百炼（DashScope）、火山引擎、xAI、Kiro 等，完整列表见[供应商与凭证](https://gproxy.leenhawk.com/zh-cn/guides/providers)。其他兼容这三种协议的服务可以用 `custom` 渠道接入。
-- 模型路由：客户端请求 `fast`、`coding` 这样的名字，由你决定背后用哪些供应商和上游模型，可以设置权重和回退层级。
-- 凭证池：OAuth 自动刷新、健康状态跟踪、上游额度查询和故障切换。
-- 按供应商配置的重写规则：系统提示词、提示缓存断点、JSON 字段、正则替换和请求头。
-- 用户、组织、团队和分级管理员，按 Key 设置权限、限流和预算；用量统计、请求日志和审计日志。
-- 可以作为原生服务、桌面或手机应用、容器运行，也可以部署为 Cloudflare Worker、Netlify 或 Vercel 函数。Rust 程序可以通过 `gproxy-sdk` 直接嵌入。
+### 订阅账号做上游
+
+除了各家的 API Key，GPROXY 还能把订阅账号当作上游：Claude Code、Claude 网页版、Codex（ChatGPT 账号）、Gemini CLI、Antigravity、GitHub Copilot CLI、Kiro、Grok Build、Kimi Code、Trae、Devin、WorkBuddy 等。在控制台里登录一次，之后令牌由 GPROXY 自动刷新。
+
+一个供应商下可以放多个账号。每个账号的额度窗口可以查到，被上游限流的账号会先让给其他账号。打开会话亲和后，同一个对话固定使用同一个账号，提示缓存不会因为换号而失效。
+
+Claude Code 和 Codex CLI 除了发模型请求，还会查询账号资料、用量、插件等信息。GPROXY 也处理这些请求，所以官方 CLI 指向网关后可以正常使用。CLI 里显示的是调用者自己在网关上的用量，共享账号的信息不会泄露给他。
+
+### 多人使用
+
+账户分为用户、组织和团队，管理员可以只管某个组织或团队。每把 Key 可以限定能用的供应商和模型，并设置限流和费用预算。凭证可以归属于某个用户、组织或团队，其他人用不到。
+
+Claude Code、Codex CLI 这类用 OAuth 登录的工具，可以直接登录到你的 GPROXY 实例，不必给每个人单独发 Key。
+
+每次上游调用都会记一条用量，包含 token 数和费用。另有请求日志和审计日志。
+
+### 协议转换
+
+对客户端提供 OpenAI Chat Completions、Responses、Claude Messages 和 Gemini GenerateContent 四种接口，流式和非流式都支持。客户端与上游格式不同时由网关转换。嵌入、重排、图像、音频、视频、文件和 Realtime 接口在上游提供时同样可用。
+
+转换只改变请求格式。上游模型不支持工具调用或图像输入时，换一种格式请求也仍然不支持。
+
+### 模型路由
+
+客户端请求 `fast`、`coding` 这样的名字，背后用哪些供应商和上游模型由你决定。路由成员可以分层，前一层都不可用时才使用后一层；同一层内可以轮询、按权重分配或按固定顺序。不建路由也可以，直接用 `供应商/模型` 请求。
+
+![控制台的模型路由页面](.github/readme/routes-zh-CN.webp)
+
+### 重写规则
+
+可以按供应商改写请求和响应：系统提示词、JSON 字段、正则替换、请求头和提示缓存断点。有些客户端无法设置缓存字段，这时可以在提示词里写一个约定的字符串，供应商开启该选项后，GPROXY 会把它换成缓存断点。
+
+### 渠道
+
+除上面的订阅类渠道外，内置渠道还有 OpenAI、Claude API、Google AI Studio、Vertex AI、AWS Bedrock、Azure、OpenRouter、DeepSeek、智谱 GLM、Kimi、MiniMax、阿里云百炼（DashScope）、火山方舟、xAI、NVIDIA NIM 等，完整列表见[供应商与凭证](https://gproxy.leenhawk.com/zh-cn/guides/providers)。只是地址和请求头不同的兼容服务，用 `custom` 渠道填写地址即可接入。需要专用适配时，可以按[添加渠道](https://gproxy.leenhawk.com/zh-cn/development/adding-a-channel)在仓库外写一个渠道插件，不必 fork。
+
+### 运行方式
+
+- 原生服务：Linux、macOS 和 Windows 上的 CLI，内置 Web 控制台，也有不带控制台的 headless 版本。
+- 容器。
+- 桌面和手机应用，内置控制台和设置向导。
+- Cloudflare Workers、Netlify 和 Vercel 函数，可用的渠道与原生版本相同。
+- Rust 库：通过 `gproxy-sdk` 嵌入自己的程序。
+
+数据库支持 SQLite、PostgreSQL、MySQL，以及 Cloudflare 上的 D1 和 libSQL/Turso。
 
 ## 安装
 
@@ -96,7 +141,7 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 
 页面顶部的部署按钮对应下面这些模板。Cloudflare、Netlify 和 Vercel 模板直接部署最新稳定版的预构建包，不需要编译。Cloudflare 使用 D1 或 libSQL/Turso，另外两个使用 PostgreSQL。Render 和 Heroku 则在一个小容器里运行原生程序，数据库同样是 PostgreSQL。
 
-部署时需要填写管理员密码和主密钥。动手之前请先读[托管部署](https://gproxy.leenhawk.com/zh-cn/deployment/edge)和 [Docker、Render 与 Heroku](https://gproxy.leenhawk.com/zh-cn/deployment/containers)，里面讲了数据库怎么选、套餐费用，以及 Serverless 平台上有哪些功能用不了（比如 WebSocket）。
+部署时需要填写管理员密码和主密钥。动手之前请先读[托管部署](https://gproxy.leenhawk.com/zh-cn/deployment/edge)和 [Docker、Render 与 Heroku](https://gproxy.leenhawk.com/zh-cn/deployment/containers)，里面讲了数据库怎么选、各平台套餐的费用，以及平台本身的限制，例如 Netlify 不支持 WebSocket。
 
 ## 从 v3 升级
 
