@@ -464,19 +464,12 @@ fn tier_model(rule_id: &str, tier: &DefaultModelTierDto) -> SdkResult<price_tier
 /// by the compiled wreq backend. Browser profiles come from wreq-util itself
 /// rather than a separate version list that can drift from the client.
 fn tls_presets() -> Vec<TlsPresetDto> {
-    let simple = |id: &str, label: &str, user_agent: &str, curves: &str| TlsPresetDto {
+    // The CLI stacks of the channels that once applied them by default; now
+    // only a connection profile that selects one of these sends it.
+    let cli = |id: &str, label: &str, emulation: Value| TlsPresetDto {
         id: id.to_owned(),
         label: label.to_owned(),
-        emulation: json!({
-            "kind": "custom",
-            "alpn": [],
-            "min_tls": "tls12",
-            "max_tls": "tls13",
-            "grease": false,
-            "cipher_list": "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256",
-            "curves_list": curves,
-            "headers": [["user-agent", user_agent]],
-        }),
+        emulation,
     };
     let mut presets = vec![
         TlsPresetDto {
@@ -525,19 +518,45 @@ fn tls_presets() -> Vec<TlsPresetDto> {
                 ],
             }),
         },
-        simple(
+        // Node 22 over OpenSSL: TLS 1.2 floor, X25519MLKEM768 first, no
+        // GREASE and no ALPN list of its own.
+        cli(
             "gemini",
             "Gemini CLI",
-            "google-api-nodejs-client/9.15.1",
-            "X25519MLKEM768:X25519:P-256:P-384:P-521",
+            json!({
+                "kind": "custom",
+                "alpn": [],
+                "min_tls": "tls12",
+                "max_tls": "tls13",
+                "grease": false,
+                "preserve_tls13_cipher_list": false,
+                "cipher_list": concat!(
+                    "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:",
+                    "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:",
+                    "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:",
+                    "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305"
+                ),
+                "curves_list": "X25519MLKEM768:X25519:P-256:P-384:P-521",
+                "headers": [["user-agent", "google-api-nodejs-client/9.15.1"]],
+            }),
         ),
         TlsPresetDto {
             id: "antigravity".to_owned(),
             label: "Antigravity".to_owned(),
-            // The Code Assist TLS and HTTP/2 profile captured from CLI 1.5.4
-            // (the IDE runs the CLI as its hub), using the algorithms the
-            // compiled BoringSSL supports (same as the channel default). The
-            // user agent is the IDE hub's.
+            // The Go Code Assist transport captured from CLI 1.5.4 on
+            // 2026-11-10 (the IDE runs the CLI as its hub): no GREASE, TLS 1.2
+            // floor, Go's cipher order with the TLS 1.3 suites last (kept by
+            // `preserve_tls13_cipher_list`) and its extension order.
+            // BoringSSL cannot send the captured SecP256r1MLKEM768 and
+            // SecP384r1MLKEM1024 groups or the signature_algorithms_cert
+            // extension, so this is the supported subset, not an exact copy.
+            //
+            // Since 1.5.4 the transport offers `h2, http/1.1` and speaks
+            // HTTP/2 with Go's preamble: SETTINGS ENABLE_PUSH, INITIAL_WINDOW_SIZE,
+            // MAX_FRAME_SIZE, MAX_HEADER_LIST_SIZE in that order, a connection
+            // WINDOW_UPDATE of 1 << 30 on top of the initial 65535, no stream
+            // priority, and pseudo-headers `:authority :method :path :scheme`.
+            // The user agent is the IDE hub's.
             emulation: json!({
                 "kind": "custom",
                 "alpn": ["http2", "http1"],
@@ -586,17 +605,54 @@ fn tls_presets() -> Vec<TlsPresetDto> {
                 ]],
             }),
         },
-        simple(
+        // The Rust AWS SDK over rustls: TLS 1.2 floor, TLS 1.3 suites first,
+        // no GREASE and no ALPN offer of its own.
+        cli(
             "kiro",
             "Kiro CLI",
-            "aws-sdk-rust/1.3.10 os/linux lang/rust/1.92.0",
-            "X25519:P-256:P-384",
+            json!({
+                "kind": "custom",
+                "alpn": [],
+                "min_tls": "tls12",
+                "max_tls": "tls13",
+                "grease": false,
+                "preserve_tls13_cipher_list": false,
+                "cipher_list": concat!(
+                    "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:",
+                    "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:",
+                    "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-AES256-GCM-SHA384:",
+                    "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-CHACHA20-POLY1305"
+                ),
+                "curves_list": "X25519:P-256:P-384",
+                "sigalgs_list": concat!(
+                    "ecdsa_secp384r1_sha384:ecdsa_secp256r1_sha256:ed25519:",
+                    "rsa_pss_rsae_sha512:rsa_pss_rsae_sha384:rsa_pss_rsae_sha256:",
+                    "rsa_pkcs1_sha512:rsa_pkcs1_sha384:rsa_pkcs1_sha256"
+                ),
+                "headers": [["user-agent", "aws-sdk-rust/1.3.10 os/linux lang/rust/1.92.0"]],
+            }),
         ),
-        simple(
+        // HTTP/1.1 only, TLS 1.2 floor, the CLI's cipher and curve order and
+        // no GREASE.
+        cli(
             "copilot",
             "GitHub Copilot CLI",
-            "copilot/1.0.77 (linux v24.16.0) term/unknown",
-            "X25519:P-256:P-384",
+            json!({
+                "kind": "custom",
+                "alpn": ["http1"],
+                "min_tls": "tls12",
+                "max_tls": "tls13",
+                "grease": false,
+                "preserve_tls13_cipher_list": false,
+                "cipher_list": concat!(
+                    "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:",
+                    "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:",
+                    "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-AES256-GCM-SHA384:",
+                    "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-CHACHA20-POLY1305"
+                ),
+                "curves_list": "X25519:P-256:P-384",
+                "headers": [["user-agent", "copilot/1.0.77 (linux v24.16.0) term/unknown"]],
+            }),
         ),
     ];
     for profile in gproxy_client::emulation_profiles() {

@@ -1178,6 +1178,6 @@ fn the_descriptor_names_both_ways_in_and_the_keys_a_form_needs() {
 }
 
 #[test]
-fn the_kiro_app_has_a_client_identity_worth_reproducing() {
-    assert!(Kiro.default_connection().is_some());
+fn the_kiro_fingerprint_is_opt_in() {
+    assert!(Kiro.default_connection().is_none());
 }

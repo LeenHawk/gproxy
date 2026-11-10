@@ -537,7 +537,7 @@ async fn a_credential_with_no_github_token_cannot_be_refreshed() {
 }
 
 #[test]
-fn the_descriptor_states_the_one_way_in_and_the_captured_client() {
+fn the_descriptor_states_the_one_way_in_and_no_default_fingerprint() {
     let descriptor = CopilotCli.descriptor();
     assert_eq!(descriptor.id, "copilotcli");
     assert_eq!(descriptor.login_modes, [LoginMode::DeviceCode]);
@@ -546,19 +546,7 @@ fn the_descriptor_states_the_one_way_in_and_the_captured_client() {
     for key in ["account_type", "github_api_url", "scope"] {
         assert!(descriptor.config_key(key).is_some(), "{key}");
     }
-    let connection = CopilotCli
-        .default_connection()
-        .expect("v3 captured the CLI's ClientHello");
-    assert_eq!(connection.backend, gproxy_client::Backend::Wreq);
-    let Some(gproxy_client::EmulationConfig::Custom(fingerprint)) = connection.emulation else {
-        panic!("a captured fingerprint");
-    };
-    assert_eq!(fingerprint.alpn, [gproxy_client::Alpn::Http1]);
-    assert_eq!(
-        fingerprint.curves_list.as_deref(),
-        Some("X25519:P-256:P-384")
-    );
-    assert_eq!(fingerprint.grease, Some(false));
+    assert!(CopilotCli.default_connection().is_none());
 }
 
 // ------------------------------------------------ a two-step scripted client

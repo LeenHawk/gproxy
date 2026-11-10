@@ -87,10 +87,7 @@ use crate::channel::{
     QuotaModel, QuotaQuery, forwardable,
 };
 use crate::channels::shared::code_assist;
-use gproxy_client::{
-    Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, Http2Setting, Http2Settings,
-    PseudoHeader, TlsVersion,
-};
+use gproxy_client::ConnectionConfig;
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse, connection::Bytes,
 };
@@ -210,87 +207,13 @@ const CHANNEL_HEADERS: &[&str] = &[
     "x-goog-user-project",
 ];
 
-/// The Go Code Assist transport of the Antigravity CLI the IDE runs as its
-/// hub (captured from CLI 1.5.4 on 2026-11-10): no GREASE, TLS 1.2 floor,
-/// Go's cipher preferences and its extension order. BoringSSL puts TLS 1.3
-/// suites first even though Go advertises them last.
-/// BoringSSL lacks the captured SecP256r1MLKEM768/SecP384r1MLKEM1024 groups
-/// and signature_algorithms_cert extension; keep the
-/// supported subset rather than configuring algorithms it cannot negotiate.
-///
-/// Up to CLI 1.5.2 the Code Assist transport sent no ALPN and spoke
-/// HTTP/1.1. Since 1.5.4 it offers `h2, http/1.1` and speaks HTTP/2 with
-/// Go's `x/net/http2` preamble: SETTINGS `ENABLE_PUSH 0`,
-/// `INITIAL_WINDOW_SIZE 4194304`, `MAX_FRAME_SIZE 1048576`,
-/// `MAX_HEADER_LIST_SIZE 10485760` in that order, a connection
-/// `WINDOW_UPDATE` of 1073741824 (on top of the initial 65535), no stream
-/// priority, and the pseudo-headers ordered `:authority`, `:method`,
-/// `:path`, `:scheme`. Go writes the regular headers in map order, so their
-/// order varies from request to request.
+/// Plain HTTP with gzip, which the Go transport negotiates and decodes; the
+/// downstream client's encoding preferences cannot describe this channel's
+/// parser. The captured CLI fingerprint is the public `antigravity` TLS
+/// preset, applied only when a connection profile selects it.
 pub fn default_connection() -> ConnectionConfig {
     ConnectionConfig {
-        backend: Backend::Wreq,
-        // Go's HTTP transport negotiates and decodes gzip. The downstream
-        // client's encoding preferences cannot describe this channel's parser.
         gzip: true,
-        emulation: Some(EmulationConfig::Custom(Fingerprint {
-            alpn: vec![Alpn::Http2, Alpn::Http1],
-            disable_alpn: None,
-            min_tls: Some(TlsVersion::Tls12),
-            max_tls: Some(TlsVersion::Tls13),
-            cipher_list: Some(
-                concat!(
-                    "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:",
-                    "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:",
-                    "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:",
-                    "ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:",
-                    "ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:",
-                    "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256"
-                )
-                .into(),
-            ),
-            curves_list: Some("X25519MLKEM768:X25519:P-256:P-384:P-521".into()),
-            sigalgs_list: Some(
-                concat!(
-                    "mldsa44:mldsa65:mldsa87:",
-                    "rsa_pss_rsae_sha256:ecdsa_secp256r1_sha256:ed25519:",
-                    "rsa_pss_rsae_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha256:",
-                    "rsa_pkcs1_sha384:rsa_pkcs1_sha512:ecdsa_secp384r1_sha384:",
-                    "ecdsa_secp521r1_sha512"
-                )
-                .into(),
-            ),
-            preserve_tls13_cipher_list: Some(true),
-            grease: Some(false),
-            extension_permutation: Some(vec![0, 11, 65281, 23, 18, 5, 10, 13, 16, 43, 51]),
-            ocsp_stapling: Some(true),
-            signed_cert_timestamps: Some(true),
-            session_ticket: Some(false),
-            psk_dhe_ke: Some(false),
-            http2: Some(Http2Settings {
-                enable_push: Some(false),
-                initial_window_size: Some(4_194_304),
-                // The target window: the initial 65535 plus Go's 1 << 30
-                // WINDOW_UPDATE.
-                initial_connection_window_size: Some(65_535 + (1 << 30)),
-                max_frame_size: Some(1_048_576),
-                max_header_list_size: Some(10_485_760),
-                pseudo_header_order: Some(vec![
-                    PseudoHeader::Authority,
-                    PseudoHeader::Method,
-                    PseudoHeader::Path,
-                    PseudoHeader::Scheme,
-                ]),
-                settings_order: Some(vec![
-                    Http2Setting::EnablePush,
-                    Http2Setting::InitialWindowSize,
-                    Http2Setting::MaxFrameSize,
-                    Http2Setting::MaxHeaderListSize,
-                ]),
-                ..Http2Settings::default()
-            }),
-            headers: None,
-        })),
         ..ConnectionConfig::default()
     }
 }

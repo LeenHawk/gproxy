@@ -64,7 +64,7 @@ use crate::channel::{
     ProviderView, QuotaQuery, forwardable,
 };
 use futures_util::StreamExt as _;
-use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
+use gproxy_client::ConnectionConfig;
 use gproxy_protocol::connection::{ByteStream, Bytes, TransportError};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
@@ -152,50 +152,6 @@ const CHANNEL_HEADERS: &[&str] = &[
     "accept",
     "cookie",
 ];
-
-/// The Kiro app's outbound stack, the default for a provider that names no
-/// connection profile: the Rust AWS SDK over rustls, TLS 1.2 floor, TLS 1.3
-/// suites first, no GREASE and no ALPN offer of its own (v3
-/// `kiro/profile.rs`).
-pub fn default_connection() -> ConnectionConfig {
-    ConnectionConfig {
-        backend: Backend::Wreq,
-        emulation: Some(EmulationConfig::Custom(Fingerprint {
-            alpn: Vec::<Alpn>::new(),
-            disable_alpn: None,
-            min_tls: Some(TlsVersion::Tls12),
-            max_tls: Some(TlsVersion::Tls13),
-            cipher_list: Some(
-                concat!(
-                    "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:",
-                    "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:",
-                    "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-AES256-GCM-SHA384:",
-                    "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-CHACHA20-POLY1305"
-                )
-                .into(),
-            ),
-            curves_list: Some("X25519:P-256:P-384".into()),
-            sigalgs_list: Some(
-                concat!(
-                    "ecdsa_secp384r1_sha384:ecdsa_secp256r1_sha256:ed25519:",
-                    "rsa_pss_rsae_sha512:rsa_pss_rsae_sha384:rsa_pss_rsae_sha256:",
-                    "rsa_pkcs1_sha512:rsa_pkcs1_sha384:rsa_pkcs1_sha256"
-                )
-                .into(),
-            ),
-            preserve_tls13_cipher_list: Some(false),
-            grease: Some(false),
-            extension_permutation: None,
-            ocsp_stapling: None,
-            signed_cert_timestamps: None,
-            session_ticket: None,
-            psk_dhe_ke: None,
-            http2: None,
-            headers: None,
-        })),
-        ..ConnectionConfig::default()
-    }
-}
 
 // ---------------------------------------------------------------- helpers
 
@@ -625,8 +581,10 @@ impl BaseChannel for Kiro {
         }
     }
 
+    /// No client fingerprint by default; the CLI's captured TLS identity is
+    /// a public TLS preset an operator selects in a connection profile.
     fn default_connection(&self) -> Option<ConnectionConfig> {
-        Some(default_connection())
+        None
     }
 
     /// The envelope is built from a Responses body and the reply is handed

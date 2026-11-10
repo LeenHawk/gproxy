@@ -189,8 +189,10 @@ fn descriptor_declares_the_login_and_the_keys_it_reads() {
         Antigravity.native_dialects(provider(&Value::Null, None), Operation::CountTokens),
         vec![Dialect::Gemini]
     );
-    // The editor's Go client has its own ClientHello, so the channel names one.
-    assert!(Antigravity.default_connection().unwrap().gzip);
+    // gzip only; the Go client's ClientHello is an opt-in TLS preset.
+    let connection = Antigravity.default_connection().unwrap();
+    assert!(connection.gzip);
+    assert!(connection.emulation.is_none());
 }
 
 // ----------------------------------------------------------------- prepare

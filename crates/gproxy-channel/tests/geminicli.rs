@@ -189,9 +189,8 @@ fn descriptor_declares_the_login_and_the_keys_it_reads() {
         GeminiCli.native_dialects(provider(&Value::Null, None), Operation::GenerateContent),
         vec![Dialect::Gemini]
     );
-    // A plain HTTPS client would not be worth impersonating; the CLI's Node
-    // stack has its own ClientHello, so the channel names one.
-    assert!(GeminiCli.default_connection().is_some());
+    // The CLI's ClientHello is an opt-in TLS preset, not a channel default.
+    assert!(GeminiCli.default_connection().is_none());
 }
 
 // ----------------------------------------------------------------- prepare
