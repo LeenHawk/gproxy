@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds UPX from source, for builds that must not use a prebuilt packer:
 # F-Droid, and the Android and OHOS toolchain images.
-# scripts/install-upx.sh downloads release binaries of the same source.
+# scripts/install-upx.sh downloads release builds of the same source
+# (LeenHawk/upx tag gproxy-5.3.1-1 = this revision plus a release workflow).
 #
 # Upstream 5.3.0 is not enough: devel carries upx/upx#18968 (64-bit Linux
 # executables no longer die at startup when the escape hatch does not fit on
