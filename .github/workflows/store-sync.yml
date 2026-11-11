@@ -21,12 +21,15 @@ jobs:
     concurrency:
       group: gproxy-release-publication
       cancel-in-progress: false
+    outputs:
+      version: ${{ steps.sync.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check synchronization behavior
         shell: pwsh
         run: scripts/test-sync-store-msix.ps1
       - name: Replace unsigned MSIX in the latest stable release
+        id: sync
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -38,3 +41,15 @@ jobs:
           MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
           DRY_RUN: ${{ inputs.dry_run || false }}
         run: scripts/sync-store-msix.ps1 -DryRun:($env:DRY_RUN -eq 'true')
+
+  winget:
+    name: Submit WinGet updates
+    needs: sync
+    if: ${{ needs.sync.outputs.version != '' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/winget-publish.yml
+    with:
+      version: ${{ needs.sync.outputs.version }}
+    secrets:
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}

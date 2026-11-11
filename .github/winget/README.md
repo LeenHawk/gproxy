@@ -41,13 +41,25 @@ winget install --id 9NBMH3S5K0L9 --source msstore
 winget install --id 9ND7FQQMV566 --source msstore
 ```
 
-Stable releases automatically call `winget-publish.yml` after release assets are
-published. It verifies MSIX checksums, Authenticode trust and timestamps, identity and manifest schemas,
-then submits one PR per edition using the `WINGET_TOKEN` repository secret.
-Existing MSIX versions/open PRs are skipped. Unsigned MSIX packages are skipped,
-and GitHub release MSIX packages are currently unsigned, so no new versions
-are submitted. Manual
-dispatch defaults to validation only (`dry_run`).
+Stable releases call `winget-publish.yml` after release assets are published,
+and the daily `store-sync.yml` calls it again for the latest stable release
+after replacing its MSIX with the Microsoft-signed Store packages. It verifies
+MSIX checksums, Authenticode trust and timestamps, identity and manifest
+schemas, then submits one PR per edition using the `WINGET_TOKEN` repository
+secret. GitHub release MSIX packages are unsigned until the Store sync replaces
+them, so the release-time call skips them and the Store sync submits.
+
+A version is skipped once it exists in winget-pkgs or has any PR, open or
+closed, so the daily run never resubmits a closed PR. To resubmit after
+addressing moderator feedback, run a manual dry run and submit its manifest
+artifact with `wingetcreate submit`. Only the latest stable release
+is synchronized, so versions superseded before the Store signs them are not
+submitted. The first submission of an edition is titled `New package`, later
+ones `New version`. Manual dispatch defaults to validation only (`dry_run`).
+
+4.1.14, the first merged version of Desktop and CLI, used the portable ZIP.
+Later versions are MSIX, so `winget upgrade` reports a different install
+technology for 4.1.14 portable installs; uninstall and install again.
 
 Headless uses version-independent metadata templates in `templates/Headless/`;
 no historical Headless release is implied by these templates. The generator

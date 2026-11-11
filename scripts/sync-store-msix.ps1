@@ -215,6 +215,10 @@ function Main {
         $release = Get-LatestRelease $env:GITHUB_REPOSITORY
         foreach ($edition in $editions) { $edition.Versions = @($release.tag_name.Substring(1) + '.0') }
         Sync-Release $release $editions @{} $work -Preview:$DryRun
+        # The WinGet job submits only editions whose release MSIX are now Microsoft-signed.
+        if (-not $DryRun -and $env:GITHUB_OUTPUT) {
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "version=$($release.tag_name.Substring(1))"
+        }
     } finally { if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force } }
 }
 

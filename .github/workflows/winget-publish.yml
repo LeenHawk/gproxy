@@ -63,6 +63,7 @@ jobs:
         if: ${{ !inputs.dry_run && hashFiles(format('dist/winget/manifests/{0}/*.yaml', matrix.edition)) != '' }}
         env:
           WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
           EDITION: ${{ matrix.edition }}
         run: |
@@ -73,5 +74,8 @@ jobs:
           if ((Get-FileHash $tool -Algorithm SHA256).Hash -ne '24042BD37915805615E6CF969AC57C6439124C3FE85823327F5F3FB24BD9FFEA') { throw 'wingetcreate.exe digest mismatch.' }
           $signature = Get-AuthenticodeSignature $tool
           if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw 'wingetcreate.exe is not Microsoft-signed.' }
-          & "$env:RUNNER_TEMP/wingetcreate.exe" submit --no-open --prtitle "New version: LeenHawk.GPROXY.$env:EDITION version $env:VERSION" "dist/winget/manifests/$env:EDITION"
+          # winget-pkgs titles a package's first submission differently.
+          gh api "repos/microsoft/winget-pkgs/contents/manifests/l/LeenHawk/GPROXY/$env:EDITION" --silent 2>$null
+          $kind = if ($LASTEXITCODE -eq 0) { 'New version' } else { 'New package' }
+          & "$env:RUNNER_TEMP/wingetcreate.exe" submit --no-open --prtitle "${kind}: LeenHawk.GPROXY.$env:EDITION version $env:VERSION" "dist/winget/manifests/$env:EDITION"
           if ($LASTEXITCODE -ne 0) { throw "WinGet Create failed: $LASTEXITCODE" }
