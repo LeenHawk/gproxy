@@ -1174,7 +1174,7 @@
     "feedback": "Report an issue",
     "sponsor": {
       "title": "Support GPROXY",
-      "description": "Help keep GPROXY moving forward through GitHub Sponsors.",
+      "description": "Help GPROXY reach mobile app stores: Google Play costs $25 once, and the Apple Developer Program costs $99 per year. Once approved and listed, GPROXY can be installed and updated through the stores.",
       "thanks": "Your support helps sustain maintenance, provider compatibility and new features. Thank you for using and supporting GPROXY.",
       "action": "Sponsor LeenHawk"
     },

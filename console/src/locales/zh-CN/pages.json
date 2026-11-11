@@ -1174,7 +1174,7 @@
     "feedback": "问题反馈",
     "sponsor": {
       "title": "支持 GPROXY",
-      "description": "通过 GitHub Sponsors 赞助项目，支持 GPROXY 持续发展。",
+      "description": "帮助 GPROXY 上架移动应用商店：Google Play 开发者账号需 $25（一次性），Apple 开发者计划需 $99/年。审核通过并上架后，即可从应用商店安装和更新。",
       "thanks": "你的支持将帮助项目持续维护、适配上游服务并开发新功能。感谢你使用和支持 GPROXY。",
       "action": "赞助 LeenHawk"
     },
