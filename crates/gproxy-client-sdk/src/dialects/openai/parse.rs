@@ -172,7 +172,7 @@ pub fn parse_tool_result(output: r::ResponseFunctionCallOutput) -> Result<Block>
     with_native(content, Vendor::Openai, meta)
 }
 
-pub(super) fn parse_output_part(part: i::InputContent) -> Result<ToolResultBlock> {
+pub(crate) fn parse_output_part(part: i::InputContent) -> Result<ToolResultBlock> {
     match part {
         i::InputContent::Text(mut value) => {
             let cache = value.prompt_cache_breakpoint.take();

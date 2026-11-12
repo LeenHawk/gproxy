@@ -7,6 +7,8 @@ mod render;
 pub(crate) use render::is_output_image;
 pub use render::render;
 mod parse;
+#[cfg(feature = "compact")]
+pub(crate) use parse::parse_output_part;
 pub(crate) use parse::{
     error_finish_reason, finish_metadata, parse_item, parse_usage, response_metadata,
 };

@@ -62,6 +62,8 @@ pub fn export_types(
     operations::Params::<ts_rs::Dummy>::export_all(&config)?;
     #[cfg(feature = "count-tokens")]
     count::TokenCount::export_all(&config)?;
+    #[cfg(feature = "compact")]
+    compact::Compaction::export_all(&config)?;
     #[cfg(feature = "models")]
     models::ModelInfo::export_all(&config)?;
     #[cfg(feature = "audio")]

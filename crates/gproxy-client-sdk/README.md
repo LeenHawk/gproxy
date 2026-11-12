@@ -172,6 +172,18 @@ endpoint: `count` returns `Unsupported` without sending anything.
 `count::params(&request)` builds the native request for callers that send it
 themselves through `count_tokens`.
 
+`compact(&request)` (feature `compact`, on by default) replaces `request.messages`
+with a shorter history. GPROXY accepts compaction only as OpenAI Responses
+(`/v1/responses/compact`, the Codex request shape) and converts it for the routed
+upstream, so the request is rendered as Responses whatever its model's dialect;
+warnings describe what that rendering drops. Tools, reasoning and
+`provider_options.openai.responses` are sent; sampling and output limits are not.
+The returned `Compaction.messages` is the replacement history to continue from:
+messages and tool calls/results map to IR, and items without an IR form, such as
+an encrypted `compaction` item, stay Opaque and are sent back unchanged by the
+Responses renderer. `compact::params(&request)` builds the native request for
+`compact_content`, and `compact::messages` parses a native replacement history.
+
 `list_models(dialect)` and `get_model(&model)` (module `models`) read the gateway's local catalog in
 the caller's chosen dialect (OpenAI `/v1/models`, Claude the same path with
 `anthropic-version`, Gemini `/v1beta/models`) and return `ModelInfo` entries whose

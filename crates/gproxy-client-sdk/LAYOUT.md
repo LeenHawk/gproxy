@@ -19,6 +19,8 @@ TypeScript export. The root `s3` path remains an alias of `assets::s3`.
 - `embeddings/`: embedding IR, execution and OpenAI/Gemini native mappings.
 - `count/`: token counting of a portable generation request, rendered per
   dialect into that dialect's count request (Chat Completions has none).
+- `compact.rs`: compaction of a portable conversation through the Responses
+  compaction operation, and its replacement history parsed back into messages.
 - `models/`: the model catalog as portable `ModelInfo`, mapped per dialect.
 - `images/`: generation/editing IR, dimensions, native options/mappings, asset
   preparation and partial-image streams.
@@ -134,7 +136,7 @@ src/
 │   │   │   ├── assets.rs (187)
 │   │   │   └── messages.rs (274)
 │   │   ├── metadata.rs (273)
-│   │   ├── mod.rs (20)
+│   │   ├── mod.rs (22)
 │   │   ├── parse.rs (293)
 │   │   ├── render.rs (299)
 │   │   ├── stream.rs (149)
@@ -241,11 +243,12 @@ src/
 │   ├── openai.rs (366)
 │   └── stream.rs (286)
 ├── client.rs (258)
+├── compact.rs (236)
 ├── error.rs (259)
-├── lib.rs (91)
+├── lib.rs (94)
 ├── operations.rs (76)
 ├── provider_metadata.rs (187)
-└── typescript.rs (70)
+└── typescript.rs (72)
 
 tests/
 ├── assets/

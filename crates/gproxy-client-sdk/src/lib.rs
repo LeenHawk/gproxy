@@ -4,6 +4,8 @@
 pub mod assets;
 pub mod backend;
 mod client;
+#[cfg(feature = "compact")]
+pub mod compact;
 #[cfg(feature = "count-tokens")]
 pub mod count;
 #[cfg(any(
@@ -63,6 +65,7 @@ pub(crate) use client::path_segment;
     feature = "audio",
     feature = "images",
     feature = "video",
+    feature = "compact",
     all(
         feature = "count-tokens",
         any(feature = "claude", feature = "openai", feature = "gemini")
