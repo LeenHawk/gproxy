@@ -11,7 +11,7 @@ use crate::channel::{
     ChannelError, CredentialContext, OperationFuture, QuotaReset, QuotaResetCredits,
     QuotaResetOption, QuotaResetOutcome, QuotaResetRequest, QuotaResetResult,
 };
-use http::{HeaderMap, HeaderValue, Method, header};
+use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -193,6 +193,22 @@ impl Grant {
     }
 }
 
+fn unauthorized(error: &ChannelError) -> bool {
+    matches!(error, ChannelError::UpstreamResponse { status, .. } if *status == StatusCode::UNAUTHORIZED)
+}
+
+/// Why one offer could not be read while the other could.
+fn query_failure(error: &ChannelError) -> &'static str {
+    match error {
+        ChannelError::UpstreamResponse { status, .. }
+            if *status == StatusCode::TOO_MANY_REQUESTS =>
+        {
+            "rate_limited"
+        }
+        _ => "query_failed",
+    }
+}
+
 fn unavailable(program: &str, reason: &str) -> QuotaResetOption {
     QuotaResetOption {
         program: program.into(),
@@ -334,22 +350,40 @@ impl QuotaReset for Claudecode {
         context: CredentialContext<'a>,
     ) -> OperationFuture<'a, QuotaResetCredits> {
         Box::pin(async move {
-            let wall = call(
+            // The two offers are queried apart. One offer's rate limit or
+            // malformed response must not hide the other; only a rejected
+            // token fails the whole query, so the caller can refresh it.
+            let weekly = match call(
                 context,
                 Method::GET,
                 "/api/oauth/usage?at_wall=1&skip_spend=1",
                 None,
             )
-            .await?;
-            let grants = call(
+            .await
+            .and_then(|wall| weekly_option(wall.get("juniper_tide")))
+            {
+                Err(error) if unauthorized(&error) => return Err(error),
+                weekly => weekly,
+            };
+            let granted = call(
                 context,
                 Method::GET,
                 "/api/oauth/usage?cedar_ember=1&skip_spend=1",
                 None,
             )
-            .await?;
-            let mut options = vec![weekly_option(wall.get("juniper_tide"))?];
-            options.extend(grant_options(grants.get("cedar_ember"), unix_now_ms())?);
+            .await
+            .and_then(|grants| grant_options(grants.get("cedar_ember"), unix_now_ms()));
+            let (weekly, granted) = match (weekly, granted) {
+                (Err(error), Err(_)) => return Err(error),
+                (_, Err(error)) if unauthorized(&error) => return Err(error),
+                (weekly, granted) => (
+                    weekly.unwrap_or_else(|e| unavailable("juniper_tide", query_failure(&e))),
+                    granted
+                        .unwrap_or_else(|e| vec![unavailable("cedar_ember", query_failure(&e))]),
+                ),
+            };
+            let mut options = vec![weekly];
+            options.extend(granted);
             // Weekly eligibility and account grants are different offers, not
             // one interchangeable balance. Keep their counts on each option.
             Ok(QuotaResetCredits {

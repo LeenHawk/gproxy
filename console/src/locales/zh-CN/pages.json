@@ -936,7 +936,9 @@
       "cannot_clear": "这张重置卡不覆盖已达到的额度。",
       "needs_limit": "达到这张重置卡覆盖的额度后才能使用。",
       "ineligible": "当前账号不符合这项重置的资格。",
-      "unavailable": "这项重置当前不可用。"
+      "unavailable": "这项重置当前不可用。",
+      "rate_limited": "上游限制了这项查询的频率，请稍后再试。",
+      "query_failed": "这项重置的上游查询失败，请稍后再试。"
     },
     "queryResetCredits": "查询重置卡",
     "codexCredits": "额外额度",

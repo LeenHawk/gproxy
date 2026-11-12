@@ -936,7 +936,9 @@
       "cannot_clear": "This grant doesn't refill the limit that was reached.",
       "needs_limit": "This grant becomes usable after reaching a limit it refills.",
       "ineligible": "This account is not eligible for this reset.",
-      "unavailable": "This reset is currently unavailable."
+      "unavailable": "This reset is currently unavailable.",
+      "rate_limited": "The upstream rate-limited this query. Try again later.",
+      "query_failed": "The upstream query for this reset failed. Try again later."
     },
     "queryResetCredits": "Refresh reset credits",
     "codexCredits": "Extra credits",
