@@ -13,7 +13,7 @@
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
-    "wrangler": "4.155.0"
+    "wrangler": "4.158.0"
   },
   "pnpm": {
     "overrides": {

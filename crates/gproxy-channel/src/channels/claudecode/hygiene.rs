@@ -44,6 +44,9 @@ fn has_fallback_credit(body: &Value) -> bool {
 /// `magic_cache` places `cache_control` at the magic cache strings; without
 /// it the strings are only stripped.
 pub(super) fn messages(body: &mut Value, headers: &mut HeaderMap, magic_cache: bool) {
+    if body.get("thread").is_some_and(|value| !value.is_null()) {
+        append_beta(headers, "message-threads-2026-08-12");
+    }
     if has_fallback_credit(body) {
         return;
     }
@@ -143,6 +146,14 @@ pub(super) fn inject_billing(
     }
     if let Some(metadata) = metadata.as_object_mut() {
         metadata.insert("user_id".into(), Value::String(user_id));
+    }
+
+    // A continued thread inherits its system/tools from the create request.
+    // Sending a new billing or identity system block would make it invalid.
+    if root.get("thread").and_then(|thread| thread.get("type")).and_then(Value::as_str)
+        == Some("continue")
+    {
+        return;
     }
 
     let system = root
@@ -260,6 +271,15 @@ pub(super) fn inject_billing(
         text.push_str(&format!(
             " cc_prev_prompt_index={prompt}; cc_prev_turn_index={turn};"
         ));
+    }
+
+    // Optional background dispatcher attribution (2.1.321 `Man` / `YUs`).
+    // Ordinary CLI requests omit it; preserve a supplied origin without
+    // inventing a default or inferring a background session from messages.
+    if let Some(entrypoint) = field("cc_dispatch_entrypoint").filter(|value| {
+        ["claude-vscode", "claude-desktop", "claude-desktop-3p"].contains(value)
+    }) {
+        text.push_str(&format!(" cc_dispatch_entrypoint={entrypoint};"));
     }
 
     let billing = json!({"type": "text", "text": text});
@@ -534,6 +554,18 @@ fn coerce_prefill(body: &mut Value) {
 // ----------------------------------------------------------------- betas
 
 fn append_fast_beta(body: &Value, headers: &mut HeaderMap) {
+    // Fast mode is GA for these models. In particular, switching speed on a
+    // message thread must not change its fixed set of beta headers.
+    if body.get("model").and_then(Value::as_str).is_some_and(|model| {
+        ["claude-opus-5-5", "claude-fable-5-2"].iter().any(|name| {
+            model == *name
+                || model
+                    .strip_prefix(name)
+                    .is_some_and(|suffix| suffix.starts_with('-'))
+        })
+    }) {
+        return;
+    }
     if body.get("speed").and_then(Value::as_str) == Some("fast") {
         append_beta(headers, FAST_MODE_BETA);
     }

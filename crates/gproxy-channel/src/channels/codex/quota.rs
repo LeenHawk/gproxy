@@ -416,6 +416,9 @@ impl QuotaReset for Codex {
                     let id = credit.id.as_deref().filter(|id| !id.is_empty())?;
                     Some(QuotaResetOption {
                         program: "codex_rate_limits".into(),
+                        title: Some("Full reset".into()),
+                        description: None,
+                        scope_labels: Vec::new(),
                         grant_id: Some(id.into()),
                         label: credit
                             .title
@@ -495,7 +498,7 @@ impl QuotaReset for Codex {
                 },
                 windows_reset: response.windows_reset,
                 // A Codex credit reopens every window the account has.
-                clears: Vec::new(),
+                clears: None,
             })
         })
     }

@@ -178,6 +178,7 @@ pub fn normalize_claude(value: &mut Value) {
     }
 }
 mod native;
+pub mod script;
 pub use native::*;
 #[cfg(all(
     feature = "claude",

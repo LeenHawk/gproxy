@@ -192,8 +192,8 @@ fn sign(pem: &str, message: &[u8]) -> Result<Vec<u8>, ChannelError> {
     use rsa::pkcs8::DecodePrivateKey as _;
     use rsa::signature::{SignatureEncoding as _, Signer as _};
 
-    let key = rsa::RsaPrivateKey::from_pkcs8_pem(pem)
-        .or_else(|_| rsa::RsaPrivateKey::from_pkcs1_pem(pem))
+    let key = rsa::PrivateKey::from_pkcs8_pem(pem)
+        .or_else(|_| rsa::PrivateKey::from_pkcs1_pem(pem))
         .map_err(|error| {
             ChannelError::RefreshRejected(format!("service-account private_key: {error}"))
         })?;

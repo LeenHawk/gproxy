@@ -1,7 +1,7 @@
-//! Claude Code 2.1.311 reset eligibility and explicit redemption.
+//! Claude Code 2.1.321 reset eligibility and explicit redemption.
 //! These GETs deliberately do not run as part of the plain usage query.
-//! Sources under samples/claude-code-2.1.311/readable/: chunk-fe3j6xq2.js
-//! (grant schema, redemption) and chunk-mjxed380.js (grant kinds, offers,
+//! Sources under samples/claude-code-2.1.321/readable/: chunk-6rppg372.js
+//! (grant schema, redemption) and chunk-1rd1m8qp.js (grant kinds, offers,
 //! unavailable reasons, weekly reset).
 
 use super::{
@@ -196,6 +196,9 @@ impl Grant {
 fn unavailable(program: &str, reason: &str) -> QuotaResetOption {
     QuotaResetOption {
         program: program.into(),
+        title: Some(if program == "juniper_tide" { "5-hour reset (once a week)" } else { "Granted reset" }.into()),
+        description: None,
+        scope_labels: Vec::new(),
         grant_id: None,
         label: None,
         available_count: None,
@@ -216,6 +219,9 @@ fn weekly_option(value: Option<&Value>) -> Result<QuotaResetOption, ChannelError
     let usable = weekly.eligible && weekly.arm.as_deref() == Some("reset") && weekly.available;
     Ok(QuotaResetOption {
         program: "juniper_tide".into(),
+        title: Some("5-hour reset (once a week)".into()),
+        description: Some("Resets the 5-hour limit once a week. Usage still counts toward the weekly limit.".into()),
+        scope_labels: vec!["5-hour quota".into()],
         grant_id: None,
         label: None,
         available_count: weekly.eligible.then_some(u64::from(usable)),
@@ -280,14 +286,42 @@ fn grant_options(value: Option<&Value>, now: i64) -> Result<Vec<QuotaResetOption
             };
             QuotaResetOption {
                 program: "cedar_ember".into(),
+                title: Some(match grant.kind() {
+                    "session" => "5-hour reset",
+                    "weekly" => "Weekly reset",
+                    "fable" => "Fable reset",
+                    _ => "Full reset",
+                }.into()),
+                description: (grant.kind() == "fable").then(|| "Resets the Fable limit and returns this week's Fable usage to your weekly allowance. Other usage and your weekly reset date stay unchanged.".into()),
+                scope_labels: grant.clears.iter().map(|window| match window.as_str() {
+                    "five_hour" => "5-hour quota",
+                    "seven_day" => "7-day quota",
+                    "seven_day_overage_included" => "Fable · 7-day quota",
+                    "seven_day_opus" => "Opus · 7-day quota",
+                    "seven_day_sonnet" => "Sonnet · 7-day quota",
+                    other => other,
+                }.to_owned()).collect(),
                 grant_id: Some(grant.id.clone()),
                 label: grant.label.clone(),
                 available_count: Some(grant.resets_left),
                 expires_at_ms,
                 next_available_at_ms: instant(status.cooldown_until.as_deref()),
                 usable: reason.is_none(),
-                ineligible_reason: reason,
-                clears: grant.clears.clone(),
+                ineligible_reason: reason.map(|reason| {
+                    if grant.gives_back_weekly && reason == "blocked_seven_day" {
+                        "no_fable_usage".into()
+                    } else { reason }
+                }),
+                clears: grant
+                    .clears
+                    .iter()
+                    .map(|window| match window.as_str() {
+                        // The reset API uses the same codename as the 7d_oi
+                        // header; quota observations use our stable Fable id.
+                        "seven_day_overage_included" => "seven_day_fable".into(),
+                        _ => window.clone(),
+                    })
+                    .collect(),
             }
         })
         .collect();
@@ -367,7 +401,7 @@ impl QuotaReset for Claudecode {
                 return Ok(QuotaResetResult {
                     outcome: QuotaResetOutcome::Ineligible,
                     windows_reset: None,
-                    clears: Vec::new(),
+                    clears: Some(Vec::new()),
                     reason: Some(
                         choice
                             .and_then(|option| option.ineligible_reason.clone())
@@ -414,7 +448,9 @@ impl QuotaReset for Claudecode {
                     .get("cleared")
                     .and_then(Value::as_array)
                     .map(|cleared| cleared.len() as u64),
-                clears: choice.clears.clone(),
+                // Fable reopens its own window and refunds weekly usage;
+                // refunding usage must not reopen the total weekly cycle.
+                clears: Some(choice.clears.clone()),
                 reason: result
                     .get("reason")
                     .and_then(Value::as_str)

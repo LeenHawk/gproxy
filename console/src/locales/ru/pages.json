@@ -906,7 +906,6 @@
     "cyclePeriod": "Период",
     "cycleFinalPercent": "Итог",
     "monthCycle": "Календарный месяц",
-    "fullReset": "Полный сброс",
     "resetCardNumber": "Карта {{number}}",
     "weeklyBreakdown": "Использование за неделю",
     "usageSources": {
@@ -918,7 +917,20 @@
     "resetCount": "Доступные сбросы",
     "queryResetEligibility": "Обновить доступность",
     "resetEligibility": "Доступность сброса",
-    "weeklyReset": "Еженедельный сброс сеанса",
+    "resetText": {
+      "5-hour reset": "Сброс 5-часового лимита",
+      "Weekly reset": "Сброс недельного лимита",
+      "Full reset": "Полный сброс",
+      "Fable reset": "Сброс Fable",
+      "5-hour reset (once a week)": "Сброс 5-часового лимита (раз в неделю)",
+      "Resets the 5-hour limit once a week. Usage still counts toward the weekly limit.": "Сбрасывает 5-часовой лимит раз в неделю. Использование по-прежнему учитывается в недельном лимите.",
+      "Resets the Fable limit and returns this week's Fable usage to your weekly allowance. Other usage and your weekly reset date stay unchanged.": "Сбрасывает лимит Fable и возвращает использованную Fable за эту неделю квоту в общий недельный лимит. Другое использование и дата недельного сброса не меняются.",
+      "5-hour quota": "Квота на 5 часов",
+      "7-day quota": "Квота на 7 дней",
+      "Fable · 7-day quota": "Fable · квота на 7 дней",
+      "Opus · 7-day quota": "Opus · квота на 7 дней",
+      "Sonnet · 7-day quota": "Sonnet · квота на 7 дней"
+    },
     "grantReset": "Предоставленный сброс",
     "resetScope": "Сбрасывается: {{scope}}",
     "nextResetAvailable": "Следующий доступен: {{at}}",
@@ -930,6 +942,7 @@
     "expiresAt": "Истекает",
     "scopedWeeklyQuota": "{{scope}} · квота на 7 дней",
     "resetReasons": {
+      "no_fable_usage": "За эту неделю нет использования Fable, которое можно вернуть.",
       "cli_version": "Версия клиента не подходит; число доступных сбросов неизвестно.",
       "no_grant": "Нет доступных разрешений на сброс.",
       "other_experiment": "Недоступно для экспериментальной группы этого аккаунта.",
@@ -1189,7 +1202,7 @@
     "feedback": "Сообщить о проблеме",
     "sponsor": {
       "title": "Поддержать GPROXY",
-      "description": "Помогите развитию GPROXY через GitHub Sponsors.",
+      "description": "Помогите GPROXY выйти в мобильные магазины приложений: аккаунт разработчика Google Play стоит $25 однократно, а Apple Developer Program — $99 в год. После одобрения и публикации GPROXY можно будет устанавливать и обновлять через магазины.",
       "thanks": "Ваша поддержка помогает сопровождать проект, сохранять совместимость с провайдерами и добавлять функции. Спасибо, что используете и поддерживаете GPROXY.",
       "action": "Поддержать LeenHawk"
     },

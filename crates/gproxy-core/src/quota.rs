@@ -871,7 +871,7 @@ impl<C: BatchConnectionTrait> Core<C> {
             }
             .manual_reset(
                 &cycles::CycleSubject::of(&credential),
-                &result.clears,
+                result.clears.as_deref(),
                 now_ms(),
             )
             .await;

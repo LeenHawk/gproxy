@@ -25,29 +25,22 @@ def gh(*args):
 
 
 def already_submitted(edition, version):
-    path = f'manifests/l/LeenHawk/GPROXY/{edition}'
-    result = subprocess.run(
-        ['gh', 'api', f'repos/{UPSTREAM}/contents/{path}/{version}/LeenHawk.GPROXY.{edition}.installer.yaml'],
-        capture_output=True, encoding='utf-8')
+    # The daily Store sync retries; any PR for this version, including a
+    # closed one, needs a maintainer decision rather than another submission.
+    path = f'manifests/l/LeenHawk/GPROXY/{edition}/{version}'
+    result = subprocess.run(['gh', 'api', f'repos/{UPSTREAM}/contents/{path}'],
+                            capture_output=True, encoding='utf-8')
     if result.returncode == 0:
-        doc = yaml.safe_load(base64.b64decode(json.loads(result.stdout)['content']))
-        if all(entry.get('InstallerType', doc.get('InstallerType')) == 'msix'
-               for entry in doc['Installers']):
-            return True
-    elif 'HTTP 404' not in result.stderr:
+        return True
+    if 'HTTP 404' not in result.stderr:
         raise RuntimeError(result.stderr)
-    return has_open_pr(edition, version)
-
-
-def has_open_pr(edition, version):
-    path = f'manifests/l/LeenHawk/GPROXY/{edition}'
-    prs = gh('pr', 'list', '--repo', UPSTREAM, '--state', 'open', '--search',
+    prs = gh('pr', 'list', '--repo', UPSTREAM, '--state', 'all', '--search',
              f'"LeenHawk.GPROXY.{edition}" "{version}" in:title',
              '--json', 'number')
     for pr in prs:
         files = gh('api', '--paginate', '--slurp',
                    f'repos/{UPSTREAM}/pulls/{pr["number"]}/files')
-        if any(file['filename'].startswith(f'{path}/{version}/')
+        if any(file['filename'].startswith(f'{path}/')
                for page in files for file in page):
             return True
     return False

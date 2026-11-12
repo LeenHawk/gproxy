@@ -112,9 +112,19 @@ Store submission artifacts and preparation bundles retain their Partner Center
 identity and are unsigned for submission. Microsoft signs the Store-distributed
 copies after certification.
 
-GitHub release MSIX packages keep the existing filenames and are not
-code-signed. The daily Store package synchronization workflow has been
-removed; WinGet only consumes signed release assets.
+GitHub release MSIX packages initially ship unsigned. `store-sync.yml` checks
+the latest public stable release daily at 03:23 UTC (11:23 China time), for
+Desktop, CLI and Headless on x64 and ARM64. When an exact matching package is
+publicly downloadable from Microsoft Store, it verifies the Microsoft signature,
+download checksum, identity, publisher, version, architecture and application
+payload before replacing the unsigned release MSIX under its existing filename.
+It updates the matching `SHA256SUMS` entry and can repair an interrupted checksum
+upload on the next run. Unavailable versions are left unchanged.
+
+Dispatch **Sync Microsoft Store signed MSIX** with `dry_run=true` to validate
+without uploading. The schedule becomes active once the workflow is on `main`.
+It shares the release publication lock and does not update staging/nightly or
+submit WinGet pull requests. WinGet only consumes signed release assets.
 
 Use [listing.md](listing.md), [listings.json](listings.json) and
 [PRIVACY.md](../../PRIVACY.md) for the bilingual/trilingual submission material.

@@ -17,7 +17,7 @@
 //!   and `internal/api/handlers/management/auth_files_provider_oauth.go`).
 //! - Since 2.6.0 the IDE ships no language server: its bundled `agy`
 //!   extension downloads the Antigravity CLI and runs it as
-//!   `antigravity --hub` (CLI 1.5.2, hub server 2.29.0), and that Go
+//!   `antigravity --hub` (CLI 1.5.4, hub server 2.30.0), and that Go
 //!   process makes the model calls: `POST /v1internal:generateContent`,
 //!   `:streamGenerateContent?alt=sse` and `:countTokens` carrying the Code
 //!   Assist envelope, the catalogue from `POST /v1internal:fetchAvailableModels`
@@ -57,7 +57,7 @@
 //! `user_prompt_id`. It names itself (`userAgent: "antigravity"`) and the
 //! kind of call (`requestType: "agent"`, `"image_gen"` for an image model).
 //! An agent call (captured from the hub and CLI 1.4.10 on 2026-10-29, and
-//! unchanged from the hub and CLI 1.5.2 on 2026-11-06) carries
+//! unchanged from the hub and CLI 1.5.4 on 2026-11-10) carries
 //! `requestId: agent/<cascade>/<ms>/<trajectory>/<step>`, where the cascade
 //! and trajectory ids stay put across a conversation and the step is the
 //! number of `contents`; `request.labels` repeating those ids
@@ -87,7 +87,7 @@ use crate::channel::{
     QuotaModel, QuotaQuery, forwardable,
 };
 use crate::channels::shared::code_assist;
-use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
+use gproxy_client::ConnectionConfig;
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse, connection::Bytes,
 };
@@ -146,16 +146,16 @@ pub const EDITOR_USER_AGENT: &str = concat!(
     " linux/amd64 google-api-nodejs-client/10.3.0"
 );
 /// The user agent of the hub the IDE runs (`antigravity --hub`, CLI
-/// 1.5.2), which makes the catalogue, quota and generation calls
+/// 1.5.4), which makes the catalogue, quota and generation calls
 /// (`codeassistclient.UserAgent`): `%s/%s/%s (%s)` of the agent name
 /// (`antigravity`), the subclient type (`hub` under `--hub`, `cli`
-/// otherwise), the hub server's version (2.29.0; the CLI's own version under
+/// otherwise), the hub server's version (2.30.0; the CLI's own version under
 /// `cli`), and `aidev_client`, `os_type=<GOOS>`, `arch=<GOARCH>` and the
 /// build's `cl=<changelist>` joined by `; `. The hub's sign-in records no
 /// `auth_method` (the standalone CLI's adds `auth_method=consumer`). Captured
-/// from the Linux amd64 build of CLI 1.5.2 on 2026-11-06.
+/// from the Linux amd64 build of CLI 1.5.4 on 2026-11-10.
 pub const USER_AGENT: &str =
-    "antigravity/hub/2.29.0 (aidev_client; os_type=linux; arch=amd64; cl=1015175089)";
+    "antigravity/hub/2.30.0 (aidev_client; os_type=linux; arch=amd64; cl=1017748741)";
 
 /// Provider `config` JSON understood by this channel. Unknown keys ignored.
 #[derive(Debug, Deserialize)]
@@ -207,56 +207,13 @@ const CHANNEL_HEADERS: &[&str] = &[
     "x-goog-user-project",
 ];
 
-/// The Go Code Assist transport of the Antigravity CLI the IDE runs as its
-/// hub (captured from CLI 1.2.16, unchanged in CLI 1.5.2): no ALPN or
-/// GREASE, TLS 1.2 floor, Go's cipher preferences and its extension order. BoringSSL puts TLS
-/// 1.3 suites first even though Go advertises them last.
-/// BoringSSL lacks the captured SecP256r1MLKEM768/SecP384r1MLKEM1024 groups
-/// and signature_algorithms_cert extension; keep the
-/// supported subset rather than configuring algorithms it cannot negotiate.
+/// Plain HTTP with gzip, which the Go transport negotiates and decodes; the
+/// downstream client's encoding preferences cannot describe this channel's
+/// parser. The captured CLI fingerprint is the public `antigravity` TLS
+/// preset, applied only when a connection profile selects it.
 pub fn default_connection() -> ConnectionConfig {
     ConnectionConfig {
-        backend: Backend::Wreq,
-        // Go's HTTP transport negotiates and decodes gzip. The downstream
-        // client's encoding preferences cannot describe this channel's parser.
         gzip: true,
-        emulation: Some(EmulationConfig::Custom(Fingerprint {
-            alpn: Vec::<Alpn>::new(),
-            disable_alpn: Some(true),
-            min_tls: Some(TlsVersion::Tls12),
-            max_tls: Some(TlsVersion::Tls13),
-            cipher_list: Some(
-                concat!(
-                    "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:",
-                    "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:",
-                    "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:",
-                    "ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:",
-                    "ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:",
-                    "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256"
-                )
-                .into(),
-            ),
-            curves_list: Some("X25519MLKEM768:X25519:P-256:P-384:P-521".into()),
-            sigalgs_list: Some(
-                concat!(
-                    "mldsa44:mldsa65:mldsa87:",
-                    "rsa_pss_rsae_sha256:ecdsa_secp256r1_sha256:ed25519:",
-                    "rsa_pss_rsae_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha256:",
-                    "rsa_pkcs1_sha384:rsa_pkcs1_sha512:ecdsa_secp384r1_sha384:",
-                    "ecdsa_secp521r1_sha512"
-                )
-                .into(),
-            ),
-            preserve_tls13_cipher_list: Some(true),
-            grease: Some(false),
-            extension_permutation: Some(vec![0, 11, 65281, 23, 18, 5, 10, 13, 43, 51]),
-            ocsp_stapling: Some(true),
-            signed_cert_timestamps: Some(true),
-            session_ticket: Some(false),
-            psk_dhe_ke: Some(false),
-            http2: None,
-            headers: None,
-        })),
         ..ConnectionConfig::default()
     }
 }
@@ -418,7 +375,9 @@ fn conversation_ids(request: &Value) -> Result<(String, String), ChannelError> {
 /// The catalogue's internal model numbers (`fetchAvailableModels`
 /// `models.<id>.model`) the hub repeats as the `model_enum` label, from a
 /// Google AI Pro account's catalogue on 2026-10-30 (identical on the
-/// production and `daily-` hosts). A model missing here gets no label.
+/// production and `daily-` hosts), checked again on the `daily-` host on
+/// 2026-11-11 when the `gemini-4-carbon-*` models appeared. A model missing
+/// here gets no label.
 const MODEL_ENUMS: &[(&str, &str)] = &[
     ("claude-opus-5-5-high", "MODEL_PLACEHOLDER_M402"),
     ("claude-opus-5-5-low", "MODEL_PLACEHOLDER_M400"),
@@ -441,6 +400,9 @@ const MODEL_ENUMS: &[(&str, &str)] = &[
     ("gemini-4-argon-high", "MODEL_PLACEHOLDER_M417"),
     ("gemini-4-argon-low", "MODEL_PLACEHOLDER_M419"),
     ("gemini-4-argon-medium", "MODEL_PLACEHOLDER_M418"),
+    ("gemini-4-carbon-high", "MODEL_PLACEHOLDER_M427"),
+    ("gemini-4-carbon-low", "MODEL_PLACEHOLDER_M438"),
+    ("gemini-4-carbon-medium", "MODEL_PLACEHOLDER_M437"),
     ("gpt-oss-120b-medium", "MODEL_OPENAI_GPT_OSS_120B_MEDIUM"),
 ];
 

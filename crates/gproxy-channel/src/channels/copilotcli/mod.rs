@@ -60,45 +60,9 @@ use crate::channel::{
     CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, OperationContext,
     OperationFuture, PrepareContext, ProviderView, QuotaQuery,
 };
-use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
+use gproxy_client::ConnectionConfig;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
-
-/// The CLI's outbound stack, the default for a provider that names no
-/// connection profile: HTTP/1.1 only, a TLS 1.2 floor, the CLI's cipher and
-/// curve order and no GREASE (v3 `copilotcli/profile.rs`).
-pub fn default_connection() -> ConnectionConfig {
-    ConnectionConfig {
-        backend: Backend::Wreq,
-        emulation: Some(EmulationConfig::Custom(Fingerprint {
-            alpn: vec![Alpn::Http1],
-            disable_alpn: None,
-            min_tls: Some(TlsVersion::Tls12),
-            max_tls: Some(TlsVersion::Tls13),
-            cipher_list: Some(
-                concat!(
-                    "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:",
-                    "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:",
-                    "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-AES256-GCM-SHA384:",
-                    "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-CHACHA20-POLY1305"
-                )
-                .into(),
-            ),
-            curves_list: Some("X25519:P-256:P-384".into()),
-            sigalgs_list: None,
-            preserve_tls13_cipher_list: Some(false),
-            grease: Some(false),
-            extension_permutation: None,
-            ocsp_stapling: None,
-            signed_cert_timestamps: None,
-            session_ticket: None,
-            psk_dhe_ke: None,
-            http2: None,
-            headers: None,
-        })),
-        ..ConnectionConfig::default()
-    }
-}
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CopilotCli;
@@ -163,8 +127,10 @@ impl BaseChannel for CopilotCli {
         }
     }
 
+    /// No client fingerprint by default; the CLI's captured TLS identity is
+    /// a public TLS preset an operator selects in a connection profile.
     fn default_connection(&self) -> Option<ConnectionConfig> {
-        Some(default_connection())
+        None
     }
 
     /// The Copilot backend serves Chat Completions, Responses and a

@@ -15,17 +15,11 @@
 <a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
 <a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
 
-GPROXY is a self-hosted gateway for LLM APIs, written in Rust. You give it your
-upstream accounts (API keys, OAuth logins such as Codex or Claude Code, or
-browser cookies) and your clients get one base URL, one GPROXY API key and
-model names that you define.
-
-For each request GPROXY resolves the model name to a provider, picks a working
-credential, converts between the OpenAI, Claude and Gemini request formats if
-the client and the upstream speak different ones, and records the tokens and
-cost. If a credential or provider fails, it retries on the next one. Users,
-API keys, permissions, rate limits and spending budgets are managed in a web
-console or through the management API.
+GPROXY is a self-hosted gateway for LLM APIs, written in Rust. You hand it
+your upstream accounts: API keys, the OAuth logins behind subscriptions such
+as Claude Code or Codex, or browser cookies. The people who use it get one
+base URL, one GPROXY API key and model names that you choose. They never see
+the upstream secrets.
 
 GPROXY does not run models. Inference is done by the upstream service.
 
@@ -33,30 +27,113 @@ The full manual is at **<https://gproxy.leenhawk.com/>**.
 
 ![The console's provider page](.github/readme/providers-en.webp)
 
+## When it is useful
+
+- You have a few Claude or ChatGPT subscriptions and a pile of API keys, and
+  you want to share them with a team or with friends. Everyone gets a key of
+  their own with its own permissions, rate limits and budget, and you can see
+  afterwards who used what.
+- The same model is available from several sources and you want them to back
+  each other up. When an account is rate-limited or fails, the request moves
+  to the next one and the client does not need to know.
+- The client only speaks the OpenAI format and the upstream is Claude or
+  Gemini, or the other way round.
+- The gateway has to stay up on a server, a NAS, in a container or on
+  Cloudflare Workers.
+
+If all you want is to switch models for Claude Code or Codex on your own
+computer, a desktop switcher is less work. GPROXY does not edit those tools'
+configuration files; you enter the gateway URL and key yourself.
+
 ## Features
 
-- Client-facing APIs: OpenAI Chat Completions and Responses, Claude Messages
-  and Gemini GenerateContent, streaming included, with conversion in either
-  direction. Embeddings, images, audio, video, files and Realtime are available
-  on the channels whose upstream offers them.
-- Built-in channels for OpenAI, Claude API, Claude Code, Claude Web, Codex,
-  Gemini CLI, Antigravity, Google AI Studio, Vertex AI, AWS Bedrock, Azure,
-  GitHub Copilot CLI, OpenRouter, DeepSeek, GLM, Kimi, MiniMax, DashScope,
-  Volcengine, xAI, Kiro and more; the [provider
-  guide](https://gproxy.leenhawk.com/guides/providers) has the full list.
-  Anything that speaks one of the three protocols can be added with the
-  `custom` channel.
-- Model routes: clients ask for `fast` or `coding`; you decide which providers
-  and upstream models serve it, with weights and fallback tiers.
-- Credential pools with OAuth refresh, health tracking, upstream quota
-  queries and failover.
-- Rewrite rules for system prompts, prompt-cache breakpoints, JSON fields,
-  regular expressions and headers, per provider.
-- Users, organizations, teams, scoped administrators, per-key permissions,
-  rate limits and budgets. Usage, request logs and an audit log.
-- Runs as a native server, a desktop or mobile app, a container, or a
-  Cloudflare Worker / Netlify / Vercel function. Rust programs can embed it
-  through `gproxy-sdk`.
+### Subscription accounts as upstreams
+
+Besides API keys, GPROXY can use subscription accounts as upstreams: Claude
+Code, Claude on the web, Codex (a ChatGPT account), Gemini CLI, Antigravity,
+GitHub Copilot CLI, Kiro, Grok Build, Kimi Code, Trae, Devin, WorkBuddy and
+others. You sign in once in the console and GPROXY refreshes the tokens from
+then on.
+
+A provider can hold several accounts. You can look up each account's quota
+windows, and an account that the upstream has rate-limited gives way to the
+others. With session affinity turned on, a conversation stays on one account,
+so the prompt cache is not lost by switching accounts.
+
+Claude Code and Codex CLI send more than model requests. They also ask for
+account details, usage, plugins and so on. GPROXY answers these too, so the
+official CLIs work when pointed at the gateway. What the CLI shows is the
+caller's own usage on the gateway; nothing about the shared account is
+disclosed to them.
+
+### Several users
+
+Accounts are organized into users, organizations and teams, and an
+administrator can be limited to one organization or team. Each key can be
+restricted to certain providers and models and given rate limits and a
+spending budget. A credential can belong to a user, an organization or a team,
+and nobody else can use it.
+
+Tools that sign in with OAuth, such as Claude Code and Codex CLI, can sign in
+to your GPROXY instance directly, so you do not have to hand out a key to each
+person.
+
+Every upstream call is recorded with its token counts and cost. There are
+also request logs and an audit log.
+
+### Protocol conversion
+
+Clients can use OpenAI Chat Completions, OpenAI Responses, Claude Messages or
+Gemini GenerateContent, streaming or not. When the client and the upstream use
+different formats, the gateway converts between them. Embeddings, rerank,
+images, audio, video, files and Realtime are available where the upstream
+offers them.
+
+Conversion changes only the format of a request. A model that cannot call
+tools or read images still cannot when it is asked in another format.
+
+### Model routes
+
+Clients ask for a name such as `fast` or `coding`, and you decide which
+providers and upstream models serve it. Route members can be put in tiers; a
+later tier is used only when nothing in the earlier ones is available. Within
+a tier, requests are spread round-robin, by weight, or in a fixed order. You
+can also do without routes and ask for `provider/model` directly.
+
+![The console's model route page](.github/readme/routes-en.webp)
+
+### Rewrite rules
+
+Requests and responses can be rewritten per provider: system prompts, JSON
+fields, regular-expression replacements, headers and prompt-cache
+breakpoints. Some clients cannot set cache fields. For those, you can put an
+agreed string in the prompt, and when the provider has the option turned on,
+GPROXY replaces it with a cache breakpoint.
+
+### Channels
+
+Apart from the subscription channels above, the built-in channels include
+OpenAI, Claude API, Google AI Studio, Vertex AI, AWS Bedrock, Azure,
+OpenRouter, DeepSeek, GLM, Kimi, MiniMax, DashScope, Volcengine, xAI, NVIDIA
+NIM and others; the [provider
+guide](https://gproxy.leenhawk.com/guides/providers) has the full list. A
+compatible service that differs only in its address and headers can be added
+with the `custom` channel. When a service needs an adapter of its own, you can
+write a channel plugin outside this repository, without forking, as described
+in [Adding a channel](https://gproxy.leenhawk.com/development/adding-a-channel).
+
+### Ways to run it
+
+- A native server: the CLI for Linux, macOS and Windows with the web console
+  built in, or a headless build without the console.
+- A container.
+- A desktop and mobile app with the console and a setup wizard built in.
+- A Cloudflare Worker or a Netlify or Vercel function, with the same channels
+  as the native build.
+- A Rust library: embed it in your own program through `gproxy-sdk`.
+
+The database can be SQLite, PostgreSQL or MySQL, or D1 or libSQL/Turso on
+Cloudflare.
 
 ## Installing
 
@@ -153,8 +230,8 @@ binary in a small container with PostgreSQL.
 You will be asked for an administrator password and a master key. Read
 [Hosted deployments](https://gproxy.leenhawk.com/deployment/edge) and
 [Docker, Render and Heroku](https://gproxy.leenhawk.com/deployment/containers)
-first; they cover database choice, plan costs and what does not work on
-serverless platforms (WebSocket support, for example).
+first; they cover database choice, plan costs and the limits of each platform
+(Netlify has no WebSocket support, for example).
 
 ## Upgrading from v3
 

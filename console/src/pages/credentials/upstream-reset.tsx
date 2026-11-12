@@ -8,7 +8,6 @@ import { ErrorNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog"
-import { quotaWindowName } from "./upstream-label"
 
 export function UpstreamReset({ id, enabled, busy, onReset }: { id: string; enabled: boolean; busy: boolean; onReset: () => Promise<unknown> }) {
   const { t, i18n } = useTranslation()
@@ -21,11 +20,12 @@ export function UpstreamReset({ id, enabled, busy, onReset }: { id: string; enab
     reset.reset()
     setSelection({ option, request: { program: option?.program ?? null, grantId: option?.grantId ?? null, requestId: crypto.randomUUID() } })
   }
-  const label = (option: QuotaResetOptionDto) => option.label || t(option.program === "codex_rate_limits" ? "limits.fullReset" : option.program === "juniper_tide" ? "limits.weeklyReset" : "limits.grantReset")
+  const text = (value: string) => t(`limits.resetText.${value}`, { defaultValue: value })
+  const label = (option: QuotaResetOptionDto) => option.title ? text(option.title) : option.label || t("limits.grantReset")
+  const description = (option: QuotaResetOptionDto) => option.description ? text(option.description) : null
   const reason = (value: string) => t(`limits.resetReasons.${value}`, { defaultValue: value })
   const options = cards.data?.options ?? []
-  const codexCards = options.some(option => option.program === "codex_rate_limits")
-  const eligibility = options.length > 0 && !codexCards
+  const eligibility = options.length > 0 && cards.data?.availableCount == null
   const available = (cards.data?.availableCount ?? 0) > 0
   const selectedUsable = selection?.option ? options.some(option => option.program === selection.option?.program && option.grantId === selection.option?.grantId && option.usable) : available
   return <>
@@ -44,8 +44,10 @@ export function UpstreamReset({ id, enabled, busy, onReset }: { id: string; enab
       </dl> : !options.length && cards.data?.expiresAtMs != null ? <p className="text-xs text-muted-foreground">{t("limits.resetCreditsExpire", { at: formatInstant(cards.data.expiresAtMs, i18n.language) })}</p> : null}
       {options.map(option => <section key={`${option.program}:${option.grantId ?? ""}`} className="flex flex-col gap-2 border-t pt-3" aria-label={label(option)}>
         <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-medium">{label(option)}</p><Button variant="outline" size="sm" disabled={pending || !option.usable} onClick={() => choose(option)}>{t("management.upstreamReset")}</Button></div>
+        {option.label && option.label !== label(option) ? <p className="text-xs text-muted-foreground">{option.label}</p> : null}
+        {description(option) ? <p className="text-xs text-muted-foreground">{description(option)}</p> : null}
         <p className="text-sm">{t("limits.resetCount")} {option.availableCount == null ? "—" : formatNumber(option.availableCount, i18n.language)}</p>
-        {option.clears.length ? <p className="text-xs text-muted-foreground">{t("limits.resetScope", { scope: option.clears.map(key => quotaWindowName(key, t)).join(i18n.language.startsWith("zh") ? "、" : ", ") })}</p> : null}
+        {option.scopeLabels?.length ? <p className="text-xs text-muted-foreground">{t("limits.resetScope", { scope: option.scopeLabels.map(text).join(i18n.language.startsWith("zh") ? "、" : ", ") })}</p> : null}
         {option.expiresAtMs != null ? <p className="text-xs text-muted-foreground">{t("limits.resetCreditsExpire", { at: formatInstant(option.expiresAtMs, i18n.language) })}</p> : null}
         {option.nextAvailableAtMs != null ? <p className="text-xs text-muted-foreground">{t("limits.nextResetAvailable", { at: formatInstant(option.nextAvailableAtMs, i18n.language) })}</p> : null}
         {!option.usable && option.ineligibleReason ? <p className="text-sm text-muted-foreground">{reason(option.ineligibleReason)}</p> : null}
@@ -56,7 +58,8 @@ export function UpstreamReset({ id, enabled, busy, onReset }: { id: string; enab
     </CardContent></Card>
     <AlertDialog open={selection != null} onOpenChange={open => { if (!open && !reset.isPending) setSelection(null) }}><AlertDialogContent><AlertDialogHeader>
       <AlertDialogTitle>{t("management.upstreamReset")}</AlertDialogTitle><AlertDialogDescription>{t("management.upstreamResetConfirm")}</AlertDialogDescription>
-      {selection?.option ? <div className="flex flex-col gap-2 text-sm"><p>{label(selection.option)}</p>{selection.option.clears.length ? <p>{t("limits.resetScope", { scope: selection.option.clears.map(key => quotaWindowName(key, t)).join(i18n.language.startsWith("zh") ? "、" : ", ") })}</p> : null}{selection.option.expiresAtMs != null ? <p>{t("limits.resetCreditsExpire", { at: formatInstant(selection.option.expiresAtMs, i18n.language) })}</p> : null}</div> : null}
+      {selection?.option && description(selection.option) ? <p className="text-sm text-muted-foreground">{description(selection.option)}</p> : null}
+      {selection?.option ? <div className="flex flex-col gap-2 text-sm"><p>{label(selection.option)}</p>{selection.option.scopeLabels?.length ? <p>{t("limits.resetScope", { scope: selection.option.scopeLabels.map(text).join(i18n.language.startsWith("zh") ? "、" : ", ") })}</p> : null}{selection.option.expiresAtMs != null ? <p>{t("limits.resetCreditsExpire", { at: formatInstant(selection.option.expiresAtMs, i18n.language) })}</p> : null}</div> : null}
       {reset.error ? <ErrorNotice error={reset.error} /> : null}
     </AlertDialogHeader>
       <AlertDialogFooter><AlertDialogCancel disabled={reset.isPending}>{t("actions.cancel")}</AlertDialogCancel><Button disabled={pending || !selectedUsable} onClick={() => selection && reset.mutate(selection.request)}>{t("management.upstreamReset")}</Button></AlertDialogFooter>

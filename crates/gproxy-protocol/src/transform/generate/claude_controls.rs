@@ -1,11 +1,27 @@
 //! Project Claude's conversation-scoped controls onto a single target request.
 use crate::{
     Rest,
-    transform::Report,
+    transform::{Report, TransformError},
     wire::claude::{content as c, count_tokens as cc, generate_content as g, tools as t},
 };
 
-pub(super) fn project(input: &mut g::GenerateContentRequestBody, report: &mut Report) {
+pub(super) fn project(
+    input: &mut g::GenerateContentRequestBody,
+    report: &mut Report,
+) -> Result<(), TransformError> {
+    match &input.thread {
+        Some(g::MessageThreadParam::Continue { .. }) => {
+            return Err(TransformError::unsupported(
+                "thread.previous_message_id",
+                "Claude thread history is held upstream; replay the full conversation without thread to convert it",
+            ));
+        }
+        Some(g::MessageThreadParam::Create { .. }) => report.omitted(
+            "thread",
+            "target cannot create a Claude message thread; full conversation is converted",
+        ),
+        None => {}
+    }
     if input.compaction.is_some() {
         report.omitted(
             "compaction",
@@ -29,6 +45,7 @@ pub(super) fn project(input: &mut g::GenerateContentRequestBody, report: &mut Re
         &mut input.output_config,
         report,
     );
+    Ok(())
 }
 
 pub(crate) fn project_messages(
@@ -169,9 +186,17 @@ pub(crate) fn target(
     }
     let sonnet = crate::transform::instructions::family(&model, "claude-sonnet-5-5");
     if !sonnet
-        && !["claude-opus-5-5", "claude-fable-5-1", "claude-mythos-5-1"]
-            .iter()
-            .any(|name| crate::transform::instructions::family(&model, name))
+        && ![
+            "claude-opus-5-5",
+            "claude-fable-5-1",
+            "claude-mythos-5-1",
+            "claude-fable-5-2",
+            "claude-mythos-5-2",
+            "claude-fable-5.2",
+            "claude-mythos-5.2",
+        ]
+        .iter()
+        .any(|name| crate::transform::instructions::family(&model, name))
     {
         return;
     }

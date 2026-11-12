@@ -882,7 +882,6 @@
     "cyclePeriod": "週期",
     "cycleFinalPercent": "結束時",
     "monthCycle": "自然月",
-    "fullReset": "完整重置",
     "resetCardNumber": "第 {{number}} 張",
     "weeklyBreakdown": "週用量分布",
     "usageSources": {
@@ -894,7 +893,20 @@
     "resetCount": "可用次數",
     "queryResetEligibility": "查詢重置資格",
     "resetEligibility": "重置資格",
-    "weeklyReset": "每週工作階段重置",
+    "resetText": {
+      "5-hour reset": "5 小時重置",
+      "Weekly reset": "週額度重置",
+      "Full reset": "完整重置",
+      "Fable reset": "Fable 重置",
+      "5-hour reset (once a week)": "5 小時重置（每週一次）",
+      "Resets the 5-hour limit once a week. Usage still counts toward the weekly limit.": "每週可重置一次 5 小時限制，用量仍計入週額度。",
+      "Resets the Fable limit and returns this week's Fable usage to your weekly allowance. Other usage and your weekly reset date stay unchanged.": "重置 Fable 視窗，並返還本週 Fable 已消耗的總週額度；其他用量和週重置時間不變。",
+      "5-hour quota": "5小時額度",
+      "7-day quota": "7天額度",
+      "Fable · 7-day quota": "Fable · 7天額度",
+      "Opus · 7-day quota": "Opus · 7天額度",
+      "Sonnet · 7-day quota": "Sonnet · 7天額度"
+    },
     "grantReset": "贈送重置卡",
     "resetScope": "重置範圍：{{scope}}",
     "nextResetAvailable": "下次可用：{{at}}",
@@ -906,6 +918,7 @@
     "expiresAt": "到期",
     "scopedWeeklyQuota": "{{scope}} · 7天額度",
     "resetReasons": {
+      "no_fable_usage": "本週沒有可返還的 Fable 用量。",
       "cli_version": "用戶端版本不符合資格，尚無法確定重置卡數量。",
       "no_grant": "沒有可用的贈送重置卡。",
       "other_experiment": "目前帳號的實驗分組暫不支援。",
@@ -1161,7 +1174,7 @@
     "feedback": "問題回報",
     "sponsor": {
       "title": "支持 GPROXY",
-      "description": "透過 GitHub Sponsors 贊助專案，支持 GPROXY 持續發展。",
+      "description": "幫助 GPROXY 上架行動應用程式商店：Google Play 開發者帳號需 $25（一次性），Apple 開發者計畫需 $99/年。審核通過並上架後，即可從應用程式商店安裝和更新。",
       "thanks": "你的支持將幫助專案持續維護、適配上游服務並開發新功能。感謝你使用和支持 GPROXY。",
       "action": "贊助 LeenHawk"
     },

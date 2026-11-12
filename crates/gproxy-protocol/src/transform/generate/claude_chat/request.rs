@@ -20,7 +20,7 @@ pub fn claude_to_openai(
     let target_model = target_model.into();
     let mut report = Report::default();
     let mut projected = input.clone();
-    super::super::claude_controls::project(&mut projected, &mut report);
+    super::super::claude_controls::project(&mut projected, &mut report)?;
     let explicit_cache = cache::prepare_claude(&mut projected, &mut report);
     let input = &projected;
     super::requirements::claude(input, &mut report)?;
@@ -287,6 +287,7 @@ pub fn openai_to_claude(
     let mut converted = Converted {
         value: cg::GenerateContentRequestBody {
             compaction: None,
+            thread: None,
             max_tokens,
             messages,
             model: target_model,

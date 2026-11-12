@@ -478,6 +478,10 @@ impl From<QuotaResetCredits> for QuotaResetCreditsDto {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct QuotaResetOptionDto {
     pub program: String,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    #[serde(default)]
+    pub scope_labels: Vec<String>,
     pub grant_id: Option<String>,
     pub label: Option<String>,
     pub available_count: Option<u64>,
@@ -492,6 +496,9 @@ impl From<QuotaResetOption> for QuotaResetOptionDto {
     fn from(option: QuotaResetOption) -> Self {
         Self {
             program: option.program,
+            title: option.title,
+            description: option.description,
+            scope_labels: option.scope_labels,
             grant_id: option.grant_id,
             label: option.label,
             available_count: option.available_count,

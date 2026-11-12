@@ -6,29 +6,38 @@ use crate::{BatchResult, BatchStatement};
 use sea_orm::{
     DbErr, RuntimeErr,
     sqlx::{
-        self, AssertSqlSafe, IntoArguments, SqlSafeStr, SqliteConnection,
-        sqlite::{SqliteBatchStatement, SqlitePool},
+        self, AssertSqlSafe, IntoArguments, SqlSafeStr, SqlStr, SqliteConnection,
+        sqlite::{SqliteArguments, SqlitePool},
     },
 };
 use sea_query_sqlx::SqlxValues;
 use std::sync::Arc;
 
-pub(super) fn encode(steps: Vec<BatchStatement>) -> Vec<SqliteBatchStatement> {
+/// One encoded statement. Cloning shares the SQL text and argument payloads.
+#[derive(Clone)]
+pub(super) struct Step {
+    sql: SqlStr,
+    arguments: SqliteArguments,
+    /// Return its rows as `BatchResult::Rows`, rather than execution metadata.
+    query: bool,
+}
+
+pub(super) fn encode(steps: Vec<BatchStatement>) -> Vec<Step> {
     steps
         .into_iter()
         .map(|step| {
-            let (statement, collect_rows) = match step {
+            let (statement, query) = match step {
                 BatchStatement::Execute(statement) => (statement, false),
                 BatchStatement::Query(query) => (query.statement, true),
             };
-            SqliteBatchStatement {
+            Step {
                 sql: AssertSqlSafe(Arc::<str>::from(statement.sql)).into_sql_str(),
                 arguments: <SqlxValues as IntoArguments<sqlx::Sqlite>>::into_arguments(SqlxValues(
                     statement
                         .values
                         .unwrap_or(sea_orm::sea_query::Values(Vec::new())),
                 )),
-                collect_rows,
+                query,
             }
         })
         .collect()
@@ -40,33 +49,40 @@ fn error(error: sqlx::Error) -> DbErr {
 
 async fn execute(
     connection: &mut SqliteConnection,
-    steps: Vec<SqliteBatchStatement>,
+    steps: Vec<Step>,
 ) -> Result<Vec<BatchResult>, DbErr> {
-    let queries: Vec<_> = steps.iter().map(|step| step.collect_rows).collect();
-    let results = connection.execute_batch(steps).await.map_err(|failure| {
-        if queries.get(failure.index).copied().unwrap_or(false) {
-            DbErr::Query(RuntimeErr::SqlxError(failure.error.into()))
-        } else {
-            error(failure.error)
-        }
-    })?;
+    let queries: Vec<_> = steps.iter().map(|step| step.query).collect();
+    let results = connection
+        .execute_batch(
+            steps
+                .into_iter()
+                .map(|step| sqlx::query_with(step.sql, step.arguments)),
+        )
+        .await
+        .map_err(|failure| {
+            let query = queries.get(failure.index()).copied().unwrap_or(false);
+            let cause = failure.into_error();
+            if query {
+                DbErr::Query(RuntimeErr::SqlxError(cause.into()))
+            } else {
+                error(cause)
+            }
+        })?;
     Ok(results
         .into_iter()
         .zip(queries)
         .map(|(result, query)| {
+            let (result, rows) = result.into_parts();
             if query {
-                BatchResult::Rows(result.rows.into_iter().map(Into::into).collect())
+                BatchResult::Rows(rows.into_iter().map(Into::into).collect())
             } else {
-                BatchResult::Executed(result.result.into())
+                BatchResult::Executed(result.into())
             }
         })
         .collect())
 }
 
-async fn transaction(
-    pool: &SqlitePool,
-    steps: Vec<SqliteBatchStatement>,
-) -> Result<Vec<BatchResult>, DbErr> {
+async fn transaction(pool: &SqlitePool, steps: Vec<Step>) -> Result<Vec<BatchResult>, DbErr> {
     let mut transaction = pool.begin().await.map_err(error)?;
     match execute(&mut transaction, steps).await {
         Ok(results) => {

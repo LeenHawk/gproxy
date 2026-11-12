@@ -188,7 +188,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     );
     headers.insert(
         "user-agent",
-        HeaderValue::from_static("claude-cli/2.1.318 (external, sdk-cli)"),
+        HeaderValue::from_static("claude-cli/2.1.321 (external, sdk-cli)"),
     );
     headers.insert("x-request-id", HeaderValue::from_static("req-1"));
     let body = json!({
@@ -198,7 +198,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
         "top_p": 0.9,
         "top_k": 40,
         "system": [
-            {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.318.abc; cc_entrypoint=sdk-cli;"},
+            {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.321.abc; cc_entrypoint=sdk-cli;"},
             {"type":"text", "text":" policy "},
             {"type":"text", "text":" ", "cache_control":{"type":"ephemeral"}}
         ],
@@ -228,7 +228,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
         "oauth beta first, client betas kept, context-1m stripped, fast mode derived"
     );
     assert_eq!(h["x-app"], "cli");
-    assert_eq!(h["user-agent"], "claude-cli/2.1.318 (external, sdk-cli)");
+    assert_eq!(h["user-agent"], "claude-cli/2.1.321 (external, sdk-cli)");
     assert_eq!(h["x-claude-code-session-id"], "session-1");
     assert_eq!(h["x-stainless-package-version"], "0.128.0");
     assert_eq!(h["anthropic-dangerous-direct-browser-access"], "true");
@@ -250,7 +250,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     let billing = billing.as_str();
     assert_eq!(
         billing,
-        "x-anthropic-billing-header: cc_version=2.1.318.886; cc_entrypoint=sdk-cli; cch=00000;",
+        "x-anthropic-billing-header: cc_version=2.1.321.ad5; cc_entrypoint=sdk-cli; cch=00000;",
         "a client block without turn fragments is a side call and stays bare"
     );
     let ids: Value = serde_json::from_str(shaped["metadata"]["user_id"].as_str().unwrap()).unwrap();
@@ -382,14 +382,14 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
         billing(concat!(
             "x-anthropic-billing-header: cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D; ",
             "cc_version=2.1.200.zzz; cc_prev_req=req_0123abc-XYZ_; cc_is_subagent=true; ",
-            "cc_prev_turn_index=12; cc_prev_msg=msg_0123abc_XYZ; cc_prev_prompt_index=0; ",
+            "cc_dispatch_entrypoint=claude-desktop; cc_prev_turn_index=12; cc_prev_msg=msg_0123abc_XYZ; cc_prev_prompt_index=0; ",
             "cc_workload=agent_run; cc_entrypoint=sdk-ts; cc_secret=leak; cch=11111; cc_turn_origin=user; cc_gateway=1;"
         )),
         concat!(
-            "x-anthropic-billing-header: cc_version=2.1.318.886; cc_entrypoint=sdk-ts; cch=00000; ",
+            "x-anthropic-billing-header: cc_version=2.1.321.ad5; cc_entrypoint=sdk-ts; cch=00000; ",
             "cc_workload=agent_run; cc_is_subagent=true; cc_prev_req=req_0123abc-XYZ_; ",
             "cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D; cc_turn_origin=user; ",
-            "cc_prev_msg=msg_0123abc_XYZ; cc_prev_prompt_index=0; cc_prev_turn_index=12;"
+            "cc_prev_msg=msg_0123abc_XYZ; cc_prev_prompt_index=0; cc_prev_turn_index=12; cc_dispatch_entrypoint=claude-desktop;"
         )
     );
     // Invalid values are dropped rather than forwarded: a prev_req without
@@ -400,11 +400,11 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
     let derived = billing(concat!(
         "x-anthropic-billing-header: cc_version=2.1.200.zzz; cc_entrypoint=sdk/ts; ",
         "cc_workload=agent run; cc_is_subagent=false; cc_prev_req=nope; cc_prompt_id=prompt-1; cc_gateway=env;",
-        "cc_prev_msg=msg_bad-id; cc_prev_prompt_index=0; cc_prev_turn_index=0;"
+        "cc_prev_msg=msg_bad-id; cc_prev_prompt_index=0; cc_prev_turn_index=0; cc_dispatch_entrypoint=other;"
     ));
     assert_eq!(
         derived,
-        "x-anthropic-billing-header: cc_version=2.1.318.886; cc_entrypoint=cli; cch=00000;"
+        "x-anthropic-billing-header: cc_version=2.1.321.ad5; cc_entrypoint=cli; cch=00000;"
     );
     for invalid in [
         "msg_",
@@ -1523,7 +1523,7 @@ fn service_request(method: Method, path: &str, query: Option<&str>, body: &str) 
     headers.insert("x-organization-uuid", HeaderValue::from_static("org-1"));
     headers.insert(
         "user-agent",
-        HeaderValue::from_static("claude-cli/2.1.318 (external, sdk-cli)"),
+        HeaderValue::from_static("claude-cli/2.1.321 (external, sdk-cli)"),
     );
     WireRequest {
         method,
@@ -1610,7 +1610,7 @@ async fn catalog_routes_forward_under_every_view_with_the_cli_identity() {
     assert_eq!(h["authorization"], "Bearer at");
     assert_eq!(h["anthropic-beta"], "oauth-2025-04-20");
     assert_eq!(h["anthropic-version"], "2026-10-21");
-    assert_eq!(h["user-agent"], "claude-cli/2.1.318 (external, sdk-cli)");
+    assert_eq!(h["user-agent"], "claude-cli/2.1.321 (external, sdk-cli)");
     assert_eq!(h["x-app"], "cli");
     assert_eq!(h["cache-control"], "no-cache");
     assert_eq!(h["x-organization-uuid"], "org-1");
@@ -2543,4 +2543,154 @@ async fn public_mcp_directories_forward_without_account_credentials() {
         assert!(headers.get("cookie").is_none());
         assert!(headers.get("x-organization-uuid").is_none());
     }
+}
+
+#[test]
+fn continued_message_threads_do_not_receive_a_system_prompt() {
+    let config = json!({"identity_system_block":true});
+    let secret = secret("at-1");
+    let metadata = json!({"device_id":"device-1", "account_uuid":"account-1"});
+    for thread in [
+        json!({"type":"create"}),
+        json!({"type":"continue", "previous_message_id":"msg_previous"}),
+    ] {
+        let mut body = json!({
+            "model":"claude-fable-5-2", "max_tokens":32, "thread":thread,
+            "messages":[{"role":"user", "content":"next turn"}]
+        });
+        if thread["type"] == "create" {
+            body["system"] = json!("original instructions");
+        } else {
+            body["speed"] = json!("fast");
+        }
+        let request = Claudecode
+            .prepare(PrepareContext {
+                provider: provider(&config, None),
+                credential: credential(&secret, &metadata),
+                operation: key(Operation::GenerateContent),
+                request: messages_request(HeaderMap::new(), body),
+                endpoint_override: None,
+            })
+            .unwrap();
+        assert!(
+            !request.headers()["anthropic-beta"]
+                .to_str()
+                .unwrap()
+                .contains("fast-mode-2026-02-01")
+        );
+        assert!(
+            request.headers()["anthropic-beta"]
+                .to_str()
+                .unwrap()
+                .split(',')
+                .any(|beta| beta == "message-threads-2026-08-12")
+        );
+        let HttpBody::Bytes(bytes) = request.into_body() else {
+            panic!("buffered");
+        };
+        let shaped: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(shaped["thread"], thread);
+        if thread["type"] == "continue" {
+            assert!(shaped.get("system").is_none());
+            assert!(shaped.get("tools").is_none());
+        } else {
+            assert!(
+                shaped["system"]
+                    .to_string()
+                    .contains("original instructions")
+            );
+            assert!(shaped["system"].to_string().contains("cc_version=2.1.321"));
+        }
+        assert!(
+            shaped["metadata"]["user_id"]
+                .as_str()
+                .unwrap()
+                .contains("account-1")
+        );
+    }
+}
+
+#[tokio::test]
+async fn reset_kinds_clear_the_fable_window_without_resetting_total_weekly_usage() {
+    use gproxy_channel::channel::{QuotaResetOutcome, QuotaResetRequest};
+    let status = json!({"cedar_ember": {
+        "eligible":true, "at_limit":true, "exhausted":["seven_day"],
+        "grants":[
+            {"id":"session", "resets_left":1, "usable_now":true, "clears":["five_hour"]},
+            {"id":"weekly", "resets_left":2, "usable_now":true, "clears":["seven_day"]},
+            {"id":"full", "resets_left":3, "usable_now":true, "clears":["five_hour","seven_day"]},
+            {"id":"fable", "resets_left":4, "usable_now":true, "type":"weekly", "gives_back_weekly":true, "clears":["seven_day_overage_included"]},
+            {"id":"fable-blocked", "resets_left":1, "usable_now":false, "gives_back_weekly":true, "blocking":["seven_day"], "clears":[]}
+        ]
+    }});
+    let client = ScriptClient::new(vec![
+        reply(
+            StatusCode::OK,
+            json!({"juniper_tide":{"eligible":true,"arm":"reset","available":true}}),
+        ),
+        reply(StatusCode::OK, status.clone()),
+    ]);
+    let config = json!({});
+    let secret = secret("at");
+    let metadata = json!({"organization_uuid":"org-123"});
+    let context = |client| CredentialContext {
+        provider: provider(&config, None),
+        credential: credential(&secret, &metadata),
+        client,
+    };
+    let reset = Claudecode.quota_reset().unwrap();
+    let credits = reset.credits(context(&client)).await.unwrap();
+    assert_eq!(
+        credits
+            .options
+            .iter()
+            .map(|option| option.title.as_deref())
+            .collect::<Vec<_>>(),
+        vec![
+            Some("5-hour reset (once a week)"),
+            Some("5-hour reset"),
+            Some("Weekly reset"),
+            Some("Full reset"),
+            Some("Fable reset"),
+            Some("Fable reset")
+        ]
+    );
+    assert!(credits.options[..5].iter().all(|option| option.usable));
+    assert_eq!(credits.options[4].available_count, Some(4));
+    assert_eq!(
+        credits.options[5].ineligible_reason.as_deref(),
+        Some("no_fable_usage")
+    );
+    assert!(client.sent().iter().all(|request| request.0 == Method::GET));
+
+    let client = ScriptClient::new(vec![
+        reply(StatusCode::OK, status),
+        reply(
+            StatusCode::OK,
+            json!({"result":"reset", "cleared":["seven_day_overage_included"]}),
+        ),
+    ]);
+    let result = reset
+        .reset(
+            context(&client),
+            QuotaResetRequest {
+                redeem_request_id: "fable-request",
+                program: Some("cedar_ember"),
+                grant_id: Some("fable"),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.outcome, QuotaResetOutcome::Reset);
+    assert_eq!(result.clears, Some(vec!["seven_day_fable".into()]));
+    assert_eq!(
+        credits.options[4].clears,
+        vec!["seven_day_fable".to_owned()]
+    );
+    let sent = client.sent();
+    assert_eq!(sent.len(), 2);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&sent[1].3).unwrap(),
+        json!({"program":"cedar_ember", "grant_id":"fable", "request_id":"fable-request"})
+    );
 }
