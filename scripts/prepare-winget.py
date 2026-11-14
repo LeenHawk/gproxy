@@ -152,7 +152,9 @@ def main():
         with urllib.request.urlopen(schema_url, timeout=60) as response:
             schema = json.load(response)
         jsonschema.validate(doc, schema)
-        (destination / template.name).write_text(yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding='utf-8')
+        # WinGet Create identifies each manifest by this schema header comment.
+        header = f'# yaml-language-server: $schema=https://aka.ms/winget-manifest.{doc["ManifestType"]}.{doc["ManifestVersion"]}.schema.json\n\n'
+        (destination / template.name).write_text(header + yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding='utf-8')
     print(f'Validated {edition} {version}: {destination}')
 
 
