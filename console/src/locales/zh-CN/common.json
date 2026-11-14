@@ -157,7 +157,12 @@
     "websocket": "WebSocket",
     "replace": "文本替换",
     "set": "设置字段",
-    "disabled": "已禁用"
+    "disabled": "已禁用",
+    "rateScope": {
+      "shared": "所有人共用",
+      "user": "每个用户单独计数",
+      "key": "每把密钥单独计数"
+    }
   },
   "fields": {
     "permissionEffect": "访问策略",
@@ -268,7 +273,8 @@
     "currency": "币种",
     "averageOutputTps": "平均输出 TPS",
     "cacheHitRate": "缓存命中率",
-    "cacheCreationTokens": "缓存写入"
+    "cacheCreationTokens": "缓存写入",
+    "scope": "计数方式"
   },
   "oauthConsent": {
     "authorizeTitle": "授权访问",

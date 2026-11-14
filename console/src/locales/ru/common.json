@@ -157,7 +157,12 @@
     "websocket": "WebSocket",
     "replace": "Заменить текст",
     "set": "Задать поле",
-    "disabled": "Отключено"
+    "disabled": "Отключено",
+    "rateScope": {
+      "shared": "Общий для всех",
+      "user": "Отдельно для каждого пользователя",
+      "key": "Отдельно для каждого API-ключа"
+    }
   },
   "fields": {
     "permissionEffect": "Политика доступа",
@@ -268,7 +273,8 @@
     "currency": "Валюта",
     "averageOutputTps": "Средняя скорость вывода (токенов/с)",
     "cacheHitRate": "Доля попаданий в кэш",
-    "cacheCreationTokens": "Запись в кэш"
+    "cacheCreationTokens": "Запись в кэш",
+    "scope": "Подсчёт"
   },
   "oauthConsent": {
     "authorizeTitle": "Разрешить доступ",

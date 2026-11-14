@@ -22,6 +22,10 @@ pub struct Model {
     pub limit_value: FixedDecimal,
     pub period_seconds: i64,
     pub model_pattern: Option<String>,
+    /// How the matching callers share the limit: `shared` (one counter for
+    /// the rule), `user` (one per user) or `key` (one per API key).
+    #[sea_orm(default_value = "shared")]
+    pub scope: String,
     #[sea_orm(default_value = true)]
     pub enabled: bool,
     #[sea_orm(belongs_to, from = "user_id", to = "id", on_delete = "Cascade")]

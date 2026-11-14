@@ -832,6 +832,7 @@ async fn instance(concurrency: Option<i64>) -> Host {
                 limit_value: Set(FixedDecimal::from_atoms(limit * FixedDecimal::FACTOR)),
                 period_seconds: Set(60),
                 model_pattern: Set(Some("*".into())),
+                scope: Set("shared".into()),
                 enabled: Set(true),
             }])
             .await

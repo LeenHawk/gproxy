@@ -90,6 +90,7 @@ fn limit(
         limit_value: Set(FixedDecimal::from_atoms(value * FixedDecimal::FACTOR)),
         period_seconds: Set(period_seconds),
         model_pattern: Set(Some(pattern.into())),
+        scope: Set("shared".into()),
         enabled: Set(true),
     }
 }

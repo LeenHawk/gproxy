@@ -12,10 +12,8 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PermissionDto {
     pub id: String,
-    /// Exactly one of these two is set. A rule with neither is a grant to
-    /// nobody; a rule with both is an intersection the snapshot still honours
-    /// but this family refuses to write, because nobody who wrote one meant
-    /// "the key *and* the user".
+    /// The rule's subject. Neither set applies the rule to everyone; both set
+    /// applies it only when that key is used by that user.
     pub user_id: Option<String>,
     pub api_key_id: Option<String>,
     /// None means every provider.

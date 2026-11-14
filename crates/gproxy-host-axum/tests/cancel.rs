@@ -86,6 +86,7 @@ async fn instance() -> Host {
             limit_value: Set(FixedDecimal::from_atoms(FixedDecimal::FACTOR)),
             period_seconds: Set(60),
             model_pattern: Set(Some("*".into())),
+            scope: Set("shared".into()),
             enabled: Set(true),
         }])
         .await

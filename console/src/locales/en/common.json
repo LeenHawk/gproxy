@@ -157,7 +157,12 @@
     "websocket": "WebSocket",
     "replace": "Replace text",
     "set": "Set field",
-    "disabled": "Disabled"
+    "disabled": "Disabled",
+    "rateScope": {
+      "shared": "Shared by everyone covered",
+      "user": "Per user",
+      "key": "Per API key"
+    }
   },
   "fields": {
     "permissionEffect": "Access policy",
@@ -268,7 +273,8 @@
     "currency": "Currency",
     "averageOutputTps": "Average output TPS",
     "cacheHitRate": "Cache hit rate",
-    "cacheCreationTokens": "Cache writes"
+    "cacheCreationTokens": "Cache writes",
+    "scope": "Counting"
   },
   "oauthConsent": {
     "authorizeTitle": "Authorize access",

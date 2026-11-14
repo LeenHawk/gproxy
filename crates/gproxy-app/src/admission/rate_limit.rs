@@ -1,8 +1,9 @@
 //! Configured rate limits, enforced against the cache.
 //!
-//! A `rate_limits` row is a limit for one subject (a user or one of their
-//! keys) over one model glob, expressed as a `metric` allowance per
-//! `period_seconds`. The rows live in the snapshot; the live counters live in
+//! A `rate_limits` row is a limit for the callers it covers (a user, one of
+//! their keys, or everyone) over one model glob, expressed as a `metric`
+//! allowance per `period_seconds`. Its `scope` says whether those callers
+//! share one counter or each user or key gets its own. The rows live in the snapshot; the live counters live in
 //! the cache, because several instances share one limit and a per-process
 //! counter would multiply every limit by the number of instances.
 //!
@@ -211,7 +212,7 @@ pub(crate) async fn apply_selected(
         } {
             continue;
         }
-        match charge(cache, row, now_ms).await {
+        match charge(cache, row, caller, now_ms).await {
             Ok(Some(lease)) => held.push(lease),
             // An unusable row: skipped and logged, never enforced as zero.
             Ok(None) => {}
@@ -230,14 +231,9 @@ pub(crate) async fn apply_selected(
 ///
 /// The subject columns follow the same rule as a permission rule: every
 /// column that is set must match, so a row naming both a user and a key is the
-/// intersection of the two. A row with **neither** set applies to nobody and
-/// is dropped rather than read as a limit on everybody — an instance-wide
-/// limit that appeared because a column was forgotten would be indefensible.
+/// intersection of the two, and a row naming neither covers everyone.
 fn applies(row: &rate_limit::Model, caller: &Caller, model: Option<&str>) -> bool {
     if !row.enabled {
-        return false;
-    }
-    if row.user_id.is_none() && row.api_key_id.is_none() {
         return false;
     }
     if let Some(user_id) = &row.user_id
@@ -268,6 +264,7 @@ fn applies(row: &rate_limit::Model, caller: &Caller, model: Option<&str>) -> boo
 async fn charge(
     cache: &Arc<dyn Cache>,
     row: &rate_limit::Model,
+    caller: &Caller,
     now_ms: i64,
 ) -> Result<Option<RateLease>, AppError> {
     let Some(window) = Window::of(row.period_seconds, now_ms) else {
@@ -284,10 +281,11 @@ async fn charge(
     // divides: keying it by window would let a request started before a
     // boundary and one started after it hold a slot each, admitting twice the
     // limit for as long as the first is running.
+    let counter = counter(row, caller);
     let key = if concurrency {
-        format!("rl/{}/live", row.id)
+        format!("{counter}/live")
     } else {
-        format!("rl/{}/{}", row.id, window.start_ms)
+        format!("{counter}/{}", window.start_ms)
     };
     let limit = limit_of(row);
     // For a permit the TTL is only the reclaim bound for a request that dies
@@ -336,6 +334,23 @@ async fn charge(
         charge,
         settled: false,
     }))
+}
+
+/// The counter a caller is charged on, before the window part of the key.
+///
+/// `shared` is one counter for the whole rule. `user` gives every user their
+/// own, and `key` every API key its own; a caller without a key (a console or
+/// portal session) is counted as its user. An unknown scope is read as
+/// `shared`, the narrowest reading of a row the writer would have refused.
+fn counter(row: &rate_limit::Model, caller: &Caller) -> String {
+    match row.scope.as_str() {
+        "user" => format!("rl/{}/u/{}", row.id, caller.user_id),
+        "key" => match &caller.api_key_id {
+            Some(key) => format!("rl/{}/k/{key}", row.id),
+            None => format!("rl/{}/u/{}", row.id, caller.user_id),
+        },
+        _ => format!("rl/{}", row.id),
+    }
 }
 
 /// A cache that could not answer refuses the request. See the module header.
@@ -414,6 +429,7 @@ mod tests {
             limit_value: FixedDecimal::from_atoms(limit * FixedDecimal::FACTOR),
             period_seconds,
             model_pattern: None,
+            scope: "shared".into(),
             enabled: true,
         }
     }
@@ -556,8 +572,6 @@ mod tests {
         wide_model.model_pattern = Some("gpt-*".into());
         let mut disabled = row("disabled", "requests", 1, 60);
         disabled.enabled = false;
-        let mut nobody = row("nobody", "requests", 1, 60);
-        nobody.user_id = None;
         let data = snapshot(vec![
             other_user,
             other_key,
@@ -565,7 +579,6 @@ mod tests {
             narrow_model,
             wide_model,
             disabled,
-            nobody,
             row("everything", "requests", 1, 60),
         ]);
         let leases = apply(

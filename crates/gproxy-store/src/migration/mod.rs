@@ -74,6 +74,7 @@ mod m20261021_000001_cache_retention;
 mod m20261030_000001_dialect_rule_operations;
 mod m20261102_000001_usage_response_model;
 mod m20261106_000001_provider_timeouts;
+mod m20261114_000001_rate_limit_scope;
 
 /// Every migration this build carries, oldest first.
 ///
@@ -96,6 +97,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261030_000001_dialect_rule_operations::Migration),
             Box::new(m20261102_000001_usage_response_model::Migration),
             Box::new(m20261106_000001_provider_timeouts::Migration),
+            Box::new(m20261114_000001_rate_limit_scope::Migration),
         ]
     }
 }

@@ -1603,7 +1603,7 @@ async fn a_transferred_credential_is_managed_by_its_new_owner_even_from_a_stale_
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn permissions_round_trip_and_refuse_a_rule_with_two_subjects_or_none() {
+async fn permissions_round_trip() {
     let gproxy = handle().await;
     seed_admin(&gproxy).await;
     let config = AppConfig::default();
@@ -1659,32 +1659,6 @@ async fn permissions_round_trip_and_refuse_a_rule_with_two_subjects_or_none() {
     assert_eq!(rule.action, "allow");
     assert_eq!(rule.model_pattern, "gpt-*");
 
-    // Two subjects.
-    moves_revision!(gproxy, 0, async |operations: Operations<'_, _>| {
-        let error = operations
-            .permissions()
-            .create(PermissionWrite {
-                user_id: Some(alice.id.clone()),
-                api_key_id: Some(key.key.id.clone()),
-                action: "allow".into(),
-                ..PermissionWrite::default()
-            })
-            .await
-            .unwrap_err();
-        assert_eq!(error.status_code(), 400);
-    });
-    // No subject.
-    moves_revision!(gproxy, 0, async |operations: Operations<'_, _>| {
-        let error = operations
-            .permissions()
-            .create(PermissionWrite {
-                action: "allow".into(),
-                ..PermissionWrite::default()
-            })
-            .await
-            .unwrap_err();
-        assert_eq!(error.status_code(), 400);
-    });
     // An action the snapshot would drop.
     moves_revision!(gproxy, 0, async |operations: Operations<'_, _>| {
         let error = operations
@@ -1712,23 +1686,6 @@ async fn permissions_round_trip_and_refuse_a_rule_with_two_subjects_or_none() {
             .unwrap_err();
         assert_eq!(error.status_code(), 404);
     });
-    // Patching one subject onto a rule that already has the other is the same
-    // refusal, because the pair is validated as it will end up.
-    moves_revision!(gproxy, 0, async |operations: Operations<'_, _>| {
-        let error = operations
-            .permissions()
-            .update(
-                &rule.id,
-                gproxy_app::dto::PermissionPatch {
-                    api_key_id: Some(Some(key.key.id.clone())),
-                    ..gproxy_app::dto::PermissionPatch::default()
-                },
-            )
-            .await
-            .unwrap_err();
-        assert_eq!(error.status_code(), 400);
-    });
-
     // A batch of several rules is one revision, however many rows it names.
     moves_revision!(gproxy, 1, async |operations: Operations<'_, _>| {
         let written = operations
@@ -1840,12 +1797,6 @@ async fn rate_limits_round_trip_and_refuse_an_unusable_window() {
         RateLimitWrite {
             user_id: Some(alice.id.clone()),
             metric: "  ".into(),
-            limit_value: "10".into(),
-            period_seconds: 60,
-            ..RateLimitWrite::default()
-        },
-        RateLimitWrite {
-            metric: "requests".into(),
             limit_value: "10".into(),
             period_seconds: 60,
             ..RateLimitWrite::default()

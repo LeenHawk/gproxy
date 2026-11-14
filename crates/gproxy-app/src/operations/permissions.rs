@@ -1,18 +1,15 @@
 //! Permission rules.
 //!
-//! A rule is a grant or a refusal for one subject over one provider (or all),
-//! one model glob (or all) and one operation (or all). There is no implicit
-//! grant: a caller with no applicable rule is refused, which is the whole
-//! point of the table — adding a key must not silently add access to every
-//! provider the instance has.
+//! A rule is a grant or a refusal for one subject (or everyone) over one
+//! provider (or all), one model glob (or all) and one operation (or all).
+//! There is no implicit grant: a caller with no applicable rule is refused,
+//! which is the whole point of the table — adding a provider must not
+//! silently open it to every key the instance has. A rule for everyone is how
+//! an operator opens it on purpose.
 //!
-//! Four things are checked, and each of them keeps a row out of the table that
+//! Three things are checked, and each of them keeps a row out of the table that
 //! could never mean what its author intended:
 //!
-//! - **exactly one subject.** Neither is a rule
-//!   [`PermissionSet::build`](crate::snapshot::PermissionSet) drops on the
-//!   floor; both is an intersection the snapshot honours for the sake of rows
-//!   a v3 database may hold, but which nobody writing a rule means;
 //! - **`action` is `allow` or `deny`.** Any other spelling is also dropped at
 //!   assembly, so it would be a rule that silently does nothing;
 //! - **the provider exists**, when one is named;
@@ -80,7 +77,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Permissions<'_, C> {
     ) -> Result<(Option<String>, Option<String>)> {
         let user_id = crud::optional_text(user_id);
         let api_key_id = crud::optional_text(api_key_id);
-        crud::one_subject(user_id.as_deref(), api_key_id.as_deref(), "permission rule")?;
         if let Some(user_id) = &user_id {
             crud::require_rows(
                 self.writer.store().users(),

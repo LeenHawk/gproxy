@@ -157,7 +157,12 @@
     "websocket": "WebSocket",
     "replace": "文字替換",
     "set": "設定欄位",
-    "disabled": "已停用"
+    "disabled": "已停用",
+    "rateScope": {
+      "shared": "所有人共用",
+      "user": "每位使用者單獨計數",
+      "key": "每把金鑰單獨計數"
+    }
   },
   "fields": {
     "permissionEffect": "存取策略",
@@ -268,7 +273,8 @@
     "currency": "幣別",
     "averageOutputTps": "平均輸出 TPS",
     "cacheHitRate": "快取命中率",
-    "cacheCreationTokens": "快取寫入"
+    "cacheCreationTokens": "快取寫入",
+    "scope": "計數方式"
   },
   "oauthConsent": {
     "authorizeTitle": "授權存取",

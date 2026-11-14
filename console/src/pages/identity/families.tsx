@@ -233,6 +233,7 @@ function InstanceTeamsPage() {
 
 // ----------------------------------------------------------- permissions --
 
+
 export function PermissionsPage() {
   const { t } = useTranslation()
   const context = useConsoleContext()
@@ -269,7 +270,10 @@ export function PermissionsPage() {
 
 // ----------------------------------------------------------- rate limits --
 
+const RATE_SCOPES = ["shared", "user", "key"] as const
+
 export function RateLimitsPage() {
+  const { t } = useTranslation()
   const context = useConsoleContext()
   return (
     <CollectionPage
@@ -284,6 +288,7 @@ export function RateLimitsPage() {
         { key: "periodSeconds", cell: (row) => row.periodSeconds },
         { key: "userId", cell: (row) => <MaybeCell value={row.userId} mono /> },
         { key: "apiKeyId", cell: (row) => <MaybeCell value={row.apiKeyId} mono /> },
+        { key: "scope", cell: (row) => t(`values.rateScope.${row.scope}`, { defaultValue: row.scope }) },
         { key: "modelPattern", cell: (row) => <MaybeCell value={row.modelPattern} mono /> },
         { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
       ]}
@@ -291,8 +296,9 @@ export function RateLimitsPage() {
         { name: "metric", kind: "text", required: true },
         { name: "limitValue", kind: "text", required: true },
         { name: "periodSeconds", kind: "number", required: true },
-        { name: "userId", kind: "text", nullable: true },
-        { name: "apiKeyId", kind: "text", nullable: true },
+        { name: "userId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), source: optionSource(admin.users, row => ({ value: row.id, label: `${row.name} (${row.id})` })) },
+        { name: "apiKeyId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), source: optionSource(admin.apiKeys, row => ({ value: row.id, label: `${row.name} (${row.prefix})` })) },
+        { name: "scope", kind: "select", choices: RATE_SCOPES.map(scope => ({ value: scope, label: t(`values.rateScope.${scope}`) })) },
         { name: "modelPattern", kind: "text", nullable: true },
         { name: "enabled", kind: "switch" },
       ]}

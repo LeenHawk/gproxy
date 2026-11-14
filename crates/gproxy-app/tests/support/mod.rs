@@ -505,6 +505,7 @@ pub async fn rate_limit(handle: &Handle, id: &str, user_id: &str, value: i64, pe
             limit_value: Set(FixedDecimal::from_atoms(value * FixedDecimal::FACTOR)),
             period_seconds: Set(period_seconds),
             model_pattern: Set(Some("*".into())),
+            scope: Set("shared".into()),
             enabled: Set(true),
         }])
         .await

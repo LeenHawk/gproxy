@@ -1,10 +1,11 @@
 //! What a caller is allowed to ask for: provider, model and operation.
 //!
-//! A `permissions` row is a grant or a refusal for one subject over one
-//! provider (or all), one model glob (or all) and one operation (or all).
-//! There is no implicit grant: a caller with no applicable rule is refused.
-//! That is the whole point of the table — adding a key must not silently add
-//! access to every provider the instance has.
+//! A `permissions` row is a grant or a refusal for one subject (or everyone)
+//! over one provider (or all), one model glob (or all) and one operation (or
+//! all). There is no implicit grant: a caller with no applicable rule is
+//! refused. That is the whole point of the table — adding a provider must not
+//! silently open it to every key the instance has. A rule for everyone is how
+//! an operator opens it on purpose.
 
 use crate::snapshot::glob;
 use gproxy_protocol::Operation;
@@ -77,9 +78,8 @@ impl PermissionSet {
     /// linear scan with no allocation and no sorting on the request path.
     ///
     /// Rows that cannot mean anything are dropped and counted: an `action`
-    /// that is neither `allow` nor `deny`, and a rule with neither a
-    /// `user_id` nor an `api_key_id`, which would otherwise be a grant to
-    /// nobody or, worse, read as a grant to everybody.
+    /// that is neither `allow` nor `deny`. A rule with neither a `user_id`
+    /// nor an `api_key_id` is a rule for everyone.
     pub fn build(rows: &[permission::Model]) -> Self {
         let mut rules = Vec::with_capacity(rows.len());
         let mut dropped = 0_usize;
@@ -92,10 +92,6 @@ impl PermissionSet {
                     continue;
                 }
             };
-            if row.user_id.is_none() && row.api_key_id.is_none() {
-                dropped += 1;
-                continue;
-            }
             let pattern = row.model_pattern.trim();
             rules.push((
                 row.priority,
@@ -119,7 +115,7 @@ impl PermissionSet {
         if dropped > 0 {
             tracing::warn!(
                 count = dropped,
-                "permission rows skipped: unknown action, or no user and no api key subject"
+                "permission rows skipped: unknown action"
             );
         }
         // Highest priority first, then by id so that equal priorities always
@@ -249,8 +245,8 @@ impl Rule {
         // only a rule that leaves the operation unset can describe it.
         operation: Option<&str>,
     ) -> bool {
-        // Every subject column that is set must match. A well-formed row sets
-        // exactly one; a row that names both a user and a key is the
+        // Every subject column that is set must match: a row that sets neither
+        // applies to everyone, and one that names both a user and a key is the
         // intersection of the two, never their union.
         if let Some(user) = &self.user_id
             && user != subject.user_id
@@ -559,7 +555,6 @@ mod tests {
     fn unusable_rows_are_dropped_rather_than_trusted() {
         let set = PermissionSet::build(&[
             rule("bad-action", "maybe", 0),
-            rule("no-subject", "allow", 0).subject(None, None),
         ]);
         assert!(set.is_empty());
         assert!(

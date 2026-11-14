@@ -770,6 +770,7 @@ where
             limit_value: row.requests.to_string(),
             period_seconds: i64::try_from(row.window_seconds).unwrap_or(i64::MAX),
             model_pattern: None,
+            scope: None,
             enabled: Some(true),
         };
         let app_data = app.data();

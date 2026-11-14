@@ -6,9 +6,10 @@
 //! has been counted: the live window keeps running under its old ceiling until
 //! it ends.
 //!
-//! The subject rule is the permission family's, for the same reason — a limit
-//! with no subject applies to nobody and a limit with two subjects is a
-//! conjunction nobody writes on purpose.
+//! The subject columns are the permission family's: a limit with neither
+//! covers everyone and one with both covers that user only on that key.
+//! `scope` says whether the covered callers share one counter or each get
+//! their own.
 
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::{FixedDecimal, Repository, entity::limits::rate_limit};
@@ -63,7 +64,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> RateLimits<'_, C> {
     ) -> Result<(Option<String>, Option<String>)> {
         let user_id = crud::optional_text(user_id);
         let api_key_id = crud::optional_text(api_key_id);
-        crud::one_subject(user_id.as_deref(), api_key_id.as_deref(), "rate limit")?;
         if let Some(user_id) = &user_id {
             crud::require_rows(
                 self.writer.store().users(),
@@ -92,6 +92,17 @@ fn period(seconds: i64) -> Result<i64> {
         return Err(AppError::invalid("periodSeconds must be positive"));
     }
     Ok(seconds)
+}
+
+/// One counter for the rule, one per user, or one per API key.
+fn scope(value: Option<&str>) -> Result<String> {
+    match value.map(str::trim).filter(|value| !value.is_empty()) {
+        None => Ok("shared".to_owned()),
+        Some(value @ ("shared" | "user" | "key")) => Ok(value.to_owned()),
+        Some(_) => Err(AppError::invalid(
+            "scope must be `shared`, `user` or `key`",
+        )),
+    }
 }
 
 /// The ceiling. Zero is allowed and means "nothing may pass", which is a
@@ -157,6 +168,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for RateLimits<'_
             limit_value: Set(limit(&write.limit_value)?),
             period_seconds: Set(period(write.period_seconds)?),
             model_pattern: Set(crud::optional_text(write.model_pattern)),
+            scope: Set(scope(write.scope.as_deref())?),
             enabled: Set(write.enabled.unwrap_or(true)),
         };
         Ok((row, id))
@@ -190,6 +202,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for RateLimits<'_
         }
         if let Some(model_pattern) = patch.model_pattern {
             row.model_pattern = Set(crud::optional_text(model_pattern));
+        }
+        if let Some(value) = patch.scope {
+            row.scope = Set(scope(Some(&value))?);
         }
         if let Some(enabled) = patch.enabled {
             row.enabled = Set(enabled);

@@ -444,29 +444,3 @@ fn id_column<E: EntityTrait>() -> E::Column {
         .expect("one primary key")
         .into_column()
 }
-
-/// Exactly one of a rule's two subject columns, which is what makes a rule
-/// addressable.
-///
-/// Neither is a grant to nobody — or, read the other way round by a future
-/// evaluator, a grant to everybody — and `PermissionSet::build` already drops
-/// such a row on the floor, so writing one produces a row that silently does
-/// nothing. Both is an intersection: the snapshot honours it, because a v3
-/// database may hold one, but nobody who writes a rule for a key *and* a user
-/// means "only when this key is used by this user", so it is refused at the
-/// door rather than stored and misread later.
-pub(crate) fn one_subject(
-    user_id: Option<&str>,
-    api_key_id: Option<&str>,
-    what: &'static str,
-) -> Result<()> {
-    match (user_id, api_key_id) {
-        (Some(_), None) | (None, Some(_)) => Ok(()),
-        (None, None) => Err(AppError::invalid(format!(
-            "a {what} needs a userId or an apiKeyId"
-        ))),
-        (Some(_), Some(_)) => Err(AppError::invalid(format!(
-            "a {what} takes a userId or an apiKeyId, not both"
-        ))),
-    }
-}

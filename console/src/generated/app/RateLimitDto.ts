@@ -2,9 +2,16 @@
 
 export type RateLimitDto = { id: string, 
 /**
- * Exactly one subject, the same rule permissions follow.
+ * The callers the limit covers. Neither set covers everyone; both set
+ * covers that user only when they use that key.
  */
 userId: string | null, apiKeyId: string | null, 
+/**
+ * How the covered callers share the limit: `shared` (one counter for the
+ * rule), `user` (one per user) or `key` (one per API key; a caller
+ * without a key counts per user).
+ */
+scope: string, 
 /**
  * `requests`, `concurrency`, or any counter name the host charges.
  */

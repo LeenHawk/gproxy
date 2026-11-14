@@ -159,6 +159,7 @@ async fn running_the_migrator_twice_is_a_no_op() {
             "m20261030_000001_dialect_rule_operations",
             "m20261102_000001_usage_response_model",
             "m20261106_000001_provider_timeouts",
+            "m20261114_000001_rate_limit_scope",
         ]
     );
     let after_first = schema(store.connection()).await;

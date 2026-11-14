@@ -12,9 +12,14 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RateLimitDto {
     pub id: String,
-    /// Exactly one subject, the same rule permissions follow.
+    /// The callers the limit covers. Neither set covers everyone; both set
+    /// covers that user only when they use that key.
     pub user_id: Option<String>,
     pub api_key_id: Option<String>,
+    /// How the covered callers share the limit: `shared` (one counter for the
+    /// rule), `user` (one per user) or `key` (one per API key; a caller
+    /// without a key counts per user).
+    pub scope: String,
     /// `requests`, `concurrency`, or any counter name the host charges.
     pub metric: String,
     /// A decimal string, never a JSON number: a limit has to survive a
@@ -36,6 +41,7 @@ impl From<rate_limit::Model> for RateLimitDto {
             limit_value: row.limit_value.to_string(),
             period_seconds: row.period_seconds,
             model_pattern: row.model_pattern,
+            scope: row.scope,
             enabled: row.enabled,
         }
     }
@@ -58,6 +64,9 @@ pub struct RateLimitWrite {
     pub period_seconds: i64,
     #[serde(default)]
     pub model_pattern: Option<String>,
+    /// Absent means `shared`.
+    #[serde(default)]
+    pub scope: Option<String>,
     #[serde(default)]
     pub enabled: Option<bool>,
 }
@@ -80,6 +89,8 @@ pub struct RateLimitPatch {
     pub period_seconds: Option<i64>,
     #[serde(default, deserialize_with = "double_option")]
     pub model_pattern: Option<Option<String>>,
+    #[serde(default)]
+    pub scope: Option<String>,
     #[serde(default)]
     pub enabled: Option<bool>,
 }
