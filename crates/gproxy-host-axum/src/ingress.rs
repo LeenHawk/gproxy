@@ -138,7 +138,10 @@ where
     // handler and without waking the isolate; the embedded bundle is native
     // only. See the `console` row in the crate-level table.
     #[cfg(not(target_arch = "wasm32"))]
-    if let Some(response) = state.console().serve(&parts.method, &path).await {
+    if let Some(response) = state
+        .console()
+        .serve(&parts.method, &path, parts.uri.query(), &parts.headers)
+        .await {
         return response;
     }
 

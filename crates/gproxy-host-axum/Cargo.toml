@@ -64,6 +64,8 @@ sha2 = { workspace = true }
 # pretend to serve an application that is not there.
 rust-embed = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+# An administrator's own console bundle arrives as a zip.
+zip = { workspace = true }
 
 # The extractors the routers use and nothing else: no `http1`/`http2` (hyper is
 # a server), no `tokio` (which is what `ConnectInfo` and `axum::serve` hang

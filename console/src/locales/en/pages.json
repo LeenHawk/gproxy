@@ -1221,5 +1221,25 @@
     "progress": "Downloading fonts… {{progress}}%",
     "download": "Download interface fonts",
     "remove": "Delete fonts and use system fonts"
+  },
+  "consoleBundle": {
+    "title": "Custom console",
+    "description": "Upload a static build (zip) of your own console to replace this one at /console. Give the AGENTS.md below to the AI that builds it.",
+    "loading": "Checking the console bundle…",
+    "builtin": "The built-in console is in use.",
+    "installed": "A custom console is installed ({{files}} files, {{size}} MiB, uploaded {{time}}). You are viewing the built-in console.",
+    "recovery": "To return to the built-in console from any browser, open",
+    "upload": "Upload console zip",
+    "replace": "Replace console zip",
+    "open": "Open custom console",
+    "remove": "Restore built-in console",
+    "removeConfirm": "Delete the uploaded console and restore the built-in one?",
+    "uploaded": "Console uploaded. Open the custom console to use it.",
+    "removed": "Built-in console restored.",
+    "guide": "View AGENTS.md",
+    "guideHelp": "Instructions for the AI that builds your console: hosting rules, the APIs, and what the console must keep (the settings control and the About page).",
+    "copy": "Copy",
+    "copied": "Copied",
+    "download": "Download AGENTS.md"
   }
 }

@@ -8,6 +8,10 @@
 //!   [`ConsoleConfig::path`](gproxy_app::config::ConsoleConfig), which is what
 //!   a developer points at a running Vite build.
 //!
+//! An administrator can also upload a bundle of their own ([`custom`]), which
+//! is served in place of either source until it is removed. The built-in
+//! console stays reachable behind `?console=builtin` (see [`Console::serve`]).
+//!
 //! **A source checkout embeds nothing**, and that is the intended state: a
 //! `cargo test` binary has no console in it, so every console path answers
 //! 404 rather than a blank page that looks like a broken application.
@@ -24,10 +28,11 @@
 
 use axum::response::{IntoResponse, Response};
 use gproxy_app::config::ConsoleConfig;
-use http::{HeaderValue, Method, StatusCode, header};
+use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 #[cfg(feature = "embedded-console")]
 use rust_embed::RustEmbed;
 
+pub mod custom;
 pub mod fonts;
 
 /// Where the console is served from, `/console` and below.
@@ -39,16 +44,23 @@ pub const CONSOLE_PATH: &str = "/console";
 #[exclude = ".gitkeep"]
 struct Embedded;
 
+/// The cookie that pins a browser to the built-in console while an uploaded
+/// one is installed. Set by `?console=builtin`, cleared by `?console=custom`.
+pub const BUILTIN_COOKIE: &str = "gproxy_console";
+
 /// The console bundle this instance serves, resolved once.
 #[derive(Debug)]
 pub struct Console {
+    /// The configuration switch. Off means nothing below is served.
+    enabled: bool,
     source: Source,
+    custom: custom::CustomBundle,
     fonts: fonts::FontCache,
 }
 
 #[derive(Debug)]
 enum Source {
-    /// The switch is off, or nothing was embedded and no directory was named.
+    /// Nothing was embedded and no directory was named.
     Disabled,
     /// The bundle compiled into this binary.
     #[cfg(feature = "embedded-console")]
@@ -70,7 +82,9 @@ impl Console {
             _ => Source::Disabled,
         };
         Self {
+            enabled: config.enabled,
             source,
+            custom: custom::CustomBundle::new("data/console".into()),
             fonts: fonts::FontCache::new("data/fonts".into()),
         }
     }
@@ -80,32 +94,69 @@ impl Console {
         self
     }
 
+    pub fn with_custom_bundle(mut self, path: impl Into<std::path::PathBuf>) -> Self {
+        self.custom = custom::CustomBundle::new(path.into());
+        self
+    }
+
     pub fn fonts(&self) -> &fonts::FontCache {
         &self.fonts
     }
 
+    pub fn custom(&self) -> &custom::CustomBundle {
+        &self.custom
+    }
+
+    pub async fn custom_status(&self) -> custom::ConsoleBundleStatus {
+        self.custom.status(self.has_builtin()).await
+    }
+
     pub async fn download_fonts(&self) -> std::io::Result<fonts::FontStatus> {
         let manifest = self
-            .read("fonts/manifest.json")
+            .read_builtin("fonts/manifest.json")
             .await
             .ok_or_else(|| std::io::Error::other("Console font manifest is unavailable"))?;
         let package: fonts::FontPackage =
             serde_json::from_slice(&manifest).map_err(std::io::Error::other)?;
         let css = self
-            .read(&format!("fonts/{}", package.stylesheet))
+            .read_builtin(&format!("fonts/{}", package.stylesheet))
             .await
             .ok_or_else(|| std::io::Error::other("Console font stylesheet is unavailable"))?;
         self.fonts.download(&package, &css).await
     }
 
+    /// Whether `/console` serves anything at all: the switch is on and there
+    /// is a built-in or an uploaded bundle.
     pub fn is_enabled(&self) -> bool {
+        self.enabled && (self.has_builtin() || self.custom.is_active())
+    }
+
+    /// Whether an administrator may upload a bundle: the configuration switch
+    /// is on, whether or not this binary embeds a console of its own.
+    pub fn accepts_uploads(&self) -> bool {
+        self.enabled
+    }
+
+    fn has_builtin(&self) -> bool {
         !matches!(self.source, Source::Disabled)
     }
 
     /// Serve `path` (the request path, mount-relative), or `None` when this is
     /// not a console request at all — which lets the caller carry on to
     /// whatever comes after the console in the ingress order.
-    pub async fn serve(&self, method: &Method, path: &str) -> Option<Response> {
+    ///
+    /// With an uploaded bundle installed, it serves every request unless the
+    /// browser asked for the built-in console: `?console=builtin` on any
+    /// console URL sets [`BUILTIN_COOKIE`] and `?console=custom` clears it.
+    /// That switch is what keeps the built-in console's settings page (and its
+    /// remove button) reachable when the uploaded bundle is broken.
+    pub async fn serve(
+        &self,
+        method: &Method,
+        path: &str,
+        query: Option<&str>,
+        headers: &HeaderMap,
+    ) -> Option<Response> {
         let asset = asset_name(method, path)?;
         if !self.is_enabled() {
             return Some(not_found("the console is not enabled on this instance"));
@@ -125,19 +176,46 @@ impl Console {
                 None => not_found("font has not been downloaded"),
             });
         }
-        match self.read(&asset).await {
-            Some(bytes) => Some(asset_response(&asset, bytes, head)),
+        let switch = requested_switch(query);
+        let wants_builtin = switch.unwrap_or_else(|| has_builtin_cookie(headers));
+        let custom = self.custom.is_active() && !(wants_builtin && self.has_builtin());
+        let read = |asset: String| async move {
+            if custom {
+                self.custom.read(&asset).await
+            } else {
+                self.read_builtin(&asset).await
+            }
+        };
+        let mut response = match read(asset.clone()).await {
+            Some(bytes) => asset_response(&asset, bytes, head),
             // The SPA fallback: a document request for a route the bundle
             // owns. An asset request that missed stays a 404.
-            None if is_document(&asset) => match self.read("index.html").await {
-                Some(bytes) => Some(asset_response("index.html", bytes, head)),
-                None => Some(not_found("the console bundle is missing index.html")),
+            None if is_document(&asset) => match read("index.html".to_owned()).await {
+                Some(bytes) => asset_response("index.html", bytes, head),
+                None => not_found("the console bundle is missing index.html"),
             },
-            None => Some(not_found("not found")),
+            None => not_found("not found"),
+        };
+        let headers = response.headers_mut();
+        if custom {
+            // An uploaded bundle need not hash its file names, so nothing in
+            // it may be cached as immutable.
+            headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
         }
+        if let Some(builtin) = switch {
+            headers.insert(
+                header::SET_COOKIE,
+                HeaderValue::from_static(if builtin {
+                    "gproxy_console=builtin; Path=/; HttpOnly; SameSite=Lax"
+                } else {
+                    "gproxy_console=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+                }),
+            );
+        }
+        Some(response)
     }
 
-    async fn read(&self, asset: &str) -> Option<Vec<u8>> {
+    async fn read_builtin(&self, asset: &str) -> Option<Vec<u8>> {
         match &self.source {
             Source::Disabled => None,
             #[cfg(feature = "embedded-console")]
@@ -149,6 +227,28 @@ impl Console {
             }
         }
     }
+}
+
+/// `Some(true)` for `console=builtin`, `Some(false)` for `console=custom`.
+fn requested_switch(query: Option<&str>) -> Option<bool> {
+    query?.split('&').find_map(|pair| match pair {
+        "console=builtin" => Some(true),
+        "console=custom" => Some(false),
+        _ => None,
+    })
+}
+
+fn has_builtin_cookie(headers: &HeaderMap) -> bool {
+    headers
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(';'))
+        .any(|pair| {
+            pair.trim()
+                .strip_prefix(BUILTIN_COOKIE)
+                .is_some_and(|rest| rest == "=builtin")
+        })
 }
 
 /// The file `path` asks for, or `None` when the request is not the console's.
@@ -330,10 +430,18 @@ mod tests {
             enabled: false,
             path: None,
         });
-        let response = empty.serve(&Method::GET, "/console").await.unwrap();
+        let response = empty
+            .serve(&Method::GET, "/console", None, &HeaderMap::new())
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         // And a non-console path is still nobody's.
-        assert!(empty.serve(&Method::GET, "/v1/messages").await.is_none());
+        assert!(
+            empty
+                .serve(&Method::GET, "/v1/messages", None, &HeaderMap::new())
+                .await
+                .is_none()
+        );
     }
 
     #[test]

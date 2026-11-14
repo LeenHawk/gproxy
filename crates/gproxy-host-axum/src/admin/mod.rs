@@ -413,6 +413,8 @@ macro_rules! scoped_family {
 }
 
 mod config;
+#[cfg(not(target_arch = "wasm32"))]
+mod console_bundle;
 mod context;
 mod credential_login;
 #[cfg(not(target_arch = "wasm32"))]
@@ -441,6 +443,22 @@ pub(crate) fn document(api: &mut crate::documentation::Api) {
         operation["x-runtime-condition"] =
             serde_json::json!("Native host with the console enabled");
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    for method in ["get", "post", "delete"] {
+        let response = api
+            .schemas
+            .output::<crate::console::custom::ConsoleBundleStatus>();
+        let operation = api.route(
+            method,
+            "/admin/api/console-bundle",
+            "configuration.settings",
+            None,
+            vec![],
+            Some(response),
+        );
+        operation["x-runtime-condition"] =
+            serde_json::json!("Native host with the console switch on");
+    }
 }
 
 /// `/admin/api`, to be nested under that prefix.
@@ -468,6 +486,10 @@ where
     #[cfg(not(target_arch = "wasm32"))]
     if state.console().is_enabled() {
         families = families.merge(fonts::routes::<C>());
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    if state.console().accepts_uploads() {
+        families = families.merge(console_bundle::routes::<C>());
     }
     if state.updates().is_some() {
         families = families.merge(crate::update::routes::<C>());

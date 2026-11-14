@@ -1221,5 +1221,25 @@
     "progress": "正在下载字体… {{progress}}%",
     "download": "下载界面字体",
     "remove": "删除字体并使用系统字体"
+  },
+  "consoleBundle": {
+    "title": "自定义前端",
+    "description": "上传你自己的前端静态构建（zip），替换 /console 上的内置前端。把下面的 AGENTS.md 交给负责构建的 AI。",
+    "loading": "正在检查前端包…",
+    "builtin": "正在使用内置前端。",
+    "installed": "已安装自定义前端（{{files}} 个文件，{{size}} MiB，上传于 {{time}}）。当前查看的是内置前端。",
+    "recovery": "在任意浏览器中回到内置前端，请打开",
+    "upload": "上传前端 zip",
+    "replace": "替换前端 zip",
+    "open": "打开自定义前端",
+    "remove": "恢复内置前端",
+    "removeConfirm": "删除已上传的前端并恢复内置前端？",
+    "uploaded": "前端已上传。打开自定义前端即可使用。",
+    "removed": "已恢复内置前端。",
+    "guide": "查看 AGENTS.md",
+    "guideHelp": "给构建前端的 AI 看的说明：托管规则、API，以及前端必须保留的内容（设置里的按钮和关于页面）。",
+    "copy": "复制",
+    "copied": "已复制",
+    "download": "下载 AGENTS.md"
   }
 }

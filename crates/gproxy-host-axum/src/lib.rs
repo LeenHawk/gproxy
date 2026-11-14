@@ -190,12 +190,14 @@ impl<C> HostState<C> {
     /// rather than per request.
     pub fn new(app: Arc<App<C>>) -> Self {
         #[cfg(not(target_arch = "wasm32"))]
-        let console = Arc::new(
-            console::Console::from_config(&app.config().console).with_font_cache(
-                std::path::Path::new(app.config().data_dir.as_deref().unwrap_or("data"))
-                    .join("fonts"),
-            ),
-        );
+        let console = {
+            let data = std::path::Path::new(app.config().data_dir.as_deref().unwrap_or("data"));
+            Arc::new(
+                console::Console::from_config(&app.config().console)
+                    .with_font_cache(data.join("fonts"))
+                    .with_custom_bundle(data.join("console")),
+            )
+        };
         Self {
             app,
             #[cfg(not(target_arch = "wasm32"))]
