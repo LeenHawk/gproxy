@@ -48,17 +48,22 @@ try {
     Assert-SamePayload $unsigned $signed
     Assert-Throws { Assert-SamePayload $unsigned $changed } 'Changed binaries must be rejected'
 
-    # Valid trust is necessary but insufficient: the signer must also be Microsoft.
+    # Valid trust is necessary but insufficient: the Store signs as the publisher
+    # with a certificate issued by a Microsoft Marketplace CA.
+    $env:MS_STORE_IDENTITY_PUBLISHER = 'CN=Test'
+    $marketplace = 'CN=Microsoft Marketplace CA G 027, OU=EOC, O=Microsoft Corporation, L=Redmond, S=Washington, C=US'
     function Get-AuthenticodeSignature {
-        [pscustomobject]@{ Status = $script:status; SignerCertificate = @{ Subject = $script:subject } }
+        [pscustomobject]@{ Status = $script:status; SignerCertificate = @{ Subject = $script:subject; Issuer = $script:issuer } }
     }
-    $script:status = 'Valid'; $script:subject = 'CN=Microsoft Corporation, O=Microsoft Corporation, C=US'
+    $script:status = 'Valid'; $script:subject = 'CN=Test'; $script:issuer = $marketplace
     Assert-StoreSignature $signed
     $script:status = 'HashMismatch'
     Assert-Throws { Assert-StoreSignature $signed } 'Invalid signatures must fail'
-    $script:status = 'Valid'; $script:subject = 'CN=Other, O=Other, C=US'
-    Assert-Throws { Assert-StoreSignature $signed } 'Other trusted signers must fail'
-    $script:subject = 'CN=Microsoft Corporation, O=Microsoft Corporation, C=US'
+    $script:status = 'Valid'; $script:subject = 'CN=Other'
+    Assert-Throws { Assert-StoreSignature $signed } 'Other publishers must fail'
+    $script:subject = 'CN=Test'; $script:issuer = 'CN=Other CA, O=Other, C=US'
+    Assert-Throws { Assert-StoreSignature $signed } 'Other issuers must fail'
+    $script:issuer = $marketplace
 
     # Follow package-level catalog fulfillment and the public SFS API contract.
     $script:storeUnavailable = $false

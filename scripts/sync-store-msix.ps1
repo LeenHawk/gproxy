@@ -33,9 +33,14 @@ function Get-PackageInfo([string]$Path) {
 }
 
 function Assert-StoreSignature([string]$Path) {
+    # The Store re-signs with a certificate whose subject is the package publisher
+    # (MSIX requires that), issued by a Microsoft Marketplace CA.
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
-    if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch '(?:^|,\s*)O=Microsoft Corporation(?:,|$)') {
-        throw "Package does not have a trusted Microsoft signature: $Path ($($signature.Status))"
+    $certificate = $signature.SignerCertificate
+    if ($signature.Status -ne 'Valid' -or -not $certificate -or
+        $certificate.Subject -cne $env:MS_STORE_IDENTITY_PUBLISHER -or
+        $certificate.Issuer -notmatch '^CN=Microsoft Marketplace CA G \d+, OU=EOC, O=Microsoft Corporation,') {
+        throw "Package does not have a trusted Microsoft Store signature: $Path ($($signature.Status); subject $($certificate.Subject); issuer $($certificate.Issuer))"
     }
 }
 
