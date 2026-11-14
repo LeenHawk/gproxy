@@ -59,6 +59,24 @@ jobs:
           name: winget-${{ matrix.edition }}-${{ inputs.version }}
           path: dist/winget/manifests/${{ matrix.edition }}
           if-no-files-found: ignore
+      - name: Validate and install the manifests with WinGet
+        if: ${{ hashFiles(format('dist/winget/manifests/{0}/*.yaml', matrix.edition)) != '' }}
+        env:
+          EDITION: ${{ matrix.edition }}
+        run: |
+          # The pull request checklist claims both checks, so they run here.
+          if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+            Install-Module Microsoft.WinGet.Client -Force -Scope CurrentUser -Repository PSGallery
+            Repair-WinGetPackageManager -Latest -Force
+          }
+          winget --version
+          winget settings --enable LocalManifestFiles
+          if ($LASTEXITCODE -ne 0) { throw 'Could not enable local manifests.' }
+          $manifests = "dist/winget/manifests/$env:EDITION"
+          winget validate --manifest $manifests --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { throw "winget validate failed: $LASTEXITCODE" }
+          winget install --manifest $manifests --accept-package-agreements --accept-source-agreements --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { throw "winget install failed: $LASTEXITCODE" }
       - name: Submit pull request with Microsoft WinGet Create
         if: ${{ !inputs.dry_run && hashFiles(format('dist/winget/manifests/{0}/*.yaml', matrix.edition)) != '' }}
         env:
@@ -70,6 +88,18 @@ jobs:
           if (!$env:WINGET_CREATE_GITHUB_TOKEN) { throw 'Configure the WINGET_TOKEN repository secret.' }
           $package = "LeenHawk.GPROXY.$env:EDITION"
           $root = "manifests/l/LeenHawk/GPROXY/$env:EDITION"
+          # Every item but the issue link holds: the CLA is signed, a package keeps
+          # one open pull request with one manifest on the 1.28 schema, and the
+          # previous step validated and installed it.
+          function Complete-Checklist([int]$Number) {
+            $body = (gh api "repos/microsoft/winget-pkgs/pulls/$Number" --jq .body) -join "`n"
+            if ($LASTEXITCODE -ne 0) { throw "Could not read pull request $Number." }
+            $ticked = $body -replace '(?m)^- \[ \] (?!Linked to an issue)', '- [x] '
+            if ($ticked -cne $body) {
+              gh api -X PATCH "repos/microsoft/winget-pkgs/pulls/$Number" -f "body=$ticked" --silent
+              if ($LASTEXITCODE -ne 0) { throw "Could not update the checklist of pull request $Number." }
+            }
+          }
           # A package keeps one pending pull request: move an open one to this
           # version instead of opening another next to it.
           $env:GH_TOKEN = $env:WINGET_CREATE_GITHUB_TOKEN
@@ -104,6 +134,7 @@ jobs:
             # REST, not `gh pr edit`: that also queries teams and needs read:org.
             gh api -X PATCH "repos/microsoft/winget-pkgs/pulls/$($pr.number)" -f "title=$title" --silent
             if ($LASTEXITCODE -ne 0) { throw "Could not retitle pull request $($pr.number)." }
+            Complete-Checklist $pr.number
             Write-Host "Updated microsoft/winget-pkgs#$($pr.number) to $env:VERSION."
             exit 0
           }
@@ -116,5 +147,10 @@ jobs:
           # winget-pkgs titles a package's first submission differently.
           gh api "repos/microsoft/winget-pkgs/contents/manifests/l/LeenHawk/GPROXY/$env:EDITION" --silent 2>$null
           $kind = if ($LASTEXITCODE -eq 0) { 'New version' } else { 'New package' }
-          & "$env:RUNNER_TEMP/wingetcreate.exe" submit --no-open --prtitle "${kind}: LeenHawk.GPROXY.$env:EDITION version $env:VERSION" "dist/winget/manifests/$env:EDITION"
-          if ($LASTEXITCODE -ne 0) { throw "WinGet Create failed: $LASTEXITCODE" }
+          $output = & "$env:RUNNER_TEMP/wingetcreate.exe" submit --no-open --prtitle "${kind}: LeenHawk.GPROXY.$env:EDITION version $env:VERSION" "dist/winget/manifests/$env:EDITION"
+          $exit = $LASTEXITCODE
+          $output | Out-Host
+          if ($exit -ne 0) { throw "WinGet Create failed: $exit" }
+          $created = [regex]::Match(($output -join "`n"), 'github\.com/microsoft/winget-pkgs/pull/(\d+)')
+          if (-not $created.Success) { throw 'WinGet Create did not report the pull request.' }
+          Complete-Checklist ([int]$created.Groups[1].Value)
