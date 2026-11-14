@@ -101,7 +101,8 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Could not commit the updated manifests.' }
             git -C $work push -q origin HEAD
             if ($LASTEXITCODE -ne 0) { throw "Could not push $($pr.headRefName)." }
-            gh pr edit $pr.number --repo microsoft/winget-pkgs --title $title
+            # REST, not `gh pr edit`: that also queries teams and needs read:org.
+            gh api -X PATCH "repos/microsoft/winget-pkgs/pulls/$($pr.number)" -f "title=$title" --silent
             if ($LASTEXITCODE -ne 0) { throw "Could not retitle pull request $($pr.number)." }
             Write-Host "Updated microsoft/winget-pkgs#$($pr.number) to $env:VERSION."
             exit 0
