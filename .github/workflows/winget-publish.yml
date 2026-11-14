@@ -65,10 +65,9 @@ jobs:
           EDITION: ${{ matrix.edition }}
         run: |
           # The pull request checklist claims both checks, so they run here.
-          if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-            Install-Module Microsoft.WinGet.Client -Force -Scope CurrentUser -Repository PSGallery
-            Repair-WinGetPackageManager -Latest -Force
-          }
+          # The runner's in-box WinGet (1.11) predates the 1.28 manifest schema.
+          Install-Module Microsoft.WinGet.Client -RequiredVersion 1.29.380 -Force -Scope CurrentUser -Repository PSGallery
+          Repair-WinGetPackageManager -Version 1.29.380 -Force
           winget --version
           winget settings --enable LocalManifestFiles
           if ($LASTEXITCODE -ne 0) { throw 'Could not enable local manifests.' }
