@@ -15,7 +15,14 @@ pub(crate) fn register<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::
             let console = context.app_handle().state::<FontConsole>().0.clone();
             tauri::async_runtime::spawn(async move {
                 let response = if request.uri().path().starts_with("/console/fonts/") {
-                    console.serve(request.method(), request.uri().path()).await
+                    console
+                        .serve(
+                            request.method(),
+                            request.uri().path(),
+                            request.uri().query(),
+                            request.headers(),
+                        )
+                        .await
                 } else {
                     None
                 };
