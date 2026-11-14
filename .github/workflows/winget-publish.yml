@@ -68,6 +68,44 @@ jobs:
           EDITION: ${{ matrix.edition }}
         run: |
           if (!$env:WINGET_CREATE_GITHUB_TOKEN) { throw 'Configure the WINGET_TOKEN repository secret.' }
+          $package = "LeenHawk.GPROXY.$env:EDITION"
+          $root = "manifests/l/LeenHawk/GPROXY/$env:EDITION"
+          # A package keeps one pending pull request: move an open one to this
+          # version instead of opening another next to it.
+          $env:GH_TOKEN = $env:WINGET_CREATE_GITHUB_TOKEN
+          $user = gh api user | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not identify the WINGET_TOKEN user.' }
+          $open = @(gh pr list --repo microsoft/winget-pkgs --author $user.login --state open --search "$package in:title" --json number,title,headRefName,headRepositoryOwner | ConvertFrom-Json |
+            Where-Object { $_.title -match "^(New package|New version): $([regex]::Escape($package)) version " -and $_.headRepositoryOwner.login -eq $user.login })
+          if ($LASTEXITCODE -ne 0) { throw 'Could not list open WinGet pull requests.' }
+          if ($open.Count -gt 1) { throw "More than one open WinGet pull request for ${package}: $($open.number -join ', ')" }
+          if ($open.Count -eq 1) {
+            $pr = $open[0]
+            # Only the version directories this pull request adds are replaced;
+            # versions already merged upstream stay on the branch.
+            $stale = @(gh api --paginate "repos/microsoft/winget-pkgs/pulls/$($pr.number)/files" --jq '.[].filename' |
+              Where-Object { $_.StartsWith("$root/", [StringComparison]::Ordinal) } | ForEach-Object { Split-Path $_ -Parent } | Sort-Object -Unique)
+            if ($LASTEXITCODE -ne 0) { throw "Could not list files of pull request $($pr.number)." }
+            $work = Join-Path $env:RUNNER_TEMP winget-pkgs
+            git clone --quiet --depth 1 --filter=blob:none --sparse --branch $pr.headRefName "https://x-access-token:$env:WINGET_CREATE_GITHUB_TOKEN@github.com/$($user.login)/winget-pkgs.git" $work
+            if ($LASTEXITCODE -ne 0) { throw "Could not clone $($pr.headRefName)." }
+            git -C $work sparse-checkout set $root
+            foreach ($directory in $stale) { git -C $work rm -r -q --ignore-unmatch -- $directory.Replace('\', '/') }
+            $target = Join-Path $work "$root/$env:VERSION"
+            New-Item -ItemType Directory -Force $target | Out-Null
+            Copy-Item "dist/winget/manifests/$env:EDITION/*.yaml" $target
+            git -C $work add -- $root
+            $kind = $pr.title.Split(':')[0]
+            $title = "${kind}: $package version $env:VERSION"
+            git -C $work -c user.name=$($user.login) -c user.email="$($user.id)+$($user.login)@users.noreply.github.com" commit -q -m $title
+            if ($LASTEXITCODE -ne 0) { throw 'Could not commit the updated manifests.' }
+            git -C $work push -q origin HEAD
+            if ($LASTEXITCODE -ne 0) { throw "Could not push $($pr.headRefName)." }
+            gh pr edit $pr.number --repo microsoft/winget-pkgs --title $title
+            if ($LASTEXITCODE -ne 0) { throw "Could not retitle pull request $($pr.number)." }
+            Write-Host "Updated microsoft/winget-pkgs#$($pr.number) to $env:VERSION."
+            exit 0
+          }
           Invoke-WebRequest https://github.com/microsoft/winget-create/releases/download/v1.28.1.0/wingetcreate.exe -OutFile "$env:RUNNER_TEMP/wingetcreate.exe"
           # Pinned digest of the v1.28.1.0 asset: this step holds the publisher token.
           $tool = Get-Item "$env:RUNNER_TEMP/wingetcreate.exe"
