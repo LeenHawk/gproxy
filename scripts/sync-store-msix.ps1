@@ -39,7 +39,7 @@ function Assert-StoreSignature([string]$Path) {
     $certificate = $signature.SignerCertificate
     if ($signature.Status -ne 'Valid' -or -not $certificate -or
         $certificate.Subject -cne $env:MS_STORE_IDENTITY_PUBLISHER -or
-        $certificate.Issuer -notmatch '^CN=Microsoft Marketplace CA G \d+, OU=EOC, O=Microsoft Corporation,') {
+        $certificate.Issuer -notmatch '^CN=Microsoft Marketplace CA G \d+, (?:OU=[^,]+, )?O=Microsoft Corporation,') {
         throw "Package does not have a trusted Microsoft Store signature: $Path ($($signature.Status); subject $($certificate.Subject); issuer $($certificate.Issuer))"
     }
 }
