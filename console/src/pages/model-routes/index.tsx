@@ -8,7 +8,6 @@ import type { RouteDto, RouteWrite, RoutePatch, RouteMemberDto, RouteMemberWrite
 import { CollectionPage } from "@/pages/identity/collection"
 import { ManagementDialog } from "@/components/management-dialog"
 import { BoolCell } from "@/components/cells"
-import { Button } from "@/components/ui/button"
 
 const routes = configFamily<RouteDto, Partial<RouteWrite>, Partial<RoutePatch>>("/routes")
 const members = configFamily<RouteMemberDto, Partial<RouteMemberWrite>, Partial<RouteMemberPatch>>("/route-members")
@@ -18,7 +17,6 @@ export function ModelRoutesPage() {
   return <><CollectionPage id="routes" family={routes} searchable rowId={row => row.id} rowLabel={row => row.name} onOpen={setSelected}
     columns={[{ key: "name", header: t("modelRoutes.modelName"), cell: row => row.name }, { key: "strategy", cell: row => row.strategy }, { key: "sessionAffinity", cell: row => <BoolCell value={row.sessionAffinity} /> }, { key: "maxAttempts", cell: row => row.maxAttempts }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
     fields={[{ name: "name", label: t("modelRoutes.modelName"), kind: "text", required: true }, { name: "strategy", kind: "select", choices: ["round_robin", "weighted", "failover"].map(value => ({ value, label: t(`values.${value}`) })) }, { name: "sessionAffinity", kind: "switch", defaultChecked: false }, { name: "maxAttempts", kind: "number" }, { name: "enabled", kind: "switch" }]}
-    rowActions={row => <Button variant="ghost" size="sm" onClick={() => setSelected(row)}>{t("management.manage")}</Button>}
   />
     {selected ? <RouteDetails route={selected} onClose={() => setSelected(null)} /> : null}
   </>
