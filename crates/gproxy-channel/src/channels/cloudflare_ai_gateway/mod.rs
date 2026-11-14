@@ -17,14 +17,14 @@
 //!
 //! Embeddings go to `/ai/v1/embeddings` as OpenAI sends them. The model list
 //! and reranking have no OpenAI-shaped endpoint and are rewritten
-//! (`services.rs`). The account's AI Gateway credit balance is the quota
-//! (`quota.rs`).
+//! (`services.rs`). The account's AI Gateway credit balance and its daily
+//! Workers AI neurons are the quota (`quota.rs`).
 
 mod account;
 mod quota;
 mod services;
 
-pub use quota::BALANCE_DIMENSION;
+pub use quota::{BALANCE_DIMENSION, NEURONS_DIMENSION};
 
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
@@ -110,6 +110,7 @@ impl BaseChannel for CloudflareAiGateway {
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
                 quota_query: true,
+                paid_usage: true,
                 ..Default::default()
             },
             config_keys: [
