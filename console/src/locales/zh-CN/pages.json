@@ -1241,5 +1241,11 @@
     "copy": "复制",
     "copied": "已复制",
     "download": "下载 AGENTS.md"
+  },
+  "credentialUsage": {
+    "description": "每个凭证当前上游额度窗口的使用情况，数据来自最近一次记录。点开凭证可以实时查询。",
+    "filter": "供应商",
+    "all": "全部",
+    "empty": "还没有凭证。"
   }
 }

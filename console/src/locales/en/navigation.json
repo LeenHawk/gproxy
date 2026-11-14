@@ -35,7 +35,8 @@
     "globalUsage": "Global usage",
     "downstreamLogs": "Downstream logs",
     "upstreamLogs": "Upstream logs",
-    "about": "About"
+    "about": "About",
+    "credential-usage": "Credential usage"
   },
   "create": {
     "keys": "New key",

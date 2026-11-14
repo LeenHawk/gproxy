@@ -138,6 +138,7 @@ exported!(
     CredentialCycleDto,
     CredentialLimitStatusDto,
     CredentialQuotaDto,
+    CredentialUsageDto,
     CycleSampleDto,
     QuotaAllowanceDto,
     QuotaBalanceDto,

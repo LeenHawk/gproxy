@@ -1,12 +1,14 @@
 import { api, json, query } from "@/api/client"
 import type { Page, QuotaObservationDto, QuotaObservationQuery } from "@/generated/sdk"
 import type { CredentialProviderDto } from "@/generated/app"
-import type { AuthCodeStart, AuthCodeStarted, AuthCodeComplete, CredentialCreated, DeviceStart, DeviceStarted, DevicePollOutcome, CredentialDto, CredentialSummaryDto, CredentialQuotaDto, CredentialLimitStatusDto, QuotaSnapshotDto, QuotaResetCreditsDto, QuotaResetWrite, QuotaResetDto, DiscoveredModelDto, ModelTestResultDto } from "@/generated/sdk"
+import type { AuthCodeStart, AuthCodeStarted, AuthCodeComplete, CredentialCreated, DeviceStart, DeviceStarted, DevicePollOutcome, CredentialDto, CredentialSummaryDto, CredentialQuotaDto, CredentialUsageDto, CredentialLimitStatusDto, QuotaSnapshotDto, QuotaResetCreditsDto, QuotaResetWrite, QuotaResetDto, DiscoveredModelDto, ModelTestResultDto } from "@/generated/sdk"
 export const credentialDirectory = () => api<CredentialProviderDto[]>("/admin/api/credentials/providers")
 const path = (id: string, action: string) => `/admin/api/credentials/${encodeURIComponent(id)}/${action}`
 export const revealCredential = (id: string) => api<unknown>(path(id, "reveal"), { method: "POST" })
 export const credentialStatus = (id: string, status: string, reason: string | null) => api<CredentialDto>(path(id, "status"), json("POST", { status, reason }))
 export const refreshCredential = (id: string, force: boolean) => api<CredentialSummaryDto>(path(id, `refresh?force=${force}`), { method: "POST" })
+/** Every visible credential with its open cycles, in one read. */
+export const credentialUsage = () => api<CredentialUsageDto[]>("/admin/api/credentials/usage")
 export const credentialQuota = (id: string) => api<CredentialQuotaDto>(path(id, "quota"))
 export const credentialQuotaObservations = (id: string, filter: Partial<QuotaObservationQuery>, signal?: AbortSignal) => api<Page<QuotaObservationDto>>(path(id, "quota-observations") + query(filter), { signal })
 export const credentialLimits = (id: string) => api<CredentialLimitStatusDto[]>(path(id, "limits"))

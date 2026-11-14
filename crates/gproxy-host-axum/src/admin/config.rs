@@ -101,6 +101,7 @@ where
         CredentialPatch,
         "credentials"
     )
+    .route("/credentials/usage", get(usage::<C>))
     .route("/credentials/{id}/reveal", post(reveal_secret::<C>))
     .route("/credentials/{id}/status", post(set_status::<C>))
     .route("/credentials/{id}/refresh", post(refresh::<C>))
@@ -411,6 +412,18 @@ where
         )
     })
     .await
+}
+
+async fn usage<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Query(query): Query<ListQuery>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move { scoped!(state, scope, "credentials", credentials.usage(query)) })
+        .await
 }
 
 async fn quota_read<C>(

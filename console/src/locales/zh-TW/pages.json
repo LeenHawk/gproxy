@@ -1241,5 +1241,11 @@
     "copy": "複製",
     "copied": "已複製",
     "download": "下載 AGENTS.md"
+  },
+  "credentialUsage": {
+    "description": "每個憑證目前上游額度視窗的使用情況，資料來自最近一次記錄。點開憑證可以即時查詢。",
+    "filter": "供應商",
+    "all": "全部",
+    "empty": "還沒有憑證。"
   }
 }

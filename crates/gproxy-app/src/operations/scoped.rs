@@ -36,7 +36,7 @@ use gproxy_sdk::{
     CredentialStatus, Gproxy, RefreshMode,
     dto::{
         BatchItem, BudgetStatusDto, CredentialDto, CredentialLimitStatusDto, CredentialPatch,
-        CredentialQuotaDto, CredentialSummaryDto, CredentialWrite, ListQuery, Page, QuotaDto,
+        CredentialQuotaDto, CredentialSummaryDto, CredentialUsageDto, CredentialWrite, ListQuery, Page, QuotaDto,
         QuotaObservationDto, QuotaObservationQuery, QuotaPatch, QuotaProbeDto, QuotaResetDto,
         QuotaSnapshotDto, QuotaWrite,
     },
@@ -293,6 +293,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
     pub async fn refresh(&self, id: &str, mode: RefreshMode) -> Result<CredentialSummaryDto> {
         self.admit(id).await?;
         Ok(self.manage().refresh(id, mode).await?)
+    }
+
+    pub async fn usage(&self, query: ListQuery) -> Result<Vec<CredentialUsageDto>> {
+        match self.scope.narrow(query, self.data) {
+            ScopedQuery::Nothing => Ok(Vec::new()),
+            ScopedQuery::Run(query) => Ok(self.manage().usage(*query).await?),
+        }
     }
 
     pub async fn quota_read(&self, id: &str) -> Result<CredentialQuotaDto> {

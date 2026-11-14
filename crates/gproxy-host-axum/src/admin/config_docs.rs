@@ -112,6 +112,10 @@ pub(crate) fn document(api: &mut Api) {
         query,
         Some(response),
     );
+    api.query::<d::ListQuery, Vec<d::CredentialUsageDto>>(
+        "/admin/api/credentials/usage",
+        "credentials",
+    );
     api.get::<d::CredentialQuotaDto>("/admin/api/credentials/{id}/quota", "credentials");
     api.query::<d::QuotaObservationQuery, d::Page<d::QuotaObservationDto>>(
         "/admin/api/credentials/{id}/quota-observations",

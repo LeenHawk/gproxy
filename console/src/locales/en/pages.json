@@ -1241,5 +1241,11 @@
     "copy": "Copy",
     "copied": "Copied",
     "download": "Download AGENTS.md"
+  },
+  "credentialUsage": {
+    "description": "The open upstream quota windows of every credential, from the last recorded readings. Open a credential to probe it live.",
+    "filter": "Providers",
+    "all": "All",
+    "empty": "No credentials yet."
   }
 }

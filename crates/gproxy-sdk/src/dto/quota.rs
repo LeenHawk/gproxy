@@ -231,6 +231,20 @@ pub struct CredentialQuotaDto {
     pub blocks: Vec<CredentialBlockDto>,
 }
 
+/// One credential with its open upstream cycles, for an overview of many
+/// credentials at once. Closed cycles and blocks stay on the per-credential
+/// [`CredentialQuotaDto`] read.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct CredentialUsageDto {
+    pub credential: super::CredentialDto,
+    /// Open cycles only, by window.
+    pub cycles: Vec<CredentialCycleDto>,
+}
+
 /// One period of one upstream window on a credential, with the USD this
 /// deployment settled against it.
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -30,6 +30,7 @@ const ModelsPage = lazy(() => import("@/pages/self/models").then(module => ({ de
 const OverviewPage = lazy(() => import("@/pages/self/overview").then(module => ({ default: module.OverviewPage })))
 const RequestsPage = lazy(() => import("@/pages/self/requests").then(module => ({ default: module.RequestsPage })))
 const UsagePage = lazy(() => import("@/pages/self/usage").then(module => ({ default: module.UsagePage })))
+const CredentialUsagePage = lazy(() => import("@/pages/credential-usage").then(module => ({ default: module.CredentialUsagePage })))
 const ProvidersPage = lazy(() => import("@/pages/providers").then(module => ({ default: module.ProvidersPage })))
 const RuleSetsPage = lazy(() => import("@/pages/rules").then(module => ({ default: module.RuleSetsPage })))
 const ClientsPage = lazy(() => import("@/pages/clients").then(module => ({ default: module.ClientsPage })))
@@ -46,6 +47,7 @@ const UpstreamLogsPage = lazy(() => import("@/pages/observation/logs").then(modu
 const ROUTES: Record<string, ComponentType> = {
   "/about": AboutPage,
   "/model-routes": ModelRoutesPage,
+  "/credential-usage": CredentialUsagePage,
   "/transfer": TransferPage,
   "/": OverviewPage,
   "/keys": KeysPage,

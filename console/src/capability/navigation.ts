@@ -66,6 +66,8 @@ const PROVIDERS: NavSection = {
   items: [{ id: "providers", route: "/providers", needs: PROVIDERS_READ, icon: Waypoints }],
 }
 
+const CREDENTIAL_USAGE: NavSection = { id: "credential-usage", icon: Gauge, standalone: true, items: [{ id: "credential-usage", route: "/credential-usage", needs: "configuration.credentials", icon: Gauge }] }
+
 const MODEL_CATALOG: NavSection = { id: "model-catalog", icon: Boxes, standalone: true, items: [{ id: "model-catalog", route: "/model-catalog", needs: SETTINGS_ACCESS, icon: Boxes }] }
 
 const RULES: NavSection = { id: "rules", icon: ListChecks, items: [{ id: "rule-sets", route: "/rule-sets", needs: PROVIDERS_READ, icon: ListChecks }] }
@@ -106,7 +108,7 @@ const MANAGEMENT: NavSection = { id: "management", icon: Waypoints, standalone: 
 ] }
 /** Last in the sidebar as a top-level entry, as in v3, rather than buried in the self section. */
 const ABOUT: NavSection = { id: "about", icon: Info, standalone: true, items: [{ id: "about", route: "/about", needs: SELF_READ, icon: Info }] }
-const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, MODEL_CATALOG, RULES, MANAGEMENT, PEOPLE, ACCESS, OBSERVATION, SYSTEM, ABOUT]
+const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, CREDENTIAL_USAGE, MODEL_CATALOG, RULES, MANAGEMENT, PEOPLE, ACCESS, OBSERVATION, SYSTEM, ABOUT]
 
 /** Tenant pages reuse existing object routes and their scoped APIs, never identity CRUD. */
 function sectionsForScope(context: ConsoleContext): ReadonlyArray<NavSection> {

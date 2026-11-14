@@ -28,7 +28,8 @@ use super::{
 use crate::{
     SdkError, SdkResult,
     dto::{
-        BatchItem, CredentialDto, CredentialLimitStatusDto, CredentialPatch, CredentialQuotaDto,
+        BatchItem, CredentialCycleDto, CredentialDto, CredentialLimitStatusDto, CredentialPatch,
+        CredentialQuotaDto, CredentialUsageDto,
         CredentialSummaryDto, CredentialWrite, ListQuery, Page, QuotaObservationDto,
         QuotaObservationQuery, QuotaProbeDto, QuotaResetCreditsDto, QuotaResetDto, QuotaResetWrite,
         QuotaSnapshotDto,
@@ -195,6 +196,38 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
             crud::row::<C, Self>(self, id).await?;
         }
         Ok(result)
+    }
+
+    /// Every credential `query` selects (unpaged; `page` and `pageSize` are
+    /// ignored), each with its open cycles, read in two queries rather than
+    /// one per credential. Ordered by provider, then label.
+    pub async fn usage(&self, query: ListQuery) -> SdkResult<Vec<CredentialUsageDto>> {
+        use sea_orm::QueryOrder;
+        let rows = self
+            .repository()
+            .query(
+                self.select(&query)
+                    .order_by_asc(credential::Column::ProviderId)
+                    .order_by_asc(credential::Column::Label)
+                    .order_by_asc(credential::Column::Id),
+            )
+            .await?;
+        let ids: Vec<String> = rows.iter().map(|row| row.id.clone()).collect();
+        let mut cycles: std::collections::HashMap<String, Vec<CredentialCycleDto>> =
+            std::collections::HashMap::new();
+        for cycle in self.writer.store().credential_cycles().open_of(&ids).await? {
+            cycles
+                .entry(cycle.credential_id.clone())
+                .or_default()
+                .push(cycle.into());
+        }
+        Ok(rows
+            .into_iter()
+            .map(|row| CredentialUsageDto {
+                cycles: cycles.remove(&row.id).unwrap_or_default(),
+                credential: self.to_dto(row),
+            })
+            .collect())
     }
 
     /// One page of the raw upstream readings behind the cycles, newest first.

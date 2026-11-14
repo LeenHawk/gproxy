@@ -35,7 +35,8 @@
     "globalUsage": "全域用量",
     "downstreamLogs": "下游日誌",
     "upstreamLogs": "上游日誌",
-    "about": "關於"
+    "about": "關於",
+    "credential-usage": "憑證用量"
   },
   "create": {
     "keys": "新建金鑰",

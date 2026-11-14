@@ -35,6 +35,7 @@ export * from "./CredentialLimitStatusDto";
 export * from "./CredentialOwner";
 export * from "./CredentialPatch";
 export * from "./CredentialQuotaDto";
+export * from "./CredentialUsageDto";
 export * from "./CredentialSummaryDto";
 export * from "./CredentialWrite";
 export * from "./CycleSampleDto";
