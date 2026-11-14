@@ -12,21 +12,28 @@
 //! `{"api_key", "account_id", "gateway_id"?}`. One provider can rotate over
 //! several Cloudflare accounts or gateways, which a `custom` row with the
 //! account in its `base_url` and the gateway in a static header could not.
+//! A credential may leave `account_id` out when its token can list exactly
+//! one account; the refresh capability looks it up once (`account.rs`).
 //!
-//! The account's AI Gateway credit balance is the quota (`quota.rs`).
+//! Embeddings go to `/ai/v1/embeddings` as OpenAI sends them. The model list
+//! and reranking have no OpenAI-shaped endpoint and are rewritten
+//! (`services.rs`). The account's AI Gateway credit balance is the quota
+//! (`quota.rs`).
 
+mod account;
 mod quota;
+mod services;
 
 pub use quota::BALANCE_DIMENSION;
 
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
-    QuotaModel, QuotaQuery, forwardable,
+    CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, OperationContext,
+    OperationFuture, PrepareContext, ProviderView, QuotaModel, QuotaQuery, forwardable,
 };
 use crate::channels::shared::claude_images;
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
-use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey};
+use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
 use http::{HeaderName, HeaderValue, header};
 use serde::Deserialize;
 use serde_json::Value;
@@ -124,11 +131,15 @@ impl BaseChannel for CloudflareAiGateway {
         }
     }
 
-    /// Three surfaces, each answering its own wire (v3 `routes.rs`).
+    /// Three generation surfaces, each answering its own wire (v3
+    /// `routes.rs`), plus OpenAI embeddings, the model list and reranking.
     fn native_dialects(&self, _: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent | Operation::StreamGenerateContent => {
                 vec![Dialect::OpenAiChat, Dialect::OpenAi, Dialect::Claude]
+            }
+            Operation::ListModels | Operation::CreateEmbedding | Operation::Rerank => {
+                vec![Dialect::OpenAi]
             }
             _ => Vec::new(),
         }
@@ -225,6 +236,24 @@ impl BaseChannel for CloudflareAiGateway {
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
 
+    fn list_models<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(self.models(context))
+    }
+
+    fn rerank<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(self.rerank_run(context))
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+
     fn quota_model(&self) -> Option<&dyn QuotaModel> {
         Some(self)
     }
@@ -233,4 +262,3 @@ impl BaseChannel for CloudflareAiGateway {
         Some(self)
     }
 }
-
