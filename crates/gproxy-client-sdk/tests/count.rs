@@ -112,7 +112,6 @@ fn a_request_the_upstream_cannot_count_is_estimated_in_process() {
             .await
             .unwrap();
         assert_eq!(count.input_tokens, Some(3));
-        assert!(count.estimated);
         assert!(client.backend.requests.lock().unwrap().is_empty());
 
         // An upstream that counts is believed.
@@ -123,7 +122,7 @@ fn a_request_the_upstream_cannot_count_is_estimated_in_process() {
             .count_or_estimate(&request(Dialect::Openai, text.clone()))
             .await
             .unwrap();
-        assert_eq!((count.input_tokens, count.estimated), (Some(13), false));
+        assert_eq!(count.input_tokens, Some(13));
     });
     // Media is not text: the image adds nothing.
     let plain = count::estimate(&request(Dialect::OpenaiChat, text)).unwrap();

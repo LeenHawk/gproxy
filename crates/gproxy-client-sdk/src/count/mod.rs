@@ -25,9 +25,6 @@ pub use local::estimate;
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct TokenCount {
     pub input_tokens: Option<u64>,
-    /// Counted in process with a tokenizer that may not be the model's own.
-    #[serde(default)]
-    pub estimated: bool,
     /// The native count response under its vendor's `native` key.
     pub provider_metadata: ProviderMetadata,
 }

@@ -125,7 +125,7 @@ With the `local-count` feature, `count::estimate(&request)` counts the text of a
 request with `gproxy-tokenizer` and no upstream call, and
 `Client::count_or_estimate` uses it where `Client::count` cannot answer: Chat
 Completions, which has no count endpoint, or a count request that failed.
-`TokenCount.estimated` says which one answered. Media is not counted, and the
+Media is not counted, and the
 tokenizer for a model outside the GPT family is an approximation.
 
 ## Streams and errors

@@ -25,7 +25,6 @@ pub fn estimate(request: &GenerateRequest) -> Result<TokenCount> {
     }
     Ok(TokenCount {
         input_tokens: Some(tokenizer.count(&text).map_err(Error::invalid)?),
-        estimated: true,
         provider_metadata: ProviderMetadata::new(),
     })
 }
