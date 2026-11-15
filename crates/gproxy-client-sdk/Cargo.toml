@@ -14,6 +14,8 @@ openai = []
 gemini = []
 chat = []
 count-tokens = []
+# Estimates token counts in process, for a dialect or upstream that cannot count.
+local-count = ["count-tokens", "dep:gproxy-tokenizer"]
 compact = ["openai"]
 models = []
 embeddings = []
@@ -33,6 +35,7 @@ futures-core.workspace = true
 futures-util.workspace = true
 gproxy-client = { workspace = true, optional = true }
 gproxy-protocol.workspace = true
+gproxy-tokenizer = { workspace = true, optional = true, features = ["local"] }
 gproxy-file = { workspace = true, optional = true, features = ["s3"] }
 getrandom = { workspace = true, optional = true }
 http.workspace = true

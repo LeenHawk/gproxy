@@ -117,6 +117,7 @@ impl<B: Backend> Client<B> {
         };
         Ok(TokenCount {
             input_tokens: count,
+            estimated: false,
             provider_metadata: [(vendor, [("native".into(), native)].into_iter().collect())].into(),
         })
     }

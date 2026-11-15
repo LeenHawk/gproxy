@@ -3114,6 +3114,7 @@ dependencies = [
  "gproxy-file",
  "gproxy-protocol",
  "gproxy-sdk",
+ "gproxy-tokenizer",
  "http",
  "percent-encoding",
  "serde",

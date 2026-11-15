@@ -11,14 +11,23 @@ use serde::{Deserialize, Serialize};
 mod claude;
 #[cfg(feature = "gemini")]
 mod gemini;
+#[cfg(feature = "local-count")]
+mod local;
 #[cfg(feature = "openai")]
 mod openai;
 
-/// How many input tokens a request carries, as the upstream counted them.
+#[cfg(feature = "local-count")]
+pub use local::estimate;
+
+/// How many input tokens a request carries: as the upstream counted them, or
+/// as estimated in process.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct TokenCount {
     pub input_tokens: Option<u64>,
+    /// Counted in process with a tokenizer that may not be the model's own.
+    #[serde(default)]
+    pub estimated: bool,
     /// The native count response under its vendor's `native` key.
     pub provider_metadata: ProviderMetadata,
 }
@@ -39,6 +48,18 @@ impl<B: Backend> Client<B> {
             Dialect::OpenaiChat => {
                 Err(Error::unsupported("Chat Completions has no count endpoint"))
             }
+        }
+    }
+}
+
+#[cfg(feature = "local-count")]
+impl<B: Backend> Client<B> {
+    /// [`Client::count`], or [`estimate`] where the upstream cannot count:
+    /// a dialect without a count endpoint, or a count request that failed.
+    pub async fn count_or_estimate(&self, request: &GenerateRequest) -> Result<TokenCount> {
+        match self.count(request).await {
+            Ok(count) if count.input_tokens.is_some() => Ok(count),
+            _ => estimate(request),
         }
     }
 }

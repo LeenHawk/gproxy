@@ -119,6 +119,15 @@ portable controls. Native field/model constraints remain upstream constraints;
 Gemini thinking levels target models supporting that API, and vendor options can
 select a native budget/configuration instead. No retry or fallback model is chosen.
 
+## Counting in process
+
+With the `local-count` feature, `count::estimate(&request)` counts the text of a
+request with `gproxy-tokenizer` and no upstream call, and
+`Client::count_or_estimate` uses it where `Client::count` cannot answer: Chat
+Completions, which has no count endpoint, or a count request that failed.
+`TokenCount.estimated` says which one answered. Media is not counted, and the
+tokenizer for a model outside the GPT family is an approximation.
+
 ## Streams and errors
 
 `Client::stream()` handles SSE/UTF-8 fragmentation. `Event::Start` delivers known

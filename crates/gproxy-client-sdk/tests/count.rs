@@ -84,3 +84,49 @@ fn counting_a_generation_request_uses_its_dialects_count_endpoint() {
         assert!(client.backend.requests.lock().unwrap().is_empty());
     });
 }
+
+#[cfg(all(feature = "local-count", feature = "openai", feature = "chat"))]
+#[test]
+fn a_request_the_upstream_cannot_count_is_estimated_in_process() {
+    let request = |dialect, content: Value| {
+        let messages: Vec<Message> =
+            serde_json::from_value(json!([{"role": "user", "content": content}])).unwrap();
+        GenerateRequest::new(
+            Model {
+                id: "route/gpt-5".into(),
+                dialect,
+            },
+            messages,
+        )
+    };
+    let text = json!([{"type": "text", "text": "hello world"}]);
+    let with_image = json!([
+        {"type": "text", "text": "hello world"},
+        {"type": "image", "source": {"type": "url", "url": "https://example.com/a.png"}}
+    ]);
+    futures_executor::block_on(async {
+        // Chat Completions has no count endpoint: nothing is sent.
+        let client = Client::new(BackendScript::new(vec![]));
+        let count = client
+            .count_or_estimate(&request(Dialect::OpenaiChat, text.clone()))
+            .await
+            .unwrap();
+        assert_eq!(count.input_tokens, Some(3));
+        assert!(count.estimated);
+        assert!(client.backend.requests.lock().unwrap().is_empty());
+
+        // An upstream that counts is believed.
+        let client = Client::new(BackendScript::new(vec![
+            json!({"object": "response.input_tokens", "input_tokens": 13}),
+        ]));
+        let count = client
+            .count_or_estimate(&request(Dialect::Openai, text.clone()))
+            .await
+            .unwrap();
+        assert_eq!((count.input_tokens, count.estimated), (Some(13), false));
+    });
+    // Media is not text: the image adds nothing.
+    let plain = count::estimate(&request(Dialect::OpenaiChat, text)).unwrap();
+    let pictured = count::estimate(&request(Dialect::OpenaiChat, with_image)).unwrap();
+    assert_eq!(plain.input_tokens, pictured.input_tokens);
+}
