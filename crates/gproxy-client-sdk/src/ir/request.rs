@@ -52,6 +52,27 @@ pub enum ReasoningEffort {
     Unknown(String),
 }
 
+/// How much of the model's reasoning comes back. No vendor returns the raw
+/// chain of thought; `Summary` and `Detailed` are both summaries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub enum ReasoningDisplay {
+    Hidden,
+    Summary,
+    Detailed,
+}
+
+/// How much the model writes in its answer, apart from how hard it thinks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub enum Verbosity {
+    Low,
+    Medium,
+    High,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ReasoningSettings {
@@ -64,6 +85,10 @@ pub struct ReasoningSettings {
 pub struct Settings {
     #[serde(default)]
     pub reasoning: Option<ReasoningSettings>,
+    #[serde(default)]
+    pub reasoning_display: Option<ReasoningDisplay>,
+    #[serde(default)]
+    pub verbosity: Option<Verbosity>,
     #[serde(default)]
     pub output_modalities: Vec<Modality>,
     pub speech: Option<SpeechSettings>,

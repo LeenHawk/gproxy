@@ -116,6 +116,9 @@ pub fn render(
     warnings.extend(crate::dialects::shared::reasoning::openai(
         request, &mut body,
     ));
+    warnings.extend(crate::dialects::shared::reasoning::openai_output(
+        request, &mut body,
+    ));
     Ok(Rendered {
         request: body,
         warnings,

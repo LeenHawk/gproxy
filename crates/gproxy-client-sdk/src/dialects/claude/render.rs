@@ -121,6 +121,9 @@ pub fn render(
     warnings.extend(crate::dialects::shared::reasoning::claude(
         request, &mut body,
     ));
+    warnings.extend(crate::dialects::shared::reasoning::claude_output(
+        request, &mut body,
+    ));
     Ok(Rendered {
         request: body,
         warnings,

@@ -118,3 +118,82 @@ fn reasoning_maps_levels_budgets_defaults_and_vendor_overrides() {
             .is_none()
     );
 }
+
+#[cfg(all(
+    feature = "claude",
+    feature = "openai",
+    feature = "chat",
+    feature = "gemini",
+    not(target_arch = "wasm32")
+))]
+#[test]
+fn display_and_verbosity_map_where_a_dialect_has_them_and_warn_where_not() {
+    let warned = |warnings: &[Warning], field: &str| warnings.iter().any(|w| w.field == field);
+    let render = |dialect, display, verbosity| {
+        let mut request = support::request(dialect, vec![]);
+        request.settings.reasoning_display = display;
+        request.settings.verbosity = verbosity;
+        dialects::render(&request, false).unwrap()
+    };
+
+    let openai = render(
+        Dialect::Openai,
+        Some(ReasoningDisplay::Summary),
+        Some(Verbosity::Low),
+    );
+    assert_eq!(openai.request["reasoning"]["summary"], "auto");
+    assert_eq!(openai.request["text"]["verbosity"], "low");
+    assert!(openai.warnings.is_empty());
+    let openai = render(Dialect::Openai, Some(ReasoningDisplay::Detailed), None);
+    assert_eq!(openai.request["reasoning"]["summary"], "detailed");
+    let openai = render(Dialect::Openai, Some(ReasoningDisplay::Hidden), None);
+    assert!(openai.request.get("reasoning").is_none());
+
+    let chat = render(
+        Dialect::OpenaiChat,
+        Some(ReasoningDisplay::Summary),
+        Some(Verbosity::High),
+    );
+    assert_eq!(chat.request["verbosity"], "high");
+    assert!(warned(&chat.warnings, "settings.reasoning_display"));
+
+    let claude = render(
+        Dialect::Claude,
+        Some(ReasoningDisplay::Summary),
+        Some(Verbosity::Low),
+    );
+    assert_eq!(claude.request["thinking"]["type"], "adaptive");
+    assert_eq!(claude.request["thinking"]["display"], "summarized");
+    assert!(warned(&claude.warnings, "settings.verbosity"));
+    assert!(!warned(&claude.warnings, "settings.reasoning_display"));
+    let claude = render(Dialect::Claude, Some(ReasoningDisplay::Detailed), None);
+    assert_eq!(claude.request["thinking"]["display"], "summarized");
+    assert!(warned(&claude.warnings, "settings.reasoning_display"));
+    let claude = render(Dialect::Claude, Some(ReasoningDisplay::Hidden), None);
+    assert_eq!(claude.request["thinking"]["display"], "omitted");
+
+    let gemini = render(
+        Dialect::Gemini,
+        Some(ReasoningDisplay::Summary),
+        Some(Verbosity::Low),
+    );
+    assert_eq!(
+        gemini.request["generationConfig"]["thinkingConfig"]["includeThoughts"],
+        true
+    );
+    assert!(warned(&gemini.warnings, "settings.verbosity"));
+    let gemini = render(Dialect::Gemini, Some(ReasoningDisplay::Hidden), None);
+    assert_eq!(
+        gemini.request["generationConfig"]["thinkingConfig"]["includeThoughts"],
+        false
+    );
+
+    // A display the request sets natively wins, and says so.
+    let mut native = support::request(Dialect::Claude, vec![]);
+    native.settings.reasoning_display = Some(ReasoningDisplay::Summary);
+    native.provider_options.claude.thinking =
+        Some(serde_json::from_value(json!({"type":"adaptive","display":"omitted"})).unwrap());
+    let compiled = dialects::render(&native, false).unwrap();
+    assert_eq!(compiled.request["thinking"]["display"], "omitted");
+    assert!(warned(&compiled.warnings, "settings.reasoning_display"));
+}

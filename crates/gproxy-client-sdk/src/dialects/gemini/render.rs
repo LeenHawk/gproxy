@@ -19,6 +19,9 @@ pub fn render(request: &GenerateRequest) -> Result<Rendered<g::GenerateContentRe
     warnings.extend(crate::dialects::shared::reasoning::gemini(
         request, &mut body,
     ));
+    warnings.extend(crate::dialects::shared::reasoning::gemini_output(
+        request, &mut body,
+    ));
     Ok(Rendered {
         request: body,
         warnings,

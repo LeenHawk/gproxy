@@ -139,6 +139,9 @@ pub fn render_at(
     }
     let mut warnings = crate::dialects::shared::warnings::for_request(request, Some(now))?;
     warnings.extend(crate::dialects::shared::reasoning::chat(request, &mut body));
+    warnings.extend(crate::dialects::shared::reasoning::chat_output(
+        request, &mut body,
+    ));
     Ok(Rendered {
         request: body,
         warnings,

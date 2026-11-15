@@ -85,6 +85,166 @@ pub(crate) fn claude(
     config.effort = Some(effort);
     warnings
 }
+/// Claude carries the display on its thinking config, so asking for one
+/// turns adaptive thinking on where the request left thinking unset.
+#[cfg(feature = "claude")]
+pub(crate) fn claude_output(
+    request: &GenerateRequest,
+    body: &mut protocol::claude::generate_content::GenerateContentRequestBody,
+) -> Vec<Warning> {
+    use protocol::claude::count_tokens as c;
+    let mut warnings = Vec::new();
+    if request.settings.verbosity.is_some() {
+        warnings.push(unsupported(
+            "settings.verbosity",
+            "Claude has no verbosity control; effort covers output length",
+        ));
+    }
+    let Some(display) = request.settings.reasoning_display else {
+        return warnings;
+    };
+    let wire = match display {
+        ReasoningDisplay::Hidden => c::ThinkingDisplay::Omitted,
+        ReasoningDisplay::Summary => c::ThinkingDisplay::Summarized,
+        ReasoningDisplay::Detailed => {
+            warnings.push(warn(
+                "settings.reasoning_display",
+                "Claude has one summary level; detailed maps to summarized",
+            ));
+            c::ThinkingDisplay::Summarized
+        }
+    };
+    let thinking = body
+        .thinking
+        .get_or_insert_with(|| c::ThinkingConfig::Adaptive(c::ThinkingAdaptive::builder().build()));
+    let slot = match thinking {
+        c::ThinkingConfig::Adaptive(config) => &mut config.display,
+        c::ThinkingConfig::Enabled(config) => &mut config.display,
+        _ => return warnings,
+    };
+    if slot.is_some() {
+        warnings.push(warn(
+            "settings.reasoning_display",
+            "Claude thinking.display overrides the portable display",
+        ));
+    } else {
+        *slot = Some(wire);
+    }
+    warnings
+}
+#[cfg(feature = "openai")]
+pub(crate) fn openai_output(
+    request: &GenerateRequest,
+    body: &mut protocol::openai::responses::generate::GenerateContentRequestBody,
+) -> Vec<Warning> {
+    use protocol::openai::responses::input as o;
+    let mut warnings = Vec::new();
+    if let Some(verbosity) = request.settings.verbosity {
+        let text = body
+            .text
+            .get_or_insert_with(|| o::TextConfig::builder().build());
+        if text.verbosity.flatten().is_some() {
+            warnings.push(warn(
+                "settings.verbosity",
+                "OpenAI text.verbosity overrides portable verbosity",
+            ));
+        } else {
+            text.verbosity = Some(Some(match verbosity {
+                Verbosity::Low => o::TextVerbosity::Low,
+                Verbosity::Medium => o::TextVerbosity::Medium,
+                Verbosity::High => o::TextVerbosity::High,
+            }));
+        }
+    }
+    // Leaving the summary unset is how Responses hides reasoning.
+    let summary = match request.settings.reasoning_display {
+        None | Some(ReasoningDisplay::Hidden) => return warnings,
+        Some(ReasoningDisplay::Summary) => o::ReasoningSummary::Auto,
+        Some(ReasoningDisplay::Detailed) => o::ReasoningSummary::Detailed,
+    };
+    let config = body
+        .reasoning
+        .get_or_insert(None)
+        .get_or_insert_with(|| o::ReasoningConfig::builder().build());
+    if config.summary.flatten().is_some() {
+        warnings.push(warn(
+            "settings.reasoning_display",
+            "OpenAI reasoning.summary overrides the portable display",
+        ));
+    } else {
+        config.summary = Some(Some(summary));
+    }
+    warnings
+}
+#[cfg(feature = "chat")]
+pub(crate) fn chat_output(
+    request: &GenerateRequest,
+    body: &mut protocol::openai::chat::request::GenerateContentRequestBody,
+) -> Vec<Warning> {
+    use protocol::openai::chat::request::Verbosity as V;
+    let mut warnings = Vec::new();
+    if let Some(verbosity) = request.settings.verbosity {
+        if body.verbosity.flatten().is_some() {
+            warnings.push(warn(
+                "settings.verbosity",
+                "OpenAI Chat verbosity overrides portable verbosity",
+            ));
+        } else {
+            body.verbosity = Some(Some(match verbosity {
+                Verbosity::Low => V::Low,
+                Verbosity::Medium => V::Medium,
+                Verbosity::High => V::High,
+            }));
+        }
+    }
+    if matches!(
+        request.settings.reasoning_display,
+        Some(ReasoningDisplay::Summary | ReasoningDisplay::Detailed)
+    ) {
+        warnings.push(unsupported(
+            "settings.reasoning_display",
+            "OpenAI Chat has no reasoning summary control",
+        ));
+    }
+    warnings
+}
+#[cfg(feature = "gemini")]
+pub(crate) fn gemini_output(
+    request: &GenerateRequest,
+    body: &mut protocol::gemini::GenerateContentRequestBody,
+) -> Vec<Warning> {
+    use protocol::gemini::{GenerationConfig, ThinkingConfig};
+    let mut warnings = Vec::new();
+    if request.settings.verbosity.is_some() {
+        warnings.push(unsupported(
+            "settings.verbosity",
+            "Gemini has no verbosity control",
+        ));
+    }
+    let Some(display) = request.settings.reasoning_display else {
+        return warnings;
+    };
+    if display == ReasoningDisplay::Detailed {
+        warnings.push(warn(
+            "settings.reasoning_display",
+            "Gemini has one summary level; detailed maps to thought summaries",
+        ));
+    }
+    let config = body
+        .generation_config
+        .get_or_insert_with(|| GenerationConfig::builder().build())
+        .thinking_config
+        .get_or_insert_with(|| ThinkingConfig::builder().build());
+    if config.include_thoughts.is_some() {
+        warnings.push(warn(
+            "settings.reasoning_display",
+            "Gemini includeThoughts overrides the portable display",
+        ));
+    } else {
+        config.include_thoughts = Some(display != ReasoningDisplay::Hidden);
+    }
+    warnings
+}
 #[cfg(feature = "openai")]
 pub(crate) fn openai(
     request: &GenerateRequest,

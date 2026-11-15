@@ -103,6 +103,17 @@ or TTL is omitted with a warning; Responses images use Auto where required.
 | Gemini | None uses budget 0; Minimal/Low/Medium/High use thinking level; Xhigh/Max map to High with warning |
 | Gemini budget | Explicit budget takes precedence over portable thinking level with warning |
 
+`settings.reasoning_display` asks how much reasoning comes back, and
+`settings.verbosity` how much the answer says. No vendor returns the raw chain
+of thought, so Summary and Detailed are both summaries.
+
+| Dialect | Display | Verbosity |
+|---|---|---|
+| Claude | Hidden is `omitted`; Summary and Detailed are `summarized`, Detailed with warning. Sets adaptive thinking when the request has no thinking config | Unsupported, warned |
+| Responses | Summary is `auto`, Detailed is `detailed`; Hidden sends no summary | `text.verbosity` |
+| Chat | Unsupported, warned | `verbosity` |
+| Gemini | `includeThoughts`; Detailed warns | Unsupported, warned |
+
 ProviderDefault adds no control. Explicit native reasoning options override
 portable controls. Native field/model constraints remain upstream constraints;
 Gemini thinking levels target models supporting that API, and vendor options can
