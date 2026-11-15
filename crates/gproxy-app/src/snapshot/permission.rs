@@ -113,10 +113,7 @@ impl PermissionSet {
             ));
         }
         if dropped > 0 {
-            tracing::warn!(
-                count = dropped,
-                "permission rows skipped: unknown action"
-            );
+            tracing::warn!(count = dropped, "permission rows skipped: unknown action");
         }
         // Highest priority first, then by id so that equal priorities always
         // resolve the same way on every instance and after every reload.
@@ -553,9 +550,7 @@ mod tests {
 
     #[test]
     fn unusable_rows_are_dropped_rather_than_trusted() {
-        let set = PermissionSet::build(&[
-            rule("bad-action", "maybe", 0),
-        ]);
+        let set = PermissionSet::build(&[rule("bad-action", "maybe", 0)]);
         assert!(set.is_empty());
         assert!(
             !set.decide(&alice(), "openai", Some("m"), GENERATE)

@@ -99,9 +99,7 @@ fn scope(value: Option<&str>) -> Result<String> {
     match value.map(str::trim).filter(|value| !value.is_empty()) {
         None => Ok("shared".to_owned()),
         Some(value @ ("shared" | "user" | "key")) => Ok(value.to_owned()),
-        Some(_) => Err(AppError::invalid(
-            "scope must be `shared`, `user` or `key`",
-        )),
+        Some(_) => Err(AppError::invalid("scope must be `shared`, `user` or `key`")),
     }
 }
 

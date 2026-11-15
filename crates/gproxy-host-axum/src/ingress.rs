@@ -141,7 +141,8 @@ where
     if let Some(response) = state
         .console()
         .serve(&parts.method, &path, parts.uri.query(), &parts.headers)
-        .await {
+        .await
+    {
         return response;
     }
 

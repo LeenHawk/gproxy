@@ -29,10 +29,9 @@ use crate::{
     SdkError, SdkResult,
     dto::{
         BatchItem, CredentialCycleDto, CredentialDto, CredentialLimitStatusDto, CredentialPatch,
-        CredentialQuotaDto, CredentialUsageDto,
-        CredentialSummaryDto, CredentialWrite, ListQuery, Page, QuotaObservationDto,
-        QuotaObservationQuery, QuotaProbeDto, QuotaResetCreditsDto, QuotaResetDto, QuotaResetWrite,
-        QuotaSnapshotDto,
+        CredentialQuotaDto, CredentialSummaryDto, CredentialUsageDto, CredentialWrite, ListQuery,
+        Page, QuotaObservationDto, QuotaObservationQuery, QuotaProbeDto, QuotaResetCreditsDto,
+        QuotaResetDto, QuotaResetWrite, QuotaSnapshotDto,
     },
 };
 
@@ -215,7 +214,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
         let ids: Vec<String> = rows.iter().map(|row| row.id.clone()).collect();
         let mut cycles: std::collections::HashMap<String, Vec<CredentialCycleDto>> =
             std::collections::HashMap::new();
-        for cycle in self.writer.store().credential_cycles().open_of(&ids).await? {
+        for cycle in self
+            .writer
+            .store()
+            .credential_cycles()
+            .open_of(&ids)
+            .await?
+        {
             cycles
                 .entry(cycle.credential_id.clone())
                 .or_default()

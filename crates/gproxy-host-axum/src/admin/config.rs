@@ -422,8 +422,7 @@ async fn usage<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { scoped!(state, scope, "credentials", credentials.usage(query)) })
-        .await
+    crate::send(async move { scoped!(state, scope, "credentials", credentials.usage(query)) }).await
 }
 
 async fn quota_read<C>(

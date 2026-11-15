@@ -36,9 +36,9 @@ use gproxy_sdk::{
     CredentialStatus, Gproxy, RefreshMode,
     dto::{
         BatchItem, BudgetStatusDto, CredentialDto, CredentialLimitStatusDto, CredentialPatch,
-        CredentialQuotaDto, CredentialSummaryDto, CredentialUsageDto, CredentialWrite, ListQuery, Page, QuotaDto,
-        QuotaObservationDto, QuotaObservationQuery, QuotaPatch, QuotaProbeDto, QuotaResetDto,
-        QuotaSnapshotDto, QuotaWrite,
+        CredentialQuotaDto, CredentialSummaryDto, CredentialUsageDto, CredentialWrite, ListQuery,
+        Page, QuotaDto, QuotaObservationDto, QuotaObservationQuery, QuotaPatch, QuotaProbeDto,
+        QuotaResetDto, QuotaSnapshotDto, QuotaWrite,
     },
 };
 use gproxy_seaorm::BatchConnectionTrait;
