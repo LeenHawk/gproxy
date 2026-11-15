@@ -86,8 +86,8 @@ function CredentialRow({ row, provider, onOpen }: { row: CredentialUsageDto; pro
   const moment = new Intl.DateTimeFormat(i18n.language, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
   return <li className="grid gap-2 px-3 py-2.5 md:grid-cols-[minmax(10rem,16rem)_minmax(0,1fr)] md:items-start">
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      {onOpen ? <Button variant="link" className="h-auto min-w-0 truncate p-0 font-medium" title={label} onClick={onOpen}>{label}</Button>
-        : <span className="min-w-0 truncate font-medium" title={label}>{label}</span>}
+      {onOpen ? <Button variant="link" className="h-auto min-w-0 shrink justify-start whitespace-normal p-0 text-left font-medium wrap-anywhere" onClick={onOpen}>{label}</Button>
+        : <span className="min-w-0 font-medium wrap-anywhere">{label}</span>}
       {credential.status !== "active" ? <Badge variant={credential.status === "dead" ? "destructive" : "warning"}>{t(`values.${credential.status}`, { defaultValue: credential.status })}</Badge> : null}
       {!credential.enabled ? <Badge variant="outline">{t("management.disabled")}</Badge> : null}
     </div>
