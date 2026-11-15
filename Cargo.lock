@@ -3116,6 +3116,7 @@ dependencies = [
  "gproxy-sdk",
  "gproxy-tokenizer",
  "http",
+ "image",
  "percent-encoding",
  "serde",
  "serde_json",

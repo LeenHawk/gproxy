@@ -33,6 +33,8 @@ pub use resolve::PreparedGenerateRequest;
     feature = "transcription"
 ))]
 pub use resolve::{AssetLocation, ResolveAsset, ResolvedAsset};
+#[cfg(feature = "normalize-images")]
+pub mod normalize;
 #[cfg(feature = "s3")]
 pub mod s3;
 

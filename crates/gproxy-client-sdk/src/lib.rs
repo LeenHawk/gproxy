@@ -35,6 +35,8 @@ mod typescript;
     feature = "gemini"
 ))]
 pub use assets::PreparedGenerateRequest;
+#[cfg(feature = "normalize-images")]
+pub use assets::normalize::{ImagePolicy, NormalizedImage, normalize_image};
 #[cfg(feature = "s3")]
 pub use assets::s3;
 pub use assets::{

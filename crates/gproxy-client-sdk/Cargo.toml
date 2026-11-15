@@ -25,6 +25,8 @@ speech = []
 transcription = ["dep:getrandom"]
 realtime = ["futures-util/sink", "gproxy-client?/workers"]
 images = []
+# Re-encodes and resizes images in process before they are stored or sent.
+normalize-images = ["dep:image"]
 video = ["dep:serde_urlencoded"]
 ts = ["dep:ts-rs"]
 s3 = ["dep:gproxy-file", "dep:sha2"]
@@ -39,6 +41,7 @@ gproxy-tokenizer = { workspace = true, optional = true, features = ["local"] }
 gproxy-file = { workspace = true, optional = true, features = ["s3"] }
 getrandom = { workspace = true, optional = true }
 http.workspace = true
+image = { workspace = true, optional = true }
 percent-encoding.workspace = true
 serde.workspace = true
 serde_json.workspace = true
