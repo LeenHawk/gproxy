@@ -25,6 +25,10 @@ pub struct ListQuery {
     /// Rows whose subject is this user or one of the user's API keys — for the
     /// families whose rule names one subject or the other.
     pub owner_user_id: Option<String>,
+    /// Rows that name neither a user nor a key, which cover everyone — for
+    /// the same families as `owner_user_id`, whose grouping by user cannot
+    /// reach them.
+    pub everyone: Option<bool>,
     pub api_key_id: Option<String>,
     pub organization_id: Option<String>,
     pub team_id: Option<String>,

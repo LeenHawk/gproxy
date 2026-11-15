@@ -25,4 +25,10 @@ search: string | null, userId: string | null,
  * Rows whose subject is this user or one of the user's API keys — for the
  * families whose rule names one subject or the other.
  */
-ownerUserId: string | null, apiKeyId: string | null, organizationId: string | null, teamId: string | null, providerId: string | null, credentialId: string | null, enabled: boolean | null, };
+ownerUserId: string | null,
+/**
+ * Rows that name neither a user nor a key, which cover everyone — for
+ * the same families as `owner_user_id`, whose grouping by user cannot
+ * reach them.
+ */
+everyone: boolean | null, apiKeyId: string | null, organizationId: string | null, teamId: string | null, providerId: string | null, credentialId: string | null, enabled: boolean | null, };

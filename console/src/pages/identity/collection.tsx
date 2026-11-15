@@ -101,9 +101,14 @@ export function CollectionPage<D, W, P>({
     const groupRequest: ListFilter = { ...filter, [groupByOwner!]: owner.id, pageSize: GROUP_SIZE }
     return { queryKey: ["admin", family.path, groupRequest, true] as const, queryFn: () => family.list(groupRequest) }
   }) })
+  // A rule that names neither a user nor a key covers everyone and belongs to
+  // no user's group, so it gets a group of its own ahead of theirs.
+  const everyoneRequest: ListFilter = { ...filter, everyone: true, pageSize: GROUP_SIZE }
+  const everyone = useQuery({ queryKey: ["admin", family.path, everyoneRequest, true] as const, queryFn: () => family.list(everyoneRequest), enabled: groupByOwner === "ownerUserId" })
+  const showEveryone = groupByOwner === "ownerUserId" && page === 1 && !search.trim() && !!everyone.data?.total
   const total = (groupByOwner ? owners.data?.total : list.data?.total) ?? 0
   if (paginate && (groupByOwner ? owners.data : list.data) && page > Math.max(1, Math.ceil(total / pageSize))) setPage(Math.max(1, Math.ceil(total / pageSize)))
-  const loadedRows = groupByOwner ? groups.flatMap(group => group.data?.items ?? []) : list.data?.items ?? []
+  const loadedRows = groupByOwner ? [...(showEveryone ? everyone.data?.items ?? [] : []), ...groups.flatMap(group => group.data?.items ?? [])] : list.data?.items ?? []
   const invalidate = () => invalidateConfiguration(client, family.path)
 
   const created = useMutation({
@@ -153,6 +158,14 @@ export function CollectionPage<D, W, P>({
     />
   ) : null
 
+  const renderGroup = (key: string, name: string, group: { data?: Awaited<ReturnType<typeof family.list>>; isPending: boolean; error: unknown } | undefined, defaultOpen: boolean) =>
+    <Collapsible key={key} defaultOpen={defaultOpen} className="rounded-lg border">
+      <CollapsibleTrigger asChild><Button variant="ghost" className="group h-auto w-full justify-start whitespace-normal p-3"><ChevronRight data-icon="inline-start" className="transition-transform group-data-[state=open]:rotate-90" /><span className="min-w-0 flex-1 break-words text-left">{name}</span><Badge variant={group?.data?.total ? "secondary" : "outline"}>{group?.data?.total ?? "…"}</Badge></Button></CollapsibleTrigger>
+      <CollapsibleContent className="flex flex-col gap-2 p-3 pt-0"><QueryState isPending={!group || group.isPending} error={group?.error}>
+        {renderRows(group?.data?.items ?? [])}
+        {group?.data && group.data.total > group.data.items.length ? <p className="text-xs text-muted-foreground">{t("management.groupTruncated", { shown: group.data.items.length, total: group.data.total })}</p> : null}
+      </QueryState></CollapsibleContent>
+    </Collapsible>
   const renderRows = (rows: D[]) => (<DataTable paginate={false}
             columns={tableColumns}
             rows={rows}
@@ -186,16 +199,10 @@ export function CollectionPage<D, W, P>({
       {batch.toolbar}
       <QueryState isPending={groupByOwner ? owners.isPending : list.isPending} error={groupByOwner ? owners.error : list.error}>
         <div className="flex flex-col gap-3">
-          {groupByOwner ? (owners.data?.items.length ? <div className="flex flex-col gap-3">{owners.data.items.map((owner, index) => {
-            const group = groups[index]
-            return <Collapsible key={owner.id} defaultOpen={owners.data.items.length === 1} className="rounded-lg border">
-              <CollapsibleTrigger asChild><Button variant="ghost" className="group h-auto w-full justify-start whitespace-normal p-3"><ChevronRight data-icon="inline-start" className="transition-transform group-data-[state=open]:rotate-90" /><span className="min-w-0 flex-1 break-words text-left">{owner.name}</span><Badge variant={group?.data?.total ? "secondary" : "outline"}>{group?.data?.total ?? "…"}</Badge></Button></CollapsibleTrigger>
-              <CollapsibleContent className="flex flex-col gap-2 p-3 pt-0"><QueryState isPending={!group || group.isPending} error={group?.error}>
-                {renderRows(group?.data?.items ?? [])}
-                {group?.data && group.data.total > group.data.items.length ? <p className="text-xs text-muted-foreground">{t("management.groupTruncated", { shown: group.data.items.length, total: group.data.total })}</p> : null}
-              </QueryState></CollapsibleContent>
-            </Collapsible>
-          })}</div> : <EmptyNotice title={t("state.emptyTitle")} />) : renderRows(list.data?.items ?? [])}
+          {groupByOwner ? (owners.data?.items.length || showEveryone ? <div className="flex flex-col gap-3">
+            {showEveryone ? renderGroup("everyone", t("management.everyoneGroup"), everyone, false) : null}
+            {owners.data?.items.map((owner, index) => renderGroup(owner.id, owner.name, groups[index], owners.data.items.length === 1 && !showEveryone))}
+          </div> : <EmptyNotice title={t("state.emptyTitle")} />) : renderRows(list.data?.items ?? [])}
           {paginate ? <Pagination
             page={page}
             pageSize={pageSize}

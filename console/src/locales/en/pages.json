@@ -871,7 +871,8 @@
     "chooseScope": "Choose a management scope",
     "newPriceRule": "Add another price rule",
     "cleanupFailed": "Records were deleted, but related rule cleanup failed: {{message}}",
-    "groupTruncated": "Showing {{shown}} of {{total}}"
+    "groupTruncated": "Showing {{shown}} of {{total}}",
+    "everyoneGroup": "All users"
   },
   "limits": {
     "cycleCost": "Spent",

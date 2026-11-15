@@ -871,7 +871,8 @@
     "chooseScope": "選擇管理範圍",
     "newPriceRule": "新增另一條價格規則",
     "cleanupFailed": "記錄已刪除，但關聯規則清理失敗：{{message}}",
-    "groupTruncated": "僅顯示 {{total}} 筆中的 {{shown}} 筆"
+    "groupTruncated": "僅顯示 {{total}} 筆中的 {{shown}} 筆",
+    "everyoneGroup": "全部使用者"
   },
   "limits": {
     "cycleCost": "花費",
