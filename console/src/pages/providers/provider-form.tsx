@@ -10,14 +10,6 @@ import { ErrorNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfigControl } from "@/pages/providers/config-controls"
@@ -92,20 +84,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
         </Field>
         <Field>
           <FieldLabel htmlFor={`${id}-channel`}>{t("fields.channel")}</FieldLabel>
-          <Select value={channel} onValueChange={changeChannel} disabled={Boolean(provider)}>
-            <SelectTrigger id={`${id}-channel`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {catalog.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    {entry.displayName}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <SearchableSelect id={`${id}-channel`} label={t("fields.channel")} value={channel} onChange={changeChannel} disabled={Boolean(provider)} options={catalog.map(entry => ({ value: entry.id, label: entry.displayName }))} />
         </Field>
         <Field>
           <FieldLabel htmlFor={`${id}-url`}>{t("fields.baseUrl")}</FieldLabel>
