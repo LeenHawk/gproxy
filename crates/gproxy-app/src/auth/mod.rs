@@ -179,8 +179,8 @@ impl<'a, C> Authenticator<'a, C> {
 }
 
 impl<C: BatchConnectionTrait> Authenticator<'_, C> {
-    /// The data-plane ladder over headers alone: `Authorization: Bearer …`,
-    /// then `x-api-key`, then `x-goog-api-key`.
+    /// The data-plane ladder over headers alone: `x-api-key`, then
+    /// `x-goog-api-key`, then `Authorization: Bearer …`.
     ///
     /// A key in the query string (`?key=`, which the Gemini dialect uses) is
     /// deliberately not read here. Query strings belong to the transport: the
@@ -247,20 +247,25 @@ impl<C: BatchConnectionTrait> Authenticator<'_, C> {
     }
 }
 
-/// The token a data-plane request presents, in the order the dialects put it.
+/// The token a data-plane request presents. A dialect's own header comes
+/// before `Authorization`, which every dialect's clients may also fill: Claude
+/// Code puts a placeholder there when its key travels in `x-api-key`.
 /// Empty values are treated as absent: a client that sends `x-api-key:` with
 /// nothing after it has presented no credential, not a credential of length
 /// zero.
 pub fn bearer_token(headers: &HeaderMap) -> Option<&str> {
-    let bearer = headers
-        .get(http::header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(strip_bearer);
-    bearer
-        .or_else(|| headers.get("x-api-key")?.to_str().ok())
-        .or_else(|| headers.get("x-goog-api-key")?.to_str().ok())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
+    let own = |name| {
+        let value = headers.get(name)?.to_str().ok()?.trim();
+        (!value.is_empty()).then_some(value)
+    };
+    let bearer = || {
+        let value = headers.get(http::header::AUTHORIZATION)?.to_str().ok()?;
+        let token = strip_bearer(value)?.trim();
+        (!token.is_empty()).then_some(token)
+    };
+    own("x-api-key")
+        .or_else(|| own("x-goog-api-key"))
+        .or_else(bearer)
 }
 
 /// Remove caller credentials at the gateway boundary, before any channel
@@ -325,13 +330,22 @@ mod tests {
             bearer_token(&headers(&[("x-goog-api-key", "sk-three")])),
             Some("sk-three")
         );
-        // Authorization wins when several are present.
+        // A dialect's own header wins over Authorization, and a blank one
+        // does not hide it.
         assert_eq!(
             bearer_token(&headers(&[
                 ("authorization", "Bearer sk-one"),
                 ("x-api-key", "sk-two"),
             ])),
-            Some("sk-one")
+            Some("sk-two")
+        );
+        assert_eq!(
+            bearer_token(&headers(&[
+                ("authorization", "Bearer sk-one"),
+                ("x-goog-api-key", "sk-three"),
+                ("x-api-key", " "),
+            ])),
+            Some("sk-three")
         );
     }
 
