@@ -316,6 +316,8 @@ GPROXY распространяется по лицензии GNU Affero General
 
 [![Deploys by Netlify](https://www.netlify.com/assets/badges/netlify-badge-color-accent.svg)](https://www.netlify.com)
 
+<a href="https://www.fastly.com/"><img src=".github/readme/fastly.png" alt="Fastly" height="32"></a>
+
 ## История звёзд
 
 [![Star History Chart](https://api.star-history.com/svg?repos=LeenHawk/gproxy&type=Date)](https://www.star-history.com/#LeenHawk/gproxy&Date)
