@@ -9,7 +9,8 @@
 //! that all of them resolve against `BASE_API_URL` (`api.anthropic.com`);
 //! `claude.ai` only serves the cookie initialization, so `claude_ai_url` is not
 //! consulted here. MCP discovery and public directory routes were verified
-//! against `samples/claude-code-2.1.294/readable/`.
+//! against `samples/claude-code-2.1.294/readable/`; the public URL directory
+//! follows CLI 2.1.326 `chunk-1hgtv11e.js`.
 //!
 //! The route table is the policy. Each row's `ServiceClass` says what the
 //! vendor endpoint returns; `call` renders it under the requested
@@ -69,6 +70,7 @@ const ROUTE_TABLE: &[(&str, &str, ServiceTransport, bool, ServiceClass)] = &[
     ("GET", "/v1/mcp_servers", Http, true, Restricted),
     ("GET", "/mcp-registry/v0/servers", Http, true, Catalog),
     ("GET", "/api/directory/servers", Http, true, Catalog),
+    ("GET", "/api/directory/server-urls", Http, true, Catalog),
     // Identity, validation and roles.
     ("GET", "/api/hello", Http, true, Catalog),
     ("GET", "/api/hello/{name}", Http, true, Catalog),
@@ -594,7 +596,7 @@ fn forward(
     }
     if matches!(
         request.path.as_str(),
-        "/mcp-registry/v0/servers" | "/api/directory/servers"
+        "/mcp-registry/v0/servers" | "/api/directory/servers" | "/api/directory/server-urls"
     ) {
         headers.remove(header::AUTHORIZATION);
         headers.remove(header::COOKIE);

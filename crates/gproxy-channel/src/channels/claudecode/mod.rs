@@ -1,8 +1,8 @@
 //! Claude Code: a Claude.ai subscription used through the OAuth surface of
 //! `api.anthropic.com`, the way the Claude Code CLI uses it.
 //!
-//! Wire facts follow the Claude Code CLI (`samples/claude-code-2.1.321`,
-//! audited in `design/claudecode-2.1.321.md`):
+//! Wire facts follow the Claude Code CLI (`samples/claude-code-2.1.326`,
+//! audited in `design/claudecode-2.1.326.md`):
 //! PKCE authorization at `claude.com/cai/oauth/authorize`, token exchange and
 //! refresh at `platform.claude.com/v1/oauth/token` (JSON bodies), a cookie
 //! login that mints the same OAuth tokens through `claude.ai/api/bootstrap`
@@ -67,10 +67,10 @@ pub const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/c
 pub const DEFAULT_CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 /// Default refresh scopes verified against CLI 2.1.318, including plugins.
 pub const OAUTH_SCOPE: &str = "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins";
-/// Interactive login adds `org:create_api_key` (CLI 2.1.318).
+/// CLI 2.1.326 login also requests organization key creation and privacy consent.
 pub const LOGIN_SCOPE: &str = concat!(
     "org:create_api_key ",
-    "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins"
+    "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins user:privacy_consents:write"
 );
 pub const OAUTH_BETA: &str = "oauth-2025-04-20";
 /// The betas Claude Code 2.1.318 sends on a main-loop Messages call before
@@ -85,17 +85,17 @@ pub const OAUTH_BETA: &str = "oauth-2025-04-20";
 /// as for any client (`hygiene`).
 const MAIN_LOOP_BETAS: &str = "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,tool-provenance-2026-10-26";
 /// The CLI version the channel impersonates. Protocol behavior was audited in
-/// `design/claudecode-2.1.321.md` against the release binary and local capture.
-pub const CLI_VERSION: &str = "2.1.321";
-pub const CLI_USER_AGENT: &str = "claude-cli/2.1.321 (external, cli)";
+/// `design/claudecode-2.1.326.md` against the release binary and local capture.
+pub const CLI_VERSION: &str = "2.1.326";
+pub const CLI_USER_AGENT: &str = "claude-cli/2.1.326 (external, cli)";
 /// The `@anthropic-ai/claude-agent-sdk` release that bundles `CLI_VERSION`
-/// (npm 0.3.321 pins Claude Code 2.1.321). The SDK spawns that CLI with
+/// (npm 0.3.326 pins Claude Code 2.1.326). The SDK spawns that CLI with
 /// `CLAUDE_CODE_ENTRYPOINT=sdk-ts` and `CLAUDE_AGENT_SDK_VERSION` set.
-pub const AGENT_SDK_VERSION: &str = "0.3.321";
+pub const AGENT_SDK_VERSION: &str = "0.3.326";
 /// What the CLI's `wU` builds under the TypeScript Agent SDK.
-pub const AGENT_SDK_USER_AGENT: &str = "claude-cli/2.1.321 (external, sdk-ts, agent-sdk/0.3.321)";
+pub const AGENT_SDK_USER_AGENT: &str = "claude-cli/2.1.326 (external, sdk-ts, agent-sdk/0.3.326)";
 /// The profile and roles calls use the CLI's axios client with this agent.
-const PROFILE_USER_AGENT: &str = "claude-code/2.1.321";
+const PROFILE_USER_AGENT: &str = "claude-code/2.1.326";
 pub const ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 /// The CLI posts to the token endpoint through axios (2.1.318 capture).
 const TOKEN_USER_AGENT: &str = "axios/1.15.2";
@@ -103,7 +103,11 @@ const TOKEN_USER_AGENT: &str = "axios/1.15.2";
 /// token for an appeal instead of discarding it (2.1.302 `NUr`).
 const ACCOUNT_ON_HOLD: &str = "account_on_hold";
 /// Optional scopes a refresh preserves when the credential already has them.
-const PRESERVED_SCOPES: &[&str] = &["user:projects:read", "user:projects:write"];
+const PRESERVED_SCOPES: &[&str] = &[
+    "user:projects:read",
+    "user:projects:write",
+    "user:privacy_consents:write",
+];
 const DEFAULT_EXPIRES_IN_SECS: i64 = 3600;
 /// Twenty-minute buckets for the derived session id (v3 `auth.rs`).
 const SESSION_WINDOW_MS: i64 = 20 * 60 * 1000;
@@ -380,6 +384,8 @@ pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
         usage_limit::HEADER,
         "anthropic-beta",
         "x-claude-code-session-id",
+        "x-claude-code-request-class",
+        "x-claude-1p-request-class",
         "session_id",
         "user-agent",
     ],
@@ -395,6 +401,8 @@ const CHANNEL_HEADERS: &[&str] = &[
     "anthropic-dangerous-direct-browser-access",
     "x-app",
     "x-claude-code-session-id",
+    "x-claude-code-request-class",
+    "x-claude-1p-request-class",
     "session_id",
     "user-agent",
     "accept",
@@ -886,6 +894,31 @@ impl Claudecode {
             .and_then(|value| HeaderValue::from_str(value).ok());
         let mut usage_mode = usage_limit::requested_mode(&source, &config);
         let mut headers = forwardable(&source, allowlist.as_ref(), CHANNEL_HEADERS);
+        // 2.1.326 distinguishes first-party main, blocking-subagent, background-task,
+        // summary-extraction and followup-generation calls. Keep native hints;
+        // only an ordinary synthesized request can be labeled main here.
+        if is_messages(operation) {
+            for name in ["x-claude-code-request-class", "x-claude-1p-request-class"] {
+                if let Some(value) = source.get(name) {
+                    headers.insert(name, value.clone());
+                }
+            }
+            if !headers.contains_key("x-claude-1p-request-class")
+                && headers
+                    .get("x-claude-code-request-class")
+                    .is_none_or(|class| class == "main")
+            {
+                headers.insert(
+                    "x-claude-1p-request-class",
+                    HeaderValue::from_static("main"),
+                );
+                headers.insert(
+                    "x-claude-code-request-class",
+                    HeaderValue::from_static("main"),
+                );
+            }
+        }
+
         match client_beta {
             Some(beta) => {
                 headers.insert(HeaderName::from_static("anthropic-beta"), beta);
@@ -1087,7 +1120,10 @@ fn token_headers() -> HeaderMap {
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/json"),
     );
-    headers.insert(header::USER_AGENT, HeaderValue::from_static(TOKEN_USER_AGENT));
+    headers.insert(
+        header::USER_AGENT,
+        HeaderValue::from_static(TOKEN_USER_AGENT),
+    );
     headers.insert(
         header::ACCEPT_ENCODING,
         HeaderValue::from_static("gzip, compress, deflate, br"),
@@ -1422,7 +1458,8 @@ async fn request_refresh(
         ("client_id", DEFAULT_CLIENT_ID),
         ("scope", scope),
     ]);
-    let (status, _, bytes) = send(client, Method::POST, token_url, token_headers(), Some(body)).await?;
+    let (status, _, bytes) =
+        send(client, Method::POST, token_url, token_headers(), Some(body)).await?;
     Ok((status, bytes))
 }
 
