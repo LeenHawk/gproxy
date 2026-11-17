@@ -543,23 +543,17 @@ fn tls_presets() -> Vec<TlsPresetDto> {
         TlsPresetDto {
             id: "antigravity".to_owned(),
             label: "Antigravity".to_owned(),
-            // The Go Code Assist transport captured from CLI 1.5.4 on
-            // 2026-11-10 (the IDE runs the CLI as its hub): no GREASE, TLS 1.2
-            // floor, Go's cipher order with the TLS 1.3 suites last (kept by
-            // `preserve_tls13_cipher_list`) and its extension order.
+            // The Code Assist transport captured from CLI 1.5.10 / hub 2.32.2
+            // on 2026-11-17: no GREASE, TLS 1.2 floor, Go's cipher order with
+            // the TLS 1.3 suites last, and the captured extension order.
             // BoringSSL cannot send the captured SecP256r1MLKEM768 and
             // SecP384r1MLKEM1024 groups or the signature_algorithms_cert
             // extension, so this is the supported subset, not an exact copy.
-            //
-            // Since 1.5.4 the transport offers `h2, http/1.1` and speaks
-            // HTTP/2 with Go's preamble: SETTINGS ENABLE_PUSH, INITIAL_WINDOW_SIZE,
-            // MAX_FRAME_SIZE, MAX_HEADER_LIST_SIZE in that order, a connection
-            // WINDOW_UPDATE of 1 << 30 on top of the initial 65535, no stream
-            // priority, and pseudo-headers `:authority :method :path :scheme`.
-            // The user agent is the IDE hub's.
+            // `newCloudCodeTransport` now disables HTTP/2 and strips `h2`
+            // from ALPN; telemetry still uses Go's separate HTTP/2 transport.
             emulation: json!({
                 "kind": "custom",
-                "alpn": ["http2", "http1"],
+                "alpn": ["http1"],
                 "min_tls": "tls12",
                 "max_tls": "tls13",
                 "grease": false,
@@ -585,23 +579,9 @@ fn tls_presets() -> Vec<TlsPresetDto> {
                 "signed_cert_timestamps": true,
                 "session_ticket": false,
                 "psk_dhe_ke": false,
-                "http2": {
-                    "enable_push": false,
-                    "initial_window_size": 4194304,
-                    "initial_connection_window_size": 1073807359,
-                    "max_frame_size": 1048576,
-                    "max_header_list_size": 10485760,
-                    "pseudo_header_order": ["authority", "method", "path", "scheme"],
-                    "settings_order": [
-                        "enable_push",
-                        "initial_window_size",
-                        "max_frame_size",
-                        "max_header_list_size",
-                    ],
-                },
                 "headers": [[
                     "user-agent",
-                    "antigravity/hub/2.30.0 (aidev_client; os_type=linux; arch=amd64; cl=1017748741)"
+                    "antigravity/hub/2.32.2 (aidev_client; os_type=linux; arch=amd64; cl=1023297289)"
                 ]],
             }),
         },

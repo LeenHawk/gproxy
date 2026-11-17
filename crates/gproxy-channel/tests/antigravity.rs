@@ -189,10 +189,9 @@ fn descriptor_declares_the_login_and_the_keys_it_reads() {
         Antigravity.native_dialects(provider(&Value::Null, None), Operation::CountTokens),
         vec![Dialect::Gemini]
     );
-    // gzip only; the Go client's ClientHello is an opt-in TLS preset.
+    // The Go transport negotiates and decodes gzip.
     let connection = Antigravity.default_connection().unwrap();
     assert!(connection.gzip);
-    assert!(connection.emulation.is_none());
 }
 
 // ----------------------------------------------------------------- prepare

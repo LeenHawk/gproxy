@@ -1,12 +1,12 @@
 //! Antigravity: a Google account used against the Code Assist host the
 //! Antigravity editor's agent talks to, rather than a Gemini API key.
 //!
-//! The channel presents itself as the Antigravity IDE (2.6.0, the official
+//! The channel presents itself as the Antigravity IDE (2.7.0, the official
 //! Linux x64 build), whose traffic leaves from two places:
 //!
 //! - The Electron main process (`resources/app/out/main.js`) logs in with
 //!   google-auth-library 10.3.0: the IDE's own installed-app client id and
-//!   secret, the `localhost:51121/oauth-callback` redirect, its five scopes
+//!   secret, the loopback `/oauth-callback` redirect, its five scopes
 //!   (`cclog` and `experimentsandconfigs` beyond the Gemini CLI's),
 //!   `access_type=offline`, `prompt=consent` and no PKCE. It also runs the
 //!   `loadCodeAssist`/`onboardUser` project discovery with
@@ -17,7 +17,7 @@
 //!   and `internal/api/handlers/management/auth_files_provider_oauth.go`).
 //! - Since 2.6.0 the IDE ships no language server: its bundled `agy`
 //!   extension downloads the Antigravity CLI and runs it as
-//!   `antigravity --hub` (CLI 1.5.4, hub server 2.30.0), and that Go
+//!   `antigravity --hub` (CLI 1.5.10, hub server 2.32.2), and that Go
 //!   process makes the model calls: `POST /v1internal:generateContent`,
 //!   `:streamGenerateContent?alt=sse` and `:countTokens` carrying the Code
 //!   Assist envelope, the catalogue from `POST /v1internal:fetchAvailableModels`
@@ -57,7 +57,7 @@
 //! `user_prompt_id`. It names itself (`userAgent: "antigravity"`) and the
 //! kind of call (`requestType: "agent"`, `"image_gen"` for an image model).
 //! An agent call (captured from the hub and CLI 1.4.10 on 2026-10-29, and
-//! unchanged from the hub and CLI 1.5.4 on 2026-11-10) carries
+//! rechecked with CLI 1.5.10 on 2026-11-17) carries
 //! `requestId: agent/<cascade>/<ms>/<trajectory>/<step>`, where the cascade
 //! and trajectory ids stay put across a conversation and the step is the
 //! number of `contents`; `request.labels` repeating those ids
@@ -87,7 +87,7 @@ use crate::channel::{
     QuotaModel, QuotaQuery, forwardable,
 };
 use crate::channels::shared::code_assist;
-use gproxy_client::ConnectionConfig;
+use gproxy_client::{Alpn, ConnectionConfig, EmulationConfig, Fingerprint};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse, connection::Bytes,
 };
@@ -107,7 +107,7 @@ pub const DEFAULT_CLIENT_ID: &str =
     "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
 /// Shipped inside the tool, so an identifier rather than a secret.
 pub const DEFAULT_CLIENT_SECRET: &str = "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";
-/// The loopback callback the editor listens on (v3 `login.rs`).
+/// GPROXY's fixed loopback callback; IDE 2.7.0 uses an ephemeral port.
 pub const DEFAULT_REDIRECT_URI: &str = "http://localhost:51121/oauth-callback";
 /// The IDE's scope list, exactly (`main.js` `Ats=[…]`): the Gemini CLI's
 /// three plus `cclog` and `experimentsandconfigs`.
@@ -120,11 +120,11 @@ pub const OAUTH_SCOPE: &str = concat!(
 );
 
 /// The Antigravity IDE release this channel impersonates: `product.json`
-/// `"ideVersion": "2.6.0"` of the official Linux x64 build
-/// (`antigravity/stable/2.6.0-5526304964083712`).
+/// `"ideVersion": "2.7.0"` of the official Linux x64 build
+/// (`antigravity/stable/2.7.0-4507555968450560`).
 macro_rules! ide_version {
     () => {
-        "2.6.0"
+        "2.7.0"
     };
 }
 pub const IDE_VERSION: &str = ide_version!();
@@ -146,16 +146,16 @@ pub const EDITOR_USER_AGENT: &str = concat!(
     " linux/amd64 google-api-nodejs-client/10.3.0"
 );
 /// The user agent of the hub the IDE runs (`antigravity --hub`, CLI
-/// 1.5.4), which makes the catalogue, quota and generation calls
+/// 1.5.10), which makes the catalogue, quota and generation calls
 /// (`codeassistclient.UserAgent`): `%s/%s/%s (%s)` of the agent name
 /// (`antigravity`), the subclient type (`hub` under `--hub`, `cli`
-/// otherwise), the hub server's version (2.30.0; the CLI's own version under
+/// otherwise), the hub server's version (2.32.2; the CLI's own version under
 /// `cli`), and `aidev_client`, `os_type=<GOOS>`, `arch=<GOARCH>` and the
 /// build's `cl=<changelist>` joined by `; `. The hub's sign-in records no
 /// `auth_method` (the standalone CLI's adds `auth_method=consumer`). Captured
-/// from the Linux amd64 build of CLI 1.5.4 on 2026-11-10.
+/// from the Linux amd64 build of CLI 1.5.10 on 2026-11-17.
 pub const USER_AGENT: &str =
-    "antigravity/hub/2.30.0 (aidev_client; os_type=linux; arch=amd64; cl=1017748741)";
+    "antigravity/hub/2.32.2 (aidev_client; os_type=linux; arch=amd64; cl=1023297289)";
 
 /// Provider `config` JSON understood by this channel. Unknown keys ignored.
 #[derive(Debug, Deserialize)]
@@ -207,12 +207,17 @@ const CHANNEL_HEADERS: &[&str] = &[
     "x-goog-user-project",
 ];
 
-/// Plain HTTP with gzip, which the Go transport negotiates and decodes; the
+/// HTTP/1.1 with gzip: CLI 1.5.10 `newCloudCodeTransport` disables HTTP/2
+/// and strips `h2` from ALPN. The Go transport negotiates and decodes gzip; the
 /// downstream client's encoding preferences cannot describe this channel's
 /// parser. The captured CLI fingerprint is the public `antigravity` TLS
 /// preset, applied only when a connection profile selects it.
 pub fn default_connection() -> ConnectionConfig {
     ConnectionConfig {
+        emulation: Some(EmulationConfig::Custom(Fingerprint {
+            alpn: vec![Alpn::Http1],
+            ..Fingerprint::default()
+        })),
         gzip: true,
         ..ConnectionConfig::default()
     }
@@ -376,7 +381,9 @@ fn conversation_ids(request: &Value) -> Result<(String, String), ChannelError> {
 /// `models.<id>.model`) the hub repeats as the `model_enum` label, from a
 /// Google AI Pro account's catalogue on 2026-10-30 (identical on the
 /// production and `daily-` hosts), checked again on the `daily-` host on
-/// 2026-11-11 when the `gemini-4-carbon-*` models appeared. A model missing
+/// 2026-11-11 when the `gemini-4-carbon-*` models appeared. Hydrogen labels
+/// come from CLI 1.5.10 `geminimodels.Catalog` and its Model enum descriptor;
+/// availability still comes only from the account catalogue. A model missing
 /// here gets no label.
 const MODEL_ENUMS: &[(&str, &str)] = &[
     ("claude-opus-5-5-high", "MODEL_PLACEHOLDER_M402"),
@@ -386,8 +393,14 @@ const MODEL_ENUMS: &[(&str, &str)] = &[
     ("claude-sonnet-5-5-low", "MODEL_PLACEHOLDER_M403"),
     ("claude-sonnet-5-5-medium", "MODEL_PLACEHOLDER_M404"),
     ("gemini-2.5-flash", "MODEL_GOOGLE_GEMINI_2_5_FLASH"),
-    ("gemini-2.5-flash-lite", "MODEL_GOOGLE_GEMINI_2_5_FLASH_LITE"),
-    ("gemini-2.5-flash-thinking", "MODEL_GOOGLE_GEMINI_2_5_FLASH_THINKING"),
+    (
+        "gemini-2.5-flash-lite",
+        "MODEL_GOOGLE_GEMINI_2_5_FLASH_LITE",
+    ),
+    (
+        "gemini-2.5-flash-thinking",
+        "MODEL_GOOGLE_GEMINI_2_5_FLASH_THINKING",
+    ),
     ("gemini-2.5-pro", "MODEL_GOOGLE_GEMINI_2_5_PRO"),
     ("gemini-3-flash", "MODEL_PLACEHOLDER_M18"),
     ("gemini-3.1-flash-image", "MODEL_PLACEHOLDER_M21"),
@@ -403,6 +416,9 @@ const MODEL_ENUMS: &[(&str, &str)] = &[
     ("gemini-4-carbon-high", "MODEL_PLACEHOLDER_M427"),
     ("gemini-4-carbon-low", "MODEL_PLACEHOLDER_M438"),
     ("gemini-4-carbon-medium", "MODEL_PLACEHOLDER_M437"),
+    ("gemini-4-hydrogen-high", "MODEL_PLACEHOLDER_M461"),
+    ("gemini-4-hydrogen-low", "MODEL_PLACEHOLDER_M463"),
+    ("gemini-4-hydrogen-medium", "MODEL_PLACEHOLDER_M462"),
     ("gpt-oss-120b-medium", "MODEL_OPENAI_GPT_OSS_120B_MEDIUM"),
 ];
 
