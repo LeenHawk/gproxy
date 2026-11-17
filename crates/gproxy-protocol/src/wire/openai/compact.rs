@@ -766,16 +766,8 @@ pub struct FunctionCallOutputContentItemInputImage {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-#[derive(gproxy_protocol_macros::DeclaredFields)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub struct FunctionCallOutputContentItemInputAudio {
-    pub audio_url: String,
-
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
+/// Tool-result audio uses the same inline/file reference as message audio (Codex 0.169).
+pub type FunctionCallOutputContentItemInputAudio = ContentItemInputAudio;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]

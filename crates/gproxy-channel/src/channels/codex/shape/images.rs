@@ -96,6 +96,9 @@ async fn parse_multipart(body: Bytes, boundary: String) -> Result<EditImageJsonB
         } else {
             let text = String::from_utf8(data).map_err(invalid)?;
             match name {
+                "frame_count" | "frame_duration_ms" => {
+                    Value::from(text.parse::<u32>().map_err(invalid)?)
+                }
                 "n" | "output_compression" | "partial_images" => {
                     Value::from(text.parse::<i64>().map_err(invalid)?)
                 }

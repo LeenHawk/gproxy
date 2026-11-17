@@ -169,6 +169,15 @@ pub(crate) fn to_gemini(
         }
     }
     if enabled {
+        if image.output_format == Some(t::ImageOutputFormat::Gif)
+            || image.frame_count.is_some()
+            || image.frame_duration_ms.is_some()
+        {
+            return Err(TransformError::unsupported(
+                "tools.image_generation.gif",
+                "Gemini image generation has no equivalent animation controls",
+            ));
+        }
     } else {
         report.omitted(
             "tools.image_generation",

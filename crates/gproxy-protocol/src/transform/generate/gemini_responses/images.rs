@@ -54,6 +54,7 @@ pub(super) fn requested_format(
                 ImageOutputFormat::Png => "image/png",
                 ImageOutputFormat::Jpeg => "image/jpeg",
                 ImageOutputFormat::Webp => "image/webp",
+                ImageOutputFormat::Gif => "image/gif",
             };
             if blob.mime_type != mime {
                 return Err(TransformError::invalid_result(

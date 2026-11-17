@@ -55,6 +55,8 @@ pub enum ImageOutputFormat {
     Jpeg,
     #[serde(rename = "webp")]
     Webp,
+    #[serde(rename = "gif")]
+    Gif,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -240,6 +242,19 @@ pub enum StreamImageQuality {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct CreateImageRequestBody {
     pub prompt: String,
+    /// GIF frame controls, as sent by Codex 0.169 Images requests.
+    #[serde(
+        default,
+        deserialize_with = "optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub frame_count: Option<u32>,
+    #[serde(
+        default,
+        deserialize_with = "optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub frame_duration_ms: Option<u32>,
     #[serde(
         default,
         deserialize_with = "nullable",
@@ -354,6 +369,19 @@ pub struct ImageReference {
 pub struct EditImageJsonBody {
     pub images: Vec<ImageReference>,
     pub prompt: String,
+    /// GIF frame controls, as sent by Codex 0.169 Images requests.
+    #[serde(
+        default,
+        deserialize_with = "optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub frame_count: Option<u32>,
+    #[serde(
+        default,
+        deserialize_with = "optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub frame_duration_ms: Option<u32>,
     #[serde(
         default,
         deserialize_with = "nullable",
@@ -443,6 +471,8 @@ pub struct EditImageJsonBody {
 pub struct EditImageMultipartForm {
     pub image: Vec<MultipartPart>,
     pub prompt: String,
+    pub frame_count: Option<u32>,
+    pub frame_duration_ms: Option<u32>,
     pub mask: Option<MultipartPart>,
     pub background: Option<Option<ImageBackground>>,
     pub model: Option<Option<String>>,

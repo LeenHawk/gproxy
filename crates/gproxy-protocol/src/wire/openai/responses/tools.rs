@@ -529,6 +529,10 @@ pub struct ShellTool {
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ImageGenerationTool {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frame_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frame_duration_ms: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub action: Option<ImageAction>,
     #[serde(
@@ -614,6 +618,7 @@ pub enum ImageOutputFormat {
     Png,
     Webp,
     Jpeg,
+    Gif,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

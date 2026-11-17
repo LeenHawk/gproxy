@@ -160,6 +160,8 @@ pub struct Model {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub web_search_tool_type: Option<WebSearchToolType>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_search_provider: Option<WebSearchProvider>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub truncation_policy: Option<TruncationPolicyConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub supports_image_detail_original: Option<bool>,
@@ -278,6 +280,8 @@ where
 pub struct ModelMessages {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub apps: Option<AppsMessages>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugins: Option<PluginMessages>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content_filter_guidance: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1210,6 +1214,114 @@ pub struct GranularApprovalMessages {
     pub prompted_categories: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rejected_categories: Option<String>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+/// Codex catalog preference for hosted search.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum WebSearchProvider {
+    Standalone,
+    SearchMcp,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct PluginMessages {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generic: Option<GenericPluginMessages>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected: Option<SelectedPluginMessages>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recommendations: Option<PluginRecommendationMessages>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct GenericPluginMessages {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intro: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage_instructions: Option<String>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct SelectedPluginMessages {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intro: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search_tools: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_namespace: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub apps: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub closing: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub omitted: Option<String>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct PluginRecommendationMessages {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intro: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }

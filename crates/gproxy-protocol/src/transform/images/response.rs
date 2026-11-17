@@ -21,6 +21,7 @@ impl ImageMetadata {
             o::ImageOutputFormat::Png => "image/png",
             o::ImageOutputFormat::Jpeg => "image/jpeg",
             o::ImageOutputFormat::Webp => "image/webp",
+            o::ImageOutputFormat::Gif => "image/gif",
         }
     }
 }

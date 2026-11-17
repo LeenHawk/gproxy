@@ -90,6 +90,25 @@ fn unsupported(field: &str) -> TransformError {
 }
 
 fn options(input: &ImageInput) -> Result<Options, TransformError> {
+    let (output, frame_count, frame_duration_ms) = match input {
+        ImageInput::Create(v) => (
+            v.output_format.flatten(),
+            v.frame_count,
+            v.frame_duration_ms,
+        ),
+        ImageInput::Edit(v) => (
+            v.output_format.flatten(),
+            v.frame_count,
+            v.frame_duration_ms,
+        ),
+    };
+    if output == Some(o::ImageOutputFormat::Gif)
+        || frame_count.is_some()
+        || frame_duration_ms.is_some()
+    {
+        return Err(unsupported("image GIF output"));
+    }
+
     let (
         prompt,
         model,
@@ -218,6 +237,7 @@ fn options(input: &ImageInput) -> Result<Options, TransformError> {
         o::ImageOutputFormat::Png => rt::ImageOutputFormat::Png,
         o::ImageOutputFormat::Jpeg => rt::ImageOutputFormat::Jpeg,
         o::ImageOutputFormat::Webp => rt::ImageOutputFormat::Webp,
+        o::ImageOutputFormat::Gif => rt::ImageOutputFormat::Gif,
     });
     tool.output_compression = compression.map(Into::into);
     tool.size = size.clone();
