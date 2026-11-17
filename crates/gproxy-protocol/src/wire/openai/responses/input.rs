@@ -131,6 +131,8 @@ pub struct ResponseInputText {
 pub struct ResponseInputImage {
     #[serde(rename = "type")]
     pub type_: ResponseInputImageType,
+    /// Defaults to `auto` when omitted, as in the Responses image-input API.
+    #[serde(default)]
     pub detail: ImageDetail,
     #[serde(
         default,
@@ -2521,7 +2523,7 @@ pub enum FileAttributeValue {
     Boolean(bool),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -2529,6 +2531,7 @@ pub enum FileAttributeValue {
 pub enum ImageDetail {
     Low,
     High,
+    #[default]
     Auto,
     Original,
 }

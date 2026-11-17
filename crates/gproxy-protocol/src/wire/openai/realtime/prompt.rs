@@ -116,6 +116,8 @@ pub struct ResponseInputText {
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ResponseInputImage {
+    /// Defaults to `auto` when omitted, as in the Responses image-input API.
+    #[serde(default)]
     pub detail: ImageDetail,
     #[serde(rename = "type")]
     pub type_: ResponseInputImageType,
@@ -203,7 +205,7 @@ pub struct ResponseInputTextPromptCacheBreakpoint {
 }
 
 // Source: `openai/types/responses/image_detail.py`, `ImageDetail`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -213,6 +215,7 @@ pub enum ImageDetail {
     #[serde(rename = "high")]
     High,
     #[serde(rename = "auto")]
+    #[default]
     Auto,
     #[serde(rename = "original")]
     Original,
