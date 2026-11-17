@@ -93,6 +93,23 @@ impl SdkError {
             | Self::File(_) => 500,
         }
     }
+
+    /// The upstream's status, when [`status_code`](Self::status_code) is not
+    /// this instance's verdict but an upstream's, passed along.
+    ///
+    /// The data plane wants exactly that: the caller asked for the upstream
+    /// and gets its answer. A management surface does not, because there a
+    /// `401` already means "your session with this instance is over", and an
+    /// operator who mistyped a provider key has not lost theirs.
+    pub fn upstream_status(&self) -> Option<u16> {
+        use gproxy_channel::ChannelError as E;
+        match self {
+            Self::Upstream { status, .. } => Some(*status),
+            Self::Channel(E::UpstreamResponse { status, .. }) => Some(status.as_u16()),
+            Self::Channel(E::InvalidCredential | E::RefreshRejected(_)) => Some(401),
+            _ => None,
+        }
+    }
 }
 
 fn core_status(error: &gproxy_core::CoreError) -> u16 {

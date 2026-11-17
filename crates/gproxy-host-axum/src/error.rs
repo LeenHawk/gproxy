@@ -9,7 +9,8 @@
 //!
 //! `code` comes straight from [`AppError::code`] and the status from
 //! [`AppError::status_code`]; this module decides neither. Its whole job is to
-//! turn the one into bytes and the other into a response.
+//! turn the one into bytes and the other into a response. The one exception is
+//! [`managed`]: the management surfaces do not pass an upstream's status on.
 //!
 //! The OAuth endpoints answer the RFC 6749 §5.2 envelope instead:
 //!
@@ -78,6 +79,11 @@ impl IntoResponse for ErrorResponse {
             },
         };
         let mut response = json_response(status, &body);
+        if error.upstream_status().is_some() {
+            response
+                .extensions_mut()
+                .insert(UpstreamRefusal(error.to_string()));
+        }
         // RFC 6585 §4: a client that is told to back off is told how long for;
         // a 503 for credentials that are all cooling down says when the first
         // one is back (RFC 9110 §10.2.3).
@@ -88,6 +94,38 @@ impl IntoResponse for ErrorResponse {
         }
         response
     }
+}
+
+/// Left on a response whose status is an upstream's own, with the text that
+/// says so. Only [`managed`] reads it.
+#[derive(Clone)]
+struct UpstreamRefusal(String);
+
+/// A management surface's answer, with an upstream's status taken back out.
+///
+/// On the data plane an upstream's `401` is the caller's answer. Under
+/// `/admin/api` and `/portal/api` a `401` means the session with this
+/// instance has ended, and the console signs out on it — so a mistyped
+/// provider key must not produce one. Whatever the upstream said, the request
+/// to this instance was fine and the gateway behind it was refused: that is a
+/// `502`, and the upstream's status stays in the message, which is shown
+/// because the failure is not this instance's.
+///
+/// Applied by the surfaces' guards rather than by each handler, so a handler
+/// cannot forget it.
+pub(crate) fn managed(mut response: Response) -> Response {
+    let Some(UpstreamRefusal(message)) = response.extensions_mut().remove() else {
+        return response;
+    };
+    json_response(
+        StatusCode::BAD_GATEWAY,
+        &Envelope {
+            error: EnvelopeBody {
+                code: "upstream_error",
+                message,
+            },
+        },
+    )
 }
 
 /// The OAuth error envelope, for the issuer endpoints only.

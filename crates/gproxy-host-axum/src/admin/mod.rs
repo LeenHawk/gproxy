@@ -543,7 +543,7 @@ where
         };
         request.extensions_mut().insert(caller.clone());
         request.extensions_mut().insert(scope);
-        let response = next.run(request).await;
+        let response = crate::error::managed(next.run(request).await);
         let status = response.status();
         settle(&state, &method).await;
         audit(state, Some(caller), action, &method, status, source_ip).await;
@@ -577,7 +577,7 @@ where
         };
         request.extensions_mut().insert(caller.clone());
         request.extensions_mut().insert(admission);
-        let response = next.run(request).await;
+        let response = crate::error::managed(next.run(request).await);
         let status = response.status();
         settle(&state, &method).await;
         audit(state, Some(caller), action, &method, status, source_ip).await;
@@ -721,10 +721,11 @@ pub(crate) fn reply_empty(result: Result<(), AppError>) -> Response {
 /// The same, for the handle's own failures.
 ///
 /// [`AppError::from`] keeps an [`SdkError`] whole exactly so that
-/// [`SdkError::status_code`] stays the authority on what a conflict, a spent
-/// budget or an upstream's own refusal is worth on the wire; the envelope and
-/// the code then come out of [`error`](crate::error) unchanged. Nothing here
-/// re-decides a status.
+/// [`SdkError::status_code`] stays the authority on what a conflict or a spent
+/// budget is worth on the wire; the envelope and the code then come out of
+/// [`error`](crate::error) unchanged. Nothing here re-decides a status — the
+/// one that is re-decided, an upstream's own, is the guard's to change
+/// ([`managed`](crate::error::managed)).
 pub(crate) fn reply_sdk<T: Serialize>(result: Result<T, SdkError>) -> Response {
     reply(result.map_err(AppError::from))
 }

@@ -291,7 +291,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             if !status.is_success() {
                 return Err(SdkError::Upstream {
                     status: status.as_u16(),
-                    body: upstream_error(status, &payload),
+                    body: upstream_body(&payload),
                 });
             }
             let mut page: Value = serde_json::from_slice(&payload).map_err(|error| {
@@ -871,6 +871,15 @@ async fn read(body: HttpBody, max_bytes: usize) -> Vec<u8> {
             }
             out
         }
+    }
+}
+
+/// The upstream's body as `SdkError::Upstream` carries it. That error already
+/// prints the status, so this must not say it again.
+fn upstream_body(body: &[u8]) -> String {
+    match String::from_utf8_lossy(body).trim() {
+        "" => "empty response body".to_owned(),
+        text => text.to_owned(),
     }
 }
 

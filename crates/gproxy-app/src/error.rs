@@ -88,6 +88,17 @@ impl AppError {
         status.as_u16()
     }
 
+    /// The upstream's status, when [`status_code`](Self::status_code) is one
+    /// an upstream chose rather than one this instance did. A management
+    /// surface answers these with its own `502`; see
+    /// [`SdkError::upstream_status`].
+    pub fn upstream_status(&self) -> Option<u16> {
+        match self {
+            Self::Sdk(error) => error.upstream_status(),
+            _ => None,
+        }
+    }
+
     /// Stable machine-readable code for the API envelope.
     pub fn code(&self) -> &'static str {
         match self {

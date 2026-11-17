@@ -225,7 +225,7 @@ where
             }
         };
         request.extensions_mut().insert(caller.clone());
-        let response = next.run(request).await;
+        let response = crate::error::managed(next.run(request).await);
         let status = response.status();
         crate::admin::settle(&state, &method).await;
         crate::admin::audit(state, Some(caller), action, &method, status, source_ip).await;

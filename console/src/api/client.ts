@@ -77,9 +77,10 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null)
     const envelope = isEnvelope(body) ? body.error : null
-    // 401 is the session ending; 403 is a live session being told no, and
-    // must not sign anybody out.
-    if (response.status === 401) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    // `unauthorized` is the session ending. The code and not the status: a
+    // 401 can also be an upstream's or a proxy's, and neither ends a session.
+    // 403 is a live session being told no, and must not sign anybody out.
+    if (response.status === 401 && envelope?.code === "unauthorized") window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
     throw new ApiError(response.status, envelope?.code ?? "http", envelope?.message ?? response.statusText)
   }
   // Every delete answers 204 with no body; asking for JSON there throws.
