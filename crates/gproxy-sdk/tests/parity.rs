@@ -870,15 +870,6 @@ async fn discovery_reads_both_directory_shapes() {
     assert_eq!(found[0].upstream_name, "claude-sonnet-4-5");
 
     // Applying what was found is idempotent, and a second discovery says so.
-    // The first apply reads the directory again for the metadata it stores.
-    gproxy.client.script(vec![json_reply(json!({
-        "data": [
-            { "id": "claude-sonnet-4-5", "type": "model", "display_name": "Claude Sonnet 4.5" },
-        ],
-        "first_id": "claude-sonnet-4-5",
-        "last_id": "claude-sonnet-4-5",
-        "has_more": false,
-    }))]);
     let added = gproxy
         .manage()
         .connectivity()
@@ -994,9 +985,6 @@ async fn discovery_applies_catalog_and_local_overrides_without_replacing_provide
             .metadata,
         json!({})
     );
-    gproxy.client.script(vec![json_reply(json!({"data": [
-        {"id": "claude-sonnet-4.6", "context_window": 999, "max_output_tokens": 1234},
-    ]}))]);
     gproxy
         .manage()
         .connectivity()
