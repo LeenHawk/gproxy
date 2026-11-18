@@ -1034,8 +1034,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: console/pnpm-lock.yaml
       - name: Install worker-build
-        # 0.8.7's bundled lockfile contains yanked yoke-derive 0.8.3.
-        run: cargo install worker-build --locked --version 0.8.7
+        run: cargo install worker-build --locked --version 0.9.0
       - run: scripts/package-edge-release.sh
       - name: Record build provenance
         env:

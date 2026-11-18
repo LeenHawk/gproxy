@@ -143,7 +143,7 @@ case "${1:?prepare|cli|application|upload|edge}" in
   upload) upload_bundle "$TARGET_TRIPLE" ;;
   edge)
     download_console
-    cargo install worker-build --locked --version 0.8.7
+    cargo install worker-build --locked --version 0.9.0
     scripts/package-edge-release.sh
     scripts/build-provenance.sh
     mkdir -p "$RUNNER_TEMP/edge"
