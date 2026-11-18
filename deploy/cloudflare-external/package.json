@@ -21,7 +21,7 @@
         "description": "Administrator password (at least 8 characters). Applied on startup. Sign in as admin at /console/."
       },
       "GPROXY_MASTER_KEY": {
-        "description": "Optional 32-byte credential encryption key, as 64 hex characters or base64. Without it, upstream credentials are stored unencrypted. Reuse it when updating."
+        "description": "Optional. Run `openssl rand -hex 32` and paste the 64 hex characters. This key encrypts stored upstream credentials; without it they are stored unencrypted. Keep the same key when redeploying."
       }
     }
   },

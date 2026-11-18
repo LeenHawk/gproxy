@@ -21,7 +21,7 @@
         "description": "Choose an admin password of at least 8 characters. On startup, this changes a same-name user’s password, or enables and renames administrator 0 if no name matches. Sign in as admin at /console/."
       },
       "GPROXY_MASTER_KEY": {
-        "description": "Optional credential encryption key: generate with `openssl rand -hex 32` and keep a backup. Without it, upstream credentials are stored unencrypted. Reuse the same key when updating."
+        "description": "Optional. Run `openssl rand -hex 32` and paste the 64 hex characters. This key encrypts stored upstream credentials; without it they are stored unencrypted. Keep the same key when redeploying."
       }
     }
   },

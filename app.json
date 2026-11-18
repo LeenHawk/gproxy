@@ -11,7 +11,7 @@
       "generator": "secret"
     },
     "GPROXY_MASTER_KEY": {
-      "description": "Optional. 32-byte key that encrypts stored upstream credentials: run openssl rand -hex 32 and paste the 64 hex characters. Without it they are stored unencrypted. Keep this key across redeploys.",
+      "description": "Optional. Run openssl rand -hex 32 and paste the 64 hex characters. This key encrypts stored upstream credentials; without it they are stored unencrypted. Keep the same key when redeploying.",
       "required": false
     }
   },
