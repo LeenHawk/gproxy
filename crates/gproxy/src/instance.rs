@@ -22,7 +22,7 @@
 //! Step 4 is why this is a function rather than a builder chain: which codec the
 //! handle gets depends on work done against the same database a moment earlier.
 
-use gproxy_seaorm::SchemaSyncConnectionTrait;
+use gproxy_seaorm::{BatchConnectionTrait, SchemaSyncConnectionTrait};
 
 use std::{path::PathBuf, sync::Arc};
 
@@ -31,7 +31,7 @@ use gproxy_app::{
     config::{CacheBackendConfig, FileStorageConfig, StoreBackendConfig},
 };
 use gproxy_sdk::{Cache, Gproxy, GproxyBuilder, SyncMode};
-use gproxy_store::{Store, entity::config::setting};
+use gproxy_store::{SchemaReport, Store, entity::config::setting};
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 
 use crate::{Error, Result, Settings, rotate};
@@ -114,20 +114,7 @@ pub async fn migrate(config: &AppConfig, status_only: bool) -> Result<()> {
         }
         return Ok(());
     }
-    let report = store.migrate().await?;
-    // The settings row is a precondition for every write that follows, and
-    // creating it here is what lets `serve` start against this database without
-    // doing any DDL of its own.
-    if store.settings().get().await?.is_none() {
-        store
-            .settings()
-            .update(setting::ActiveModel {
-                cors_origins: sea_orm::Set(serde_json::json!(config.cors_origins)),
-                trusted_proxies: sea_orm::Set(serde_json::json!(config.trusted_proxies)),
-                ..Default::default()
-            })
-            .await?;
-    }
+    let report = prepare(&store, config).await?;
     tracing::info!(
         installed = report.installed,
         applied = report.applied.len(),
@@ -140,6 +127,30 @@ pub async fn migrate(config: &AppConfig, status_only: bool) -> Result<()> {
         report.summary()
     );
     Ok(())
+}
+
+/// Synchronize the schema and make sure the settings row exists.
+///
+/// The one schema step every entry point shares — `serve`, `migrate` and the
+/// serverless host — so that a database prepared by any of them is one the
+/// others can read. The settings row is a precondition for every write that
+/// follows.
+pub(crate) async fn prepare<C>(store: &Store<C>, config: &AppConfig) -> Result<SchemaReport>
+where
+    C: SchemaSyncConnectionTrait + BatchConnectionTrait,
+{
+    let report = store.sync().await?;
+    if store.settings().get().await?.is_none() {
+        store
+            .settings()
+            .update(setting::ActiveModel {
+                cors_origins: sea_orm::Set(serde_json::json!(config.cors_origins)),
+                trusted_proxies: sea_orm::Set(serde_json::json!(config.trusted_proxies)),
+                ..Default::default()
+            })
+            .await?;
+    }
+    Ok(report)
 }
 
 /// Assemble the engine and the product layer over one database.
@@ -159,17 +170,7 @@ pub(crate) async fn assemble(
     // to happen before a handle can exist. `DatabaseConnection` is a handle to
     // the same pool, so this is not a second connection.
     let store = Store::new(connection.clone());
-    store.sync().await?;
-    if store.settings().get().await?.is_none() {
-        store
-            .settings()
-            .update(setting::ActiveModel {
-                cors_origins: sea_orm::Set(serde_json::json!(config.cors_origins)),
-                trusted_proxies: sea_orm::Set(serde_json::json!(config.trusted_proxies)),
-                ..Default::default()
-            })
-            .await?;
-    }
+    prepare(&store, config).await?;
 
     let secrets = rotate::run(&store, &config.master_key).await?;
 

@@ -8,7 +8,7 @@ use axum::{extract::State, middleware::Next, response::Response};
 use gproxy_app::{App, AppPublicationUrl, config::StoreBackendConfig};
 use gproxy_sdk::{GproxyBuilder, SyncMode};
 use gproxy_seaorm::PostgresSchemaConnection;
-use gproxy_store::{Store, StoreCache, entity::config::setting};
+use gproxy_store::{Store, StoreCache};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, TransactionTrait};
 
 use crate::{Error, Result, Settings};
@@ -74,17 +74,7 @@ pub async fn run(mut settings: Settings) -> Result<()> {
         .await?;
     let connection = PostgresSchemaConnection::new(connection, "gproxy")?;
     let store = Arc::new(Store::new(connection.clone()));
-    store.sync().await?;
-    if store.settings().get().await?.is_none() {
-        store
-            .settings()
-            .update(setting::ActiveModel {
-                trusted_proxies: sea_orm::Set(serde_json::json!(settings.config.trusted_proxies)),
-                cors_origins: sea_orm::Set(serde_json::json!(settings.config.cors_origins)),
-                ..Default::default()
-            })
-            .await?;
-    }
+    crate::instance::prepare(&store, &settings.config).await?;
     let publications = AppPublicationUrl::from_config(&settings.config);
     let builder = GproxyBuilder::connection(connection.clone())
         .sync_schema(false)
