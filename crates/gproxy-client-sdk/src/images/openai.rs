@@ -209,6 +209,7 @@ pub(super) fn mime(format: o::ImageOutputFormat) -> &'static str {
         o::ImageOutputFormat::Png => "image/png",
         o::ImageOutputFormat::Jpeg => "image/jpeg",
         o::ImageOutputFormat::Webp => "image/webp",
+        o::ImageOutputFormat::Gif => "image/gif",
     }
 }
 pub fn parse(

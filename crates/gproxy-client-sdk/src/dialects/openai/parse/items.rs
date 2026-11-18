@@ -240,6 +240,7 @@ fn parse_image(mut value: i::ImageGenerationCall) -> Result<Vec<Block>> {
                         t::ImageOutputFormat::Png => "image/png",
                         t::ImageOutputFormat::Jpeg => "image/jpeg",
                         t::ImageOutputFormat::Webp => "image/webp",
+                        t::ImageOutputFormat::Gif => "image/gif",
                     }
                     .to_owned()
                 });

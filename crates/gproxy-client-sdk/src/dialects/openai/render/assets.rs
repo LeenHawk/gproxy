@@ -128,9 +128,10 @@ pub(super) fn generated_image(block: &Block, image: &Image) -> Result<Option<i::
         Some("image/png") => Some(Some(t::ImageOutputFormat::Png)),
         Some("image/jpeg") => Some(Some(t::ImageOutputFormat::Jpeg)),
         Some("image/webp") => Some(Some(t::ImageOutputFormat::Webp)),
+        Some("image/gif") => Some(Some(t::ImageOutputFormat::Gif)),
         Some(_) => {
             return Err(Error::invalid(
-                "native generated-image history requires PNG, JPEG or WebP",
+                "native generated-image history requires PNG, JPEG, WebP or GIF",
             ));
         }
         None => meta.format_present.then_some(None),
