@@ -76,7 +76,7 @@ pub(super) fn start(
                     while let Some(chunk) = body.next().await {
                         bytes.extend_from_slice(&chunk.map_err(Failure::transport)?);
                     }
-                    return Err(Failure::rejected(status, &bytes));
+                    return Err(Failure::rejected(status, &response.headers, &bytes));
                 }
                 let mut stream = stream(response.body);
                 let mut decoder = SseDecoder::new(settings.codec);

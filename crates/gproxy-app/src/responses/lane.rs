@@ -550,10 +550,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
                     let status = response.status.as_u16();
                     let body = collect(response.body).await;
                     let _ = completion.await;
-                    let message = serde_json::from_slice::<Value>(&body).ok()
-                        .filter(|v| v["error"]["message"].is_string())
-                        .map(|v| json!({"error":v["error"]}).to_string())
-                        .unwrap_or_else(|| format!("upstream rejected WebSocket handshake ({status})"));
+                    let value = serde_json::from_slice::<Value>(&body).unwrap_or_default();
+                    let mut detail = value.get("error").filter(|e| e.is_object()).cloned()
+                        .unwrap_or_else(|| json!({}));
+                    if !detail["message"].is_string() {
+                        detail["message"] = format!("upstream rejected WebSocket handshake ({status})").into();
+                    }
+                    let mut rejection = json!({"error":detail});
+                    if let Some(delay) = response.headers.get(http::header::RETRY_AFTER).and_then(|v| v.to_str().ok()) {
+                        rejection["headers"] = json!({"retry-after":delay});
+                    }
+                    let message = rejection.to_string();
                     return Err(AppError::Sdk(gproxy_sdk::SdkError::Upstream { status, body: message }));
                 }
             };

@@ -512,7 +512,10 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Driver<C> {
         }
         self.reject_steering(failure.message()).await;
         self.session.finish_turn(UsageState::Failed).await;
-        let event = json!({"type":"error","status":failure.status,"error":failure.detail});
+        let mut event = json!({"type":"error","status":failure.status,"error":failure.detail});
+        if let Some(delay) = failure.retry_after {
+            event["headers"] = json!({"retry-after":delay});
+        }
         if self.current.is_some() {
             self.emit(event).await;
             self.current = None;

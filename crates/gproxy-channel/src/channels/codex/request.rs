@@ -299,15 +299,15 @@ impl Codex {
             Some(&installation_id),
         )?;
         let mut response = client.send(prepared).await?;
+        super::retry::advise_http(&mut response).await;
         if let Some((identity, remembered)) = resolved
             && response.status.is_success()
         {
             self.remember(state.as_ref(), &identity, remembered, &response.headers)
                 .await;
         }
-        if let Some(aliases) = aliases
-            && response.status.is_success()
-            && (matches!(response.body, HttpBody::Stream(_))
+        if response.status.is_success()
+            && (aliases.is_some() && matches!(response.body, HttpBody::Stream(_))
                 || response
                     .headers
                     .get(header::CONTENT_TYPE)
@@ -319,7 +319,13 @@ impl Codex {
                     }))
         {
             response.headers.remove(header::CONTENT_LENGTH);
-            response.body = sse::normalize(response.body, aliases);
+            response.body = sse::advise(
+                response.body,
+                response.headers.get(header::RETRY_AFTER).cloned(),
+            );
+            if let Some(aliases) = aliases {
+                response.body = sse::normalize(response.body, aliases);
+            }
         }
         Ok(response)
     }
@@ -393,12 +399,19 @@ impl Codex {
                 UpstreamConnection::Connected {
                     handshake,
                     socket: WebSocket {
-                        incoming: socket.incoming,
+                        incoming: Box::pin(
+                            socket
+                                .incoming
+                                .map(|result| result.map(super::retry::frame)),
+                        ),
                         outgoing: Box::pin(outgoing),
                     },
                 }
             }
-            rejected => rejected,
+            UpstreamConnection::Rejected(mut response) => {
+                super::retry::advise_http(&mut response).await;
+                UpstreamConnection::Rejected(response)
+            }
         })
     }
 

@@ -335,6 +335,9 @@ fn app_error(lane: Option<&str>, error: &AppError) -> WsFrame {
         && value["error"]["message"].is_string()
     {
         let mut event = json!({"type":"error","status":status,"error":value["error"]});
+        if let Some(delay) = value.pointer("/headers/retry-after").and_then(Value::as_str) {
+            event["headers"] = json!({"retry-after":delay});
+        }
         if let Some(lane) = lane {
             event["stream_id"] = lane.into();
         }

@@ -4,6 +4,7 @@ use crate::convert::upstream_error;
 pub(in super::super) struct Failure {
     pub status: u16,
     pub detail: Value,
+    pub retry_after: Option<String>,
 }
 
 impl Failure {
@@ -41,7 +42,7 @@ impl Failure {
         Self::new(status, error)
     }
 
-    pub fn rejected(status: u16, bytes: &[u8]) -> Self {
+    pub fn rejected(status: u16, headers: &http::HeaderMap, bytes: &[u8]) -> Self {
         let value = serde_json::from_slice::<Value>(bytes).ok();
         let detail = value
             .as_ref()
@@ -51,13 +52,28 @@ impl Failure {
             .unwrap_or_else(
                 || json!({"message": format!("upstream rejected generation ({status})")}),
             );
-        Self::detail(status, detail)
+        let mut failure = Self::detail(status, detail);
+        failure.retry_after = headers
+            .get(http::header::RETRY_AFTER)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
+        failure
     }
 
     pub fn event(event: &Value) -> Self {
         let detail = upstream_error::unwrap(event.clone());
         let status = upstream_error::status(&detail);
-        Self::detail(status, detail)
+        let mut failure = Self::detail(status, detail);
+        failure.retry_after = event["headers"].as_object().and_then(|headers| {
+            let (_, delay) = headers
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case("retry-after"))?;
+            delay
+                .as_str()
+                .map(str::to_owned)
+                .or_else(|| delay.as_u64().map(|seconds| seconds.to_string()))
+        });
+        failure
     }
 
     fn detail(status: u16, mut detail: Value) -> Self {
@@ -86,7 +102,11 @@ impl Failure {
         if detail["message"].is_null() {
             detail["message"] = format!("upstream generation failed ({status})").into();
         }
-        Self { status, detail }
+        Self {
+            status,
+            detail,
+            retry_after: None,
+        }
     }
 
     pub fn message(&self) -> &str {

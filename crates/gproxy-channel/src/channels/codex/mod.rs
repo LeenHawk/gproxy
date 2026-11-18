@@ -31,6 +31,7 @@ mod oauth;
 mod quota;
 mod realtime;
 mod request;
+mod retry;
 mod services;
 mod shape;
 mod sse;

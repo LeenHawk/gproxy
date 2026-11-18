@@ -1,4 +1,6 @@
 //! Incremental backend SSE normalization with request-local tool aliases.
+mod advice;
+pub(super) use advice::apply as advise;
 mod event;
 mod lifecycle;
 #[cfg(test)]
@@ -14,7 +16,6 @@ use gproxy_protocol::{
     connection::{ByteStream, Bytes, TransportError},
 };
 use std::collections::VecDeque;
-
 
 struct Codec {
     decoder: SseDecoder,
@@ -63,7 +64,14 @@ impl Codec {
                     }
                     continue;
                 }
-                if event.kind == "error" {
+                if event.kind == "error"
+                    || (event.kind == "response.failed"
+                        && event
+                            .response
+                            .as_ref()
+                            .and_then(|r| r["id"].as_str())
+                            .is_none())
+                {
                     self.pending.clear();
                     output.extend(self.normalize(event, &source)?);
                     continue;
