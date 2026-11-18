@@ -199,7 +199,7 @@ tokio-postgres = "0.7"
 tower = { version = "0.5", default-features = false }
 hyper-util = { version = "0.1", default-features = false }
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
-tokio-rusqlite = { version = "0.8", features = ["bundled"] }
+tokio-rusqlite = { version = "0.9", features = ["bundled"] }
 toml = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
