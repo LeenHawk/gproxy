@@ -312,6 +312,8 @@ later; see [LICENSE](LICENSE). The library crates `gproxy-protocol`,
 
 [![Deploys by Netlify](https://www.netlify.com/assets/badges/netlify-badge-color-accent.svg)](https://www.netlify.com)
 
+<a href="https://neon.com/"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/neon-dark.svg"><img src=".github/readme/neon-light.svg" alt="Neon" height="32"></picture></a>
+
 <a href="https://www.fastly.com/"><img src=".github/readme/fastly.png" alt="Fastly" height="32"></a>
 
 ## Star History
