@@ -184,7 +184,7 @@ function SettingsForm({ original }: { original: SettingsDto }) {
     return (
       <Input
         id={inputId}
-        type={field.kind === "number" ? "number" : "text"}
+        type={field.kind}
         step={1}
         min={field.min}
         required={!field.nullable}
@@ -199,7 +199,7 @@ function SettingsForm({ original }: { original: SettingsDto }) {
                   ? null
                   : ""
                 : Number(e.target.value)
-              : e.target.value,
+              : e.target.value || (field.nullable ? null : ""),
           )
         }
       />
@@ -218,6 +218,7 @@ function SettingsForm({ original }: { original: SettingsDto }) {
               >
                 <FieldLabel htmlFor={`${id}-${field.name}`}>{t(`setting.${field.name}`)}</FieldLabel>
                 {control(field)}
+                {field.name === "footerText" ? <FieldDescription>{t("setting.footerTextHelp")}</FieldDescription> : null}
                 {field.name === "allowedHeaders" ? <FieldDescription>{t("setting.allowedHeadersHelp")}</FieldDescription> : null}
                 {field.name === "retentionDays" ? <FieldDescription>{t("setting.retentionDaysHelp")}</FieldDescription> : null}
                 {field.name === "usageRetentionDays" ? <FieldDescription>{t("setting.usageRetentionDaysHelp")}</FieldDescription> : null}

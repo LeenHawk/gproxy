@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next"
 import { signIn } from "@/api/session"
 import { SESSION_KEY } from "@/capability/session"
 import { ErrorNotice } from "@/components/state"
+import { InstanceFooter } from "@/components/instance-footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -38,46 +39,49 @@ export function SignInPage() {
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-10 text-foreground">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <div className="mb-2 flex items-center gap-3">
-            <img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} alt="" className="size-10" />
-            <span className="text-lg font-semibold">GPROXY</span>
-          </div>
-          <CardTitle headingLevel={1}>{t("signIn.title")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
-            {submit.error ? <ErrorNotice error={submit.error} /> : null}
-            <Field>
-              <FieldLabel htmlFor="sign-in-name">{t("fields.name")}</FieldLabel>
-              <Input
-                id="sign-in-name"
-                required
-                autoComplete="username"
-                autoFocus
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="sign-in-password">{t("fields.password")}</FieldLabel>
-              <Input
-                id="sign-in-password"
-                required
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </Field>
-            <Button type="submit" className="w-full" disabled={submit.isPending}>
-              {t("actions.signIn")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </main>
+    <div className="flex min-h-dvh flex-col bg-background text-foreground">
+      <main className="flex flex-1 items-center justify-center px-4 py-10">
+        <Card className="w-full max-w-sm">
+          <CardHeader>
+            <div className="mb-2 flex items-center gap-3">
+              <img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} alt="" className="size-10" />
+              <span className="text-lg font-semibold">GPROXY</span>
+            </div>
+            <CardTitle headingLevel={1}>{t("signIn.title")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={onSubmit}>
+              {submit.error ? <ErrorNotice error={submit.error} /> : null}
+              <Field>
+                <FieldLabel htmlFor="sign-in-name">{t("fields.name")}</FieldLabel>
+                <Input
+                  id="sign-in-name"
+                  required
+                  autoComplete="username"
+                  autoFocus
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="sign-in-password">{t("fields.password")}</FieldLabel>
+                <Input
+                  id="sign-in-password"
+                  required
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </Field>
+              <Button type="submit" className="w-full" disabled={submit.isPending}>
+                {t("actions.signIn")}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
+      <InstanceFooter />
+    </div>
   )
 }

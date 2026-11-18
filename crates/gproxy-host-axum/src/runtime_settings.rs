@@ -58,6 +58,8 @@ pub async fn info<C>(State(state): State<HostState<C>>) -> Response {
     let data = state.app().data();
     crate::error::ok_json(&serde_json::json!({
         "instanceName": data.settings.as_ref().map(|s| s.instance_name.as_str()).unwrap_or("GPROXY"),
+        "footerText": data.settings.as_ref().and_then(|s| s.footer_text.as_deref()),
+        "footerUrl": data.settings.as_ref().and_then(|s| s.footer_url.as_deref()),
         "version": env!("CARGO_PKG_VERSION"),
         "hash": env!("GPROXY_BUILD_HASH"),
         "fontManagement": cfg!(not(target_arch = "wasm32")),

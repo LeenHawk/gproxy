@@ -47,6 +47,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
             if let Some(value) = instance.instance_name {
                 row.instance_name = Set(crud::text(&value, "instanceName")?);
             }
+            if let Some(value) = instance.footer_text {
+                row.footer_text = Set(crud::optional_text(value));
+            }
+            if let Some(value) = instance.footer_url {
+                row.footer_url = Set(footer_url(value)?);
+            }
             if let Some(value) = instance.allowed_headers {
                 row.allowed_headers = Set(header_list(value)?);
             }
@@ -315,6 +321,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
 /// sealed token to the row instead. `manage::tokenizer` seals the same column,
 /// so it reads this one rather than keeping a copy that could drift.
 pub(super) const TOKENIZER_SECRET_ID: &str = "settings:tokenizer_auth_token";
+
+pub(super) fn footer_url(value: Option<String>) -> SdkResult<Option<String>> {
+    let Some(value) = crud::optional_text(value) else {
+        return Ok(None);
+    };
+    let url = url::Url::parse(&value)
+        .ok()
+        .filter(|url| matches!(url.scheme(), "http" | "https") && url.has_host())
+        .ok_or_else(|| SdkError::invalid("footerUrl must be an HTTP or HTTPS URL"))?;
+    Ok(Some(url.into()))
+}
 
 fn empty_array() -> serde_json::Value {
     serde_json::Value::Array(Vec::new())

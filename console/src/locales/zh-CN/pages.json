@@ -291,6 +291,9 @@
   "setting": {
     "allowedHeaders": "全局请求头白名单",
     "allowedHeadersHelp": "在渠道和供应商白名单之外额外允许的请求头。",
+    "footerText": "页脚文字",
+    "footerTextHelp": "显示在登录页和控制台底部。留空可隐藏页脚。",
+    "footerUrl": "页脚链接（可选）",
     "instanceName": "实例名称",
     "oauthClientAllowlist": "允许的 OAuth 客户端",
     "connectionProfileId": "默认 HTTP 客户端配置",

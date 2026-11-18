@@ -291,6 +291,9 @@
   "setting": {
     "allowedHeaders": "全域請求標頭白名單",
     "allowedHeadersHelp": "在渠道和供應商白名單之外額外允許的請求標頭。",
+    "footerText": "頁尾文字",
+    "footerTextHelp": "顯示於登入頁和控制台底部。留空可隱藏頁尾。",
+    "footerUrl": "頁尾連結（選填）",
     "instanceName": "執行個體名稱",
     "oauthClientAllowlist": "允許的 OAuth 用戶端",
     "connectionProfileId": "預設 HTTP 用戶端設定",

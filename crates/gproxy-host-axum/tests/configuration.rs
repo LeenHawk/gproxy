@@ -802,7 +802,9 @@ async fn global_network_and_instance_info_follow_settings_without_restart() {
         Method::PATCH,
         "/admin/api/settings",
         json!({"instance": {
-            "instanceName": "Live gateway", "corsOrigins": ["https://client.example/"],
+            "instanceName": "Live gateway",
+            "footerText": "This site is powered by Netlify", "footerUrl": "https://www.netlify.com/",
+            "corsOrigins": ["https://client.example/"],
             "trustedProxies": ["192.0.2.10"]
         }}),
     )
@@ -811,6 +813,8 @@ async fn global_network_and_instance_info_follow_settings_without_restart() {
     host.publish().await;
     let info = host.send(get("/info")).await.json();
     assert_eq!(info["instanceName"], "Live gateway");
+    assert_eq!(info["footerText"], "This site is powered by Netlify");
+    assert_eq!(info["footerUrl"], "https://www.netlify.com/");
     assert_eq!(info["version"], env!("CARGO_PKG_VERSION"));
     assert!(!info["hash"].as_str().unwrap().is_empty());
     let mut request = get("/v1/models");
@@ -830,10 +834,12 @@ async fn global_network_and_instance_info_follow_settings_without_restart() {
         &host,
         Method::PATCH,
         "/admin/api/settings",
-        json!({"instance": {"corsOrigins": [], "trustedProxies": []}}),
+        json!({"instance": {"footerText": null, "footerUrl": null, "corsOrigins": [], "trustedProxies": []}}),
     )
     .await;
     assert_eq!(saved.status, StatusCode::OK);
     host.publish().await;
     assert!(gproxy_host_axum::runtime_settings::cors_origins(&host.app).is_empty());
+    let info = host.send(get("/info")).await.json();
+    assert!(info["footerText"].is_null() && info["footerUrl"].is_null());
 }

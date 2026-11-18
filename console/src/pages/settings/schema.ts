@@ -3,7 +3,7 @@ import type { SettingsWrite } from "@/api/settings"
 export type SettingField = {
   group: "instance" | "logging"
   name: string
-  kind: "text" | "number" | "switch" | "list" | "choice" | "profile" | "vocabulary" | "allowlist" | "proxy"
+  kind: "text" | "url" | "number" | "switch" | "list" | "choice" | "profile" | "vocabulary" | "allowlist" | "proxy"
   min?: number
   nullable?: boolean
   options?: Array<string>
@@ -23,6 +23,8 @@ export const groups = [
     id: "general",
     fields: [
       instance("instanceName", "text"),
+      instance("footerText", "text", { nullable: true }),
+      instance("footerUrl", "url", { nullable: true }),
       instance("oauthClientAllowlist", "allowlist", { nullable: true }),
       instance("portalRecentRequestsEnabled", "switch"),
     ],

@@ -7,6 +7,8 @@ fn settings() -> setting::Model {
     setting::Model {
         id: 1,
         instance_name: "default".into(),
+        footer_text: None,
+        footer_url: None,
         oauth_client_allowlist: None,
         connection_profile_id: None,
         proxy: None,

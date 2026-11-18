@@ -15,6 +15,10 @@ pub struct Model {
     // Instance
     #[sea_orm(default_value = "default")]
     pub instance_name: String,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub footer_text: Option<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub footer_url: Option<String>,
 
     /// OAuth client-ID ceiling as a JSON string array. None adds no restriction;
     /// [] denies all. Organization/team/user policies can only narrow it.

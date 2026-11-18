@@ -536,8 +536,10 @@ pub(crate) fn document_system(api: &mut documentation::Api) {
         })),
     )["security"] = json!([]);
     api.route("get", "/info", "", None, vec![], Some(json!({
-        "type":"object", "required":["instanceName","version","hash","fontManagement"],
-        "properties":{"instanceName":{"type":"string"},"version":{"type":"string"},"hash":{"type":"string"},"fontManagement":{"type":"boolean"}}
+        "type":"object", "required":["instanceName","footerText","footerUrl","version","hash","fontManagement"],
+        "properties":{"instanceName":{"type":"string"},
+            "footerText":{"type":["string","null"]},"footerUrl":{"type":["string","null"]},
+            "version":{"type":"string"},"hash":{"type":"string"},"fontManagement":{"type":"boolean"}}
     })))["security"] = json!([]);
     for (path, media, schema) in [
         (

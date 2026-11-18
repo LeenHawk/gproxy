@@ -1284,6 +1284,10 @@ mod rows {
         Ok(setting::ActiveModel {
             id: Set(setting::GLOBAL_SETTINGS_ID),
             instance_name: Set(instance.instance_name.clone()),
+            footer_text: Set(crud::optional_text(instance.footer_text.clone())),
+            footer_url: Set(crate::manage::settings::footer_url(
+                instance.footer_url.clone(),
+            )?),
             oauth_client_allowlist: Set(instance.oauth_client_allowlist.clone()),
             connection_profile_id: Set(profile),
             proxy: Set(crud::proxy(instance.proxy.clone())?),

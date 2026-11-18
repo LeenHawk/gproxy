@@ -35,6 +35,8 @@ impl From<setting::Model> for SettingsDto {
             },
             instance: InstanceSettingsDto {
                 instance_name: row.instance_name,
+                footer_text: row.footer_text,
+                footer_url: row.footer_url,
                 oauth_client_allowlist: row.oauth_client_allowlist,
                 allowed_headers: row.allowed_headers,
                 connection_profile_id: row.connection_profile_id,
@@ -85,6 +87,8 @@ impl From<setting::Model> for SettingsDto {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct InstanceSettingsDto {
     pub instance_name: String,
+    pub footer_text: Option<String>,
+    pub footer_url: Option<String>,
     #[serde(default = "empty_header_list")]
     #[cfg_attr(feature = "ts", ts(type = "string[]"))]
     pub allowed_headers: Value,
@@ -202,6 +206,10 @@ pub struct SettingsPatch {
 pub struct InstanceSettingsPatch {
     #[serde(default)]
     pub instance_name: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub footer_text: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub footer_url: Option<Option<String>>,
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(type = "string[]"))]
     pub allowed_headers: Option<Value>,
