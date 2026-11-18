@@ -5,8 +5,8 @@ export default async (request, context) => {
   try {
     gateway ??= createGateway();
     return await gateway.fetch(request, context.ip);
-  } catch {
-    return unavailable();
+  } catch (error) {
+    return unavailable(error);
   }
 };
 

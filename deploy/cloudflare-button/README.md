@@ -6,8 +6,9 @@ This standalone template downloads the official **latest stable** Worker and con
 checks the release SHA-256, and deploys with D1. No Rust build is needed.
 
 1. Click the button and connect your GitHub or GitLab account.
-2. Choose the Worker and D1 names. Set `GPROXY_ADMIN_PASSWORD` (at least 8 characters)
-   and `GPROXY_MASTER_KEY` (a saved 32-byte key, e.g. `openssl rand -hex 32`).
+2. Choose the Worker and D1 names. Set `GPROXY_ADMIN_PASSWORD` (at least 8 characters).
+   `GPROXY_MASTER_KEY` (a saved 32-byte key, e.g. `openssl rand -hex 32`) is optional;
+   without it, upstream credentials are stored unencrypted.
 3. Keep the detected build (`npm run build`) and deploy (`npm run deploy`) commands.
 4. After deployment, open `/console/` and sign in as `admin`. Add providers and
    create a gateway API key in the console.

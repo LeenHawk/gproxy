@@ -18,4 +18,4 @@ run_worker_first = ["/*", "!/", "!/console", "!/console/*"]
 GPROXY_CONFIG = '{"store":{"kind":"d1","binding":"DB"},"cache":{"kind":"store"}}'
 
 [secrets]
-required = ["GPROXY_ADMIN_PASSWORD", "GPROXY_MASTER_KEY"]
+required = ["GPROXY_ADMIN_PASSWORD"]

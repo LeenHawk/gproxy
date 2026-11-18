@@ -22,10 +22,14 @@ export function forwardHeaders(request, clientIp) {
   return Object.fromEntries(headers);
 }
 
+// Missing deployment settings. The message names variables, never values, so
+// it is safe to return to whoever opens the site.
+export class ConfigurationError extends Error {}
+
 export function databaseUrl(env) {
   const url = env.GPROXY_DATABASE_URL || env.NETLIFY_DB_URL || env.DATABASE_URL || env.POSTGRES_URL;
   if (!url || !/^postgres(?:ql)?:\/\//.test(url)) {
-    throw new Error("Set GPROXY_DATABASE_URL to a PostgreSQL connection string, or attach the platform database.");
+    throw new ConfigurationError("Set GPROXY_DATABASE_URL to a PostgreSQL connection string, or attach the platform database.");
   }
   return url;
 }
@@ -52,8 +56,10 @@ export function createGateway({
   async function start() {
     if (ready) return ready;
     const dsn = databaseUrl(env);
-    if (!env.GPROXY_ADMIN_PASSWORD || !env.GPROXY_MASTER_KEY) {
-      throw new Error("Set GPROXY_ADMIN_PASSWORD and GPROXY_MASTER_KEY before deploying.");
+    // GPROXY_MASTER_KEY is optional, as it is for the CLI: without it the
+    // gateway stores upstream credentials unencrypted and says so in its log.
+    if (!env.GPROXY_ADMIN_PASSWORD) {
+      throw new ConfigurationError("Set GPROXY_ADMIN_PASSWORD in the deployment environment variables, then redeploy.");
     }
     const childEnv = { ...env, GPROXY_DSN: dsn, GPROXY_PERSISTENCE: "postgres" };
     const base = publicBaseUrl(env);
@@ -142,6 +148,10 @@ export function createGateway({
   return { fetch, websocketTarget, close: () => { child?.kill(); child = undefined; ready = undefined; } };
 }
 
-export function unavailable() {
-  return Response.json({ error: { message: "GPROXY is unavailable. Check the deployment database and secrets in the platform console." } }, { status: 503 });
+export function unavailable(error) {
+  if (error) console.error(`GPROXY is unavailable: ${error.message}`);
+  const message = error instanceof ConfigurationError
+    ? `GPROXY is not configured. ${error.message}`
+    : "GPROXY is unavailable. Check the deployment database and secrets in the platform console.";
+  return Response.json({ error: { message } }, { status: 503 });
 }

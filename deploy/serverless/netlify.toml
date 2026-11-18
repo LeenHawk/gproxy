@@ -13,4 +13,4 @@ included_files = [".gproxy/**"]
 [template.environment]
 GPROXY_DATABASE_URL = "PostgreSQL connection string (postgres://...) of your own database. Netlify does not provide one."
 GPROXY_ADMIN_PASSWORD = "Administrator password (at least 8 characters). Sign in as admin at /console/."
-GPROXY_MASTER_KEY = "Save a 32-byte encryption key, encoded as 64 hex characters. Keep the same key when redeploying."
+GPROXY_MASTER_KEY = "Optional. 32-byte key that encrypts stored upstream credentials: 64 hex characters or base64 (openssl rand -hex 32). Without it they are stored unencrypted. Keep the same key when redeploying."

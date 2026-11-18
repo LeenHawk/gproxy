@@ -43,8 +43,8 @@ export function createNodeServer(gateway, clientIp) {
     let result;
     try {
       result = await gateway.fetch(inputRequest(request, controller.signal), clientIp(request));
-    } catch {
-      result = unavailable();
+    } catch (error) {
+      result = unavailable(error);
     }
     try { await send(result, response); } catch { response.destroy(); }
   });
@@ -55,10 +55,10 @@ export function createNodeServer(gateway, clientIp) {
     socket.on("error", () => socket.destroy());
     let upgraded = false;
     let responded = false;
-    const reject = async () => {
+    const reject = async error => {
       if (socket.destroyed || responded) return;
       responded = true;
-      const result = unavailable();
+      const result = unavailable(error);
       await rejectUpgrade(socket, result.status, "Service Unavailable",
         [...result.headers].flat(), Readable.fromWeb(result.body));
     };
@@ -95,8 +95,8 @@ export function createNodeServer(gateway, clientIp) {
         socket.pipe(peer).pipe(socket);
       });
       upstream.end();
-    } catch {
-      await reject();
+    } catch (error) {
+      await reject(error);
     }
   });
   return server;
