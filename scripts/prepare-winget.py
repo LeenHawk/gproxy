@@ -78,7 +78,9 @@ def msix_metadata(path):
     ns = {'m': 'http://schemas.microsoft.com/appx/manifest/foundation/windows10'}
     identity = manifest.find('m:Identity', ns).attrib
     minimum = manifest.find('m:Dependencies/m:TargetDeviceFamily', ns).attrib['MinVersion']
-    return identity, minimum
+    aliases = [alias.get('Alias') for alias in manifest.findall(
+        './/{http://schemas.microsoft.com/appx/manifest/uap/windows10/5}ExecutionAlias')]
+    return identity, minimum, aliases
 
 
 def main():
@@ -111,21 +113,23 @@ def main():
                      (line.split(maxsplit=1) for line in
                       (downloads / 'SHA256SUMS').read_text(encoding='utf-8').splitlines() if line.strip()))
     packages = {}
+    commands = []
     for name in names:
         digest = verify_zip(downloads / name, checksums[name], 'AppxManifest.xml')
         metadata = msix_metadata(downloads / name)
         if metadata is None:
             print(f'{edition} {version}: unsigned MSIX; skipping WinGet submission.')
             return
-        identity, minimum = metadata
+        identity, minimum, aliases = metadata
         if edition == 'Headless':
+            if aliases != ['gproxy-headless.exe']:
+                raise ValueError(f'Headless MSIX must expose only gproxy-headless.exe: {name}')
             with zipfile.ZipFile(downloads / name) as archive:
-                manifest = ET.fromstring(archive.read('AppxManifest.xml'))
-                aliases = manifest.findall('.//{http://schemas.microsoft.com/appx/manifest/uap/windows10/5}ExecutionAlias')
-                if [alias.get('Alias') for alias in aliases] != ['gproxy-headless.exe']:
-                    raise ValueError(f'Headless MSIX must expose only gproxy-headless.exe: {name}')
                 if 'gproxy.exe' not in archive.namelist():
                     raise ValueError(f'Headless MSIX is missing gproxy.exe: {name}')
+        # An MSIX provides only the commands it declares as execution aliases;
+        # Desktop declares none and starts from the Start menu.
+        commands.append([alias.removesuffix('.exe') for alias in aliases])
         arch = 'x64' if name.endswith('-x86_64.msix') else 'arm64'
         expected_name = {'Desktop': 'LeenHawk.GPROXYGateway', 'CLI': 'LeenHawk.GPROXYCLI', 'Headless': 'LeenHawk.GPROXYHeadless'}[edition]
         if (identity['Name'] != expected_name or identity['Version'] != version + '.0'
@@ -147,6 +151,11 @@ def main():
             doc['UpgradeBehavior'] = 'install'
             doc.pop('NestedInstallerType', None)
             doc.pop('NestedInstallerFiles', None)
+            if commands[0] != commands[1]:
+                raise ValueError(f'{edition} MSIX execution aliases differ between architectures')
+            doc.pop('Commands', None)
+            if commands[0]:
+                doc['Commands'] = commands[0]
             doc['Installers'] = list(packages.values())
         schema_url = f'https://raw.githubusercontent.com/microsoft/winget-cli/master/schemas/JSON/manifests/v{doc["ManifestVersion"]}/manifest.{doc["ManifestType"]}.{doc["ManifestVersion"]}.json'
         with urllib.request.urlopen(schema_url, timeout=60) as response:

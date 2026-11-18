@@ -7,12 +7,16 @@ must not be rewritten to point at a newer binary.
 
 | Edition | Package identifier | Command |
 | --- | --- | --- |
-| Desktop | `LeenHawk.GPROXY.Desktop` | `gproxy-desktop` |
+| Desktop | `LeenHawk.GPROXY.Desktop` | none (Start menu) |
 | CLI (with Web Console) | `LeenHawk.GPROXY.CLI` | `gproxy` |
 | Headless (without Web Console) | `LeenHawk.GPROXY.Headless` | `gproxy-headless` |
 
 Headless has the independent MSIX identity `LeenHawk.GPROXYHeadless` and the
 `gproxy-headless.exe` execution alias, so it does not take over CLI's `gproxy.exe` alias. Its ZIP continues to contain `gproxy.exe`.
+
+The generator takes `Commands` from the execution aliases the MSIX declares.
+The Desktop MSIX declares none, so its manifest has no `Commands`; the
+`gproxy-desktop` alias belonged to the portable ZIP.
 
 Desktop declares `Microsoft.EdgeWebView2Runtime`. Each edition supports x64 and
 ARM64 with separate hashes, plus English, Simplified Chinese and Traditional

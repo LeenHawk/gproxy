@@ -12,7 +12,7 @@ License: AGPL-3.0-or-later
 LicenseUrl: https://github.com/LeenHawk/gproxy/blob/main/LICENSE
 ShortDescription: Open-source AI API gateway with a Windows desktop management interface.
 Description: 'GPROXY Desktop runs an AI API gateway on your Windows computer and provides an integrated setup wizard
-  and management window. Launch it with gproxy-desktop.
+  and management window.
 
 
   Connect your own providers and manage credentials, model routing, load balancing, failover, access keys, quotas
