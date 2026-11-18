@@ -259,7 +259,7 @@ fn prompt_variables_and_metadata_reject_values_outside_their_native_unions() {
         json!([]),
         json!({}),
         json!({"type":"unknown","text":"x"}),
-        json!({"type":"input_image","image_url":"https://x"}),
+        json!({"type":"input_image","image_url":"https://x","detail":"unknown"}),
     ] {
         assert!(
             serde_json::from_value::<ResponsePrompt>(json!({"id":"p","variables":{"x":invalid}}))
@@ -272,12 +272,13 @@ fn prompt_variables_and_metadata_reject_values_outside_their_native_unions() {
                 .is_err()
         );
     }
-    let wire = json!({"type":"input_image","detail":"auto","image_url":"https://x","text":"future-extension"});
+    let mut wire = json!({"type":"input_image","image_url":"https://x","text":"future-extension"});
     let variable: PromptVariableValue = serde_json::from_value(wire.clone()).unwrap();
     match &variable {
         PromptVariableValue::Image(v) => assert_eq!(v.rest["text"], "future-extension"),
         _ => panic!(),
     }
+    wire["detail"] = json!("auto");
     assert_eq!(serde_json::to_value(variable).unwrap(), wire);
 }
 
