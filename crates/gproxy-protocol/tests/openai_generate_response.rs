@@ -366,7 +366,7 @@ fn response_specific_required_fields_cannot_fall_back_to_input_shapes() {
         .into_iter()
         .find(|v| v["type"] == "function_call_output")
         .unwrap();
-    function["output"] = json!([{"type":"input_image"}]);
+    function["output"] = json!([{"type":"input_image","detail":null}]);
     assert!(serde_json::from_value::<ResponseOutputItem>(function).is_err());
     assert!(
         serde_json::from_value::<ResponsePromptCacheOptions>(json!({"mode":"implicit"})).is_err()

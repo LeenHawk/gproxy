@@ -789,10 +789,14 @@ fn every_upstream_object_field_required_and_nullable_contract() {
         &["text", "type"],
         &["prompt_cache_breakpoint"],
     );
-    object::<ResponseInputImage>(
-        r#"{"detail":"low","type":"input_image","file_id":"sample","image_url":"sample","prompt_cache_breakpoint":{"mode":"explicit"}}"#,
-        &["detail", "type"],
-        &["file_id", "image_url", "prompt_cache_breakpoint"],
+    let mut image = json!({"type":"input_image","file_id":null,"image_url":null,"prompt_cache_breakpoint":null,"future_extension":42});
+    let parsed: ResponseInputImage = serde_json::from_value(image.clone()).unwrap();
+    image["detail"] = json!("auto");
+    assert_eq!(serde_json::to_value(parsed).unwrap(), image);
+    assert!(serde_json::from_value::<ResponseInputImage>(json!({"detail":"low"})).is_err());
+    assert!(
+        serde_json::from_value::<ResponseInputImage>(json!({"type":"input_image","detail":null}))
+            .is_err()
     );
     object::<ResponseInputFile>(
         r#"{"type":"input_file","detail":"auto","file_data":"sample","file_id":"sample","file_url":"sample","filename":"sample","prompt_cache_breakpoint":{"mode":"explicit"}}"#,

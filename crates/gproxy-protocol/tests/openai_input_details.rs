@@ -579,7 +579,15 @@ fn required_nullable_and_nonnullable_fields_have_distinct_contracts() {
     assert!(
         serde_json::from_value::<ShellCallEnvironment>(json!({"type":"container_auto"})).is_err()
     );
-    assert!(serde_json::from_value::<CustomOutput>(json!([{"type":"input_image"}])).is_err());
+    let image: CustomOutput = serde_json::from_value(json!([{"type":"input_image"}])).unwrap();
+    assert_eq!(
+        serde_json::to_value(image).unwrap(),
+        json!([{"type":"input_image","detail":"auto"}])
+    );
+    assert!(
+        serde_json::from_value::<CustomOutput>(json!([{"type":"input_image","detail":null}]))
+            .is_err()
+    );
     assert!(serde_json::from_value::<FunctionOutput>(json!([{"type":"input_image"}])).is_ok());
 }
 
