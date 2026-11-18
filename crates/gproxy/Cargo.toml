@@ -39,6 +39,7 @@ embedded-console = ["gproxy-host-axum/embedded-console"]
 # instead for a binary that carries only the upstreams a deployment uses.
 channels = ["gproxy-sdk/channels"]
 aistudio = ["gproxy-sdk/aistudio"]
+playground = ["gproxy-sdk/playground"]
 antigravity = ["gproxy-sdk/antigravity"]
 aws_bedrock = ["gproxy-sdk/aws_bedrock"]
 azure = ["gproxy-sdk/azure"]

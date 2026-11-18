@@ -23,7 +23,7 @@ export function CredentialBulkImport({ provider, onClose }: { provider: Credenti
   const kinds = provider.credentialKinds.map(value => ({ value, label: t(`credentialKinds.${value}`, { defaultValue: value }) }))
   const [owner, setOwner] = useState(ownership.defaultOwner)
   const [authKind, setAuthKind] = useState(provider.credentialKinds[0] ?? "")
-  const [format, setFormat] = useState<BulkFormat>("json")
+  const [format, setFormat] = useState<BulkFormat>(provider.channel === "playground" ? "cookies" : "json")
   const [input, setInput] = useState("")
   const parsed = useMemo(() => parseBulkCredentials(input, format), [input, format])
   const label = (item: typeof parsed.items[number]) => item.label ?? t("credentialImport.defaultLabel", { index: item.source })
@@ -46,11 +46,11 @@ export function CredentialBulkImport({ provider, onClose }: { provider: Credenti
           {provider.channel === "vertex" || provider.channel === "aws_bedrock" ? <FieldDescription>{t(provider.channel === "vertex" ? "form.vertexSecretHint" : "form.awsSecretHint")}</FieldDescription> : null}
           {kinds.length > 1 ? <Field><FieldLabel htmlFor={`${id}-auth`}>{t("fields.authKind")}</FieldLabel><Select value={authKind} onValueChange={value => { setAuthKind(value); setFormat("json"); save.reset() }}><SelectTrigger id={`${id}-auth`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{kinds.map(kind => <SelectItem key={kind.value} value={kind.value}>{kind.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field> : null}
           <Field><FieldLabel htmlFor={`${id}-owner`}>{t("management.owner")}</FieldLabel><Select value={owner} onValueChange={setOwner}><SelectTrigger id={`${id}-owner`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{ownership.choices.map(choice => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-          <Field><FieldLabel htmlFor={`${id}-format`}>{t("credentialImport.format")}</FieldLabel><Select value={format} onValueChange={value => { setFormat(value as BulkFormat); save.reset() }}><SelectTrigger id={`${id}-format`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="json">JSON / JSONL</SelectItem>{authKind === "api_key" ? <SelectItem value="tokens">{t("credentialImport.tokens")}</SelectItem> : null}</SelectGroup></SelectContent></Select></Field>
+          <Field><FieldLabel htmlFor={`${id}-format`}>{t("credentialImport.format")}</FieldLabel><Select value={format} onValueChange={value => { setFormat(value as BulkFormat); save.reset() }}><SelectTrigger id={`${id}-format`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{provider.channel === "playground" ? <SelectItem value="cookies">Cookie-Editor / Cookie Header</SelectItem> : null}<SelectItem value="json">JSON / JSONL</SelectItem>{authKind === "api_key" ? <SelectItem value="tokens">{t("credentialImport.tokens")}</SelectItem> : null}</SelectGroup></SelectContent></Select></Field>
           <Field data-field-span="full" data-invalid={parsed.errors.length > 0}>
             <FieldLabel htmlFor={`${id}-input`}>{t("credentialImport.input")}</FieldLabel>
             <Textarea id={`${id}-input`} rows={8} value={input} spellCheck={false} autoComplete="off" className="font-mono" aria-invalid={parsed.errors.length > 0} aria-describedby={`${id}-hint${parsed.errors.length ? ` ${id}-errors` : ""}`} onChange={event => { setInput(event.target.value); save.reset() }} />
-            <FieldDescription id={`${id}-hint`}>{t(format === "json" ? "credentialImport.jsonHint" : "credentialImport.tokensHint")}</FieldDescription>
+            <FieldDescription id={`${id}-hint`}>{t(format === "cookies" ? "form.playgroundSecretHint" : format === "json" ? "credentialImport.jsonHint" : "credentialImport.tokensHint")}</FieldDescription>
           </Field>
         </FieldGroup>
       </fieldset>

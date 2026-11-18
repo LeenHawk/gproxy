@@ -19,6 +19,9 @@ ts = ["dep:ts-rs"]
 # the /v1beta/openai compatibility layer off one origin, SSE and JSON-array
 # streams, usageMetadata metering.
 aistudio = []
+# AI Studio Playground: Google browser cookies, MakerSuite JSPB RPC and a
+# self-hosted WAA proof signer; Gemini generation and model discovery.
+playground = ["dep:base64", "dep:futures-util", "dep:sha1", "dep:web-time"]
 # Antigravity (Google account through the Antigravity IDE's Code Assist
 # host): IDE login that discovers the Cloud project and tier, refresh, the
 # Code Assist request envelope, the fetchAvailableModels catalogue and the
@@ -263,6 +266,7 @@ rust_decimal.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2 = { workspace = true, optional = true }
+sha1 = { version = "0.11", optional = true }
 xxhash-rust = { workspace = true, optional = true }
 thiserror.workspace = true
 time = { workspace = true, optional = true }

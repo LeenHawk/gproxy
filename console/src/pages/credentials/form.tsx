@@ -6,6 +6,7 @@ import type { CredentialDto } from "@/generated/sdk"
 import { useConsoleContext } from "@/capability/session"
 import type { CollectionProps } from "@/pages/identity/collection"
 import { credentialFields } from "@/pages/providers/fields"
+import { parsePlaygroundCookie } from "./cookie-import"
 import { RecordDialog, RecordEditor, type FormField } from "@/components/record-form"
 import { ErrorNotice } from "@/components/state"
 import { ownerColumns, ownerValue, useOwnerChoices } from "./ownership"
@@ -38,6 +39,10 @@ export function CredentialForm({ providerId, channel, credentialKinds, paidUsage
   secretField.parse = (text, values) => parseSecret(text, { ...values, authKind: String(fixedKind ?? original?.authKind ?? values.authKind) })
   if (channel === "vertex") secretField.description = t("form.vertexSecretHint")
   if (channel === "aws_bedrock") secretField.description = t("form.awsSecretHint")
+  if (channel === "playground") {
+    secretField.description = t("form.playgroundSecretHint")
+    secretField.parse = parsePlaygroundCookie
+  }
   if (supportsPaidUsage) fields.splice(1, 0, {
     name: "allowPaidUsage", kind: "switch", defaultChecked: false,
     label: t("management.allowPaidUsage"), description: t(channel === "claudecode" ? "management.claudePaidUsageHint" : channel === "codex" ? "management.codexPaidUsageHint" : "management.paidUsageHint"),

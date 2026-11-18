@@ -36,8 +36,9 @@ use super::{Error, Result};
 /// feature set must still translate a full document: a provider whose channel
 /// this binary was not compiled with is a runtime concern the operator can fix
 /// by rebuilding, not a reason to refuse their configuration.
-pub const V4_CHANNELS: [&str; 38] = [
+pub const V4_CHANNELS: [&str; 39] = [
     "aistudio",
+    "playground",
     "antigravity",
     "aws_bedrock",
     "azure",

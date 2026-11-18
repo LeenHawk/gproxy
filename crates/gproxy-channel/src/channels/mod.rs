@@ -41,6 +41,7 @@ macro_rules! channels {
 
 channels! {
     "aistudio" => aistudio, aistudio::Aistudio;
+    "playground" => playground, playground::Playground;
     "antigravity" => antigravity, antigravity::Antigravity;
     "aws_bedrock" => aws_bedrock, aws_bedrock::AwsBedrock;
     "azure" => azure, azure::Azure;

@@ -15,6 +15,7 @@ default = ["memory", "fs", "bundled-vocabulary"]
 # Channels, forwarded to gproxy-channel. Each one compiled in is registered by
 # the builder unless `without_default_channels()` is called.
 aistudio = ["gproxy-channel/aistudio"]
+playground = ["gproxy-channel/playground"]
 antigravity = ["gproxy-channel/antigravity", "gproxy-client/wreq"]
 aws_bedrock = ["gproxy-channel/aws_bedrock"]
 azure = ["gproxy-channel/azure"]
@@ -52,6 +53,7 @@ xai = ["gproxy-channel/xai"]
 # Every channel this workspace ships.
 channels = [
     "aistudio",
+    "playground",
     "antigravity",
     "aws_bedrock",
     "azure",

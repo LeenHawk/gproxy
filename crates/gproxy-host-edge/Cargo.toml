@@ -42,6 +42,7 @@ bundled-vocabulary = ["gproxy-sdk/bundled-vocabulary"]
 # Channels, forwarded to the sdk exactly as the `gproxy` binary forwards them.
 channels = ["gproxy-sdk/channels"]
 aistudio = ["gproxy-sdk/aistudio"]
+playground = ["gproxy-sdk/playground"]
 antigravity = ["gproxy-sdk/antigravity"]
 aws_bedrock = ["gproxy-sdk/aws_bedrock"]
 azure = ["gproxy-sdk/azure"]
