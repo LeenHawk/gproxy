@@ -56,7 +56,8 @@ impl OutboundClient for Script {
             self.requests.lock().unwrap().push((
                 parts.uri.to_string(),
                 parts.headers,
-                serde_json::from_slice(&body).unwrap(),
+                // The RotateCookies placeholder body is not JSON.
+                serde_json::from_slice(&body).unwrap_or(Value::Null),
             ));
             let (status, body) = self
                 .replies
@@ -260,7 +261,10 @@ async fn imported_cookies_are_validated_and_rpc_permission_errors_remain_respons
             .validate_credential_secret(&json!({"cookie":"SID=x; SAPISID=y\r\nCookie: z"}))
             .is_err()
     );
-    let client = Script::new([(StatusCode::OK, "[1]".into())]);
+    let client = Script::new([
+        (StatusCode::OK, String::new()),
+        (StatusCode::OK, "[1]".into()),
+    ]);
     let update = Playground
         .credential_refresh()
         .unwrap()

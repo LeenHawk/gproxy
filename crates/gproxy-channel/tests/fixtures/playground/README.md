@@ -54,11 +54,24 @@ request. It differs from the WAA-only key in `dB.getMetadata`; using the WAA
 key for MakerSuite yields `API_KEY_SERVICE_BLOCKED`. Neither is the user's
 Gemini API key.
 
-The initial credential refresh validates the session and discovers its
-benefit tier. The 12-hour expiry is a local revalidation schedule, not a
-claim about Google's session lifetime. This implementation does not yet
-implement `accounts.google.com/RotateCookies`; expired sessions require
-fresh Cookie-Editor data.
+The credential refresh rotates the session, validates it and discovers its
+benefit tier. It first posts the placeholder body `[000,"-0000000000000000000"]`
+to `https://accounts.google.com/RotateCookies` with the session cookies, as
+the browser's `RotateCookiesPage` frame does, and takes `__Secure-1PSIDTS` /
+`__Secure-3PSIDTS` from the reply's `Set-Cookie`. A failed rotation is not
+fatal; `GetAiStudioBenefitTier` then decides whether the session is alive.
+The credential's expiry is the next rotation time, three hours later, not a
+claim about Google's session lifetime. Google answers 429 to rotations less
+than a minute apart. The rotation request follows the widely used web-client
+form and has not been captured from our own browser session.
+
+Between refreshes the `response_update` hook saves cookies Google replaces:
+`Set-Cookie` on MakerSuite responses, and the rotating cookies (`*SIDTS`,
+`*SIDCC`) in the Cookie header sent after the signer refreshed them. Identity
+cookies are never taken from the signer, deletions are ignored, and the
+secret's `retired` map holds each cookie's previous value so a request still
+in flight during a rotation cannot write the old value back. A session that
+Google has revoked still requires fresh Cookie-Editor data.
 
 ## Generation fields (zero-based JSPB indexes)
 
