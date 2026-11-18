@@ -31,9 +31,16 @@ pub async fn run(mut settings: Settings) -> Result<()> {
         .password
         .as_deref()
         .ok_or_else(|| Error::other("set GPROXY_ADMIN_PASSWORD before deploying"))?;
-    let key = settings.config.master_key.resolve()?.ok_or_else(|| {
-        Error::other("set GPROXY_MASTER_KEY to a saved 32-byte key before deploying")
-    })?;
+    // Optional, as for the CLI. Rotation is not: a function runtime cannot
+    // guarantee the single running instance a rotation needs.
+    let key = settings.config.master_key.resolve()?;
+    if key.is_none() {
+        tracing::warn!(
+            "{} Set GPROXY_MASTER_KEY to 32 bytes as 64 hex characters or base64 before adding \
+             upstream credentials.",
+            crate::rotate::PLAINTEXT_SECRETS
+        );
+    }
     // The process is private to its JS entry. The entry overwrites forwarded
     // headers from the platform's trusted client IP and the public request URL.
     settings.config.host = "127.0.0.1".into();
@@ -79,11 +86,15 @@ pub async fn run(mut settings: Settings) -> Result<()> {
             .await?;
     }
     let publications = AppPublicationUrl::from_config(&settings.config);
-    let gateway = GproxyBuilder::connection(connection.clone())
+    let builder = GproxyBuilder::connection(connection.clone())
         .sync_schema(false)
         .initial_reload(false)
-        .sync_mode(SyncMode::Manual)
-        .master_key(key)
+        .sync_mode(SyncMode::Manual);
+    let builder = match key {
+        Some(key) => builder.master_key(key),
+        None => builder.plaintext_secrets(),
+    };
+    let gateway = builder
         .cache(Arc::new(StoreCache::new(store)))
         .publication_url(Arc::new(publications))
         .build()
