@@ -205,6 +205,17 @@ fn apply_text<'a>(
                     }
                     changed
                 }
+                RuleAction::JsonPatch(patch) => {
+                    let mut patched = document.clone();
+                    json_patch::patch_unsafe(&mut patched, patch)
+                        .map_err(|error| RewriteError::InvalidJson(error.to_string()))?;
+                    if patched == *document {
+                        false
+                    } else {
+                        *document = patched;
+                        true
+                    }
+                }
                 // Native content helpers can canonicalize while returning false, or
                 // return true for an existing marker. Keep their established no-op semantics.
                 RuleAction::SystemText(_) | RuleAction::CacheBreakpoint(_) => {

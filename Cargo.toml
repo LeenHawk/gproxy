@@ -171,6 +171,7 @@ sea-orm-migration = { version = "2", default-features = false, features = ["with
 send_wrapper = { version = "0.6", features = ["futures"] }
 serde = { version = "1", features = ["derive"] }
 jmespath = { version = "0.5", features = ["sync"] }
+json-patch = { version = "4.2", default-features = false }
 serde_json = "1"
 schemars = { version = "1", features = ["rust_decimal1", "bytes1"] }
 utoipa = "6"

@@ -449,6 +449,7 @@
     "cacheIndex": "Breakpoint index",
     "cacheIndexHelp": "Leave blank for the last item. Positive indexes start at 1; negative indexes count from the end.",
     "ttl": "Cache TTL",
+    "patchOperations": "Patch operations (RFC 6902)",
     "jsonValue": "JSON value",
     "filters": "Match conditions (optional)",
     "invalidOperations": "Operation filters must be an array of objects containing operation and dialect.",
@@ -465,7 +466,7 @@
     "templateHelp": {
       "system_text": "Prepend or append text to the system prompt in the selected protocol.",
       "cache_breakpoint": "Mark native Claude or OpenAI Chat/Responses cache breakpoints for the selected protocol.",
-      "rewrite": "Set, delete or recursively merge JSON fields at paths.",
+      "rewrite": "Set, delete or merge fields by path, or apply JSON Patch operations to the body.",
       "transform": "Replace request and response content using paths or regex, including request query values or response headers.",
       "header": "Add, override or merge outbound HTTP request headers. Merge preserves existing values and appends a distinct new value."
     },
@@ -483,6 +484,7 @@
       "set": "Set",
       "delete": "Delete",
       "merge": "Recursive merge",
+      "json_patch": "JSON Patch",
       "header_set": "Add / override",
       "header_merge": "Merge",
       "body": "Body",

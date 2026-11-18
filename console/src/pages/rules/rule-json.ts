@@ -1,4 +1,5 @@
 import type { RewriteRuleWrite } from "@/generated/sdk"
+import { rewriteActions } from "./rule-kind"
 
 export type RuleJson = Omit<RewriteRuleWrite, "id" | "ruleSetId" | "sortOrder">
 
@@ -34,7 +35,7 @@ export function parseRuleJson(text: string, invalid: (field: string) => string):
     if (typeof rule[key] !== "string") throw new Error(invalid(key))
   }
   const choices = {
-    action: ["replace", "set", "delete", "merge", "header_set", "header_merge", "system_text", "cache_breakpoint"],
+    action: ["replace", ...rewriteActions, "header_set", "header_merge", "system_text", "cache_breakpoint"],
     phase: ["request", "response", "both"], target: ["body", "header", "query"],
   }
   for (const key of ["action", "phase", "target"] as const) {

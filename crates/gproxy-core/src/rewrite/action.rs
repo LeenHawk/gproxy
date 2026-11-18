@@ -11,6 +11,7 @@ pub enum RuleAction {
     Set(Value),
     Delete,
     Merge(Value),
+    JsonPatch(json_patch::Patch),
     HeaderSet(http::HeaderValue),
     HeaderMerge(http::HeaderValue),
     SystemText(SystemTextConfig),
@@ -77,6 +78,14 @@ pub(super) fn compile(
                     Ok(RuleAction::Merge(value))
                 }
             }
+        }
+        "json_patch" => {
+            if !matches!(target, RewriteTarget::Body { paths: None }) {
+                return Err(invalid("JSON Patch requires a body target without paths"));
+            }
+            serde_json::from_str(replacement)
+                .map(RuleAction::JsonPatch)
+                .map_err(|error| invalid(&error.to_string()))
         }
         "header_set" | "header_merge" => {
             if !matches!(target, RewriteTarget::Header { .. }) {

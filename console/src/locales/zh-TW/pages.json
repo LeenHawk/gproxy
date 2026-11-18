@@ -449,6 +449,7 @@
     "cacheIndex": "斷點序號",
     "cacheIndexHelp": "留空選擇最後一個；正數從 1 開始，負數從末尾計數。",
     "ttl": "快取有效期",
+    "patchOperations": "修補操作陣列（RFC 6902）",
     "jsonValue": "JSON 值",
     "filters": "比對條件（選填）",
     "invalidOperations": "操作篩選必須是包含 operation 和 dialect 的物件陣列。",
@@ -465,7 +466,7 @@
     "templateHelp": {
       "system_text": "在所選協定的系統提示前置或附加文字。",
       "cache_breakpoint": "標記 Claude 或 OpenAI Chat/Responses 原生快取斷點，僅作用於所選協定。",
-      "rewrite": "按路徑設定、刪除或遞迴合併 JSON 欄位。",
+      "rewrite": "按路徑設定、刪除或合併欄位，或對本文套用 JSON Patch 操作。",
       "transform": "按路徑或正規表示式替換請求和回應內容，也可修改請求 Query 或回應標頭。",
       "header": "新增、覆寫或合併出站 HTTP 請求標頭。合併保留既有值並附加不同的新值。"
     },
@@ -483,6 +484,7 @@
       "set": "設定",
       "delete": "刪除",
       "merge": "遞迴合併",
+      "json_patch": "JSON Patch",
       "header_set": "新增 / 覆寫",
       "header_merge": "合併",
       "body": "本文",

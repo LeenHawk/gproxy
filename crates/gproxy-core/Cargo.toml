@@ -30,6 +30,7 @@ rust_decimal = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 jmespath = { workspace = true }
+json-patch = { workspace = true }
 serde_json = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde_urlencoded = { workspace = true }

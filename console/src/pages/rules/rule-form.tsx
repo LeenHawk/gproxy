@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { parseRuleJson, ruleJson } from "./rule-json"
 
 export type SetChoice = { id: string; name: string; shared?: boolean }
-import { kinds, ruleKind, type RuleKind } from "./rule-kind"
+import { kinds, rewriteActions, ruleKind, type RuleKind } from "./rule-kind"
 export function RuleSelect({ label, value, options, onChange, disabled }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void; disabled?: boolean }) {
   return <Field><FieldLabel>{label}</FieldLabel><Select value={value} onValueChange={onChange} disabled={disabled}><SelectTrigger aria-label={label}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
 }
@@ -77,6 +77,7 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
   const select = (label: string, value: string, values: readonly string[], onChange: (v: string) => void, prefix?: string) => <RuleSelect label={label} value={value} options={options(values, prefix)} onChange={onChange} />
   const input = (label: string, value: string, onChange: (value: string) => void, multiline = false, required = false) => <Field><FieldLabel>{label}</FieldLabel>{multiline ? <Textarea aria-label={label} value={value} required={required} onChange={e => onChange(e.target.value)} /> : <Input aria-label={label} value={value} required={required} onChange={e => onChange(e.target.value)} />}</Field>
   const semantic = kind === "system_text" || kind === "cache_breakpoint"
+  const jsonPatch = kind === "rewrite" && action === "json_patch"
   const formWrite = (validate = true): RewriteRuleWrite => {
     const operationKeys: unknown = operations.trim() ? JSON.parse(operations) : null
     if (operationKeys !== null && (!Array.isArray(operationKeys) || operationKeys.some(v => !v || typeof v.operation !== "string" || typeof v.dialect !== "string"))) throw new Error(t("rules.invalidOperations"))
@@ -87,14 +88,14 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
     const index = cacheIndex.trim() ? Number(cacheIndex) : null
     if (kind === "cache_breakpoint" && index !== null && (!Number.isSafeInteger(index) || index === 0)) throw new Error(t("rules.invalidIndex"))
     const bodyPaths = paths.split("\n").map(p => p.trim()).filter(Boolean)
-    if (validate && kind === "rewrite" && bodyPaths.length === 0) throw new Error(t("rules.pathsRequired"))
+    if (validate && kind === "rewrite" && !jsonPatch && bodyPaths.length === 0) throw new Error(t("rules.pathsRequired"))
     return {
       id: original?.id ?? null, ruleSetId: setId,
       action: semantic ? kind : kind === "rewrite" || kind === "header" ? action : "replace",
       phase: semantic || (kind === "transform" && target === "query") ? "request" : phase,
       target: kind === "header" ? "header" : kind === "transform" ? target : "body",
       targetName: kind === "header" || (kind === "transform" && target !== "body") ? targetName : null,
-      paths: !semantic && kind !== "header" && (kind === "rewrite" || target === "body") && bodyPaths.length ? bodyPaths : null,
+      paths: !semantic && !jsonPatch && kind !== "header" && (kind === "rewrite" || target === "body") && bodyPaths.length ? bodyPaths : null,
       pattern: kind === "transform" ? pattern : "",
       replacement: kind === "system_text" ? JSON.stringify({ ...config, dialect, text, position }) : kind === "cache_breakpoint" ? JSON.stringify({ ...config, dialect, target: cacheTarget, index, ttl: ttl === "default" ? null : ttl }) : kind === "rewrite" && action === "delete" ? "" : replacement,
       filterModelPattern: modelFilter || null, filterHeaderPattern: headerFilter || null,
@@ -165,7 +166,11 @@ export function RuleForm({ providerId, original, choices, remoteSets, defaultSet
           {cacheTarget !== "global" ? <>{input(t("rules.cacheIndex"), cacheIndex, setCacheIndex)}<FieldDescription>{t("rules.cacheIndexHelp")}</FieldDescription></> : null}
           {select(t("rules.ttl"), ttl, dialect === "claude" ? ["default", "5m", "1h"] : cacheTarget === "global" ? ["default", "30m"] : ["default", "30m", "12h"], setTtl)}
         </> : null}
-        {kind === "rewrite" ? <>{select(t("fields.action"), action, ["set", "delete", "merge"], setAction)}{input(t("fields.paths"), paths, setPaths, true, true)}{action !== "delete" ? input(t("rules.jsonValue"), replacement, setReplacement, true, true) : null}</> : null}
+        {kind === "rewrite" ? <>
+          {select(t("fields.action"), action, rewriteActions, setAction)}
+          {!jsonPatch ? input(t("fields.paths"), paths, setPaths, true, true) : null}
+          {action !== "delete" ? input(t(jsonPatch ? "rules.patchOperations" : "rules.jsonValue"), replacement, setReplacement, true, true) : null}
+        </> : null}
         {kind === "header" ? <>{select(t("fields.action"), action, ["header_set", "header_merge"], setAction)}{input(t("fields.targetName"), targetName, setTargetName, false, true)}{input(t("fields.replacement"), replacement, setReplacement)}</> : null}
         {kind === "transform" ? <>
           {select(t("fields.target"), target, ["body", "header", "query"], setTarget)}

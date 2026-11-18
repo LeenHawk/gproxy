@@ -3151,6 +3151,7 @@ dependencies = [
  "gproxy-tokenizer",
  "http",
  "jmespath",
+ "json-patch",
  "percent-encoding",
  "regex",
  "rust_decimal",
