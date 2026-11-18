@@ -174,7 +174,7 @@ function RecordForm({ fields, original, mode, onSubmit, pending, submitDisabled,
     {!inline ? <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>{t("actions.cancel")}</Button> : null}
     <Button type="submit" form={formId} disabled={pending || submitDisabled}>{t(mode === "create" ? "actions.create" : "actions.save")}</Button>
   </>
-  return inline ? <div className="flex flex-col gap-4">{controls}<div className="flex justify-end gap-2">{actions}</div></div>
+  return inline ? <div className="flex flex-col gap-4">{controls}<div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t bg-popover py-3">{actions}</div></div>
     : <><DialogBody className="flex flex-col gap-4">{controls}</DialogBody><DialogFooter>{actions}</DialogFooter></>
 
 }
