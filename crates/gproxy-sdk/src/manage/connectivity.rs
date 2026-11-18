@@ -18,7 +18,12 @@
 //! `gproxy-sdk:admin`. There is no dry run; a test that did not really call
 //! the upstream would not have tested anything.
 
-use std::{collections::BTreeSet, num::NonZeroU32, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    num::NonZeroU32,
+    sync::Arc,
+    time::Duration,
+};
 
 use futures_util::StreamExt;
 use gproxy_channel::channel::{NormalizedUsage, ProviderView};
@@ -406,6 +411,10 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
 
     /// Add discovered names to a provider's catalog. Names it already offers
     /// are left alone, so applying a discovery twice is the same as once.
+    ///
+    /// New names take the metadata the upstream directory reports for them, as
+    /// `discover_models` shows it. When the directory cannot be read, the names
+    /// are still added with the local defaults.
     pub async fn apply_discovered(
         &self,
         provider_id: &str,
@@ -439,11 +448,26 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             .await?;
         let mut added = Vec::new();
         let mut statements = Vec::new();
+        let mut discovered: Option<BTreeMap<String, Value>> = None;
         for name in upstream_names {
             let name = name.trim().to_owned();
             if name.is_empty() || existing.contains(&name) || added.contains(&name) {
                 continue;
             }
+            if discovered.is_none() {
+                discovered = Some(
+                    self.discover_models(&provider_id, None)
+                        .await
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|row| (row.upstream_name, row.metadata))
+                        .collect(),
+                );
+            }
+            let metadata = discovered
+                .as_mut()
+                .and_then(|rows| rows.remove(&name))
+                .unwrap_or_else(|| import_metadata(&name, &defaults, json!({})));
             statements.push(BatchStatement::Execute(
                 self.writer.store().provider_models().insert_statement(
                     provider_model::ActiveModel {
@@ -451,7 +475,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
                         provider_id: Set(provider_id.clone()),
                         upstream_name: Set(name.clone()),
                         model_id: Set(None),
-                        metadata: Set(import_metadata(&name, &defaults, json!({}))),
+                        metadata: Set(metadata),
                         enabled: Set(true),
                     },
                 )?,
