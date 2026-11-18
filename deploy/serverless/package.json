@@ -7,7 +7,6 @@
     "build": "node prepare-release.mjs"
   },
   "dependencies": {
-    "@netlify/database": "2.0.1",
     "fflate": "0.8.3"
   }
 }
