@@ -40,6 +40,15 @@ function scaledPrice(value, shift) {
 export function perMillion(value) { return scaledPrice(value, 6) }
 export function roundPrice(value) { return scaledPrice(value, 0) }
 
+// OpenRouter does not carry the Gemini API's method list, so Google models get
+// the methods their output kind is served by. Other kinds are left unset.
+export function generationMethods(id, outputModalities) {
+  if (!/^~?google\//.test(id)) return null
+  if (outputModalities.includes("embeddings")) return ["embedContent"]
+  if (outputModalities.includes("text")) return ["generateContent", "countTokens"]
+  return null
+}
+
 function tokenRate(metric, value, priority, required = false, ttlSeconds = null) {
   const price = perMillion(value)
   if (price == null || (!required && /^0(?:\.0+)?$/.test(value))) return null
@@ -162,6 +171,7 @@ export function buildCatalog(payload, fetchedAt = new Date().toISOString()) {
       input_modalities: [...new Set(inputModalities)].sort(),
       output_modalities: [...new Set(outputModalities)].sort(),
       supported_parameters: [...new Set(supportedParameters)].sort(),
+      ...(generationMethods(model.id, outputModalities) ? { generation_methods: generationMethods(model.id, outputModalities) } : {}),
       pricing: modelPricing(model, outputModalities, () => { dynamicPriceModels += 1 }),
     })
   }
