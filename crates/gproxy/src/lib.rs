@@ -100,7 +100,7 @@ pub fn main_with(
     channels: Vec<std::sync::Arc<dyn gproxy_sdk::BaseChannel>>,
 ) -> std::process::ExitCode {
     // Before the runtime, before `clap`: see the module note.
-    if let Err(error) = env::load_default() {
+    if let Err(error) = env::load_default().and_then(|()| env::adopt_platform()) {
         eprintln!("gproxy: {error}");
         return std::process::ExitCode::FAILURE;
     }

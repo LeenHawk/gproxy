@@ -68,6 +68,12 @@ pub const UPDATE_AUTOMATIC: &str = "GPROXY_UPDATE_AUTOMATIC";
 /// name it, because a flag would have to be parsed by the very step it feeds.
 pub const ENV_FILE: &str = "GPROXY_ENV_FILE";
 
+/// Opt-in for a platform that names its own variables: with this on, an unset
+/// [`PORT`] is taken from `PORT` and an unset [`DSN`] from
+/// `GPROXY_DATABASE_URL` or `DATABASE_URL`. Off by default, because both
+/// generic names are common in a shell that has nothing to do with GPROXY.
+pub const PLATFORM_ENV: &str = "GPROXY_PLATFORM_ENV";
+
 /// Printed at the top of `--help`: the wordmark, then who to blame and which build
 /// this is, so a pasted help screen identifies its own version. The escapes
 /// are stripped by `clap` when colour is off (a pipe, `NO_COLOR`).

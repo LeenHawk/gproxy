@@ -82,6 +82,38 @@ pub fn load(path: &Path) -> Result<()> {
     })
 }
 
+/// Adopt the variables a hosting platform assigns, when [`cli::PLATFORM_ENV`]
+/// asks for it. Heroku picks the port itself and passes it as `PORT`, and its
+/// database add-on provides `DATABASE_URL`; the release image has no shell to
+/// rename them with. A `GPROXY_*` variable that is already set is left alone.
+///
+/// # Safety
+///
+/// Same rule as [`load_default`]: single-threaded, before the runtime.
+pub fn adopt_platform() -> Result<()> {
+    let enabled = match std::env::var(cli::PLATFORM_ENV) {
+        Ok(value) => crate::config::boolean(&value, cli::PLATFORM_ENV)?,
+        Err(_) => false,
+    };
+    if !enabled {
+        return Ok(());
+    }
+    let set = |name: &str| std::env::var_os(name).filter(|value| !value.is_empty());
+    for (target, sources) in [
+        (cli::PORT, &["PORT"][..]),
+        (cli::DSN, &["GPROXY_DATABASE_URL", "DATABASE_URL"][..]),
+    ] {
+        if set(target).is_some() {
+            continue;
+        }
+        if let Some(value) = sources.iter().find_map(|name| set(name)) {
+            // SAFETY: called from `main` before any thread exists.
+            unsafe { std::env::set_var(target, value) };
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

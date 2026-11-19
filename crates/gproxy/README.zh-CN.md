@@ -207,6 +207,7 @@ flag 旁边，这张表不可能和程序本身走偏。v3 里存在过的名字
 | `GPROXY_DATA_DIR` | `--data-dir` | `data` | 相对路径的解析根 |
 | `GPROXY_PERSISTENCE` | `--persistence` | `sqlite` | `sqlite`、`postgres` 或 `mysql`（`db` 是 v2 对 `sqlite` 的叫法） |
 | `GPROXY_DSN` | `--dsn` | — | 连接串；未给 `--persistence` 时由它的 scheme 决定后端 |
+| `GPROXY_PLATFORM_ENV` | — | 关 | 开启后，未设置 `GPROXY_PORT` 时读取 `PORT`，未设置 `GPROXY_DSN` 时读取 `GPROXY_DATABASE_URL` 或 `DATABASE_URL` |
 | `GPROXY_REDIS_URL` | `--redis-url` | — | 共享缓存；**多实例必需** |
 | `GPROXY_MASTER_KEY` | `--master-key` | — | 32 字节，64 位十六进制或 base64。不设则明文存储 |
 | `GPROXY_MASTER_KEY_NEXT` | `--master-key-next` | — | 要重新密封到的新密钥 |

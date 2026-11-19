@@ -13,7 +13,7 @@ printf '%s' "$GH_TOKEN" | skopeo login ghcr.io --username "$GITHUB_REPOSITORY_OW
 printf '%s' "$DOCKERHUB_TOKEN" | skopeo login docker.io --username leenhawk --password-stdin
 
 tags=("$RELEASE_TAG")
-if [ "$GPROXY_BUILD_CHANNEL" = release ]; then tags+=(staging); fi
+if [ "$GPROXY_BUILD_CHANNEL" = release ]; then tags+=(staging latest); fi
 source="${GPROXY_CONTAINER_SOURCE:?}"
 image="${DOCKERHUB_IMAGE:-leenhawk/gproxy}"
 for suffix in "" -musl; do
