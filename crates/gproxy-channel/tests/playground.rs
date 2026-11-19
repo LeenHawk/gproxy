@@ -379,7 +379,8 @@ async fn openai_compatible_option_gates_json_schema_and_tool_config() {
     );
 
     // Enabled (openai_compatible = true) lowers JSON Schema and accepts toolConfig
-    let compat_config = json!({"proof_server_url": "http://signer.test", "openai_compatible": true});
+    let compat_config =
+        json!({"proof_server_url": "http://signer.test", "openai_compatible": true});
     let client = Script::generation(RESPONSE);
     let response = Playground
         .generate_content(context(&compat_config, &secret, client.clone(), body))
