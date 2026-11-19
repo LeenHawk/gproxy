@@ -543,8 +543,8 @@ fn tls_presets() -> Vec<TlsPresetDto> {
         TlsPresetDto {
             id: "antigravity".to_owned(),
             label: "Antigravity".to_owned(),
-            // The Code Assist transport captured from CLI 1.5.10 / hub 2.32.2
-            // on 2026-11-17: no GREASE, TLS 1.2 floor, Go's cipher order with
+            // The Code Assist transport captured from CLI 1.5.12 / hub 2.33.0
+            // on 2026-11-19: no GREASE, TLS 1.2 floor, Go's cipher order with
             // the TLS 1.3 suites last, and the captured extension order.
             // BoringSSL cannot send the captured SecP256r1MLKEM768 and
             // SecP384r1MLKEM1024 groups or the signature_algorithms_cert
@@ -581,7 +581,7 @@ fn tls_presets() -> Vec<TlsPresetDto> {
                 "psk_dhe_ke": false,
                 "headers": [[
                     "user-agent",
-                    "antigravity/hub/2.32.2 (aidev_client; os_type=linux; arch=amd64; cl=1023297289)"
+                    "antigravity/hub/2.33.0 (aidev_client; os_type=linux; arch=amd64; cl=1024904911)"
                 ]],
             }),
         },

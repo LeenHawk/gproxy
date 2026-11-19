@@ -17,7 +17,7 @@
 //!   and `internal/api/handlers/management/auth_files_provider_oauth.go`).
 //! - Since 2.6.0 the IDE ships no language server: its bundled `agy`
 //!   extension downloads the Antigravity CLI and runs it as
-//!   `antigravity --hub` (CLI 1.5.10, hub server 2.32.2), and that Go
+//!   `antigravity --hub` (CLI 1.5.12, hub server 2.33.0), and that Go
 //!   process makes the model calls: `POST /v1internal:generateContent`,
 //!   `:streamGenerateContent?alt=sse` and `:countTokens` carrying the Code
 //!   Assist envelope, the catalogue from `POST /v1internal:fetchAvailableModels`
@@ -57,7 +57,7 @@
 //! `user_prompt_id`. It names itself (`userAgent: "antigravity"`) and the
 //! kind of call (`requestType: "agent"`, `"image_gen"` for an image model).
 //! An agent call (captured from the hub and CLI 1.4.10 on 2026-10-29, and
-//! rechecked with CLI 1.5.10 on 2026-11-17) carries
+//! rechecked with CLI 1.5.12 on 2026-11-19) carries
 //! `requestId: agent/<cascade>/<ms>/<trajectory>/<step>`, where the cascade
 //! and trajectory ids stay put across a conversation and the step is the
 //! number of `contents`; `request.labels` repeating those ids
@@ -146,16 +146,16 @@ pub const EDITOR_USER_AGENT: &str = concat!(
     " linux/amd64 google-api-nodejs-client/10.3.0"
 );
 /// The user agent of the hub the IDE runs (`antigravity --hub`, CLI
-/// 1.5.10), which makes the catalogue, quota and generation calls
+/// 1.5.12), which makes the catalogue, quota and generation calls
 /// (`codeassistclient.UserAgent`): `%s/%s/%s (%s)` of the agent name
 /// (`antigravity`), the subclient type (`hub` under `--hub`, `cli`
-/// otherwise), the hub server's version (2.32.2; the CLI's own version under
+/// otherwise), the hub server's version (2.33.0; the CLI's own version under
 /// `cli`), and `aidev_client`, `os_type=<GOOS>`, `arch=<GOARCH>` and the
 /// build's `cl=<changelist>` joined by `; `. The hub's sign-in records no
 /// `auth_method` (the standalone CLI's adds `auth_method=consumer`). Captured
-/// from the Linux amd64 build of CLI 1.5.10 on 2026-11-17.
+/// from the Linux amd64 build of CLI 1.5.12 on 2026-11-19.
 pub const USER_AGENT: &str =
-    "antigravity/hub/2.32.2 (aidev_client; os_type=linux; arch=amd64; cl=1023297289)";
+    "antigravity/hub/2.33.0 (aidev_client; os_type=linux; arch=amd64; cl=1024904911)";
 
 /// Provider `config` JSON understood by this channel. Unknown keys ignored.
 #[derive(Debug, Deserialize)]
@@ -207,7 +207,7 @@ const CHANNEL_HEADERS: &[&str] = &[
     "x-goog-user-project",
 ];
 
-/// HTTP/1.1 with gzip: CLI 1.5.10 `newCloudCodeTransport` disables HTTP/2
+/// HTTP/1.1 with gzip: CLI 1.5.12 `newCloudCodeTransport` disables HTTP/2
 /// and strips `h2` from ALPN. The Go transport negotiates and decodes gzip; the
 /// downstream client's encoding preferences cannot describe this channel's
 /// parser. The captured CLI fingerprint is the public `antigravity` TLS
@@ -382,7 +382,8 @@ fn conversation_ids(request: &Value) -> Result<(String, String), ChannelError> {
 /// Google AI Pro account's catalogue on 2026-10-30 (identical on the
 /// production and `daily-` hosts), checked again on the `daily-` host on
 /// 2026-11-11 when the `gemini-4-carbon-*` models appeared. Hydrogen labels
-/// come from CLI 1.5.10 `geminimodels.Catalog` and its Model enum descriptor;
+/// come from CLI 1.5.10 `geminimodels.Catalog`; Neon labels come from
+/// CLI 1.5.12, checked against its Model enum descriptor;
 /// availability still comes only from the account catalogue. A model missing
 /// here gets no label.
 const MODEL_ENUMS: &[(&str, &str)] = &[
@@ -419,6 +420,10 @@ const MODEL_ENUMS: &[(&str, &str)] = &[
     ("gemini-4-hydrogen-high", "MODEL_PLACEHOLDER_M461"),
     ("gemini-4-hydrogen-low", "MODEL_PLACEHOLDER_M463"),
     ("gemini-4-hydrogen-medium", "MODEL_PLACEHOLDER_M462"),
+    ("gemini-4-neon-high", "MODEL_PLACEHOLDER_M467"),
+    ("gemini-4-neon-low", "MODEL_PLACEHOLDER_M465"),
+    ("gemini-4-neon-medium", "MODEL_PLACEHOLDER_M466"),
+    ("gemini-4-neon-xhigh", "MODEL_PLACEHOLDER_M468"),
     ("gpt-oss-120b-medium", "MODEL_OPENAI_GPT_OSS_120B_MEDIUM"),
 ];
 
