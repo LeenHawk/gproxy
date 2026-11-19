@@ -49,6 +49,11 @@ impl BaseChannel for Playground {
                     .with_placeholder("http://127.0.0.1:8081"),
                 ConfigKey::optional("timezone", ConfigKeyKind::String, "IANA timezone sent with the Playground request.")
                     .with_placeholder("UTC"),
+                ConfigKey::optional(
+                    "openai_compatible",
+                    ConfigKeyKind::Bool,
+                    "Lower OpenAI/Claude JSON Schemas (parametersJsonSchema / responseJsonSchema) and accept toolConfig.",
+                ),
             ].into_iter().chain(HOST_CONFIG_KEYS).collect(),
         }
     }

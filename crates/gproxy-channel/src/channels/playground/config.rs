@@ -10,6 +10,7 @@ pub(super) const RPC_PATH: &str =
 pub struct PlaygroundConfig {
     pub proof_server_url: String,
     pub timezone: String,
+    pub openai_compatible: bool,
 }
 
 impl Default for PlaygroundConfig {
@@ -17,6 +18,7 @@ impl Default for PlaygroundConfig {
         Self {
             proof_server_url: String::new(),
             timezone: "UTC".into(),
+            openai_compatible: false,
         }
     }
 }

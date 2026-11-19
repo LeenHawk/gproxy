@@ -170,7 +170,7 @@ pub(super) async fn generate(
     let model = model(&context.request.path)?;
     let body: Value = serde_json::from_slice(&read_body(context.request.body).await?)
         .map_err(|_| ChannelError::InvalidConfig("Playground request must be JSON".into()))?;
-    let mut wire = wire::encode(&model, &body, &config.timezone)?;
+    let mut wire = wire::encode(&model, &body, &config.timezone, config.openai_compatible)?;
     let tier = context
         .credential
         .metadata

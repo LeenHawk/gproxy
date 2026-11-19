@@ -331,3 +331,61 @@ async fn captured_catalog_preserves_model_limits_without_advertising_unsupported
         json!(["generateContent", "countTokens"])
     );
 }
+
+#[tokio::test]
+async fn openai_compatible_option_gates_json_schema_and_tool_config() {
+    let secret = secret();
+    let body = json!({
+        "contents": [],
+        "generationConfig": {
+            "responseJsonSchema": {
+                "type": "object",
+                "properties": {"ok": {"type": "boolean"}},
+                "additionalProperties": false
+            }
+        },
+        "tools": [{
+            "functionDeclarations": [{
+                "name": "gproxy_capture_sum",
+                "description": "Add two numbers.",
+                "parametersJsonSchema": {
+                    "type": "object",
+                    "properties": {
+                        "a": {"type": "number"},
+                        "b": {"type": "number"}
+                    },
+                    "required": ["a", "b"],
+                    "additionalProperties": false
+                }
+            }]
+        }],
+        "toolConfig": {"functionCallingConfig": {"mode": "AUTO"}}
+    });
+
+    // Default (openai_compatible = false) rejects parametersJsonSchema / responseJsonSchema / toolConfig
+    let default_config = json!({"proof_server_url": "http://signer.test"});
+    let err = Playground
+        .generate_content(context(
+            &default_config,
+            &secret,
+            Script::new([]),
+            body.clone(),
+        ))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, ChannelError::InvalidConfig(ref msg) if msg.contains("parametersJsonSchema") || msg.contains("responseJsonSchema") || msg.contains("toolConfig")),
+        "unexpected error: {err:?}"
+    );
+
+    // Enabled (openai_compatible = true) lowers JSON Schema and accepts toolConfig
+    let compat_config = json!({"proof_server_url": "http://signer.test", "openai_compatible": true});
+    let client = Script::generation(RESPONSE);
+    let response = Playground
+        .generate_content(context(&compat_config, &secret, client.clone(), body))
+        .await
+        .unwrap();
+    drain(response.body).await.unwrap();
+    let sent = client.requests.lock().unwrap();
+    assert_eq!(sent[1].2[6][0][1][0][0], "gproxy_capture_sum");
+}

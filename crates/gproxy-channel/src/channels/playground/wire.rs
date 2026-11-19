@@ -256,7 +256,7 @@ fn content(value: &Value, default_role: &str) -> Result<Value, ChannelError> {
     ]))
 }
 
-fn generation_config(value: &Value) -> Result<Value, ChannelError> {
+fn generation_config(value: &Value, openai_compatible: bool) -> Result<Value, ChannelError> {
     if value
         .get("candidateCount")
         .is_some_and(|count| count.as_u64() != Some(1))
@@ -281,11 +281,16 @@ fn generation_config(value: &Value) -> Result<Value, ChannelError> {
     ] {
         field(&mut out, index, value, name);
     }
-    // The wire has one schema slot; a JSON Schema is lowered into it.
-    if let Some(json_schema) = value
+    // The wire has one schema slot; a JSON Schema is lowered into it when openai_compatible is enabled.
+    let json_schema = value
         .get("responseJsonSchema")
-        .or_else(|| value.get("_responseJsonSchema"))
-    {
+        .or_else(|| value.get("_responseJsonSchema"));
+    if let Some(json_schema) = json_schema {
+        if !openai_compatible {
+            return Err(bad_request(
+                "use responseSchema instead of responseJsonSchema",
+            ));
+        }
         set(&mut out, 8, schema(&lower(json_schema))?);
     } else if let Some(schema_value) = value.get("responseSchema") {
         set(&mut out, 8, schema(schema_value)?);
@@ -336,7 +341,12 @@ fn generation_config(value: &Value) -> Result<Value, ChannelError> {
     Ok(out.into())
 }
 
-pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value, ChannelError> {
+pub(super) fn encode(
+    model: &str,
+    value: &Value,
+    timezone: &str,
+    openai_compatible: bool,
+) -> Result<Value, ChannelError> {
     let contents = value
         .get("contents")
         .and_then(Value::as_array)
@@ -376,20 +386,24 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
         set(&mut out, 2, safety.into());
     }
     if let Some(config) = value.get("generationConfig") {
-        set(&mut out, 3, generation_config(config)?);
+        set(&mut out, 3, generation_config(config, openai_compatible)?);
     }
     if let Some(system) = value.get("systemInstruction") {
         set(&mut out, 5, content(system, "user")?);
     }
+    if !openai_compatible && value.get("toolConfig").is_some() {
+        return Err(bad_request("toolConfig is not supported yet"));
+    }
     // The calling mode has no known slot on this wire. `NONE` is honoured by
     // leaving the declarations out; every other mode runs as the default
     // `AUTO`, so a forced call is only a request the model may decline.
-    let no_calls = value
-        .get("toolConfig")
-        .and_then(|config| config.get("functionCallingConfig"))
-        .and_then(|config| config.get("mode"))
-        .and_then(Value::as_str)
-        .is_some_and(|mode| mode.eq_ignore_ascii_case("NONE"));
+    let no_calls = openai_compatible
+        && value
+            .get("toolConfig")
+            .and_then(|config| config.get("functionCallingConfig"))
+            .and_then(|config| config.get("mode"))
+            .and_then(Value::as_str)
+            .is_some_and(|mode| mode.eq_ignore_ascii_case("NONE"));
     if let Some(tools) = value.get("tools").and_then(Value::as_array) {
         let mut encoded = vec![];
         for tool in tools {
@@ -406,6 +420,11 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
                         let mut function = vec![name.into()];
                         field(&mut function, 1, declaration, "description");
                         if let Some(json_schema) = declaration.get("parametersJsonSchema") {
+                            if !openai_compatible {
+                                return Err(bad_request(
+                                    "use function parameters instead of parametersJsonSchema",
+                                ));
+                            }
                             set(&mut function, 2, schema(&lower(json_schema))?);
                         } else if let Some(parameters) = declaration.get("parameters") {
                             set(&mut function, 2, schema(parameters)?);
