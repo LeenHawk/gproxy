@@ -8,7 +8,7 @@ use base64::{
 };
 use serde_json::{Map, Value, json};
 
-use super::request::invalid;
+use super::{request::invalid, schema::lower};
 use crate::channel::ChannelError;
 
 fn set(array: &mut Vec<Value>, index: usize, value: Value) {
@@ -281,13 +281,14 @@ fn generation_config(value: &Value) -> Result<Value, ChannelError> {
     ] {
         field(&mut out, index, value, name);
     }
-    if let Some(schema_value) = value.get("responseSchema") {
+    // The wire has one schema slot; a JSON Schema is lowered into it.
+    if let Some(json_schema) = value
+        .get("responseJsonSchema")
+        .or_else(|| value.get("_responseJsonSchema"))
+    {
+        set(&mut out, 8, schema(&lower(json_schema))?);
+    } else if let Some(schema_value) = value.get("responseSchema") {
         set(&mut out, 8, schema(schema_value)?);
-    }
-    if value.get("responseJsonSchema").is_some() {
-        return Err(bad_request(
-            "use responseSchema instead of responseJsonSchema",
-        ));
     }
     if let Some(modalities) = value.get("responseModalities").and_then(Value::as_array) {
         let modes = modalities
@@ -380,11 +381,21 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
     if let Some(system) = value.get("systemInstruction") {
         set(&mut out, 5, content(system, "user")?);
     }
+    // The calling mode has no known slot on this wire. `NONE` is honoured by
+    // leaving the declarations out; every other mode runs as the default
+    // `AUTO`, so a forced call is only a request the model may decline.
+    let no_calls = value
+        .get("toolConfig")
+        .and_then(|config| config.get("functionCallingConfig"))
+        .and_then(|config| config.get("mode"))
+        .and_then(Value::as_str)
+        .is_some_and(|mode| mode.eq_ignore_ascii_case("NONE"));
     if let Some(tools) = value.get("tools").and_then(Value::as_array) {
         let mut encoded = vec![];
         for tool in tools {
             let mut item = vec![];
-            if let Some(declarations) = tool.get("functionDeclarations").and_then(Value::as_array) {
+            let declarations = tool.get("functionDeclarations").and_then(Value::as_array);
+            if let Some(declarations) = declarations.filter(|_| !no_calls) {
                 let functions = declarations
                     .iter()
                     .map(|declaration| {
@@ -394,15 +405,12 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
                             .ok_or_else(|| bad_request("function declaration requires name"))?;
                         let mut function = vec![name.into()];
                         field(&mut function, 1, declaration, "description");
-                        if let Some(parameters) = declaration.get("parameters") {
+                        if let Some(json_schema) = declaration.get("parametersJsonSchema") {
+                            set(&mut function, 2, schema(&lower(json_schema))?);
+                        } else if let Some(parameters) = declaration.get("parameters") {
                             set(&mut function, 2, schema(parameters)?);
                         }
-                        if declaration.get("parametersJsonSchema").is_some() {
-                            return Err(bad_request(
-                                "use function parameters instead of parametersJsonSchema",
-                            ));
-                        }
-                        Ok(Value::Array(function))
+                        Ok::<_, ChannelError>(Value::Array(function))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 set(&mut item, 1, functions.into());
@@ -416,14 +424,16 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
                 set(&mut item, 3, json!([null, [[]]]));
             }
             if item.is_empty() {
+                if no_calls && declarations.is_some() {
+                    continue;
+                }
                 return Err(bad_request("unsupported tool"));
             }
             encoded.push(item);
         }
-        set(&mut out, 6, json!(encoded));
-    }
-    if value.get("toolConfig").is_some() {
-        return Err(bad_request("toolConfig is not supported yet"));
+        if !encoded.is_empty() {
+            set(&mut out, 6, json!(encoded));
+        }
     }
     if value.get("cachedContent").is_some() {
         return Err(bad_request("cachedContent is not supported"));

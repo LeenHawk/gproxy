@@ -11,6 +11,7 @@
 mod auth;
 mod config;
 mod request;
+mod schema;
 mod stream;
 mod wire;
 
