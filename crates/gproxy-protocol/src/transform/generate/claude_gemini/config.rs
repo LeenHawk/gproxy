@@ -106,7 +106,8 @@ fn level(v: cc::Effort) -> Option<g::ThinkingLevel> {
         cc::Effort::Low => Some(g::ThinkingLevel::Low),
         cc::Effort::Medium => Some(g::ThinkingLevel::Medium),
         cc::Effort::High => Some(g::ThinkingLevel::High),
-        cc::Effort::Xhigh | cc::Effort::Max => None,
+        cc::Effort::Xhigh => Some(g::ThinkingLevel::Xhigh),
+        cc::Effort::Max => None,
     }
 }
 
@@ -231,13 +232,19 @@ pub(super) fn to_claude(
             })),
             Some(_) => None,
             None => match thinking.thinking_level {
-                Some(g::ThinkingLevel::Low | g::ThinkingLevel::Medium | g::ThinkingLevel::High) => {
+                Some(
+                    g::ThinkingLevel::Low
+                    | g::ThinkingLevel::Medium
+                    | g::ThinkingLevel::High
+                    | g::ThinkingLevel::Xhigh,
+                ) => {
                     let effort = match thinking.thinking_level {
                         Some(g::ThinkingLevel::Low) => cc::Effort::Low,
                         Some(g::ThinkingLevel::Medium) => cc::Effort::Medium,
                         Some(g::ThinkingLevel::High) => cc::Effort::High,
+                        Some(g::ThinkingLevel::Xhigh) => cc::Effort::Xhigh,
                         Some(g::ThinkingLevel::Minimal | g::ThinkingLevel::Unspecified) | None => {
-                            // The enclosing arm matched Low | Medium | High only.
+                            // The enclosing arm matched the supported effort levels only.
                             unreachable!()
                         }
                     };

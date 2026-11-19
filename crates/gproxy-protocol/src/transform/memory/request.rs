@@ -164,6 +164,7 @@ pub fn build_gemini(
             "low" => thinking.thinking_level = Some(g::ThinkingLevel::Low),
             "medium" => thinking.thinking_level = Some(g::ThinkingLevel::Medium),
             "high" => thinking.thinking_level = Some(g::ThinkingLevel::High),
+            "xhigh" => thinking.thinking_level = Some(g::ThinkingLevel::Xhigh),
             _ => {}
         }
         config.thinking_config = Some(thinking);

@@ -233,7 +233,7 @@ pub fn gemini_to_claude_response(
     // Thought text collected until its run closes; see `thinking`.
     let mut run: Option<String> = None;
     for p in candidate.content.and_then(|v| v.parts).unwrap_or_default() {
-        crate::transform::generate::gemini_controls::omitted(&p, &mut report);
+        crate::transform::generate::gemini_controls::omitted(&p, &mut report)?;
         if super::thinking::is_empty_text(&p) {
             continue;
         }

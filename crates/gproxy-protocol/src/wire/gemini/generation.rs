@@ -21,6 +21,8 @@ pub enum ThinkingLevel {
     Medium,
     #[serde(rename = "HIGH")]
     High,
+    #[serde(rename = "XHIGH")]
+    Xhigh,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]

@@ -200,7 +200,8 @@ fn to_gemini_config(
             c::Effort::Low => Some(g::ThinkingLevel::Low),
             c::Effort::Medium => Some(g::ThinkingLevel::Medium),
             c::Effort::High => Some(g::ThinkingLevel::High),
-            c::Effort::Xhigh | c::Effort::Max => None,
+            c::Effort::Xhigh => Some(g::ThinkingLevel::Xhigh),
+            c::Effort::Max => None,
         };
         if let Some(level) = level {
             out.thinking_config
@@ -242,6 +243,7 @@ fn to_claude_config(
                 g::ThinkingLevel::Low => c::Effort::Low,
                 g::ThinkingLevel::Medium => c::Effort::Medium,
                 g::ThinkingLevel::High => c::Effort::High,
+                g::ThinkingLevel::Xhigh => c::Effort::Xhigh,
                 g::ThinkingLevel::Minimal | g::ThinkingLevel::Unspecified => {
                     return Err(TransformError::unsupported(
                         "thinking_level",

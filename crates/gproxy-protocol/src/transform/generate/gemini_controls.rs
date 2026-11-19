@@ -1,7 +1,45 @@
 //! Gemini model controls and metadata projection for cross-dialect conversions.
-use crate::{gemini::Part, transform::Report};
+use crate::{
+    gemini::Part,
+    transform::{Report, TransformError},
+};
 
-pub(crate) fn omitted(part: &Part, report: &mut Report) {
+pub(crate) fn omitted(part: &Part, report: &mut Report) -> Result<(), TransformError> {
+    if part.document_metadata.is_some()
+        || part.spreadsheet_metadata.is_some()
+        || part.audio_metadata.is_some()
+        || part
+            .video_metadata
+            .as_ref()
+            .is_some_and(|v| v.content_layers.is_some())
+        || part
+            .function_response
+            .as_ref()
+            .and_then(|v| v.parts.as_ref())
+            .is_some_and(|parts| {
+                parts.iter().any(|p| {
+                    p.document_metadata.is_some()
+                        || p.spreadsheet_metadata.is_some()
+                        || p.audio_metadata.is_some()
+                        || p.video_metadata.is_some()
+                })
+            })
+    {
+        return Err(TransformError::unsupported(
+            "media inspection options",
+            "target cannot preserve Gemini page, sheet, time or content-layer selection",
+        ));
+    }
+    if part
+        .function_response
+        .as_ref()
+        .and_then(|v| v.parts.as_ref())
+        .is_some_and(|parts| parts.iter().any(|p| p.file_data.is_some()))
+    {
+        return Err(TransformError::missing_metadata(
+            "function_response.file_data requires materialized media for this target",
+        ));
+    }
     for (present, field) in [
         (part.media_processing.is_some(), "media_processing"),
         (part.audio_transcription.is_some(), "audio_transcription"),
@@ -23,6 +61,7 @@ pub(crate) fn omitted(part: &Part, report: &mut Report) {
             report.omitted(field, "Gemini media metadata has no target representation");
         }
     }
+    Ok(())
 }
 
 /// Google's documented stand-in for a thought signature the model did not
@@ -85,7 +124,15 @@ pub(crate) fn for_model(
         skip_unsigned_calls(&mut request.contents, report);
     }
     let flash_38 = model == "gemini-3.8-flash";
-    let level_only = flash_38 || model == "gemini-4-argon";
+    let neon = matches!(
+        model,
+        "gemini-4-neon"
+            | "gemini-4-neon-low"
+            | "gemini-4-neon-medium"
+            | "gemini-4-neon-high"
+            | "gemini-4-neon-xhigh"
+    );
+    let level_only = flash_38 || model == "gemini-4-argon" || neon;
     if !level_only && model != "gemini-3.6-flash" {
         return;
     }

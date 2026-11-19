@@ -179,6 +179,7 @@ pub(super) fn gemini_to_openai(
             Some(g::ThinkingLevel::Low) => Some(o::ReasoningEffort::Low),
             Some(g::ThinkingLevel::Medium) => Some(o::ReasoningEffort::Medium),
             Some(g::ThinkingLevel::High) => Some(o::ReasoningEffort::High),
+            Some(g::ThinkingLevel::Xhigh) => Some(o::ReasoningEffort::Xhigh),
             _ if thinking.thinking_budget == Some(0) => Some(o::ReasoningEffort::None),
             _ => None,
         };
@@ -259,9 +260,8 @@ pub(super) fn openai_to_gemini(
             o::ReasoningEffort::Low => thinking.thinking_level = Some(g::ThinkingLevel::Low),
             o::ReasoningEffort::Medium => thinking.thinking_level = Some(g::ThinkingLevel::Medium),
             o::ReasoningEffort::High => thinking.thinking_level = Some(g::ThinkingLevel::High),
-            o::ReasoningEffort::Xhigh
-            | o::ReasoningEffort::Max
-            | o::ReasoningEffort::Numeric(_) => {
+            o::ReasoningEffort::Xhigh => thinking.thinking_level = Some(g::ThinkingLevel::Xhigh),
+            o::ReasoningEffort::Max | o::ReasoningEffort::Numeric(_) => {
                 report.omitted("reasoning.effort", "target has no matching effort");
             }
         }

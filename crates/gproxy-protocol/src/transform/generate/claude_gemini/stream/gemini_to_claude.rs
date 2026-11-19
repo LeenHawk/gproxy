@@ -201,7 +201,7 @@ impl GeminiToClaudeStream {
                 return Err(invalid("candidate.role", "model role required"));
             }
             for part in candidate.content.and_then(|v| v.parts).unwrap_or_default() {
-                crate::transform::generate::gemini_controls::omitted(&part, &mut report);
+                crate::transform::generate::gemini_controls::omitted(&part, &mut report)?;
                 self.part(part, &mut out)?;
             }
         }

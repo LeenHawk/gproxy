@@ -107,6 +107,13 @@ pub(super) fn from_native(
         array(value).collect()
     };
     for part in contents {
+        if part.get("processing").is_some_and(|v| !v.is_null()) {
+            return Err(TransformError::unsupported(
+                "input.processing",
+                "target cannot preserve Interactions media processing or slice selection",
+            ));
+        }
+
         match string(&part["type"]) {
             "text" => out.push(json!({"type":if dialect == Dialect::OpenAi {"input_text"} else {"text"},"text":part["text"]})),
             "image" | "document" => {

@@ -149,7 +149,7 @@ impl GeminiToResponsesStream {
                     return Err(invalid("generated content must have model role"));
                 }
                 for part in content.parts.into_iter().flatten() {
-                    crate::transform::generate::gemini_controls::omitted(&part, &mut report);
+                    crate::transform::generate::gemini_controls::omitted(&part, &mut report)?;
                     if !usage_present {
                         self.usage_after_content = false;
                     }

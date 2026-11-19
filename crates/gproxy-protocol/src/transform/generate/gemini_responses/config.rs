@@ -92,6 +92,7 @@ pub(super) fn to_responses(
             Some(g::ThinkingLevel::Low) => Some(Some(i::ReasoningEffort::Low)),
             Some(g::ThinkingLevel::Medium) => Some(Some(i::ReasoningEffort::Medium)),
             Some(g::ThinkingLevel::High) => Some(Some(i::ReasoningEffort::High)),
+            Some(g::ThinkingLevel::Xhigh) => Some(Some(i::ReasoningEffort::Xhigh)),
             _ if thinking.thinking_budget == Some(0) => Some(Some(i::ReasoningEffort::None)),
             _ => None,
         };
@@ -245,9 +246,10 @@ pub(super) fn to_gemini(
                     thinking.thinking_level = Some(g::ThinkingLevel::Medium)
                 }
                 i::ReasoningEffort::High => thinking.thinking_level = Some(g::ThinkingLevel::High),
-                i::ReasoningEffort::Xhigh
-                | i::ReasoningEffort::Max
-                | i::ReasoningEffort::Numeric(_) => {
+                i::ReasoningEffort::Xhigh => {
+                    thinking.thinking_level = Some(g::ThinkingLevel::Xhigh)
+                }
+                i::ReasoningEffort::Max | i::ReasoningEffort::Numeric(_) => {
                     report.omitted("reasoning.effort", "Gemini has no matching effort");
                 }
             }

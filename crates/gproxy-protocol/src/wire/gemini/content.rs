@@ -290,6 +290,15 @@ pub struct Part {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "video_metadata")]
     pub video_metadata: Option<VideoMetadata>,
+    #[serde(alias = "document_metadata", skip_serializing_if = "Option::is_none")]
+    pub document_metadata: Option<DocumentMetadata>,
+    #[serde(
+        alias = "spreadsheet_metadata",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub spreadsheet_metadata: Option<SpreadsheetMetadata>,
+    #[serde(alias = "audio_metadata", skip_serializing_if = "Option::is_none")]
+    pub audio_metadata: Option<AudioMetadata>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -362,9 +371,7 @@ pub struct FunctionResponse {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -373,6 +380,19 @@ pub struct FunctionResponsePart {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "inline_data")]
     pub inline_data: Option<Blob>,
+    #[serde(alias = "file_data", skip_serializing_if = "Option::is_none")]
+    pub file_data: Option<FunctionResponseFileData>,
+    #[serde(alias = "video_metadata", skip_serializing_if = "Option::is_none")]
+    pub video_metadata: Option<VideoMetadata>,
+    #[serde(alias = "document_metadata", skip_serializing_if = "Option::is_none")]
+    pub document_metadata: Option<DocumentMetadata>,
+    #[serde(
+        alias = "spreadsheet_metadata",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub spreadsheet_metadata: Option<SpreadsheetMetadata>,
+    #[serde(alias = "audio_metadata", skip_serializing_if = "Option::is_none")]
+    pub audio_metadata: Option<AudioMetadata>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -453,6 +473,8 @@ pub struct VideoMetadata {
     pub end_offset: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fps: Option<f64>,
+    #[serde(alias = "content_layers", skip_serializing_if = "Option::is_none")]
+    pub content_layers: Option<Vec<VideoContentLayer>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -918,4 +940,160 @@ pub enum ComputerUseSafetyPolicy {
     UserConsentManagement,
     #[serde(rename = "LEGAL_TERMS_AND_AGREEMENTS")]
     LegalTermsAndAgreements,
+}
+
+// Static file inspection options (Gemini API, November 2026).
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum DocumentContentLayer {
+    #[serde(rename = "CONTENT_LAYER_UNSPECIFIED")]
+    Unspecified,
+    #[serde(rename = "PAGE_IMAGE")]
+    PageImage,
+    #[serde(rename = "PAGE_TEXT")]
+    PageText,
+}
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum SpreadsheetContentLayer {
+    #[serde(rename = "CONTENT_LAYER_UNSPECIFIED")]
+    Unspecified,
+    #[serde(rename = "DATA")]
+    Data,
+    #[serde(rename = "FORMULAS")]
+    Formulas,
+    #[serde(rename = "VISUAL")]
+    Visual,
+}
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum VideoContentLayer {
+    #[serde(rename = "CONTENT_LAYER_UNSPECIFIED")]
+    Unspecified,
+    #[serde(rename = "FRAMES")]
+    Frames,
+    #[serde(rename = "AUDIO")]
+    Audio,
+    #[serde(rename = "TRANSCRIPT")]
+    Transcript,
+}
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct DocumentMetadata {
+    #[serde(alias = "start_page", skip_serializing_if = "Option::is_none")]
+    pub start_page: Option<i64>,
+    #[serde(alias = "end_page", skip_serializing_if = "Option::is_none")]
+    pub end_page: Option<i64>,
+    #[serde(alias = "content_layers", skip_serializing_if = "Option::is_none")]
+    pub content_layers: Option<Vec<DocumentContentLayer>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct SpreadsheetMetadata {
+    #[serde(alias = "visible_cells", skip_serializing_if = "Option::is_none")]
+    pub visible_cells: Option<String>,
+    #[serde(alias = "sheet_index", skip_serializing_if = "Option::is_none")]
+    pub sheet_index: Option<i64>,
+    #[serde(alias = "content_layers", skip_serializing_if = "Option::is_none")]
+    pub content_layers: Option<Vec<SpreadsheetContentLayer>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct AudioMetadata {
+    #[serde(alias = "start_offset", skip_serializing_if = "Option::is_none")]
+    pub start_offset: Option<String>,
+    #[serde(alias = "end_offset", skip_serializing_if = "Option::is_none")]
+    pub end_offset: Option<String>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct FunctionResponseFileData {
+    #[serde(alias = "file_uri", skip_serializing_if = "Option::is_none")]
+    pub file_uri: Option<String>,
+    #[serde(alias = "mime_type", skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    #[serde(alias = "display_name", skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
 }

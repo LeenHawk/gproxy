@@ -49,6 +49,8 @@ pub struct InteractionMedia {
     pub channels: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub processing: Option<InteractionMediaProcessing>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -161,4 +163,104 @@ impl InteractionStep {
             | Self::ProcessingResult(body) => body,
         }
     }
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum InteractionMediaProcessing {
+    Mode(InteractionProcessingMode),
+    Static(Box<StaticMediaProcessing>),
+}
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum InteractionProcessingMode {
+    Static,
+    Agentic,
+}
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub enum StaticProcessingType {
+    Static,
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct StaticMediaProcessing {
+    #[serde(rename = "type")]
+    pub type_: StaticProcessingType,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_offset: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_offset: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fps: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_layers: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_options: Option<PageProcessingOptions>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spreadsheet_options: Option<SpreadsheetProcessingOptions>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct PageProcessingOptions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_page: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_page: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_layers: Option<Vec<String>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct SpreadsheetProcessingOptions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visible_cells: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sheet_index: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_layers: Option<Vec<String>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
 }
