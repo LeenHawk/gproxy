@@ -4,8 +4,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY prepare-release.mjs ./
-# The normal CLI image only includes SQLite. This release binary includes
-# PostgreSQL and the console, with checksums verified by prepare-release.mjs.
+# The serverless release binary keeps its cache in PostgreSQL; its checksums
+# are verified by prepare-release.mjs. The Render and Heroku templates use the
+# ordinary release image instead.
 ARG GPROXY_RELEASE_VERSION=latest
 RUN GPROXY_RELEASE_VERSION="$GPROXY_RELEASE_VERSION" node prepare-release.mjs
 

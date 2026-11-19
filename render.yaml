@@ -1,15 +1,19 @@
 services:
   - type: web
     name: gproxy
-    runtime: docker
+    runtime: image
+    image:
+      url: ghcr.io/leenhawk/gproxy:latest
     plan: free
-    dockerfilePath: ./deploy/serverless/Dockerfile
-    dockerContext: ./deploy/serverless
-    autoDeployTrigger: "off"
     healthCheckPath: /healthz
     envVars:
       - key: PORT
         value: "8787"
+      # Reads GPROXY_DATABASE_URL below as the connection string.
+      - key: GPROXY_PLATFORM_ENV
+        value: "1"
+      - key: GPROXY_PERSISTENCE
+        value: postgres
       - key: GPROXY_DATABASE_URL
         sync: false
       - key: GPROXY_ADMIN_PASSWORD

@@ -1,0 +1,14 @@
+# Heroku builds from a Dockerfile, so this only names the release image.
+FROM ghcr.io/leenhawk/gproxy:latest
+
+# Heroku assigns PORT and its database add-on provides DATABASE_URL; the
+# program adopts both under GPROXY_PLATFORM_ENV. A dyno runs as a user of
+# Heroku's choosing, which cannot write the image's /app/data.
+# The image's own GPROXY_PORT is emptied so that PORT is the one read, and its
+# SQLite default is replaced.
+ENV GPROXY_PLATFORM_ENV=1 \
+    GPROXY_PORT= \
+    GPROXY_PERSISTENCE=postgres \
+    GPROXY_DATA_DIR=/tmp/gproxy
+
+CMD ["serve"]
