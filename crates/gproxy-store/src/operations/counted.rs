@@ -44,9 +44,12 @@ impl<C: BatchConnectionTrait> Repository<'_, C, counted_window::Entity> {
             batch.push(BatchStatement::Query(
                 counted_window::Entity::find_by_id(id.clone()).batch_query(backend)?,
             ));
-            let fits = Expr::col(counted_window::Column::Used)
+            let fits = Expr::col((counted_window::Entity, counted_window::Column::Used))
                 .add(Expr::val(charge.amount))
-                .lte(Expr::col(counted_window::Column::Limit));
+                .lte(Expr::col((
+                    counted_window::Entity,
+                    counted_window::Column::Limit,
+                )));
             let conflict = OnConflict::columns([
                 counted_window::Column::CredentialId,
                 counted_window::Column::Dimension,
@@ -56,9 +59,13 @@ impl<C: BatchConnectionTrait> Repository<'_, C, counted_window::Entity> {
                 counted_window::Column::Used,
                 Expr::case(
                     fits,
-                    Expr::col(counted_window::Column::Used).add(Expr::val(charge.amount)),
+                    Expr::col((counted_window::Entity, counted_window::Column::Used))
+                        .add(Expr::val(charge.amount)),
                 )
-                .finally(Expr::col(counted_window::Column::Used)),
+                .finally(Expr::col((
+                    counted_window::Entity,
+                    counted_window::Column::Used,
+                ))),
             )
             .to_owned();
             // The first charge of a window is admitted when it fits alone.

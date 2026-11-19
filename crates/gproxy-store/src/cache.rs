@@ -67,8 +67,9 @@ fn version_of(bytes: &[u8]) -> Result<Version> {
 
 fn storage(error: impl std::fmt::Display) -> CacheError {
     // The contract has no storage variant; a database failure is a corrupt
-    // cache from the caller's point of view: reload durable state.
-    let _ = error;
+    // cache from the caller's point of view: reload durable state. The
+    // database's own message is logged here, the only place it is still known.
+    tracing::warn!(%error, "the database-backed cache failed");
     CacheError::Corrupt
 }
 
@@ -149,17 +150,20 @@ impl<C: BatchConnectionTrait + Send + Sync> StoreCache<C> {
                     .value(
                         cache_entry::Column::Value,
                         Expr::case(expired.clone(), Expr::val(value.clone()))
-                            .finally(Expr::col(cache_entry::Column::Value)),
+                            .finally(Expr::col((cache_entry::Entity, cache_entry::Column::Value))),
                     )
                     .value(
                         cache_entry::Column::Version,
-                        Expr::case(expired.clone(), Expr::val(next.as_bytes().to_vec()))
-                            .finally(Expr::col(cache_entry::Column::Version)),
+                        Expr::case(expired.clone(), Expr::val(next.as_bytes().to_vec())).finally(
+                            Expr::col((cache_entry::Entity, cache_entry::Column::Version)),
+                        ),
                     )
                     .value(
                         cache_entry::Column::ExpiresAtMs,
-                        Expr::case(expired, Expr::val(expires_at_ms))
-                            .finally(Expr::col(cache_entry::Column::ExpiresAtMs)),
+                        Expr::case(expired, Expr::val(expires_at_ms)).finally(Expr::col((
+                            cache_entry::Entity,
+                            cache_entry::Column::ExpiresAtMs,
+                        ))),
                     )
                     .to_owned();
                 cache_entry::Entity::insert(cache_entry::ActiveModel {
@@ -411,18 +415,24 @@ impl<C: BatchConnectionTrait + Send + Sync> Cache for StoreCache<C> {
                     let conflict = OnConflict::column(cache_counter::Column::Key)
                         .value(
                             cache_counter::Column::Value,
-                            Expr::case(expired.clone(), Expr::val(next_value))
-                                .finally(Expr::col(cache_counter::Column::Value)),
+                            Expr::case(expired.clone(), Expr::val(next_value)).finally(Expr::col(
+                                (cache_counter::Entity, cache_counter::Column::Value),
+                            )),
                         )
                         .value(
                             cache_counter::Column::Generation,
                             Expr::case(expired.clone(), Expr::val(generation.as_bytes().to_vec()))
-                                .finally(Expr::col(cache_counter::Column::Generation)),
+                                .finally(Expr::col((
+                                    cache_counter::Entity,
+                                    cache_counter::Column::Generation,
+                                ))),
                         )
                         .value(
                             cache_counter::Column::ExpiresAtMs,
-                            Expr::case(expired, Expr::val(expires))
-                                .finally(Expr::col(cache_counter::Column::ExpiresAtMs)),
+                            Expr::case(expired, Expr::val(expires)).finally(Expr::col((
+                                cache_counter::Entity,
+                                cache_counter::Column::ExpiresAtMs,
+                            ))),
                         )
                         .to_owned();
                     (

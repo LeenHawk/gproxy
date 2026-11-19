@@ -85,18 +85,23 @@ impl<C: BatchConnectionTrait> Repository<'_, C, protocol_state::Entity> {
                     ])
                     .value(
                         protocol_state::Column::Version,
-                        Expr::case(expired.clone(), Expr::val(next.clone()))
-                            .finally(Expr::col(protocol_state::Column::Version)),
+                        Expr::case(expired.clone(), Expr::val(next.clone())).finally(Expr::col((
+                            protocol_state::Entity,
+                            protocol_state::Column::Version,
+                        ))),
                     )
                     .value(
                         protocol_state::Column::Payload,
-                        Expr::case(expired.clone(), Expr::val(value.payload.clone()))
-                            .finally(Expr::col(protocol_state::Column::Payload)),
+                        Expr::case(expired.clone(), Expr::val(value.payload.clone())).finally(
+                            Expr::col((protocol_state::Entity, protocol_state::Column::Payload)),
+                        ),
                     )
                     .value(
                         protocol_state::Column::ExpiresAtMs,
-                        Expr::case(expired, Expr::val(value.expires_at_ms))
-                            .finally(Expr::col(protocol_state::Column::ExpiresAtMs)),
+                        Expr::case(expired, Expr::val(value.expires_at_ms)).finally(Expr::col((
+                            protocol_state::Entity,
+                            protocol_state::Column::ExpiresAtMs,
+                        ))),
                     )
                     .to_owned();
                     protocol_state::Entity::insert(protocol_state::ActiveModel {
