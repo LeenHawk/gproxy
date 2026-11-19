@@ -190,6 +190,8 @@ GPROXY 以 GNU Affero 通用公共许可证第 3 版或更新版本（AGPL-3.0-o
 
 <a href="https://www.fastly.com/"><img src=".github/readme/fastly.png" alt="Fastly" height="32"></a>
 
+<a href="https://www.vultr.com/"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/vultr-dark.svg"><img src=".github/readme/vultr-light.svg" alt="Vultr" height="32"></picture></a>
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=LeenHawk/gproxy&type=Date)](https://www.star-history.com/#LeenHawk/gproxy&Date)
