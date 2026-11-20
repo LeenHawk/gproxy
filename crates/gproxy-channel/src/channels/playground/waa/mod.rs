@@ -277,10 +277,17 @@ fn n_random_uuid() -> String {
 fn n_random_bytes<'js>(ctx: Ctx<'js>, n: f64) -> rquickjs::Result<rquickjs::ArrayBuffer<'js>> {
     rquickjs::ArrayBuffer::new(ctx, random_bytes(n.max(0.0) as usize))
 }
+/// A copy of an ArrayBuffer's bytes; empty when the buffer is detached.
+fn buffer_bytes(data: &rquickjs::ArrayBuffer<'_>) -> Vec<u8> {
+    // SAFETY: the engine-owned slice is copied out before this returns, and no
+    // JavaScript runs while it is borrowed.
+    unsafe { data.as_bytes() }.map(<[u8]>::to_vec).unwrap_or_default()
+}
 fn n_digest<'js>(ctx: Ctx<'js>, name: String, data: rquickjs::ArrayBuffer<'js>) -> rquickjs::Result<rquickjs::ArrayBuffer<'js>> {
     use sha1::Sha1;
     use sha2::{Digest, Sha256, Sha384, Sha512};
-    let bytes = data.as_bytes().unwrap_or(&[]);
+    let bytes = buffer_bytes(&data);
+    let bytes = bytes.as_slice();
     let out: Vec<u8> = match name.as_str() {
         "SHA-1" => Sha1::digest(bytes).to_vec(),
         "SHA-384" => Sha384::digest(bytes).to_vec(),
@@ -300,9 +307,9 @@ fn n_encoding_name(label: String) -> String {
 }
 fn n_decode_text<'js>(ctx: Ctx<'js>, name: String, data: rquickjs::ArrayBuffer<'js>, fatal: bool) -> rquickjs::Result<Value<'js>> {
     let n = name.to_ascii_lowercase();
-    let bytes = data.as_bytes().unwrap_or(&[]).to_vec();
+    let bytes = buffer_bytes(&data);
     let s: Option<String> = if n.contains("16le") || n == "utf-16" {
-        let u: Vec<u16> = bytes.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        let u: Vec<u16> = bytes.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
         String::from_utf16(&u).ok()
     } else if n.contains("1252") || n.contains("8859") || n.contains("latin") {
         Some(bytes.iter().map(|&b| b as char).collect())
@@ -850,18 +857,16 @@ pub fn extract_prompts(contents: &serde_json::Value, fallback: &str) -> (String,
                 }
                 continue;
             }
-            if let Some(inline) = pa.get(2).and_then(|v| v.as_array()) {
-                if let Some(b64) = inline.get(1).and_then(|v| v.as_str()) {
+            if let Some(inline) = pa.get(2).and_then(|v| v.as_array())
+                && let Some(b64) = inline.get(1).and_then(|v| v.as_str()) {
                     binding_parts.push(b64.to_string());
                     continue;
                 }
-            }
-            if let Some(file) = pa.get(5).and_then(|v| v.as_array()) {
-                if let Some(id) = file.first().and_then(|v| v.as_str()) {
+            if let Some(file) = pa.get(5).and_then(|v| v.as_array())
+                && let Some(id) = file.first().and_then(|v| v.as_str()) {
                     binding_parts.push(id.to_string());
                     continue;
                 }
-            }
             binding_parts.push(String::new());
         }
     }

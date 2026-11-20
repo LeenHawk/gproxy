@@ -279,7 +279,7 @@ tokio = { workspace = true, features = ["time", "rt", "sync"], optional = true }
 # only: QuickJS is C and cannot target wasm32-unknown-unknown (no libc), so the
 # playground channel mints proofs in-process on native and is unavailable on the
 # edge/Worker build.
-rquickjs = { version = "0.9", features = ["bindgen"], optional = true }
+rquickjs = { version = "0.14", features = ["bindgen"], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo-timers = { workspace = true, optional = true }

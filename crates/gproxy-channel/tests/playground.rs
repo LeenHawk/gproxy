@@ -20,7 +20,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-
 struct Script {
     replies: Mutex<VecDeque<(StatusCode, String)>>,
     requests: Mutex<Vec<(String, HeaderMap, Value)>>,
@@ -128,7 +127,6 @@ async fn drain(body: HttpBody) -> Result<String, String> {
     }
     String::from_utf8(output).map_err(|error| error.to_string())
 }
-
 
 #[tokio::test]
 async fn imported_cookies_are_validated_and_rpc_permission_errors_remain_responses() {

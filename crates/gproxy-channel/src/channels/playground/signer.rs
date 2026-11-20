@@ -145,13 +145,11 @@ pub(super) async fn proof(
 ) -> Result<String, ChannelError> {
     let slot = slot(key(session, model_short));
     let mut held = slot.lock().await;
-    if let Some(worker) = held.as_ref().filter(|worker| !worker.stale()) {
-        if let Ok(proof) = worker.prove(binding.clone(), page.clone()).await {
-            if proof.starts_with('!') {
+    if let Some(worker) = held.as_ref().filter(|worker| !worker.stale())
+        && let Ok(proof) = worker.prove(binding.clone(), page.clone()).await
+            && proof.starts_with('!') {
                 return Ok(proof);
             }
-        }
-    }
     // Stale, failed or absent: end the old worker and start over from Waa/Create.
     *held = None;
     let challenge = request::fetch_create(client, session, tier).await?;
@@ -189,9 +187,8 @@ pub(super) fn discard(session: &Session, model_short: &str) {
         .unwrap_or_else(|e| e.into_inner())
         .get(&key)
         .cloned();
-    if let Some(slot) = slot {
-        if let Ok(mut held) = slot.try_lock() {
+    if let Some(slot) = slot
+        && let Ok(mut held) = slot.try_lock() {
             *held = None;
         }
-    }
 }
