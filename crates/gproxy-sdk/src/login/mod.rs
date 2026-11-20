@@ -384,6 +384,9 @@ fn authorization_code(request: &AuthCodeComplete) -> SdkResult<(String, Option<S
 /// site-relative path are both accepted: a browser hands a console
 /// `location.search`, not an absolute URL.
 fn callback(url: &str) -> SdkResult<(String, Option<String>)> {
+    if let Some((code, state)) = pasted_code(url) {
+        return Ok((code.to_owned(), Some(state.to_owned())));
+    }
     let malformed = || SdkError::invalid("the login callback is not a valid URL");
     let base = url::Url::parse("http://callback.invalid/").expect("a constant URL parses");
     let parsed = url::Url::options()
@@ -408,6 +411,17 @@ fn callback(url: &str) -> SdkResult<(String, Option<String>)> {
         ));
     }
     Ok((code, state))
+}
+
+/// The `code#state` text a provider's own callback page shows for copying
+/// instead of leaving the result in the address bar (Claude does). Anything
+/// that looks like a URL or a query is left to [`callback`].
+pub fn pasted_code(text: &str) -> Option<(&str, &str)> {
+    let (code, state) = text.trim().split_once('#')?;
+    let plain = |part: &str| {
+        !part.is_empty() && !part.contains(|c: char| c.is_whitespace() || "/?&=#".contains(c))
+    };
+    (plain(code) && plain(state)).then_some((code, state))
 }
 
 fn non_blank(value: Option<&str>) -> Option<&str> {

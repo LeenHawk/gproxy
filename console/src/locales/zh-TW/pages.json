@@ -811,7 +811,7 @@
     "authorizationKey": "登入金鑰",
     "commandCodeKeyHelp": "在 Command Code 官網授權後，從官網「複製 API key」頁面複製登入金鑰並貼到下方。如瀏覽器詢問本機網路權限，可以拒絕。GProxy 可以部署在遠端伺服器，無需安裝 CLI。",
     "authorizationCode": "授權碼",
-    "callbackHelp": "授權後從網址列複製完整回呼 URL，包含 code 和 state。本機回呼頁面可能無法開啟，但網址中仍包含授權結果。",
+    "callbackHelp": "授權後從網址列複製完整回呼 URL，包含 code 和 state。本機回呼頁面可能無法開啟，但網址中仍包含授權結果。如果頁面只顯示一段可複製的授權碼（code#state），原樣貼上即可。",
     "callbackUrl": "完整回呼 URL",
     "completeLogin": "完成登入",
     "waiting": "等待授權…",

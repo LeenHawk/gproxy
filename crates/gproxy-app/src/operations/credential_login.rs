@@ -167,6 +167,9 @@ impl<'a, C: BatchConnectionTrait + Send + Sync + 'static> CredentialLogin<'a, C>
 /// Both browser callbacks and manually pasted PKCE codes must carry state.
 fn authorization_has_state(request: &AuthCodeComplete) -> bool {
     if let Some(callback) = request.callback_url.as_deref() {
+        if gproxy_sdk::login::pasted_code(callback).is_some() {
+            return request.code.is_none();
+        }
         let query = callback
             .split_once('?')
             .map(|(_, q)| q.split('#').next().unwrap_or_default())
