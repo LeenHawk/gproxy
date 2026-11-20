@@ -4,9 +4,14 @@
 //! Wire source: our 2026-11-17 Chrome capture and the first-party MakerSuite
 //! bundle `KvpBpnk2vKA.2018.O`; see `tests/fixtures/playground/README.md`.
 //! GenerateContent is a JSPB server stream. Cookies authenticate the Google
-//! session; each generation also needs a fresh, content-bound WAA proof.
-//! A provider explicitly selects its own proof service. There is no public
-//! signing fallback, and all exchanges use the host-assigned outbound client.
+//! session; each generation also needs a fresh, content-bound WAA proof, minted
+//! in-process by [`waa`] on a QuickJS-hosted Firefox DOM (native only — QuickJS
+//! is C and cannot target wasm32, so this channel is unavailable on the edge
+//! build). Outbound requests impersonate Firefox so they match the proof's
+//! environment.
+
+// On wasm32 generation is refused up front, so the code behind it is unused there.
+#![cfg_attr(target_arch = "wasm32", allow(dead_code))]
 
 mod auth;
 mod config;
@@ -14,6 +19,10 @@ mod request;
 mod schema;
 mod stream;
 mod wire;
+#[cfg(not(target_arch = "wasm32"))]
+mod signer;
+#[cfg(not(target_arch = "wasm32"))]
+mod waa;
 
 pub use config::{DEFAULT_BASE_URL, PlaygroundConfig};
 
@@ -21,6 +30,7 @@ use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CredentialRefresh, HOST_CONFIG_KEYS, OperationContext, OperationFuture, ProviderView,
 };
+use gproxy_client::{ConnectionConfig, EmulationConfig};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
 use serde_json::Value;
 
@@ -44,9 +54,6 @@ impl BaseChannel for Playground {
             config_keys: [
                 ConfigKey::optional("base_url", ConfigKeyKind::String, "MakerSuite RPC origin.")
                     .with_placeholder(DEFAULT_BASE_URL),
-                ConfigKey::required("proof_server_url", ConfigKeyKind::String,
-                    "Your WAA signing service. Receives this credential's Google cookies and request contents; no public fallback.")
-                    .with_placeholder("http://127.0.0.1:8081"),
                 ConfigKey::optional("timezone", ConfigKeyKind::String, "IANA timezone sent with the Playground request.")
                     .with_placeholder("UTC"),
             ].into_iter().chain(HOST_CONFIG_KEYS).collect(),
@@ -63,6 +70,24 @@ impl BaseChannel for Playground {
 
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
         Some(self)
+    }
+
+    /// Impersonate Firefox's TLS/HTTP2 fingerprint so the transport matches the
+    /// Firefox environment the WAA proof attests. `headers: false` — we send only
+    /// the channel's explicit grpc-web RPC headers (injecting Firefox's browser
+    /// header set diverges from the headers Google accepts for this RPC). wreq-util
+    /// tops out at 151; the UA header is set to 152 (the profile's) in `request`.
+    /// An explicit host/credential profile still overrides this.
+    fn default_connection(&self) -> Option<ConnectionConfig> {
+        Some(ConnectionConfig {
+            emulation: Some(EmulationConfig::Preset {
+                profile: "firefox_151".into(),
+                platform: "windows".into(),
+                http2: true,
+                headers: false,
+            }),
+            ..ConnectionConfig::default()
+        })
     }
 
     fn native_dialects(&self, _: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {

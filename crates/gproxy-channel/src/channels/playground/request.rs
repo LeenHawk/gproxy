@@ -1,11 +1,9 @@
 use http::{HeaderMap, HeaderValue, StatusCode, header};
 use serde_json::{Value, json};
 
-use super::{
-    auth::{self, Session},
-    config::{self, PlaygroundConfig},
-    stream, wire,
-};
+#[cfg(not(target_arch = "wasm32"))]
+use super::{auth, config::PlaygroundConfig};
+use super::{auth::Session, config, stream, wire};
 use crate::channel::{ChannelError, OperationContext, read_body};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
 
@@ -164,10 +162,29 @@ pub(super) async fn generate(
             Operation::GenerateContent
         },
     )?;
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = (context, streaming);
+        Err(invalid(
+            "Playground is unavailable on this build: its WAA proof signer embeds QuickJS, which does not run on the edge/wasm32 target",
+        ))
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        generate_native(context, streaming).await
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn generate_native(
+    context: OperationContext<'_>,
+    streaming: bool,
+) -> Result<WireResponse<HttpBody>, ChannelError> {
+    use super::{signer, waa};
     let config = PlaygroundConfig::parse(context.provider)?;
-    let proof_url = config.proof_url()?;
     let session = Session::parse(context.credential.secret)?;
     let model = model(&context.request.path)?;
+    let model_short = model.strip_prefix("models/").unwrap_or(&model).to_string();
     let body: Value = serde_json::from_slice(&read_body(context.request.body).await?)
         .map_err(|_| ChannelError::InvalidConfig("Playground request must be JSON".into()))?;
     let mut wire = wire::encode(&model, &body, &config.timezone)?;
@@ -176,70 +193,27 @@ pub(super) async fn generate(
         .metadata
         .get("benefit_tier")
         .and_then(Value::as_str);
-    let mut signing_headers = HeaderMap::new();
-    signing_headers.insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/json"),
-    );
-    let signing_request = json!({
-        "cookies":session.cookie(), "authUser":session.auth_user.parse::<u64>().map_err(|_| ChannelError::InvalidCredential)?,
-        "g1Tier":tier.unwrap_or("BENEFIT_TIER_UNSPECIFIED"), "model":model,
-        "prompt":wire::prompt(&wire), "wireContents":wire[1],
-    });
-    let signed = context
-        .client
-        .send(post(&proof_url, signing_headers, &signing_request)?)
-        .await?;
-    if !signed.status.is_success() {
-        // The signing service's own authentication failure must not retire a
-        // valid Google credential. Do not echo a service's secret-bearing body.
-        return Err(invalid(format!(
-            "WAA signing service returned HTTP {}",
-            signed.status.as_u16()
-        )));
-    }
-    let signed: Value = serde_json::from_slice(&read_body(signed.body).await?)
-        .map_err(|_| invalid("invalid WAA signing response"))?;
-    let proof = signed
-        .get("proof")
-        .and_then(Value::as_str)
-        .filter(|value| !value.is_empty())
-        .filter(|_| signed.get("ok") == Some(&Value::Bool(true)))
-        .ok_or_else(|| invalid("WAA signing service did not return a proof"))?;
-    wire[4] = proof.into();
-    let dynamic = signed.get("headers").and_then(Value::as_object);
-    // The signer can receive fresh Google session cookies while loading the
-    // page. Use that same session for the proof-bound RPC, retaining the
-    // selected Google identity rather than accepting a different authUser.
-    let session = if let Some(cookie) = dynamic.and_then(|headers| {
-        headers
-            .iter()
-            .find(|(name, _)| name.eq_ignore_ascii_case("cookie"))
-            .and_then(|(_, value)| value.as_str())
-    }) {
-        Session::parse(&json!({"cookie":cookie,"auth_user":session.auth_user}))?
-    } else {
-        session
-    };
+
+    // Mint the proof in-process on the QuickJS-hosted Firefox DOM, on this
+    // session's live signer when there is one. No external signing service.
+    let fallback = wire::prompt(&wire);
+    let (binding, page) = waa::extract_prompts(wire.get(1).unwrap_or(&Value::Null), &fallback);
+    let minted = signer::proof(
+        context.client.as_ref(),
+        &session,
+        tier,
+        &model_short,
+        binding,
+        page,
+    )
+    .await?;
+    wire[4] = minted.into();
+
     let mut headers = session.headers(tier)?;
-    // Only protocol identity returned by the selected signer is added. Neither
-    // caller headers nor arbitrary signer fields may replace our authentication.
-    if let Some(dynamic) = dynamic {
-        for (name, value) in dynamic {
-            let name = name.to_ascii_lowercase();
-            if matches!(
-                name.as_str(),
-                "user-agent" | "x-user-agent" | "x-goog-ext-519733851-bin" | "x-aistudio-visit-id"
-            ) && let Some(value) = value.as_str()
-            {
-                headers.insert(
-                    http::HeaderName::from_bytes(name.as_bytes())
-                        .map_err(|_| invalid("invalid signer header"))?,
-                    auth::header_value(value)?,
-                );
-            }
-        }
-    }
+    // The proof attests a Firefox environment; the GenerateContent request must
+    // carry Firefox's UA (session headers default to the channel's Chrome UA).
+    headers.insert(header::USER_AGENT, auth::header_value(waa::FIREFOX_UA)?);
+
     let mut response = context
         .client
         .send(post(
@@ -253,6 +227,11 @@ pub(super) async fn generate(
         )?)
         .await?;
     if !response.status.is_success() {
+        // A refused request may mean the signer's session went stale; 429 and 5xx
+        // are quota and capacity, which a new session does not change.
+        if response.status.is_client_error() && response.status != StatusCode::TOO_MANY_REQUESTS {
+            signer::discard(&session, &model_short);
+        }
         return error_response(response).await;
     }
     response.headers.remove(header::CONTENT_LENGTH);
@@ -277,4 +256,77 @@ pub(super) async fn generate(
         )
     };
     Ok(response)
+}
+
+/// Call Waa/Create with the session's auth but the WAA API key and Firefox UA.
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) async fn fetch_create(
+    client: &dyn gproxy_client::OutboundClient,
+    session: &Session,
+    tier: Option<&str>,
+) -> Result<super::waa::Challenge, ChannelError> {
+    use super::waa;
+    let mut headers = session.headers(tier)?;
+    headers.insert("x-goog-api-key", auth::header_value(waa::WAA_API_KEY)?);
+    headers.insert(header::USER_AGENT, auth::header_value(waa::FIREFOX_UA)?);
+    let response = client
+        .send(post(waa::WAA_CREATE_URL, headers, &json!([waa::WAA_REQUEST_KEY]))?)
+        .await?;
+    if !response.status.is_success() {
+        return Err(invalid(format!(
+            "Waa/Create returned HTTP {}",
+            response.status.as_u16()
+        )));
+    }
+    let raw = read_body(response.body).await?;
+    waa::parse_challenge(&raw).map_err(|e| invalid(e.to_string()))
+}
+
+/// The interpreter JavaScript at `https://www.google.com/js/bg/<hash>.js`. The
+/// URL names its content by hash and changes only every few days, so the text is
+/// kept for the process and fetched once per URL.
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) async fn fetch_interpreter(
+    client: &dyn gproxy_client::OutboundClient,
+    url: &str,
+) -> Result<String, ChannelError> {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    /// Old interpreters are not asked for again; a few entries cover a rotation.
+    const KEPT: usize = 4;
+    static CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(Default::default);
+    if let Some(text) = cache.lock().unwrap_or_else(|e| e.into_inner()).get(url) {
+        return Ok(text.clone());
+    }
+    let text = fetch_text(client, url).await?;
+    let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+    if cache.len() >= KEPT {
+        cache.clear();
+    }
+    cache.insert(url.to_string(), text.clone());
+    Ok(text)
+}
+
+/// GET the interpreter JavaScript from `https://www.google.com/js/bg/<hash>.js`.
+#[cfg(not(target_arch = "wasm32"))]
+async fn fetch_text(
+    client: &dyn gproxy_client::OutboundClient,
+    url: &str,
+) -> Result<String, ChannelError> {
+    let request = http::Request::builder()
+        .method("GET")
+        .uri(url)
+        .header(header::USER_AGENT, super::waa::FIREFOX_UA)
+        .body(HttpBody::Bytes(Default::default()))
+        .map_err(|_| invalid("invalid interpreter URL"))?;
+    let response = client.send(request).await?;
+    if !response.status.is_success() {
+        return Err(invalid(format!(
+            "interpreter fetch returned HTTP {}",
+            response.status.as_u16()
+        )));
+    }
+    let raw = read_body(response.body).await?;
+    String::from_utf8(raw.to_vec()).map_err(|_| invalid("interpreter not UTF-8"))
 }

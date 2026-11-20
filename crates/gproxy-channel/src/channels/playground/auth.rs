@@ -268,6 +268,19 @@ impl Session {
         Ok(())
     }
 
+    /// The account and the cookies that identify its session, without the ones
+    /// Google rotates. Stable for as long as the login lasts.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn identity(&self) -> String {
+        let mut identity = self.auth_user.clone();
+        for (name, value) in &self.cookies {
+            if !rotating(name) {
+                identity.push_str(&format!("\n{name}={value}"));
+            }
+        }
+        identity
+    }
+
     pub fn cookie(&self) -> String {
         self.cookies
             .iter()
