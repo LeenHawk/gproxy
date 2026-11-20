@@ -38,10 +38,13 @@ source scripts/android/sdk.sh
 export ANDROID_NDK_HOME="$(android_ndk_root)"
 ranlib=("$ANDROID_NDK_HOME"/toolchains/llvm/prebuilt/*/bin/llvm-ranlib)
 test "${#ranlib[@]}" -eq 1 && test -x "${ranlib[0]}"
+# bindgen's libclang is the host's and would otherwise read the host's libc headers.
+sysroot="${ranlib[0]%/bin/llvm-ranlib}/sysroot"
+test -d "$sysroot/usr/include"
 for target in "${targets[@]}"; do
   export "CMAKE_TOOLCHAIN_FILE_${target//-/_}=$root/scripts/cmake/android.cmake"
   export "RANLIB_${target//-/_}=${ranlib[0]}"
-  export "BINDGEN_EXTRA_CLANG_ARGS_${target//-/_}=--target=${target}28"
+  export "BINDGEN_EXTRA_CLANG_ARGS_${target//-/_}=--target=${target}28 --sysroot=$sysroot"
 done
 # Multi-ABI builds select CMake's ABI from Cargo's per-target TARGET variable.
 unset GPROXY_ANDROID_ABI
