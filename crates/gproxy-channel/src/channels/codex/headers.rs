@@ -94,6 +94,8 @@ pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
         "mcp-protocol-version",
         "session-id",
         "thread-id",
+        "traceparent",
+        "tracestate",
         "version",
         "x-client-request-id",
         "x-openai-subagent",

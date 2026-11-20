@@ -1013,7 +1013,10 @@ async fn identity_is_synthesized_for_caller_and_pool_and_real_for_credential() {
     )
     .await;
     assert_eq!(check["default_account_id"], account_id);
-    assert_eq!(check["accounts"][0]["name"], "m");
+    let workspace = &check["accounts"][0];
+    assert_eq!(workspace["name"], "m");
+    assert_eq!(workspace["workspace_backend_origin"], "NO_CONSTRAINT");
+    assert_eq!(workspace["account_routing_override"], "NO_CONSTRAINT");
 }
 
 #[tokio::test]

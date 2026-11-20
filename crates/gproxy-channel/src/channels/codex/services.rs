@@ -391,6 +391,13 @@ const ROUTE_TABLE: &[(&str, &str, ServiceTransport, bool, ServiceClass)] = &[
     ("GET", "/backend-api/ps/plugins/search", Http, true, Catalog),
     (
         "GET",
+        "/backend-api/ps/plugins/tooling-state/turtle",
+        Http,
+        true,
+        Settings,
+    ),
+    (
+        "GET",
         "/backend-api/ps/plugins/installed",
         Http,
         true,
@@ -739,6 +746,9 @@ fn identity_answer(path: &str, ctx: &ServiceContext<'_>) -> Value {
                 "name": me.name,
                 "profile_picture_url": null,
                 "structure": plan,
+                "plan_type": plan,
+                "workspace_backend_origin": "NO_CONSTRAINT",
+                "account_routing_override": "NO_CONSTRAINT",
             }],
             "account_ordering": [me.account_id],
             "default_account_id": me.account_id,
@@ -896,6 +906,7 @@ fn usage_route_answer(path: &str, usage: &CallerUsage, credential: &CredentialVi
 /// Neutral defaults, overridable from provider config (v3 key names).
 fn settings_answer(path: &str, config: &Value) -> Value {
     match path {
+        "/backend-api/ps/plugins/tooling-state/turtle" => json!({"tooling_changed_at": null}),
         "/backend-api/wham/settings/user" => config
             .get("codex_virtual_settings")
             .cloned()
