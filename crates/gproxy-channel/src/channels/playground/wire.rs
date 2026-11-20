@@ -520,7 +520,9 @@ fn decode_part(part: &Value) -> Result<Value, ChannelError> {
     Ok(out.into())
 }
 
-pub(super) fn response(value: &Value, model: &str) -> Result<Value, ChannelError> {
+/// `None` for an element that carries no content, such as the timing trailer
+/// `[null,null,null,["<micros>",n,n]]` Google appends after the last chunk.
+pub(super) fn response(value: &Value, model: &str) -> Result<Option<Value>, ChannelError> {
     let mut out = Map::new();
     out.insert(
         "modelVersion".into(),
@@ -563,9 +565,9 @@ pub(super) fn response(value: &Value, model: &str) -> Result<Value, ChannelError
         out.insert("responseId".into(), id.into());
     }
     if !out.contains_key("candidates") && !out.contains_key("usageMetadata") {
-        return Err(invalid("unrecognized GenerateContent response"));
+        return Ok(None);
     }
-    Ok(out.into())
+    Ok(Some(out.into()))
 }
 
 pub(super) fn models(value: &Value) -> Result<Vec<Value>, ChannelError> {

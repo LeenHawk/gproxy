@@ -95,12 +95,16 @@ impl Decoder {
                 }
                 if self.depth == 3 && !self.trailer {
                     let raw = parse_jspb(&std::mem::take(&mut self.value))?;
-                    let response = wire::response(&raw, model)?;
-                    self.finished |= response
-                        .get("candidates")
-                        .and_then(Value::as_array)
-                        .is_some_and(|items| items.iter().any(|v| v.get("finishReason").is_some()));
-                    values.push(response);
+                    if let Some(response) = wire::response(&raw, model)? {
+                        self.finished |=
+                            response
+                                .get("candidates")
+                                .and_then(Value::as_array)
+                                .is_some_and(|items| {
+                                    items.iter().any(|v| v.get("finishReason").is_some())
+                                });
+                        values.push(response);
+                    }
                 } else if self.depth == 2 && self.trailer {
                     let status = parse_jspb(&std::mem::take(&mut self.value))?;
                     if status
