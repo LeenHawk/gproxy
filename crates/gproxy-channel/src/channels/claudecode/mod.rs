@@ -1,8 +1,7 @@
 //! Claude Code: a Claude.ai subscription used through the OAuth surface of
 //! `api.anthropic.com`, the way the Claude Code CLI uses it.
 //!
-//! Wire facts follow the Claude Code CLI (`samples/claude-code-2.1.326`,
-//! audited in `design/claudecode-2.1.326.md`):
+//! Wire facts follow Claude Code 2.1.329 (release binary and native captures):
 //! PKCE authorization at `claude.com/cai/oauth/authorize`, token exchange and
 //! refresh at `platform.claude.com/v1/oauth/token` (JSON bodies), a cookie
 //! login that mints the same OAuth tokens through `claude.ai/api/bootstrap`
@@ -39,7 +38,7 @@ use crate::channel::{
     CredentialRefresh, CredentialUpdate, CredentialView, HOST_CONFIG_KEYS, HeaderAllowlist,
     LoginContext, LoginMode, OAuthAuthorizationCode, OAuthCredential, OperationContext,
     OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel, QuotaQuery,
-    QuotaReset, RefreshContext, forwardable,
+    QuotaReset, RefreshContext, RefreshReason, forwardable,
 };
 pub use crate::channels::shared::claude_fallback::FallbackMode;
 use crate::channels::shared::{cache, claude_fallback, claude_images};
@@ -67,10 +66,10 @@ pub const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/c
 pub const DEFAULT_CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 /// Default refresh scopes verified against CLI 2.1.318, including plugins.
 pub const OAUTH_SCOPE: &str = "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins";
-/// CLI 2.1.326 login also requests organization key creation and privacy consent.
+/// Interactive Claude.ai login also offers the organization settings grant.
 pub const LOGIN_SCOPE: &str = concat!(
     "org:create_api_key ",
-    "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins user:privacy_consents:write"
+    "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins user:privacy_consents:write org:desktop_config"
 );
 pub const OAUTH_BETA: &str = "oauth-2025-04-20";
 /// The betas Claude Code 2.1.318 sends on a main-loop Messages call before
@@ -84,18 +83,17 @@ pub const OAUTH_BETA: &str = "oauth-2025-04-20";
 /// these; the betas a feature in the body calls for are added from the body
 /// as for any client (`hygiene`).
 const MAIN_LOOP_BETAS: &str = "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,tool-provenance-2026-10-26";
-/// The CLI version the channel impersonates. Protocol behavior was audited in
-/// `design/claudecode-2.1.326.md` against the release binary and local capture.
-pub const CLI_VERSION: &str = "2.1.326";
-pub const CLI_USER_AGENT: &str = "claude-cli/2.1.326 (external, cli)";
+/// The Claude Code release used for request shaping and client identification.
+pub const CLI_VERSION: &str = "2.1.329";
+pub const CLI_USER_AGENT: &str = "claude-cli/2.1.329 (external, cli)";
 /// The `@anthropic-ai/claude-agent-sdk` release that bundles `CLI_VERSION`
-/// (npm 0.3.326 pins Claude Code 2.1.326). The SDK spawns that CLI with
+/// (npm 0.3.329 pins Claude Code 2.1.329). The SDK spawns that CLI with
 /// `CLAUDE_CODE_ENTRYPOINT=sdk-ts` and `CLAUDE_AGENT_SDK_VERSION` set.
-pub const AGENT_SDK_VERSION: &str = "0.3.326";
+pub const AGENT_SDK_VERSION: &str = "0.3.329";
 /// What the CLI's `wU` builds under the TypeScript Agent SDK.
-pub const AGENT_SDK_USER_AGENT: &str = "claude-cli/2.1.326 (external, sdk-ts, agent-sdk/0.3.326)";
+pub const AGENT_SDK_USER_AGENT: &str = "claude-cli/2.1.329 (external, sdk-ts, agent-sdk/0.3.329)";
 /// The profile and roles calls use the CLI's axios client with this agent.
-const PROFILE_USER_AGENT: &str = "claude-code/2.1.326";
+const PROFILE_USER_AGENT: &str = "claude-code/2.1.329";
 pub const ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 /// The CLI posts to the token endpoint through axios (2.1.318 capture).
 const TOKEN_USER_AGENT: &str = "axios/1.15.2";
@@ -108,6 +106,7 @@ const PRESERVED_SCOPES: &[&str] = &[
     "user:projects:write",
     "user:privacy_consents:write",
 ];
+const LOGIN_REFRESH_LIFETIME_SECS: i64 = 30 * 24 * 60 * 60;
 const DEFAULT_EXPIRES_IN_SECS: i64 = 3600;
 /// Twenty-minute buckets for the derived session id (v3 `auth.rs`).
 const SESSION_WINDOW_MS: i64 = 20 * 60 * 1000;
@@ -1528,11 +1527,23 @@ impl OAuthAuthorizationCode for Claudecode {
                     body: bytes,
                 });
             }
-            let tokens: TokenResponse =
+            let mut tokens: TokenResponse =
                 serde_json::from_slice(&bytes).map_err(|e| invalid_response(e.to_string()))?;
             if tokens.refresh_token.as_deref().is_none_or(str::is_empty) {
                 return Err(invalid_response("token response has no refresh_token"));
             }
+            // A hybrid organization may return a settings grant that cannot run inference.
+            if let Some(scope) = tokens.scope.as_deref()
+                && scope.split_whitespace().any(|s| s == "org:desktop_config")
+                && !scope.split_whitespace().any(|s| s == "user:inference")
+            {
+                return Err(invalid_response(
+                    "organization settings login did not grant user:inference",
+                ));
+            }
+            tokens
+                .refresh_token_expires_in
+                .get_or_insert(LOGIN_REFRESH_LIFETIME_SECS);
             let mut credential = credential_from_tokens(tokens, None, Vec::new(), BTreeMap::new())?;
             enrich_profile(
                 context.client,
@@ -1547,6 +1558,19 @@ impl OAuthAuthorizationCode for Claudecode {
 }
 
 impl CredentialRefresh for Claudecode {
+    // A refresh cannot extend the grant deadline. Only access-token expiry calls for
+    // proactive refresh; polling the grant's last day would rotate on every request.
+    fn proactive_refresh_reason(
+        &self,
+        credential: CredentialView<'_>,
+        now_ms: i64,
+    ) -> Option<RefreshReason> {
+        credential
+            .expires_at_ms
+            .is_some_and(|expires| expires <= now_ms.saturating_add(300_000))
+            .then_some(RefreshReason::ProactiveExpiry)
+    }
+
     /// A suspended account keeps its refresh token for an appeal: remember
     /// the rejection for this version only, as the CLI does in memory.
     fn persist_rejection(&self, reason: &str) -> bool {
@@ -1623,12 +1647,18 @@ impl CredentialRefresh for Claudecode {
             }
             let tokens: TokenResponse =
                 serde_json::from_slice(&bytes).map_err(|e| invalid_response(e.to_string()))?;
-            let credential = credential_from_tokens(
+            let mut credential = credential_from_tokens(
                 tokens,
                 Some(refresh_token.to_owned()),
                 stored,
                 previous_fields(secret),
             )?;
+            // The CLI caps rotations at the original grant deadline. A legacy
+            // login without a known deadline remains unknown until a new login.
+            credential.refresh_expires_at_ms = secret
+                .get("refresh_expires_at_ms")
+                .and_then(Value::as_i64)
+                .map(|prior| prior.min(credential.refresh_expires_at_ms.unwrap_or(prior)));
             Ok(CredentialUpdate {
                 metadata: Some({
                     let mut metadata = context

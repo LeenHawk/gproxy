@@ -188,7 +188,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     );
     headers.insert(
         "user-agent",
-        HeaderValue::from_static("claude-cli/2.1.326 (external, sdk-cli)"),
+        HeaderValue::from_static("claude-cli/2.1.329 (external, sdk-cli)"),
     );
     headers.insert("x-request-id", HeaderValue::from_static("req-1"));
     let body = json!({
@@ -198,7 +198,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
         "top_p": 0.9,
         "top_k": 40,
         "system": [
-            {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.326.abc; cc_entrypoint=sdk-cli;"},
+            {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.329.abc; cc_entrypoint=sdk-cli;"},
             {"type":"text", "text":" policy "},
             {"type":"text", "text":" ", "cache_control":{"type":"ephemeral"}}
         ],
@@ -228,7 +228,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
         "oauth beta first, client betas kept, context-1m stripped, fast mode derived"
     );
     assert_eq!(h["x-app"], "cli");
-    assert_eq!(h["user-agent"], "claude-cli/2.1.326 (external, sdk-cli)");
+    assert_eq!(h["user-agent"], "claude-cli/2.1.329 (external, sdk-cli)");
     assert_eq!(h["x-claude-code-session-id"], "session-1");
     assert_eq!(h["x-stainless-package-version"], "0.128.0");
     assert_eq!(h["anthropic-dangerous-direct-browser-access"], "true");
@@ -250,7 +250,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     let billing = billing.as_str();
     assert_eq!(
         billing,
-        "x-anthropic-billing-header: cc_version=2.1.326.db7; cc_entrypoint=sdk-cli; cch=00000;",
+        "x-anthropic-billing-header: cc_version=2.1.329.52c; cc_entrypoint=sdk-cli; cch=00000;",
         "a client block without turn fragments is a side call and stays bare"
     );
     let ids: Value = serde_json::from_str(shaped["metadata"]["user_id"].as_str().unwrap()).unwrap();
@@ -386,7 +386,7 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
             "cc_workload=agent_run; cc_entrypoint=sdk-ts; cc_secret=leak; cch=11111; cc_turn_origin=user; cc_gateway=1;"
         )),
         concat!(
-            "x-anthropic-billing-header: cc_version=2.1.326.db7; cc_entrypoint=sdk-ts; cch=00000; ",
+            "x-anthropic-billing-header: cc_version=2.1.329.52c; cc_entrypoint=sdk-ts; cch=00000; ",
             "cc_workload=agent_run; cc_is_subagent=true; cc_prev_req=req_0123abc-XYZ_; ",
             "cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D; cc_turn_origin=user; ",
             "cc_prev_msg=msg_0123abc_XYZ; cc_prev_prompt_index=0; cc_prev_turn_index=12; cc_dispatch_entrypoint=claude-desktop;"
@@ -404,7 +404,7 @@ fn billing_block_keeps_valid_client_fragments_in_cli_order() {
     ));
     assert_eq!(
         derived,
-        "x-anthropic-billing-header: cc_version=2.1.326.db7; cc_entrypoint=cli; cch=00000;"
+        "x-anthropic-billing-header: cc_version=2.1.329.52c; cc_entrypoint=cli; cch=00000;"
     );
     for invalid in [
         "msg_",
@@ -733,7 +733,7 @@ async fn authorize_url_and_code_exchange_follow_the_cli() {
         "response_type=code",
         "redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback",
         "scope=org%3Acreate_api_key%20user%3Aprofile%20user%3Ainference",
-        "user%3Aplugins",
+        "user%3Aplugins%20user%3Aprivacy_consents%3Awrite%20org%3Adesktop_config",
         "code_challenge=ch",
         "code_challenge_method=S256",
         "state=st",
@@ -758,6 +758,11 @@ async fn authorize_url_and_code_exchange_follow_the_cli() {
     assert_eq!(credential.access_token, "at-new");
     assert_eq!(credential.refresh_token.as_deref(), Some("rt-new"));
     assert_eq!(credential.scopes, vec!["user:profile", "user:inference"]);
+    let grant_lifetime_ms = 30 * 86_400_000;
+    assert!(
+        (before + grant_lifetime_ms..=now_ms() + grant_lifetime_ms)
+            .contains(&credential.refresh_expires_at_ms.unwrap())
+    );
     let expires = credential.expires_at_ms.unwrap();
     assert!(expires >= before + 3_600_000 && expires <= now_ms() + 3_600_000);
     assert_eq!(credential.provider_fields["account_uuid"], "account-1");
@@ -787,6 +792,30 @@ async fn authorize_url_and_code_exchange_follow_the_cli() {
     assert_eq!(body["state"], "st");
     assert_eq!(sent[1].1, "https://api.anthropic.com/api/oauth/profile");
     assert_eq!(sent[1].2["authorization"], "Bearer at-new");
+
+    let settings_client = ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        json!({"access_token":"settings","refresh_token":"rotated","scope":"user:profile org:desktop_config"}),
+    )]);
+    let result = login
+        .exchange(
+            LoginContext {
+                client: &settings_client,
+                ..context
+            },
+            AuthorizationCode {
+                code: "code-2",
+                redirect_uri: DEFAULT_REDIRECT_URI,
+                code_verifier: "ver",
+                state: "st",
+                provider_state: &BTreeMap::new(),
+            },
+        )
+        .await;
+    assert!(
+        matches!(result, Err(ChannelError::InvalidResponse(message)) if message.contains("user:inference"))
+    );
+    assert_eq!(settings_client.sent().len(), 1);
 }
 
 #[tokio::test]
@@ -941,7 +970,9 @@ async fn refresh_rotates_tokens_and_classifies_rejections() {
         ),
     ]);
     let mut secret = secret("stale");
-    secret["scopes"] = json!(["user:inference", "user:projects:read"]);
+    let grant_deadline = now_ms() + 3_600_000;
+    secret["refresh_expires_at_ms"] = json!(grant_deadline);
+    secret["scopes"] = json!(["user:inference", "user:projects:read", "org:desktop_config"]);
     let metadata = json!({"account_uuid": "account-meta"});
     let refresher = Claudecode.credential_refresh().unwrap();
     let context = || CredentialContext {
@@ -950,6 +981,13 @@ async fn refresh_rotates_tokens_and_classifies_rejections() {
         client: &client,
     };
     let before = now_ms();
+    let mut valid_access = credential(&secret, &metadata);
+    valid_access.expires_at_ms = Some(before + 3_600_000);
+    assert!(
+        refresher
+            .proactive_refresh_reason(valid_access, before)
+            .is_none()
+    );
     let update = refresher.refresh(context()).await.unwrap();
     assert_eq!(update.secret["access_token"], "fresh");
     assert_eq!(update.secret["refresh_token"], "rotated");
@@ -959,7 +997,7 @@ async fn refresh_rotates_tokens_and_classifies_rejections() {
     );
     let expires = update.expires_at_ms.unwrap();
     assert!(expires >= before + 1_800_000 && expires <= now_ms() + 1_800_000);
-    assert!(update.secret["refresh_expires_at_ms"].as_i64().unwrap() >= before + 86_400_000);
+    assert_eq!(update.secret["refresh_expires_at_ms"], grant_deadline);
     assert_eq!(update.secret["provider_fields"]["device_id"], "device-1");
     assert_eq!(
         update.secret["provider_fields"]["account_uuid"],
@@ -982,13 +1020,13 @@ async fn refresh_rotates_tokens_and_classifies_rejections() {
 
     let update = refresher.refresh(context()).await.unwrap();
     assert_eq!(update.secret["access_token"], "fresh-2");
+    assert_eq!(update.secret["refresh_expires_at_ms"], grant_deadline);
     assert_eq!(
         update.secret["refresh_token"], "rt-1",
         "an unrotated refresh token is kept"
     );
     assert_eq!(
-        update.secret["scopes"],
-        json!(["user:inference", "user:projects:read"]),
+        update.secret["scopes"], secret["scopes"],
         "scopes are kept when the response names none"
     );
     let expires = update.expires_at_ms.unwrap();
@@ -1523,7 +1561,7 @@ fn service_request(method: Method, path: &str, query: Option<&str>, body: &str) 
     headers.insert("x-organization-uuid", HeaderValue::from_static("org-1"));
     headers.insert(
         "user-agent",
-        HeaderValue::from_static("claude-cli/2.1.326 (external, sdk-cli)"),
+        HeaderValue::from_static("claude-cli/2.1.329 (external, sdk-cli)"),
     );
     WireRequest {
         method,
@@ -1610,7 +1648,7 @@ async fn catalog_routes_forward_under_every_view_with_the_cli_identity() {
     assert_eq!(h["authorization"], "Bearer at");
     assert_eq!(h["anthropic-beta"], "oauth-2025-04-20");
     assert_eq!(h["anthropic-version"], "2026-10-21");
-    assert_eq!(h["user-agent"], "claude-cli/2.1.326 (external, sdk-cli)");
+    assert_eq!(h["user-agent"], "claude-cli/2.1.329 (external, sdk-cli)");
     assert_eq!(h["x-app"], "cli");
     assert_eq!(h["cache-control"], "no-cache");
     assert_eq!(h["x-organization-uuid"], "org-1");
@@ -2604,7 +2642,7 @@ fn continued_message_threads_do_not_receive_a_system_prompt() {
                     .to_string()
                     .contains("original instructions")
             );
-            assert!(shaped["system"].to_string().contains("cc_version=2.1.326"));
+            assert!(shaped["system"].to_string().contains("cc_version=2.1.329"));
         }
         assert!(
             shaped["metadata"]["user_id"]
