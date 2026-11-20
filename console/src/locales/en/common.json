@@ -50,7 +50,7 @@
     "choose": "Choose…",
     "invalidJson": "Invalid JSON. Check the value and try again.",
     "credentialSecretHint": "For API Key authentication, paste a single key or enter JSON. Other authentication methods require JSON.",
-    "playgroundSecretHint": "Sign in at aistudio.google.com, export JSON or Header with Cookie-Editor, and paste it here. The entire cookie export is one credential. To select another signed-in Google account, use {\"cookies\": [...], \"auth_user\": \"1\"}.",
+    "playgroundSecretHint": "Sign in at aistudio.google.com, export JSON or Header with Cookie-Editor, and paste it here. Open www.google.com once before exporting; otherwise GPROXY cannot rotate the session cookies. The entire cookie export is one credential. To select another signed-in Google account, use {\"cookies\": [...], \"auth_user\": \"1\"}.",
     "unset": "Inherit",
     "required": "This field is required.",
     "supported": "Supported",

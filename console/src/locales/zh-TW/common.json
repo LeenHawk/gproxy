@@ -50,7 +50,7 @@
     "choose": "請選擇…",
     "invalidJson": "JSON 格式不正確，請檢查後重試。",
     "credentialSecretHint": "API Key 驗證可直接貼上單個金鑰，也可填寫 JSON；其他驗證方式請填寫 JSON。",
-    "playgroundSecretHint": "在 aistudio.google.com 登入後，用 Cookie-Editor 匯出 JSON 或 Header 並貼到這裡。整組 Cookie 作為一個憑證匯入。選擇其他已登入的 Google 帳號時，可使用 {\"cookies\": [...], \"auth_user\": \"1\"}。",
+    "playgroundSecretHint": "在 aistudio.google.com 登入後，用 Cookie-Editor 匯出 JSON 或 Header 並貼到這裡。匯出前先開啟一次 www.google.com，否則 GPROXY 無法輪換工作階段 Cookie。整組 Cookie 作為一個憑證匯入。選擇其他已登入的 Google 帳號時，可使用 {\"cookies\": [...], \"auth_user\": \"1\"}。",
     "unset": "繼承",
     "required": "請填寫此必填項。",
     "supported": "是否支援",
