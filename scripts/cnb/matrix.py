@@ -8,11 +8,12 @@ secrets = ["https://cnb.cool/LeenHawk/gproxy-secrets/-/blob/main/release.json"]
 for row in json.loads(Path("scripts/release-targets.json").read_text())["include"]:
     target, os_name = row["target"], row["os"]
     image = {"windows": ".cnb/Dockerfile.cross", "macos": ".cnb/Dockerfile.cross",
-             "android": ".cnb/Dockerfile.android"}.get(os_name, ".cnb/Dockerfile")
+             "android": ".cnb/Dockerfile.android", "ohos": ".gitlab/Dockerfile.ohos"}.get(os_name, ".cnb/Dockerfile")
     stages = [
         {"name": "Download Console bundle", "script": "bash scripts/cnb/package.sh prepare"},
-        {"name": "Build and package CLI / server", "timeout": "90m", "script": "bash scripts/cnb/package.sh cli"},
     ]
+    if row.get("artifact"):
+        stages.append({"name": "Build and package CLI / server", "timeout": "90m", "script": "bash scripts/cnb/package.sh cli"})
     if os_name == "android":
         stages[-1]["imports"] = secrets
     if row.get("application_artifact"):
@@ -24,7 +25,7 @@ for row in json.loads(Path("scripts/release-targets.json").read_text())["include
         "name": f"Packages ({target})",
         "runner": {"tags": "cnb:arch:arm64:v8" if os_name == "linux" and target.startswith("aarch64") else "cnb:arch:amd64", "cpus": 16},
         "docker": {"build": image, "volumes": ["/usr/local/cargo/registry:copy-on-write", "/usr/local/cargo/git:copy-on-write", "/root/.cache:copy-on-write", "/root/.gradle:copy-on-write", "target:copy-on-write"]},
-        "env": {"TARGET_TRIPLE": target, "TARGET_OS": os_name, "ARTIFACT_NAME": row["artifact"],
+        "env": {"TARGET_TRIPLE": target, "TARGET_OS": os_name, "ARTIFACT_NAME": row.get("artifact", ""),
                 "APPLICATION_ARTIFACT": row.get("application_artifact", ""), "BUILDER": row["builder"],
                 "UPX_ENABLED": str(row["upx"]).lower(), "UPX_VERSION": row.get("upx_version", ""),
                 "NDK_TARGET": row.get("ndk_target", "")},

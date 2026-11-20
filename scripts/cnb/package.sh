@@ -98,6 +98,10 @@ case "${1:?prepare|cli|application|upload|edge}" in
     scripts/build-provenance.sh
     ;;
   application)
+    if [ "$TARGET_OS" = ohos ]; then
+      python3 scripts/ohos/prepare-tauri.py
+      exec bash scripts/ohos/build.sh application
+    fi
     if [ "$TARGET_OS" = android ]; then export GPROXY_INSTALLATION_KIND=android-apk; fi
     test -n "${APPLICATION_ARTIFACT:?}"
     cross_environment

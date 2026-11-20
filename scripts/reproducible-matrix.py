@@ -16,7 +16,7 @@ if args.containers:
     sys.exit(0)
 matrix = []
 for row in rows:
-    kinds = ["cli"]
+    kinds = ["cli"] if row.get("artifact") else []
     if row.get("application_artifact"):
         kinds.append("application")
     if row.get("headless_artifact"):

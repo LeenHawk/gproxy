@@ -227,9 +227,7 @@ ohos:
   parallel:
     matrix:
       - TARGET_TRIPLE: [aarch64-unknown-linux-ohos]
-        PACKAGE_MODE: [cli, application]
-      - TARGET_TRIPLE: [x86_64-unknown-linux-ohos]
-        PACKAGE_MODE: [cli, application]
+        PACKAGE_MODE: [application]
 
 desktop:
   extends: .cross-package

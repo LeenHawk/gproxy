@@ -21,7 +21,7 @@ Each target builds **CLI / server** and **Application** separately:
 | Windows x86_64 / ARM64 | ZIP, MSIX | ZIP, MSIX |
 | macOS x86_64 / ARM64 | ZIP, DMG | ZIP, DMG |
 | Android x86_64 / ARM64 | ZIP, Termux DEB | APK only |
-| OpenHarmony x86_64 / ARM64 | ZIP | ARM64 experimental unsigned HAP |
+| OpenHarmony ARM64 | — | ARM64 experimental unsigned HAP |
 
 CLI filenames use `gproxy-*`; Applications use `gproxy-tauri-*`. Linux CLI
 packages install `gproxy` as `gproxy-cli`, distinct from the desktop package.

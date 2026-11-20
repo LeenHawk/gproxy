@@ -17,12 +17,12 @@ def expected_packages():
     cli_extensions = {"linux": ".deb", "android": ".deb", "windows": ".msix", "macos": ".dmg"}
     app_extensions = {"linux": ".deb", "android": ".apk", "windows": ".msix", "macos": ".dmg", "ohos": ".hap"}
     for row in rows:
-        cli = row["artifact"]
-        names.add(cli + ".zip")
-        if row["target"].endswith("-linux-musl"):
-            names.add(cli + ".apk")
-        elif row["os"] in cli_extensions:
-            names.add(cli + cli_extensions[row["os"]])
+        if cli := row.get("artifact"):
+            names.add(cli + ".zip")
+            if row["target"].endswith("-linux-musl"):
+                names.add(cli + ".apk")
+            elif row["os"] in cli_extensions:
+                names.add(cli + cli_extensions[row["os"]])
         if headless := row.get("headless_artifact"):
             names.add(headless + ".zip")
             if row["os"] == "android":

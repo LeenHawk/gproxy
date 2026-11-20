@@ -1,11 +1,6 @@
 # Native OpenHarmony / HarmonyOS NEXT
 
-The CLI targets `aarch64-unknown-linux-ohos` and `x86_64-unknown-linux-ohos`.
-These are native OHOS binaries, separate from Android packages. Rust names
-this platform `target_os = "linux", target_env = "ohos"`; Linux desktop
-services and dependencies must not be selected merely from `target_os`.
-
-The application HAP also targets ARM64 and x86_64 (including x86_64 simulators).
+The ARM64 HAP targets phones, tablets and PC/2-in-1 devices.
 The application reuses `gproxy-host-tauri`, its existing IPC operations,
 Console, instance setup and in-process data plane. It uses Tauri's experimental
 `feat/open-harmony` port. `tauri-pins.json` records exact Tauri, Wry, Tao,
@@ -28,7 +23,7 @@ Run it in a disposable CI checkout with `OHOS_TAURI_SOURCES` outside the
 project workspace. Other platforms keep the normal `Cargo.toml` and
 `Cargo.lock`. Never run this overlay in a shared development checkout.
 
-CLI and HAP builds use the SDK from the shared
+HAP builds use the SDK from the shared
 [tauri-harmony image](https://github.com/LeenHawk/tauri-harmony), pinned by digest
 in `.gitlab/Dockerfile.ohos`. It contains checksum-verified Huawei Command Line
 Tools 6.0.0 Release (6.0.0.858), including the API 20 SDK, hvigor and ohpm. Console builds use Node 24; the HAP tools use their bundled Node.
@@ -39,12 +34,10 @@ Tools 6.0.0 Release (6.0.0.858), including the API 20 SDK, hvigor and ohpm. Cons
 
 ## Packaging and runtime boundaries
 
-CLI ZIPs contain the UPX-packed `gproxy`, its stripped C++ runtime, and `run-gproxy.sh`. The native
-binary remains named `gproxy` for the existing signed ZIP updater. Use
-`sh ./run-gproxy.sh --help` from an OHOS device shell. SDK system-library
-import stubs are never bundled. No Debian/Termux package is produced for OHOS.
-
-Public HAP builds are unsigned by default. Both `direct` and `appgallery` builds
+GitHub Release signs and verifies the ARM64 HAP with the Huawei release profile.
+The `release` environment provides `OHOS_SIGNING_MATERIAL` (JSON with `keyAlias` and
+base64-encoded `certificate`, `profile`, and `keystore`) and `OHOS_SIGNING_PASSWORD`
+for both the PKCS12 store and its key. Other builds are unsigned by default. Both `direct` and `appgallery` builds
 accept `GPROXY_OHOS_SIGNING_CONFIG`, the path to one DevEco/Hvigor signing-config
 entry with its certificate, signing profile and keystore stored outside the
 checkout. `package-hap.py` collects the signed HAP when this configuration is
@@ -63,7 +56,7 @@ libraries without valid section tables. AppGallery APP assembly reuses these
 stripped, unpacked libraries. `configure-hap.py` enables `compressNativeLibs`
 for HAP and AppGallery builds: native libraries are ZIP-compressed during
 packaging and extracted intact at installation. This preserves the ELF payload
-and section table. CLI executables still use UPX compression.
+and section table.
 
 The native Ability supplies the app's private data directory. The existing
 explicit private-file secret fallback is used because keyring has no OHOS
@@ -84,7 +77,7 @@ python3 scripts/ohos/sign-hap.py gproxy.hap gproxy-signed.hap \
   --background
 ```
 
-The signer prompts for passwords rather than putting them in process arguments.
+With a local signing configuration the signer prompts for passwords.
 The helper updates only background declarations in `module.json`, preserves
 native library bytes, signs the package and verifies its cryptographic signature.
 It does not generate a new system trust root or alter an already signed profile.
@@ -178,10 +171,7 @@ SDK and experimental Tauri installation are maintained in the independent
 applies the dependency overlay to the application checkout.
 Application changes do not invalidate the toolchain image key. Cargo dependencies have a separate compiler cache.
 
-The temporary probe has been removed after successful ARM64/x86_64 CLI ZIP
-and ARM64 unsigned HAP builds on GitHub Actions. Release jobs retain the native
-ELF identity/architecture and HAP library checks, and publish per-artifact
-provenance. No compilation or SDK validation was performed locally.
+Release jobs verify the ARM64 HAP's native libraries and record per-artifact provenance.
 
 ## Shared runtime update
 
@@ -196,6 +186,6 @@ are separate package versions. The preparation step checks image/source pin
 agreement, and both build entry points keep CLI version mismatch checks enabled.
 
 The manual [OHOS runtime compatibility workflow](../../.github/workflows/ohos-runtime-check.yml)
-builds unsigned ARM64 and x86_64 HAPs using the application release build path.
+builds an unsigned ARM64 HAP using the application release build path.
 It accepts a toolchain image digest and uploads check artifacts without publishing
 a release or updating release channels.

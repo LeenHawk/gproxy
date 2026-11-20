@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       platform:
-        description: Platforms to prepare (unsigned; no store submission)
+        description: Platforms to prepare (no store submission)
         type: choice
         options: [all, android, harmonyos]
         default: all
@@ -79,6 +79,7 @@ jobs:
 
   harmonyos:
     if: inputs.platform != 'android'
+    environment: release
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -87,14 +88,27 @@ jobs:
         run: docker build -t gproxy-store-ohos -f .gitlab/Dockerfile.ohos .
       - name: Build unsigned AppGallery APP and device-test HAP
         run: |
-          docker run --rm -v "$PWD:/workspace" -w /workspace gproxy-store-ohos bash -lc '
+          docker run --rm -v "$PWD:/workspace" -w /workspace gproxy-store-ohos bash -ec '
             git config --global --add safe.directory /workspace
             pnpm --dir console install --frozen-lockfile
             bash scripts/mobile/build-ohos.sh
           '
+      - name: Sign and verify AppGallery packages
+        env:
+          OHOS_SIGNING_MATERIAL: ${{ secrets.OHOS_SIGNING_MATERIAL }}
+          OHOS_SIGNING_PASSWORD: ${{ secrets.OHOS_SIGNING_PASSWORD }}
+        run: |
+          docker run --rm --network none --env OHOS_SIGNING_MATERIAL --env OHOS_SIGNING_PASSWORD \
+            -v "$PWD/scripts/ohos/sign-hap.py:/sign.py:ro" -v "$PWD/dist/mobile/appgallery-ohos:/packages" \
+            -w /packages gproxy-store-ohos bash -ec '
+              tool="$OHOS_HOME/toolchains/lib/hap-sign-tool.jar"
+              mkdir -p signed
+              python3 /sign.py gproxy-appgallery-ohos-unsigned.app signed/gproxy-appgallery-ohos.app --tool "$tool" --release-env
+              for hap in *.hap; do python3 /sign.py "$hap" "signed/$hap" --tool "$tool" --release-env; done
+            '
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: mobile-appgallery-harmonyos-arm64-unsigned
-          path: dist/mobile/appgallery-ohos/
+          name: mobile-appgallery-harmonyos-arm64
+          path: dist/mobile/appgallery-ohos/signed/
           if-no-files-found: error
           retention-days: 14

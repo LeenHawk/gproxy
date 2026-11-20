@@ -77,7 +77,7 @@ while IFS=$'\t' read -r target artifact os; do
         <<<"$artifacts")"
     fi
   fi
-done < <(jq -r '.include[] | [.target,.artifact,.os] | @tsv' scripts/release-targets.json)
+done < <(jq -r '.include[] | select(.artifact) | [.target,.artifact,.os] | @tsv' scripts/release-targets.json)
 
 # Headless packages have separate update keys so they never acquire the console.
 while IFS=$'\t' read -r triple artifact; do

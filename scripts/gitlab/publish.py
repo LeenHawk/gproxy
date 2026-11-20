@@ -254,18 +254,18 @@ def verify_packages():
         expected.extend(["gproxy-fdroid-universal.apk", "gproxy-google-play-universal.aab"])
     extensions = {"linux": ".deb", "macos": ".dmg", "windows": ".msix", "android": ".apk", "ohos": ".hap"}
     for row in matrix:
-        cli = row["artifact"]
-        if os.environ.get("GITHUB_ACTIONS") == "true" and row["target"].endswith("-linux-musl"):
-            expected.append(cli + ".apk")
-        expected += [cli + ".zip", cli + ".provenance.json"]
-        with zipfile.ZipFile(directory / (cli + ".zip")) as archive:
-            executable = "gproxy.exe" if row["os"] == "windows" else "gproxy"
-            if executable not in archive.namelist() or any("gproxy-desktop" in n for n in archive.namelist()):
-                raise ValueError(f"Wrong executable in CLI archive: {cli}")
-        # musl CLIs ship as Alpine APKs (checked above), not DEBs.
-        if row["os"] != "ohos" and not row["target"].endswith("-linux-musl"):
-            cli_extension = ".deb" if row["os"] == "android" else extensions[row["os"]]
-            expected.append(cli + cli_extension)
+        if cli := row.get("artifact"):
+            if os.environ.get("GITHUB_ACTIONS") == "true" and row["target"].endswith("-linux-musl"):
+                expected.append(cli + ".apk")
+            expected += [cli + ".zip", cli + ".provenance.json"]
+            with zipfile.ZipFile(directory / (cli + ".zip")) as archive:
+                executable = "gproxy.exe" if row["os"] == "windows" else "gproxy"
+                if executable not in archive.namelist() or any("gproxy-desktop" in n for n in archive.namelist()):
+                    raise ValueError(f"Wrong executable in CLI archive: {cli}")
+            # musl CLIs ship as Alpine APKs (checked above), not DEBs.
+            if not row["target"].endswith("-linux-musl"):
+                cli_extension = ".deb" if row["os"] == "android" else extensions[row["os"]]
+                expected.append(cli + cli_extension)
         if app := row.get("application_artifact"):
             # Alpine Applications use the GitHub Alpine build jobs; the optional
             # GitLab cross-build pipeline does not build these targets.

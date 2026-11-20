@@ -196,11 +196,12 @@ for device testing, under `dist/mobile/appgallery-ohos/`. The native library is
 reused for the final APP packaging step; no released HAP is downloaded/repacked.
 An unsigned HAP from the ordinary release workflow is not an upload-ready APP.
 
-For signing, supply `GPROXY_OHOS_SIGNING_CONFIG`, the path to a JSON/JSON5 file
+The GitHub store workflow signs and verifies the APP and standalone HAP in the `release` environment after assembly.
+For local Hvigor signing, supply `GPROXY_OHOS_SIGNING_CONFIG`, the path to a JSON/JSON5 file
 containing one valid release `signingConfigs` entry from your DevEco/Hvigor
 configuration. Its `material.certpath`, `material.profile` and `material.storeFile`
 must be absolute paths to the release certificate, distribution profile and
-keystore. Use the exact application identity, key alias and credentials assigned
+keystore. DevEco’s encrypted password configuration also needs its sibling `material/` directory. Use the exact application identity, key alias and credentials assigned
 to your product. Without this file, output remains explicitly unsigned.
 
 The store launcher shows the same offline notice using ArkUI before entering

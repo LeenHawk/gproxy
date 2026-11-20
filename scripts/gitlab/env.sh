@@ -12,7 +12,7 @@ touch "$GITHUB_PATH"
 export GITHUB_SHA="$CI_COMMIT_SHA" GITHUB_REF_NAME="$RELEASE_TAG" GPROXY_VERSION="$GPROXY_BUILD_VERSION"
 if [ -n "${TARGET_TRIPLE:-}" ]; then
   row="$(jq -ce --arg target "$TARGET_TRIPLE" '.include[] | select(.target==$target)' scripts/release-targets.json)"
-  export TARGET_OS="$(jq -r .os <<< "$row")" ARTIFACT_NAME="$(jq -r .artifact <<< "$row")"
+  export TARGET_OS="$(jq -r .os <<< "$row")" ARTIFACT_NAME="$(jq -r '.artifact // empty' <<< "$row")"
   export APPLICATION_ARTIFACT="$(jq -r '.application_artifact // empty' <<< "$row")"
   export BUILDER="$(jq -r .builder <<< "$row")" UPX_ENABLED="$(jq -r .upx <<< "$row")"
   export UPX_VERSION="$(jq -r '.upx_version // empty' <<< "$row")"  # empty: install-upx.sh's default

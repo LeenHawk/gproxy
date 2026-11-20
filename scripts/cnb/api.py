@@ -83,17 +83,19 @@ class Cnb:
                 archive.extractall("dist", filter="data")
         # CLI and Application have separate names. Both sets must be complete.
         for row in matrix:
-            names = [row["artifact"] + ".zip"]
-            with zipfile.ZipFile(Path("dist/release") / names[0]) as archive:
-                executable = "gproxy.exe" if row["os"] == "windows" else "gproxy"
-                if executable not in archive.namelist():
-                    raise ValueError(f"CLI archive is missing {executable}: {names[0]}")
-                if any("gproxy-desktop" in name for name in archive.namelist()):
-                    raise ValueError(f"Application executable found in CLI archive: {names[0]}")
-            if row["os"] == "android":
-                names.append(row["artifact"] + ".apk")
+            names = []
+            if cli := row.get("artifact"):
+                names.append(cli + ".zip")
+                with zipfile.ZipFile(Path("dist/release") / names[0]) as archive:
+                    executable = "gproxy.exe" if row["os"] == "windows" else "gproxy"
+                    if executable not in archive.namelist():
+                        raise ValueError(f"CLI archive is missing {executable}: {names[0]}")
+                    if any("gproxy-desktop" in name for name in archive.namelist()):
+                        raise ValueError(f"Application executable found in CLI archive: {names[0]}")
+                if row["os"] == "android":
+                    names.append(cli + ".apk")
             if app := row.get("application_artifact"):
-                extension = {"linux": ".deb", "windows": ".exe", "macos": ".app.zip", "android": ".apk"}[row["os"]]
+                extension = {"linux": ".deb", "windows": ".exe", "macos": ".app.zip", "android": ".apk", "ohos": ".hap"}[row["os"]]
                 names.append(app + row.get("application_extension", extension))
             for name in names:
                 package = Path("dist/release") / name
