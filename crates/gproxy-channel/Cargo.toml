@@ -21,7 +21,7 @@ ts = ["dep:ts-rs"]
 aistudio = []
 # AI Studio Playground: Google browser cookies, MakerSuite JSPB RPC and a
 # self-hosted WAA proof signer; Gemini generation and model discovery.
-playground = ["dep:base64", "dep:futures-util", "dep:sha1", "dep:sha2", "dep:web-time", "dep:rquickjs", "dep:miniz_oxide", "dep:url", "dep:getrandom", "dep:tokio"]
+playground = ["dep:base64", "dep:futures-util", "dep:sha1", "dep:web-time"]
 # Antigravity (Google account through the Antigravity IDE's Code Assist
 # host): IDE login that discovers the Cloud project and tier, refresh, the
 # Code Assist request envelope, the fetchAvailableModels catalogue and the
@@ -274,12 +274,7 @@ ts-rs = { workspace = true, optional = true }
 web-time = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio = { workspace = true, features = ["time", "rt", "sync"], optional = true }
-# QuickJS engine for the AI Studio Playground WAA/BotGuard proof signer. Native
-# only: QuickJS is C and cannot target wasm32-unknown-unknown (no libc), so the
-# playground channel mints proofs in-process on native and is unavailable on the
-# edge/Worker build.
-rquickjs = { version = "0.14", features = ["bindgen"], optional = true }
+tokio = { workspace = true, features = ["time"], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo-timers = { workspace = true, optional = true }
