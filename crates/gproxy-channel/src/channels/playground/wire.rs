@@ -435,8 +435,20 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
                     set(&mut item, index, json!([]));
                 }
             }
-            if key(tool, "googleSearch").is_some() {
-                set(&mut item, 3, json!([null, [[]]]));
+            // AI Studio has one search tool; the older retrieval tool of the
+            // public API selects it too, without its dynamic threshold. An
+            // image model may ask for image search with or instead of web.
+            if let Some(search) =
+                key(tool, "googleSearch").or_else(|| key(tool, "googleSearchRetrieval"))
+            {
+                let types = key(search, "searchTypes");
+                let asks = |name| types.and_then(|types| key(types, name)).is_some();
+                let kinds = match (asks("webSearch"), asks("imageSearch")) {
+                    (true, true) => json!([[], []]),
+                    (false, true) => json!([null, []]),
+                    _ => json!([[]]),
+                };
+                set(&mut item, 3, json!([null, kinds]));
             }
             if item.is_empty() {
                 if no_calls && declarations.is_some() {
