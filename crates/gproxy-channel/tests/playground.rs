@@ -83,6 +83,7 @@ fn secret() -> Value {
         {"domain":".google.com","name":"SID","value":"fixture-session"},
         {"domain":".google.com","name":"SAPISID","value":"fixture-signing"},
         {"domain":".google.com","name":"__Secure-1PSID","value":"fixture-http-only","httpOnly":true},
+        {"domain":".google.com","name":"__Secure-1PSIDTS","value":"fixture-rotating","httpOnly":true},
         {"domain":".google.com","name":"analytics","value":"unrelated"},
         {"domain":"evil.example","name":"SAPISID","value":"wrong-domain"}
     ]})

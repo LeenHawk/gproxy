@@ -46,6 +46,14 @@ pub trait CredentialRefresh: Send + Sync {
         .then_some(RefreshReason::ProactiveExpiry)
     }
 
+    /// Whether the host should also apply `proactive_refresh_reason` to this
+    /// credential on a timer, without waiting for a request to use it. For
+    /// sessions the upstream ends when they sit idle; token credentials are
+    /// renewed when next used and leave this false.
+    fn keepalive(&self, _credential: &CredentialView<'_>) -> bool {
+        false
+    }
+
     /// Most channels persist definitive rejection as Dead. A channel matching
     /// an in-memory auth manager may instead remember a rejection `reason` for
     /// this version only, leaving durable credentials untouched and reloading

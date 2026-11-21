@@ -75,6 +75,44 @@ fn summary(credential_id: &str, version: &CredentialVersion) -> CredentialSummar
 }
 
 impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
+    /// Refresh the due credentials whose channel asks to be kept alive while
+    /// idle. Hosts with a background runtime call this on a timer; the request
+    /// path performs the same refresh for a credential it is about to use. One
+    /// credential at a time, under the same lease as every other refresh, so
+    /// several instances running the timer do not refresh twice.
+    pub async fn refresh_keepalive(&self) {
+        let snapshot = self.snapshot();
+        for credential in snapshot.credentials.values() {
+            let Some(provider) = snapshot.providers.get(&credential.provider_id) else {
+                continue;
+            };
+            let version = credential.state.load();
+            let due = credential.enabled
+                && provider.entity.enabled
+                && version.status == CredentialStatus::Active
+                && provider
+                    .channel
+                    .credential_refresh()
+                    .is_some_and(|refresher| {
+                        let view = crate::execute::prepare::credential_view(credential, &version);
+                        refresher.supports(&view)
+                            && refresher.keepalive(&view)
+                            && refresher
+                                .proactive_refresh_reason(view, now_ms())
+                                .is_some()
+                    });
+            if !due {
+                continue;
+            }
+            if let Err(error) = self
+                .refresh_credential(&credential.provider_id, &credential.id, RefreshMode::IfNeeded)
+                .await
+            {
+                tracing::warn!(%error, credential = %credential.id, "keepalive refresh failed");
+            }
+        }
+    }
+
     /// Explicit account operation, not an internal attempt hook. Validates
     /// provider ownership, coordinates a shared refresh lease, reads current
     /// Store material, invokes the channel capability, then seals and

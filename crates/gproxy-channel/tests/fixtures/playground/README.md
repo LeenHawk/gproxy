@@ -56,21 +56,37 @@ Gemini API key.
 
 The credential refresh rotates the session, validates it and discovers its
 benefit tier. It first posts the placeholder body `[000,"-0000000000000000000"]`
-to `https://accounts.google.com/RotateCookies` with the session cookies, as
-the browser's `RotateCookiesPage` frame does, and takes `__Secure-1PSIDTS` /
-`__Secure-3PSIDTS` from the reply's `Set-Cookie`. A failed rotation is not
-fatal; `GetAiStudioBenefitTier` then decides whether the session is alive.
-The credential's expiry is the next rotation time, three hours later, not a
-claim about Google's session lifetime. Google answers 429 to rotations less
-than a minute apart. The rotation request follows the widely used web-client
-form and has not been captured from our own browser session.
+to `https://accounts.google.com/RotateCookies` with the session cookies and
+`Referer: https://accounts.google.com/RotateCookiesPage`, and takes
+`__Secure-1PSIDTS` / `__Secure-3PSIDTS` from the reply's `Set-Cookie`. A failed
+rotation is not fatal; `GetAiStudioBenefitTier` then decides whether the
+session is alive.
 
-Between refreshes the `response_update` hook saves cookies Google replaces:
-`Set-Cookie` on MakerSuite responses, and the rotating cookies (`*SIDTS`,
-`*SIDCC`) in the Cookie header sent after the signer refreshed them. Identity
-cookies are never taken from the signer, deletions are ignored, and the
-secret's `retired` map holds each cookie's previous value so a request still
-in flight during a rotation cannot write the old value back. A session that
+Our Chrome 157 capture on 2026-11-20 showed the browser's own rotation: a
+`www.google.com` page embeds the frame
+`accounts.google.com/RotateCookiesPage?og_pid=538&rot=3&origin=<page origin>&exp_id=0`,
+which posts `[538,"<token from the frame's init call>"]` with the frame URL as
+referer. The reply is 200 with `)]}'` and `[["identity.hfcr",600],["di",41]]`,
+600 being the seconds until the next rotation. Replayed with curl, the
+placeholder body gets the same reply when the request carries a `PSIDTS`
+cookie and 401 without one. AI Studio itself never rotates; a browser that
+has only visited AI Studio since login holds no `PSIDTS`.
+
+The credential's expiry is the next rotation time, not a claim about Google's
+session lifetime: the period the reply names, bounded to between one minute
+and one hour, or ten minutes when no rotation was made. Google answers 429 to
+rotations less than a minute apart. The channel declares `keepalive`, so a
+host with a background runtime also refreshes a due credential that no
+request is using.
+
+A rotation is skipped when the session has neither a `PSIDTS` cookie nor one
+of the `accounts.google.com` sign-in cookies `LSID`, `__Host-1PLSID`,
+`__Host-3PLSID`. Those, with `__Host-GAPS` and `ACCOUNT_CHOOSER`, are kept
+when an import contains them and sent only with the rotation, as the browser
+does. Whether they let a session without `PSIDTS` rotate has not been tested.
+
+Between refreshes the `response_update` hook saves cookies Google replaces in
+`Set-Cookie` on MakerSuite responses. Deletions are ignored. A session that
 Google has revoked still requires fresh Cookie-Editor data.
 
 ## Generation fields (zero-based JSPB indexes)

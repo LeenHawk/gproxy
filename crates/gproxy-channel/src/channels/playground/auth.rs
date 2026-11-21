@@ -22,11 +22,15 @@ pub(super) const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit
 /// exchange `__Secure-1PSIDTS`/`__Secure-3PSIDTS`; the reply carries them as
 /// `Set-Cookie`. The body is the page's fixed placeholder, which is not JSON.
 const ROTATE_URL: &str = "https://accounts.google.com/RotateCookies";
+const ROTATE_PAGE: &str = "https://accounts.google.com/RotateCookiesPage";
 const ROTATE_BODY: &str = r#"[000,"-0000000000000000000"]"#;
-/// Google answers 429 to rotations less than a minute apart. The browser
-/// rotates roughly every ten minutes; a request-driven three hours keeps the
-/// session fresh without that traffic.
-const ROTATE_INTERVAL_MS: i64 = 3 * 60 * 60 * 1000;
+/// The browser rotates every ten minutes, the period the reply itself names
+/// (`["identity.hfcr",600]`). Used when a reply names none.
+const ROTATE_INTERVAL_MS: i64 = 10 * 60 * 1000;
+/// Bounds on the period a reply names. Google answers 429 to rotations less
+/// than a minute apart.
+const ROTATE_MIN_MS: i64 = 60 * 1000;
+const ROTATE_MAX_MS: i64 = 60 * 60 * 1000;
 
 /// Cookies Google replaces during a session's life. The others identify the
 /// session and change only on a new login.
@@ -54,14 +58,36 @@ fn session_cookie(name: &str) -> bool {
     )
 }
 
+/// Host-only cookies of `accounts.google.com`. The browser sends them with a
+/// rotation and never to AI Studio, so an export taken on the AI Studio tab
+/// does not contain them.
+fn account_cookie(name: &str) -> bool {
+    matches!(
+        name,
+        "LSID" | "__Host-1PLSID" | "__Host-3PLSID" | "__Host-GAPS" | "ACCOUNT_CHOOSER"
+    )
+}
+
+/// The rotation period a `RotateCookies` reply names, from
+/// `)]}'` + `[["identity.hfcr",600],["di",41]]`.
+fn rotation_period_ms(body: &[u8]) -> Option<i64> {
+    let text = std::str::from_utf8(body).ok()?;
+    let value: Value = serde_json::from_str(text.trim_start().strip_prefix(")]}'")?).ok()?;
+    let seconds = value
+        .as_array()?
+        .iter()
+        .find(|entry| entry.get(0).and_then(Value::as_str) == Some("identity.hfcr"))?
+        .get(1)?
+        .as_i64()?;
+    Some(seconds.saturating_mul(1000))
+}
+
 /// Deliberately neither Debug nor Serialize: browser cookies are credentials.
 pub(super) struct Session {
     pub cookies: BTreeMap<String, String>,
+    /// `accounts.google.com` cookies, sent only with a rotation.
+    account: BTreeMap<String, String>,
     pub auth_user: String,
-    /// The value each cookie held before its latest replacement. A request
-    /// still in flight when a cookie rotates reports this value as sent, and
-    /// it must not be saved back over the newer one.
-    retired: BTreeMap<String, String>,
 }
 
 impl Session {
@@ -71,12 +97,20 @@ impl Session {
             .or_else(|| secret.get("cookie"))
             .ok_or(ChannelError::InvalidCredential)?;
         let mut cookies = BTreeMap::new();
+        let mut account = BTreeMap::new();
         let mut insert = |name: &str, value: &str| -> Result<(), ChannelError> {
-            if session_cookie(name) && !value.is_empty() {
+            let jar = if session_cookie(name) {
+                &mut cookies
+            } else if account_cookie(name) {
+                &mut account
+            } else {
+                return Ok(());
+            };
+            if !value.is_empty() {
                 if value.contains(['\r', '\n', ';']) {
                     return Err(ChannelError::InvalidCredential);
                 }
-                cookies.insert(name.to_owned(), value.to_owned());
+                jar.insert(name.to_owned(), value.to_owned());
             }
             Ok(())
         };
@@ -138,27 +172,11 @@ impl Session {
             Some(Value::Number(value)) if value.is_u64() => value.to_string(),
             _ => return Err(ChannelError::InvalidCredential),
         };
-        let retired = secret
-            .get("retired")
-            .and_then(Value::as_object)
-            .into_iter()
-            .flatten()
-            .filter_map(|(name, value)| Some((name.clone(), value.as_str()?.to_owned())))
-            .collect();
         Ok(Self {
             cookies,
+            account,
             auth_user,
-            retired,
         })
-    }
-
-    fn replace(&mut self, name: &str, value: &str) {
-        if self.cookies.get(name).is_some_and(|held| held == value) {
-            return;
-        }
-        if let Some(old) = self.cookies.insert(name.to_owned(), value.to_owned()) {
-            self.retired.insert(name.to_owned(), old);
-        }
     }
 
     /// Take the session cookies of `Set-Cookie` headers Google returned.
@@ -173,7 +191,14 @@ impl Session {
                 continue;
             };
             let (name, value) = (name.trim(), value.trim());
-            if !session_cookie(name) || value.is_empty() || value == "EXPIRED" {
+            let jar = if session_cookie(name) {
+                &mut self.cookies
+            } else if account_cookie(name) {
+                &mut self.account
+            } else {
+                continue;
+            };
+            if value.is_empty() || value == "EXPIRED" {
                 continue;
             }
             let live = parts.all(|attribute| {
@@ -199,31 +224,7 @@ impl Session {
                 }
             });
             if live {
-                self.replace(name, value);
-            }
-        }
-    }
-
-    /// Take the rotating cookies of a Cookie header this channel sent, which
-    /// the WAA signer may have refreshed while loading the page. A jar whose
-    /// identity cookies differ belongs to another session and is left alone.
-    fn sent(&mut self, header: &str) {
-        let pairs = header
-            .split(';')
-            .filter_map(|pair| pair.trim().split_once('='))
-            .collect::<Vec<_>>();
-        if pairs.iter().any(|(name, value)| {
-            !rotating(name) && self.cookies.get(*name).is_some_and(|held| held != value)
-        }) {
-            return;
-        }
-        for (name, value) in pairs {
-            if rotating(name)
-                && session_cookie(name)
-                && !value.is_empty()
-                && self.retired.get(name).map(String::as_str) != Some(value)
-            {
-                self.replace(name, value);
+                jar.insert(name.to_owned(), value.to_owned());
             }
         }
     }
@@ -235,37 +236,54 @@ impl Session {
             .cloned()
             .ok_or(ChannelError::InvalidCredential)?;
         secret.remove("cookies");
-        secret.insert("cookie".into(), self.cookie().into());
+        // Written by releases that took rotated cookies back from an external signer.
+        secret.remove("retired");
+        secret.insert("cookie".into(), self.rotation_cookie().into());
         secret.insert("auth_user".into(), self.auth_user.clone().into());
-        if !self.retired.is_empty() {
-            secret.insert("retired".into(), json!(self.retired));
-        }
         Ok(secret.into())
     }
 
-    /// Ask Google for fresh `PSIDTS` cookies. Best effort: whether the session
-    /// is still good is decided by the MakerSuite call that follows.
-    async fn rotate(&mut self, client: &dyn OutboundClient) -> Result<(), ChannelError> {
-        if !self.cookies.contains_key("__Secure-1PSID")
-            && !self.cookies.contains_key("__Secure-3PSID")
+    /// Ask Google for fresh `PSIDTS` cookies and return when the next rotation
+    /// is due. Best effort: whether the session is still good is decided by the
+    /// MakerSuite call that follows.
+    async fn rotate(&mut self, client: &dyn OutboundClient) -> Result<i64, ChannelError> {
+        // Google answers 401 to a rotation that presents neither an earlier
+        // `PSIDTS` nor the account sign-in cookies the browser's frame sends.
+        let seeded = ["__Secure-1PSIDTS", "__Secure-3PSIDTS"]
+            .iter()
+            .any(|name| self.cookies.contains_key(*name))
+            || ["LSID", "__Host-1PLSID", "__Host-3PLSID"]
+                .iter()
+                .any(|name| self.account.contains_key(*name));
+        if !seeded
+            || (!self.cookies.contains_key("__Secure-1PSID")
+                && !self.cookies.contains_key("__Secure-3PSID"))
         {
-            return Ok(());
+            return Ok(ROTATE_INTERVAL_MS);
         }
         let request = http::Request::builder()
             .method("POST")
             .uri(ROTATE_URL)
             .header(header::CONTENT_TYPE, "application/json")
             .header(header::ORIGIN, "https://accounts.google.com")
+            .header(header::REFERER, ROTATE_PAGE)
             .header(header::USER_AGENT, USER_AGENT)
-            .header(header::COOKIE, header_value(&self.cookie())?)
+            .header(header::COOKIE, header_value(&self.rotation_cookie())?)
             .body(HttpBody::Bytes(ROTATE_BODY.into()))
             .map_err(|_| request::invalid("invalid RotateCookies request"))?;
-        if let Ok(response) = client.send(request).await
-            && response.status.is_success()
-        {
-            self.issued(response.headers.get_all(header::SET_COOKIE));
+        let Ok(response) = client.send(request).await else {
+            return Ok(ROTATE_INTERVAL_MS);
+        };
+        if !response.status.is_success() {
+            return Ok(ROTATE_INTERVAL_MS);
         }
-        Ok(())
+        self.issued(response.headers.get_all(header::SET_COOKIE));
+        let period = crate::channel::read_body(response.body)
+            .await
+            .ok()
+            .and_then(|body| rotation_period_ms(&body))
+            .unwrap_or(ROTATE_INTERVAL_MS);
+        Ok(period.clamp(ROTATE_MIN_MS, ROTATE_MAX_MS))
     }
 
     /// The account and the cookies that identify its session, without the ones
@@ -281,9 +299,21 @@ impl Session {
         identity
     }
 
+    /// The Cookie header for AI Studio and its RPCs.
     pub fn cookie(&self) -> String {
         self.cookies
             .iter()
+            .map(|(name, value)| format!("{name}={value}"))
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
+
+    /// The Cookie header for `accounts.google.com`, which is also the stored
+    /// form: `parse` sorts the names back into their two jars.
+    fn rotation_cookie(&self) -> String {
+        self.cookies
+            .iter()
+            .chain(&self.account)
             .map(|(name, value)| format!("{name}={value}"))
             .collect::<Vec<_>>()
             .join("; ")
@@ -371,8 +401,14 @@ impl CredentialRefresh for Playground {
             .then_some(RefreshReason::Scheduled)
     }
 
+    /// An AI Studio page left open is renewed by the browser; an imported
+    /// session has only the host to do it.
+    fn keepalive(&self, _: &CredentialView<'_>) -> bool {
+        true
+    }
+
     /// Save cookies Google replaced outside a refresh: `Set-Cookie` on an RPC
-    /// response, and rotating cookies the signer put in the request we sent.
+    /// response.
     fn response_update(
         &self,
         credential: CredentialView<'_>,
@@ -388,8 +424,8 @@ impl CredentialRefresh for Playground {
             .cloned()
             .collect::<Vec<_>>();
         headers.remove(header::SET_COOKIE);
-        // Only Google calls carry the Cookie header; the signer's does not.
-        let sent = request.headers().get(header::COOKIE)?.to_str().ok()?;
+        // Only calls made with the session carry the Cookie header.
+        request.headers().get(header::COOKIE)?;
         // A due credential is about to be refreshed; writing a version under
         // that refresh would make it lose its compare-and-swap.
         if credential
@@ -399,10 +435,9 @@ impl CredentialRefresh for Playground {
             return None;
         }
         let mut session = Session::parse(credential.secret).ok()?;
-        let held = session.cookies.clone();
-        session.sent(sent);
+        let held = session.rotation_cookie();
         session.issued(&issued);
-        if session.cookies == held {
+        if session.rotation_cookie() == held {
             return None;
         }
         Some(CredentialUpdate {
@@ -415,7 +450,7 @@ impl CredentialRefresh for Playground {
     fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let mut session = Session::parse(context.credential.secret)?;
-            session.rotate(context.client).await?;
+            let period = session.rotate(context.client).await?;
             let response = context
                 .client
                 .send(request::post(
@@ -462,7 +497,7 @@ impl CredentialRefresh for Playground {
             Ok(CredentialUpdate {
                 secret,
                 metadata: Some(metadata.into()),
-                expires_at_ms: Some(now_ms()? + ROTATE_INTERVAL_MS),
+                expires_at_ms: Some(now_ms()? + period),
             })
         })
     }

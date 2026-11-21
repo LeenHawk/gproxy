@@ -9,16 +9,36 @@ use std::{sync::Arc, time::Duration};
 /// one-minute maintenance tick that handles age-based pruning.
 const CAPTURE_BUDGET_INTERVAL: Duration = Duration::from_secs(15 * 60);
 
-pub struct RuntimeTask(tokio::task::JoinHandle<()>);
+/// How often idle credentials are checked for a due keepalive refresh. The
+/// channel sets the refresh schedule itself; this is only how late one can run.
+const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(60);
+
+pub struct RuntimeTask([tokio::task::JoinHandle<()>; 2]);
 impl Drop for RuntimeTask {
     fn drop(&mut self) {
-        self.0.abort();
+        for task in &self.0 {
+            task.abort();
+        }
     }
+}
+
+/// A refresh waits on the upstream, so it runs apart from the settings loop.
+fn keepalive(app: std::sync::Weak<App<DatabaseConnection>>) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(KEEPALIVE_INTERVAL).await;
+            let Some(app) = app.upgrade() else {
+                return;
+            };
+            app.gproxy().core().refresh_keepalive().await;
+        }
+    })
 }
 
 pub fn start(app: &Arc<App<DatabaseConnection>>, updater: Arc<Updater>) -> RuntimeTask {
     let app = Arc::downgrade(app);
-    RuntimeTask(tokio::spawn(async move {
+    let keepalive = keepalive(app.clone());
+    let policy = tokio::spawn(async move {
         let mut logging = None;
         let mut cleanup_policy = None;
         let mut last_cleanup = tokio::time::Instant::now() - Duration::from_secs(60);
@@ -105,5 +125,6 @@ pub fn start(app: &Arc<App<DatabaseConnection>>, updater: Arc<Updater>) -> Runti
             drop(app);
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
-    }))
+    });
+    RuntimeTask([policy, keepalive])
 }
