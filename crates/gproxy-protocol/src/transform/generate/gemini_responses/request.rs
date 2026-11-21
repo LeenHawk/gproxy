@@ -39,19 +39,27 @@ pub fn gemini_to_responses_request(
         .transpose()?
         .flatten()
         .flatten();
+    let mut items = super::content::to_responses(input.contents, &mut ids, policy, &mut report)?;
     if let Some(system) = input.system_instruction {
         let mut text = String::new();
         for part in system.parts.unwrap_or_default() {
             text.push_str(part.text.as_deref().unwrap_or(""));
         }
-        out.instructions = Some(Some(text));
+        // Models starting with GPT-6.2 append top-level `instructions` after
+        // `input`, past every cache breakpoint; a leading developer message
+        // stays cacheable.
+        items.insert(
+            0,
+            r::InputItem::Easy(
+                r::EasyInputMessage::builder(
+                    r::MessageContent::Text(text),
+                    r::MessageRole::Developer,
+                )
+                .build(),
+            ),
+        );
     }
-    out.input = Some(r::Input::Items(super::content::to_responses(
-        input.contents,
-        &mut ids,
-        policy,
-        &mut report,
-    )?));
+    out.input = Some(r::Input::Items(items));
     super::request_images::to_responses(
         input.generation_config.as_ref(),
         &mut out.tools,

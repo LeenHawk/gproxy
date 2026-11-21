@@ -33,10 +33,12 @@ fn direct_request_preserves_roles_media_tools_strict_controls_and_call_results()
         .unwrap()
         .value;
     let wire = serde_json::to_value(&output).unwrap();
-    assert_eq!(wire["instructions"], "rules");
-    assert_eq!(wire["input"][2]["type"], "function_call");
-    assert_eq!(wire["input"][2]["call_id"], wire["input"][3]["call_id"]);
-    assert_ne!(wire["input"][2]["id"], wire["input"][2]["call_id"]);
+    assert!(wire.get("instructions").is_none());
+    assert_eq!(wire["input"][0]["role"], "developer");
+    assert_eq!(wire["input"][0]["content"], "rules");
+    assert_eq!(wire["input"][3]["type"], "function_call");
+    assert_eq!(wire["input"][3]["call_id"], wire["input"][4]["call_id"]);
+    assert_ne!(wire["input"][3]["id"], wire["input"][3]["call_id"]);
     assert_eq!(wire["tools"][0]["strict"], true);
     let back = responses_to_gemini_request(output, "model", GeminiReplayContext::default())
         .unwrap()

@@ -1493,13 +1493,13 @@ fn magic_cache_strings_shape_responses_bodies_only_when_enabled() {
         );
         assert!(!String::from_utf8_lossy(&bytes).contains(MAGIC_PREFIX));
         let value: Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(value["instructions"], "rules ");
+        assert!(value.get("instructions").is_none());
         let input = value["input"].as_array().unwrap();
-        assert_eq!(input.len(), 3, "{operation:?}: anchor prepended");
+        assert_eq!(input.len(), 3, "{operation:?}: instructions lead input");
         assert_eq!(
             input[0],
             json!({"type": "message", "role": "developer", "content": [
-                {"type": "input_text", "text": " ", "prompt_cache_breakpoint": {"mode": "explicit", "ttl": "12h"}}
+                {"type": "input_text", "text": "rules ", "prompt_cache_breakpoint": {"mode": "explicit", "ttl": "12h"}}
             ]})
         );
         assert_eq!(
@@ -1518,6 +1518,11 @@ fn magic_cache_strings_shape_responses_bodies_only_when_enabled() {
     let mut expected = body("", "");
     expected["stream"] = json!(true);
     expected["store"] = json!(false);
+    let instructions = expected.as_object_mut().unwrap().remove("instructions");
+    expected["input"].as_array_mut().unwrap().insert(
+        0,
+        json!({"type": "message", "role": "developer", "content": instructions}),
+    );
     assert_eq!(
         serde_json::from_slice::<Value>(&with_tokens).unwrap(),
         expected,
@@ -2081,14 +2086,22 @@ fn shapes_converted_responses_and_avoids_cli_tool_name_collisions() {
     ] {
         assert!(value.get(field).is_none(), "{field}");
     }
-    assert_eq!(value["instructions"], "first\npolicy");
-    assert!(value["input"][0].get("status").is_none());
-    assert_eq!(value["input"][0]["future_item"], 1);
-    assert_eq!(value["input"][1]["type"], "function_call");
-    assert_eq!(value["input"][1]["name"], "shell_command_1");
-    assert!(value["input"][1]["id"].as_str().unwrap().starts_with("fc_"));
-    assert_eq!(value["input"][1]["call_id"], "call_old");
-    assert_eq!(value["input"][2]["call_id"], "call-real");
+    assert!(value.get("instructions").is_none());
+    assert_eq!(
+        value["input"][0],
+        json!({"type":"message","role":"developer","content":"first"})
+    );
+    assert_eq!(
+        value["input"][1],
+        json!({"role":"developer","content":"policy"})
+    );
+    assert!(value["input"][2].get("status").is_none());
+    assert_eq!(value["input"][2]["future_item"], 1);
+    assert_eq!(value["input"][3]["type"], "function_call");
+    assert_eq!(value["input"][3]["name"], "shell_command_1");
+    assert!(value["input"][3]["id"].as_str().unwrap().starts_with("fc_"));
+    assert_eq!(value["input"][3]["call_id"], "call_old");
+    assert_eq!(value["input"][4]["call_id"], "call-real");
     assert_eq!(value["tools"][0]["name"], "shell_command");
     assert_eq!(value["tools"][1]["name"], "shell_command_1");
     assert_eq!(value["tools"][2]["type"], "custom");
@@ -2111,8 +2124,9 @@ fn shapes_converted_responses_and_avoids_cli_tool_name_collisions() {
 
 #[test]
 fn cli_shaped_requests_and_client_managed_sessions_are_identity_transforms() {
-    let cli = json!({"model":"gpt-5.4","stream":true,"store":false,"instructions":"policy",
-        "input":[{"role":"user","content":"hello"}],
+    let cli = json!({"model":"gpt-5.4","stream":true,"store":false,
+        "input":[{"type":"message","role":"developer","content":[{"type":"input_text","text":"policy"}]},
+            {"role":"user","content":"hello"}],
         "tools":[{"type":"function","name":"shell_command","parameters":{"type":"object"},"strict":false}],
         "include":["reasoning.encrypted_content"]});
     assert_eq!(
@@ -2926,10 +2940,11 @@ fn cached_system_prefix_keeps_its_breakpoint_in_codex_input() {
             ]}, {"role":"user", "content":"hello"}]
         }),
     );
-    assert_eq!(body["instructions"], "base");
-    assert_eq!(body["input"][0]["role"], "developer");
+    assert!(body.get("instructions").is_none());
+    assert_eq!(body["input"][0]["content"], "base");
+    assert_eq!(body["input"][1]["role"], "developer");
     assert_eq!(
-        body["input"][0]["content"][0]["prompt_cache_breakpoint"]["ttl"],
+        body["input"][1]["content"][0]["prompt_cache_breakpoint"]["ttl"],
         "12h"
     );
 }

@@ -20,14 +20,16 @@ fn tools_controls_multiple_system_messages_and_multimodal_results_map_directly()
         .unwrap()
         .value;
     let wire = serde_json::to_value(&output).unwrap();
-    assert_eq!(wire["instructions"], "first");
-    assert_eq!(wire["input"][0]["content"], "second");
+    assert!(wire.get("instructions").is_none());
+    assert_eq!(wire["input"][0]["role"], "developer");
+    assert_eq!(wire["input"][0]["content"], "first");
+    assert_eq!(wire["input"][1]["content"], "second");
     assert_eq!(wire["parallel_tool_calls"], false);
     assert_eq!(
         wire["tools"][0]["parameters"]["additionalProperties"],
         false
     );
-    assert_eq!(wire["input"][2]["output"][0]["type"], "input_image");
+    assert_eq!(wire["input"][3]["output"][0]["type"], "input_image");
     assert_eq!(wire["reasoning"]["effort"], "high");
     let back = responses_to_claude_request(output, "claude", ClaudeRequestContext::default())
         .unwrap()

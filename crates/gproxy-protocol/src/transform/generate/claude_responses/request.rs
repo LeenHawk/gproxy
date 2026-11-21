@@ -72,43 +72,31 @@ pub fn claude_to_responses_request(
         policy,
         &mut report,
     )?));
-    match system {
-        Some(crate::claude::count_tokens::SystemPrompt::Blocks(blocks))
-            if blocks.iter().any(|block| block.cache_control.is_some()) =>
-        {
-            if let Some(r::Input::Items(items)) = &mut out.input {
-                items.insert(
-                    0,
-                    r::InputItem::Easy(
-                        r::EasyInputMessage::builder(
-                            r::MessageContent::Parts(
-                                blocks
-                                    .into_iter()
-                                    .map(|block| {
-                                        r::InputContent::Text(cache::responses_text(block))
-                                    })
-                                    .collect(),
-                            ),
-                            r::MessageRole::System,
-                        )
-                        .build(),
-                    ),
-                );
-            }
-        }
+    // Models starting with GPT-6.2 append top-level `instructions` after
+    // `input`, past every cache breakpoint. A leading developer message is
+    // the cacheable position on every Responses model.
+    // https://developers.openai.com/api/docs/guides/prompt-caching#how-prefix-matching-works
+    let system = match system {
         Some(crate::claude::count_tokens::SystemPrompt::Blocks(blocks)) => {
-            out.instructions = Some(Some(
+            Some(r::MessageContent::Parts(
                 blocks
                     .into_iter()
-                    .map(|block| block.text)
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            ));
+                    .map(|block| r::InputContent::Text(cache::responses_text(block)))
+                    .collect(),
+            ))
         }
         Some(crate::claude::count_tokens::SystemPrompt::Text(text)) => {
-            out.instructions = Some(Some(text))
+            Some(r::MessageContent::Text(text))
         }
-        None => {}
+        None => None,
+    };
+    if let (Some(content), Some(r::Input::Items(items))) = (system, &mut out.input) {
+        items.insert(
+            0,
+            r::InputItem::Easy(
+                r::EasyInputMessage::builder(content, r::MessageRole::Developer).build(),
+            ),
+        );
     }
     crate::transform::instructions::responses(
         &mut out.input,

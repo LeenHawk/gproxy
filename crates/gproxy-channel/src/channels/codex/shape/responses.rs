@@ -41,31 +41,38 @@ pub(super) fn request(
             rest: Default::default(),
         })]));
     }
+    // The CLI sends no top-level `instructions`: its base instructions lead
+    // `input` as a developer message (openai/codex c9253c4977). Models starting
+    // with GPT-6.2 append `instructions` after `input`, where it is never cached.
+    if let Some(Some(text)) = request.instructions.take()
+        && !text.is_empty()
+    {
+        let message = InputItem::Easy(EasyInputMessage {
+            agent: None,
+            type_: Some(MessageType::Message),
+            role: MessageRole::Developer,
+            content: MessageContent::Text(text),
+            phase: None,
+            rest: Default::default(),
+        });
+        match request.input.get_or_insert_with(|| Input::Items(Vec::new())) {
+            Input::Items(items) => items.insert(0, message),
+            Input::Text(_) => unreachable!("text input became a user message above"),
+        }
+    }
     let mut aliases = tools::normalize_definitions(&mut request.tools, &mut request.tool_choice)?;
     if let Some(Input::Items(items)) = request.input.as_mut() {
         let mut retained = Vec::with_capacity(items.len());
         for mut item in std::mem::take(items) {
-            preserve_system_breakpoints(&mut item);
-            if let Some(text) = system_text(&item) {
-                if !text.is_empty() {
-                    let instructions = request
-                        .instructions
-                        .get_or_insert(None)
-                        .get_or_insert_default();
-                    if !instructions.is_empty() {
-                        instructions.push('\n');
-                    }
-                    instructions.push_str(&text);
-                }
-            } else if unresolvable(&item) {
+            developer_role(&mut item);
+            if unresolvable(&item) {
                 continue;
-            } else {
-                if let InputItem::Reasoning(reasoning) = &mut item {
-                    reasoning.status = None;
-                    reasoning.content = None;
-                }
-                retained.push(item);
             }
+            if let InputItem::Reasoning(reasoning) = &mut item {
+                reasoning.status = None;
+                reasoning.content = None;
+            }
+            retained.push(item);
         }
         tools::normalize_history(&mut retained, &mut aliases)?;
         *items = retained;
@@ -111,58 +118,18 @@ fn unresolvable(item: &InputItem) -> bool {
     }
 }
 
-// A cached system prefix must stay in input: flattening it into instructions
-// discards the cache boundary and its TTL. Codex accepts developer messages.
-fn preserve_system_breakpoints(item: &mut InputItem) {
+// The backend rejects the system role; developer is its instruction role, in
+// place so the message keeps its position and cache breakpoints.
+fn developer_role(item: &mut InputItem) {
     match item {
-        InputItem::Message(message)
-            if message.role == InputMessageRole::System
-                && has_breakpoint(&message.content) =>
-        {
+        InputItem::Message(message) if message.role == InputMessageRole::System => {
             message.role = InputMessageRole::Developer;
         }
-        InputItem::Easy(message)
-            if message.role == MessageRole::System
-                && matches!(&message.content, MessageContent::Parts(parts) if has_breakpoint(parts)) =>
-        {
+        InputItem::Easy(message) if message.role == MessageRole::System => {
             message.role = MessageRole::Developer;
         }
         _ => {}
     }
-}
-
-fn has_breakpoint(parts: &[InputContent]) -> bool {
-    parts.iter().any(|part| match part {
-        InputContent::Text(v) => v.prompt_cache_breakpoint.is_some(),
-        InputContent::Image(v) => v.prompt_cache_breakpoint.is_some(),
-        InputContent::File(v) => v.prompt_cache_breakpoint.is_some(),
-    })
-}
-
-fn system_text(item: &InputItem) -> Option<String> {
-    match item {
-        InputItem::Message(message) if message.role == InputMessageRole::System => {
-            Some(parts_text(&message.content))
-        }
-        InputItem::Easy(message) if message.role == MessageRole::System => {
-            Some(match &message.content {
-                MessageContent::Text(text) => text.clone(),
-                MessageContent::Parts(parts) => parts_text(parts),
-            })
-        }
-        _ => None,
-    }
-}
-
-fn parts_text(parts: &[InputContent]) -> String {
-    parts
-        .iter()
-        .filter_map(|part| match part {
-            InputContent::Text(text) => Some(text.text.as_str()),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 /// `prompt_cache_options` as the CLI sends it: only `ttl`, the minimum

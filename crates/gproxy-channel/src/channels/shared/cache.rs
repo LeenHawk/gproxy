@@ -154,7 +154,7 @@ mod rules {
         Claude,
         /// Chat Completions bodies: `prompt_cache_breakpoint` on a part.
         OpenAiChat,
-        /// Responses bodies: instructions anchor, prompt variables, input.
+        /// Responses bodies: instructions, prompt variables, input.
         OpenAiResponses,
     }
 
@@ -510,8 +510,8 @@ mod rules {
         }
     }
 
-    /// Responses: a token in `instructions` anchors a marked developer
-    /// message in front of `input`; prompt variables and input items are
+    /// Responses: `instructions` carrying a token moves into a marked
+    /// developer message in front of `input`; prompt variables and input items are
     /// marked like Chat parts, with the `input_text` / `output_text` kinds.
     fn openai_responses(body: &mut Value) {
         let mut remaining = breakpoint_budget(body, "prompt_cache_breakpoint");
@@ -522,7 +522,7 @@ mod rules {
             Some(Value::String(text)) => strip(text),
             _ => (false, None),
         };
-        if instruction_triggered && remaining > 0 && prepend_instruction_anchor(root, ttl) {
+        if instruction_triggered && remaining > 0 && move_instructions_to_input(root, ttl) {
             remaining -= 1;
         }
         if let Some(variables) = root
@@ -617,7 +617,10 @@ mod rules {
         }
     }
 
-    fn prepend_instruction_anchor(root: &mut Map<String, Value>, ttl: Option<&str>) -> bool {
+    // Models starting with GPT-6.2 append `instructions` after `input`, so a
+    // breakpoint ahead of `input` no longer covers it. The text itself moves
+    // into the marked developer message.
+    fn move_instructions_to_input(root: &mut Map<String, Value>, ttl: Option<&str>) -> bool {
         let mut items = match root.remove("input") {
             None | Some(Value::Null) => Vec::new(),
             Some(Value::String(text)) => vec![message("user", text, false, None)],
@@ -627,7 +630,10 @@ mod rules {
                 return false;
             }
         };
-        items.insert(0, message("developer", " ".into(), true, ttl));
+        let Some(Value::String(text)) = root.remove("instructions") else {
+            unreachable!("the caller matched a string");
+        };
+        items.insert(0, message("developer", text, true, ttl));
         root.insert("input".into(), Value::Array(items));
         true
     }
@@ -877,7 +883,7 @@ mod tests {
         feature = "openrouter"
     ))]
     #[test]
-    fn responses_anchor_instructions_and_mark_variables_and_items() {
+    fn responses_move_instructions_and_mark_variables_and_items() {
         let mut body = json!({
             "instructions": format!("be terse {ONE_H}"),
             "prompt": {"id": "p", "variables": {
@@ -892,12 +898,12 @@ mod tests {
             ]
         });
         apply(&mut body, Rules::OpenAiResponses);
-        assert_eq!(body["instructions"], "be terse ");
+        assert!(body.get("instructions").is_none());
         let input = body["input"].as_array().unwrap();
         assert_eq!(
             input[0],
             json!({"type": "message", "role": "developer", "content": [
-                {"type": "input_text", "text": " ", "prompt_cache_breakpoint": {"mode": "explicit", "ttl": "12h"}}
+                {"type": "input_text", "text": "be terse ", "prompt_cache_breakpoint": {"mode": "explicit", "ttl": "12h"}}
             ]})
         );
         assert_eq!(
