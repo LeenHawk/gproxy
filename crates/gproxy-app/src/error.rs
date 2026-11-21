@@ -180,6 +180,8 @@ fn core_status(error: &CoreError) -> u16 {
         CoreError::Forbidden(_) => S::FORBIDDEN,
         CoreError::ResourceNotFound { .. } => S::NOT_FOUND,
         CoreError::InvalidTarget(_) | CoreError::OperationMismatch { .. } => S::BAD_REQUEST,
+        // A request the channel cannot express upstream: nothing was sent.
+        CoreError::Channel(gproxy_sdk::ChannelError::InvalidConfig(_)) => S::BAD_REQUEST,
         CoreError::NoUsableCredential { .. } | CoreError::CredentialDead { .. } => {
             S::SERVICE_UNAVAILABLE
         }
@@ -209,7 +211,9 @@ fn core_code(error: &CoreError) -> &'static str {
     match error {
         CoreError::Forbidden(_) => "forbidden",
         CoreError::ResourceNotFound { .. } => "not_found",
-        CoreError::InvalidTarget(_) | CoreError::OperationMismatch { .. } => "invalid_request",
+        CoreError::InvalidTarget(_)
+        | CoreError::OperationMismatch { .. }
+        | CoreError::Channel(gproxy_sdk::ChannelError::InvalidConfig(_)) => "invalid_request",
         CoreError::NoUsableCredential { .. } => "no_usable_credential",
         CoreError::CredentialDead { .. } => "credential_dead",
         CoreError::BudgetExhausted { .. } => "budget_exhausted",

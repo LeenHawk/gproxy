@@ -71,7 +71,7 @@ pub use gproxy_cache::Cache;
 #[cfg(feature = "memory")]
 pub use gproxy_cache::MemoryCache;
 pub use gproxy_channel::{
-    BaseChannel, ChannelDescriptor, ChannelRegistry,
+    BaseChannel, ChannelDescriptor, ChannelError, ChannelRegistry,
     channel::{ChannelCapabilities, ConfigKey, ConfigKeyKind, LoginMode},
     channels,
 };

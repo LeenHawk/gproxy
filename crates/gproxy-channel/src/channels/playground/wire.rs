@@ -18,8 +18,26 @@ fn set(array: &mut Vec<Value>, index: usize, value: Value) {
     }
 }
 
+/// A request field under its JSON name, or under the proto field name
+/// (`system_instruction`) that Google's API accepts as well.
+fn key<'a>(value: &'a Value, name: &str) -> Option<&'a Value> {
+    value.get(name).or_else(|| {
+        if !name.bytes().any(|c| c.is_ascii_uppercase()) {
+            return None;
+        }
+        let mut snake = String::with_capacity(name.len() + 4);
+        for c in name.chars() {
+            if c.is_ascii_uppercase() {
+                snake.push('_');
+            }
+            snake.push(c.to_ascii_lowercase());
+        }
+        value.get(&snake)
+    })
+}
+
 fn field(array: &mut Vec<Value>, index: usize, value: &Value, name: &str) {
-    if let Some(value) = value.get(name) {
+    if let Some(value) = key(value, name) {
         set(array, index, value.clone());
     }
 }
@@ -187,23 +205,22 @@ fn schema(value: &Value) -> Result<Value, ChannelError> {
 fn part(value: &Value) -> Result<Value, ChannelError> {
     let mut out = vec![];
     field(&mut out, 1, value, "text");
-    if let Some(data) = value.get("inlineData") {
-        let mime = data
-            .get("mimeType")
+    if let Some(data) = key(value, "inlineData") {
+        let mime = key(data, "mimeType")
             .and_then(Value::as_str)
             .ok_or_else(|| bad_request("inlineData requires mimeType"))?;
         set(&mut out, 2, json!([mime, base64(&data["data"])?]));
     }
-    for (name, index, key) in [
+    for (name, index, body) in [
         ("functionCall", 10, "args"),
         ("functionResponse", 11, "response"),
     ] {
-        if let Some(call) = value.get(name) {
+        if let Some(call) = key(value, name) {
             let name = call
                 .get("name")
                 .and_then(Value::as_str)
                 .ok_or_else(|| bad_request("function part requires name"))?;
-            let body = call.get(key).cloned().unwrap_or_else(|| json!({}));
+            let body = call.get(body).cloned().unwrap_or_else(|| json!({}));
             if !body.is_object() {
                 return Err(bad_request(
                     "function arguments and responses must be objects",
@@ -214,16 +231,16 @@ fn part(value: &Value) -> Result<Value, ChannelError> {
             set(&mut out, index, call_wire.into());
         }
     }
-    if value.get("fileData").is_some() {
+    if key(value, "fileData").is_some() {
         return Err(bad_request("fileData is not supported; use inlineData"));
     }
-    if let Some(code) = value.get("executableCode") {
+    if let Some(code) = key(value, "executableCode") {
         if code["language"].as_str() != Some("PYTHON") {
             return Err(bad_request("unsupported executableCode language"));
         }
         set(&mut out, 7, json!([1, code["code"]]));
     }
-    if let Some(result) = value.get("codeExecutionResult") {
+    if let Some(result) = key(value, "codeExecutionResult") {
         let outcome = match result["outcome"].as_str() {
             Some("OUTCOME_OK") => 1,
             Some("OUTCOME_FAILED") => 2,
@@ -233,7 +250,7 @@ fn part(value: &Value) -> Result<Value, ChannelError> {
         set(&mut out, 8, json!([outcome, result["output"]]));
     }
     field(&mut out, 12, value, "thought");
-    if let Some(signature) = value.get("thoughtSignature") {
+    if let Some(signature) = key(value, "thoughtSignature") {
         set(&mut out, 14, base64(signature)?);
     }
     if out.is_empty() {
@@ -257,8 +274,7 @@ fn content(value: &Value, default_role: &str) -> Result<Value, ChannelError> {
 }
 
 fn generation_config(value: &Value) -> Result<Value, ChannelError> {
-    if value
-        .get("candidateCount")
+    if key(value, "candidateCount")
         .is_some_and(|count| count.as_u64() != Some(1))
     {
         return Err(bad_request(
@@ -282,15 +298,14 @@ fn generation_config(value: &Value) -> Result<Value, ChannelError> {
         field(&mut out, index, value, name);
     }
     // The wire has one schema slot; a JSON Schema is lowered into it.
-    if let Some(json_schema) = value
-        .get("responseJsonSchema")
-        .or_else(|| value.get("_responseJsonSchema"))
+    if let Some(json_schema) = key(value, "responseJsonSchema")
+        .or_else(|| key(value, "_responseJsonSchema"))
     {
         set(&mut out, 8, schema(&lower(json_schema))?);
-    } else if let Some(schema_value) = value.get("responseSchema") {
+    } else if let Some(schema_value) = key(value, "responseSchema") {
         set(&mut out, 8, schema(schema_value)?);
     }
-    if let Some(modalities) = value.get("responseModalities").and_then(Value::as_array) {
+    if let Some(modalities) = key(value, "responseModalities").and_then(Value::as_array) {
         let modes = modalities
             .iter()
             .map(|value| match value.as_str() {
@@ -302,13 +317,13 @@ fn generation_config(value: &Value) -> Result<Value, ChannelError> {
             .collect::<Result<Vec<_>, _>>()?;
         set(&mut out, 14, modes.into());
     }
-    if let Some(thinking) = value.get("thinkingConfig") {
+    if let Some(thinking) = key(value, "thinkingConfig") {
         let mut config = vec![];
-        if let Some(include) = thinking.get("includeThoughts").and_then(Value::as_bool) {
+        if let Some(include) = key(thinking, "includeThoughts").and_then(Value::as_bool) {
             set(&mut config, 0, u8::from(include).into());
         }
         field(&mut config, 1, thinking, "thinkingBudget");
-        if let Some(level) = thinking.get("thinkingLevel").and_then(Value::as_str) {
+        if let Some(level) = key(thinking, "thinkingLevel").and_then(Value::as_str) {
             let level = match level.to_ascii_uppercase().as_str() {
                 "MINIMAL" => 4,
                 "LOW" => 1,
@@ -320,14 +335,14 @@ fn generation_config(value: &Value) -> Result<Value, ChannelError> {
         }
         set(&mut out, 16, config.into());
     }
-    if let Some(image) = value.get("imageConfig") {
+    if let Some(image) = key(value, "imageConfig") {
         let mut config = vec![];
         field(&mut config, 0, image, "aspectRatio");
         field(&mut config, 1, image, "imageSize");
         set(&mut out, 26, config.into());
     }
     for name in ["speechConfig", "videoConfig", "mediaResolution"] {
-        if value.get(name).is_some() {
+        if key(value, name).is_some() {
             return Err(bad_request(
                 "speechConfig, videoConfig and mediaResolution are not supported yet",
             ));
@@ -350,7 +365,7 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
                 .collect::<Result<_, _>>()?,
         ),
     ];
-    if let Some(settings) = value.get("safetySettings").and_then(Value::as_array) {
+    if let Some(settings) = key(value, "safetySettings").and_then(Value::as_array) {
         let safety = settings
             .iter()
             .map(|setting| {
@@ -359,6 +374,7 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
                     Some("HARM_CATEGORY_HATE_SPEECH") => 8,
                     Some("HARM_CATEGORY_SEXUALLY_EXPLICIT") => 9,
                     Some("HARM_CATEGORY_DANGEROUS_CONTENT") => 10,
+                    Some("HARM_CATEGORY_CIVIC_INTEGRITY") => 11,
                     _ => return Err(bad_request("unsupported safety category")),
                 };
                 let threshold = match setting["threshold"].as_str() {
@@ -375,18 +391,17 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
             .collect::<Result<Vec<_>, _>>()?;
         set(&mut out, 2, safety.into());
     }
-    if let Some(config) = value.get("generationConfig") {
+    if let Some(config) = key(value, "generationConfig") {
         set(&mut out, 3, generation_config(config)?);
     }
-    if let Some(system) = value.get("systemInstruction") {
+    if let Some(system) = key(value, "systemInstruction") {
         set(&mut out, 5, content(system, "user")?);
     }
     // The calling mode has no known slot on this wire. `NONE` is honoured by
     // leaving the declarations out; every other mode runs as the default
     // `AUTO`, so a forced call is only a request the model may decline.
-    let no_calls = value
-        .get("toolConfig")
-        .and_then(|config| config.get("functionCallingConfig"))
+    let no_calls = key(value, "toolConfig")
+        .and_then(|config| key(config, "functionCallingConfig"))
         .and_then(|config| config.get("mode"))
         .and_then(Value::as_str)
         .is_some_and(|mode| mode.eq_ignore_ascii_case("NONE"));
@@ -394,7 +409,7 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
         let mut encoded = vec![];
         for tool in tools {
             let mut item = vec![];
-            let declarations = tool.get("functionDeclarations").and_then(Value::as_array);
+            let declarations = key(tool, "functionDeclarations").and_then(Value::as_array);
             if let Some(declarations) = declarations.filter(|_| !no_calls) {
                 let functions = declarations
                     .iter()
@@ -405,7 +420,7 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
                             .ok_or_else(|| bad_request("function declaration requires name"))?;
                         let mut function = vec![name.into()];
                         field(&mut function, 1, declaration, "description");
-                        if let Some(json_schema) = declaration.get("parametersJsonSchema") {
+                        if let Some(json_schema) = key(declaration, "parametersJsonSchema") {
                             set(&mut function, 2, schema(&lower(json_schema))?);
                         } else if let Some(parameters) = declaration.get("parameters") {
                             set(&mut function, 2, schema(parameters)?);
@@ -416,18 +431,22 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
                 set(&mut item, 1, functions.into());
             }
             for (name, index) in [("codeExecution", 0), ("urlContext", 7), ("googleMaps", 10)] {
-                if tool.get(name).is_some() {
+                if key(tool, name).is_some() {
                     set(&mut item, index, json!([]));
                 }
             }
-            if tool.get("googleSearch").is_some() {
+            if key(tool, "googleSearch").is_some() {
                 set(&mut item, 3, json!([null, [[]]]));
             }
             if item.is_empty() {
                 if no_calls && declarations.is_some() {
                     continue;
                 }
-                return Err(bad_request("unsupported tool"));
+                let names = tool
+                    .as_object()
+                    .map(|tool| tool.keys().map(String::as_str).collect::<Vec<_>>().join(", "))
+                    .unwrap_or_default();
+                return Err(bad_request(&format!("unsupported tool `{names}`")));
             }
             encoded.push(item);
         }
@@ -435,7 +454,7 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
             set(&mut out, 6, json!(encoded));
         }
     }
-    if value.get("cachedContent").is_some() {
+    if key(value, "cachedContent").is_some() {
         return Err(bad_request("cachedContent is not supported"));
     }
     set(&mut out, 13, json!([[null, null, timezone]]));
