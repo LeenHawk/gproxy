@@ -8,14 +8,12 @@ pub(super) const RPC_PATH: &str =
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct PlaygroundConfig {
-    pub proof_server_url: String,
     pub timezone: String,
 }
 
 impl Default for PlaygroundConfig {
     fn default() -> Self {
         Self {
-            proof_server_url: String::new(),
             timezone: "UTC".into(),
         }
     }
@@ -25,16 +23,6 @@ impl PlaygroundConfig {
     pub(super) fn parse(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
         serde_json::from_value(provider.config.clone())
             .map_err(|_| ChannelError::InvalidConfig("invalid Playground configuration".into()))
-    }
-
-    pub(super) fn proof_url(&self) -> Result<String, ChannelError> {
-        let base = self.proof_server_url.trim().trim_end_matches('/');
-        if !(base.starts_with("http://") || base.starts_with("https://")) {
-            return Err(ChannelError::InvalidConfig(
-                "Playground requires your own proof_server_url".into(),
-            ));
-        }
-        Ok(format!("{base}/v1/proof/mint"))
     }
 }
 
