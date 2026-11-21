@@ -1155,6 +1155,7 @@
     "tokens": "One API key per line",
     "input": "Credential data",
     "jsonHint": "Paste a JSON array, one object, or JSONL (one object per line). Each object is the credential secret, or a wrapper: {\"label\":\"Account name\",\"secret\":{...}}. Fields are preserved as supplied.",
+    "cookiesHint": "To import several accounts, paste their exports one after another, or one Cookie header per line; each account becomes one credential.",
     "tokensHint": "One API key per line. Blank lines and lines beginning with # are ignored.",
     "summary": "Ready: {{count}} · Duplicates in this input: {{duplicates}} · Errors: {{errors}}",
     "errorAt": "Item / line {{index}}: {{reason}}",

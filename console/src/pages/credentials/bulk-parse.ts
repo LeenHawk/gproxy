@@ -1,4 +1,4 @@
-import { parsePlaygroundCookie } from "./cookie-import"
+import { parsePlaygroundCookies } from "./cookie-import"
 
 export type BulkFormat = "json" | "tokens" | "cookies"
 export type BulkCredential = { label: string | null; secret: Record<string, unknown>; source: number }
@@ -28,10 +28,8 @@ export function parseBulkCredentials(input: string, format: BulkFormat) {
   const entries: { value: unknown; source: number }[] = []
   const errors: BulkError[] = []
   if (format === "cookies") {
-    if (input.trim()) {
-      try { entries.push({ value: parsePlaygroundCookie(input), source: 1 }) }
-      catch { errors.push({ source: 1, code: "invalidSecret" }) }
-    }
+    try { parsePlaygroundCookies(input).forEach((value, index) => entries.push({ value, source: index + 1 })) }
+    catch { errors.push({ source: 1, code: "invalidSecret" }) }
   } else if (format === "tokens") {
     input.split(/\r?\n/).forEach((line, index) => {
       const token = line.trim()

@@ -1155,6 +1155,7 @@
     "tokens": "每行一个 API Key",
     "input": "凭据内容",
     "jsonHint": "粘贴 JSON 数组、单个对象或 JSONL（每行一个对象）。每个对象是凭据 secret，也可使用 {\"label\":\"账户名称\",\"secret\":{...}} 包装。字段按原样保留。",
+    "cookiesHint": "导入多个账号时，把各账号的导出依次粘贴在一起，或每行一个 Cookie Header；每个账号保存为一个凭证。",
     "tokensHint": "每行一个 API Key，忽略空行及以 # 开头的行。",
     "summary": "可导入 {{count}} 条 · 本批重复 {{duplicates}} 条 · 错误 {{errors}} 条",
     "errorAt": "第 {{index}} 项 / 行：{{reason}}",

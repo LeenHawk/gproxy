@@ -50,7 +50,7 @@ export function CredentialBulkImport({ provider, onClose }: { provider: Credenti
           <Field data-field-span="full" data-invalid={parsed.errors.length > 0}>
             <FieldLabel htmlFor={`${id}-input`}>{t("credentialImport.input")}</FieldLabel>
             <Textarea id={`${id}-input`} rows={8} value={input} spellCheck={false} autoComplete="off" className="font-mono" aria-invalid={parsed.errors.length > 0} aria-describedby={`${id}-hint${parsed.errors.length ? ` ${id}-errors` : ""}`} onChange={event => { setInput(event.target.value); save.reset() }} />
-            <FieldDescription id={`${id}-hint`}>{t(format === "cookies" ? "form.playgroundSecretHint" : format === "json" ? "credentialImport.jsonHint" : "credentialImport.tokensHint")}</FieldDescription>
+            <FieldDescription id={`${id}-hint`}>{format === "cookies" ? `${t("form.playgroundSecretHint")} ${t("credentialImport.cookiesHint")}` : t(format === "json" ? "credentialImport.jsonHint" : "credentialImport.tokensHint")}</FieldDescription>
           </Field>
         </FieldGroup>
       </fieldset>
