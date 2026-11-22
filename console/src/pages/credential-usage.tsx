@@ -45,9 +45,7 @@ export function CredentialUsagePage() {
   const shown = active.length ? groups.filter(group => active.includes(group.id)) : groups
 
   return <Page>
-    <PageHeader title={t("nav.credential-usage")} actions={
-      <Button variant="outline" disabled={usage.isFetching} onClick={() => void usage.refetch()}>{t("actions.refresh")}</Button>
-    } />
+    <PageHeader title={t("nav.credential-usage")} />
     <p className="text-sm text-muted-foreground">{t("credentialUsage.description")}</p>
     <QueryState isPending={usage.isPending || providers.isPending} error={usage.error ?? providers.error}>
       {groups.length ? <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("credentialUsage.filter")}>
