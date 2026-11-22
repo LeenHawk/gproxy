@@ -3,7 +3,7 @@ import type { VariantPresetGroup } from "@/components/providers/variant-presets/
 const thinking = (path: "reasoning" | "reasoning_effort"): VariantPresetGroup => ({
   key: "thinking",
   label: "Reasoning",
-  entries: ["none", "low", "medium", "high", "xhigh"].map((effort) => ({
+  entries: ["none", "minimal", "low", "medium", "high", "xhigh", "max"].map((effort) => ({
     suffix: `-thinking-${effort}`,
     label: `${path}: ${effort}`,
     actions: [{ path, value: path === "reasoning" ? { effort } : effort }],
@@ -14,12 +14,12 @@ const tier: VariantPresetGroup = {
   key: "tier",
   label: "Service Tier",
   entries: [
-    ...["auto", "default", "flex", "scale", "priority"].map((value) => ({
+    ...["auto", "default", "flex", "scale", "priority", "ultrafast"].map((value) => ({
       suffix: `-tier-${value}`,
       label: `service_tier: ${value}`,
       actions: [{ path: "service_tier", value }],
     })),
-    { suffix: "-fast", label: "fast (= priority)", actions: [{ path: "service_tier", value: "priority" }] },
+    { suffix: "-fast", label: "service_tier: fast", actions: [{ path: "service_tier", value: "fast" }] },
   ],
 }
 

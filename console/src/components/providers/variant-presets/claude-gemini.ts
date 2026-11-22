@@ -33,6 +33,7 @@ export const GEMINI_PRESETS: Array<VariantPresetGroup> = [{
     ["low", "LOW"],
     ["medium", "MEDIUM"],
     ["high", "HIGH"],
+    ["xhigh", "XHIGH"],
   ].map(([suffix, level]) => ({
     suffix: `-thinking-${suffix}`,
     label: `thinkingLevel: ${level}`,
