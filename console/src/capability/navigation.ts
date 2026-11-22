@@ -14,7 +14,7 @@
 
 import {
   BookOpenText, Boxes, Building2, ChartLine, CircleUserRound, Fingerprint, Gauge,
-  Info, KeyRound, LayoutDashboard, ListChecks, MonitorSmartphone, ScrollText, Settings2, ShieldCheck, UsersRound, Waypoints,
+  Info, KeyRound, LayoutDashboard, ListChecks, MonitorSmartphone, ScrollText, Settings2, ShieldCheck, UsersRound, Waypoints, Wrench,
   type LucideIcon,
 } from "lucide-react"
 
@@ -88,6 +88,7 @@ const ACCESS: NavSection = {
   items: [
     { id: "api-keys", route: "/identity/api-keys", needs: "identity.api-keys", icon: KeyRound },
     { id: "permissions", route: "/identity/permissions", needs: "identity.permissions", icon: ShieldCheck },
+    { id: "mcp-scopes", route: "/identity/mcp-scopes", needs: "identity.mcp-scopes", icon: Wrench },
     { id: "rate-limits", route: "/identity/rate-limits", needs: "identity.rate-limits", icon: Gauge },
     { id: "oauth-clients", route: "/identity/oauth-clients", needs: "identity.oauth-clients", icon: Fingerprint },
     { id: "sessions", route: "/identity/sessions", needs: "identity.sessions", icon: MonitorSmartphone },

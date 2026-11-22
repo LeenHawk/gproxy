@@ -10,7 +10,6 @@ mod support;
 use std::{collections::BTreeMap, sync::Arc};
 
 use base64::Engine as _;
-use gproxy_channel::channel::{AuthorizationStart, DevicePoll};
 use gproxy_sdk::{
     ClientPool, Gproxy, GproxyBuilder, SdkError, SyncMode,
     dto::{
@@ -19,6 +18,7 @@ use gproxy_sdk::{
     },
 };
 use gproxy_store::entity::identity::{organization, user};
+use gproxy_upstream::{AuthorizationStart, DevicePoll};
 use sea_orm::{DatabaseConnection, Set};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};

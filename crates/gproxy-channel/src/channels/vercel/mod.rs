@@ -4,9 +4,8 @@
 mod quota;
 
 use crate::channel::{
-    BaseChannel, CLAUDE_FALLBACK_KEYS, ChannelCapabilities, ChannelDescriptor, ChannelError,
-    ClaudeFallback, ConfigKey, ConfigKeyKind, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
-    PrepareContext, ProviderView, QuotaModel, QuotaQuery, forwardable,
+    BaseChannel, CLAUDE_FALLBACK_KEYS, ChannelCapabilities, ChannelDescriptor, ClaudeFallback,
+    HOST_CONFIG_KEYS, HeaderAllowlist, PrepareContext, QuotaModel, QuotaQuery, forwardable,
 };
 use crate::channels::shared::{
     cache,
@@ -15,6 +14,9 @@ use crate::channels::shared::{
     compatible::http::{insert_configured, strip_query_auth},
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, connection::Bytes};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 use http::{HeaderName, HeaderValue, header};
 use serde::Deserialize;
 use serde_json::Value;
@@ -32,9 +34,9 @@ pub struct VercelConfig {
     pub enable_openai_magic_cache: bool,
 }
 impl VercelConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|e| ChannelError::InvalidConfig(e.to_string()))
+            .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))
     }
 }
 pub(super) fn base_url(provider: ProviderView<'_>) -> &str {
@@ -45,21 +47,24 @@ pub(super) fn base_url(provider: ProviderView<'_>) -> &str {
         .unwrap_or(DEFAULT_BASE_URL)
         .trim_end_matches('/')
 }
-pub(super) fn api_key(secret: &Value) -> Result<&str, ChannelError> {
+pub(super) fn api_key(secret: &Value) -> Result<&str, UpstreamError> {
     secret
         .get("api_key")
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Vercel;
-impl BaseChannel for Vercel {
+impl UpstreamKind for Vercel {
     fn id(&self) -> &'static str {
         ID
     }
+}
+
+impl BaseChannel for Vercel {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -132,12 +137,12 @@ impl BaseChannel for Vercel {
             recommended_model: "claude-opus-4-8",
         })
     }
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         if !self
             .native_dialects(ctx.provider, ctx.operation.operation)
             .contains(&ctx.operation.dialect)
         {
-            return Err(ChannelError::UnsupportedOperation(ctx.operation));
+            return Err(UpstreamError::UnsupportedOperation(ctx.operation));
         }
         let config = VercelConfig::from_view(ctx.provider)?;
         let key = api_key(ctx.credential.secret)?;
@@ -156,11 +161,11 @@ impl BaseChannel for Vercel {
         headers.insert(
             header::AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {key}"))
-                .map_err(|_| ChannelError::InvalidCredential)?,
+                .map_err(|_| UpstreamError::InvalidCredential)?,
         );
         headers.insert(
             HeaderName::from_static("x-api-key"),
-            HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
+            HeaderValue::from_str(key).map_err(|_| UpstreamError::InvalidCredential)?,
         );
         headers
             .entry(header::CONTENT_TYPE)
@@ -251,7 +256,7 @@ impl BaseChannel for Vercel {
         }
         builder
             .body(body)
-            .map_err(|e| ChannelError::InvalidConfig(e.to_string()))
+            .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))
     }
     fn quota_model(&self) -> Option<&dyn QuotaModel> {
         Some(self)

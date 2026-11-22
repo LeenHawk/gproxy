@@ -16,12 +16,12 @@
 use super::auth;
 use super::config::{CopilotCliConfig, ID};
 use crate::channel::{
-    CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaResetBehavior, QuotaScope,
-    QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+    QuotaAllowance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaResetBehavior,
+    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
 };
 use crate::channels::shared::compatible::ability::{require_success, send};
 use crate::channels::shared::compatible::http::invalid_response;
+use gproxy_upstream::{CredentialContext, CredentialView, ProviderView, UpstreamFuture};
 use http::Method;
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -215,7 +215,7 @@ fn entries(payload: &CopilotUser) -> Vec<QuotaEntry> {
 }
 
 impl crate::channel::QuotaQuery for super::CopilotCli {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = CopilotCliConfig::from_view(context.provider)?;
             let github = auth::github_token(&context.credential)?;

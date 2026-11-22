@@ -4,7 +4,8 @@
     "oauth": "OAuth",
     "cookie": "Cookie",
     "service_account": "Сервисный аккаунт",
-    "aws_access_key": "Пара ключей доступа AWS"
+    "aws_access_key": "Пара ключей доступа AWS",
+    "none": "Без аутентификации"
   },
   "overview": {
     "title": "Здравствуйте, {{name}}",
@@ -1282,5 +1283,19 @@
     "filter": "Провайдеры",
     "all": "Все",
     "empty": "Учётных данных пока нет."
+  },
+  "mcp": {
+    "tools": "Инструменты",
+    "toolCalls": "Вызовы инструментов",
+    "scope": "Область",
+    "declaredNature": "Заявлено",
+    "nature": "Характер",
+    "override": "Переопределение",
+    "declared": "Как заявлено",
+    "natures": {
+      "read": "Чтение",
+      "write": "Запись",
+      "destructive": "Разрушающее"
+    }
   }
 }

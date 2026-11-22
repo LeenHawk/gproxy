@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 //! Every future the sdk hands a host must be `Send`.
 //!
 //! `CallBuilder::send` and `ConnectBuilder::send` wrap the engine's own
@@ -12,9 +10,6 @@
 //! The bound is easy to lose by accident: `ByteStream` is `Send` but
 //! deliberately not `Sync`, so a shared reference to a `WireRequest<HttpBody>`
 //! held across a single await makes the whole future non-`Send`.
-//!
-//! wasm32 puts no `Send` bound on `ByteStream` at all, so this file is
-//! native-only rather than weakened to suit it.
 
 mod support;
 

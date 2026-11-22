@@ -2,11 +2,13 @@
 
 use super::{Aistudio, AistudioConfig, DEFAULT_BASE_URL, ID, OPENAI_PREFIX};
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
-    ConfigKeyKind, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
-    UsageExtras, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelHeaders, HOST_CONFIG_KEYS,
+    HeaderAllowlist, PrepareContext, UsageExtras, forwardable,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily, WireRequest};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 use http::{HeaderName, HeaderValue, header};
 
 /// The API key header of the native Gemini surface.
@@ -84,7 +86,7 @@ impl Aistudio {
     fn build<B>(
         &self,
         ctx: PrepareContext<'_, B>,
-    ) -> Result<(http::request::Builder, WireRequest<B>), ChannelError> {
+    ) -> Result<(http::request::Builder, WireRequest<B>), UpstreamError> {
         let config = AistudioConfig::from_view(ctx.provider)?;
         let key = ctx
             .credential
@@ -93,7 +95,7 @@ impl Aistudio {
             .and_then(serde_json::Value::as_str)
             .map(str::trim)
             .filter(|key| !key.is_empty())
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let dialect = ctx.operation.dialect;
         let mut request = ctx.request;
         let url = match ctx.endpoint_override {
@@ -129,20 +131,20 @@ impl Aistudio {
             headers.insert(
                 header::AUTHORIZATION,
                 HeaderValue::from_str(&format!("Bearer {key}"))
-                    .map_err(|_| ChannelError::InvalidCredential)?,
+                    .map_err(|_| UpstreamError::InvalidCredential)?,
             );
         } else {
             headers.insert(
                 HeaderName::from_static(GOOG_API_KEY),
-                HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
+                HeaderValue::from_str(key).map_err(|_| UpstreamError::InvalidCredential)?,
             );
         }
         for (name, value) in &config.headers {
             headers.insert(
                 HeaderName::from_bytes(name.as_bytes())
-                    .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+                    .map_err(|_| UpstreamError::InvalidConfig(format!("header `{name}`")))?,
                 HeaderValue::from_str(value)
-                    .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+                    .map_err(|_| UpstreamError::InvalidConfig(format!("header `{name}`")))?,
             );
         }
         let mut builder = http::Request::builder()
@@ -155,11 +157,13 @@ impl Aistudio {
     }
 }
 
-impl BaseChannel for Aistudio {
+impl UpstreamKind for Aistudio {
     fn id(&self) -> &'static str {
         ID
     }
+}
 
+impl BaseChannel for Aistudio {
     /// An API key against one origin serving two surfaces; nothing to log
     /// into, nothing to refresh, no account endpoint to read a balance from.
     fn descriptor(&self) -> ChannelDescriptor {
@@ -194,11 +198,17 @@ impl BaseChannel for Aistudio {
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent | Operation::StreamGenerateContent => {
-                vec![Dialect::Gemini, Dialect::OpenAiChat, Dialect::GeminiInteractions]
+                vec![
+                    Dialect::Gemini,
+                    Dialect::OpenAiChat,
+                    Dialect::GeminiInteractions,
+                ]
             }
             Operation::ListModels | Operation::GetModel => vec![Dialect::Gemini, Dialect::OpenAi],
             Operation::CreateEmbedding => vec![Dialect::Gemini, Dialect::OpenAi],
-            Operation::RetrieveInteraction | Operation::CancelInteraction | Operation::DeleteInteraction => vec![Dialect::GeminiInteractions],
+            Operation::RetrieveInteraction
+            | Operation::CancelInteraction
+            | Operation::DeleteInteraction => vec![Dialect::GeminiInteractions],
             Operation::CountTokens
             | Operation::ConnectRealtime
             | Operation::BatchCreateEmbedding
@@ -217,11 +227,11 @@ impl BaseChannel for Aistudio {
 
     /// Every body is forwarded as it came. Core has already asked a Chat
     /// Completions stream for its closing usage chunk.
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let (builder, request) = self.build(ctx)?;
         builder
             .body(request.body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     fn usage_extras(&self) -> Option<&dyn UsageExtras> {
@@ -231,15 +241,15 @@ impl BaseChannel for Aistudio {
     fn prepare_connect(
         &self,
         ctx: PrepareContext<'_, ()>,
-    ) -> Result<http::Request<()>, ChannelError> {
+    ) -> Result<http::Request<()>, UpstreamError> {
         if ctx.operation.operation != Operation::ConnectRealtime
             || ctx.operation.dialect != Dialect::Gemini
         {
-            return Err(ChannelError::UnsupportedOperation(ctx.operation));
+            return Err(UpstreamError::UnsupportedOperation(ctx.operation));
         }
         let (builder, _) = self.build(ctx)?;
         builder
             .body(())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }

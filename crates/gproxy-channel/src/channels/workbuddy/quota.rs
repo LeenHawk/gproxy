@@ -18,9 +18,10 @@ use super::auth::{authorize, fact};
 use super::config::{ID, WorkBuddyConfig};
 use super::{json_headers, send, unix_now_ms};
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, QuotaAllowance, QuotaEntry,
-    QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaValue,
+    QuotaAllowance, QuotaEntry, QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot,
+    QuotaSubject, QuotaValue,
 };
+use gproxy_upstream::{CredentialContext, CredentialView, UpstreamError, UpstreamFuture};
 use http::Method;
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
@@ -59,9 +60,8 @@ fn iso_to_ms(value: &str) -> Option<i64> {
 }
 
 fn used_percent(used: Decimal, limit: Decimal) -> Option<Decimal> {
-    used
-            .checked_div(limit)
-            .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED))
+    used.checked_div(limit)
+        .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED))
 }
 
 /// `YYYY-MM-DD HH:MM:SS`, the format the billing endpoint expects.
@@ -78,11 +78,11 @@ fn format_time(seconds: i64) -> Option<String> {
     ))
 }
 
-fn personal_body(now_secs: i64) -> Result<Vec<u8>, ChannelError> {
+fn personal_body(now_secs: i64) -> Result<Vec<u8>, UpstreamError> {
     let begin = format_time(now_secs)
-        .ok_or_else(|| ChannelError::InvalidConfig("the system clock is unusable".into()))?;
+        .ok_or_else(|| UpstreamError::InvalidConfig("the system clock is unusable".into()))?;
     let end = format_time(now_secs.saturating_add(PACKAGE_WINDOW_SECS))
-        .ok_or_else(|| ChannelError::InvalidConfig("the system clock is unusable".into()))?;
+        .ok_or_else(|| UpstreamError::InvalidConfig("the system clock is unusable".into()))?;
     Ok(json!({
         "PageNumber": 1,
         "PageSize": 100,
@@ -95,9 +95,9 @@ fn personal_body(now_secs: i64) -> Result<Vec<u8>, ChannelError> {
     .into_bytes())
 }
 
-pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
+pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, UpstreamError> {
     let raw: Value = serde_json::from_slice(body)
-        .map_err(|error| ChannelError::InvalidResponse(format!("{ID} quota: {error}")))?;
+        .map_err(|error| UpstreamError::InvalidResponse(format!("{ID} quota: {error}")))?;
     if let Some(accounts) = raw
         .pointer("/data/Response/Data/Accounts")
         .or_else(|| raw.pointer("/data/data/Response/Data/Accounts"))
@@ -178,7 +178,7 @@ fn enterprise(data: &Value) -> Option<QuotaEntry> {
 }
 
 impl QuotaQuery for super::WorkBuddy {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = WorkBuddyConfig::from_view(context.provider)?;
             let seat = enterprise_seat(&context.credential);
@@ -204,14 +204,14 @@ impl QuotaQuery for super::WorkBuddy {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: reply,
                 });
             }
             let entries = entries(&reply)?;
             if entries.is_empty() {
-                return Err(ChannelError::InvalidResponse(format!(
+                return Err(UpstreamError::InvalidResponse(format!(
                     "{ID} quota: the meter reported no readings"
                 )));
             }

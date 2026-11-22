@@ -3,7 +3,7 @@
 //! edge, retain PNG transparency, and try JPEG quality 90 then 70. GIFs remain
 //! animated and are not recompressed.
 use super::request::bad;
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 use image::{
     ImageDecoder, ImageEncoder, ImageFormat, ImageReader,
     codecs::{
@@ -18,7 +18,7 @@ pub(super) const MAX_FILE_BYTES: usize = 10 * 1024 * 1024;
 pub(super) fn prepare(
     bytes: Vec<u8>,
     mime: &'static str,
-) -> Result<(Vec<u8>, &'static str, &'static str), ChannelError> {
+) -> Result<(Vec<u8>, &'static str, &'static str), UpstreamError> {
     let (format, extension) = match mime {
         "image/png" => (ImageFormat::Png, "png"),
         "image/jpeg" => (ImageFormat::Jpeg, "jpg"),

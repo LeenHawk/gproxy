@@ -1,37 +1,38 @@
-//! Routing between passthrough and protocol conversion, native endpoint
-//! paths, and the drivers that run protocol's adaptation flows over an
-//! attempt-bound upstream.
+//! Core's side of conversion: the provider's operation rules over
+//! `gproxy-convert`'s default routing, the local handlers, and the Responses
+//! WebSocket client bridged onto HTTP upstreams. The drivers themselves are
+//! `gproxy-convert`, run over core's capabilities ([`CoreHost`]).
 
-mod endpoints;
 mod route;
-mod spec;
 
-mod call;
-mod compact;
-mod count_tokens;
-mod dispatch;
-mod embeddings;
-mod files;
-pub(crate) mod generate;
-mod images;
-mod interactions;
-mod memory;
-mod models;
-pub(crate) mod responses_ws;
-pub(crate) mod stream_error;
-pub(crate) mod upstream_error;
-mod video;
-mod web_search;
-
-pub(crate) use call::{Call, ClientRequest, Converted};
-pub(crate) use dispatch::dispatch;
-pub use endpoints::generate_endpoint;
-pub use route::{
-    Route, RouteError, RoutingMappings, conversion_targets, default_route, default_route_for_model,
-    local_supported, resolve_route, resolve_route_for_model, route, route_for_model,
-    validate_mapping,
-};
 pub(crate) mod local;
-pub use spec::{is_websocket, response_framing, spec_for};
+pub(crate) mod responses_ws;
 
-pub use models::local_metadata as local_model_metadata;
+use crate::{AttemptUpstream, ProtocolState, ResourceScope, Resources, StateScope};
+use gproxy_seaorm::BatchConnectionTrait;
+use std::marker::PhantomData;
+
+pub(crate) use gproxy_convert::{
+    Call, ClientRequest, Converted, ModelFacts, dispatch, stream_error, upstream_error,
+};
+pub use gproxy_convert::{
+    Route, RoutingMappings, conversion_targets, default_route, default_route_for_model,
+    generate_endpoint, is_websocket, local_model_metadata, local_supported, response_framing,
+    spec_for, validate_mapping,
+};
+pub use route::{RouteError, resolve_route, resolve_route_for_model, route, route_for_model};
+
+/// Core's capabilities as the drivers take them.
+pub(crate) struct CoreHost<'a, C>(PhantomData<&'a C>);
+
+impl<'a, C: BatchConnectionTrait + Send + Sync + 'static> gproxy_convert::Host for CoreHost<'a, C> {
+    type Upstream = AttemptUpstream;
+    type State = ProtocolState<C>;
+    type StateScope = StateScope;
+    type Resources = Resources<'a, C>;
+    type ResourceScope = ResourceScope;
+
+    fn spawn(task: gproxy_convert::Task) {
+        crate::rt::spawn(task);
+    }
+}

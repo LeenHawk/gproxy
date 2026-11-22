@@ -1,6 +1,6 @@
 //! Provider `config` JSON for Kiro. Unknown keys are ignored.
 
-use crate::channel::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -61,13 +61,13 @@ impl Default for KiroConfig {
 }
 
 impl KiroConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     /// The region, refused rather than interpolated when it is not one.
-    pub(super) fn region(&self) -> Result<&str, ChannelError> {
+    pub(super) fn region(&self) -> Result<&str, UpstreamError> {
         let region = self.region.trim();
         let region = if region.is_empty() {
             DEFAULT_REGION
@@ -108,7 +108,7 @@ impl KiroConfig {
 
 /// A region goes into a host name, so it may only be what a region looks like
 /// (v3 `endpoint.rs::validate_region`).
-pub(super) fn validate_region(region: &str) -> Result<(), ChannelError> {
+pub(super) fn validate_region(region: &str) -> Result<(), UpstreamError> {
     if !region.is_empty()
         && region
             .bytes()
@@ -116,7 +116,7 @@ pub(super) fn validate_region(region: &str) -> Result<(), ChannelError> {
     {
         Ok(())
     } else {
-        Err(ChannelError::InvalidConfig(format!(
+        Err(UpstreamError::InvalidConfig(format!(
             "`{region}` is not an AWS region"
         )))
     }

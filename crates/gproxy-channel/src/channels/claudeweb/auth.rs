@@ -2,7 +2,7 @@
 //! claude.ai's own front end sends with every call (v3 `claudeweb/auth.rs`
 //! and `shared/claude/cookie.rs`).
 
-use crate::channel::{ChannelError, CredentialView, ProviderView};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError};
 use http::{
     HeaderMap, HeaderName, HeaderValue,
     header::{ACCEPT, ACCEPT_LANGUAGE, CACHE_CONTROL, COOKIE, ORIGIN, REFERER},
@@ -30,16 +30,16 @@ impl Auth {
     /// The cookie and organization live in the secret; the paid flag is read
     /// from the host-persisted metadata first and derived from the recorded
     /// capabilities otherwise.
-    pub(super) fn read(credential: &CredentialView<'_>) -> Result<Self, ChannelError> {
+    pub(super) fn read(credential: &CredentialView<'_>) -> Result<Self, UpstreamError> {
         let secret = credential.secret;
         let metadata = credential.metadata;
         let cookie = field(secret, "cookie")
             .or_else(|| field(secret, "session_key"))
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let organization = field(secret, "organization_uuid")
             .or_else(|| field(secret, "account_uuid"))
             .or_else(|| field(metadata, "organization_uuid"))
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let pro = metadata
             .get("pro")
             .and_then(Value::as_bool)
@@ -86,7 +86,7 @@ pub(super) fn browser_headers(
     device_id: Option<&str>,
     base: &str,
     referer: &str,
-) -> Result<HeaderMap, ChannelError> {
+) -> Result<HeaderMap, UpstreamError> {
     let mut headers = HeaderMap::new();
     let mut cookie = cookie_header(cookie);
     if let Some(device) = device_id {
@@ -173,6 +173,6 @@ pub(super) fn field<'a>(value: &'a Value, name: &str) -> Option<&'a str> {
         .filter(|value| !value.is_empty())
 }
 
-pub(super) fn header_value(value: &str) -> Result<HeaderValue, ChannelError> {
-    HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)
+pub(super) fn header_value(value: &str) -> Result<HeaderValue, UpstreamError> {
+    HeaderValue::from_str(value).map_err(|_| UpstreamError::InvalidCredential)
 }

@@ -1,4 +1,4 @@
-#![cfg(all(feature = "redis", not(target_arch = "wasm32")))]
+#![cfg(feature = "redis")]
 
 use gproxy_cache::*;
 use std::time::Duration;

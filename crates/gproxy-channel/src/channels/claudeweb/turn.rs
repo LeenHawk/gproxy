@@ -25,8 +25,7 @@ use http::StatusCode;
 use serde_json::Value;
 
 use super::{
-    ClaudeWeb, ClaudeWebConfig, auth, bad_request, expired, id,
-    now_ms,
+    ClaudeWeb, ClaudeWebConfig, auth, bad_request, expired, id, now_ms,
     prepare::Requests,
     read_body, request,
     stream::{Codec, Collector, SessionState, encode_all},
@@ -34,8 +33,9 @@ use super::{
 };
 use crate::{
     OutboundClient,
-    channel::{ChannelError, ChannelState, HeaderAllowlist, OperationContext, forwardable},
+    channel::{HeaderAllowlist, OperationContext, forwardable},
 };
+use gproxy_upstream::{UpstreamError, UpstreamState};
 
 /// How long a tool boundary stays resumable, as in v3 (`ttl_secs`).
 pub const CONTINUATION_SECS: u64 = 10 * 60;
@@ -72,7 +72,7 @@ fn unslot(slot: Slot) -> Parked {
     slot.take()
 }
 
-/// Live connections cannot be serialized into `ChannelState`, so they wait
+/// Live connections cannot be serialized into `UpstreamState`, so they wait
 /// here, keyed by provider, credential and tool_use id. Entries older than
 /// the continuation window are dropped on the next access; the temporary
 /// conversation behind them is discarded by claude.ai itself.
@@ -116,7 +116,7 @@ pub fn continuation_key(tool_use_id: &str) -> String {
 
 pub(super) struct Turn {
     client: Arc<dyn OutboundClient>,
-    state: Arc<dyn ChannelState>,
+    state: Arc<dyn UpstreamState>,
     registry: Arc<Registry>,
     scope: String,
     requests: Requests,
@@ -130,7 +130,7 @@ pub(super) struct Turn {
 pub(super) async fn start(
     channel: &ClaudeWeb,
     context: OperationContext<'_>,
-) -> Result<Turn, ChannelError> {
+) -> Result<Turn, UpstreamError> {
     let config = ClaudeWebConfig::from_view(context.provider)?;
     let auth = auth::Auth::read(&context.credential)?;
     let base = auth::base_url(context.provider);
@@ -166,36 +166,36 @@ pub(super) async fn start(
 #[allow(clippy::too_many_arguments)]
 async fn new_turn(
     client: Arc<dyn OutboundClient>,
-    state: Arc<dyn ChannelState>,
+    state: Arc<dyn UpstreamState>,
     registry: Arc<Registry>,
     scope: String,
     requests: Requests,
     instance: String,
     config: &ClaudeWebConfig,
     value: &Value,
-) -> Result<Turn, ChannelError> {
+) -> Result<Turn, UpstreamError> {
     let mut web = request::build(value, &config.prompt, &config.timezone)?;
     let conversation = id::uuid()?;
     let mut files = Vec::new();
     for upload in &web.uploads {
         let (status, bytes) = call(&*client, requests.upload(&conversation, upload)?).await?;
         if !status.is_success() {
-            return Err(ChannelError::UpstreamResponse {
+            return Err(UpstreamError::UpstreamResponse {
                 status,
                 body: bytes,
             });
         }
         let reply: Value = serde_json::from_slice(&bytes)
-            .map_err(|error| ChannelError::InvalidResponse(format!("upload JSON: {error}")))?;
+            .map_err(|error| UpstreamError::InvalidResponse(format!("upload JSON: {error}")))?;
         let file = reply
             .get("file_uuid")
             .and_then(Value::as_str)
-            .ok_or_else(|| ChannelError::InvalidResponse("upload file_uuid missing".into()))?;
+            .ok_or_else(|| UpstreamError::InvalidResponse("upload file_uuid missing".into()))?;
         files.push(Value::String(file.to_owned()));
     }
     let (status, bytes) = call(&*client, requests.create(&conversation)?).await?;
     if !status.is_success() {
-        return Err(ChannelError::UpstreamResponse {
+        return Err(UpstreamError::UpstreamResponse {
             status,
             body: bytes,
         });
@@ -210,7 +210,7 @@ async fn new_turn(
     };
     if !status.is_success() {
         discard(&*client, &requests, &conversation).await;
-        return Err(ChannelError::UpstreamResponse {
+        return Err(UpstreamError::UpstreamResponse {
             status,
             body: bytes,
         });
@@ -225,11 +225,9 @@ async fn new_turn(
         }
     };
     if !response.status.is_success() {
-        let body = read_body(response.body)
-            .await
-            .unwrap_or_default();
+        let body = read_body(response.body).await.unwrap_or_default();
         discard(&*client, &requests, &conversation).await;
-        return Err(ChannelError::UpstreamResponse {
+        return Err(UpstreamError::UpstreamResponse {
             status: response.status,
             body,
         });
@@ -256,13 +254,13 @@ async fn new_turn(
 
 async fn resume_turn(
     client: Arc<dyn OutboundClient>,
-    state: Arc<dyn ChannelState>,
+    state: Arc<dyn UpstreamState>,
     registry: Arc<Registry>,
     scope: String,
     requests: Requests,
     instance: String,
     results: Vec<Value>,
-) -> Result<Turn, ChannelError> {
+) -> Result<Turn, UpstreamError> {
     let tool_use_id = results
         .first()
         .and_then(|result| result.get("tool_use_id"))
@@ -280,7 +278,7 @@ async fn resume_turn(
         .await?
         .ok_or_else(|| expired("continuation expired or unknown"))?;
     let mut session: SessionState = serde_json::from_slice(&entry.payload)
-        .map_err(|error| ChannelError::InvalidResponse(format!("continuation state: {error}")))?;
+        .map_err(|error| UpstreamError::InvalidResponse(format!("continuation state: {error}")))?;
     session.input_tokens = session.input_tokens.saturating_add(
         results
             .iter()
@@ -291,7 +289,7 @@ async fn resume_turn(
     if session.instance != instance {
         // The parked connection lives in another process; it and the
         // continuation record stay intact for the request to be routed there.
-        return Err(ChannelError::ContinuationElsewhere {
+        return Err(UpstreamError::ContinuationElsewhere {
             instance_id: session.instance,
         });
     }
@@ -312,7 +310,7 @@ async fn resume_turn(
         };
         let failure = match outcome {
             Ok((status, _)) if status.is_success() => continue,
-            Ok((status, body)) => ChannelError::UpstreamResponse { status, body },
+            Ok((status, body)) => UpstreamError::UpstreamResponse { status, body },
             Err(error) => error,
         };
         let _ = state
@@ -403,12 +401,12 @@ impl Turn {
     }
 
     /// Drain the turn into one Messages response body.
-    pub(super) async fn collect(mut self) -> Result<Value, ChannelError> {
+    pub(super) async fn collect(mut self) -> Result<Value, UpstreamError> {
         let mut collector = Collector::default();
         while let Some(item) = self.step().await {
             let events = match item {
                 Ok(events) => events,
-                Err(error) => return Err(ChannelError::InvalidResponse(error.to_string())),
+                Err(error) => return Err(UpstreamError::InvalidResponse(error.to_string())),
             };
             for event in &events {
                 if let Err(error) = collector.push(event) {
@@ -422,12 +420,12 @@ impl Turn {
     }
 
     /// Record the continuation and hand the live connection to the registry.
-    async fn park(&mut self, tool_use_id: &str) -> Result<(), ChannelError> {
+    async fn park(&mut self, tool_use_id: &str) -> Result<(), UpstreamError> {
         let Some((upstream, codec)) = self.live.take() else {
             return Ok(());
         };
         let payload = serde_json::to_vec(codec.state())
-            .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
+            .map_err(|error| UpstreamError::InvalidResponse(error.to_string()))?;
         let now = now_ms()?;
         let expires_at = now.saturating_add(i64::try_from(CONTINUATION_SECS * 1000).unwrap_or(0));
         let write = StateWrite {
@@ -437,7 +435,7 @@ impl Turn {
         let key = continuation_key(tool_use_id);
         let result = self.state.compare_exchange(&key, None, Some(write)).await?;
         if !matches!(result, CasResult::Applied(_)) {
-            return Err(ChannelError::InvalidResponse(format!(
+            return Err(UpstreamError::InvalidResponse(format!(
                 "continuation `{tool_use_id}` is already recorded"
             )));
         }
@@ -482,7 +480,7 @@ async fn discard(client: &dyn OutboundClient, requests: &Requests, conversation:
 async fn call(
     client: &dyn OutboundClient,
     request: http::Request<HttpBody>,
-) -> Result<(StatusCode, Bytes), ChannelError> {
+) -> Result<(StatusCode, Bytes), UpstreamError> {
     let WireResponse { status, body, .. } = client.send(request).await?;
     Ok((status, read_body(body).await?))
 }

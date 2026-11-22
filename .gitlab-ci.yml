@@ -90,11 +90,8 @@ wasm-verify:
     when: always
     paths: [.cargo/registry/, .cargo/git/, target/verify-wasm/]
   script:
-    - cargo check --locked --target wasm32-unknown-unknown -p gproxy-protocol -p gproxy-store -p gproxy-seaorm -p gproxy-client -p gproxy-cache -p gproxy-channel -p gproxy-core -p gproxy-file -p gproxy-tokenizer -p gproxy-sdk -p gproxy-app -p gproxy-host-axum -p gproxy-host-edge
-    - cargo check --locked --target wasm32-unknown-unknown -p gproxy-sdk --features libsql
-    - cargo check --locked --target wasm32-unknown-unknown -p gproxy-cache --all-features
-    - cargo check --locked --target wasm32-unknown-unknown -p gproxy-file --no-default-features --features s3
-    - cargo check --locked --target wasm32-unknown-unknown -p gproxy-channel --all-features --lib
+    # Only the stateless crates are wasm-capable; the rest of the workspace is native-only.
+    - cargo check --locked --target wasm32-unknown-unknown -p gproxy-protocol -p gproxy-client -p gproxy-client-sdk -p gproxy-upstream -p gproxy-channel -p gproxy-convert -p gproxy-lite --features "gproxy-client/fetch,gproxy-client/workers,gproxy-client-sdk/realtime,gproxy-client-sdk/s3,gproxy-client-sdk/local-count,gproxy-client-sdk/normalize-images,gproxy-channel/aistudio,gproxy-channel/playground,gproxy-channel/antigravity,gproxy-channel/aws_bedrock,gproxy-channel/azure,gproxy-channel/claudeapi,gproxy-channel/claudecode,gproxy-channel/claudeweb,gproxy-channel/cline,gproxy-channel/cloudflare_ai_gateway,gproxy-channel/codex,gproxy-channel/commandcode,gproxy-channel/copilotcli,gproxy-channel/custom,gproxy-channel/dashscope,gproxy-channel/deepseek,gproxy-channel/glm,gproxy-channel/minimax,gproxy-channel/devin,gproxy-channel/geminicli,gproxy-channel/grokbuild,gproxy-channel/kimi,gproxy-channel/kiro,gproxy-channel/nvidia,gproxy-channel/openai,gproxy-channel/opencode,gproxy-channel/opendesign,gproxy-channel/orcaterm,gproxy-channel/openrouter,gproxy-channel/vercel,gproxy-channel/volcengine,gproxy-channel/vertex,gproxy-channel/vertexexpress,gproxy-channel/trae,gproxy-channel/workbuddy,gproxy-channel/xai"
 
 .release-rules:
   rules:
@@ -269,31 +266,6 @@ android:
       - TARGET_TRIPLE: [x86_64-linux-android, aarch64-linux-android]
         PACKAGE_MODE: [cli, application]
 
-edge:
-  extends: .release-rules
-  stage: build
-  image: "$CI_REGISTRY_IMAGE/build-linux:$CI_COMMIT_SHA"
-  tags: [saas-linux-xlarge-amd64]
-  needs:
-    - console
-    - job: toolchains
-      artifacts: false
-      parallel:
-        matrix:
-          - FLAVOR: [linux]
-  timeout: 3h
-  cache:
-    key: cargo-edge
-    when: always
-    paths: [.cargo/registry/, .cargo/git/, target/]
-  before_script:
-    - export PATH="$CARGO_HOME/bin:$PATH"
-  script:
-    - bash scripts/gitlab/package-unix.sh edge
-  artifacts:
-    expire_in: 3 days
-    paths: [dist/release/]
-
 windows-msix:
   extends: .release-rules
   stage: package
@@ -359,7 +331,6 @@ publish:
     - linux-musl
     - desktop
     - android
-    - edge
     - windows-msix
     - macos-dmg
   before_script:

@@ -148,7 +148,7 @@ impl BlockSource {
         if crate::quota::cap_percent(credential).is_some() {
             return true;
         }
-        let Some(model) = provider.channel.quota_model() else {
+        let Some(model) = provider.channel().and_then(|channel| channel.quota_model()) else {
             return true;
         };
         let version = credential.state.load();
@@ -248,7 +248,10 @@ impl CredentialBlocks {
     ) {
         self.blocks.retain(|block| {
             block.source.is_enforced(provider, credential)
-                && match (&block.source, provider.channel.quota_model()) {
+                && match (
+                    &block.source,
+                    provider.channel().and_then(|channel| channel.quota_model()),
+                ) {
                     (BlockSource::QuotaExhausted { dimension, .. }, Some(quota)) => {
                         quota.block_applies_to(dimension, model)
                     }
@@ -268,7 +271,7 @@ impl CredentialBlocks {
         headers: &http::HeaderMap,
     ) {
         self.retain_enforced(provider, credential, model);
-        let Some(quota) = provider.channel.quota_model() else {
+        let Some(quota) = provider.channel().and_then(|channel| channel.quota_model()) else {
             return;
         };
         self.blocks.retain(|block| match &block.source {

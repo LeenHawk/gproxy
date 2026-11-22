@@ -4,25 +4,21 @@
 //! # Why this is a trait and not a module
 //!
 //! Replacing the running executable means downloading a file, unpacking an
-//! archive and renaming something over `/proc/self/exe`. None of that can live
-//! in this crate: it compiles for `wasm32-unknown-unknown` as well, where
-//! `gproxy-host-edge` mounts the same [`Router`] inside a Workers fetch
-//! handler. A Worker has no executable to replace and no filesystem to stage
-//! one on, so a module that did those things would not merely be dead code
-//! there — it would not build.
+//! archive and renaming something over `/proc/self/exe`. None of that belongs
+//! in a router, and not every host owns an executable it may replace.
 //!
 //! So this crate declares only the *shape* of the answer, exactly as
 //! `gproxy-core` declares [`PublicationUrl`](gproxy_core::PublicationUrl) and
 //! [`FetchPolicy`](gproxy_core::FetchPolicy) and lets its host supply the
-//! behaviour. [`crates/gproxy`](https://github.com/LeenHawk/gproxy) — the only
-//! native, process-owning layer — implements [`UpdateService`] and hands it to
-//! [`HostState::with_updates`]. The edge and wasm builds hand over nothing, and
-//! [`routes`] is never called there, so `/admin/api/update` does not exist at
-//! the edge rather than existing and failing.
+//! behaviour. [`crates/gproxy`](https://github.com/LeenHawk/gproxy) — the
+//! process-owning layer — implements [`UpdateService`] and hands it to
+//! [`HostState::with_updates`]. A host that hands over nothing never has
+//! [`routes`] called, so `/admin/api/update` does not exist there rather than
+//! existing and failing.
 //!
 //! **Nothing in this file may name a platform type.** No `Path`, no `File`, no
 //! `Command`, no `std::process`. The trait carries strings, numbers and
-//! booleans, which is all a console needs and all a Worker can compile.
+//! booleans, which is all a console needs.
 //!
 //! # The behavioural rule the surface encodes
 //!
@@ -75,8 +71,7 @@ const SECTION: &str = "update";
 ///
 /// Boxed rather than an `async fn` in the trait because the trait has to be
 /// `dyn`-compatible — the host stores one behind an `Arc<dyn UpdateService>` —
-/// and `async fn` in a trait is not. `Send` is required on every target, which
-/// costs the wasm build nothing: nothing implements this trait there.
+/// and `async fn` in a trait is not.
 pub type UpdateFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, UpdateFailure>> + Send + 'a>>;
 
 /// What a host that owns its own executable can do about a new release.
@@ -364,14 +359,11 @@ async fn recorded<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let service = match instance_service(&state, &scope) {
-            Ok(service) => service,
-            Err(response) => return *response,
-        };
-        crate::error::ok_json(&service.recorded())
-    })
-    .await
+    let service = match instance_service(&state, &scope) {
+        Ok(service) => service,
+        Err(response) => return *response,
+    };
+    crate::error::ok_json(&service.recorded())
 }
 
 async fn progress<C>(
@@ -381,14 +373,11 @@ async fn progress<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let service = match instance_service(&state, &scope) {
-            Ok(service) => service,
-            Err(response) => return *response,
-        };
-        crate::error::ok_json(&service.progress())
-    })
-    .await
+    let service = match instance_service(&state, &scope) {
+        Ok(service) => service,
+        Err(response) => return *response,
+    };
+    crate::error::ok_json(&service.progress())
 }
 
 async fn check<C>(
@@ -399,17 +388,14 @@ async fn check<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let service = match instance_service(&state, &scope) {
-            Ok(service) => service,
-            Err(response) => return *response,
-        };
-        match service.check(query.channel, query.source).await {
-            Ok(report) => crate::error::ok_json(&report),
-            Err(failure) => failure.into_response(),
-        }
-    })
-    .await
+    let service = match instance_service(&state, &scope) {
+        Ok(service) => service,
+        Err(response) => return *response,
+    };
+    match service.check(query.channel, query.source).await {
+        Ok(report) => crate::error::ok_json(&report),
+        Err(failure) => failure.into_response(),
+    }
 }
 
 async fn apply<C>(
@@ -420,17 +406,14 @@ async fn apply<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let service = match instance_service(&state, &scope) {
-            Ok(service) => service,
-            Err(response) => return *response,
-        };
-        match service.apply(query.channel, query.source).await {
-            Ok(applied) => crate::error::ok_json(&applied),
-            Err(failure) => failure.into_response(),
-        }
-    })
-    .await
+    let service = match instance_service(&state, &scope) {
+        Ok(service) => service,
+        Err(response) => return *response,
+    };
+    match service.apply(query.channel, query.source).await {
+        Ok(applied) => crate::error::ok_json(&applied),
+        Err(failure) => failure.into_response(),
+    }
 }
 
 async fn rollback<C>(
@@ -440,17 +423,14 @@ async fn rollback<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let service = match instance_service(&state, &scope) {
-            Ok(service) => service,
-            Err(response) => return *response,
-        };
-        match service.rollback().await {
-            Ok(applied) => crate::error::ok_json(&applied),
-            Err(failure) => failure.into_response(),
-        }
-    })
-    .await
+    let service = match instance_service(&state, &scope) {
+        Ok(service) => service,
+        Err(response) => return *response,
+    };
+    match service.rollback().await {
+        Ok(applied) => crate::error::ok_json(&applied),
+        Err(failure) => failure.into_response(),
+    }
 }
 
 async fn announcements<C>(
@@ -460,17 +440,14 @@ async fn announcements<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let service = match instance_service(&state, &scope) {
-            Ok(service) => service,
-            Err(response) => return *response,
-        };
-        match service.announcements().await {
-            Ok(notices) => crate::error::ok_json(&notices),
-            Err(failure) => failure.into_response(),
-        }
-    })
-    .await
+    let service = match instance_service(&state, &scope) {
+        Ok(service) => service,
+        Err(response) => return *response,
+    };
+    match service.announcements().await {
+        Ok(notices) => crate::error::ok_json(&notices),
+        Err(failure) => failure.into_response(),
+    }
 }
 
 /// The scope gate and the service lookup, which every handler needs and none

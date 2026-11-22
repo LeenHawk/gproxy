@@ -16,8 +16,8 @@
 use super::agent::CLI_VERSION;
 use super::common::invalid_config;
 use super::headers::Account;
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::{Bytes, WsFrame};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderMap, HeaderName, HeaderValue};
 use serde::Serialize;
 use serde_json::Value;
@@ -155,7 +155,7 @@ impl AccountIdentity {
         }
     }
 
-    fn metadata(&self, value: &mut Value) -> Result<(), ChannelError> {
+    fn metadata(&self, value: &mut Value) -> Result<(), UpstreamError> {
         let object = value
             .as_object_mut()
             .ok_or_else(|| invalid_config("Codex turn metadata must be a JSON object"))?;
@@ -184,7 +184,7 @@ impl AccountIdentity {
         }
     }
 
-    fn turn_metadata(&self, value: &mut Value) -> Result<(), ChannelError> {
+    fn turn_metadata(&self, value: &mut Value) -> Result<(), UpstreamError> {
         if let Some(text) = value.as_str() {
             let mut metadata: Value = serde_json::from_str(text)
                 .map_err(|_| invalid_config("Codex turn metadata must contain a JSON object"))?;
@@ -196,7 +196,7 @@ impl AccountIdentity {
         Ok(())
     }
 
-    pub fn headers(&self, headers: &mut HeaderMap) -> Result<(), ChannelError> {
+    pub fn headers(&self, headers: &mut HeaderMap) -> Result<(), UpstreamError> {
         // An opaque client attestation describes the client's installation;
         // it cannot attest to the account-scoped identity selected here.
         headers.remove("x-oai-attestation");
@@ -221,7 +221,7 @@ impl AccountIdentity {
         Ok(())
     }
 
-    fn client_metadata(&self, body: &mut Value) -> Result<bool, ChannelError> {
+    fn client_metadata(&self, body: &mut Value) -> Result<bool, UpstreamError> {
         let Some(metadata) = body.get_mut("client_metadata") else {
             return Ok(false);
         };
@@ -249,7 +249,7 @@ impl AccountIdentity {
         Ok(true)
     }
 
-    pub fn body(&self, bytes: Bytes) -> Result<Bytes, ChannelError> {
+    pub fn body(&self, bytes: Bytes) -> Result<Bytes, UpstreamError> {
         let Ok(mut body) = serde_json::from_slice::<Value>(&bytes) else {
             return Ok(bytes);
         };
@@ -261,7 +261,7 @@ impl AccountIdentity {
 
     /// Only Responses request messages carry this metadata. Control frames
     /// and all other message types retain their original representation.
-    pub fn frame(&self, frame: WsFrame) -> Result<WsFrame, ChannelError> {
+    pub fn frame(&self, frame: WsFrame) -> Result<WsFrame, UpstreamError> {
         let bytes = match &frame {
             WsFrame::Text(text) => text.as_bytes(),
             WsFrame::Binary(bytes) => bytes.as_ref(),

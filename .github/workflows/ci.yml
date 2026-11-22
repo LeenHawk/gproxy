@@ -113,9 +113,6 @@ jobs:
       # Clippy and tests within each native job still share compiled dependencies.
       - run: cargo clippy --all-targets -- -D warnings
         if: matrix.check == 'backend'
-      - name: Serverless PostgreSQL host
-        if: matrix.check == 'backend'
-        run: cargo clippy -p gproxy --bin gproxy-serverless --no-default-features --features channels,postgres,embedded-console -- -D warnings
       # Not a default member, so the step above skips it. It is the one thing
       # that notices when the public channel contract stops being enough.
       - name: Out-of-tree channel example
@@ -127,39 +124,16 @@ jobs:
         if: matrix.check == 'desktop'
       - run: bash scripts/with-tauri-desktop-lib.sh cargo test -p gproxy-host-tauri
         if: matrix.check == 'desktop'
-      # This step used to be `cargo check --workspace --target
-      # wasm32-unknown-unknown`, and it could never have passed. The workspace
-      # now holds the CLI and the desktop shell, and both reach tokio's `net`
-      # feature, so mio stops the build outright: "This wasm target is
-      # unsupported by mio." Neither belongs in a browser or a Worker.
-      #
-      # What must stay wasm-clean is the engine and the two hosts that actually
-      # deploy there. Every crate below claims that property in its own README;
-      # this list is that claim, enforced.
-      - name: wasm (default features)
+      # Only the stateless crates stay wasm-capable (with `gproxy-file` and
+      # `gproxy-tokenizer`, which their optional features pull in); the rest
+      # of the workspace is native-only. `gproxy-lite` is the one deployed as
+      # WebAssembly.
+      - name: wasm (stateless crates)
         if: matrix.check == 'wasm'
         run: >
           cargo check --target wasm32-unknown-unknown
-          -p gproxy-protocol -p gproxy-store -p gproxy-seaorm -p gproxy-client
-          -p gproxy-cache -p gproxy-channel -p gproxy-core -p gproxy-file
-          -p gproxy-tokenizer -p gproxy-sdk -p gproxy-app -p gproxy-host-axum
-          -p gproxy-host-edge
-      # The non-default feature sets the READMEs document as wasm-clean, one
-      # invocation each because cargo unifies features across a single
-      # invocation and these are deliberately different answers. `gproxy-sdk`'s
-      # `postgres` and `mysql` are native-only and are not here; `gproxy-file`'s
-      # `fs` is native-only, which is why its check drops the default set.
-      # `gproxy-channel` and `gproxy-host-edge` are `--lib` because their tests
-      # are native by design.
-      - name: wasm (documented feature sets)
-        if: matrix.check == 'wasm'
-        run: |
-          cargo check --target wasm32-unknown-unknown -p gproxy-sdk --features libsql
-          cargo check --target wasm32-unknown-unknown -p gproxy-cache --all-features
-          cargo check --target wasm32-unknown-unknown -p gproxy-file --no-default-features --features s3
-          cargo check --target wasm32-unknown-unknown -p gproxy-channel --all-features --lib
-          # The out-of-tree example's Worker, without the stock entry point.
-          cargo check --target wasm32-unknown-unknown -p gproxy-example-edge --lib
+          -p gproxy-protocol -p gproxy-client -p gproxy-client-sdk -p gproxy-upstream -p gproxy-channel -p gproxy-convert -p gproxy-lite
+          --features "gproxy-client/fetch,gproxy-client/workers,gproxy-client-sdk/realtime,gproxy-client-sdk/s3,gproxy-client-sdk/local-count,gproxy-client-sdk/normalize-images,gproxy-channel/aistudio,gproxy-channel/playground,gproxy-channel/antigravity,gproxy-channel/aws_bedrock,gproxy-channel/azure,gproxy-channel/claudeapi,gproxy-channel/claudecode,gproxy-channel/claudeweb,gproxy-channel/cline,gproxy-channel/cloudflare_ai_gateway,gproxy-channel/codex,gproxy-channel/commandcode,gproxy-channel/copilotcli,gproxy-channel/custom,gproxy-channel/dashscope,gproxy-channel/deepseek,gproxy-channel/glm,gproxy-channel/minimax,gproxy-channel/devin,gproxy-channel/geminicli,gproxy-channel/grokbuild,gproxy-channel/kimi,gproxy-channel/kiro,gproxy-channel/nvidia,gproxy-channel/openai,gproxy-channel/opencode,gproxy-channel/opendesign,gproxy-channel/orcaterm,gproxy-channel/openrouter,gproxy-channel/vercel,gproxy-channel/volcengine,gproxy-channel/vertex,gproxy-channel/vertexexpress,gproxy-channel/trae,gproxy-channel/workbuddy,gproxy-channel/xai"
 
   backend:
     # Preserve main's protected-branch check name while running checks in parallel.

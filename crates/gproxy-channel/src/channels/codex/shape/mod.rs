@@ -3,16 +3,16 @@ pub(super) mod images;
 mod responses;
 pub(super) mod tools;
 
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::UpstreamError;
 
 pub(super) fn request(
     body: &Bytes,
     headers: &http::HeaderMap,
-) -> Result<(Bytes, tools::Aliases), ChannelError> {
+) -> Result<(Bytes, tools::Aliases), UpstreamError> {
     responses::request(body, headers)
 }
 
-fn invalid(error: impl std::fmt::Display) -> ChannelError {
-    ChannelError::InvalidConfig(format!("Codex Responses request: {error}"))
+fn invalid(error: impl std::fmt::Display) -> UpstreamError {
+    UpstreamError::InvalidConfig(format!("Codex Responses request: {error}"))
 }

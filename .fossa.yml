@@ -6,8 +6,7 @@ project:
 
 paths:
   exclude:
-    # Deployment templates and their tooling (wrangler, miniflare, sharp) are
-    # not part of any shipped gproxy artifact.
+    # Container build files are not part of any shipped gproxy artifact.
     - ./deploy
     # The out-of-tree channel plugin template.
     - ./examples

@@ -3,18 +3,18 @@
 //! Authorization is the raw API key, unlike the generation API's bearer.
 use super::{DEFAULT_BASE_URL, Glm};
 use crate::channel::{
-    ChannelError, CredentialContext, OperationFuture, QuotaAllowance, QuotaEntry, QuotaQuery,
-    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaValue,
+    QuotaAllowance, QuotaEntry, QuotaQuery, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaValue,
 };
 use crate::channels::shared::compatible::ability::{decimal, require_success, send};
+use gproxy_upstream::{CredentialContext, UpstreamError, UpstreamFuture};
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde_json::Value;
 
 impl QuotaQuery for Glm {
-    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             if !self.coding_plan {
-                return Err(ChannelError::InvalidConfig(
+                return Err(UpstreamError::InvalidConfig(
                     "GLM quota query requires the glmcode channel".into(),
                 ));
             }
@@ -24,7 +24,7 @@ impl QuotaQuery for Glm {
                 .get("api_key")
                 .and_then(Value::as_str)
                 .filter(|s| !s.trim().is_empty())
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             let base = ctx
                 .provider
                 .base_url
@@ -33,7 +33,7 @@ impl QuotaQuery for Glm {
             let mut headers = HeaderMap::new();
             headers.insert(
                 header::AUTHORIZATION,
-                HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
+                HeaderValue::from_str(key).map_err(|_| UpstreamError::InvalidCredential)?,
             );
             headers.insert(
                 header::CONTENT_TYPE,
@@ -49,13 +49,13 @@ impl QuotaQuery for Glm {
             .await?;
             let body = require_success(status, body)?;
             let value: Value = serde_json::from_slice(&body)
-                .map_err(|e| ChannelError::InvalidResponse(e.to_string()))?;
+                .map_err(|e| UpstreamError::InvalidResponse(e.to_string()))?;
             if value.get("success").and_then(Value::as_bool) == Some(false)
                 || value
                     .get("code")
                     .is_some_and(|code| !matches!(code.as_i64(), Some(0 | 200)))
             {
-                return Err(ChannelError::InvalidResponse(
+                return Err(UpstreamError::InvalidResponse(
                     "GLM quota request rejected".into(),
                 ));
             }
@@ -65,7 +65,7 @@ impl QuotaQuery for Glm {
                 .get("limits")
                 .and_then(Value::as_array)
                 .ok_or_else(|| {
-                    ChannelError::InvalidResponse("GLM quota reply missing limits".into())
+                    UpstreamError::InvalidResponse("GLM quota reply missing limits".into())
                 })?;
             let entries = limits
                 .iter()

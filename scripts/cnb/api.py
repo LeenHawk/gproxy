@@ -76,7 +76,7 @@ class Cnb:
 
     def collect(self):
         matrix = json.loads(Path("scripts/release-targets.json").read_text())["include"]
-        for target in [row["target"] for row in matrix] + ["edge"]:
+        for target in [row["target"] for row in matrix]:
             bundle = Path("dist/downloads") / f"{os.environ['RELEASE_RUN_ID']}-{target}.tar.gz"
             self.download(bundle.name, bundle)
             with tarfile.open(bundle) as archive:

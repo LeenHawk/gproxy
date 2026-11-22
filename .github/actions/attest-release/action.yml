@@ -15,7 +15,6 @@ runs:
           dist/release/${{ inputs.artifact }}*.apk
           dist/release/${{ inputs.artifact }}*.aab
           dist/release/${{ inputs.artifact }}*.hap
-          dist/release/${{ inputs.artifact }}*.wasm
           dist/release/${{ inputs.artifact }}*.deb
           dist/release/${{ inputs.artifact }}*.dmg
           dist/release/${{ inputs.artifact }}*.msix
@@ -27,7 +26,6 @@ runs:
           dist/release/${{ inputs.artifact }}*.apk
           dist/release/${{ inputs.artifact }}*.aab
           dist/release/${{ inputs.artifact }}*.hap
-          dist/release/${{ inputs.artifact }}*.wasm
           dist/release/${{ inputs.artifact }}*.deb
           dist/release/${{ inputs.artifact }}*.dmg
           dist/release/${{ inputs.artifact }}*.msix

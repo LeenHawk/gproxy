@@ -31,17 +31,8 @@ FLUSHDB/FLUSHALL，也没有终止其他连接／容器。断网场景仅关闭�
 - 原生 all-features。
 - 原生 no-default-features（只保留公共契约）。
 - 原生 no-default-features + redis。
-- wasm32-unknown-unknown all-features（Memory，Redis TCP 实现不编入）。
-- wasm32-unknown-unknown no-default-features。
 
 crate 格式检查及 git diff 空白检查通过。没有为这次新增 crate 重跑无关的协议／UI 测试。
 
-## WASM 执行
-
-临时独立 harness 构建实际 WASM，在 Node 22.23.1 中运行 MemoryCache，没有启动 Tokio
-runtime。字节读写、版本 CAS、完整 i64 计数、租约 TTL／旧 owner 拒绝，以及初始重新加载
-通知与消息投递全部通过。该结果不表示 Memory 可以协调多个 Worker isolate。
-
-harness 使用已装 CLI 对应的 wasm-bindgen 0.2.127；workspace WASM 检查使用 0.2.128。
-临时源码、生成 WASM、构建目录验证后删除，契约测试保留在 crate 内。Core/manage 通知
+Core/manage 通知
 接线与 Store 持久配置 revision 尚未实现，本轮没有声称完整多实例配置热更新已跑通。

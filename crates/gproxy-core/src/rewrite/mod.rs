@@ -12,7 +12,7 @@ pub use action::RuleAction;
 mod compile;
 mod condition;
 pub use condition::{BodyCondition, HeaderCondition};
-pub(crate) mod json_path;
+pub(crate) use gproxy_convert::json_path;
 mod select;
 mod stream;
 

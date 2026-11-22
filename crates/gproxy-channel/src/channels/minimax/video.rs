@@ -2,17 +2,18 @@
 //! No polling loop or task persistence: each retrieve performs one query.
 
 use super::MiniMax;
-use crate::channel::{BaseChannel, ChannelError, OperationContext, PrepareContext};
+use crate::channel::{BaseChannel, OperationContext, PrepareContext};
 use crate::channels::shared::compatible::http::read_body;
 use gproxy_protocol::{HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderMap, StatusCode, header};
 use serde_json::{Map, Value, json};
 
-fn invalid(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(message.into())
+fn invalid(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(message.into())
 }
 
-pub(super) fn task_id(path: &str) -> Result<&str, ChannelError> {
+pub(super) fn task_id(path: &str) -> Result<&str, UpstreamError> {
     let id = path
         .trim_end_matches('/')
         .strip_suffix("/content")
@@ -21,22 +22,22 @@ pub(super) fn task_id(path: &str) -> Result<&str, ChannelError> {
         .next()
         .unwrap_or_default();
     if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(ChannelError::InvalidConfig(
+        return Err(UpstreamError::InvalidConfig(
             "MiniMax video task ID must be numeric".into(),
         ));
     }
     Ok(id)
 }
 
-pub(super) fn request(body: &[u8]) -> Result<Vec<u8>, ChannelError> {
+pub(super) fn request(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
     let mut body: Map<String, Value> = serde_json::from_slice(body)
-        .map_err(|e| ChannelError::InvalidConfig(format!("MiniMax video JSON: {e}")))?;
+        .map_err(|e| UpstreamError::InvalidConfig(format!("MiniMax video JSON: {e}")))?;
     // Native content remains available for all H3 reference modalities.
     let mut content = match body.remove("content") {
         Some(Value::Array(items)) => items,
         None => vec![],
         Some(_) => {
-            return Err(ChannelError::InvalidConfig(
+            return Err(UpstreamError::InvalidConfig(
                 "video content must be an array".into(),
             ));
         }
@@ -48,14 +49,14 @@ pub(super) fn request(body: &[u8]) -> Result<Vec<u8>, ChannelError> {
         if let Some(items) = body.remove(name) {
             let items = items
                 .as_array()
-                .ok_or_else(|| ChannelError::InvalidConfig(format!("{name} must be an array")))?;
+                .ok_or_else(|| UpstreamError::InvalidConfig(format!("{name} must be an array")))?;
             for item in items {
                 let mut item = item.as_object().cloned().ok_or_else(|| {
-                    ChannelError::InvalidConfig(format!("{name} entries must be objects"))
+                    UpstreamError::InvalidConfig(format!("{name} entries must be objects"))
                 })?;
                 let role = if frames {
                     item.remove("frame_type").ok_or_else(|| {
-                        ChannelError::InvalidConfig("frame_type is required".into())
+                        UpstreamError::InvalidConfig("frame_type is required".into())
                     })?
                 } else {
                     Value::String(
@@ -64,7 +65,7 @@ pub(super) fn request(body: &[u8]) -> Result<Vec<u8>, ChannelError> {
                             Some("video_url") => "reference_video",
                             Some("audio_url") => "reference_audio",
                             _ => {
-                                return Err(ChannelError::InvalidConfig(
+                                return Err(UpstreamError::InvalidConfig(
                                     "unknown video reference type".into(),
                                 ));
                             }
@@ -84,15 +85,15 @@ pub(super) fn request(body: &[u8]) -> Result<Vec<u8>, ChannelError> {
     // Native Sora multipart/size semantics cannot be silently approximated.
     for key in ["seconds", "size", "input_reference", "provider"] {
         if body.contains_key(key) {
-            return Err(ChannelError::InvalidConfig(format!(
+            return Err(UpstreamError::InvalidConfig(format!(
                 "MiniMax H3 uses duration, resolution, frame_images and input_references; unsupported field: {key}"
             )));
         }
     }
-    serde_json::to_vec(&body).map_err(|e| ChannelError::InvalidConfig(e.to_string()))
+    serde_json::to_vec(&body).map_err(|e| UpstreamError::InvalidConfig(e.to_string()))
 }
 
-fn task(value: &Value) -> Result<Value, ChannelError> {
+fn task(value: &Value) -> Result<Value, UpstreamError> {
     let mut out = value
         .as_object()
         .cloned()
@@ -139,7 +140,7 @@ fn task(value: &Value) -> Result<Value, ChannelError> {
     Ok(Value::Object(out))
 }
 
-fn response(operation: Operation, value: Value) -> Result<Value, ChannelError> {
+fn response(operation: Operation, value: Value) -> Result<Value, UpstreamError> {
     match operation {
         Operation::CreateVideo => {
             let id = value
@@ -180,7 +181,7 @@ pub(super) async fn call(
     channel: &MiniMax,
     operation: Operation,
     ctx: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let request = channel.prepare(PrepareContext {
         provider: ctx.provider,
         credential: ctx.credential,
@@ -211,7 +212,7 @@ pub(super) async fn call(
 pub(super) async fn download(
     channel: &MiniMax,
     mut ctx: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     // Query uses the assigned API credential. The CDN download must never
     // carry that credential or the caller's source authentication.
     ctx.request.method = http::Method::GET;

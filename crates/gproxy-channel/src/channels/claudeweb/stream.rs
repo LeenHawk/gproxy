@@ -17,8 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::request::estimate_tokens;
-use crate::channel::ChannelError;
-
+use gproxy_upstream::UpstreamError;
 
 /// What a continuation must remember between the tool boundary and the
 /// tool result; this is the JSON stored under `tool:{tool_use_id}`.
@@ -88,18 +87,18 @@ impl Codec {
         &self.state
     }
 
-    pub(super) fn push(&mut self, chunk: &[u8]) -> Result<Output, ChannelError> {
+    pub(super) fn push(&mut self, chunk: &[u8]) -> Result<Output, UpstreamError> {
         let frames = self
             .decoder
             .push(chunk)
-            .map_err(|error| ChannelError::InvalidResponse(format!("claude.ai SSE: {error}")))?;
+            .map_err(|error| UpstreamError::InvalidResponse(format!("claude.ai SSE: {error}")))?;
         let mut values = std::mem::take(&mut self.carry);
         for frame in frames {
             if let SseFrame::Event(event) = frame
                 && !event.data.trim().is_empty()
             {
                 values.push(serde_json::from_str(&event.data).map_err(|error| {
-                    ChannelError::InvalidResponse(format!("claude.ai SSE JSON: {error}"))
+                    UpstreamError::InvalidResponse(format!("claude.ai SSE JSON: {error}"))
                 })?);
             }
         }
@@ -107,7 +106,7 @@ impl Codec {
     }
 
     /// Upstream EOF: close the message if the web stream never did.
-    pub(super) fn finish(&mut self) -> Result<Vec<Value>, ChannelError> {
+    pub(super) fn finish(&mut self) -> Result<Vec<Value>, UpstreamError> {
         let mut values = std::mem::take(&mut self.carry);
         if let Ok(frames) = self.decoder.finish() {
             for frame in frames {
@@ -134,7 +133,7 @@ impl Codec {
         Ok(output)
     }
 
-    fn events(&mut self, values: Vec<Value>) -> Result<Output, ChannelError> {
+    fn events(&mut self, values: Vec<Value>) -> Result<Output, UpstreamError> {
         let mut events = Vec::new();
         if self.resume_start {
             self.resume_start = false;
@@ -186,7 +185,7 @@ impl Codec {
         &mut self,
         value: &mut Value,
         events: &mut Vec<Value>,
-    ) -> Result<Option<String>, ChannelError> {
+    ) -> Result<Option<String>, UpstreamError> {
         let kind = value
             .get("type")
             .and_then(Value::as_str)
@@ -272,7 +271,7 @@ impl Codec {
                 .tool_id
                 .take()
                 .map(Some)
-                .ok_or_else(|| ChannelError::InvalidResponse("tool_use id missing".into()));
+                .ok_or_else(|| UpstreamError::InvalidResponse("tool_use id missing".into()));
         }
         Ok(None)
     }
@@ -335,7 +334,7 @@ pub(super) struct Collector {
 }
 
 impl Collector {
-    pub(super) fn push(&mut self, event: &Value) -> Result<(), ChannelError> {
+    pub(super) fn push(&mut self, event: &Value) -> Result<(), UpstreamError> {
         match event.get("type").and_then(Value::as_str) {
             // Everything collected here is later written into by key, and
             // serde_json panics on a key write into anything but an object
@@ -394,7 +393,7 @@ impl Collector {
                 let json = std::mem::take(&mut self.partial_json[index]);
                 if !json.trim().is_empty() {
                     let input: Value = serde_json::from_str(&json).map_err(|error| {
-                        ChannelError::InvalidResponse(format!("tool_use input: {error}"))
+                        UpstreamError::InvalidResponse(format!("tool_use input: {error}"))
                     })?;
                     self.blocks[index]["input"] = input;
                 }
@@ -424,7 +423,7 @@ impl Collector {
         message
     }
 
-    fn index(&self, event: &Value) -> Result<usize, ChannelError> {
+    fn index(&self, event: &Value) -> Result<usize, UpstreamError> {
         let index = event
             .get("index")
             .and_then(Value::as_u64)
@@ -433,15 +432,15 @@ impl Collector {
         if index < self.blocks.len() {
             Ok(index)
         } else {
-            Err(ChannelError::InvalidResponse(
+            Err(UpstreamError::InvalidResponse(
                 "content block delta before its start".into(),
             ))
         }
     }
 }
 
-fn not_an_object(field: &str) -> ChannelError {
-    ChannelError::InvalidResponse(format!("{field} must be an object"))
+fn not_an_object(field: &str) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("{field} must be an object"))
 }
 
 fn append(block: &mut Value, field: &str, delta: Option<&Value>) {

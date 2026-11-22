@@ -7,10 +7,11 @@ mod support;
 
 use futures_util::{StreamExt, stream};
 use gproxy_channel::channel::*;
-use gproxy_channel::{BaseChannel, ChannelError, OutboundClient};
+use gproxy_channel::{BaseChannel, OutboundClient};
 use gproxy_protocol::capability::{CapabilityError, CapabilityFuture};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
+use gproxy_upstream::*;
 use http::{HeaderMap, Method, StatusCode};
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
@@ -89,7 +90,7 @@ async fn login_call(
     ctx: LoginContext<'_>,
     path: &str,
     body: Value,
-) -> Result<WireResponse, ChannelError> {
+) -> Result<WireResponse, UpstreamError> {
     ctx.client
         .send(
             http::Request::post(format!("{}{path}", ctx.provider.base_url.unwrap()))
@@ -99,13 +100,13 @@ async fn login_call(
                 .unwrap(),
         )
         .await
-        .map_err(ChannelError::from)
+        .map_err(UpstreamError::from)
 }
 async fn account_call(
     ctx: CredentialContext<'_>,
     path: &str,
     body: Value,
-) -> Result<WireResponse, ChannelError> {
+) -> Result<WireResponse, UpstreamError> {
     ctx.client
         .send(
             http::Request::post(format!("{}{path}", ctx.provider.base_url.unwrap()))
@@ -122,26 +123,33 @@ async fn account_call(
                 .unwrap(),
         )
         .await
-        .map_err(ChannelError::from)
+        .map_err(UpstreamError::from)
 }
 
 struct Bare;
-impl BaseChannel for Bare {
+impl UpstreamKind for Bare {
     fn id(&self) -> &'static str {
         "bare"
     }
 }
+
+impl BaseChannel for Bare {}
 struct Demo;
-impl BaseChannel for Demo {
+impl UpstreamKind for Demo {
     fn id(&self) -> &'static str {
         "demo"
     }
+
     fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
         Some(self)
     }
+
     fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
         Some(self)
     }
+}
+
+impl BaseChannel for Demo {
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
@@ -177,7 +185,7 @@ impl OAuthAuthorizationCode for Demo {
         &'a self,
         _: LoginContext<'a>,
         req: AuthorizationRequest<'a>,
-    ) -> OperationFuture<'a, AuthorizationStart> {
+    ) -> UpstreamFuture<'a, AuthorizationStart> {
         Box::pin(async move {
             Ok(AuthorizationStart {
                 authorize_url: format!(
@@ -195,7 +203,7 @@ impl OAuthAuthorizationCode for Demo {
         &'a self,
         ctx: LoginContext<'a>,
         code: AuthorizationCode<'a>,
-    ) -> OperationFuture<'a, OAuthCredential> {
+    ) -> UpstreamFuture<'a, OAuthCredential> {
         Box::pin(async move {
             let response = login_call(
                 ctx,
@@ -210,7 +218,7 @@ impl OAuthAuthorizationCode for Demo {
     }
 }
 impl OAuthDeviceCode for Demo {
-    fn start<'a>(&'a self, ctx: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
+    fn start<'a>(&'a self, ctx: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
             Ok(
                 serde_json::from_value(payload(login_call(ctx, "/device", json!({})).await?))
@@ -222,7 +230,7 @@ impl OAuthDeviceCode for Demo {
         &'a self,
         ctx: LoginContext<'a>,
         session: &'a DeviceAuthorization,
-    ) -> OperationFuture<'a, DevicePoll> {
+    ) -> UpstreamFuture<'a, DevicePoll> {
         Box::pin(async move {
             let response = login_call(
                 ctx,
@@ -355,7 +363,7 @@ fn window(percent: Option<Decimal>) -> QuotaEntry {
     }
 }
 impl QuotaQuery for Demo {
-    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             account_call(ctx, "/usage", json!({})).await?;
             Ok(QuotaSnapshot {
@@ -366,7 +374,7 @@ impl QuotaQuery for Demo {
     }
 }
 impl QuotaReset for Demo {
-    fn credits<'a>(&'a self, ctx: CredentialContext<'a>) -> OperationFuture<'a, QuotaResetCredits> {
+    fn credits<'a>(&'a self, ctx: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaResetCredits> {
         Box::pin(async move {
             account_call(ctx, "/credits", json!({})).await?;
             Ok(QuotaResetCredits {
@@ -381,7 +389,7 @@ impl QuotaReset for Demo {
         &'a self,
         ctx: CredentialContext<'a>,
         request: gproxy_channel::channel::QuotaResetRequest<'a>,
-    ) -> OperationFuture<'a, QuotaResetResult> {
+    ) -> UpstreamFuture<'a, QuotaResetResult> {
         Box::pin(async move {
             account_call(
                 ctx,
@@ -399,7 +407,7 @@ impl QuotaReset for Demo {
     }
 }
 impl QuotaHeaders for Demo {
-    fn observe(&self, ctx: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, ChannelError> {
+    fn observe(&self, ctx: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, UpstreamError> {
         Ok(ctx
             .headers
             .get("x-used-percent")
@@ -584,7 +592,7 @@ impl ChannelServices for Demo {
     fn routes(&self) -> &[ServiceRoute] {
         &ROUTES
     }
-    fn call<'a>(&'a self, ctx: ServiceContext<'a>) -> OperationFuture<'a, WireResponse> {
+    fn call<'a>(&'a self, ctx: ServiceContext<'a>) -> UpstreamFuture<'a, WireResponse> {
         Box::pin(async move {
             ctx.account
                 .client
@@ -609,7 +617,7 @@ impl ChannelServices for Demo {
                         .unwrap(),
                 )
                 .await
-                .map_err(ChannelError::from)
+                .map_err(UpstreamError::from)
         })
     }
 }
@@ -648,7 +656,7 @@ async fn cli_service_uses_assigned_client_and_keeps_response_streaming() {
             }
         )
         .await,
-        Err(ChannelError::UnsupportedService)
+        Err(UpstreamError::UnsupportedService)
     ));
     let base: &dyn BaseChannel = &Demo;
     let services = base.services().unwrap();
@@ -685,6 +693,6 @@ async fn cli_service_uses_assigned_client_and_keeps_response_streaming() {
                 request: handshake
             })
             .await,
-        Err(ChannelError::UnsupportedService)
+        Err(UpstreamError::UnsupportedService)
     ));
 }

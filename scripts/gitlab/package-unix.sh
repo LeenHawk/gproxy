@@ -3,7 +3,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../reproducible-env.sh"
 source scripts/gitlab/env.sh
 mkdir -p dist/release
-case "${1:?cli|application|edge}" in
+case "${1:?cli|application}" in
   cli)
     echo "Building CLI / server: $ARTIFACT_NAME"
     case "$BUILDER" in
@@ -37,16 +37,6 @@ case "${1:?cli|application|edge}" in
     if [ "$TARGET_OS" = android ]; then scripts/install-android-upx.sh; release_tool_paths; fi
     scripts/package-tauri-release.sh
     scripts/build-provenance.sh
-    ;;
-  edge)
-    export TARGET_TRIPLE=wasm32-unknown-unknown ARTIFACT_NAME=gproxy-edge BUILDER=worker-build
-    cargo install worker-build --locked --version 0.9.0
-    scripts/package-edge-release.sh
-    scripts/build-provenance.sh
-    mkdir -p "$RUNNER_TEMP/edge"
-    unzip -q dist/release/gproxy-edge-cloudflare.zip -d "$RUNNER_TEMP/edge"
-    pnpm --dir "$RUNNER_TEMP/edge/cloudflare" install --no-frozen-lockfile --ignore-scripts
-    pnpm --dir "$RUNNER_TEMP/edge/cloudflare" check
     ;;
   *) exit 2 ;;
 esac

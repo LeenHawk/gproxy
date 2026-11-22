@@ -4,9 +4,10 @@
 //! configuration errors an operator sees. No upstream is contacted: every
 //! assertion is about the request this channel builds.
 
-use gproxy_channel::channel::{CredentialView, PrepareContext, ProviderView};
-use gproxy_channel::{BaseChannel, ChannelError, channels::azure::Azure};
+use gproxy_channel::channel::PrepareContext;
+use gproxy_channel::{BaseChannel, channels::azure::Azure};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError, UpstreamKind};
 use http::{HeaderMap, HeaderValue, Method};
 use serde_json::{Value, json};
 
@@ -57,7 +58,7 @@ fn prepare<'a>(
     dialect: Dialect,
     request: WireRequest<HttpBody>,
     endpoint_override: Option<&'a str>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     Azure.prepare(PrepareContext {
         provider: provider(config, base_url),
         credential: credential(secret),
@@ -228,7 +229,7 @@ fn deployment_surface_rewrites_the_path_and_requires_a_version() {
     )
     .unwrap_err();
     assert!(
-        matches!(&missing, ChannelError::InvalidConfig(message) if message.contains("`api_version`")),
+        matches!(&missing, UpstreamError::InvalidConfig(message) if message.contains("`api_version`")),
         "{missing}"
     );
 }
@@ -267,7 +268,7 @@ fn a_missing_resource_names_the_configuration_key() {
     )
     .unwrap_err();
     assert!(
-        matches!(&error, ChannelError::InvalidConfig(message) if message.contains("`resource`")),
+        matches!(&error, UpstreamError::InvalidConfig(message) if message.contains("`resource`")),
         "{error}"
     );
 }
@@ -285,7 +286,7 @@ fn gemini_is_not_served() {
     )
     .unwrap_err();
     assert!(
-        matches!(error, ChannelError::UnsupportedOperation(_)),
+        matches!(error, UpstreamError::UnsupportedOperation(_)),
         "Gemini has no Azure surface"
     );
 }
@@ -302,7 +303,7 @@ fn a_credential_without_a_key_is_refused() {
         None,
     )
     .unwrap_err();
-    assert!(matches!(error, ChannelError::InvalidCredential), "{error}");
+    assert!(matches!(error, UpstreamError::InvalidCredential), "{error}");
 }
 
 #[test]

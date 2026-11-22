@@ -1,18 +1,15 @@
-#![cfg(not(target_arch = "wasm32"))]
 mod support;
 
 use gproxy_app::{App, AppConfig};
-use gproxy_channel::{
-    BaseChannel,
-    channel::{
-        AuthorizationCode, AuthorizationRequest, AuthorizationStart, DeviceAuthorization,
-        DevicePoll, LoginContext, OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode,
-        OperationFuture,
-    },
-};
+use gproxy_channel::BaseChannel;
 use gproxy_host_axum::HostState;
 use gproxy_sdk::{ClientPool, GproxyBuilder, SyncMode};
 use gproxy_store::entity::identity::membership_role::MembershipRole;
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, AuthorizationStart, DeviceAuthorization, DevicePoll,
+    LoginContext, OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, UpstreamFuture,
+    UpstreamKind,
+};
 use http::StatusCode;
 use serde_json::{Value, json};
 use std::{
@@ -25,17 +22,21 @@ use support::{Host, ScriptClient, get, keyed, post};
 struct LoginChannel {
     polls: Mutex<VecDeque<DevicePoll>>,
 }
-impl BaseChannel for LoginChannel {
+impl UpstreamKind for LoginChannel {
     fn id(&self) -> &'static str {
         "test"
     }
+
     fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
         Some(self)
     }
+
     fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
         Some(self)
     }
 }
+
+impl BaseChannel for LoginChannel {}
 fn token() -> OAuthCredential {
     OAuthCredential {
         access_token: "never-in-response".into(),
@@ -54,7 +55,7 @@ impl OAuthAuthorizationCode for LoginChannel {
         &'a self,
         _: LoginContext<'a>,
         request: AuthorizationRequest<'a>,
-    ) -> OperationFuture<'a, AuthorizationStart> {
+    ) -> UpstreamFuture<'a, AuthorizationStart> {
         Box::pin(async move {
             Ok(AuthorizationStart {
                 authorize_url: format!("https://auth.example/?state={}", request.state),
@@ -67,12 +68,12 @@ impl OAuthAuthorizationCode for LoginChannel {
         &'a self,
         _: LoginContext<'a>,
         _: AuthorizationCode<'a>,
-    ) -> OperationFuture<'a, OAuthCredential> {
+    ) -> UpstreamFuture<'a, OAuthCredential> {
         Box::pin(async { Ok(token()) })
     }
 }
 impl OAuthDeviceCode for LoginChannel {
-    fn start<'a>(&'a self, _: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
+    fn start<'a>(&'a self, _: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         Box::pin(async {
             Ok(DeviceAuthorization {
                 device_code: "secret-device-handle".into(),
@@ -89,7 +90,7 @@ impl OAuthDeviceCode for LoginChannel {
         &'a self,
         _: LoginContext<'a>,
         _: &'a DeviceAuthorization,
-    ) -> OperationFuture<'a, DevicePoll> {
+    ) -> UpstreamFuture<'a, DevicePoll> {
         let result = self
             .polls
             .lock()

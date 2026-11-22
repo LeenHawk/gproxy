@@ -4,12 +4,12 @@
 use super::{OpenAi, OpenAiConfig, QUOTA_DEFAULT_BASE_URL};
 use crate::OutboundClient;
 use crate::channel::{
-    ChannelError, CredentialContext, OperationFuture, QuotaAllowance, QuotaEntry,
-    QuotaHeaderContext, QuotaHeaders, QuotaQuery, QuotaScope, QuotaSnapshot, QuotaSubject,
-    QuotaValue,
+    QuotaAllowance, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaQuery, QuotaScope,
+    QuotaSnapshot, QuotaSubject, QuotaValue,
 };
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{HttpBody, WireResponse};
+use gproxy_upstream::{CredentialContext, UpstreamError, UpstreamFuture};
 use http::{HeaderMap, HeaderValue, Method, header};
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -25,8 +25,8 @@ const REPORT_DAYS: i64 = 7;
 /// A guard against a cursor loop; seven days never needs this many pages.
 const MAX_REPORT_PAGES: usize = 32;
 
-fn invalid_response(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(message.into())
+fn invalid_response(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(message.into())
 }
 
 fn header_str<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
@@ -66,7 +66,8 @@ fn duration_seconds(raw: &str) -> Option<i64> {
         rest = &rest[unit.len()..];
         // Checked: the amount is whatever the header says, and a Decimal
         // overflow panics.
-        total = total.checked_add(amount.checked_mul(Decimal::from(scale))? / Decimal::from(1000))?;
+        total =
+            total.checked_add(amount.checked_mul(Decimal::from(scale))? / Decimal::from(1000))?;
     }
     total.ceil().try_into().ok()
 }
@@ -75,7 +76,7 @@ impl QuotaHeaders for OpenAi {
     /// `x-ratelimit-{limit,remaining,reset}-{requests,tokens}`. A dimension
     /// reporting neither a limit nor a remainder was not reported at all;
     /// absent headers mean nothing, not zero.
-    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, ChannelError> {
+    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, UpstreamError> {
         let model = context.upstream_model.trim();
         let now = unix_now_secs();
         let mut entries = Vec::new();
@@ -121,16 +122,16 @@ impl QuotaHeaders for OpenAi {
     }
 }
 
-async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
+async fn read_body(body: HttpBody) -> Result<Bytes, UpstreamError> {
     crate::channel::read_body(body).await
 }
 
-async fn get(client: &dyn OutboundClient, url: &str, key: &str) -> Result<Bytes, ChannelError> {
+async fn get(client: &dyn OutboundClient, url: &str, key: &str) -> Result<Bytes, UpstreamError> {
     let mut headers = HeaderMap::new();
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {key}"))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     let mut builder = http::Request::builder().method(Method::GET).uri(url);
@@ -139,7 +140,7 @@ async fn get(client: &dyn OutboundClient, url: &str, key: &str) -> Result<Bytes,
     }
     let request = builder
         .body(HttpBody::Bytes(Bytes::new()))
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
     let WireResponse {
         status,
         headers: _,
@@ -147,13 +148,13 @@ async fn get(client: &dyn OutboundClient, url: &str, key: &str) -> Result<Bytes,
     } = client.send(request).await?;
     let body = read_body(body).await?;
     if !status.is_success() {
-        return Err(ChannelError::UpstreamResponse { status, body });
+        return Err(UpstreamError::UpstreamResponse { status, body });
     }
     Ok(body)
 }
 
 /// One page of the report: its buckets, and the cursor of the next page.
-fn page(body: &[u8], entries: &mut Vec<QuotaEntry>) -> Result<Option<String>, ChannelError> {
+fn page(body: &[u8], entries: &mut Vec<QuotaEntry>) -> Result<Option<String>, UpstreamError> {
     let raw: Value = serde_json::from_slice(body).map_err(|e| invalid_response(e.to_string()))?;
     let more = raw
         .get("has_more")
@@ -250,7 +251,7 @@ impl QuotaQuery for OpenAi {
     /// before today, following `next_page` until the report is whole. The
     /// endpoint takes an Admin key only, which an inference key is not, so
     /// without `secret.quota_api_key` there is nothing to ask with.
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = OpenAiConfig::from_view(context.provider)?;
             let key = context
@@ -260,7 +261,7 @@ impl QuotaQuery for OpenAi {
                 .and_then(Value::as_str)
                 .map(str::trim)
                 .filter(|key| !key.is_empty())
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             let base = config
                 .quota_base_url
                 .as_deref()

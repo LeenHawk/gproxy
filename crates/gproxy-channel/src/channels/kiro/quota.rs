@@ -14,9 +14,12 @@
 use super::config::{ID, KiroConfig};
 use super::{Plane, Target, encode_component, send, unix_now_ms};
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior,
-    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+    QuotaAllowance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
+    QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
+    QuotaWindow,
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
 };
 use http::Method;
 use rust_decimal::Decimal;
@@ -115,9 +118,9 @@ fn decimal(value: Option<f64>) -> Option<Decimal> {
     value.and_then(|value| Decimal::try_from(value).ok())
 }
 
-pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
+pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, UpstreamError> {
     let payload: UsageLimits = serde_json::from_slice(body)
-        .map_err(|error| ChannelError::InvalidResponse(format!("{ID} usage: {error}")))?;
+        .map_err(|error| UpstreamError::InvalidResponse(format!("{ID} usage: {error}")))?;
     let single = payload.usage_breakdown_list.len() == 1;
     Ok(payload
         .usage_breakdown_list
@@ -184,11 +187,11 @@ pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
 }
 
 impl QuotaQuery for super::Kiro {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = KiroConfig::from_view(context.provider)?;
             let profile = super::profile_arn(&config, &context.credential)
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             let query = format!(
                 "profileArn={}&origin=KIRO_CLI&isEmailRequired=true",
                 encode_component(&profile)
@@ -218,7 +221,7 @@ impl QuotaQuery for super::Kiro {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });

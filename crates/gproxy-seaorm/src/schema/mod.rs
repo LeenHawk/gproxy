@@ -1,6 +1,6 @@
-//! Entity-first schema creation for D1, following SeaORM's SQLite rules.
-//! SeaORM generates DDL and dependency order. D1 supplies schema discovery and
-//! executes the resulting statements. There is no version guard or index-ownership registry.
+//! Entity-first schema creation for libSQL, following SeaORM's SQLite rules.
+//! SeaORM generates DDL and dependency order. The connection supplies schema
+//! discovery and executes the resulting statements. There is no version guard or index-ownership registry.
 //!
 //! Startup sync compares the entity registry with the discovered schema and
 //! applies missing objects in one atomic batch. Fresh installs use an empty
@@ -18,14 +18,14 @@ use sea_orm::{
 use std::collections::BTreeMap;
 
 mod connection;
-#[cfg(any(target_arch = "wasm32", feature = "libsql"))]
+#[cfg(feature = "libsql")]
 mod discover;
 pub use connection::{
     EntityRegistry, SchemaSyncConnectionTrait, SyncReport, is_engine_table, ledger_table_name,
 };
-#[cfg(any(target_arch = "wasm32", feature = "libsql"))]
+#[cfg(feature = "libsql")]
 pub use discover::ProjectedConnection;
-#[cfg(any(target_arch = "wasm32", feature = "libsql"))]
+#[cfg(feature = "libsql")]
 pub(crate) use discover::{apply_registry, ledger_versions, table_names};
 #[cfg(test)]
 mod tests;
@@ -93,7 +93,7 @@ impl SchemaSync {
         self.builder = self.builder.register(entity);
         self
     }
-    /// Generate D1 statements from discovered schema, using SeaORM's creation order.
+    /// Generate SQLite statements from discovered schema, using SeaORM's creation order.
     pub async fn plan_snapshot(self, snapshot: &SchemaSnapshot) -> Result<SyncPlan, DbErr> {
         let recorder = Recorder::default();
         self.builder.apply(&recorder).await?;
@@ -266,7 +266,7 @@ fn type_sql(column: &ColumnDef) -> Result<String, DbErr> {
     );
     Ok(sql)
 }
-#[cfg(any(target_arch = "wasm32", feature = "libsql"))]
+#[cfg(feature = "libsql")]
 fn sql(text: &str, values: Vec<sea_orm::Value>) -> Statement {
     Statement::from_sql_and_values(DbBackend::Sqlite, text, values)
 }
@@ -283,15 +283,10 @@ impl ConnectionTrait for Recorder {
             .lock()
             .map_err(|_| error("schema recorder poisoned"))?
             .push(statement);
-        #[cfg(target_arch = "wasm32")]
-        return Ok(sea_orm::ProxyExecResult::default().into());
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            use sea_orm::{MockDatabase, MockDatabaseTrait, MockExecResult};
-            MockDatabase::new(DbBackend::Sqlite)
-                .append_exec_results([MockExecResult::default()])
-                .execute(0, Statement::from_string(DbBackend::Sqlite, ""))
-        }
+        use sea_orm::{MockDatabase, MockDatabaseTrait, MockExecResult};
+        MockDatabase::new(DbBackend::Sqlite)
+            .append_exec_results([MockExecResult::default()])
+            .execute(0, Statement::from_string(DbBackend::Sqlite, ""))
     }
     async fn execute_unprepared(&self, sql: &str) -> Result<ExecResult, DbErr> {
         self.execute_raw(Statement::from_string(DbBackend::Sqlite, sql))

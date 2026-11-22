@@ -52,6 +52,13 @@ describe("the navigation", () => {
     expect(mayEnter(derived("admin"), "/providers/p1/models")).toBe(true)
   })
 
+  it("offers MCP scopes with the access rules and tool natures with the provider", () => {
+    const granted = consoleContext({ ...portalContext(), admin: adminContext(["mcp-scopes", "mcp-tool-natures"]) })
+    expect(mayEnter(granted, "/identity/mcp-scopes")).toBe(true)
+    expect(granted.has("configuration.mcp-tool-natures")).toBe(true)
+    expect(mayEnter(derived("admin"), "/identity/mcp-scopes")).toBe(false)
+  })
+
   it("leaves an undeclared route to the not-found page rather than forbidding it", () => {
     expect(mayEnter(derived("user"), "/nowhere")).toBe(true)
   })

@@ -1,0 +1,27 @@
+[package]
+name = "gproxy-convert"
+description = "Passthrough-or-convert routing, the ingress path table and the drivers that run protocol's adaptation flows over host capabilities"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+futures-util = { workspace = true }
+getrandom = { workspace = true }
+gproxy-channel = { workspace = true }
+gproxy-protocol = { workspace = true }
+gproxy-upstream = { workspace = true }
+http = { workspace = true }
+percent-encoding = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_urlencoded = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
+tracing = { workspace = true }
+web-time = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

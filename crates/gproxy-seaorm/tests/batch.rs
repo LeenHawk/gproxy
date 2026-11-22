@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 use gproxy_seaorm::{
     BatchConnectionTrait, BatchQuery, BatchResult, BatchStatement, D1Type, Projection,
 };

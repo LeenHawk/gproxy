@@ -3,7 +3,7 @@
 
 use serde::Deserialize;
 
-use crate::channel::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 
 /// The region AWS gives every account by default.
 pub const DEFAULT_REGION: &str = "us-east-1";
@@ -44,9 +44,9 @@ impl Default for BedrockConfig {
 }
 
 impl BedrockConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         let mut config: Self = serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
         config.region = config.region.trim().to_owned();
         if config.region.is_empty() {
             config.region = DEFAULT_REGION.into();
@@ -60,7 +60,7 @@ impl BedrockConfig {
 
     /// The region, rejected unless it looks like one: it is interpolated into
     /// a hostname and into the signature's credential scope.
-    pub fn region(&self) -> Result<&str, ChannelError> {
+    pub fn region(&self) -> Result<&str, UpstreamError> {
         if !self.region.is_empty()
             && self
                 .region
@@ -69,7 +69,7 @@ impl BedrockConfig {
         {
             Ok(&self.region)
         } else {
-            Err(ChannelError::InvalidConfig(format!(
+            Err(UpstreamError::InvalidConfig(format!(
                 "`{}` is not an AWS region",
                 self.region
             )))

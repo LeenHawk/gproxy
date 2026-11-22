@@ -2,8 +2,7 @@ use super::*;
 use crate::{BatchConnectionTrait, D1Type, Projection};
 
 /// A connection whose result decoding follows an explicit projection: the
-/// D1 binding and the libSQL pipeline. Discovery runs the same SQLite pragma
-/// queries on either.
+/// libSQL pipeline. Discovery runs SQLite pragma queries through it.
 pub trait ProjectedConnection: BatchConnectionTrait + Sized {
     fn with_projection(&self, projection: Projection) -> Self;
 }
@@ -84,24 +83,6 @@ pub(crate) async fn ledger_versions<C: ProjectedConnection>(
         .into_iter()
         .map(|row| row.try_get("", "version"))
         .collect()
-}
-
-#[cfg(target_arch = "wasm32")]
-impl ProjectedConnection for crate::D1Connection {
-    fn with_projection(&self, projection: Projection) -> Self {
-        crate::D1Connection::with_projection(self, projection)
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-impl crate::D1Connection {
-    pub fn schema_sync(&self) -> SchemaSync {
-        SchemaSync::new()
-    }
-
-    pub async fn inspect_schema(&self, tables: &[&str]) -> Result<SchemaSnapshot, DbErr> {
-        inspect_schema(self, tables).await
-    }
 }
 
 pub(crate) async fn inspect_schema<C: ProjectedConnection>(

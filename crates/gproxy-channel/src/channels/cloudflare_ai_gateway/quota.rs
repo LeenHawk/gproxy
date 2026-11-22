@@ -23,14 +23,16 @@
 
 use super::{CloudflareAiGateway, account_id, base_url, field};
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
+    QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
     QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
     QuotaWindow,
 };
 use crate::channels::shared::compatible::ability::{decimal, require_success, send};
 use crate::channels::shared::compatible::http::invalid_response;
 use gproxy_client::OutboundClient;
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
+};
 use http::{HeaderMap, HeaderValue, Method, header};
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
@@ -99,7 +101,7 @@ impl QuotaModel for CloudflareAiGateway {
 
 /// The balance out of Cloudflare's envelope; a reply that does not say it
 /// succeeded is not read as a zero balance.
-fn balance(body: &Value) -> Result<Decimal, ChannelError> {
+fn balance(body: &Value) -> Result<Decimal, UpstreamError> {
     let succeeded = body.get("success").and_then(Value::as_bool) == Some(true)
         && body
             .get("errors")
@@ -117,7 +119,7 @@ fn balance(body: &Value) -> Result<Decimal, ChannelError> {
 
 /// Today's neurons out of a GraphQL reply. A day without inference has no
 /// group at all, which is zero; a reply with errors is not.
-fn neurons(body: &Value) -> Result<Decimal, ChannelError> {
+fn neurons(body: &Value) -> Result<Decimal, UpstreamError> {
     if body
         .get("errors")
         .and_then(Value::as_array)
@@ -152,7 +154,7 @@ fn now_ms() -> i64 {
 }
 
 /// The UTC day containing `now_ms`: its `YYYY-MM-DD` and `[start, end)`.
-fn utc_day(now_ms: i64) -> Result<(String, i64, i64), ChannelError> {
+fn utc_day(now_ms: i64) -> Result<(String, i64, i64), UpstreamError> {
     let start = now_ms - now_ms.rem_euclid(DAY_MS);
     let date = time::OffsetDateTime::from_unix_timestamp(start / 1000)
         .map_err(|error| invalid_response(error.to_string()))?
@@ -160,13 +162,13 @@ fn utc_day(now_ms: i64) -> Result<(String, i64, i64), ChannelError> {
     Ok((date.to_string(), start, start + DAY_MS))
 }
 
-fn bearer(token: &str) -> Result<HeaderMap, ChannelError> {
+fn bearer(token: &str) -> Result<HeaderMap, UpstreamError> {
     let mut headers = HeaderMap::new();
     headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {token}"))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     Ok(headers)
 }
@@ -176,7 +178,7 @@ async fn balance_entry(
     base: &str,
     account: &str,
     token: &str,
-) -> Result<QuotaEntry, ChannelError> {
+) -> Result<QuotaEntry, UpstreamError> {
     let (status, _, body) = send(
         client,
         Method::GET,
@@ -206,7 +208,7 @@ async fn neurons_entry(
     base: &str,
     account: &str,
     token: &str,
-) -> Result<QuotaEntry, ChannelError> {
+) -> Result<QuotaEntry, UpstreamError> {
     let (date, start, end) = utc_day(now_ms())?;
     let mut headers = bearer(token)?;
     headers.insert(
@@ -250,12 +252,12 @@ async fn neurons_entry(
 }
 
 impl QuotaQuery for CloudflareAiGateway {
-    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let secret = ctx.credential.secret;
             let token = field(secret, "quota_api_key")
                 .or_else(|| field(secret, "api_key"))
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             let account = match field(secret, "quota_account_id") {
                 Some(_) => account_id(secret, "quota_account_id")?,
                 None => account_id(secret, "account_id")?,

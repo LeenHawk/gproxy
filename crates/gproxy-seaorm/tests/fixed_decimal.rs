@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 use gproxy_seaorm::{BatchConnectionTrait, FixedDecimal, FixedDecimalError, SelectProjection};
 use rust_decimal::Decimal;
 use sea_orm::FromQueryResult;

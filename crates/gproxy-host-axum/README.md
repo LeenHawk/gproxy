@@ -7,22 +7,6 @@ The native HTTP host for GPROXY v4: an [axum](https://docs.rs/axum) router over
 into the typed calls `gproxy-app` exposes and turns their answers back into
 bytes, and it contains no product behaviour of its own.
 
-Builds for a native target **and for `wasm32-unknown-unknown`**, and the same
-`Router` serves both: [`gproxy-host-edge`](../gproxy-host-edge) mounts this one
-inside a Cloudflare Workers fetch handler rather than writing the route table a
-second time. What the wasm build leaves out is socket-shaped and never a route
-— the embedded console (`rust-embed` and a filesystem), the websocket upgrade
-(hyper's `OnUpgrade`), and `peer_ip`'s `ConnectInfo` (axum's `tokio` feature,
-replaced there by `cf-connecting-ip`).
-
-The one thing the wasm target asks of a handler is `crate::send` around its
-body. On wasm the engine below is `!Send` on purpose — a JS transport handle
-belongs to the isolate that made it — while axum's `Handler` requires
-`Future: Send`. `send` is the identity function natively and a
-`send_wrapper::SendWrapper` there, so a handler that forgets it fails the wasm
-build naming itself, instead of failing somewhere else or silently not
-existing at the edge. That crate's README has the whole finding.
-
 ```rust,ignore
 let app = Arc::new(App::new(gproxy, config));
 app.reload_all().await?;
@@ -326,8 +310,7 @@ then waits for one JSON setup frame (text or binary). setup.model supplies the
 selector; no upstream session opens until admission and routing succeed. Core
 writes models/<upstream ID> into setup without changing other controls. Refusals
 after this local upgrade are JSON errors containing the status/body followed by a
-close frame. The application pump retains admission/capture/usage through close;
-the same path runs behind Workers' WebSocketPair.
+close frame. The application pump retains admission/capture/usage through close.
 
 The remaining pre-upgrade refusal rules below describe model-bearing OpenAI handshakes.
 The three OpenAI realtime paths are exactly the routes

@@ -19,14 +19,14 @@
 use super::auth;
 use super::config::{CLI_USER_AGENT, CopilotCliConfig, DEFAULT_CLIENT_ID, ID};
 use crate::OutboundClient;
-use crate::channel::{
-    ChannelError, CredentialRefresh, CredentialUpdate, CredentialView, DeviceAuthorization,
-    DevicePoll, LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
-    RefreshReason,
-};
 use crate::channels::shared::compatible::ability::send;
 use crate::channels::shared::compatible::http::invalid_response;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::{
+    CredentialRefresh, CredentialUpdate, CredentialView, DeviceAuthorization, DevicePoll,
+    LoginContext, OAuthCredential, OAuthDeviceCode, RefreshContext, RefreshReason, UpstreamError,
+    UpstreamFuture,
+};
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
 use serde_json::Value;
@@ -155,7 +155,7 @@ async fn probe(
     client: &dyn OutboundClient,
     config: &CopilotCliConfig,
     github_token: &str,
-) -> Result<(StatusCode, HeaderMap, Bytes), ChannelError> {
+) -> Result<(StatusCode, HeaderMap, Bytes), UpstreamError> {
     send(
         client,
         Method::GET,
@@ -166,12 +166,12 @@ async fn probe(
     .await
 }
 
-fn user(body: &[u8]) -> Result<CopilotUser, ChannelError> {
+fn user(body: &[u8]) -> Result<CopilotUser, UpstreamError> {
     serde_json::from_slice(body).map_err(|error| invalid_response(format!("{ID} account: {error}")))
 }
 
 impl OAuthDeviceCode for super::CopilotCli {
-    fn start<'a>(&'a self, context: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
+    fn start<'a>(&'a self, context: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
             let config = CopilotCliConfig::from_view(context.provider)?;
             let (status, _, body) = send(
@@ -186,7 +186,7 @@ impl OAuthDeviceCode for super::CopilotCli {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let reply: DeviceCodeReply = serde_json::from_slice(&body)
                 .map_err(|error| invalid_response(format!("{ID} device code: {error}")))?;
@@ -209,7 +209,7 @@ impl OAuthDeviceCode for super::CopilotCli {
         &'a self,
         context: LoginContext<'a>,
         authorization: &'a DeviceAuthorization,
-    ) -> OperationFuture<'a, DevicePoll> {
+    ) -> UpstreamFuture<'a, DevicePoll> {
         Box::pin(async move {
             let config = CopilotCliConfig::from_view(context.provider)?;
             let (status, _, body) = send(
@@ -227,7 +227,7 @@ impl OAuthDeviceCode for super::CopilotCli {
             // GitHub answers a pending authorization with 200 and an `error`
             // code, so the body is read whatever the status says.
             let Ok(reply) = serde_json::from_slice::<AccessTokenReply>(&body) else {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             };
             let Some(github) = reply
                 .access_token
@@ -248,13 +248,13 @@ impl OAuthDeviceCode for super::CopilotCli {
                     },
                     Some("access_denied") => DevicePoll::Denied,
                     Some("expired_token") => DevicePoll::Expired,
-                    _ => return Err(ChannelError::UpstreamResponse { status, body }),
+                    _ => return Err(UpstreamError::UpstreamResponse { status, body }),
                 });
             };
             // Then who signed in, and where their seat is served.
             let (status, _, body) = probe(context.client, &config, github).await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             Ok(DevicePoll::Ready(OAuthCredential {
                 access_token: github.to_owned(),
@@ -284,14 +284,14 @@ impl CredentialRefresh for super::CopilotCli {
         auth::legacy(credential.secret).then_some(RefreshReason::ProactiveExpiry)
     }
 
-    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             if auth::legacy(context.credential.secret) {
-                return Err(ChannelError::RefreshRejected(auth::LEGACY_REASON.into()));
+                return Err(UpstreamError::RefreshRejected(auth::LEGACY_REASON.into()));
             }
             let config = CopilotCliConfig::from_view(context.provider)?;
             let github = auth::github_token(&context.credential).map_err(|_| {
-                ChannelError::RefreshRejected("credential has no GitHub token".into())
+                UpstreamError::RefreshRejected("credential has no GitHub token".into())
             })?;
             let (status, headers, body) = probe(context.client, &config, github).await?;
             if !status.is_success() {
@@ -304,9 +304,9 @@ impl CredentialRefresh for super::CopilotCli {
                     _ => false,
                 };
                 return Err(if definitive {
-                    ChannelError::RefreshRejected(format!("http {}", status.as_u16()))
+                    UpstreamError::RefreshRejected(format!("http {}", status.as_u16()))
                 } else {
-                    ChannelError::UpstreamResponse { status, body }
+                    UpstreamError::UpstreamResponse { status, body }
                 });
             }
             let fields = user(&body)?.fields();
@@ -314,7 +314,7 @@ impl CredentialRefresh for super::CopilotCli {
             let mut secret = context.credential.secret.clone();
             let object = secret
                 .as_object_mut()
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             let stored = object
                 .entry("provider_fields")
                 .or_insert_with(|| Value::Object(serde_json::Map::new()));

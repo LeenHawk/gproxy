@@ -13,8 +13,8 @@ use std::{
 
 use futures_util::SinkExt;
 use gproxy_channel::{
-    BaseChannel, ChannelError,
-    channel::{PrepareContext, ProviderView, QuotaScope},
+    BaseChannel,
+    channel::{PrepareContext, QuotaScope},
 };
 use gproxy_core::{
     BlockSource, CapturePolicy, CaptureSink, CredentialBlock, CredentialBlocks, ExchangeContext,
@@ -35,6 +35,7 @@ use gproxy_store::entity::{
     routing::{route, route_member},
     upstream::{credential, provider, provider_model},
 };
+use gproxy_upstream::{ProviderView, UpstreamError, UpstreamKind};
 use http::StatusCode;
 use sea_orm::{DatabaseConnection, Set};
 use serde_json::{Value, json};
@@ -49,12 +50,15 @@ pub type Handle = Gproxy<DatabaseConnection>;
 /// credential's key as a bearer token.
 pub struct AltChannel;
 
+impl UpstreamKind for AltChannel {
+    fn id(&self) -> &'static str {
+        "alt"
+    }
+}
+
 impl BaseChannel for AltChannel {
     fn quota_model(&self) -> Option<&dyn gproxy_channel::channel::QuotaModel> {
         Some(self)
-    }
-    fn id(&self) -> &'static str {
-        "alt"
     }
     fn native_dialects(&self, _: ProviderView<'_>, _: Operation) -> Vec<Dialect> {
         vec![
@@ -67,7 +71,7 @@ impl BaseChannel for AltChannel {
             Dialect::OpenAiResponsesWebSocket,
         ]
     }
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let url = match ctx.endpoint_override {
             Some(url) => url.to_owned(),
             None => format!(
@@ -79,7 +83,7 @@ impl BaseChannel for AltChannel {
         let key = ["api_key", "access_token"]
             .iter()
             .find_map(|field| ctx.credential.secret.get(*field).and_then(Value::as_str))
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let mut builder = http::Request::builder()
             .method(ctx.request.method)
             .uri(url)
@@ -89,12 +93,12 @@ impl BaseChannel for AltChannel {
         }
         builder
             .body(ctx.request.body)
-            .map_err(|_| ChannelError::InvalidCredential)
+            .map_err(|_| UpstreamError::InvalidCredential)
     }
     fn prepare_connect(
         &self,
         ctx: PrepareContext<'_, ()>,
-    ) -> Result<http::Request<()>, ChannelError> {
+    ) -> Result<http::Request<()>, UpstreamError> {
         let base = ctx
             .provider
             .base_url
@@ -111,7 +115,7 @@ impl BaseChannel for AltChannel {
                 ),
             )
             .body(())
-            .map_err(|_| ChannelError::InvalidCredential)
+            .map_err(|_| UpstreamError::InvalidCredential)
     }
 }
 
@@ -563,7 +567,7 @@ impl gproxy_channel::channel::QuotaModel for AltChannel {
     fn dimensions(
         &self,
         provider: ProviderView<'_>,
-        credential: gproxy_channel::channel::CredentialView<'_>,
+        credential: gproxy_upstream::CredentialView<'_>,
     ) -> Vec<gproxy_channel::channel::QuotaDimension> {
         gproxy_channel::channel::QuotaModel::dimensions(
             &TestChannel::default(),

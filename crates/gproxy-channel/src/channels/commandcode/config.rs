@@ -1,4 +1,4 @@
-use crate::channel::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -25,9 +25,9 @@ impl Default for CommandCodeConfig {
 }
 
 impl CommandCodeConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|e| ChannelError::InvalidConfig(e.to_string()))
+            .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))
     }
 }
 
@@ -40,7 +40,7 @@ pub(super) fn base_url(provider: ProviderView<'_>) -> &str {
         .trim_end_matches('/')
 }
 
-pub(super) fn api_key(secret: &Value) -> Result<&str, ChannelError> {
+pub(super) fn api_key(secret: &Value) -> Result<&str, UpstreamError> {
     // Also accept the CLI's auth.json shape when importing a credential.
     secret
         .get("api_key")
@@ -49,5 +49,5 @@ pub(super) fn api_key(secret: &Value) -> Result<&str, ChannelError> {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }

@@ -21,18 +21,18 @@ pub(crate) mod quota;
 pub(crate) mod stream;
 
 use crate::OutboundClient;
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{HttpBody, WireResponse};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderMap, Method, StatusCode};
 use serde_json::{Map, Value, json};
 
-pub(crate) fn invalid_request(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidConfig(message.into())
+pub(crate) fn invalid_request(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidConfig(message.into())
 }
 
-pub(crate) fn invalid_response(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(message.into())
+pub(crate) fn invalid_response(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(message.into())
 }
 
 /// Remove only Gemini's resource wrapper, never a publisher or an interior
@@ -66,7 +66,7 @@ pub(crate) fn request_model(path: &str, body: Option<&Value>) -> Option<String> 
 
 /// A random 32-hex `user_prompt_id`, as the CLI mints one per prompt
 /// (v3 `shared/code_assist.rs::prompt_id`).
-pub(crate) fn prompt_id() -> Result<String, ChannelError> {
+pub(crate) fn prompt_id() -> Result<String, UpstreamError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes)
         .map_err(|_| invalid_request("Code Assist prompt id randomness failed"))?;
@@ -81,7 +81,7 @@ pub(crate) fn prompt_id() -> Result<String, ChannelError> {
 /// Options Code Assist rejects once the Gemini body is nested under `request`
 /// (v3 `sanitize_value`). Fields named `store` inside parts stay valid data,
 /// so only the root key is dropped.
-fn sanitize(request: &mut Value) -> Result<(), ChannelError> {
+fn sanitize(request: &mut Value) -> Result<(), UpstreamError> {
     let object = request
         .as_object_mut()
         .ok_or_else(|| invalid_request("Gemini request body must be an object"))?;
@@ -139,7 +139,7 @@ fn is_envelope(body: &Value) -> bool {
 /// `request` (and therefore its `request.session_id` / `request.sessionId`,
 /// which this channel never renames or drops) and only has the routed model,
 /// the discovered project and a prompt id filled in where it left them out.
-pub(crate) fn envelope(body: &[u8], model: &str, project: &str) -> Result<Bytes, ChannelError> {
+pub(crate) fn envelope(body: &[u8], model: &str, project: &str) -> Result<Bytes, UpstreamError> {
     let parsed: Value = serde_json::from_slice(body)
         .map_err(|error| invalid_request(format!("Gemini request body JSON: {error}")))?;
     let mut envelope = if is_envelope(&parsed) {
@@ -177,7 +177,7 @@ pub(crate) fn envelope(body: &[u8], model: &str, project: &str) -> Result<Bytes,
 /// `{request: {...}}` for `:countTokens`. A client may send either the
 /// Gemini `countTokens` shape (`contents`, optionally wrapped in
 /// `generateContentRequest`) or the envelope itself (v3 `wrap_count`).
-pub(crate) fn count_envelope(body: &[u8], model: &str) -> Result<Bytes, ChannelError> {
+pub(crate) fn count_envelope(body: &[u8], model: &str) -> Result<Bytes, UpstreamError> {
     let parsed: Value = serde_json::from_slice(body)
         .map_err(|error| invalid_request(format!("count tokens body JSON: {error}")))?;
     let mut request = if is_envelope(&parsed) {
@@ -219,7 +219,7 @@ pub(crate) fn unwrap_value(value: &Value) -> &Value {
 /// `citationMetadata.citations` is the Vertex spelling of `citationSources`,
 /// and `BLOCKED_REASON_UNSPECIFIED` is the Vertex spelling of
 /// `BLOCK_REASON_UNSPECIFIED`.
-pub(crate) fn unwrap_body(body: &[u8]) -> Result<Bytes, ChannelError> {
+pub(crate) fn unwrap_body(body: &[u8]) -> Result<Bytes, UpstreamError> {
     let parsed: Value = serde_json::from_slice(body)
         .map_err(|error| invalid_response(format!("Code Assist response JSON: {error}")))?;
     let mut value = unwrap_value(&parsed).clone();
@@ -250,8 +250,8 @@ pub(crate) fn normalize_content(value: &mut Value) {
 
 pub(crate) fn encode(
     value: &Value,
-    error: impl FnOnce(String) -> ChannelError,
-) -> Result<Bytes, ChannelError> {
+    error: impl FnOnce(String) -> UpstreamError,
+) -> Result<Bytes, UpstreamError> {
     serde_json::to_vec(value)
         .map(Bytes::from)
         .map_err(|cause| error(cause.to_string()))
@@ -266,7 +266,7 @@ pub(crate) async fn send(
     url: &str,
     headers: HeaderMap,
     body: Option<Vec<u8>>,
-) -> Result<(StatusCode, HeaderMap, Bytes), ChannelError> {
+) -> Result<(StatusCode, HeaderMap, Bytes), UpstreamError> {
     let mut builder = http::Request::builder().method(method).uri(url);
     if let Some(map) = builder.headers_mut() {
         *map = headers;

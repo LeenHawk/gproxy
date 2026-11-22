@@ -4,7 +4,7 @@
 use super::config::{
     CLI_PLATFORM, CLI_USER_AGENT_PRODUCT, DEFAULT_API_BASE_URL, DEFAULT_CODE_BASE_URL, KimiConfig,
 };
-use crate::channel::{ChannelError, CredentialView, ProviderView};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError};
 use http::{HeaderMap, HeaderValue, header};
 use serde_json::Value;
 
@@ -86,7 +86,7 @@ pub(super) fn path(mode: Mode, path: &str) -> String {
 pub(super) fn token<'a>(
     credential: &CredentialView<'a>,
     mode: Mode,
-) -> Result<&'a str, ChannelError> {
+) -> Result<&'a str, UpstreamError> {
     let field = match mode {
         Mode::ApiKey => "api_key",
         Mode::Subscription => "access_token",
@@ -97,7 +97,7 @@ pub(super) fn token<'a>(
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|token| !token.is_empty())
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }
 
 /// The device identity the login generated, wherever the host filed it.
@@ -151,8 +151,8 @@ pub(super) fn identity(
     headers: &mut HeaderMap,
     config: &KimiConfig,
     credential: &CredentialView<'_>,
-) -> Result<(), ChannelError> {
-    let device_id = device_id(credential).ok_or(ChannelError::InvalidCredential)?;
+) -> Result<(), UpstreamError> {
+    let device_id = device_id(credential).ok_or(UpstreamError::InvalidCredential)?;
     identity_with_device(headers, config, &device_id)
 }
 
@@ -201,7 +201,7 @@ pub(super) fn identity_with_device(
     headers: &mut HeaderMap,
     config: &KimiConfig,
     device_id: &str,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     let seed = device_seed(device_id);
     let os_version = config
         .os_version
@@ -229,7 +229,7 @@ pub(super) fn identity_with_device(
     ] {
         headers.insert(
             http::HeaderName::from_static(name),
-            HeaderValue::from_str(&value).map_err(|_| ChannelError::InvalidCredential)?,
+            HeaderValue::from_str(&value).map_err(|_| UpstreamError::InvalidCredential)?,
         );
     }
     headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));

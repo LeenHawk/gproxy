@@ -6,13 +6,13 @@ use super::{
     common::{check, insert, invalid, json, now_ms, random_hex},
     config::{CLIENT_ID, TraeConfig, fact},
 };
-use crate::channel::{
-    AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, CredentialRefresh,
-    CredentialUpdate, CredentialView, LoginContext, OAuthAuthorizationCode, OAuthCredential,
-    OperationFuture, RefreshContext, RefreshReason,
-};
 use crate::channels::shared::compatible::ability::{require_success, send};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, AuthorizationStart, CredentialRefresh,
+    CredentialUpdate, CredentialView, LoginContext, OAuthAuthorizationCode, OAuthCredential,
+    RefreshContext, RefreshReason, UpstreamError, UpstreamFuture,
+};
 use http::{HeaderMap, Method};
 use p256::{
     ecdsa::{Signature, SigningKey, signature::Signer},
@@ -32,11 +32,11 @@ const REFRESH_WINDOW_MS: i64 = 24 * 60 * 60 * 1000;
 /// login material so a refresh replaces it without touching public metadata.
 const RELEASED_AT: &str = "token_release_at_ms";
 
-fn private_key(value: &Value) -> Result<SigningKey, ChannelError> {
+fn private_key(value: &Value) -> Result<SigningKey, UpstreamError> {
     let bytes = STANDARD
-        .decode(value.as_str().ok_or(ChannelError::InvalidCredential)?)
-        .map_err(|_| ChannelError::InvalidCredential)?;
-    SigningKey::from_slice(&bytes).map_err(|_| ChannelError::InvalidCredential)
+        .decode(value.as_str().ok_or(UpstreamError::InvalidCredential)?)
+        .map_err(|_| UpstreamError::InvalidCredential)?;
+    SigningKey::from_slice(&bytes).map_err(|_| UpstreamError::InvalidCredential)
 }
 
 // Request bodies are structs so they serialize in the desktop's insertion
@@ -181,7 +181,7 @@ fn device<'a>(
     id: &'a str,
     machine: &'a str,
     key: &SigningKey,
-) -> Result<DeviceInfo<'a>, ChannelError> {
+) -> Result<DeviceInfo<'a>, UpstreamError> {
     let public = key
         .verifying_key()
         .to_public_key_pem(LineEnding::LF)
@@ -203,7 +203,7 @@ fn device<'a>(
     })
 }
 
-fn encode(body: &impl Serialize) -> Result<Vec<u8>, ChannelError> {
+fn encode(body: &impl Serialize) -> Result<Vec<u8>, UpstreamError> {
     serde_json::to_vec(body).map_err(invalid)
 }
 
@@ -214,7 +214,7 @@ async fn user_info(
     origin: &str,
     config: &TraeConfig,
     token: &str,
-) -> Result<Value, ChannelError> {
+) -> Result<Value, UpstreamError> {
     let (status, _, body) = send(
         client,
         Method::POST,
@@ -244,7 +244,7 @@ fn account_region(auth_region: Option<&str>, account: &Value) -> Option<String> 
         .map(str::to_owned)
 }
 
-fn headers(token: &str) -> Result<HeaderMap, ChannelError> {
+fn headers(token: &str) -> Result<HeaderMap, UpstreamError> {
     let mut headers = HeaderMap::new();
     insert(&mut headers, "content-type", "application/json")?;
     insert(&mut headers, "x-cloudide-token", token)?;
@@ -270,7 +270,7 @@ async fn exchange(
     body: Vec<u8>,
     token: &str,
     refreshing: bool,
-) -> Result<Value, ChannelError> {
+) -> Result<Value, UpstreamError> {
     let (status, _, bytes) = send(
         client,
         Method::POST,
@@ -295,7 +295,7 @@ async fn exchange(
             code.as_deref(),
             Some("20324" | "20101" | "20315" | "20125" | "20126" | "20401" | "20403")
         ) {
-            return Err(ChannelError::RefreshRejected(
+            return Err(UpstreamError::RefreshRejected(
                 "Trae rejected the refresh token".into(),
             ));
         }
@@ -313,21 +313,21 @@ async fn exchange(
         .ok_or_else(|| invalid("token exchange returned no Token"))
 }
 
-fn callback_result(code: &str, state: &str) -> Result<(String, Option<String>), ChannelError> {
+fn callback_result(code: &str, state: &str) -> Result<(String, Option<String>), UpstreamError> {
     if let Ok(url) = url::Url::parse(code.trim()) {
         let query: BTreeMap<_, _> = url.query_pairs().into_owned().collect();
         if query.get("state").map(String::as_str) != Some(state) {
-            return Err(ChannelError::InvalidCredential);
+            return Err(UpstreamError::InvalidCredential);
         }
         let info = query
             .get("authCodeInfo")
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let value: Value =
-            serde_json::from_str(info).map_err(|_| ChannelError::InvalidCredential)?;
+            serde_json::from_str(info).map_err(|_| UpstreamError::InvalidCredential)?;
         let auth_code = value["AuthCode"]
             .as_str()
             .filter(|s| !s.is_empty())
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         // Region is a closed selection, never an arbitrary callback host.
         let region = match query.get("host").map(String::as_str) {
             Some("https://grow-normal.traeapi.us" | "https://ug-normal.us.trae.ai") => {
@@ -341,7 +341,7 @@ fn callback_result(code: &str, state: &str) -> Result<(String, Option<String>), 
     }
     let code = code.trim();
     if code.is_empty() {
-        return Err(ChannelError::InvalidCredential);
+        return Err(UpstreamError::InvalidCredential);
     }
     Ok((code.into(), None))
 }
@@ -357,12 +357,12 @@ impl OAuthAuthorizationCode for OAuth {
         &'a self,
         context: LoginContext<'a>,
         request: AuthorizationRequest<'a>,
-    ) -> OperationFuture<'a, AuthorizationStart> {
+    ) -> UpstreamFuture<'a, AuthorizationStart> {
         Box::pin(async move {
             let config = TraeConfig::from_view(context.provider)?;
             let mut bytes = [0; 32];
             getrandom::fill(&mut bytes)
-                .map_err(|_| ChannelError::InvalidConfig("Trae: randomness unavailable".into()))?;
+                .map_err(|_| UpstreamError::InvalidConfig("Trae: randomness unavailable".into()))?;
             let key = SigningKey::from_slice(&bytes).map_err(invalid)?;
             let id = random_hex::<16>()?;
             let machine = random_hex::<32>()?;
@@ -430,20 +430,20 @@ impl OAuthAuthorizationCode for OAuth {
         &'a self,
         context: LoginContext<'a>,
         grant: AuthorizationCode<'a>,
-    ) -> OperationFuture<'a, OAuthCredential> {
+    ) -> UpstreamFuture<'a, OAuthCredential> {
         Box::pin(async move {
             let config = TraeConfig::from_view(context.provider)?;
             let key_value = grant
                 .provider_state
                 .get("device_key")
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             let key = private_key(key_value)?;
             let field = |name| {
                 grant
                     .provider_state
                     .get(name)
                     .and_then(Value::as_str)
-                    .ok_or(ChannelError::InvalidCredential)
+                    .ok_or(UpstreamError::InvalidCredential)
             };
             let id = field("device_id")?;
             let machine = field("machine_id")?;
@@ -465,7 +465,7 @@ impl OAuthAuthorizationCode for OAuth {
             .await?;
             let token = result["Token"]
                 .as_str()
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             let account = user_info(context.client, origin, &config, token).await?;
             let user_id = account["UserID"]
                 .as_str()
@@ -540,7 +540,7 @@ impl CredentialRefresh for OAuth {
                 .pointer("/provider_secrets/device_key")
                 .is_some()
     }
-    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let config = TraeConfig::from_view(context.provider)?;
             let credential = &context.credential;
@@ -548,14 +548,14 @@ impl CredentialRefresh for OAuth {
                 credential
                     .secret
                     .pointer("/provider_secrets/device_key")
-                    .ok_or(ChannelError::InvalidCredential)?,
+                    .ok_or(UpstreamError::InvalidCredential)?,
             )?;
             let refresh = credential.secret["refresh_token"]
                 .as_str()
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             let token = credential.secret["access_token"]
                 .as_str()
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             let timestamp = now_ms() / 1000;
             let nonce = random_hex::<16>()?;
             let signature: Signature = key.sign(
@@ -568,8 +568,8 @@ impl CredentialRefresh for OAuth {
                 refresh_token: refresh,
                 device_info: device(
                     &config,
-                    fact(credential, "device_id").ok_or(ChannelError::InvalidCredential)?,
-                    fact(credential, "machine_id").ok_or(ChannelError::InvalidCredential)?,
+                    fact(credential, "device_id").ok_or(UpstreamError::InvalidCredential)?,
+                    fact(credential, "machine_id").ok_or(UpstreamError::InvalidCredential)?,
                     &key,
                 )?,
                 device_proof: DeviceProof {
@@ -608,7 +608,7 @@ impl CredentialRefresh for OAuth {
                 if let (Some(user_id), Some(known)) = (user_id, fact(credential, "user_id"))
                     && user_id != known
                 {
-                    return Err(ChannelError::RefreshRejected(
+                    return Err(UpstreamError::RefreshRejected(
                         "Trae refresh returned a different account".into(),
                     ));
                 }

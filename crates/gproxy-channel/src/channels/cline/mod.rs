@@ -44,19 +44,33 @@ pub use config::{
 pub use quota::{BALANCE_DIMENSION, PLAN_SOURCE};
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, OperationContext,
-    OperationFuture, PrepareContext, ProviderView, QuotaModel, QuotaQuery, };
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, OperationContext,
+    PrepareContext, QuotaModel, QuotaQuery,
+};
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, LoginMode, OAuthDeviceCode, ProviderView,
+    UpstreamError, UpstreamFuture, UpstreamKind,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Cline;
 
-impl BaseChannel for Cline {
+impl UpstreamKind for Cline {
     fn id(&self) -> &'static str {
         ID
     }
 
+    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
+        Some(self)
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for Cline {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -108,7 +122,7 @@ impl BaseChannel for Cline {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         request::build(ctx)
     }
 
@@ -116,7 +130,7 @@ impl BaseChannel for Cline {
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(response::invoke(self, Operation::ListModels, context))
     }
 
@@ -124,16 +138,8 @@ impl BaseChannel for Cline {
     fn generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(response::invoke(self, Operation::GenerateContent, context))
-    }
-
-    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        Some(self)
-    }
-
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
     }
 
     fn quota_model(&self) -> Option<&dyn QuotaModel> {

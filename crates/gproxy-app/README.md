@@ -10,21 +10,12 @@ issuer, audit), admission, and the typed admin/portal/issuer operations.
 It owns no server. There is no HTTP framework here, no router, no runtime, no
 CLI, and none of the engine: routing, credential selection, failover, protocol
 conversion, settlement and capture belong to `gproxy-core` and the handle above
-it. That line is what lets the same decisions run behind a native axum server
-and inside a Cloudflare Worker — the crate builds for `wasm32-unknown-unknown`,
-and it stays that way because it has nothing platform-shaped to lose.
+it. That line is what lets the same decisions run behind any host: the crate
+has nothing platform-shaped to lose.
 
-`App<C>` is `Send + Sync` on **every** target, which is what lets a host put
-one in a request-scoped state — `axum::Router<S>` asks for
-`S: Clone + Send + Sync + 'static` before it will hold one. That is not free on
-wasm: the engine below is `!Send` there by design, because a JS transport
-handle belongs to the isolate that made it and `gproxy-client`'s
-`ClientBounds` says so in its type. `App` therefore holds its handle in a
-`send_wrapper::SendWrapper` on that target and nothing else changes — one
-wrapper, checked at runtime rather than asserted, sound because a Worker
-isolate is single-threaded. The futures `App`'s own methods return are still
-`!Send` on wasm; a host bridges those at its handlers (see
-`gproxy_host_axum::send`).
+`App<C>` is `Send + Sync`, which is what lets a host put one in a
+request-scoped state — `axum::Router<S>` asks for
+`S: Clone + Send + Sync + 'static` before it will hold one.
 
 ## The shape of a request
 
@@ -84,8 +75,7 @@ one load, one request.
 | `error` | `AppError`, with `status_code()` and a stable `code()` for the API envelope |
 
 Every module in the table is implemented. What the crate still lacks is a host:
-nothing here binds a transport, which is what `gproxy-host-axum` and
-`gproxy-host-edge` are for.
+nothing here binds a transport, which is what `gproxy-host-axum` is for.
 
 ## The snapshot
 

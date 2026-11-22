@@ -4,7 +4,8 @@
     "oauth": "OAuth",
     "cookie": "Cookie",
     "service_account": "服務帳戶",
-    "aws_access_key": "AWS 存取金鑰對"
+    "aws_access_key": "AWS 存取金鑰對",
+    "none": "無需驗證"
   },
   "overview": {
     "title": "你好，{{name}}",
@@ -1254,5 +1255,19 @@
     "filter": "供應商",
     "all": "全部",
     "empty": "還沒有憑證。"
+  },
+  "mcp": {
+    "tools": "工具",
+    "toolCalls": "工具呼叫",
+    "scope": "授權範圍",
+    "declaredNature": "宣告性質",
+    "nature": "性質",
+    "override": "覆寫",
+    "declared": "依宣告",
+    "natures": {
+      "read": "唯讀",
+      "write": "寫入",
+      "destructive": "破壞性"
+    }
   }
 }

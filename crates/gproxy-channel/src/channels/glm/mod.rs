@@ -9,12 +9,14 @@ mod models;
 mod quota;
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, OperationContext, OperationFuture,
-    PrepareContext, ProviderView, QuotaQuery, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, HeaderAllowlist,
+    OperationContext, PrepareContext, QuotaQuery, forwardable,
 };
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamFuture, UpstreamKind,
+};
 use http::{HeaderValue, header};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -39,11 +41,13 @@ impl Glm {
     pub const CODING: Self = Self { coding_plan: true };
 }
 
-impl BaseChannel for Glm {
+impl UpstreamKind for Glm {
     fn id(&self) -> &'static str {
         if self.coding_plan { CODING_ID } else { ID }
     }
+}
 
+impl BaseChannel for Glm {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: self.id(),
@@ -80,33 +84,33 @@ impl BaseChannel for Glm {
     fn list_models<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::reply(self, ctx, false))
     }
     fn get_model<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::reply(self, ctx, true))
     }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         self.coding_plan.then_some(self as &dyn QuotaQuery)
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config: GlmConfig = serde_json::from_value(ctx.provider.config.clone())
-            .map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+            .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
         if matches!(
             ctx.operation.operation,
             Operation::ListModels | Operation::GetModel
         ) {
-            return Err(ChannelError::UnsupportedOperation(ctx.operation));
+            return Err(UpstreamError::UnsupportedOperation(ctx.operation));
         }
         if !self
             .native_dialects(ctx.provider, ctx.operation.operation)
             .contains(&ctx.operation.dialect)
         {
-            return Err(ChannelError::UnsupportedOperation(ctx.operation));
+            return Err(UpstreamError::UnsupportedOperation(ctx.operation));
         }
         let key = ctx
             .credential
@@ -114,7 +118,7 @@ impl BaseChannel for Glm {
             .get("api_key")
             .and_then(serde_json::Value::as_str)
             .filter(|s| !s.trim().is_empty())
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let path = match ctx.operation.dialect {
             Dialect::Claude => "/api/anthropic/v1/messages",
             Dialect::OpenAi => "/api/v1/responses",
@@ -148,7 +152,7 @@ impl BaseChannel for Glm {
         headers.insert(
             header::AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {key}"))
-                .map_err(|_| ChannelError::InvalidCredential)?,
+                .map_err(|_| UpstreamError::InvalidCredential)?,
         );
         for (name, value) in &config.headers {
             insert_configured(&mut headers, name, value)?;
@@ -157,6 +161,6 @@ impl BaseChannel for Glm {
         *builder.headers_mut().expect("fresh builder") = headers;
         builder
             .body(ctx.request.body)
-            .map_err(|e| ChannelError::InvalidConfig(e.to_string()))
+            .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))
     }
 }

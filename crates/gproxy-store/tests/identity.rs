@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! API-key organization/team binding and the audit trail.
 
 use gproxy_store::{

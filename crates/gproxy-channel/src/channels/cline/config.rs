@@ -1,6 +1,6 @@
 //! Provider configuration and the upstream constants behind it.
 
-use crate::channel::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -37,17 +37,15 @@ impl Default for ClineConfig {
 }
 
 impl ClineConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     fn or_default<'a>(value: &'a str, fallback: &'a str) -> &'a str {
         let value = value.trim();
         if value.is_empty() { fallback } else { value }
     }
-
-
 
     pub(super) fn device_authorization_url(&self) -> &str {
         Self::or_default(

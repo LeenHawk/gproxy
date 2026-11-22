@@ -4,42 +4,43 @@ use serde_json::{Value, json};
 #[cfg(not(target_arch = "wasm32"))]
 use super::{auth, config::PlaygroundConfig};
 use super::{auth::Session, config, stream, wire};
-use crate::channel::{ChannelError, OperationContext, read_body};
+use crate::channel::{OperationContext, read_body};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::UpstreamError;
 
-pub(super) fn invalid(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(format!("Playground: {}", message.into()))
+pub(super) fn invalid(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("Playground: {}", message.into()))
 }
 
 pub(super) fn post(
     url: &str,
     headers: HeaderMap,
     body: &Value,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     let mut builder = http::Request::builder().method("POST").uri(url);
     *builder
         .headers_mut()
         .ok_or_else(|| invalid("invalid RPC URL"))? = headers;
     builder
         .body(HttpBody::Bytes(body.to_string().into()))
-        .map_err(|_| ChannelError::InvalidConfig("invalid Playground endpoint".into()))
+        .map_err(|_| UpstreamError::InvalidConfig("invalid Playground endpoint".into()))
 }
 
 fn require_gemini(
     context: &OperationContext<'_>,
     operation: Operation,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     if context.dialect == Dialect::Gemini {
         Ok(())
     } else {
-        Err(ChannelError::UnsupportedOperation(OperationKey {
+        Err(UpstreamError::UnsupportedOperation(OperationKey {
             operation,
             dialect: context.dialect,
         }))
     }
 }
 
-fn model(path: &str) -> Result<String, ChannelError> {
+fn model(path: &str) -> Result<String, UpstreamError> {
     let (_, model) = path
         .split_once("models/")
         .ok_or_else(|| invalid("missing model in request path"))?;
@@ -69,7 +70,7 @@ fn json_response(status: StatusCode, body: Value) -> WireResponse<HttpBody> {
 
 pub(super) async fn error_response(
     response: WireResponse<HttpBody>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let bytes = read_body(response.body).await?;
     let body = stream::parse_jspb(&bytes).ok();
     let status = body.as_ref().and_then(|v| {
@@ -112,7 +113,7 @@ pub(super) async fn error_response(
 pub(super) async fn models(
     context: OperationContext<'_>,
     single: bool,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     require_gemini(
         &context,
         if single {
@@ -153,7 +154,7 @@ pub(super) async fn models(
 pub(super) async fn generate(
     context: OperationContext<'_>,
     streaming: bool,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     require_gemini(
         &context,
         if streaming {
@@ -179,14 +180,14 @@ pub(super) async fn generate(
 async fn generate_native(
     context: OperationContext<'_>,
     streaming: bool,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     use super::{signer, waa};
     let config = PlaygroundConfig::parse(context.provider)?;
     let session = Session::parse(context.credential.secret)?;
     let model = model(&context.request.path)?;
     let model_short = model.strip_prefix("models/").unwrap_or(&model).to_string();
     let body: Value = serde_json::from_slice(&read_body(context.request.body).await?)
-        .map_err(|_| ChannelError::InvalidConfig("Playground request must be JSON".into()))?;
+        .map_err(|_| UpstreamError::InvalidConfig("Playground request must be JSON".into()))?;
     let mut wire = wire::encode(&model, &body, &config.timezone)?;
     let tier = context
         .credential
@@ -264,13 +265,17 @@ pub(super) async fn fetch_create(
     client: &dyn gproxy_client::OutboundClient,
     session: &Session,
     tier: Option<&str>,
-) -> Result<super::waa::Challenge, ChannelError> {
+) -> Result<super::waa::Challenge, UpstreamError> {
     use super::waa;
     let mut headers = session.headers(tier)?;
     headers.insert("x-goog-api-key", auth::header_value(waa::WAA_API_KEY)?);
     headers.insert(header::USER_AGENT, auth::header_value(waa::FIREFOX_UA)?);
     let response = client
-        .send(post(waa::WAA_CREATE_URL, headers, &json!([waa::WAA_REQUEST_KEY]))?)
+        .send(post(
+            waa::WAA_CREATE_URL,
+            headers,
+            &json!([waa::WAA_REQUEST_KEY]),
+        )?)
         .await?;
     if !response.status.is_success() {
         return Err(invalid(format!(
@@ -289,7 +294,7 @@ pub(super) async fn fetch_create(
 pub(super) async fn fetch_interpreter(
     client: &dyn gproxy_client::OutboundClient,
     url: &str,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     use std::collections::HashMap;
     use std::sync::{Mutex, OnceLock};
     /// Old interpreters are not asked for again; a few entries cover a rotation.
@@ -313,7 +318,7 @@ pub(super) async fn fetch_interpreter(
 async fn fetch_text(
     client: &dyn gproxy_client::OutboundClient,
     url: &str,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let request = http::Request::builder()
         .method("GET")
         .uri(url)

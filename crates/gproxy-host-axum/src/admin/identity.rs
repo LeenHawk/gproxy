@@ -23,9 +23,10 @@ use axum::{
 use gproxy_app::{
     AdminScope, Operations,
     dto::{
-        ApiKeyPatch, ApiKeyWrite, AuditQuery, BatchItem, ListQuery, MemberWrite, OAuthClientPatch,
-        OAuthClientWrite, OrganizationPatch, OrganizationWrite, PermissionPatch, PermissionWrite,
-        RateLimitPatch, RateLimitWrite, TeamPatch, TeamWrite, UserPatch, UserWrite,
+        ApiKeyPatch, ApiKeyWrite, AuditQuery, BatchItem, ListQuery, McpScopePatch, McpScopeWrite,
+        McpToolNaturePatch, McpToolNatureWrite, MemberWrite, OAuthClientPatch, OAuthClientWrite,
+        OrganizationPatch, OrganizationWrite, PermissionPatch, PermissionWrite, RateLimitPatch,
+        RateLimitWrite, TeamPatch, TeamWrite, UserPatch, UserWrite,
     },
 };
 use gproxy_seaorm::BatchConnectionTrait;
@@ -86,6 +87,23 @@ where
         PermissionPatch,
         "permissions"
     );
+    let router = family!(
+        router,
+        "/mcp-scopes",
+        mcp_scopes,
+        McpScopeWrite,
+        McpScopePatch,
+        "mcp-scopes"
+    );
+    let router = family!(
+        router,
+        "/mcp-tool-natures",
+        mcp_tool_natures,
+        McpToolNatureWrite,
+        McpToolNaturePatch,
+        "mcp-tool-natures"
+    )
+    .route("/mcp-tools/{provider_id}", get(mcp_tools::<C>));
     let router = family!(
         router,
         "/rate-limits",
@@ -166,15 +184,12 @@ async fn set_password<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        operations!(
-            state,
-            scope,
-            "users",
-            users.set_password(&id, &body.password)
-        )
-    })
-    .await
+    operations!(
+        state,
+        scope,
+        "users",
+        users.set_password(&id, &body.password)
+    )
 }
 
 async fn clear_password<C>(
@@ -185,7 +200,7 @@ async fn clear_password<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, scope, "users", users.clear_password(&id)) }).await
+    operations!(state, scope, "users", users.clear_password(&id))
 }
 
 async fn set_allowlist<C>(
@@ -197,15 +212,25 @@ async fn set_allowlist<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        operations!(
-            state,
-            scope,
-            "users",
-            users.set_allowlist(&id, body.clients)
-        )
-    })
-    .await
+    operations!(
+        state,
+        scope,
+        "users",
+        users.set_allowlist(&id, body.clients)
+    )
+}
+
+/// Asks the server itself, so the answer is what callers will be offered.
+async fn mcp_tools<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path(provider_id): Path<String>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    gate!("mcp-tool-natures", scope);
+    reply(state.app().mcp_tools(&provider_id).await)
 }
 
 async fn rotate_key<C>(
@@ -216,7 +241,7 @@ async fn rotate_key<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, scope, "api-keys", api_keys.rotate(&id)) }).await
+    operations!(state, scope, "api-keys", api_keys.rotate(&id))
 }
 
 async fn reveal_key<C>(
@@ -227,7 +252,7 @@ async fn reveal_key<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, scope, "api-keys", api_keys.reveal(&id)) }).await
+    operations!(state, scope, "api-keys", api_keys.reveal(&id))
 }
 
 async fn retire_client<C>(
@@ -238,10 +263,7 @@ async fn retire_client<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(
-        async move { operations!(state, scope, "oauth-clients", oauth_clients.retire(&id)) },
-    )
-    .await
+    operations!(state, scope, "oauth-clients", oauth_clients.retire(&id))
 }
 
 async fn list_members<C>(
@@ -253,13 +275,10 @@ async fn list_members<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        // The path names the organization; a query parameter must not be able to
-        // point the list at a different one.
-        query.organization_id = Some(id);
-        operations!(state, scope, "members", members.list(query))
-    })
-    .await
+    // The path names the organization; a query parameter must not be able to
+    // point the list at a different one.
+    query.organization_id = Some(id);
+    operations!(state, scope, "members", members.list(query))
 }
 
 async fn get_member<C>(
@@ -270,8 +289,7 @@ async fn get_member<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, scope, "members", members.get(&id, &user_id)) })
-        .await
+    operations!(state, scope, "members", members.get(&id, &user_id))
 }
 
 async fn add_member<C>(
@@ -283,7 +301,7 @@ async fn add_member<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, scope, "members", members.add(&id, write)) }).await
+    operations!(state, scope, "members", members.add(&id, write))
 }
 
 async fn set_member_role<C>(
@@ -295,15 +313,12 @@ async fn set_member_role<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        operations!(
-            state,
-            scope,
-            "members",
-            members.set_role(&id, &user_id, patch)
-        )
-    })
-    .await
+    operations!(
+        state,
+        scope,
+        "members",
+        members.set_role(&id, &user_id, patch)
+    )
 }
 
 async fn remove_member<C>(
@@ -314,10 +329,7 @@ async fn remove_member<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        operations!(@empty state, scope, "members", members.remove(&id, &user_id))
-    })
-    .await
+    operations!(@empty state, scope, "members", members.remove(&id, &user_id))
 }
 
 async fn list_team_members<C>(
@@ -329,11 +341,8 @@ async fn list_team_members<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        query.team_id = Some(id);
-        operations!(state, scope, "team-members", team_members.list(query))
-    })
-    .await
+    query.team_id = Some(id);
+    operations!(state, scope, "team-members", team_members.list(query))
 }
 
 async fn get_team_member<C>(
@@ -344,15 +353,12 @@ async fn get_team_member<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        operations!(
-            state,
-            scope,
-            "team-members",
-            team_members.get(&id, &user_id)
-        )
-    })
-    .await
+    operations!(
+        state,
+        scope,
+        "team-members",
+        team_members.get(&id, &user_id)
+    )
 }
 
 async fn add_team_member<C>(
@@ -364,10 +370,7 @@ async fn add_team_member<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(
-        async move { operations!(state, scope, "team-members", team_members.add(&id, write)) },
-    )
-    .await
+    operations!(state, scope, "team-members", team_members.add(&id, write))
 }
 
 async fn set_team_member_role<C>(
@@ -379,15 +382,12 @@ async fn set_team_member_role<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        operations!(
-            state,
-            scope,
-            "team-members",
-            team_members.set_role(&id, &user_id, patch)
-        )
-    })
-    .await
+    operations!(
+        state,
+        scope,
+        "team-members",
+        team_members.set_role(&id, &user_id, patch)
+    )
 }
 
 async fn remove_team_member<C>(
@@ -398,10 +398,7 @@ async fn remove_team_member<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        operations!(@empty state, scope, "team-members", team_members.remove(&id, &user_id))
-    })
-    .await
+    operations!(@empty state, scope, "team-members", team_members.remove(&id, &user_id))
 }
 
 async fn list_sessions<C>(
@@ -412,7 +409,7 @@ async fn list_sessions<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, scope, "sessions", sessions.page(query)) }).await
+    operations!(state, scope, "sessions", sessions.page(query))
 }
 
 async fn revoke_session<C>(
@@ -423,8 +420,7 @@ async fn revoke_session<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(@empty state, scope, "sessions", sessions.revoke(&id)) })
-        .await
+    operations!(@empty state, scope, "sessions", sessions.revoke(&id))
 }
 
 async fn user_sessions<C>(
@@ -435,7 +431,7 @@ async fn user_sessions<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, scope, "sessions", sessions.list(&id)) }).await
+    operations!(state, scope, "sessions", sessions.list(&id))
 }
 
 async fn revoke_user_sessions<C>(
@@ -446,16 +442,13 @@ async fn revoke_user_sessions<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("sessions", scope);
-        let data = state.app().data();
-        let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
-        match operations.sessions().revoke_all(&id).await {
-            Ok(count) => crate::error::ok_json(&serde_json::json!({ "revoked": count })),
-            Err(error) => ErrorResponse(error).into_response(),
-        }
-    })
-    .await
+    gate!("sessions", scope);
+    let data = state.app().data();
+    let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
+    match operations.sessions().revoke_all(&id).await {
+        Ok(count) => crate::error::ok_json(&serde_json::json!({ "revoked": count })),
+        Err(error) => ErrorResponse(error).into_response(),
+    }
 }
 
 async fn list_audit<C>(
@@ -466,7 +459,7 @@ async fn list_audit<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, scope, "audit", audit.query(query)) }).await
+    operations!(state, scope, "audit", audit.query(query))
 }
 
 #[cfg(feature = "documentation")]

@@ -9,9 +9,6 @@
 
 [文档](https://gproxy.leenhawk.com/zh-cn/) · [下载](https://github.com/LeenHawk/gproxy/releases) · [讨论](https://github.com/LeenHawk/gproxy/discussions) · [赞助](https://github.com/sponsors/LeenHawk)
 
-<a href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32"></a>
-<a href="https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless"><img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" height="32"></a>
-<a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D"><img src="https://vercel.com/button" alt="Deploy with Vercel" height="32"></a>
 <a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
 <a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
 
@@ -28,7 +25,7 @@ GPROXY 本身不运行模型，推理由上游服务完成。
 - 手里有几个 Claude、ChatGPT 订阅和一堆 API Key，想分给团队或朋友用。每人一把 Key，各有各的权限、限流和预算，谁用了多少事后能查到。
 - 同一个模型有好几个来源，想让它们互为备份。某个账号被限流或者出错时，请求自动换到下一个，客户端不需要知道。
 - 客户端只支持 OpenAI 格式，上游却是 Claude 或 Gemini，或者反过来。
-- 网关要长期运行在服务器、NAS、容器或 Cloudflare Workers 上。
+- 网关要长期运行在服务器、NAS 或容器里。
 
 如果只是想在自己电脑上给 Claude Code、Codex 这些工具换个模型，桌面上的切换工具更省事。GPROXY 不会替你修改这些工具的配置文件，网关地址和 Key 需要自己填。
 
@@ -75,10 +72,9 @@ Claude Code、Codex CLI 这类用 OAuth 登录的工具，可以直接登录到�
 - 原生服务：Linux、macOS 和 Windows 上的 CLI，内置 Web 控制台，也有不带控制台的 headless 版本。
 - 容器。
 - 桌面和手机应用，内置控制台和设置向导。
-- Cloudflare Workers、Netlify 和 Vercel 函数，可用的渠道与原生版本相同。
 - Rust 库：通过 `gproxy-sdk` 嵌入自己的程序。
 
-数据库支持 SQLite、PostgreSQL、MySQL，以及 Cloudflare 上的 D1 和 libSQL/Turso。
+数据库支持 SQLite、PostgreSQL 和 MySQL。
 
 ## 安装
 
@@ -139,13 +135,15 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 
 ## 托管部署
 
-页面顶部的部署按钮对应下面这些模板。Cloudflare、Netlify 和 Vercel 模板直接部署最新稳定版的预构建包，不需要编译。Cloudflare 使用 D1 或 libSQL/Turso，另外两个使用 PostgreSQL。Render 和 Heroku 则在一个小容器里运行原生程序，数据库同样是 PostgreSQL。
+页面顶部的部署按钮对应 Render 和 Heroku 模板，两者都在一个小容器里运行原生程序，数据库是 PostgreSQL。
 
-部署时需要填写管理员密码和主密钥。动手之前请先读[托管部署](https://gproxy.leenhawk.com/zh-cn/deployment/edge)和 [Docker、Render 与 Heroku](https://gproxy.leenhawk.com/zh-cn/deployment/containers)，里面讲了数据库怎么选、各平台套餐的费用，以及平台本身的限制，例如 Netlify 不支持 WebSocket。
+部署时需要填写管理员密码和主密钥。动手之前请先读 [Docker、Render 与 Heroku](https://gproxy.leenhawk.com/zh-cn/deployment/containers)，里面讲了数据库怎么选、各平台套餐的费用，以及平台本身的限制。
+
+Cloudflare Workers、Netlify 和 Vercel 上运行的是 `gproxy-lite`：一个单租户引擎，只有一把访问密钥，不带数据库，使用同样的渠道和协议转换。模板在 `deploy/lite`，详见 [Cloudflare Workers、Netlify 与 Vercel](https://gproxy.leenhawk.com/zh-cn/deployment/lite)。
 
 ## 从 v3 升级
 
-停止 v3，备份数据库、主密钥和启动配置，然后用同样的配置启动 v4。SQLite、PostgreSQL、MySQL 和 D1 数据库会在首次启动时自动迁移，账户、密码、API Key 和历史用量都会保留，无法映射的配置会列在迁移报告里。不要让 v3 和 v4 同时连接同一个数据库。详见[从 v3 迁移到 v4](https://gproxy.leenhawk.com/zh-cn/deployment/v3-to-v4)。
+停止 v3，备份数据库、主密钥和启动配置，然后用同样的配置启动 v4。SQLite、PostgreSQL 和 MySQL 数据库会在首次启动时自动迁移，账户、密码、API Key 和历史用量都会保留，无法映射的配置会列在迁移报告里。不要让 v3 和 v4 同时连接同一个数据库。详见[从 v3 迁移到 v4](https://gproxy.leenhawk.com/zh-cn/deployment/v3-to-v4)。
 
 ## 性能
 
@@ -170,7 +168,7 @@ pnpm --dir console build
 cargo run -p gproxy -- serve
 ```
 
-Headless 版本、桌面应用、Workers 包的构建方法，以及 CI 跑的检查，见[从源码构建](https://gproxy.leenhawk.com/zh-cn/development/building)。参与开发请先读 [CONTRIBUTING.md](CONTRIBUTING.md) 和[架构](https://gproxy.leenhawk.com/zh-cn/development/architecture)；要接入新的上游，见[添加渠道](https://gproxy.leenhawk.com/zh-cn/development/adding-a-channel)。
+Headless 版本和桌面应用的构建方法，以及 CI 跑的检查，见[从源码构建](https://gproxy.leenhawk.com/zh-cn/development/building)。参与开发请先读 [CONTRIBUTING.md](CONTRIBUTING.md) 和[架构](https://gproxy.leenhawk.com/zh-cn/development/architecture)；要接入新的上游，见[添加渠道](https://gproxy.leenhawk.com/zh-cn/development/adding-a-channel)。
 
 ## 反馈问题
 

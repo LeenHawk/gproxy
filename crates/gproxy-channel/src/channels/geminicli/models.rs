@@ -6,9 +6,10 @@
 //! Only the `REQUESTS` buckets name callable models.
 
 use super::GeminiCli;
-use crate::channel::{BaseChannel, ChannelError, OperationContext, PrepareContext};
+use crate::channel::{BaseChannel, OperationContext, PrepareContext};
 use crate::channels::shared::code_assist;
 use gproxy_protocol::{HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::UpstreamError;
 use http::{StatusCode, header};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -16,7 +17,7 @@ use std::collections::BTreeSet;
 /// The generation methods every Code Assist model serves.
 const METHODS: [&str; 3] = ["countTokens", "generateContent", "streamGenerateContent"];
 
-pub(super) fn catalog(body: &[u8]) -> Result<Vec<Value>, ChannelError> {
+pub(super) fn catalog(body: &[u8]) -> Result<Vec<Value>, UpstreamError> {
     let payload: Value = serde_json::from_slice(body).map_err(|error| {
         code_assist::invalid_response(format!("Code Assist quota response JSON: {error}"))
     })?;
@@ -47,16 +48,16 @@ pub(super) fn catalog(body: &[u8]) -> Result<Vec<Value>, ChannelError> {
 }
 
 /// The model id a `GET /v1beta/models/{id}` path names.
-fn requested(path: &str) -> Result<String, ChannelError> {
+fn requested(path: &str) -> Result<String, UpstreamError> {
     code_assist::request_model(path, None)
-        .ok_or_else(|| ChannelError::InvalidConfig("model id missing from request path".into()))
+        .ok_or_else(|| UpstreamError::InvalidConfig("model id missing from request path".into()))
 }
 
 pub(super) async fn invoke(
     channel: &GeminiCli,
     operation: Operation,
     ctx: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let wanted = match operation {
         Operation::GetModel => Some(requested(&ctx.request.path)?),
         _ => None,

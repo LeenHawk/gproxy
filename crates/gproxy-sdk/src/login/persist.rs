@@ -12,12 +12,12 @@
 
 use std::collections::HashSet;
 
-use gproxy_channel::{BaseChannel, channel::AcquiredCredential};
 use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
 use gproxy_store::entity::upstream::{
     credential::{self, CredentialStatus},
     provider,
 };
+use gproxy_upstream::AcquiredCredential;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::Value;
 
@@ -35,7 +35,7 @@ pub(crate) const OAUTH: &str = "oauth";
 pub(crate) async fn credential<C>(
     writer: Writer<'_, C>,
     provider: &provider::Model,
-    channel: &dyn BaseChannel,
+    display_name: &str,
     auth_kind: &str,
     label: Option<String>,
     owner: CredentialOwner,
@@ -61,7 +61,7 @@ where
     let id = crate::ids::random_id();
     let label = match trimmed(label) {
         Some(label) => Some(label),
-        None => Some(default_label(writer, provider, channel, &metadata).await?),
+        None => Some(default_label(writer, provider, display_name, &metadata).await?),
     };
     let row = credential::ActiveModel {
         id: Set(id.clone()),
@@ -95,7 +95,7 @@ where
     Ok(id)
 }
 
-/// A name for a credential nobody named: the channel's display name, plus the
+/// A name for a credential nobody named: `display_name`, plus the
 /// account the upstream identified if it identified one, made unique among the
 /// provider's existing labels.
 ///
@@ -105,13 +105,12 @@ where
 async fn default_label<C>(
     writer: Writer<'_, C>,
     provider: &provider::Model,
-    channel: &dyn BaseChannel,
+    display_name: &str,
     metadata: &Value,
 ) -> SdkResult<String>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let display_name = channel.descriptor().display_name;
     let base = match account(metadata) {
         Some(account) => format!("{display_name} {account}"),
         None => display_name.to_owned(),

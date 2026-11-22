@@ -1,11 +1,11 @@
 use super::{invalid, tools};
-use crate::channel::ChannelError;
 use gproxy_protocol::{connection::Bytes, wire::openai::responses::*};
+use gproxy_upstream::UpstreamError;
 
 pub(super) fn request(
     body: &Bytes,
     headers: &http::HeaderMap,
-) -> Result<(Bytes, tools::Aliases), ChannelError> {
+) -> Result<(Bytes, tools::Aliases), UpstreamError> {
     let mut request: GenerateContentRequestBody = serde_json::from_slice(body).map_err(invalid)?;
     request.stream = Some(Some(true));
     request.store = Some(Some(false));
@@ -55,7 +55,10 @@ pub(super) fn request(
             phase: None,
             rest: Default::default(),
         });
-        match request.input.get_or_insert_with(|| Input::Items(Vec::new())) {
+        match request
+            .input
+            .get_or_insert_with(|| Input::Items(Vec::new()))
+        {
             Input::Items(items) => items.insert(0, message),
             Input::Text(_) => unreachable!("text input became a user message above"),
         }

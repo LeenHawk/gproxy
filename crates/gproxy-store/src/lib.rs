@@ -22,11 +22,9 @@ mod control;
 pub use control::{AllData, ControlData, IdentityData, RoutingData};
 mod revision;
 pub use revision::Commit;
-mod cache;
 pub mod capture;
 pub mod migration;
 pub mod operations;
-pub use cache::StoreCache;
 pub use gproxy_seaorm::sea_orm_migration::MigrationStatus;
 pub use migration::{MIGRATION_LEDGER, Migrator, SchemaReport, SchemaState};
 
@@ -59,6 +57,8 @@ fn register_entities<R: gproxy_seaorm::EntityRegistry>(registry: R) -> R {
         .register(entity::identity::api_key::Entity)
         .register(entity::identity::user_session::Entity)
         .register(entity::identity::permission::Entity)
+        .register(entity::identity::mcp_scope::Entity)
+        .register(entity::upstream::mcp_tool_nature::Entity)
         .register(entity::identity::audit_event::Entity)
         .register(entity::oauth::client::Entity)
         .register(entity::oauth::grant::Entity)
@@ -92,7 +92,4 @@ fn register_entities<R: gproxy_seaorm::EntityRegistry>(registry: R) -> R {
         .register(entity::resource::protocol_state::Entity)
         .register(entity::config::setting::Entity)
         .register(entity::limits::counted_window::Entity)
-        .register(entity::cache::cache_entry::Entity)
-        .register(entity::cache::cache_counter::Entity)
-        .register(entity::cache::cache_permit::Entity)
 }

@@ -3,7 +3,7 @@
 [English](README.md) | 简体中文
 
 GPROXY v4 的 SeaORM 2 实体、类型化批量仓储和原子持久化操作。原生 SeaORM 连接与
-Cloudflare D1 使用相同 Store API；构造 Store 不打开数据库，也不自动修改 schema。
+libSQL 使用相同 Store API；构造 Store 不打开数据库，也不自动修改 schema。
 
 ## Store 接口
 
@@ -34,7 +34,7 @@ let control_data = store.load_control_data().await?;
 | `settings().get/update` | 读取或 upsert 第 1 行；只修改显式 `Set` 字段 |
 | `load_control_data` | 一致的配置表快照，返回实体行，不解密 secret 或编译运行时对象 |
 
-每个方法通过 gproxy-seaorm 执行一次原子 batch。`get_many` 按 D1 每语句 100 个参数的
+每个方法通过 gproxy-seaorm 执行一次原子 batch。`get_many` 按连接的绑定参数
 上限拆分主键条件，仍在同一 batch 内；不自动拆分任意调用方 SQL，数据库请求／大小限制
 仍然适用。空批次不做 I/O。`query` 必须选出模型解码所需字段；自定义投影和多实体结果
 直接使用 gproxy-seaorm 的 batch API。一对多查询应先分页父表，再加载子项。
@@ -61,13 +61,13 @@ let report = store.sync().await?;
 空库按实体注册表创建，并记录 `seaql_migrations` 账本。已有托管数据库通过 SeaORM
 执行 `gproxy_store::Migrator` 中尚未应用的迁移。有表却没有账本，或账本含有当前
 构建不认识的迁移时，在执行 DDL 前拒绝。`Store::sync()` 完成这些检查与迁移后，
-对已有数据库同步当前实体结构：原生使用 SeaORM 2 `SchemaBuilder::sync`，D1／libSQL
+对已有数据库同步当前实体结构：原生使用 SeaORM 2 `SchemaBuilder::sync`，libSQL
 使用 SQLite 结构检查与原子批量 DDL 适配。补充带默认值的新列或缺失表不需要单独迁移；
 已有列类型变更和数据转换仍需显式迁移。
 
 由单写者在接收请求前执行。构造 Store 不做 I/O，迁移也不创建设置行或管理员。
-原生连接与 D1 可以驱动迁移；libSQL 连接支持创建空库、读取已处于当前版本的库，
-有待执行迁移时需要通过原生连接完成。D1 使用 batch/proxy 适配，不使用交互式事务。
+原生连接可以驱动迁移；libSQL 连接支持创建空库、读取已处于当前版本的库，
+有待执行迁移时需要通过原生连接完成。
 
 新增迁移放在 `src/migration/mYYYYMMDD_NNNNNN_description.rs`，并追加到
 `Migrator::migrations()`。baseline 读取当前实体注册表，因此后续迁移要能处理
@@ -86,7 +86,7 @@ let report = store.sync().await?;
 具体币种和单位仍由实体字段表达。
 
 SQL 列为 BIGINT；实体通过 `save_as = "decimal(20,0)"` 和 `select_as = "char(32)"`
-将整数原子值以文本跨越 D1 的 JavaScript 边界。数据库比较、排序和加法仍是数值运算。
+将整数原子值以文本通过 JSON 行传输。数据库比较、排序和加法仍是数值运算。
 手写 SQL 或 `col_expr` 写入 FixedDecimal 时必须调用该列的 `save_as` 转换。
 结算操作在递增计数前检查非负金额和有符号整数溢出。
 
@@ -99,13 +99,11 @@ SQL 列为 BIGINT；实体通过 `save_as = "decimal(20,0)"` 和 `select_as = "c
 ```sh
 cargo test -p gproxy-store -p gproxy-seaorm
 cargo clippy -p gproxy-store -p gproxy-seaorm --all-targets -- -D warnings
-cargo clippy -p gproxy-store -p gproxy-seaorm --target wasm32-unknown-unknown --all-targets -- -D warnings
 ```
 
 永久测试覆盖原生 SQLite CRUD／约束、回滚、精确金额、状态过期、OAuth 消费与版本保护的
-agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压力验证。实际 WASM Store
-场景也通过了 Miniflare 本地 D1，详见[适配器验证记录](../gproxy-seaorm/VALIDATION.md)。
-本次新 Store 操作没有执行真实 PostgreSQL／MySQL 或生产 Cloudflare 验证。
+agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压力验证。
+本次新 Store 操作没有执行真实 PostgreSQL／MySQL 验证。
 
 从 [`src/entity/mod.rs`](src/entity/mod.rs) 开始审阅，按业务分目录、一张表一个文件：
 
@@ -162,7 +160,7 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
   QuotaWindow，与可以清理的 UsageRecord 独立。
 - 文件内容留在 file/S3，文件实体只保存位置和元数据；模型自定义词表引用 FileObject。
 - 金额／数量使用 9 位小数的 `FixedDecimal`，数据库保存有符号 BIGINT 原子值。
-  D1 通过字符串和显式转换传输，不经过浮点数。
+  libSQL 通过字符串和显式转换传输，不经过浮点数。
 - 改写规则通过 RewriteRuleSet 复用，通过 ProviderRewriteRuleSet 按顺序绑定到供应商。
   RewriteRule 明确保存正则、替换文本、可选 JSON 点路径和筛选条件。删除规则集会级联
   删除规则及绑定；删除供应商只删除其绑定。已实现原子规则替换和有序加载；改写执行仍由 core 完成。
@@ -359,7 +357,7 @@ CRUD 配置；客户端本身仍须登记在 `oauth_clients`，启用且未软�
 通过，名单变更本身不等于永久撤销。core 应在每次请求及 WS 新轮次执行身份校验。
 
 数据库 JSON 方言实现集中在 `gproxy-seaorm::json_array_contains_text`；Store 只组合
-SeaORM 条件。D1 使用 SQLite JSON 扩展。当前开源 `sea-orm 2.0.3` 只有 SQLite、PostgreSQL、
+SeaORM 条件。libSQL 使用 SQLite JSON 扩展。当前开源 `sea-orm 2.0.3` 只有 SQLite、PostgreSQL、
 MySQL 后端，MSSQL 属于单独的 SeaORM X，项目未接入；不支持的后端明确报错。
 此次增加四个可空列，既有数据默认继承；未自动执行数据库 schema 更新。
 

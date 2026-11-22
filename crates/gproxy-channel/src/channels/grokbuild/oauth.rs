@@ -14,15 +14,15 @@
 use super::config::{DEFAULT_CLIENT_ID, GrokBuildConfig, ID, OAUTH_SCOPE};
 use super::{form_encode, unix_now_ms};
 use crate::OutboundClient;
-use crate::channel::{
-    ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
-    LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
-};
 use crate::channels::shared::compatible::ability::send;
 use crate::channels::shared::compatible::http::invalid_response;
 use crate::channels::shared::timer::sleep;
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use gproxy_upstream::{
+    CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll, LoginContext,
+    OAuthCredential, OAuthDeviceCode, RefreshContext, UpstreamError, UpstreamFuture,
+};
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde::Deserialize;
 use serde_json::Value;
@@ -35,7 +35,7 @@ const DEFAULT_EXPIRES_IN_SECS: i64 = 3_600;
 /// The CLI's shared reqwest client: its process user agent, `.form()`'s
 /// content type and reqwest's default `Accept` (`xai-grok-http`
 /// `shared_client`). The refresh sends nothing else.
-fn form_headers() -> Result<HeaderMap, ChannelError> {
+fn form_headers() -> Result<HeaderMap, UpstreamError> {
     let mut headers = HeaderMap::new();
     headers.insert(
         header::CONTENT_TYPE,
@@ -44,7 +44,7 @@ fn form_headers() -> Result<HeaderMap, ChannelError> {
     headers.insert(
         header::USER_AGENT,
         HeaderValue::from_str(&super::auth::user_agent(false))
-            .map_err(|_| ChannelError::InvalidConfig("invalid CLI user agent".into()))?,
+            .map_err(|_| UpstreamError::InvalidConfig("invalid CLI user agent".into()))?,
     );
     Ok(headers)
 }
@@ -52,7 +52,7 @@ fn form_headers() -> Result<HeaderMap, ChannelError> {
 /// The device flow adds the client version and the surface the login is
 /// finished on (CLI `device_code.rs`). A console login renders the code to a
 /// person, which the CLI calls `ui`.
-fn device_headers() -> Result<HeaderMap, ChannelError> {
+fn device_headers() -> Result<HeaderMap, UpstreamError> {
     let mut headers = form_headers()?;
     headers.insert(
         "x-grok-client-version",
@@ -170,7 +170,7 @@ fn account_fields(
 }
 
 impl OAuthDeviceCode for super::GrokBuild {
-    fn start<'a>(&'a self, context: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
+    fn start<'a>(&'a self, context: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
             let config = GrokBuildConfig::from_view(context.provider)?;
             let (status, _, body) = send(
@@ -189,7 +189,7 @@ impl OAuthDeviceCode for super::GrokBuild {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let reply: DeviceCodeReply = serde_json::from_slice(&body)
                 .map_err(|error| invalid_response(format!("{ID} device code: {error}")))?;
@@ -219,7 +219,7 @@ impl OAuthDeviceCode for super::GrokBuild {
         &'a self,
         context: LoginContext<'a>,
         authorization: &'a DeviceAuthorization,
-    ) -> OperationFuture<'a, DevicePoll> {
+    ) -> UpstreamFuture<'a, DevicePoll> {
         Box::pin(async move {
             let config = GrokBuildConfig::from_view(context.provider)?;
             let (status, _, body) = send(
@@ -240,7 +240,7 @@ impl OAuthDeviceCode for super::GrokBuild {
             // A pending authorization is an error status with an OAuth code
             // in the body, so the body is read before the status is judged.
             let Ok(reply) = serde_json::from_slice::<TokenReply>(&body) else {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             };
             if let Some(access) = reply.access() {
                 let mut fields = BTreeMap::new();
@@ -268,7 +268,7 @@ impl OAuthDeviceCode for super::GrokBuild {
                 }),
                 Some("access_denied") => Ok(DevicePoll::Denied),
                 Some("expired_token") => Ok(DevicePoll::Expired),
-                _ => Err(ChannelError::UpstreamResponse { status, body }),
+                _ => Err(UpstreamError::UpstreamResponse { status, body }),
             }
         })
     }
@@ -286,7 +286,7 @@ async fn refresh_once(
     client: &dyn OutboundClient,
     url: &str,
     form: &str,
-) -> Result<TokenReply, ChannelError> {
+) -> Result<TokenReply, UpstreamError> {
     let (status, _, body) = send(
         client,
         Method::POST,
@@ -304,9 +304,9 @@ async fn refresh_once(
     // retried there, never a dead credential.
     match reply.as_ref().and_then(|reply| reply.error.as_deref()) {
         Some(code @ ("invalid_grant" | "invalid_client")) => {
-            Err(ChannelError::RefreshRejected(code.to_owned()))
+            Err(UpstreamError::RefreshRejected(code.to_owned()))
         }
-        _ => Err(ChannelError::UpstreamResponse { status, body }),
+        _ => Err(UpstreamError::UpstreamResponse { status, body }),
     }
 }
 
@@ -316,12 +316,12 @@ async fn refresh_with_retries(
     client: &dyn OutboundClient,
     url: &str,
     form: String,
-) -> Result<TokenReply, ChannelError> {
+) -> Result<TokenReply, UpstreamError> {
     let mut attempt = 0;
     loop {
         let error = match refresh_once(client, url, &form).await {
             Ok(reply) => return Ok(reply),
-            Err(error @ (ChannelError::Transport(_) | ChannelError::UpstreamResponse { .. })) => {
+            Err(error @ (UpstreamError::Transport(_) | UpstreamError::UpstreamResponse { .. })) => {
                 error
             }
             Err(error) => return Err(error),
@@ -343,7 +343,7 @@ async fn refresh_with_retries(
 }
 
 impl CredentialRefresh for super::GrokBuild {
-    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let config = GrokBuildConfig::from_view(context.provider)?;
             let secret = context.credential.secret;
@@ -353,7 +353,7 @@ impl CredentialRefresh for super::GrokBuild {
                 .map(str::trim)
                 .filter(|token| !token.is_empty())
                 .ok_or_else(|| {
-                    ChannelError::RefreshRejected("credential has no refresh token".into())
+                    UpstreamError::RefreshRejected("credential has no refresh token".into())
                 })?;
             // A credential minted against a different issuer keeps renewing
             // against that one.
@@ -380,7 +380,7 @@ impl CredentialRefresh for super::GrokBuild {
             let mut updated = secret.clone();
             let object = updated
                 .as_object_mut()
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             object.insert("access_token".into(), Value::String(access.to_owned()));
             if let Some(token) = reply
                 .refresh_token

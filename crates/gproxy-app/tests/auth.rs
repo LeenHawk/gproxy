@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! Authentication against a real database: the digest ladder, the refusals,
 //! the OAuth access path and console sessions.
 

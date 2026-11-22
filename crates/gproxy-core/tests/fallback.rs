@@ -1,9 +1,8 @@
-#![cfg(not(target_arch = "wasm32"))]
 mod support;
 use futures_util::StreamExt;
 use gproxy_channel::{
-    BaseChannel, ChannelError, OutboundClient,
-    channel::{ClaudeFallback, PrepareContext, ProviderView},
+    BaseChannel, OutboundClient,
+    channel::{ClaudeFallback, PrepareContext},
     channels::azure::Azure,
 };
 use gproxy_core::{ProviderData, RequestContext};
@@ -12,6 +11,7 @@ use gproxy_protocol::{
     capability::{CapabilityError, CapabilityFuture},
     connection::Bytes,
 };
+use gproxy_upstream::{ProviderView, UpstreamError, UpstreamKind};
 use http::{HeaderMap, Method, StatusCode};
 use serde_json::{Value, json};
 use std::{
@@ -50,10 +50,13 @@ impl OutboundClient for Client {
     }
 }
 struct ClaudeOnly;
-impl BaseChannel for ClaudeOnly {
+impl UpstreamKind for ClaudeOnly {
     fn id(&self) -> &'static str {
         "claude-only"
     }
+}
+
+impl BaseChannel for ClaudeOnly {
     fn native_dialects(&self, _: ProviderView<'_>, op: Operation) -> Vec<Dialect> {
         if matches!(
             op,
@@ -64,7 +67,7 @@ impl BaseChannel for ClaudeOnly {
             vec![]
         }
     }
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         Azure.prepare(ctx)
     }
     fn claude_fallback(&self) -> Option<ClaudeFallback> {
@@ -103,7 +106,7 @@ fn context_for_channel(
     ctx.target.provider = Arc::new(ProviderData {
         effective_config: entity.config.clone(),
         entity: Arc::new(entity),
-        channel,
+        kind: gproxy_core::ProviderKind::Channel(channel),
         credential_ids: old.credential_ids.clone(),
         models: old.models.clone(),
         operation_rules: vec![],

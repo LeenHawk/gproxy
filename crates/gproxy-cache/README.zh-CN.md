@@ -7,7 +7,7 @@
 
 | Feature | 后端 |
 |---|---|
-| `memory`（默认） | 进程内共享状态，支持原生与 WASM |
+| `memory`（默认） | 进程内共享状态 |
 | `redis` | 原生异步 Redis／Valkey，TCP/TLS，独立订阅连接 |
 | 不启用 feature | 仅公共契约，可自行实现 `Cache` |
 
@@ -71,8 +71,7 @@ Redis Lua 使用十进制字符串比较及 HGET 返回最终值，超过 `2^53`
 已就绪，调用方再从数据库一致地加载配置和版本。之后 `publish` 发送上层定义的通知。
 慢消费者超过有界投递队列容量时会再次收到 `ResyncRequired`。Redis 断线明确关闭订阅，
 上层需要重新订阅并重新加载；丢弃订阅会中止读取任务，`recv` 支持取消后重试。
-Memory 通知只在同一个 cache 的 clone 间共享，独立实例／进程不互通；WASM Memory
-仅当前 isolate 有效。
+Memory 通知只在同一个 cache 的 clone 间共享，独立实例／进程不互通。
 
 不提供事件重放、确认、恰好一次交付，也不保证数据库提交与 publish 原子。没有订阅者时
 publish 仍成功。提交后、发布前进程可能退出，所以消费者仍须定期检查数据库中的配置
@@ -97,7 +96,6 @@ Memory 操作不要求 Tokio runtime，只有通知等待复用 Tokio sync，由
 ```sh
 cargo test -p gproxy-cache
 cargo clippy -p gproxy-cache --all-features --all-targets -- -D warnings
-cargo clippy -p gproxy-cache --target wasm32-unknown-unknown --all-features --all-targets -- -D warnings
 GPROXY_CACHE_REDIS_URL=redis://127.0.0.1:6379 cargo test -p gproxy-cache --all-features -- --include-ignored
 ```
 

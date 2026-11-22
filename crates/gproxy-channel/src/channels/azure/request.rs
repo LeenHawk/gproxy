@@ -5,29 +5,25 @@
 use super::config::AzureConfig;
 use super::{Azure, ID, endpoint};
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, HeaderAllowlist,
+    PrepareContext, forwardable,
 };
 use crate::channels::shared::{cache, claude_images};
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 use http::{HeaderName, HeaderValue};
 
 /// Azure's Anthropic surface expects the same version header as Anthropic's.
 const DEFAULT_ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 
-impl BaseChannel for Azure {
-    fn claude_fallback(&self) -> Option<crate::channel::ClaudeFallback> {
-        Some(crate::channel::ClaudeFallback {
-            credit: true,
-            recommended_model: "claude-opus-4-8",
-        })
-    }
-
+impl UpstreamKind for Azure {
     fn id(&self) -> &'static str {
         ID
     }
 
-    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), ChannelError> {
+    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), UpstreamError> {
         if secret
             .get("api_key")
             .and_then(serde_json::Value::as_str)
@@ -35,10 +31,19 @@ impl BaseChannel for Azure {
         {
             Ok(())
         } else {
-            Err(ChannelError::InvalidConfig(
+            Err(UpstreamError::InvalidConfig(
                 "credential requires a nonempty `api_key`".into(),
             ))
         }
+    }
+}
+
+impl BaseChannel for Azure {
+    fn claude_fallback(&self) -> Option<crate::channel::ClaudeFallback> {
+        Some(crate::channel::ClaudeFallback {
+            credit: true,
+            recommended_model: "claude-opus-4-8",
+        })
     }
 
     fn descriptor(&self) -> ChannelDescriptor {
@@ -133,7 +138,7 @@ impl BaseChannel for Azure {
     /// Azure accepts the same request shapes as the vendors it hosts. A
     /// buffered body only loses the magic cache strings, placed as
     /// breakpoints when the provider asks.
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = AzureConfig::from_view(ctx.provider)?;
         let key = api_key(&ctx)?;
         let uri = endpoint::method_url(
@@ -153,7 +158,7 @@ impl BaseChannel for Azure {
             WireFamily::Claude => {
                 headers.insert(
                     HeaderName::from_static("x-api-key"),
-                    HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
+                    HeaderValue::from_str(key).map_err(|_| UpstreamError::InvalidCredential)?,
                 );
                 headers.insert(
                     HeaderName::from_static("anthropic-version"),
@@ -164,7 +169,7 @@ impl BaseChannel for Azure {
             _ => {
                 headers.insert(
                     HeaderName::from_static("api-key"),
-                    HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
+                    HeaderValue::from_str(key).map_err(|_| UpstreamError::InvalidCredential)?,
                 );
             }
         }
@@ -198,16 +203,16 @@ impl BaseChannel for Azure {
         };
         builder
             .body(body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 
-fn api_key<'a>(ctx: &PrepareContext<'a>) -> Result<&'a str, ChannelError> {
+fn api_key<'a>(ctx: &PrepareContext<'a>) -> Result<&'a str, UpstreamError> {
     ctx.credential
         .secret
         .get("api_key")
         .and_then(serde_json::Value::as_str)
         .map(str::trim)
         .filter(|key| !key.is_empty())
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }

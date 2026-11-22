@@ -1,6 +1,6 @@
 //! Provider `config` JSON for Grok Build. Unknown keys are ignored.
 
-use crate::channel::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -48,12 +48,10 @@ impl Default for GrokBuildConfig {
 }
 
 impl GrokBuildConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
-
-
 
     pub(super) fn device_code_url(&self) -> &str {
         non_empty(&self.oauth_device_code_url).unwrap_or(DEFAULT_DEVICE_CODE_URL)

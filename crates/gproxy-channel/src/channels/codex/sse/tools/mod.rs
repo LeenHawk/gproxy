@@ -2,11 +2,9 @@ mod patch;
 mod shell;
 
 use super::event::invalid;
-use crate::{
-    channel::ChannelError,
-    channels::codex::shape::tools::{Aliases, NativeTool},
-};
+use crate::channels::codex::shape::tools::{Aliases, NativeTool};
 use gproxy_protocol::wire::openai::responses::{ApplyPatchCall, LocalShellCall, ShellCall};
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 
 pub(super) fn kind(aliases: &Aliases, item: &Value) -> Option<NativeTool> {
@@ -18,7 +16,7 @@ pub(super) fn kind(aliases: &Aliases, item: &Value) -> Option<NativeTool> {
     }
 }
 
-pub(super) fn restore(aliases: &Aliases, mut item: Value) -> Result<Value, ChannelError> {
+pub(super) fn restore(aliases: &Aliases, mut item: Value) -> Result<Value, UpstreamError> {
     if let Some(id) = item.get("id").and_then(Value::as_str)
         && let Some(original) = aliases.ids.get(id)
     {

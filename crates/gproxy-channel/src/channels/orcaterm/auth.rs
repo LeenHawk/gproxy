@@ -3,16 +3,14 @@ use super::{
     config::{OrcaTermConfig, invalid, new_id, now_ms},
     request,
 };
+use crate::OutboundClient;
 use crate::channels::shared::compatible::http::read_body;
-use crate::{
-    OutboundClient,
-    channel::{
-        ChannelError, CredentialRefresh, CredentialUpdate, CredentialView, OAuthCredential,
-        OperationFuture, RefreshContext, RefreshReason,
-    },
-};
 use base64::Engine as _;
 use gproxy_protocol::HttpBody;
+use gproxy_upstream::{
+    CredentialRefresh, CredentialUpdate, CredentialView, OAuthCredential, RefreshContext,
+    RefreshReason, UpstreamError, UpstreamFuture,
+};
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -29,13 +27,13 @@ fn cookie_value<'a>(cookie: &'a str, key: &str) -> Option<&'a str> {
         .find_map(|(name, value)| (name == key && !value.trim().is_empty()).then_some(value.trim()))
 }
 
-pub(super) fn token(secret: &Value) -> Result<&str, ChannelError> {
+pub(super) fn token(secret: &Value) -> Result<&str, UpstreamError> {
     secret
         .get("access_token")
         .and_then(Value::as_str)
         .filter(|s| !s.trim().is_empty())
         .or_else(|| cookie_value(secret.get("cookie")?.as_str()?, "ot_session"))
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }
 
 fn skey(secret: &Value) -> Option<&str> {
@@ -66,28 +64,28 @@ pub(super) fn csrf(secret: &Value) -> String {
 }
 
 /// This credential's session and optional CSRF cookie, never the caller's.
-fn cookie(secret: &Value) -> Result<HeaderValue, ChannelError> {
+fn cookie(secret: &Value) -> Result<HeaderValue, UpstreamError> {
     let token = token(secret)?;
     if token.contains([';', '\r', '\n']) {
-        return Err(ChannelError::InvalidCredential);
+        return Err(UpstreamError::InvalidCredential);
     }
     let mut cookie = format!("ot_session={token}");
     if let Some(skey) = skey(secret) {
         if skey.contains([';', '\r', '\n']) {
-            return Err(ChannelError::InvalidCredential);
+            return Err(UpstreamError::InvalidCredential);
         }
         cookie.push_str(&format!("; skey={skey}"));
     }
-    HeaderValue::from_str(&cookie).map_err(|_| ChannelError::InvalidCredential)
+    HeaderValue::from_str(&cookie).map_err(|_| UpstreamError::InvalidCredential)
 }
 
-pub(super) fn headers(secret: &Value) -> Result<HeaderMap, ChannelError> {
+pub(super) fn headers(secret: &Value) -> Result<HeaderMap, UpstreamError> {
     let token = token(secret)?;
     let mut headers = HeaderMap::new();
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {token}"))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     headers.insert(header::COOKIE, cookie(secret)?);
     headers.insert("x-product", HeaderValue::from_static("orcaterm"));
@@ -104,7 +102,7 @@ pub(super) async fn rpc(
     secret: &Value,
     action: &str,
     data: Value,
-) -> Result<Value, ChannelError> {
+) -> Result<Value, UpstreamError> {
     let response = rpc_response(client, config, Some(secret), action, data).await?;
     check_response(action, &response)?;
     Ok(response)
@@ -119,10 +117,10 @@ pub(super) async fn rpc_response(
     secret: Option<&Value>,
     action: &str,
     data: Value,
-) -> Result<Value, ChannelError> {
+) -> Result<Value, UpstreamError> {
     let site = config.site_url();
     let mut url = url::Url::parse(&format!("{site}/cgi/api"))
-        .map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+        .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
     url.query_pairs_mut().append_pair("action", action);
     // The desktop's account RPCs carry the verified account identifiers in
     // the query as well as the session cookie (app.js, otApiRequest).
@@ -166,7 +164,7 @@ pub(super) async fn rpc_response(
         .body(HttpBody::Bytes(
             json!({"action":action,"data":data}).to_string().into(),
         ))
-        .map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+        .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
     *req.headers_mut() = headers;
     let response = client.send(req).await?;
     let status = response.status;
@@ -174,7 +172,7 @@ pub(super) async fn rpc_response(
     // A 5xx or transport failure must not retire the account, even if the
     // response body happens to mention an expired token.
     if !status.is_success() {
-        return Err(ChannelError::UpstreamResponse {
+        return Err(UpstreamError::UpstreamResponse {
             status,
             body: bytes,
         });
@@ -186,7 +184,7 @@ pub(super) async fn rpc_response(
     Ok(response.clone())
 }
 
-pub(super) fn check_response(action: &str, response: &Value) -> Result<(), ChannelError> {
+pub(super) fn check_response(action: &str, response: &Value) -> Result<(), UpstreamError> {
     if let Some(error) = response.get("Error") {
         let code = error["Code"].as_str().unwrap_or("unknown");
         // TokenManager re-logs in on these (features.js:88375); the RPC layer
@@ -200,7 +198,7 @@ pub(super) fn check_response(action: &str, response: &Value) -> Result<(), Chann
                     | "PROVIDER_AUTH_EXPIRED"
             )
         {
-            return Err(ChannelError::RefreshRejected(format!("OrcaTerm {code}")));
+            return Err(UpstreamError::RefreshRejected(format!("OrcaTerm {code}")));
         }
         return Err(invalid(format!("{action} failed: {code}")));
     }
@@ -211,7 +209,7 @@ pub(super) async fn identity(
     client: &dyn OutboundClient,
     config: &OrcaTermConfig,
     secret: &Value,
-) -> Result<BTreeMap<String, Value>, ChannelError> {
+) -> Result<BTreeMap<String, Value>, UpstreamError> {
     let user = rpc(client, config, secret, "GetUserInfo", json!({})).await?;
     let mut fields = BTreeMap::new();
     for (source, target) in [
@@ -240,7 +238,7 @@ async fn renew(
     config: &OrcaTermConfig,
     secret: &Value,
     fields: BTreeMap<String, Value>,
-) -> Result<OAuthCredential, ChannelError> {
+) -> Result<OAuthCredential, UpstreamError> {
     let response = rpc(
         client,
         config,
@@ -264,7 +262,7 @@ async fn renew(
     Ok(credential)
 }
 
-pub(super) fn tokens(response: &Value) -> Result<OAuthCredential, ChannelError> {
+pub(super) fn tokens(response: &Value) -> Result<OAuthCredential, UpstreamError> {
     let access_token = response["AccessToken"]
         .as_str()
         .filter(|s| !s.is_empty())
@@ -369,7 +367,7 @@ impl CredentialRefresh for OrcaTerm {
         token(credential.secret).is_ok()
     }
 
-    fn refresh<'a>(&'a self, ctx: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, ctx: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let config = OrcaTermConfig::from_view(ctx.provider)?;
             let mut fields: BTreeMap<String, Value> = ctx

@@ -1,11 +1,6 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 use gproxy_channel::{
     BaseChannel,
-    channel::{
-        CredentialView, ProviderView, QuotaDimension, QuotaMetric, QuotaModel, QuotaScope,
-        QuotaTracking, QuotaWindow,
-    },
+    channel::{QuotaDimension, QuotaMetric, QuotaModel, QuotaScope, QuotaTracking, QuotaWindow},
 };
 use gproxy_core::{
     CapturePolicy, CaptureSink, ConfigRevision, Core, CredentialStatus, CredentialStrategy,
@@ -25,6 +20,7 @@ use gproxy_store::{
     },
     operations::credentials::CredentialRefresh,
 };
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamKind};
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbBackend, Set};
 use serde_json::json;
 use std::sync::Arc;
@@ -48,10 +44,13 @@ impl Observer for ObserveNothing {
 }
 
 struct TestChannel;
-impl BaseChannel for TestChannel {
+impl UpstreamKind for TestChannel {
     fn id(&self) -> &'static str {
         "test"
     }
+}
+
+impl BaseChannel for TestChannel {
     fn quota_model(&self) -> Option<&dyn QuotaModel> {
         Some(self)
     }
@@ -79,10 +78,11 @@ impl QuotaModel for TestChannel {
 
 /// A channel that ships its own client identity, like claudecode and codex.
 struct FingerprintedChannel;
-impl BaseChannel for FingerprintedChannel {
+impl UpstreamKind for FingerprintedChannel {
     fn id(&self) -> &'static str {
         "fingerprinted"
     }
+
     fn default_connection(&self) -> Option<gproxy_client::ConnectionConfig> {
         Some(gproxy_client::ConnectionConfig {
             connect_timeout_ms: 4_321,
@@ -90,6 +90,8 @@ impl BaseChannel for FingerprintedChannel {
         })
     }
 }
+
+impl BaseChannel for FingerprintedChannel {}
 
 async fn database() -> Store<DatabaseConnection> {
     let mut options = ConnectOptions::new("sqlite::memory:");
@@ -415,7 +417,7 @@ async fn load_assembles_providers_credentials_rules_endpoints_and_warms_blocks()
     assert_eq!(data.limits.max_response_body_bytes, 1024);
     assert_eq!(data.providers.len(), 1);
     let p1 = &data.providers["p1"];
-    assert_eq!(p1.channel.id(), "test");
+    assert_eq!(p1.upstream().id(), "test");
     assert_eq!(p1.credential_strategy, CredentialStrategy::Sticky);
     assert_eq!(p1.credential_ids, ["c1", "c2"]);
     assert_eq!(

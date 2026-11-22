@@ -11,10 +11,11 @@ use super::{
     request,
 };
 use crate::channel::{
-    ChannelError, CredentialContext, OperationFuture, QuotaAllowance, QuotaBalance, QuotaEntry,
-    QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaValue,
+    QuotaAllowance, QuotaBalance, QuotaEntry, QuotaQuery, QuotaResetBehavior, QuotaScope,
+    QuotaSnapshot, QuotaSubject, QuotaValue,
 };
 use crate::channels::shared::compatible::ability::{decimal, require_success, send};
+use gproxy_upstream::{CredentialContext, UpstreamError, UpstreamFuture};
 use http::Method;
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -75,11 +76,11 @@ fn entries(
     subscription: &Value,
     summary: &Value,
     subject: QuotaSubject,
-) -> Result<Vec<QuotaEntry>, ChannelError> {
+) -> Result<Vec<QuotaEntry>, UpstreamError> {
     let credits = payload
         .get("credits")
         .filter(|v| v.is_object())
-        .ok_or_else(|| ChannelError::InvalidResponse("Command Code: missing credits".into()))?;
+        .ok_or_else(|| UpstreamError::InvalidResponse("Command Code: missing credits".into()))?;
     let mut entries = Vec::new();
     for (field, label) in [
         ("monthlyCredits", "Monthly credits"),
@@ -295,11 +296,11 @@ fn endpoint(path: &str, org: Option<&str>, since: Option<&str>) -> String {
 }
 
 impl QuotaQuery for CommandCode {
-    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let base = base_url(ctx.provider);
             let key = api_key(ctx.credential.secret)?;
-            let get = async |path: &str| -> Result<Value, ChannelError> {
+            let get = async |path: &str| -> Result<Value, UpstreamError> {
                 let (status, _, body) = send(
                     ctx.client,
                     Method::GET,
@@ -309,7 +310,7 @@ impl QuotaQuery for CommandCode {
                 )
                 .await?;
                 serde_json::from_slice(&require_success(status, body)?)
-                    .map_err(|e| ChannelError::InvalidResponse(e.to_string()))
+                    .map_err(|e| UpstreamError::InvalidResponse(e.to_string()))
             };
             let whoami = get("/alpha/whoami?limits=1").await?;
             let org = whoami.pointer("/org/id").and_then(Value::as_str);
@@ -321,14 +322,14 @@ impl QuotaQuery for CommandCode {
                 .get("data")
                 .filter(|v| v.is_null() || v.is_object())
                 .ok_or_else(|| {
-                    ChannelError::InvalidResponse(
+                    UpstreamError::InvalidResponse(
                         "Command Code: invalid subscription response".into(),
                     )
                 })?;
             let since = subscription["currentPeriodStart"].as_str();
             let summary = get(&endpoint("/alpha/usage/summary", org, since)).await?;
             if !summary.is_object() {
-                return Err(ChannelError::InvalidResponse(
+                return Err(UpstreamError::InvalidResponse(
                     "Command Code: invalid usage summary".into(),
                 ));
             }

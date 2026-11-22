@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 mod support;
 use support::*;
 
@@ -444,7 +442,7 @@ async fn quota_query_refreshes_unknown_expiry_on_401_and_retries_only_once() {
             });
         for _ in 0..failures {
             h.channel.quota_errors.lock().unwrap().push_back(
-                gproxy_channel::ChannelError::UpstreamResponse {
+                gproxy_upstream::UpstreamError::UpstreamResponse {
                     status,
                     body: Default::default(),
                 },
@@ -878,9 +876,10 @@ async fn readings_move_declared_cycles_and_undeclared_ones_never_open_one() {
 /// earliest reset, straight from the cycle table.
 #[tokio::test]
 async fn pool_usage_merges_the_open_cycles_of_the_target() {
-    use gproxy_channel::channel::{CallerRole, ServiceView};
+    use gproxy_channel::channel::ServiceView;
     use gproxy_core::ServiceRequest;
     use gproxy_protocol::connection::Bytes;
+    use gproxy_upstream::CallerRole;
     let h = harness(full(), "sticky").await;
     h.channel
         .expose_services

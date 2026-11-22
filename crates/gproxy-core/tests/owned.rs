@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 //! Gateway ownership of upstream files and video jobs (`gproxy_core::owned`):
 //! one upstream credential shared by several scopes must not let one scope
 //! read, delete or list what another created. Driven through passthrough to

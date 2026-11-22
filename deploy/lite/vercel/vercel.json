@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "outputDirectory": "public",
+  "functions": {
+    "api/gproxy.mjs": { "includeFiles": "lite/**", "maxDuration": 300 }
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/gproxy" }],
+  "crons": [{ "path": "/lite/renew", "schedule": "0 4 * * *" }]
+}

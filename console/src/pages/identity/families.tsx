@@ -23,6 +23,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import * as admin from "@/api/admin"
+import { mcpScopes } from "@/api/mcp"
 import { BoolCell, InstantCell, MaybeCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
 import { IdCell } from "@/components/data-table"
@@ -30,7 +31,7 @@ import { KeySecretCell } from "@/components/key-secret-cell"
 import { SecretDialog } from "@/components/secret-dialog"
 import { Button } from "@/components/ui/button"
 import type {
-  ApiKeyCreated, ApiKeyDto, OAuthClientDto, OrganizationDto, PermissionDto, RateLimitDto, TeamDto, UserDto,
+  ApiKeyCreated, ApiKeyDto, McpScopeDto, OAuthClientDto, OrganizationDto, PermissionDto, RateLimitDto, TeamDto, UserDto,
 } from "@/generated/app"
 import { CollectionPage } from "@/pages/identity/collection"
 import { UserQuotasDialog } from "@/pages/identity/user-quotas"
@@ -264,6 +265,38 @@ export function PermissionsPage() {
       ]}
       fields={fields}
       renderForm={props => <RecordDialog {...props} mode={props.original ? "edit" : "create"} title={t(props.original ? "edit.permissions" : "create.permissions")} fields={fields} error={props.error} /> }
+    />
+  )
+}
+
+// ------------------------------------------------------------ mcp scopes --
+
+export function McpScopesPage() {
+  const { t } = useTranslation()
+  const context = useConsoleContext()
+  return (
+    <CollectionPage
+      id="mcp-scopes"
+      family={mcpScopes}
+      groupByOwner={context.has("identity.users") ? "ownerUserId" : undefined}
+      subjectRequired
+      rowId={(row: McpScopeDto) => row.id}
+      rowLabel={(row) => row.scope}
+      columns={[
+        { key: "action", header: t("fields.permissionEffect"), cell: (row) => t(`values.${row.action}`) },
+        { key: "scope", header: t("mcp.scope"), cell: (row) => <IdCell value={row.scope} /> },
+        { key: "userId", cell: (row) => <MaybeCell value={row.userId} mono /> },
+        { key: "apiKeyId", cell: (row) => <MaybeCell value={row.apiKeyId} mono /> },
+        { key: "priority", cell: (row) => row.priority },
+      ]}
+      fields={[
+        // A rule names one user or one key, and keeps naming it.
+        { name: "userId", kind: "searchable", createOnly: true, emptyLabel: t("form.choose"), source: optionSource(admin.users, row => ({ value: row.id, label: `${row.name} (${row.id})` })) },
+        { name: "apiKeyId", kind: "searchable", createOnly: true, emptyLabel: t("form.choose"), source: optionSource(admin.apiKeys, row => ({ value: row.id, label: `${row.name} (${row.prefix})` })) },
+        { name: "scope", label: t("mcp.scope"), kind: "text", required: true },
+        { name: "action", label: t("fields.permissionEffect"), kind: "select", options: ACTIONS, required: true },
+        { name: "priority", kind: "number" },
+      ]}
     />
   )
 }

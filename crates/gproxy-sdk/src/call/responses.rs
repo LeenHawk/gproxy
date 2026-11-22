@@ -62,7 +62,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ResponsesHttpExecutor for 
                                 while let Some(chunk) = stream.next().await {
                                     bytes.extend_from_slice(&chunk.map_err(|e| {
                                         CoreError::Channel(
-                                            gproxy_channel::ChannelError::InvalidResponse(
+                                            gproxy_upstream::UpstreamError::InvalidResponse(
                                                 e.to_string(),
                                             ),
                                         )

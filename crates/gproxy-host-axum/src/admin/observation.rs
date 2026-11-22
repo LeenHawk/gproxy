@@ -37,37 +37,34 @@ async fn usage<C: BatchConnectionTrait + Send + Sync + 'static>(
     Extension(scope): Extension<AdminScope>,
     Query(query): Query<PortalUsageQuery>,
 ) -> Response {
-    crate::send(async move {
-        gate!("usage", scope);
-        let filter = UsageQuery {
+    gate!("usage", scope);
+    let filter = UsageQuery {
+        from_ms: query.from_ms,
+        to_ms: query.to_ms,
+        user_id: query.user_id,
+        api_key_id: query.api_key_id,
+        model: query.model,
+        operation: query.operation,
+        provider_id: query.provider_id,
+        credential_id: query.credential_id,
+        max_scan_rows: None,
+    };
+    let handle = state.app().gproxy().query();
+    let usage = handle.usage();
+    let result = async {
+        let (summary, groups, trend) = usage
+            .aggregate(filter, query.group_by, query.bucket_ms)
+            .await?;
+        Ok(gproxy_app::dto::PortalUsageDto {
             from_ms: query.from_ms,
             to_ms: query.to_ms,
-            user_id: query.user_id,
-            api_key_id: query.api_key_id,
-            model: query.model,
-            operation: query.operation,
-            provider_id: query.provider_id,
-            credential_id: query.credential_id,
-            max_scan_rows: None,
-        };
-        let handle = state.app().gproxy().query();
-        let usage = handle.usage();
-        let result = async {
-            let (summary, groups, trend) = usage
-                .aggregate(filter, query.group_by, query.bucket_ms)
-                .await?;
-            Ok(gproxy_app::dto::PortalUsageDto {
-                from_ms: query.from_ms,
-                to_ms: query.to_ms,
-                summary,
-                groups,
-                trend,
-            })
-        }
-        .await;
-        reply_sdk(result)
-    })
-    .await
+            summary,
+            groups,
+            trend,
+        })
+    }
+    .await;
+    reply_sdk(result)
 }
 
 macro_rules! history {
@@ -77,11 +74,8 @@ macro_rules! history {
             Extension(scope): Extension<AdminScope>,
             Query(query): Query<$query>,
         ) -> Response {
-            crate::send(async move {
-                gate!($section, scope);
-                reply_sdk(state.app().gproxy().query().$family().$method(query).await)
-            })
-            .await
+            gate!($section, scope);
+            reply_sdk(state.app().gproxy().query().$family().$method(query).await)
         }
     };
 }
@@ -96,11 +90,8 @@ macro_rules! log_detail {
             Extension(scope): Extension<AdminScope>,
             Path(id): Path<String>,
         ) -> Response {
-            crate::send(async move {
-                gate!("logs", scope);
-                reply_sdk(state.app().gproxy().query().logs().$method(&id).await)
-            })
-            .await
+            gate!("logs", scope);
+            reply_sdk(state.app().gproxy().query().logs().$method(&id).await)
         }
     };
 }
@@ -114,24 +105,18 @@ async fn delete_usage<C: BatchConnectionTrait + Send + Sync + 'static>(
     Extension(scope): Extension<AdminScope>,
     Json(body): Json<HistoryDelete>,
 ) -> Response {
-    crate::send(async move {
-        gate!("usage", scope);
-        let history = state.app().gproxy().manage().history();
-        reply_sdk(history.delete_usage(Some(&body.ids)).await.map(deleted))
-    })
-    .await
+    gate!("usage", scope);
+    let history = state.app().gproxy().manage().history();
+    reply_sdk(history.delete_usage(Some(&body.ids)).await.map(deleted))
 }
 
 async fn clear_usage<C: BatchConnectionTrait + Send + Sync + 'static>(
     State(state): State<HostState<C>>,
     Extension(scope): Extension<AdminScope>,
 ) -> Response {
-    crate::send(async move {
-        gate!("usage", scope);
-        let history = state.app().gproxy().manage().history();
-        reply_sdk(history.delete_usage(None).await.map(deleted))
-    })
-    .await
+    gate!("usage", scope);
+    let history = state.app().gproxy().manage().history();
+    reply_sdk(history.delete_usage(None).await.map(deleted))
 }
 
 macro_rules! delete_logs {
@@ -141,28 +126,22 @@ macro_rules! delete_logs {
             Extension(scope): Extension<AdminScope>,
             Json(body): Json<HistoryDelete>,
         ) -> Response {
-            crate::send(async move {
-                gate!("logs", scope);
-                let history = state.app().gproxy().manage().history();
-                reply_sdk(
-                    history
-                        .delete_logs($side, Some(&body.ids))
-                        .await
-                        .map(deleted),
-                )
-            })
-            .await
+            gate!("logs", scope);
+            let history = state.app().gproxy().manage().history();
+            reply_sdk(
+                history
+                    .delete_logs($side, Some(&body.ids))
+                    .await
+                    .map(deleted),
+            )
         }
         async fn $clear<C: BatchConnectionTrait + Send + Sync + 'static>(
             State(state): State<HostState<C>>,
             Extension(scope): Extension<AdminScope>,
         ) -> Response {
-            crate::send(async move {
-                gate!("logs", scope);
-                let history = state.app().gproxy().manage().history();
-                reply_sdk(history.delete_logs($side, None).await.map(deleted))
-            })
-            .await
+            gate!("logs", scope);
+            let history = state.app().gproxy().manage().history();
+            reply_sdk(history.delete_logs($side, None).await.map(deleted))
         }
     };
 }

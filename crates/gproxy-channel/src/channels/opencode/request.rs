@@ -2,13 +2,12 @@
 //! tool ties a conversation to.
 
 use super::config::{OpenCodeConfig, Tier};
-use crate::channel::{
-    ChannelError, ChannelHeaders, CredentialView, HeaderAllowlist, PrepareContext, forwardable,
-};
-use crate::channels::shared::{cache, claude_images};
+use crate::channel::{ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable};
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
+use crate::channels::shared::{cache, claude_images};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey};
+use gproxy_upstream::{CredentialView, UpstreamError};
 use http::{HeaderMap, HeaderName, HeaderValue, header};
 use serde_json::Value;
 
@@ -24,13 +23,13 @@ const SESSION_HEADER: &str = "x-opencode-session";
 
 /// The key this credential presents: a pasted `api_key`, or the account
 /// token a device login produced (v3 `opencode/auth.rs::api_key`).
-pub(super) fn api_key<'a>(credential: &CredentialView<'a>) -> Result<&'a str, ChannelError> {
+pub(super) fn api_key<'a>(credential: &CredentialView<'a>) -> Result<&'a str, UpstreamError> {
     ["api_key", "access_token"]
         .into_iter()
         .find_map(|name| credential.secret.get(name).and_then(Value::as_str))
         .map(str::trim)
         .filter(|key| !key.is_empty())
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }
 
 /// A public fact the login recorded: host metadata first, then the secret's
@@ -56,7 +55,7 @@ pub(super) fn fact<'a>(credential: &CredentialView<'a>, name: &str) -> Option<&'
 /// Each dialect's own conversation endpoint, plus the catalogue. The client's
 /// path is not trusted: the Zen and Go origins mount everything at a fixed
 /// place (v3 `opencode/model.rs::path`).
-fn path(operation: OperationKey) -> Result<&'static str, ChannelError> {
+fn path(operation: OperationKey) -> Result<&'static str, UpstreamError> {
     match (operation.operation, operation.dialect) {
         (Operation::ListModels, _) => Ok("/models"),
         (Operation::GenerateContent | Operation::StreamGenerateContent, Dialect::OpenAiChat) => {
@@ -69,7 +68,7 @@ fn path(operation: OperationKey) -> Result<&'static str, ChannelError> {
         (Operation::GenerateContent | Operation::StreamGenerateContent, Dialect::Claude) => {
             Ok("/messages")
         }
-        _ => Err(ChannelError::UnsupportedOperation(operation)),
+        _ => Err(UpstreamError::UnsupportedOperation(operation)),
     }
 }
 
@@ -79,10 +78,10 @@ fn path(operation: OperationKey) -> Result<&'static str, ChannelError> {
 /// `PrepareContext` does not carry one, so a client that names no
 /// conversation gets a new one per request, exactly as v3 did when core had
 /// none either. A client that wants affinity sends the header itself.
-fn minted_session() -> Result<String, ChannelError> {
+fn minted_session() -> Result<String, UpstreamError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|error| {
-        ChannelError::InvalidConfig(format!(
+        UpstreamError::InvalidConfig(format!(
             "operating-system randomness is unavailable: {error}"
         ))
     })?;
@@ -94,7 +93,7 @@ fn minted_session() -> Result<String, ChannelError> {
 }
 
 /// Set the conversation header when the forwarded request has none.
-fn apply_session(headers: &mut HeaderMap) -> Result<(), ChannelError> {
+fn apply_session(headers: &mut HeaderMap) -> Result<(), UpstreamError> {
     let named = headers
         .get(SESSION_HEADER)
         .and_then(|value| value.to_str().ok())
@@ -106,7 +105,7 @@ fn apply_session(headers: &mut HeaderMap) -> Result<(), ChannelError> {
     }
     headers.insert(
         HeaderName::from_static(SESSION_HEADER),
-        HeaderValue::from_str(&minted_session()?).map_err(|_| ChannelError::InvalidCredential)?,
+        HeaderValue::from_str(&minted_session()?).map_err(|_| UpstreamError::InvalidCredential)?,
     );
     Ok(())
 }
@@ -114,7 +113,7 @@ fn apply_session(headers: &mut HeaderMap) -> Result<(), ChannelError> {
 pub(super) fn build(
     ctx: PrepareContext<'_>,
     tier: Tier,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     let config = OpenCodeConfig::from_view(ctx.provider)?;
     let key = api_key(&ctx.credential)?;
     let url = match ctx.endpoint_override {
@@ -147,7 +146,7 @@ pub(super) fn build(
         // The Claude surface takes the same key the way Anthropic does.
         headers.insert(
             HeaderName::from_static("x-api-key"),
-            HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
+            HeaderValue::from_str(key).map_err(|_| UpstreamError::InvalidCredential)?,
         );
         headers.insert(
             HeaderName::from_static("anthropic-version"),
@@ -157,7 +156,7 @@ pub(super) fn build(
         headers.insert(
             header::AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {key}"))
-                .map_err(|_| ChannelError::InvalidCredential)?,
+                .map_err(|_| UpstreamError::InvalidCredential)?,
         );
     }
     for (name, value) in &config.headers {
@@ -182,7 +181,7 @@ pub(super) fn build(
     }
     builder
         .body(body)
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
 }
 
 /// Magic cache breakpoints, per the provider's opt-in.

@@ -15,17 +15,18 @@
 //! `cline_group` (v3 `cline/response.rs::model_list`).
 
 use super::Cline;
-use crate::channel::{BaseChannel, ChannelError, OperationContext, PrepareContext};
+use crate::channel::{BaseChannel, OperationContext, PrepareContext};
 use crate::channels::shared::compatible::http::{invalid_response, read_body};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::UpstreamError;
 use http::header;
 use serde_json::{Map, Value};
 
 /// The model groups the catalogue reports, in the order they are offered.
 const GROUPS: [&str; 2] = ["free", "clinePass"];
 
-fn encode(value: &Value) -> Result<Bytes, ChannelError> {
+fn encode(value: &Value) -> Result<Bytes, UpstreamError> {
     serde_json::to_vec(value)
         .map(Bytes::from)
         .map_err(|error| invalid_response(format!("{}: {error}", super::ID)))
@@ -33,7 +34,7 @@ fn encode(value: &Value) -> Result<Bytes, ChannelError> {
 
 /// The payload inside the envelope. A body that is not an envelope (an error
 /// document, or a reply the upstream sent unwrapped) is returned as it came.
-pub(super) fn unwrap_envelope(body: &[u8]) -> Result<Option<Value>, ChannelError> {
+pub(super) fn unwrap_envelope(body: &[u8]) -> Result<Option<Value>, UpstreamError> {
     let Ok(value) = serde_json::from_slice::<Value>(body) else {
         return Ok(None);
     };
@@ -50,7 +51,7 @@ pub(super) fn unwrap_envelope(body: &[u8]) -> Result<Option<Value>, ChannelError
 }
 
 /// `{"free": [...], "clinePass": [...]}` as an OpenAI model list.
-pub(super) fn catalog(body: &[u8]) -> Result<Bytes, ChannelError> {
+pub(super) fn catalog(body: &[u8]) -> Result<Bytes, UpstreamError> {
     let value: Value = serde_json::from_slice(body)
         .map_err(|error| invalid_response(format!("{} catalogue: {error}", super::ID)))?;
     // An error document is the upstream's answer, not a catalogue to rewrite.
@@ -102,7 +103,7 @@ pub(super) async fn invoke(
     channel: &Cline,
     operation: Operation,
     ctx: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let OperationContext {
         provider,
         credential,

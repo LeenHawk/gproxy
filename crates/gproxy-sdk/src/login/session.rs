@@ -15,7 +15,7 @@
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use gproxy_cache::Cache;
-use gproxy_channel::channel::DeviceAuthorization;
+use gproxy_upstream::DeviceAuthorization;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

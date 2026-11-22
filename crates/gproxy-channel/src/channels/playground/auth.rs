@@ -5,12 +5,12 @@ use serde_json::{Value, json};
 use sha1::{Digest, Sha1};
 
 use super::{Playground, config, request};
-use crate::channel::{
-    ChannelError, CredentialRefresh, CredentialUpdate, CredentialView, OperationFuture,
-    RefreshContext, RefreshReason,
-};
 use gproxy_client::OutboundClient;
 use gproxy_protocol::HttpBody;
+use gproxy_upstream::{
+    CredentialRefresh, CredentialUpdate, CredentialView, RefreshContext, RefreshReason,
+    UpstreamError, UpstreamFuture,
+};
 
 pub(super) const ORIGIN: &str = "https://aistudio.google.com";
 // Public browser-client key from the captured first-party MakerSuite request.
@@ -91,14 +91,14 @@ pub(super) struct Session {
 }
 
 impl Session {
-    pub fn parse(secret: &Value) -> Result<Self, ChannelError> {
+    pub fn parse(secret: &Value) -> Result<Self, UpstreamError> {
         let input = secret
             .get("cookies")
             .or_else(|| secret.get("cookie"))
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let mut cookies = BTreeMap::new();
         let mut account = BTreeMap::new();
-        let mut insert = |name: &str, value: &str| -> Result<(), ChannelError> {
+        let mut insert = |name: &str, value: &str| -> Result<(), UpstreamError> {
             let jar = if session_cookie(name) {
                 &mut cookies
             } else if account_cookie(name) {
@@ -108,7 +108,7 @@ impl Session {
             };
             if !value.is_empty() {
                 if value.contains(['\r', '\n', ';']) {
-                    return Err(ChannelError::InvalidCredential);
+                    return Err(UpstreamError::InvalidCredential);
                 }
                 jar.insert(name.to_owned(), value.to_owned());
             }
@@ -138,20 +138,23 @@ impl Session {
                     let name = cookie
                         .get("name")
                         .and_then(Value::as_str)
-                        .ok_or(ChannelError::InvalidCredential)?;
+                        .ok_or(UpstreamError::InvalidCredential)?;
                     let value = cookie
                         .get("value")
                         .and_then(Value::as_str)
-                        .ok_or(ChannelError::InvalidCredential)?;
+                        .ok_or(UpstreamError::InvalidCredential)?;
                     insert(name, value)?;
                 }
             }
             Value::Object(values) => {
                 for (name, value) in values {
-                    insert(name, value.as_str().ok_or(ChannelError::InvalidCredential)?)?;
+                    insert(
+                        name,
+                        value.as_str().ok_or(UpstreamError::InvalidCredential)?,
+                    )?;
                 }
             }
-            _ => return Err(ChannelError::InvalidCredential),
+            _ => return Err(UpstreamError::InvalidCredential),
         }
         if !["SAPISID", "__Secure-1PAPISID", "__Secure-3PAPISID"]
             .iter()
@@ -160,7 +163,7 @@ impl Session {
                 .iter()
                 .any(|key| cookies.contains_key(*key))
         {
-            return Err(ChannelError::InvalidCredential);
+            return Err(UpstreamError::InvalidCredential);
         }
         let auth_user = match secret.get("auth_user") {
             None => "0".into(),
@@ -170,7 +173,7 @@ impl Session {
                 value.clone()
             }
             Some(Value::Number(value)) if value.is_u64() => value.to_string(),
-            _ => return Err(ChannelError::InvalidCredential),
+            _ => return Err(UpstreamError::InvalidCredential),
         };
         Ok(Self {
             cookies,
@@ -230,11 +233,11 @@ impl Session {
     }
 
     /// `base` with this session's cookies in place of the imported ones.
-    fn secret(&self, base: &Value) -> Result<Value, ChannelError> {
+    fn secret(&self, base: &Value) -> Result<Value, UpstreamError> {
         let mut secret = base
             .as_object()
             .cloned()
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         secret.remove("cookies");
         // Written by releases that took rotated cookies back from an external signer.
         secret.remove("retired");
@@ -246,7 +249,7 @@ impl Session {
     /// Ask Google for fresh `PSIDTS` cookies and return when the next rotation
     /// is due. Best effort: whether the session is still good is decided by the
     /// MakerSuite call that follows.
-    async fn rotate(&mut self, client: &dyn OutboundClient) -> Result<i64, ChannelError> {
+    async fn rotate(&mut self, client: &dyn OutboundClient) -> Result<i64, UpstreamError> {
         // Google answers 401 to a rotation that presents neither an earlier
         // `PSIDTS` nor the account sign-in cookies the browser's frame sends.
         let seeded = ["__Secure-1PSIDTS", "__Secure-3PSIDTS"]
@@ -319,14 +322,14 @@ impl Session {
             .join("; ")
     }
 
-    pub fn headers(&self, tier: Option<&str>) -> Result<HeaderMap, ChannelError> {
+    pub fn headers(&self, tier: Option<&str>) -> Result<HeaderMap, UpstreamError> {
         let timestamp = now_ms()? / 1000;
         let fallback = self
             .cookies
             .get("SAPISID")
             .or_else(|| self.cookies.get("__Secure-3PAPISID"))
             .or_else(|| self.cookies.get("__Secure-1PAPISID"))
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let authorization = [
             ("SAPISIDHASH", "SAPISID"),
             ("SAPISID1PHASH", "__Secure-1PAPISID"),
@@ -371,15 +374,15 @@ impl Session {
     }
 }
 
-pub(super) fn header_value(value: &str) -> Result<HeaderValue, ChannelError> {
-    HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)
+pub(super) fn header_value(value: &str) -> Result<HeaderValue, UpstreamError> {
+    HeaderValue::from_str(value).map_err(|_| UpstreamError::InvalidCredential)
 }
 
-pub(super) fn now_ms() -> Result<i64, ChannelError> {
+pub(super) fn now_ms() -> Result<i64, UpstreamError> {
     web_time::SystemTime::now()
         .duration_since(web_time::UNIX_EPOCH)
         .map(|value| value.as_millis() as i64)
-        .map_err(|_| ChannelError::InvalidResponse("system clock precedes Unix epoch".into()))
+        .map_err(|_| UpstreamError::InvalidResponse("system clock precedes Unix epoch".into()))
 }
 
 /// Calls made by `refresh`, which reads their `Set-Cookie` and persists the
@@ -447,7 +450,7 @@ impl CredentialRefresh for Playground {
         })
     }
 
-    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let mut session = Session::parse(context.credential.secret)?;
             let period = session.rotate(context.client).await?;
@@ -463,12 +466,12 @@ impl CredentialRefresh for Playground {
             session.issued(response.headers.get_all(header::SET_COOKIE));
             let bytes = crate::channel::read_body(response.body).await?;
             if status == StatusCode::UNAUTHORIZED {
-                return Err(ChannelError::RefreshRejected(
+                return Err(UpstreamError::RefreshRejected(
                     "Google browser session expired; import fresh cookies".into(),
                 ));
             }
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });

@@ -11,11 +11,13 @@
 //! for NVIDIA and neither does this.
 
 use crate::channel::{
-    BaseChannel, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind, HOST_CONFIG_KEYS,
-    HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable,
+    BaseChannel, ChannelDescriptor, HOST_CONFIG_KEYS, HeaderAllowlist, PrepareContext, forwardable,
 };
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 use http::{HeaderValue, header};
 use serde::Deserialize;
 use serde_json::Value;
@@ -33,9 +35,9 @@ pub struct NvidiaConfig {
 }
 
 impl NvidiaConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 
@@ -48,23 +50,25 @@ fn base_url(provider: ProviderView<'_>) -> &str {
         .trim_end_matches('/')
 }
 
-fn api_key(secret: &Value) -> Result<&str, ChannelError> {
+fn api_key(secret: &Value) -> Result<&str, UpstreamError> {
     secret
         .get("api_key")
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|key| !key.is_empty())
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Nvidia;
 
-impl BaseChannel for Nvidia {
+impl UpstreamKind for Nvidia {
     fn id(&self) -> &'static str {
         ID
     }
+}
 
+impl BaseChannel for Nvidia {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -120,12 +124,12 @@ impl BaseChannel for Nvidia {
             })
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         if !self
             .native_dialects(ctx.provider, ctx.operation.operation)
             .contains(&ctx.operation.dialect)
         {
-            return Err(ChannelError::UnsupportedOperation(ctx.operation));
+            return Err(UpstreamError::UnsupportedOperation(ctx.operation));
         }
         let config = NvidiaConfig::from_view(ctx.provider)?;
         let key = api_key(ctx.credential.secret)?;
@@ -158,7 +162,7 @@ impl BaseChannel for Nvidia {
         headers.insert(
             header::AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {key}"))
-                .map_err(|_| ChannelError::InvalidCredential)?,
+                .map_err(|_| UpstreamError::InvalidCredential)?,
         );
         let body = match ctx.request.body {
             HttpBody::Bytes(bytes) if !bytes.is_empty() => {
@@ -175,7 +179,6 @@ impl BaseChannel for Nvidia {
         }
         builder
             .body(body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
-

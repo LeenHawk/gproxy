@@ -3,7 +3,7 @@
 English | [简体中文](README.zh-CN.md)
 
 SeaORM 2 entities, typed batch repositories and atomic persistence operations for
-GPROXY v4. Native SeaORM connections and Cloudflare D1 share the same Store API.
+GPROXY v4. Native SeaORM connections and libSQL share the same Store API.
 Constructing Store neither opens a database nor applies schema changes.
 
 ## Store API
@@ -37,7 +37,7 @@ let control_data = store.load_control_data().await?;
 | `load_control_data` | Coherent configuration-table snapshot as entity rows; no decrypted secrets or compiled runtime objects |
 
 Each method executes one atomic batch through gproxy-seaorm. `get_many` splits key
-predicates to fit D1's 100-bind statement limit within the same batch. Arbitrary
+predicates to fit the connection's bind-parameter limit within the same batch. Arbitrary
 caller SQL is not split; database request/size limits still apply. Empty batches
 perform no I/O. A `query` projection must include fields needed to decode its model;
 custom projections and multi-entity results use gproxy-seaorm's batch API directly.
@@ -58,23 +58,12 @@ approval/client retirement, and agent assignment reserve/activate/fail/current r
 OAuth device polling/result delivery remains issuer work; generic queries can read
 its persisted state. Subscription provisioning and price calculation remain core work.
 
-## Counted windows and the database-backed cache
+## Counted windows
 
 `counted_windows` rows record what core itself counts for a channel-declared
 Counted quota dimension: one row per credential, dimension and window.
 `Repository::charge_many` adds a charge only while `used + amount <= limit`,
 atomically per row, and reports the usage either way.
-
-`StoreCache` implements `gproxy_cache::Cache` over three tables
-(`cache_entries`, `cache_counters`, `cache_permits`) for hosts that have no
-memory-resident process and no Redis, such as edge isolates on D1 or libSQL.
-Expiry is compared in SQL, so peers on one database agree on what is live.
-It carries no notification transport: `subscribe` yields the initial
-`ResyncRequired` and then nothing, so such a host reloads on its own schedule.
-
-```rust
-let cache: Arc<dyn Cache> = Arc::new(StoreCache::new(store.clone()));
-```
 
 ## Initialization and versioned migrations
 
@@ -90,15 +79,15 @@ of `gproxy_store::Migrator` through SeaORM. Tables without that ledger, or a
 ledger containing migrations this build does not know, are refused before DDL.
 `Store::sync()` runs this gate and migration step, then synchronizes the entity
 registry against an existing database. Native connections use SeaORM 2
-`SchemaBuilder::sync`; D1 and libSQL use the SQLite discovery/atomic-batch adapter.
+`SchemaBuilder::sync`; libSQL uses the SQLite discovery/atomic-batch adapter.
 Missing defaulted columns and tables do not need a separate migration. Existing
 column types and data transformations still need explicit migrations.
 
 Run with one schema writer before serving requests. Construction does no I/O,
 and migration does not create settings or administrators. Native connections
-and D1 can drive the runner; a libSQL connection can create a fresh schema and
+can drive the runner; a libSQL connection can create a fresh schema and
 read an up-to-date one, but pending migrations need a native connection to that
-database. D1 uses its batch/proxy adapter rather than interactive transactions.
+database.
 
 Append migrations under `src/migration/mYYYYMMDD_NNNNNN_description.rs` and
 append them to `Migrator::migrations()`. The baseline reads today's registry,
@@ -121,7 +110,7 @@ the complete settlement (ties to even). Rates, quantities and multipliers share
 this representation; currency/unit semantics remain in the entity fields.
 
 SQL columns are BIGINT. Entity `save_as = "decimal(20,0)"` and
-`select_as = "char(32)"` carry integer atoms as text across D1's JavaScript boundary.
+`select_as = "char(32)"` carry integer atoms as text across JSON row transports.
 Database comparisons/order/addition remain numeric. Raw SQL and `col_expr` callers
 must use the column's `save_as` conversion for FixedDecimal values. Settlement
 checks nonnegative values and signed overflow before incrementing counters.
@@ -137,15 +126,12 @@ conversion migration; schema sync does not convert its values or change its type
 ```sh
 cargo test -p gproxy-store -p gproxy-seaorm
 cargo clippy -p gproxy-store -p gproxy-seaorm --all-targets -- -D warnings
-cargo clippy -p gproxy-store -p gproxy-seaorm --target wasm32-unknown-unknown --all-targets -- -D warnings
 ```
 
 Permanent tests cover native SQLite CRUD/constraints, rollback, exact amounts,
 state expiry, OAuth consumption and fenced agent handoff. The concurrency test
-uses one SQLite connection; it is not multi-server stress evidence. Actual WASM
-Store scenarios also passed against local Miniflare D1; see
-[adapter validation](../gproxy-seaorm/VALIDATION.md). No live PostgreSQL/MySQL or
-production Cloudflare validation was performed for these new Store operations.
+uses one SQLite connection; it is not multi-server stress evidence. No live
+PostgreSQL/MySQL validation was performed for these new Store operations.
 
 Start at [`src/entity/mod.rs`](src/entity/mod.rs). Entities are grouped by domain,
 with one entity per file:
@@ -220,7 +206,7 @@ Review decisions currently expressed in the code:
 - File content stays in filesystem/S3 storage. File entities contain locators
   and metadata. Custom vocabulary configuration references a file object.
 - Amounts use exact nine-place `FixedDecimal`, stored as signed BIGINT atoms.
-  D1 uses textual transport and explicit casts; no floating-point conversion.
+  libSQL uses textual transport and explicit casts; no floating-point conversion.
 - RewriteRuleSet groups reusable rewrite rules; ProviderRewriteRuleSet attaches
   them to providers in order. RewriteRule stores regex, replacement, optional JSON
   dot paths and filters as explicit fields. Deleting a set cascades to its rules
@@ -471,7 +457,7 @@ not permanent revocations. Core must resolve identity per request/new WS turn.
 
 Dialect-specific JSON membership lives in
 `gproxy-seaorm::json_array_contains_text`; Store only composes SeaORM conditions.
-D1 uses SQLite's JSON extension. The current open-source `sea-orm 2.0.3` supports
+libSQL uses SQLite's JSON extension. The current open-source `sea-orm 2.0.3` supports
 SQLite, PostgreSQL and MySQL; MSSQL belongs to separate SeaORM X and is not wired
 into this project. Unsupported backends return an explicit error. This adds four
 nullable columns; existing rows inherit, and no database schema update is run
@@ -551,8 +537,8 @@ arrival times are not kept: a hydrated chunk reports its segment head's
 `observed_at_ms`, which is within the one-second idle window of the truth.
 `BodyFraming` retains its wire meaning. Redaction precedes all storage transforms.
 
-Native writers use zstd level 3, retaining identity when compression would grow
-the data. WASM writers use identity; their pure-Rust decoder also reads zstd.
+Writers use zstd level 3, retaining identity when compression would grow
+the data.
 Inline response bodies use the same encoding. Request bodies/segments use
 FastCDC (2/8/32 KiB min/average/max), with zstd-compressed blobs. A body manifest
 orders blob references. BLAKE3 blob keys are keyed by a digest of `api_key_id`,

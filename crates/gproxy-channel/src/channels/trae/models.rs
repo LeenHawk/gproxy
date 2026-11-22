@@ -5,9 +5,10 @@ use super::{
     config::TraeConfig,
     request,
 };
-use crate::channel::{ChannelError, CredentialView, OperationContext, ProviderView};
+use crate::channel::OperationContext;
 use crate::channels::shared::compatible::ability::{require_success, send};
 use gproxy_protocol::{HttpBody, WireResponse, connection::Bytes};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError};
 use http::{Method, header};
 use serde_json::{Value, json};
 
@@ -15,7 +16,7 @@ pub(super) fn url(
     config: &TraeConfig,
     provider: ProviderView<'_>,
     credential: &CredentialView<'_>,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let mut url = url::Url::parse(&format!(
         "{}/api/ide/v1/get_detail_param",
         config.api(provider, credential)
@@ -29,7 +30,7 @@ pub(super) fn url(
     Ok(url.into())
 }
 
-pub(super) fn configs(value: &Value) -> Result<&Vec<Value>, ChannelError> {
+pub(super) fn configs(value: &Value) -> Result<&Vec<Value>, UpstreamError> {
     check(value)?;
     value["config_info_list"]
         .as_array()
@@ -41,7 +42,7 @@ pub(super) async fn selected(
     credential: CredentialView<'_>,
     client: &dyn crate::OutboundClient,
     model: &str,
-) -> Result<Value, ChannelError> {
+) -> Result<Value, UpstreamError> {
     let config = TraeConfig::from_view(provider)?;
     let (status, _, body) = send(
         client,
@@ -57,7 +58,7 @@ pub(super) async fn selected(
         .find(|v| v["config_name"].as_str() == Some(model) && !is_custom(v))
         .cloned()
         .ok_or_else(|| {
-            ChannelError::InvalidConfig(format!(
+            UpstreamError::InvalidConfig(format!(
                 "Trae: model {model} is not in this account's chat catalogue"
             ))
         })
@@ -73,7 +74,7 @@ fn is_custom(value: &Value) -> bool {
 
 pub(super) async fn list(
     ctx: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let config = TraeConfig::from_view(ctx.provider)?;
     let target = ctx
         .endpoint_override

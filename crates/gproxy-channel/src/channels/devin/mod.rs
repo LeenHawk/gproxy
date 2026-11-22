@@ -335,17 +335,19 @@ use http::{HeaderMap, HeaderValue, StatusCode, header};
 
 use crate::OutboundClient;
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, OperationContext, OperationFuture, ProviderView,
-    QuotaModel, QuotaQuery, UsageExtras, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, HeaderAllowlist,
+    OperationContext, QuotaModel, QuotaQuery, UsageExtras, forwardable,
+};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamFuture, UpstreamKind,
 };
 
 /// The channel. Stateless: one instance serves every provider that names it.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Devin;
 
-fn bad_request(message: impl Into<String>) -> ChannelError {
-    ChannelError::Transport(CapabilityError::new(
+fn bad_request(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::Transport(CapabilityError::new(
         CapabilityErrorKind::Invalid,
         CapabilityErrorStage::Start,
         message,
@@ -362,11 +364,10 @@ fn now_secs() -> u64 {
 
 use crate::channel::read_body;
 
-
 async fn call(
     client: &dyn OutboundClient,
     request: http::Request<HttpBody>,
-) -> Result<(StatusCode, Bytes), ChannelError> {
+) -> Result<(StatusCode, Bytes), UpstreamError> {
     let WireResponse { status, body, .. } = client.send(request).await?;
     Ok((status, read_body(body).await?))
 }
@@ -388,15 +389,15 @@ fn local_response(content_type: &'static str, body: Bytes) -> WireResponse<HttpB
     }
 }
 
-fn unsupported(operation: Operation, dialect: Dialect) -> ChannelError {
-    ChannelError::UnsupportedOperation(OperationKey { operation, dialect })
+fn unsupported(operation: Operation, dialect: Dialect) -> UpstreamError {
+    UpstreamError::UnsupportedOperation(OperationKey { operation, dialect })
 }
 
 /// Encode the request, send the single envelope and hand back the translated
 /// turn. A non-2xx reply is an error payload rather than Connect frames — the
 /// free-tier upgrade wall arrives that way — so it is read whole and put
 /// through the taxonomy in `error.rs` before it is reported.
-async fn start(context: OperationContext<'_>) -> Result<stream::Turn, ChannelError> {
+async fn start(context: OperationContext<'_>) -> Result<stream::Turn, UpstreamError> {
     let config = DevinConfig::from_view(context.provider)?;
     let auth = request::auth(&context.credential)?;
     let url = match context.endpoint_override {
@@ -453,7 +454,7 @@ async fn start(context: OperationContext<'_>) -> Result<stream::Turn, ChannelErr
         .body(HttpBody::Bytes(Bytes::from(connect::request_frame(
             &prepared.body,
         ))))
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
     let response = context.client.send(request).await?;
     if !response.status.is_success() {
         let body = read_body(response.body).await?;
@@ -477,9 +478,9 @@ async fn start(context: OperationContext<'_>) -> Result<stream::Turn, ChannelErr
 /// credential and lets the next one try. `CapabilityError` says the same thing
 /// from the other side — a non-2xx upstream reply is still a successful send.
 /// Anything that is not a classified refusal stays an error.
-fn deliver(error: ChannelError) -> Result<WireResponse<HttpBody>, ChannelError> {
+fn deliver(error: UpstreamError) -> Result<WireResponse<HttpBody>, UpstreamError> {
     match error {
-        ChannelError::UpstreamResponse { status, body } => {
+        UpstreamError::UpstreamResponse { status, body } => {
             let mut headers = HeaderMap::new();
             headers.insert(
                 header::CONTENT_TYPE,
@@ -495,11 +496,17 @@ fn deliver(error: ChannelError) -> Result<WireResponse<HttpBody>, ChannelError> 
     }
 }
 
-impl BaseChannel for Devin {
+impl UpstreamKind for Devin {
     fn id(&self) -> &'static str {
         ID
     }
 
+    fn oauth_authorization_code(&self) -> Option<&dyn gproxy_upstream::OAuthAuthorizationCode> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for Devin {
     /// Browser PKCE login; no token refresh endpoint.
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
@@ -608,7 +615,7 @@ impl BaseChannel for Devin {
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             if context.dialect != Dialect::OpenAiChat {
                 return Err(unsupported(Operation::ListModels, context.dialect));
@@ -636,7 +643,7 @@ impl BaseChannel for Devin {
             config.static_headers(&mut headers)?;
             let mut upstream = http::Request::post(url)
                 .body(HttpBody::Bytes(Bytes::from(body.into_bytes())))
-                .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+                .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
             *upstream.headers_mut() = headers;
             let (status, bytes) = call(context.client.as_ref(), upstream).await?;
             if !status.is_success() {
@@ -653,7 +660,7 @@ impl BaseChannel for Devin {
     fn generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             if !matches!(context.dialect, Dialect::OpenAiChat | Dialect::Claude) {
                 return Err(unsupported(Operation::GenerateContent, context.dialect));
@@ -673,7 +680,7 @@ impl BaseChannel for Devin {
                 completion
             };
             let body = serde_json::to_vec(&completion)
-                .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
+                .map_err(|error| UpstreamError::InvalidResponse(error.to_string()))?;
             Ok(local_response("application/json", Bytes::from(body)))
         })
     }
@@ -681,7 +688,7 @@ impl BaseChannel for Devin {
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             if !matches!(context.dialect, Dialect::OpenAiChat | Dialect::Claude) {
                 return Err(unsupported(
@@ -715,10 +722,6 @@ impl BaseChannel for Devin {
                 body: HttpBody::Stream(turn.into_stream(primed, adapter)),
             })
         })
-    }
-
-    fn oauth_authorization_code(&self) -> Option<&dyn crate::channel::OAuthAuthorizationCode> {
-        Some(self)
     }
 
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {

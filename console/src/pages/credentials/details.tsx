@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { credentials } from "@/api/configuration"
 import * as actions from "@/api/credentials"
+import { MCP_CHANNEL } from "@/api/mcp"
 import type { CredentialDto } from "@/generated/sdk"
 import type { CredentialProviderDto } from "@/generated/app"
 import { ConfirmButton } from "@/components/confirm"
@@ -58,7 +59,7 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
   return <ManagementDialog className="sm:max-w-3xl" title={`${current.label ?? id} · ${provider.displayName ?? provider.name}`} titleAside={<Badge variant={current.status === "dead" ? "destructive" : "success"}>{t(`values.${current.status}`)}</Badge>} onClose={onClose} busy={busy}>
     {action.error ? <ErrorNotice error={action.error} /> : null}
     <QueryState isPending={row.isPending} error={row.error}>
-      <Tabs value={tab} onValueChange={value => setTab(value as typeof tab)}><TabsList variant="line" className="max-w-full"><TabsTrigger value="basic" disabled={busy}>{t("limits.basic")}</TabsTrigger><TabsTrigger value="limits" disabled={busy}>{t("limits.local")}</TabsTrigger><TabsTrigger value="upstream" disabled={busy}>{t("limits.upstream")}</TabsTrigger></TabsList>
+      <Tabs value={tab} onValueChange={value => setTab(value as typeof tab)}><TabsList variant="line" className="max-w-full" hidden={provider.channel === MCP_CHANNEL}><TabsTrigger value="basic" disabled={busy}>{t("limits.basic")}</TabsTrigger><TabsTrigger value="limits" disabled={busy}>{t("limits.local")}</TabsTrigger><TabsTrigger value="upstream" disabled={busy}>{t("limits.upstream")}</TabsTrigger></TabsList>
         <TabsContent value="basic" forceMount hidden={tab !== "basic"}>
           <dl className="mb-4 grid gap-3 sm:grid-cols-2">
             <div><dt className="text-sm text-muted-foreground">{t("management.accessTokenExpiry")}</dt><dd><CredentialExpiry value={current.expiresAtMs} pendingRefresh={provider.capabilities.refresh} /></dd></div>

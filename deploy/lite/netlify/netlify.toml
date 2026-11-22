@@ -1,0 +1,13 @@
+[build]
+publish = "public"
+
+[functions]
+directory = "functions"
+# Keeps the files where they are, so the function finds the module beside it.
+node_bundler = "nft"
+included_files = ["lite/**"]
+
+# Renews the sign-ins that are about to expire, so they outlive a period
+# without requests. Once a day is enough for a refresh token; the times are UTC.
+[functions."renew"]
+schedule = "0 4 * * *"

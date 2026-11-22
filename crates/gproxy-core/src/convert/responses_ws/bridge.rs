@@ -16,8 +16,8 @@ use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use tokio_util::sync::CancellationToken;
 
-pub(super) struct Config<C> {
-    pub owned: OwnedState<C>,
+pub(super) struct Config<C: BatchConnectionTrait + Send + Sync> {
+    pub owned: OwnedState<ProtocolState<C>>,
     pub settings: StreamSettings,
     pub headers: HeaderMap,
     pub cancellation: CancellationToken,
@@ -44,7 +44,7 @@ struct Current {
     turn: Arc<crate::responses::Turn>,
 }
 
-struct Driver<C> {
+struct Driver<C: BatchConnectionTrait + Send + Sync> {
     config: Config<C>,
     session: crate::ResponsesSession,
     history: ResponsesHistoryCache,

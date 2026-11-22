@@ -17,21 +17,24 @@ mod auth;
 mod config;
 mod request;
 mod schema;
-mod stream;
-mod wire;
 #[cfg(not(target_arch = "wasm32"))]
 mod signer;
+mod stream;
 #[cfg(not(target_arch = "wasm32"))]
 mod waa;
+mod wire;
 
 pub use config::{DEFAULT_BASE_URL, PlaygroundConfig};
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, OperationContext, OperationFuture, ProviderView,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, OperationContext,
 };
 use gproxy_client::{ConnectionConfig, EmulationConfig};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, ProviderView, UpstreamError, UpstreamFuture,
+    UpstreamKind,
+};
 use serde_json::Value;
 
 pub const ID: &str = "playground";
@@ -39,28 +42,12 @@ pub const ID: &str = "playground";
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Playground;
 
-impl BaseChannel for Playground {
+impl UpstreamKind for Playground {
     fn id(&self) -> &'static str {
         ID
     }
 
-    fn descriptor(&self) -> ChannelDescriptor {
-        ChannelDescriptor {
-            id: ID,
-            display_name: "Google AI Studio Playground",
-            credential_kinds: vec!["cookie"],
-            login_modes: vec![],
-            capabilities: ChannelCapabilities { refresh: true, ..Default::default() },
-            config_keys: [
-                ConfigKey::optional("base_url", ConfigKeyKind::String, "MakerSuite RPC origin.")
-                    .with_placeholder(DEFAULT_BASE_URL),
-                ConfigKey::optional("timezone", ConfigKeyKind::String, "IANA timezone sent with the Playground request.")
-                    .with_placeholder("UTC"),
-            ].into_iter().chain(HOST_CONFIG_KEYS).collect(),
-        }
-    }
-
-    fn validate_credential_secret(&self, secret: &Value) -> Result<(), ChannelError> {
+    fn validate_credential_secret(&self, secret: &Value) -> Result<(), UpstreamError> {
         auth::Session::parse(secret).map(|_| ())
     }
 
@@ -88,6 +75,34 @@ impl BaseChannel for Playground {
             }),
             ..ConnectionConfig::default()
         })
+    }
+}
+
+impl BaseChannel for Playground {
+    fn descriptor(&self) -> ChannelDescriptor {
+        ChannelDescriptor {
+            id: ID,
+            display_name: "Google AI Studio Playground",
+            credential_kinds: vec!["cookie"],
+            login_modes: vec![],
+            capabilities: ChannelCapabilities {
+                refresh: true,
+                ..Default::default()
+            },
+            config_keys: [
+                ConfigKey::optional("base_url", ConfigKeyKind::String, "MakerSuite RPC origin.")
+                    .with_placeholder(DEFAULT_BASE_URL),
+                ConfigKey::optional(
+                    "timezone",
+                    ConfigKeyKind::String,
+                    "IANA timezone sent with the Playground request.",
+                )
+                .with_placeholder("UTC"),
+            ]
+            .into_iter()
+            .chain(HOST_CONFIG_KEYS)
+            .collect(),
+        }
     }
 
     fn native_dialects(&self, _: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
@@ -118,28 +133,28 @@ impl BaseChannel for Playground {
     fn generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(request::generate(context, false))
     }
 
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(request::generate(context, true))
     }
 
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(request::models(context, false))
     }
 
     fn get_model<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(request::models(context, true))
     }
 }

@@ -1,11 +1,12 @@
 #![cfg(feature = "minimax")]
 
 mod support;
-use gproxy_channel::channel::{NoState, OperationContext, QuotaValue};
+use gproxy_channel::channel::{OperationContext, QuotaValue};
 use gproxy_channel::channels::minimax::MiniMax;
 use gproxy_channel::{BaseChannel, OutboundClient};
 use gproxy_protocol::capability::{CapabilityError, CapabilityFuture};
 use gproxy_protocol::{Dialect, HttpBody, WireResponse};
+use gproxy_upstream::NoState;
 use http::{HeaderMap, StatusCode};
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};

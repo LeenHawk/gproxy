@@ -13,17 +13,16 @@
 //! and Copilot accepts that id paired with the item's content on the next
 //! turn.
 
-use crate::channel::ChannelError;
 use futures_util::{StreamExt, stream};
 use gproxy_protocol::HttpBody;
 use gproxy_protocol::codec::{SseDecoder, SseEncoder, SseEvent, SseFrame};
 use gproxy_protocol::connection::{ByteStream, Bytes, TransportError};
+use gproxy_upstream::UpstreamError;
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 
-
-fn invalid(error: impl std::fmt::Display) -> ChannelError {
-    ChannelError::InvalidResponse(error.to_string())
+fn invalid(error: impl std::fmt::Display) -> UpstreamError {
+    UpstreamError::InvalidResponse(error.to_string())
 }
 
 /// The id and type each `output_index` was added with.
@@ -107,7 +106,7 @@ struct Codec {
 }
 
 impl Codec {
-    fn emit(&mut self, frames: Vec<SseFrame>) -> Result<Vec<Bytes>, ChannelError> {
+    fn emit(&mut self, frames: Vec<SseFrame>) -> Result<Vec<Bytes>, UpstreamError> {
         frames
             .into_iter()
             .map(|frame| match frame {
@@ -122,12 +121,12 @@ impl Codec {
             .collect()
     }
 
-    fn push(&mut self, chunk: &[u8]) -> Result<Vec<Bytes>, ChannelError> {
+    fn push(&mut self, chunk: &[u8]) -> Result<Vec<Bytes>, UpstreamError> {
         let frames = self.decoder.push(chunk).map_err(invalid)?;
         self.emit(frames)
     }
 
-    fn finish(&mut self) -> Result<Vec<Bytes>, ChannelError> {
+    fn finish(&mut self) -> Result<Vec<Bytes>, UpstreamError> {
         let frames = self.decoder.finish().map_err(invalid)?;
         self.emit(frames)
     }

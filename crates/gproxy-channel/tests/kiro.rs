@@ -4,18 +4,20 @@
 mod support;
 
 use futures_util::StreamExt as _;
+use gproxy_channel::OutboundClient;
 use gproxy_channel::channel::{
-    AcquiredCredential, AuthorizationCode, AuthorizationRequest, BaseChannel, ChannelError,
-    CredentialContext, CredentialRefresh, CredentialView, DevicePoll, LoginContext, NoState,
-    OAuthAuthorizationCode, OAuthDeviceCode, OperationContext, PrepareContext, ProviderView,
-    QuotaQuery, QuotaValue,
+    BaseChannel, OperationContext, PrepareContext, QuotaQuery, QuotaValue,
 };
 use gproxy_channel::channels::kiro::{AGENTIC_REQUEST_DIMENSION, Kiro};
-use gproxy_channel::{LoginMode, OutboundClient};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
     connection::Bytes,
+};
+use gproxy_upstream::{
+    AcquiredCredential, AuthorizationCode, AuthorizationRequest, CredentialContext,
+    CredentialRefresh, CredentialView, DevicePoll, LoginContext, LoginMode, NoState,
+    OAuthAuthorizationCode, OAuthDeviceCode, ProviderView, UpstreamError, UpstreamKind,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -139,7 +141,7 @@ fn prepare(
     metadata: &Value,
     operation: Operation,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     Kiro.prepare(PrepareContext {
         provider: provider(config, base_url),
         credential: credential(secret, metadata),
@@ -335,7 +337,7 @@ fn a_credential_without_an_access_token_is_refused_and_so_is_a_catalogue_without
             Operation::StreamGenerateContent,
             request(HeaderMap::new(), "/v1/responses", responses_body()),
         ),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
     assert!(matches!(
         prepare(
@@ -346,7 +348,7 @@ fn a_credential_without_an_access_token_is_refused_and_so_is_a_catalogue_without
             Operation::ListModels,
             request(HeaderMap::new(), "/v1/models", json!({})),
         ),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
     // A provider-level profile stands in for a credential that has none.
     assert!(
@@ -389,7 +391,7 @@ fn the_declared_dialect_is_responses_and_nothing_else_is_prepared() {
             Operation::CountTokens,
             request(HeaderMap::new(), "/v1/responses", json!({})),
         ),
-        Err(ChannelError::UnsupportedOperation(_))
+        Err(UpstreamError::UnsupportedOperation(_))
     ));
 }
 
@@ -800,7 +802,7 @@ async fn a_device_authorization_with_nothing_to_open_is_not_one() {
             client: client.as_ref(),
         })
         .await,
-        Err(ChannelError::InvalidResponse(_))
+        Err(UpstreamError::InvalidResponse(_))
     ));
 }
 
@@ -856,7 +858,7 @@ async fn the_desktop_refresh_rotates_and_a_named_refusal_is_definitive() {
             },
         )
         .await,
-        Err(ChannelError::RefreshRejected(_))
+        Err(UpstreamError::RefreshRejected(_))
     ));
 
     let transient = ScriptClient::new(vec![raw_reply(StatusCode::BAD_GATEWAY, "down")]);
@@ -871,7 +873,7 @@ async fn the_desktop_refresh_rotates_and_a_named_refusal_is_definitive() {
                 },
             )
             .await,
-            Err(ChannelError::UpstreamResponse { .. })
+            Err(UpstreamError::UpstreamResponse { .. })
         ),
         "a gateway failure is not a dead credential"
     );
@@ -1148,7 +1150,7 @@ async fn a_quota_probe_without_a_profile_is_an_invalid_credential() {
             client: client.as_ref(),
         })
         .await,
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
 }
 

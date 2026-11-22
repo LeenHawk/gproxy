@@ -13,7 +13,8 @@
 
 use super::auth;
 use super::config::{CLI_USER_AGENT, INTEGRATION_ID, OPENAI_INTENT};
-use crate::channel::{ChannelError, ChannelHeaders, CredentialView};
+use crate::channel::ChannelHeaders;
+use gproxy_upstream::{CredentialView, UpstreamError};
 use http::{HeaderMap, HeaderName, HeaderValue, header};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -99,10 +100,10 @@ fn machine_id(github_token: &str) -> String {
 }
 
 /// A fresh id for this exchange.
-fn interaction_id() -> Result<String, ChannelError> {
+fn interaction_id() -> Result<String, UpstreamError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|error| {
-        ChannelError::InvalidConfig(format!(
+        UpstreamError::InvalidConfig(format!(
             "operating-system randomness is unavailable: {error}"
         ))
     })?;
@@ -115,12 +116,12 @@ pub(super) fn apply(
     headers: &mut HeaderMap,
     credential: &CredentialView<'_>,
     body: Option<&[u8]>,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     let github_token = auth::github_token(credential)?;
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {github_token}"))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     headers.insert(header::USER_AGENT, HeaderValue::from_static(CLI_USER_AGENT));
     for (name, value) in [
@@ -133,7 +134,7 @@ pub(super) fn apply(
         headers.insert(
             HeaderName::from_static(name),
             HeaderValue::from_str(&value)
-                .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+                .map_err(|_| UpstreamError::InvalidConfig(format!("header `{name}`")))?,
         );
     }
     Ok(())

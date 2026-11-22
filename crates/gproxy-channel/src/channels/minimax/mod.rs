@@ -12,11 +12,13 @@ mod request;
 mod video;
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, LoginMode, OperationContext, OperationFuture, PrepareContext, ProviderView,
-    QuotaQuery,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, OperationContext,
+    PrepareContext, QuotaQuery,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamFuture, UpstreamKind,
+};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -32,11 +34,13 @@ pub struct MiniMaxConfig {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MiniMax;
 
-impl BaseChannel for MiniMax {
+impl UpstreamKind for MiniMax {
     fn id(&self) -> &'static str {
         ID
     }
+}
 
+impl BaseChannel for MiniMax {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -72,38 +76,38 @@ impl BaseChannel for MiniMax {
         Some(self)
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         request::prepare(ctx)
     }
 
     fn create_video<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(video::call(self, Operation::CreateVideo, ctx))
     }
     fn retrieve_video<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(video::call(self, Operation::RetrieveVideo, ctx))
     }
     fn list_videos<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(video::call(self, Operation::ListVideos, ctx))
     }
     fn delete_video<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(video::call(self, Operation::DeleteVideo, ctx))
     }
     fn download_video_content<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(video::download(self, ctx))
     }
 }

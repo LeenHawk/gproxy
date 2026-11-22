@@ -15,10 +15,10 @@
 //! own `token_uri`.
 
 use super::Vertex;
-use crate::channel::{ChannelError, CredentialRefresh, CredentialUpdate, RefreshContext};
 use base64::Engine as _;
 use gproxy_protocol::capability::CapabilityFuture;
 use gproxy_protocol::{HttpBody, WireResponse, connection::Bytes};
+use gproxy_upstream::{CredentialRefresh, CredentialUpdate, RefreshContext, UpstreamError};
 use http::{HeaderValue, Method, StatusCode, header};
 use serde::Serialize;
 use serde_json::Value;
@@ -34,11 +34,11 @@ const DEFAULT_EXPIRES_IN_SECONDS: i64 = 3_600;
 /// The access token `prepare` puts in the `Authorization` header. Absent means
 /// no refresh has run yet, which is a credential the host must refresh before
 /// it can serve a request, not a request the channel can rescue.
-pub(super) fn access_token(secret: &Value) -> Result<&str, ChannelError> {
-    field(secret, "access_token").ok_or(ChannelError::InvalidCredential)
+pub(super) fn access_token(secret: &Value) -> Result<&str, UpstreamError> {
+    field(secret, "access_token").ok_or(UpstreamError::InvalidCredential)
 }
 
-pub(super) fn validate_secret(secret: &Value) -> Result<(), ChannelError> {
+pub(super) fn validate_secret(secret: &Value) -> Result<(), UpstreamError> {
     ServiceAccount::parse(secret).map(|_| ())
 }
 
@@ -46,7 +46,7 @@ impl CredentialRefresh for Vertex {
     fn refresh<'a>(
         &'a self,
         context: RefreshContext<'a>,
-    ) -> CapabilityFuture<'a, Result<CredentialUpdate, ChannelError>> {
+    ) -> CapabilityFuture<'a, Result<CredentialUpdate, UpstreamError>> {
         Box::pin(async move {
             let account = ServiceAccount::parse(context.credential.secret)?;
             let assertion = account.assertion()?;
@@ -58,7 +58,7 @@ impl CredentialRefresh for Vertex {
                 .method(Method::POST)
                 .uri(&account.token_uri)
                 .body(HttpBody::Bytes(Bytes::from(body.into_bytes())))
-                .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+                .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
             request.headers_mut().insert(
                 header::CONTENT_TYPE,
                 HeaderValue::from_static("application/x-www-form-urlencoded"),
@@ -76,7 +76,7 @@ impl CredentialRefresh for Vertex {
                 return Err(reject(status, &bytes));
             }
             let token: Value = serde_json::from_slice(&bytes)
-                .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
+                .map_err(|error| UpstreamError::InvalidResponse(error.to_string()))?;
             rotate(context.credential.secret, &token)
         })
     }
@@ -91,7 +91,7 @@ impl CredentialRefresh for Vertex {
 /// in front of a custom `token_uri`, say), a `429` or a `5xx`, stays
 /// retryable; google-auth-library's gtoken keeps no permanent state on any
 /// token failure and simply rethrows.
-fn reject(status: StatusCode, body: &[u8]) -> ChannelError {
+fn reject(status: StatusCode, body: &[u8]) -> UpstreamError {
     let code = serde_json::from_slice::<Value>(body)
         .ok()
         .and_then(|value| match value.get("error") {
@@ -103,9 +103,9 @@ fn reject(status: StatusCode, body: &[u8]) -> ChannelError {
             if status.is_client_error()
                 && matches!(code.as_str(), "invalid_grant" | "invalid_client") =>
         {
-            ChannelError::RefreshRejected(code)
+            UpstreamError::RefreshRejected(code)
         }
-        _ => ChannelError::UpstreamResponse {
+        _ => UpstreamError::UpstreamResponse {
             status,
             body: Bytes::copy_from_slice(body),
         },
@@ -114,9 +114,9 @@ fn reject(status: StatusCode, body: &[u8]) -> ChannelError {
 
 /// A full replacement secret: the key material is carried over untouched and
 /// only the minted token and its expiry change.
-fn rotate(secret: &Value, token: &Value) -> Result<CredentialUpdate, ChannelError> {
+fn rotate(secret: &Value, token: &Value) -> Result<CredentialUpdate, UpstreamError> {
     let access = field(token, "access_token").ok_or_else(|| {
-        ChannelError::InvalidResponse("token response has no access_token".into())
+        UpstreamError::InvalidResponse("token response has no access_token".into())
     })?;
     let expires_in = token
         .get("expires_in")
@@ -129,7 +129,7 @@ fn rotate(secret: &Value, token: &Value) -> Result<CredentialUpdate, ChannelErro
     let mut secret = secret.clone();
     let object = secret
         .as_object_mut()
-        .ok_or_else(|| ChannelError::InvalidCredential)?;
+        .ok_or_else(|| UpstreamError::InvalidCredential)?;
     object.insert("access_token".into(), Value::String(access.to_owned()));
     object.insert("expires_at_ms".into(), Value::from(expires_at_ms));
     Ok(CredentialUpdate {
@@ -146,12 +146,12 @@ struct ServiceAccount {
 }
 
 impl ServiceAccount {
-    fn parse(secret: &Value) -> Result<Self, ChannelError> {
+    fn parse(secret: &Value) -> Result<Self, UpstreamError> {
         let required = |name: &str| {
             field(secret, name).ok_or_else(|| {
                 // No amount of retrying invents a field the key never had, so
                 // this is as definitive as an upstream refusal.
-                ChannelError::RefreshRejected(format!("service-account key has no `{name}`"))
+                UpstreamError::RefreshRejected(format!("service-account key has no `{name}`"))
             })
         };
         Ok(Self {
@@ -164,7 +164,7 @@ impl ServiceAccount {
         })
     }
 
-    fn assertion(&self) -> Result<String, ChannelError> {
+    fn assertion(&self) -> Result<String, UpstreamError> {
         let issued = unix_seconds().max(0) as u64;
         let claims = Claims {
             iss: &self.client_email,
@@ -177,7 +177,7 @@ impl ServiceAccount {
         let header = engine.encode(br#"{"alg":"RS256","typ":"JWT"}"#);
         let claims = engine.encode(
             serde_json::to_vec(&claims)
-                .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?,
+                .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?,
         );
         let signing_input = format!("{header}.{claims}");
         let signature = sign(&self.private_key, signing_input.as_bytes())?;
@@ -187,7 +187,7 @@ impl ServiceAccount {
 
 /// RS256 over the JWT signing input. A key that will not parse can never be
 /// made to work, so it is reported the same way a revoked key is.
-fn sign(pem: &str, message: &[u8]) -> Result<Vec<u8>, ChannelError> {
+fn sign(pem: &str, message: &[u8]) -> Result<Vec<u8>, UpstreamError> {
     use rsa::pkcs1::DecodeRsaPrivateKey as _;
     use rsa::pkcs8::DecodePrivateKey as _;
     use rsa::signature::{SignatureEncoding as _, Signer as _};
@@ -195,12 +195,12 @@ fn sign(pem: &str, message: &[u8]) -> Result<Vec<u8>, ChannelError> {
     let key = rsa::PrivateKey::from_pkcs8_pem(pem)
         .or_else(|_| rsa::PrivateKey::from_pkcs1_pem(pem))
         .map_err(|error| {
-            ChannelError::RefreshRejected(format!("service-account private_key: {error}"))
+            UpstreamError::RefreshRejected(format!("service-account private_key: {error}"))
         })?;
     let signing_key = rsa::pkcs1v15::SigningKey::<rsa::sha2::Sha256>::new(key);
     let signature = signing_key
         .try_sign(message)
-        .map_err(|error| ChannelError::RefreshRejected(format!("JWT signature: {error}")))?;
+        .map_err(|error| UpstreamError::RefreshRejected(format!("JWT signature: {error}")))?;
     Ok(signature.to_vec())
 }
 
@@ -234,7 +234,7 @@ fn percent_encode(value: &str) -> String {
     out
 }
 
-async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
+async fn read_body(body: HttpBody) -> Result<Bytes, UpstreamError> {
     crate::channel::read_body(body).await
 }
 

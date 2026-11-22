@@ -3,13 +3,14 @@
 //! Ark content blocks stay available alongside the gateway video extensions.
 
 use super::{Volcengine, json_response};
-use crate::channel::{BaseChannel, ChannelError, OperationContext, PrepareContext};
+use crate::channel::{BaseChannel, OperationContext, PrepareContext};
 use crate::channels::shared::compatible::http::{invalid_response, read_body};
 use gproxy_protocol::{HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::UpstreamError;
 use http::{Method, StatusCode, header};
 use serde_json::{Map, Value, json};
 
-pub(super) fn task_id(path: &str) -> Result<&str, ChannelError> {
+pub(super) fn task_id(path: &str) -> Result<&str, UpstreamError> {
     let path = path.trim_end_matches('/');
     let id = path
         .strip_suffix("/content")
@@ -22,15 +23,15 @@ pub(super) fn task_id(path: &str) -> Result<&str, ChannelError> {
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
     {
-        return Err(ChannelError::InvalidConfig(
+        return Err(UpstreamError::InvalidConfig(
             "Invalid Ark video task ID".into(),
         ));
     }
     Ok(id)
 }
 
-pub(super) fn request(bytes: &[u8]) -> Result<Vec<u8>, ChannelError> {
-    let invalid = |message: &str| ChannelError::InvalidConfig(message.into());
+pub(super) fn request(bytes: &[u8]) -> Result<Vec<u8>, UpstreamError> {
+    let invalid = |message: &str| UpstreamError::InvalidConfig(message.into());
     let mut body: Map<String, Value> =
         serde_json::from_slice(bytes).map_err(|e| invalid(&e.to_string()))?;
     let mut content = match body.remove("content") {
@@ -89,7 +90,7 @@ pub(super) fn request(bytes: &[u8]) -> Result<Vec<u8>, ChannelError> {
     Ok(Value::Object(body).to_string().into_bytes())
 }
 
-fn task(mut value: Value) -> Result<Value, ChannelError> {
+fn task(mut value: Value) -> Result<Value, UpstreamError> {
     let id = value
         .get("id")
         .and_then(Value::as_str)
@@ -125,7 +126,7 @@ pub(super) async fn call(
     channel: &Volcengine,
     operation: Operation,
     ctx: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let id = (operation == Operation::DeleteVideo)
         .then(|| task_id(&ctx.request.path).map(str::to_owned))
         .transpose()?;
@@ -186,7 +187,7 @@ pub(super) async fn call(
 pub(super) async fn download(
     channel: &Volcengine,
     mut ctx: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     ctx.request.method = Method::GET;
     ctx.request.query = None;
     let request = channel.prepare(PrepareContext {

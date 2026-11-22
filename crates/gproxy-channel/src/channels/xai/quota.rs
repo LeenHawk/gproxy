@@ -8,13 +8,15 @@
 use super::Xai;
 use super::config::{ID, XaiConfig};
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
+    QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
     QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
     QuotaWindow,
 };
 use crate::channels::shared::compatible::ability::{bearer, decimal, require_success, send};
 use crate::channels::shared::compatible::http::invalid_response;
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
+};
 use http::Method;
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -100,11 +102,11 @@ fn postpaid(payload: &Value) -> Option<QuotaEntry> {
 }
 
 impl QuotaQuery for Xai {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = XaiConfig::from_view(context.provider)?;
             let (key, team) = config.billing().ok_or_else(|| {
-                ChannelError::InvalidConfig(format!(
+                UpstreamError::InvalidConfig(format!(
                     "{ID} billing needs quota_api_key and quota_team_id"
                 ))
             })?;

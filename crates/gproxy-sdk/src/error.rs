@@ -23,7 +23,7 @@ pub enum SdkError {
     #[error(transparent)]
     Db(#[from] sea_orm::DbErr),
     #[error(transparent)]
-    Channel(#[from] gproxy_channel::ChannelError),
+    Channel(#[from] gproxy_upstream::UpstreamError),
     #[error(transparent)]
     Secret(#[from] gproxy_core::SecretError),
     #[error(transparent)]
@@ -102,7 +102,7 @@ impl SdkError {
     /// `401` already means "your session with this instance is over", and an
     /// operator who mistyped a provider key has not lost theirs.
     pub fn upstream_status(&self) -> Option<u16> {
-        use gproxy_channel::ChannelError as E;
+        use gproxy_upstream::UpstreamError as E;
         match self {
             Self::Upstream { status, .. } => Some(*status),
             Self::Channel(E::UpstreamResponse { status, .. }) => Some(status.as_u16()),
@@ -151,8 +151,8 @@ fn transform_status(error: &gproxy_protocol::transform::TransformError) -> u16 {
     }
 }
 
-fn channel_status(error: &gproxy_channel::ChannelError) -> u16 {
-    use gproxy_channel::ChannelError as E;
+fn channel_status(error: &gproxy_upstream::UpstreamError) -> u16 {
+    use gproxy_upstream::UpstreamError as E;
     match error {
         E::UnsupportedService | E::UnsupportedOperation(_) | E::WrongTransport(_) => 501,
         E::InvalidConfig(_) => 400,

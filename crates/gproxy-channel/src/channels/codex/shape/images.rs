@@ -1,5 +1,4 @@
 //! Preserve image parameters; adapt buffered multipart edits to backend JSON.
-use crate::channel::ChannelError;
 use base64::Engine;
 use futures_util::{FutureExt, StreamExt};
 use gproxy_protocol::{
@@ -8,14 +7,15 @@ use gproxy_protocol::{
     connection::Bytes,
     wire::openai::images::{CreateImageRequestBody, EditImageJsonBody},
 };
+use gproxy_upstream::UpstreamError;
 use http::{HeaderMap, header};
 use serde_json::{Value, json};
 
-fn invalid(error: impl std::fmt::Display) -> ChannelError {
-    ChannelError::InvalidConfig(format!("Codex image request: {error}"))
+fn invalid(error: impl std::fmt::Display) -> UpstreamError {
+    UpstreamError::InvalidConfig(format!("Codex image request: {error}"))
 }
 
-pub(in crate::channels::codex) fn create(body: &Bytes) -> Result<Bytes, ChannelError> {
+pub(in crate::channels::codex) fn create(body: &Bytes) -> Result<Bytes, UpstreamError> {
     let input: CreateImageRequestBody = serde_json::from_slice(body).map_err(invalid)?;
     serde_json::to_vec(&input).map(Bytes::from).map_err(invalid)
 }
@@ -23,7 +23,7 @@ pub(in crate::channels::codex) fn create(body: &Bytes) -> Result<Bytes, ChannelE
 pub(in crate::channels::codex) fn edit(
     headers: &HeaderMap,
     body: &Bytes,
-) -> Result<Bytes, ChannelError> {
+) -> Result<Bytes, UpstreamError> {
     let content_type = headers
         .get(header::CONTENT_TYPE)
         .and_then(|h| h.to_str().ok())
@@ -46,7 +46,10 @@ pub(in crate::channels::codex) fn edit(
     serde_json::to_vec(&input).map(Bytes::from).map_err(invalid)
 }
 
-async fn parse_multipart(body: Bytes, boundary: String) -> Result<EditImageJsonBody, ChannelError> {
+async fn parse_multipart(
+    body: Bytes,
+    boundary: String,
+) -> Result<EditImageJsonBody, UpstreamError> {
     let size = body.len() as u64;
     let mut decoder = MultipartDecoder::new(
         HttpBody::Bytes(body),

@@ -9,7 +9,6 @@ repository.workspace = true
 
 [features]
 schema = ["dep:schemars", "gproxy-core/schema", "gproxy-channel/schema"]
-# Everything in the default set compiles for wasm32-unknown-unknown.
 default = ["memory", "fs", "bundled-vocabulary"]
 
 # Channels, forwarded to gproxy-channel. Each one compiled in is registered by
@@ -90,14 +89,11 @@ channels = [
     "xai",
 ]
 
-# Databases. SQLite is always available on native targets; these add a driver
-# and are native-only. libSQL and D1 are the edge options.
+# Databases. SQLite is always available; these add a driver. libSQL is Turso
+# over HTTP.
 postgres = ["sea-orm/sqlx-postgres", "sea-orm/runtime-tokio-rustls"]
 mysql = ["sea-orm/sqlx-mysql", "sea-orm/runtime-tokio-rustls"]
 libsql = ["gproxy-seaorm/libsql", "gproxy-client/libsql"]
-# Marker: the D1 binding is always available on wasm32 through gproxy-seaorm.
-# Enabling it documents the intent and keeps the feature name stable.
-d1 = []
 
 # Shared transient state and invalidation notifications.
 memory = ["gproxy-cache/memory"]
@@ -121,7 +117,7 @@ bundled-vocabulary = ["gproxy-core/bundled-vocabulary"]
 ts = ["dep:ts-rs", "ts-rs/no-serde-warnings", "gproxy-channel/ts"]
 
 # `ClientBackend`: serve a gproxy-client-sdk `Client` from this handle in
-# process. Native targets only.
+# process.
 client-sdk = ["dep:gproxy-client-sdk"]
 
 [dependencies]
@@ -131,7 +127,9 @@ futures-util = { workspace = true }
 getrandom = { workspace = true }
 gproxy-cache = { workspace = true }
 gproxy-channel = { workspace = true }
-gproxy-client = { workspace = true }
+gproxy-upstream = { workspace = true }
+gproxy-client = { workspace = true, features = ["reqwest"] }
+gproxy-client-sdk = { workspace = true, optional = true, features = ["realtime"] }
 gproxy-core = { workspace = true }
 gproxy-file = { workspace = true }
 gproxy-protocol = { workspace = true }
@@ -139,31 +137,20 @@ gproxy-seaorm = { workspace = true }
 gproxy-store = { workspace = true }
 http = { workspace = true }
 rust_decimal = { workspace = true }
-sea-orm = { workspace = true }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 schemars = { workspace = true, optional = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time", "rt"] }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
 ts-rs = { workspace = true, optional = true }
 url = { workspace = true }
 web-time = { workspace = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-gproxy-client = { workspace = true, features = ["reqwest"] }
-gproxy-client-sdk = { workspace = true, optional = true, features = ["realtime"] }
-sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
-tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time", "rt"] }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-gloo-timers = { workspace = true }
-gproxy-client = { workspace = true, features = ["fetch"] }
-tokio = { workspace = true, features = ["macros", "sync"] }
-wasm-bindgen-futures = { workspace = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+[dev-dependencies]
 async-trait = { workspace = true }
 futures-util = { workspace = true, features = ["sink"] }
 gproxy-cache = { workspace = true, features = ["memory"] }

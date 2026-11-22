@@ -32,8 +32,8 @@ python3 scripts/reproduce-build.py --result dist/reproducible -- \
 ```
 
 The `Reproducible builds` workflow derives its native target/product matrix from
-`scripts/release-targets.json`, adds the Android store variants, Worker and
-Serverless packages, and saves both outputs with a JSON comparison report.
+`scripts/release-targets.json`, adds the Android store variants, and saves
+both outputs with a JSON comparison report.
 It uses public update/Store identities, creates unsigned packages, and does not
 publish a release or access production signing keys. A missing output, failed
 build or byte difference is a failure. Passing an individual job is not proof

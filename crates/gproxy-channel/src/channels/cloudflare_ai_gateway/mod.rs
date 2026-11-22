@@ -27,13 +27,16 @@ mod services;
 pub use quota::{BALANCE_DIMENSION, NEURONS_DIMENSION};
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, OperationContext,
-    OperationFuture, PrepareContext, ProviderView, QuotaModel, QuotaQuery, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, HeaderAllowlist,
+    OperationContext, PrepareContext, QuotaModel, QuotaQuery, forwardable,
 };
 use crate::channels::shared::claude_images;
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, LoginMode, ProviderView, UpstreamError,
+    UpstreamFuture, UpstreamKind,
+};
 use http::{HeaderName, HeaderValue, header};
 use serde::Deserialize;
 use serde_json::Value;
@@ -56,9 +59,9 @@ pub struct CloudflareConfig {
 }
 
 impl CloudflareConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 
@@ -82,14 +85,14 @@ fn field<'a>(secret: &'a Value, name: &str) -> Option<&'a str> {
 /// An account id goes into a URL path. Cloudflare's are hex; anything outside
 /// v3's identifier alphabet is refused rather than escaped into a different
 /// path (v3 `quota_cloud/prepare.rs::segment`).
-fn account_id(secret: &Value, name: &str) -> Result<String, ChannelError> {
-    let account = field(secret, name).ok_or(ChannelError::InvalidCredential)?;
+fn account_id(secret: &Value, name: &str) -> Result<String, UpstreamError> {
+    let account = field(secret, name).ok_or(UpstreamError::InvalidCredential)?;
     if matches!(account, "." | "..")
         || !account
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
     {
-        return Err(ChannelError::InvalidCredential);
+        return Err(UpstreamError::InvalidCredential);
     }
     Ok(account.to_owned())
 }
@@ -97,11 +100,17 @@ fn account_id(secret: &Value, name: &str) -> Result<String, ChannelError> {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CloudflareAiGateway;
 
-impl BaseChannel for CloudflareAiGateway {
+impl UpstreamKind for CloudflareAiGateway {
     fn id(&self) -> &'static str {
         ID
     }
 
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for CloudflareAiGateway {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -163,16 +172,16 @@ impl BaseChannel for CloudflareAiGateway {
         })
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         if !self
             .native_dialects(ctx.provider, ctx.operation.operation)
             .contains(&ctx.operation.dialect)
         {
-            return Err(ChannelError::UnsupportedOperation(ctx.operation));
+            return Err(UpstreamError::UnsupportedOperation(ctx.operation));
         }
         let config = CloudflareConfig::from_view(ctx.provider)?;
         let secret = ctx.credential.secret;
-        let key = field(secret, "api_key").ok_or(ChannelError::InvalidCredential)?;
+        let key = field(secret, "api_key").ok_or(UpstreamError::InvalidCredential)?;
         let gateway = field(secret, "gateway_id").unwrap_or(DEFAULT_GATEWAY_ID);
         let url = match ctx.endpoint_override {
             Some(url) => url.to_owned(),
@@ -204,11 +213,11 @@ impl BaseChannel for CloudflareAiGateway {
         headers.insert(
             header::AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {key}"))
-                .map_err(|_| ChannelError::InvalidCredential)?,
+                .map_err(|_| UpstreamError::InvalidCredential)?,
         );
         headers.insert(
             HeaderName::from_static(GATEWAY_HEADER),
-            HeaderValue::from_str(gateway).map_err(|_| ChannelError::InvalidCredential)?,
+            HeaderValue::from_str(gateway).map_err(|_| UpstreamError::InvalidCredential)?,
         );
         if matches!(&ctx.request.body, HttpBody::Bytes(bytes) if !bytes.is_empty()) {
             headers
@@ -234,25 +243,21 @@ impl BaseChannel for CloudflareAiGateway {
         };
         builder
             .body(body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.models(context))
     }
 
     fn rerank<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.rerank_run(context))
-    }
-
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
     }
 
     fn quota_model(&self) -> Option<&dyn QuotaModel> {

@@ -34,7 +34,7 @@ use serde_json::{Value, json};
 
 use super::connect::{FrameReader, trailer_error};
 use super::{error, proto};
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 // GetChatMessageResponse
 const RES_CONTENT: u32 = 3;
@@ -276,7 +276,7 @@ impl Codec {
     /// Chunks for one response frame. A frame this decoder cannot parse is an
     /// upstream protocol error, not an empty delta: the host is better served
     /// by a failed stream than by a silently short answer.
-    pub(super) fn frame(&mut self, payload: &[u8]) -> Result<Vec<Value>, ChannelError> {
+    pub(super) fn frame(&mut self, payload: &[u8]) -> Result<Vec<Value>, UpstreamError> {
         let fields = proto::parse(payload)?;
         let mut chunks = Vec::new();
         if !self.started {
@@ -390,7 +390,7 @@ impl Codec {
     /// The terminal chunk. Usage rides it whenever the upstream reported a
     /// terminal metadata frame; an absent block means unreported rather than
     /// zero, so no `usage` key is written at all.
-    pub(super) fn close(&mut self) -> Result<Vec<Value>, ChannelError> {
+    pub(super) fn close(&mut self) -> Result<Vec<Value>, UpstreamError> {
         if self.closed {
             return Ok(Vec::new());
         }
@@ -517,7 +517,7 @@ impl Turn {
     }
 
     /// The next batch of translated chunks, or `None` once the turn is over.
-    pub(super) async fn step(&mut self) -> Option<Result<Vec<Value>, ChannelError>> {
+    pub(super) async fn step(&mut self) -> Option<Result<Vec<Value>, UpstreamError>> {
         loop {
             if self.finished {
                 return None;
@@ -529,7 +529,7 @@ impl Turn {
                     // frame. A socket that simply stops delivered a partial
                     // answer, and reporting it as a finished turn would make a
                     // truncated reply the next turn's context.
-                    return Some(Err(ChannelError::InvalidResponse(
+                    return Some(Err(UpstreamError::InvalidResponse(
                         "devin stream ended without its Connect trailer".into(),
                     )));
                 }
@@ -542,7 +542,7 @@ impl Turn {
                 Ok(chunk) => chunk,
                 Err(error) => {
                     self.finished = true;
-                    return Some(Err(ChannelError::InvalidResponse(error.to_string())));
+                    return Some(Err(UpstreamError::InvalidResponse(error.to_string())));
                 }
             };
             let frames = match self.reader.push(&chunk) {
@@ -596,7 +596,7 @@ impl Turn {
     /// written this channel can still answer it with a status the host can
     /// classify instead of a broken stream. Once content is flowing the
     /// status is spent, and a later failure can only fail the stream.
-    pub(super) async fn prime(&mut self) -> Result<Vec<Value>, ChannelError> {
+    pub(super) async fn prime(&mut self) -> Result<Vec<Value>, UpstreamError> {
         match self.step().await {
             Some(result) => result,
             None => Ok(Vec::new()),
@@ -642,7 +642,7 @@ impl Turn {
 
     /// Drain the turn into one `chat.completion` body. A failure keeps its
     /// class: `mod.rs` turns a classified refusal into an answer.
-    pub(super) async fn collect(mut self) -> Result<Value, ChannelError> {
+    pub(super) async fn collect(mut self) -> Result<Value, UpstreamError> {
         while let Some(item) = self.step().await {
             item?;
         }

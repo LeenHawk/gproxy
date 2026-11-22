@@ -8,11 +8,11 @@ pub(crate) mod lifecycle;
 mod operations;
 
 use crate::{ConfigRevision, CredentialStatus, UsageReport};
-use gproxy_channel::ChannelError;
 use gproxy_protocol::{
     HttpBody, Operation, WireResponse,
     capability::{CapabilityFuture, UpstreamConnection},
 };
+use gproxy_upstream::UpstreamError;
 
 pub type CoreResult<T> = Result<T, CoreError>;
 
@@ -91,11 +91,17 @@ pub enum CoreError {
     #[error(transparent)]
     Assembly(#[from] crate::AssemblyError),
     #[error(transparent)]
-    Channel(#[from] ChannelError),
+    Channel(#[from] UpstreamError),
     #[error(transparent)]
     Cache(#[from] gproxy_cache::CacheError),
     #[error(transparent)]
     Store(#[from] gproxy_store::StoreError),
+}
+
+impl From<gproxy_convert::form::FormError> for CoreError {
+    fn from(error: gproxy_convert::form::FormError) -> Self {
+        Self::InvalidTarget(error.to_string())
+    }
 }
 
 /// Must resolve when the response stream/socket finishes or is dropped, without

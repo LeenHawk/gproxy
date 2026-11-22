@@ -2,13 +2,14 @@
 
 //! OpenRouter's two reasons to be a channel: it routes and it prices.
 
+use gproxy_channel::BaseChannel;
 use gproxy_channel::channel::{PrepareContext, QuotaScope, QuotaValue};
 use gproxy_channel::channels::openrouter::{
     OpenRouter, UPSTREAM_COST_METRIC, UPSTREAM_PRICED_DIMENSION,
 };
-use gproxy_channel::{BaseChannel, ChannelError, LoginMode};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
+use gproxy_upstream::{LoginMode, UpstreamError};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::{Value, json};
 
@@ -21,7 +22,7 @@ fn prepare(
     operation: Operation,
     dialect: Dialect,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     let secret = json!({"api_key": "sk-or-v1-upstream"});
     OpenRouter.prepare(PrepareContext {
         provider: provider("openrouter", config, base_url),
@@ -313,7 +314,7 @@ async fn the_key_probe_reports_a_budget_and_the_rate_limit_beside_it() {
     .await;
     assert!(matches!(
         refused,
-        Err(ChannelError::UpstreamResponse { status, .. }) if status == StatusCode::UNAUTHORIZED
+        Err(UpstreamError::UpstreamResponse { status, .. }) if status == StatusCode::UNAUTHORIZED
     ));
 }
 
@@ -349,7 +350,7 @@ fn a_credential_without_a_key_is_refused_before_any_url_is_built() {
         request: request("/v1/chat/completions", None),
         endpoint_override: None,
     });
-    assert!(matches!(error, Err(ChannelError::InvalidCredential)));
+    assert!(matches!(error, Err(UpstreamError::InvalidCredential)));
 }
 
 #[test]

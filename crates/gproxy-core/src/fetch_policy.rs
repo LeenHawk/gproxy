@@ -2,27 +2,22 @@
 //! only after the policy allowed it, and asks again on every redirect hop.
 //!
 //! The policy sees the URL and the addresses the runtime resolver returned
-//! for its host (`resolved`). Natively that is the tokio resolver's answer; on
-//! wasm32 there is no resolver and the slice is empty, so a policy decides on
-//! the hostname alone (`DefaultFetchPolicy` then still denies literal IP hosts
-//! in the blocked ranges and `localhost`).
+//! for its host (`resolved`): the tokio resolver's answer, empty for a literal
+//! IP host.
 //!
 //! Where the vetted answer binds the connection depends on the transport:
 //!
-//! * Native, direct: the fetch connects only to the addresses the policy saw
+//! * Direct: the fetch connects only to the addresses the policy saw
 //!   (a pinned client), so a name that rebinds between lookup and connect
 //!   cannot reach an address the policy never judged.
-//! * Native, through the configured proxy: address-based policies refuse
+//! * Through the configured proxy: address-based policies refuse
 //!   domain URLs because proxy DNS cannot be pinned to the vetted answers.
 //!   An explicit host allow-list or allow-all policy can permit proxy DNS.
-//! * wasm32: no resolver, no pinning. Only literal IP hosts and loopback
-//!   names are judged; any other name is fetched wherever the runtime's
-//!   `fetch` sends it.
 //!
-//! For explicitly permitted proxy DNS and wasm32, destination policy is the
-//! proxy's or platform egress's to enforce: a deployment that fetches untrusted links
-//! through a proxy or on an edge runtime must have that egress refuse
-//! internal destinations itself, or use an allow-list of names it controls.
+//! For explicitly permitted proxy DNS, destination policy is the proxy's to
+//! enforce: a deployment that fetches untrusted links through a proxy must
+//! have it refuse internal destinations itself, or use an allow-list of names
+//! it controls.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 

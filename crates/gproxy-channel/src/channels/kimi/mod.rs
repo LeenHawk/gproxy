@@ -39,20 +39,33 @@ pub use config::{
 pub use quota::{BALANCE_DIMENSION, WEEKLY_DIMENSION};
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, PrepareContext, ProviderView,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, PrepareContext,
     QuotaModel, QuotaQuery, UsageExtras,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, LoginMode, OAuthDeviceCode, ProviderView,
+    UpstreamError, UpstreamKind,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Kimi;
 
-impl BaseChannel for Kimi {
+impl UpstreamKind for Kimi {
     fn id(&self) -> &'static str {
         ID
     }
 
+    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
+        Some(self)
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for Kimi {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -124,19 +137,11 @@ impl BaseChannel for Kimi {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let (builder, request) = request::build(ctx)?;
         builder
             .body(request.body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
-    }
-
-    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        Some(self)
-    }
-
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     fn quota_model(&self) -> Option<&dyn QuotaModel> {

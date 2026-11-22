@@ -70,6 +70,14 @@ exported!(
     BatchPatch<Dummy>,
     ListQuery,
     Page<Dummy>,
+    // mcp
+    McpScopeDto,
+    McpScopePatch,
+    McpScopeWrite,
+    McpToolDto,
+    McpToolNatureDto,
+    McpToolNaturePatch,
+    McpToolNatureWrite,
     // members
     MemberPatch,
     MemberWrite,

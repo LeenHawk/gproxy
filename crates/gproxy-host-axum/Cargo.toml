@@ -7,12 +7,6 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
-# Two targets, one router. Natively this binds axum over hyper and tokio; on
-# `wasm32-unknown-unknown` it binds the same `Router` with axum's server halves
-# switched off, so `gproxy-host-edge` can drive it from a Workers fetch handler
-# instead of writing the route table a second time. What the wasm build leaves
-# out is listed in that crate's README — the socket-shaped pieces (hyper
-# upgrades, `ConnectInfo`, the embedded console), never a route.
 [features]
 default = ["embedded-console"]
 embedded-console = ["dep:rust-embed"]
@@ -27,11 +21,14 @@ required-features = ["documentation"]
 syn = { workspace = true, optional = true, features = ["visit"] }
 
 [dependencies]
+axum = { workspace = true, features = ["form", "http1", "http2", "json", "matched-path", "original-uri", "query", "tokio", "tower-log", "tracing", "ws"] }
 bytes = { workspace = true }
 futures-core = { workspace = true }
 futures-util = { workspace = true }
 gproxy-app = { workspace = true }
 gproxy-channel = { workspace = true }
+gproxy-convert = { workspace = true }
+gproxy-upstream = { workspace = true }
 gproxy-core = { workspace = true }
 gproxy-protocol = { workspace = true }
 gproxy-sdk = { workspace = true }
@@ -48,11 +45,7 @@ serde_urlencoded = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
 utoipa = { workspace = true, optional = true }
-# `SystemTime::now()` inside a Worker isolate, where `std::time` has no clock.
 web-time = { workspace = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-axum = { workspace = true, features = ["form", "http1", "http2", "json", "matched-path", "original-uri", "query", "tokio", "tower-log", "tracing", "ws"] }
 # `serve`: axum's own `serve` sets no timer, so hyper's header read timeout
 # never takes effect under it.
 hyper-util = { workspace = true, features = ["server-auto", "server-graceful", "service", "tokio"] }
@@ -66,25 +59,6 @@ rust-embed = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 # An administrator's own console bundle arrives as a zip.
 zip = { workspace = true }
-
-# The extractors the routers use and nothing else: no `http1`/`http2` (hyper is
-# a server), no `tokio` (which is what `ConnectInfo` and `axum::serve` hang
-# off), no `ws` (a Workers upgrade is a `WebSocketPair`, not a hyper upgrade).
-# `Router` itself is target-independent, which is the whole point.
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-axum = { workspace = true, features = [
-    "json",
-    "matched-path",
-    "query",
-] }
-# A JS handle is thread-bound, so on wasm the engine below this crate is `!Send`
-# by design and axum's handler bound is not. `send_wrapper` is the bridge, and
-# `crate::send` is the only place that names it.
-send_wrapper = { workspace = true }
-gproxy-client = { workspace = true, default-features = false, features = ["fetch", "workers"] }
-gloo-timers = { workspace = true }
-tokio = { workspace = true, features = ["macros", "sync"] }
-worker = { workspace = true, features = ["http"] }
 
 [dev-dependencies]
 async-trait = { workspace = true }

@@ -1,6 +1,6 @@
 [package]
 name = "gproxy-seaorm"
-description = "SeaORM 2 batch operations and Cloudflare D1 adapter with schema sync and migrations"
+description = "SeaORM 2 batch operations and libSQL adapter with schema sync and migrations"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
@@ -9,13 +9,9 @@ repository.workspace = true
 
 [features]
 default = []
-# Transaction-scoped PostgreSQL schema selection, including PgBouncer pools.
-postgres-schema = ["sea-orm/sqlx-postgres"]
 # libSQL / Turso over the Hrana HTTP pipeline (`/v2/pipeline`), through a
-# caller-supplied HTTP transport; every target.
-# On wasm32 rows come back through SeaORM's proxy types (already enabled);
-# natively through its mock driver, because SeaORM 2.0.3's `proxy` feature does
-# not compile next to `sqlx-sqlite`.
+# caller-supplied HTTP transport. Rows come back through SeaORM's mock driver,
+# because SeaORM 2.0.3's `proxy` feature does not compile next to `sqlx-sqlite`.
 libsql = ["dep:base64"]
 # Native SQLite: a writer task that commits queued batches together, one
 # transaction per group; see `group`. Enabled by the native binary.
@@ -24,32 +20,18 @@ group-commit = ["sea-orm/sqlx-sqlite", "sea-orm/runtime-tokio", "dep:tokio", "de
 [dependencies]
 async-trait = { workspace = true }
 base64 = { workspace = true, optional = true }
-sea-orm = { workspace = true }
+futures-util = { workspace = true, optional = true }
+# mock acknowledges recorded planning DDL; schema-sync uses native discovery.
+sea-orm = { workspace = true, features = ["mock", "schema-sync"] }
 sea-orm-migration = { workspace = true }
+sea-query-sqlx = { workspace = true, optional = true, features = ["sqlx-sqlite"] }
+sea-schema = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
 rust_decimal = { workspace = true }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-sea-orm = { workspace = true, features = ["proxy"] }
-js-sys = { workspace = true }
-send_wrapper = { workspace = true }
-serde-wasm-bindgen = { workspace = true }
-wasm-bindgen = { workspace = true }
-wasm-bindgen-futures = { workspace = true }
-time = { workspace = true, features = ["wasm-bindgen"] }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-futures-util = { workspace = true, optional = true }
-sea-query-sqlx = { workspace = true, optional = true, features = ["sqlx-sqlite"] }
 tokio = { workspace = true, optional = true, features = ["sync", "rt"] }
-# mock acknowledges recorded D1 planning DDL; schema-sync uses native discovery.
-sea-orm = { workspace = true, features = ["mock", "schema-sync"] }
-sea-schema = { workspace = true }
 
 [dev-dependencies]
 futures-executor = { workspace = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }

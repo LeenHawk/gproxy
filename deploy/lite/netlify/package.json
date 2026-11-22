@@ -1,0 +1,9 @@
+{
+  "name": "gproxy-lite-netlify",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "@netlify/blobs": "^10.0.0"
+  }
+}

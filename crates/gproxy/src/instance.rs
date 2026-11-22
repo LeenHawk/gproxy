@@ -22,7 +22,7 @@
 //! Step 4 is why this is a function rather than a builder chain: which codec the
 //! handle gets depends on work done against the same database a moment earlier.
 
-use gproxy_seaorm::{BatchConnectionTrait, SchemaSyncConnectionTrait};
+use gproxy_seaorm::SchemaSyncConnectionTrait;
 
 use std::{path::PathBuf, sync::Arc};
 
@@ -131,14 +131,10 @@ pub async fn migrate(config: &AppConfig, status_only: bool) -> Result<()> {
 
 /// Synchronize the schema and make sure the settings row exists.
 ///
-/// The one schema step every entry point shares — `serve`, `migrate` and the
-/// serverless host — so that a database prepared by any of them is one the
-/// others can read. The settings row is a precondition for every write that
-/// follows.
-pub(crate) async fn prepare<C>(store: &Store<C>, config: &AppConfig) -> Result<SchemaReport>
-where
-    C: SchemaSyncConnectionTrait + BatchConnectionTrait,
-{
+/// The one schema step `serve` and `migrate` share, so that a database
+/// prepared by either is one the other can read. The settings row is a
+/// precondition for every write that follows.
+async fn prepare(store: &Store<Connection>, config: &AppConfig) -> Result<SchemaReport> {
     let report = store.sync().await?;
     if store.settings().get().await?.is_none() {
         store
@@ -187,6 +183,7 @@ pub(crate) async fn assemble(
     for channel in crate::EXTRA_CHANNELS.get().into_iter().flatten() {
         builder = builder.channel(channel.clone());
     }
+    builder = builder.upstream(gproxy_app::mcp::kind());
     builder = match secrets.active_key {
         Some(key) => builder.master_key(key),
         None => builder.plaintext_secrets(),
@@ -274,7 +271,6 @@ fn describe(config: &AppConfig) -> String {
         StoreBackendConfig::Sqlite { path } => resolve(config, path).display().to_string(),
         // Never the DSN itself: it carries a password.
         StoreBackendConfig::Url { .. } => "the configured database".to_owned(),
-        StoreBackendConfig::D1 { binding } => format!("the D1 binding `{binding}`"),
         StoreBackendConfig::Libsql { .. } => "the configured libSQL database".to_owned(),
     }
 }
@@ -313,11 +309,6 @@ pub(crate) async fn open_connection(config: &AppConfig) -> Result<Connection> {
             options.sqlx_logging(false);
             Ok(Database::connect(options).await?)
         }
-        // Both exist for the edge host, which is handed its binding by the
-        // runtime rather than opening anything.
-        StoreBackendConfig::D1 { .. } => Err(Error::other(
-            "a D1 binding exists only inside a Cloudflare Worker; the native binary cannot open one",
-        )),
         StoreBackendConfig::Libsql { .. } => Err(Error::other(
             "this build does not open libSQL; use a `postgres://`, `mysql://` or SQLite store",
         )),
@@ -387,10 +378,6 @@ async fn cache(config: &AppConfig) -> Result<Arc<dyn Cache>> {
                 ))
             }
         }
-        CacheBackendConfig::Store => Err(Error::other(
-            "the database-backed cache exists for the edge host, where there is no Redis and no \
-             process to share memory with; a native instance uses `memory` or `redis`",
-        )),
     }
 }
 
@@ -517,32 +504,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_edge_only_backends_are_refused_with_an_explanation() {
-        for store in [
-            StoreBackendConfig::D1 {
-                binding: "DB".into(),
-            },
-            StoreBackendConfig::Libsql {
+    async fn libsql_is_refused_with_an_explanation() {
+        let config = AppConfig {
+            store: StoreBackendConfig::Libsql {
                 url: "libsql://x".into(),
                 token: None,
             },
-        ] {
-            let config = AppConfig {
-                store,
-                ..AppConfig::default()
-            };
-            let error = connect(&config).await.unwrap_err();
-            assert!(matches!(error, Error::Other(_)), "{error}");
-        }
-    }
-
-    #[tokio::test]
-    async fn the_database_backed_cache_is_refused_natively() {
-        let config = AppConfig {
-            cache: CacheBackendConfig::Store,
             ..AppConfig::default()
         };
-        assert!(cache(&config).await.is_err());
+        let error = connect(&config).await.unwrap_err();
+        assert!(matches!(error, Error::Other(_)), "{error}");
     }
 
     #[test]

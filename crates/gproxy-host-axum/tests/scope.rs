@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! `AdminScope` through the router: who may act as what, and what each scope
 //! sees on the same routes.
 //!

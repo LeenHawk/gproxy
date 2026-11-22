@@ -46,11 +46,8 @@ async fn context<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let data = state.app().data();
-        crate::error::ok_json(&AdminContextDto::build(&caller, &admission, &data))
-    })
-    .await
+    let data = state.app().data();
+    crate::error::ok_json(&AdminContextDto::build(&caller, &admission, &data))
 }
 
 /// Who this request is, as the console renders its header from.
@@ -58,14 +55,11 @@ where
 /// Kept beside the context route because it answers the same question more
 /// cheaply, and every client that already polls it keeps working unchanged.
 async fn session_status(Extension(caller): Extension<Caller>) -> Response {
-    crate::send(async move {
-        crate::error::ok_json(&SessionStatus {
-            user_id: caller.user_id,
-            user_role: caller.user_role,
-            api_key_id: caller.api_key_id,
-        })
+    crate::error::ok_json(&SessionStatus {
+        user_id: caller.user_id,
+        user_role: caller.user_role,
+        api_key_id: caller.api_key_id,
     })
-    .await
 }
 
 #[derive(Serialize)]
@@ -82,7 +76,7 @@ async fn sign_out<C>(State(state): State<HostState<C>>, request: Request) -> Res
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { crate::portal::sign_out(state, request).await }).await
+    crate::portal::sign_out(state, request).await
 }
 
 #[cfg(feature = "documentation")]

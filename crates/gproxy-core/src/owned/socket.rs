@@ -39,7 +39,6 @@ use tokio::sync::mpsc;
 
 /// Looks up where a set of referenced files lives, for this socket's scope
 /// and provider.
-#[cfg(not(target_arch = "wasm32"))]
 type Check = Arc<
     dyn Fn(
             BTreeSet<String>,
@@ -48,15 +47,6 @@ type Check = Arc<
         + Send
         + Sync,
 >;
-/// wasm32 is single-threaded and its sockets are not `Send` either.
-#[cfg(target_arch = "wasm32")]
-type Check = Arc<
-    dyn Fn(
-        BTreeSet<String>,
-        Option<String>,
-    ) -> CapabilityFuture<'static, crate::CoreResult<Placement>>,
->;
-
 /// The file ids one client message names.
 fn references(
     dialect: Dialect,

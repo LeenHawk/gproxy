@@ -53,7 +53,6 @@ export PATH="$CARGO_HOME/bin:$HOME/.cargo/bin:$PATH"
 rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy,rustfmt
 rustup default "$RUST_VERSION"
 export RUSTUP_TOOLCHAIN="$RUST_VERSION"
-rustup target add wasm32-unknown-unknown
 if [ -n "${TARGET_TRIPLE:-}" ] && [[ "$TARGET_TRIPLE" != *-musl ]]; then rustup target add "$TARGET_TRIPLE"; fi
 if [ "${TARGET_OS:-}" = android ]; then source scripts/gitlab/setup-android.sh; fi
 go version

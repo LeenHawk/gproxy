@@ -16,7 +16,6 @@ updates:
   - package-ecosystem: npm
     directories:
       - "/console"
-      - "/deploy/cloudflare"
     schedule:
       interval: weekly
     ignore:

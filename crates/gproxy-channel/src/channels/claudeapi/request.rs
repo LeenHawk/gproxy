@@ -4,13 +4,15 @@
 use super::hygiene;
 use super::{ANTHROPIC_VERSION, Claudeapi, ClaudeapiConfig, DEFAULT_BASE_URL, ID};
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
-    ConfigKeyKind, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
-    QuotaHeaders, QuotaQuery, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelHeaders, HOST_CONFIG_KEYS,
+    HeaderAllowlist, PrepareContext, QuotaHeaders, QuotaQuery, forwardable,
 };
 use crate::channels::shared::{cache, claude_images};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireFamily, WireRequest};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 use http::{HeaderName, HeaderValue};
 
 /// Query parameters that carry a client's own credential; never forwarded.
@@ -27,8 +29,8 @@ pub const CLIENT_HEADERS: ChannelHeaders = ChannelHeaders {
     prefixes: &[],
 };
 
-fn invalid_config(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidConfig(message.into())
+fn invalid_config(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidConfig(message.into())
 }
 
 pub(super) fn base_url(provider: ProviderView<'_>) -> String {
@@ -54,13 +56,13 @@ fn is_chat(dialect: Dialect) -> bool {
     dialect.family() == WireFamily::OpenAi
 }
 
-fn unsupported(operation: Operation, dialect: Dialect) -> ChannelError {
-    ChannelError::UnsupportedOperation(OperationKey { operation, dialect })
+fn unsupported(operation: Operation, dialect: Dialect) -> UpstreamError {
+    UpstreamError::UnsupportedOperation(OperationKey { operation, dialect })
 }
 
 /// The route for an operation. The API mounts its own paths, so the client's
 /// is only consulted for `GetModel`, where the model id lives nowhere else.
-fn route(operation: Operation, dialect: Dialect, path: &str) -> Result<String, ChannelError> {
+fn route(operation: Operation, dialect: Dialect, path: &str) -> Result<String, UpstreamError> {
     if is_chat(dialect) {
         return match operation {
             Operation::GenerateContent | Operation::StreamGenerateContent => {
@@ -119,11 +121,13 @@ fn query(source: Option<String>) -> Option<String> {
     (!kept.is_empty()).then_some(kept)
 }
 
-impl BaseChannel for Claudeapi {
+impl UpstreamKind for Claudeapi {
     fn id(&self) -> &'static str {
         ID
     }
+}
 
+impl BaseChannel for Claudeapi {
     /// An API key against Anthropic's own API: nothing to log into, rate
     /// limits on every reply and an organization cost report to query.
     fn descriptor(&self) -> ChannelDescriptor {
@@ -198,10 +202,10 @@ impl BaseChannel for Claudeapi {
     /// A buffered Messages or count_tokens body is shaped; a Chat Completions
     /// body only loses its prefill and gains the streaming usage opt-in. A
     /// streamed request body passes through untouched, as in `claudecode`.
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = ClaudeapiConfig::from_view(ctx.provider)?;
         let key =
-            api_key(ctx.credential.secret, "api_key").ok_or(ChannelError::InvalidCredential)?;
+            api_key(ctx.credential.secret, "api_key").ok_or(UpstreamError::InvalidCredential)?;
         let operation = ctx.operation.operation;
         let dialect = ctx.operation.dialect;
         let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLIENT_HEADERS)?;
@@ -274,7 +278,7 @@ impl BaseChannel for Claudeapi {
 
         headers.insert(
             HeaderName::from_static("x-api-key"),
-            HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
+            HeaderValue::from_str(key).map_err(|_| UpstreamError::InvalidCredential)?,
         );
         headers.insert(
             HeaderName::from_static("anthropic-version"),
@@ -294,7 +298,7 @@ impl BaseChannel for Claudeapi {
         if let Some(workspace) = api_key(ctx.credential.secret, "workspace_id") {
             headers.insert(
                 HeaderName::from_static("anthropic-workspace-id"),
-                HeaderValue::from_str(workspace).map_err(|_| ChannelError::InvalidCredential)?,
+                HeaderValue::from_str(workspace).map_err(|_| UpstreamError::InvalidCredential)?,
             );
         }
         let mut builder = http::Request::builder().method(method).uri(uri);

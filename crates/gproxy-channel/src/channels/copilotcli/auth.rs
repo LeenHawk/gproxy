@@ -12,7 +12,7 @@
 //! `endpoints.api`, recorded on the credential as `api_url`.
 
 use super::config::{AccountType, CopilotCliConfig, GITHUB_ACCEPT};
-use crate::channel::{ChannelError, CredentialView, ProviderView};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError};
 use http::{HeaderMap, HeaderValue, header};
 use serde_json::Value;
 
@@ -41,11 +41,11 @@ pub(super) const LEGACY_REASON: &str =
     "re-login required: credential from the old Copilot Chat app";
 
 /// The GitHub OAuth token. A legacy secret has none this channel may use.
-pub(super) fn github_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, ChannelError> {
+pub(super) fn github_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, UpstreamError> {
     if legacy(credential.secret) {
-        return Err(ChannelError::InvalidCredential);
+        return Err(UpstreamError::InvalidCredential);
     }
-    text(credential.secret.get("access_token")).ok_or(ChannelError::InvalidCredential)
+    text(credential.secret.get("access_token")).ok_or(UpstreamError::InvalidCredential)
 }
 
 /// A public fact: host metadata first, then the secret's `provider_fields`.
@@ -89,12 +89,12 @@ pub(super) fn api_origin(value: &str) -> Option<String> {
 /// The headers a call to api.github.com carries: the GitHub token as a
 /// bearer (the CLI's `ZO` request builder: `Authorization: Bearer ${t}`),
 /// the REST media type and the CLI's banner.
-pub(super) fn github_headers(github_token: &str) -> Result<HeaderMap, ChannelError> {
+pub(super) fn github_headers(github_token: &str) -> Result<HeaderMap, UpstreamError> {
     let mut headers = HeaderMap::new();
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {github_token}"))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     headers.insert(header::ACCEPT, HeaderValue::from_static(GITHUB_ACCEPT));
     headers.insert(

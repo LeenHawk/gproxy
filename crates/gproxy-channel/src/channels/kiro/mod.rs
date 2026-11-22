@@ -58,15 +58,17 @@ pub use quota::{AGENTIC_REQUEST_DIMENSION, TARGET_USAGE_LIMITS};
 
 use crate::OutboundClient;
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
-    ConfigKeyKind, CredentialRefresh, CredentialView, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
-    OAuthAuthorizationCode, OAuthDeviceCode, OperationContext, OperationFuture, PrepareContext,
-    ProviderView, QuotaQuery, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelHeaders, HOST_CONFIG_KEYS,
+    HeaderAllowlist, OperationContext, PrepareContext, QuotaQuery, forwardable,
 };
 use futures_util::StreamExt as _;
 use gproxy_client::ConnectionConfig;
 use gproxy_protocol::connection::{ByteStream, Bytes, TransportError};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, CredentialView, LoginMode, OAuthAuthorizationCode,
+    OAuthDeviceCode, ProviderView, UpstreamError, UpstreamFuture, UpstreamKind,
+};
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -234,7 +236,7 @@ pub(super) fn json_headers() -> HeaderMap {
     headers
 }
 
-pub(super) async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
+pub(super) async fn read_body(body: HttpBody) -> Result<Bytes, UpstreamError> {
     crate::channel::read_body(body).await
 }
 
@@ -246,14 +248,14 @@ pub(super) async fn send(
     url: &str,
     headers: HeaderMap,
     body: Option<Vec<u8>>,
-) -> Result<(StatusCode, HeaderMap, Bytes), ChannelError> {
+) -> Result<(StatusCode, HeaderMap, Bytes), UpstreamError> {
     let mut builder = http::Request::builder().method(method).uri(url);
     if let Some(map) = builder.headers_mut() {
         *map = headers;
     }
     let request = builder
         .body(HttpBody::Bytes(body.map(Bytes::from).unwrap_or_default()))
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
     let WireResponse {
         status,
         headers,
@@ -283,8 +285,8 @@ pub(super) fn fact<'a>(credential: &CredentialView<'a>, name: &str) -> Option<&'
         .or_else(|| non_empty(credential.secret.get(name)))
 }
 
-pub(super) fn access_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, ChannelError> {
-    non_empty(credential.secret.get("access_token")).ok_or(ChannelError::InvalidCredential)
+pub(super) fn access_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, UpstreamError> {
+    non_empty(credential.secret.get("access_token")).ok_or(UpstreamError::InvalidCredential)
 }
 
 /// The profile the management plane bills to: the credential's first, then
@@ -307,7 +309,7 @@ pub(super) fn plane_base(
     provider: ProviderView<'_>,
     config: &KiroConfig,
     plane: Plane,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let configured = match plane {
         Plane::Management => config
             .management_base_url
@@ -334,11 +336,11 @@ pub(super) fn smithy_headers(
     token: &str,
     target: Target,
     body: &[u8],
-) -> Result<HeaderMap, ChannelError> {
+) -> Result<HeaderMap, UpstreamError> {
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {token}"))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(AMZ_JSON));
     headers.insert(header::ACCEPT, HeaderValue::from_static("*/*"));
@@ -377,12 +379,12 @@ pub(super) fn smithy_headers(
     Ok(headers)
 }
 
-fn invalid_config(what: &str) -> ChannelError {
-    ChannelError::InvalidConfig(format!("Kiro: `{what}` is not a header"))
+fn invalid_config(what: &str) -> UpstreamError {
+    UpstreamError::InvalidConfig(format!("Kiro: `{what}` is not a header"))
 }
 
-fn unsupported(operation: OperationKey) -> ChannelError {
-    ChannelError::UnsupportedOperation(operation)
+fn unsupported(operation: OperationKey) -> UpstreamError {
+    UpstreamError::UnsupportedOperation(operation)
 }
 
 // ---------------------------------------------------------------- prepare
@@ -396,7 +398,7 @@ struct Generation {
 }
 
 impl Kiro {
-    fn generation(&self, ctx: PrepareContext<'_>) -> Result<Generation, ChannelError> {
+    fn generation(&self, ctx: PrepareContext<'_>) -> Result<Generation, UpstreamError> {
         let config = KiroConfig::from_view(ctx.provider)?;
         let token = access_token(&ctx.credential)?;
         let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLI_HEADERS)?;
@@ -406,14 +408,14 @@ impl Kiro {
             ..
         } = ctx.request;
         let HttpBody::Bytes(buffered) = body else {
-            return Err(ChannelError::InvalidConfig(
+            return Err(UpstreamError::InvalidConfig(
                 "the Kiro conversation envelope needs a buffered request body".into(),
             ));
         };
         let response_id = request_id(&buffered, "conversation");
         let envelope = request::build(&buffered, &response_id)?;
         let mut value: Value = serde_json::from_slice(&envelope)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
         if value.get("profileArn").is_none()
             && let Some(profile) = profile_arn(&config, &ctx.credential)
         {
@@ -442,7 +444,7 @@ impl Kiro {
         }
         let request = builder
             .body(HttpBody::Bytes(Bytes::from(body)))
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
         Ok(Generation {
             request,
             response_id,
@@ -450,13 +452,13 @@ impl Kiro {
         })
     }
 
-    fn catalogue(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn catalogue(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = KiroConfig::from_view(ctx.provider)?;
         let token = access_token(&ctx.credential)?;
         let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLI_HEADERS)?;
         // The catalogue is per profile; without one there is nothing to ask.
         let profile =
-            profile_arn(&config, &ctx.credential).ok_or(ChannelError::InvalidCredential)?;
+            profile_arn(&config, &ctx.credential).ok_or(UpstreamError::InvalidCredential)?;
         let query = format!("origin=KIRO_CLI&profileArn={}", encode_component(&profile));
         let url = match ctx.endpoint_override {
             Some(url) if url.contains('?') => format!("{url}&{query}"),
@@ -482,7 +484,7 @@ impl Kiro {
         }
         builder
             .body(HttpBody::Bytes(Bytes::from(body)))
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     /// Send a generation call and hand back the translator primed with the
@@ -491,7 +493,7 @@ impl Kiro {
         &self,
         operation: Operation,
         ctx: OperationContext<'_>,
-    ) -> Result<(WireResponse<HttpBody>, stream::Translator), ChannelError> {
+    ) -> Result<(WireResponse<HttpBody>, stream::Translator), UpstreamError> {
         let OperationContext {
             provider,
             credential,
@@ -514,11 +516,31 @@ impl Kiro {
     }
 }
 
-impl BaseChannel for Kiro {
+impl UpstreamKind for Kiro {
     fn id(&self) -> &'static str {
         ID
     }
 
+    /// No client fingerprint by default; the CLI's captured TLS identity is
+    /// a public TLS preset an operator selects in a connection profile.
+    fn default_connection(&self) -> Option<ConnectionConfig> {
+        None
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+
+    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
+        Some(self)
+    }
+
+    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for Kiro {
     /// A CodeWhisperer subscription through the Kiro app: two ways in, a
     /// refreshable token, a per-profile catalogue and credit windows.
     fn descriptor(&self) -> ChannelDescriptor {
@@ -581,12 +603,6 @@ impl BaseChannel for Kiro {
         }
     }
 
-    /// No client fingerprint by default; the CLI's captured TLS identity is
-    /// a public TLS preset an operator selects in a connection profile.
-    fn default_connection(&self) -> Option<ConnectionConfig> {
-        None
-    }
-
     /// The envelope is built from a Responses body and the reply is handed
     /// back as Responses, so that is the only shape the channel reads.
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
@@ -600,7 +616,7 @@ impl BaseChannel for Kiro {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         match (ctx.operation.operation, ctx.operation.dialect) {
             (Operation::GenerateContent | Operation::StreamGenerateContent, Dialect::OpenAi) => {
                 Ok(self.generation(ctx)?.request)
@@ -614,7 +630,7 @@ impl BaseChannel for Kiro {
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             let request = self.catalogue(PrepareContext {
                 provider: context.provider,
@@ -650,7 +666,7 @@ impl BaseChannel for Kiro {
     fn generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             let (response, mut translator) =
                 self.generate(Operation::GenerateContent, context).await?;
@@ -663,7 +679,7 @@ impl BaseChannel for Kiro {
             let completed = translator
                 .completed()
                 .cloned()
-                .ok_or_else(|| ChannelError::InvalidResponse("Kiro produced no answer".into()))?;
+                .ok_or_else(|| UpstreamError::InvalidResponse("Kiro produced no answer".into()))?;
             let mut headers = response.headers;
             headers.insert(
                 header::CONTENT_TYPE,
@@ -681,7 +697,7 @@ impl BaseChannel for Kiro {
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             let (response, translator) = self
                 .generate(Operation::StreamGenerateContent, context)
@@ -704,15 +720,6 @@ impl BaseChannel for Kiro {
         })
     }
 
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
-    }
-    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        Some(self)
-    }
-    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
-        Some(self)
-    }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
@@ -731,14 +738,14 @@ impl BaseChannel for Kiro {
 
 /// A generation reply is not an ability call: it has no small-document bound
 /// of its own, only whatever the host already enforces.
-async fn collect(body: HttpBody) -> Result<Bytes, ChannelError> {
+async fn collect(body: HttpBody) -> Result<Bytes, UpstreamError> {
     match body {
         HttpBody::Bytes(bytes) => Ok(bytes),
         HttpBody::Stream(mut stream) => {
             let mut out = Vec::new();
             while let Some(chunk) = stream.next().await {
                 out.extend_from_slice(
-                    &chunk.map_err(|error| ChannelError::InvalidResponse(error.to_string()))?,
+                    &chunk.map_err(|error| UpstreamError::InvalidResponse(error.to_string()))?,
                 );
             }
             Ok(Bytes::from(out))
@@ -794,7 +801,7 @@ fn translate(body: HttpBody, translator: stream::Translator) -> ByteStream {
     ))
 }
 
-fn transport_error(error: ChannelError) -> TransportError {
+fn transport_error(error: UpstreamError) -> TransportError {
     error.to_string().into()
 }
 

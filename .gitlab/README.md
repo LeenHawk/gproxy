@@ -10,7 +10,7 @@ GitLab builds. Run one publisher at a time to avoid competing nightly updates.
 The `dev` branch builds the rolling `nightly` release. Matching `v4.*` version
 tags build beta/stable releases. Release jobs require a protected ref and do
 not run for external pull requests. Publication waits for all checks and all
-targets in `scripts/release-targets.json`, plus Edge/Cloudflare.
+targets in `scripts/release-targets.json`.
 
 Each target builds **CLI / server** and **Application** separately:
 
@@ -46,11 +46,10 @@ registry layer cache. The HAP is explicitly unsigned and needs device/profile
 signing before installation. No device execution or background-service support
 is claimed. See `scripts/ohos/README.md` for the exact boundaries.
 
-Edge publishes `gproxy-edge.wasm` and the deployable
-`gproxy-edge-cloudflare.zip` bundle, with checksums and provenance.
 In GitLab, native verification runs Clippy and tests once each over the whole workspace,
 including Tauri, so both commands share the same enabled feature set. The
-WASM compatibility and feature checks run in a parallel job. Both reuse the
+WASM check of the five stateless crates (`gproxy-protocol`, `gproxy-client`,
+`gproxy-client-sdk`, `gproxy-upstream`, `gproxy-channel`) runs in a parallel job. Both reuse the
 prepared Linux toolchain image instead of installing tools on every run.
 Release refs use their commit's image; other refs use the last prepared image
 for the pinned Rust version. Native and WASM checks have separate target

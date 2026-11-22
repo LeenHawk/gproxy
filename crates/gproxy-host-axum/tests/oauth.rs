@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The OAuth issuer over HTTP: the full authorization-code flow through the
 //! router, the discovery document at both of its URLs, and the envelope that
 //! must not be this crate's other one.

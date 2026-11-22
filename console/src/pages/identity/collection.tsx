@@ -56,6 +56,8 @@ export type CollectionProps<D, W, P> = {
   searchable?: boolean
   /** Paginate users, each a group holding its own rows under this filter. */
   groupByOwner?: "userId" | "ownerUserId"
+  /** Every row names a user or a key, so there is no group for everyone. */
+  subjectRequired?: boolean
   /** Filters held constant for this page, e.g. a parent id. */
   filter?: ListFilter
   /** Row actions this family has and the others do not. */
@@ -75,7 +77,7 @@ export type CollectionProps<D, W, P> = {
 }
 
 export function CollectionPage<D, W, P>({
-  id, family, columns, fields, rowId, rowLabel, searchable, groupByOwner, filter, embedded = false,
+  id, family, columns, fields, rowId, rowLabel, searchable, groupByOwner, subjectRequired = false, filter, embedded = false,
   rowActions, onOpen, onEdit, deletable = true, batchRemoval, rowDeletable = deletable, creatable = true, onCreated, create, renderForm, createLabel, paginate = true, batchEnabled = fields.some(field => field.name === "enabled"),
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
@@ -104,8 +106,8 @@ export function CollectionPage<D, W, P>({
   // A rule that names neither a user nor a key covers everyone and belongs to
   // no user's group, so it gets a group of its own ahead of theirs.
   const everyoneRequest: ListFilter = { ...filter, everyone: true, pageSize: GROUP_SIZE }
-  const everyone = useQuery({ queryKey: ["admin", family.path, everyoneRequest, true] as const, queryFn: () => family.list(everyoneRequest), enabled: groupByOwner === "ownerUserId" })
-  const showEveryone = groupByOwner === "ownerUserId" && page === 1 && !search.trim() && !!everyone.data?.total
+  const everyone = useQuery({ queryKey: ["admin", family.path, everyoneRequest, true] as const, queryFn: () => family.list(everyoneRequest), enabled: groupByOwner === "ownerUserId" && !subjectRequired })
+  const showEveryone = groupByOwner === "ownerUserId" && !subjectRequired && page === 1 && !search.trim() && !!everyone.data?.total
   const total = (groupByOwner ? owners.data?.total : list.data?.total) ?? 0
   if (paginate && (groupByOwner ? owners.data : list.data) && page > Math.max(1, Math.ceil(total / pageSize))) setPage(Math.max(1, Math.ceil(total / pageSize)))
   const loadedRows = groupByOwner ? [...(showEveryone ? everyone.data?.items ?? [] : []), ...groups.flatMap(group => group.data?.items ?? [])] : list.data?.items ?? []

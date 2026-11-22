@@ -304,7 +304,7 @@ fn affinity_cache_key(request: &RequestContext) -> Option<String> {
 /// said, else the channel's cache lifetime. ChatGPT's Codex backend keeps a
 /// conversation's prefix for about an hour, the API's for minutes.
 fn warm_for(request: &RequestContext, warm_ms: Option<i64>) -> Duration {
-    let default = match request.target.provider.channel.id() {
+    let default = match request.target.provider.upstream().id() {
         "codex" => CACHE_WARM_LONG_MS,
         _ => CACHE_WARM_MS,
     };

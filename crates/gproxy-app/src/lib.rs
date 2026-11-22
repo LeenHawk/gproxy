@@ -6,8 +6,7 @@
 //! What it deliberately does not own: an HTTP framework, a router, a runtime,
 //! a CLI, and every engine concern (routing, credential selection, failover,
 //! protocol conversion, settlement). Hosts adapt transports to the types here;
-//! `gproxy-core` and `gproxy-sdk` execute. That is what keeps this crate
-//! buildable for both a native server and `wasm32-unknown-unknown`.
+//! `gproxy-core` and `gproxy-sdk` execute.
 //!
 //! The planned request shape is `Caller` → `Admitted` → the sdk's `call()`:
 //! authentication produces a caller, admission turns it into an allowed
@@ -55,6 +54,8 @@ pub use auth::{Authenticator, Caller, CallerKind, GrantContext};
 
 pub mod call;
 pub mod live;
+pub mod mcp;
+pub use mcp::{McpEndpoint, McpRequest};
 mod models;
 pub mod responses;
 pub use call::{CallOutcome, ConnectOutcome, DataPlaneRequest};
@@ -85,41 +86,12 @@ use std::sync::{Arc, OnceLock};
 
 pub type Result<T> = std::result::Result<T, AppError>;
 
-/// The engine handle, as [`App`] has to hold it on each target.
-///
-/// Natively this is the handle itself. On `wasm32-unknown-unknown` the engine
-/// below is deliberately `!Send`: a JS transport handle belongs to the isolate
-/// that made it, and `gproxy-client` says so in its type
-/// (`ClientBounds` is `Send + Sync` natively and empty on wasm). That is the
-/// right statement about the engine and the wrong one about *this* type, which
-/// a host has to be able to put in a request-scoped state — and axum's
-/// `Router<S>` asks for `S: Clone + Send + Sync + 'static` before it will hold
-/// one.
-///
-/// A Worker isolate is single-threaded, so the wrapper's promise — this value
-/// is only ever touched from the thread that made it — is one the runtime
-/// keeps. It is checked at runtime rather than asserted: a cross-thread poll
-/// panics instead of racing.
-#[cfg(not(target_arch = "wasm32"))]
-type Handle<C> = Gproxy<C>;
-#[cfg(target_arch = "wasm32")]
-type Handle<C> = send_wrapper::SendWrapper<Gproxy<C>>;
-
-#[cfg(not(target_arch = "wasm32"))]
-fn hold<C>(gproxy: Gproxy<C>) -> Handle<C> {
-    gproxy
-}
-#[cfg(target_arch = "wasm32")]
-fn hold<C>(gproxy: Gproxy<C>) -> Handle<C> {
-    send_wrapper::SendWrapper::new(gproxy)
-}
-
 /// One configured instance: the engine handle, the instance configuration and
 /// the identity snapshot, assembled once and shared by every request.
 ///
 /// Cheap to share — the handle is an `Arc` inside — and every method takes
-/// `&self`, so a host keeps one of these for the process (or, at the edge, for
-/// the isolate) and hands out references.
+/// `&self`, so a host keeps one of these for the process and hands out
+/// references.
 ///
 /// # Two snapshots, one revision
 ///
@@ -142,7 +114,7 @@ fn hold<C>(gproxy: Gproxy<C>) -> Handle<C> {
 /// [`App::start_sync`] for the peers' writes, [`App::tick`] where there is no
 /// task to run a loop in.
 pub struct App<C> {
-    gproxy: Handle<C>,
+    gproxy: Gproxy<C>,
     config: Arc<AppConfig>,
     snapshot: AppSnapshot,
     /// Serializes the reads that rebuild [`AppData`], so a burst of writes
@@ -161,7 +133,7 @@ impl<C> App<C> {
     /// then [`App::start_sync`].
     pub fn new(gproxy: Gproxy<C>, config: AppConfig) -> Self {
         Self {
-            gproxy: hold(gproxy),
+            gproxy,
             config: Arc::new(config),
             snapshot: AppSnapshot::default(),
             refresh_lock: tokio::sync::Mutex::new(()),
@@ -285,8 +257,7 @@ impl<C> Drop for App<C> {
 }
 
 /// Wall clock in milliseconds since the Unix epoch, saturating rather than
-/// panicking on a clock the platform reports as before it. `web-time` gives
-/// the same call `Date.now()` semantics inside a Worker isolate.
+/// panicking on a clock the platform reports as before it.
 pub(crate) fn now_ms() -> i64 {
     web_time::SystemTime::now()
         .duration_since(web_time::SystemTime::UNIX_EPOCH)

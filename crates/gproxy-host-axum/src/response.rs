@@ -194,7 +194,7 @@ where
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.trim().parse::<u64>().ok());
     let body = LeasedBody::new(chunks(response.body), trailer, declared);
-    build(status, headers, Body::from_stream(crate::send(body)))
+    build(status, headers, Body::from_stream(body))
 }
 
 fn build(status: StatusCode, headers: HeaderMap, body: Body) -> Response {
@@ -255,7 +255,7 @@ pub(crate) fn sanitize(mut headers: HeaderMap) -> HeaderMap {
 fn into_body(body: HttpBody) -> Body {
     match body {
         HttpBody::Bytes(bytes) => Body::from(bytes),
-        HttpBody::Stream(stream) => Body::from_stream(crate::send(stream)),
+        HttpBody::Stream(stream) => Body::from_stream(stream),
     }
 }
 
@@ -269,19 +269,8 @@ fn chunks(body: HttpBody) -> ChunkStream {
     }
 }
 
-/// A chunk stream and a tail future, with the `Send` each target can honestly
-/// promise. These mirror [`gproxy_protocol::connection::ByteStream`], which
-/// makes the same split for the same reason: on wasm the bytes are being read
-/// out of a JS `ReadableStream` that belongs to one isolate. [`crate::send`]
-/// is what carries them across axum's bound.
-#[cfg(not(target_arch = "wasm32"))]
 type ChunkStream = Pin<Box<dyn Stream<Item = Result<Bytes, TransportError>> + Send + 'static>>;
-#[cfg(target_arch = "wasm32")]
-type ChunkStream = Pin<Box<dyn Stream<Item = Result<Bytes, TransportError>> + 'static>>;
-#[cfg(not(target_arch = "wasm32"))]
 type TailFuture = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
-#[cfg(target_arch = "wasm32")]
-type TailFuture = Pin<Box<dyn Future<Output = ()> + 'static>>;
 
 /// What a response body — or a socket — owns until it ends.
 ///
@@ -431,18 +420,14 @@ struct Closing {
     /// What the client is owed once the hand-off is done: the last chunk, an
     /// upstream failure, or nothing at a plain end of stream.
     last: Option<Result<Bytes, TransportError>>,
-    /// Native: a place among the settlements in flight. On wasm there is no
-    /// task to hand to, so this is the settlement itself, awaited inline — a
-    /// Worker's platform reads the body to its end, so it is always reached.
+    /// A place among the settlements in flight.
     wait: TailFuture,
     done: bool,
 }
 
 /// How many settlements may run behind responses that have already ended.
-#[cfg(not(target_arch = "wasm32"))]
 pub const SETTLING: usize = 2048;
 
-#[cfg(not(target_arch = "wasm32"))]
 fn settling() -> Arc<tokio::sync::Semaphore> {
     static SEMAPHORE: std::sync::OnceLock<Arc<tokio::sync::Semaphore>> = std::sync::OnceLock::new();
     SEMAPHORE
@@ -456,7 +441,6 @@ fn settling() -> Arc<tokio::sync::Semaphore> {
 /// when the last connection closes would lose the ones still running. A host
 /// awaits this after its connections have drained; a test awaits it before it
 /// reads what a request wrote.
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn settled() {
     let all = u32::try_from(SETTLING).unwrap_or(u32::MAX);
     if let Ok(permits) = settling().acquire_many_owned(all).await {
@@ -490,7 +474,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> LeasedBody<C> {
                 trailer.finish(outcome).await;
             }
         });
-        #[cfg(not(target_arch = "wasm32"))]
         let wait: TailFuture = Box::pin(async move {
             let Ok(permit) = settling().acquire_owned().await else {
                 // Never closed; if it were, settling inline is still correct.
@@ -501,8 +484,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> LeasedBody<C> {
                 drop(permit);
             });
         });
-        #[cfg(target_arch = "wasm32")]
-        let wait = settle;
         self.closing = Some(Closing {
             last,
             wait,

@@ -4,14 +4,10 @@
 //! async. When a [`RateLease`](crate::admission::RateLease) is dropped without
 //! having been released — a cancelled request, a host that forgot, a panic —
 //! there is nowhere in `Drop` to await that call, so it is spawned instead.
-//! [`crate::sync`] adds a timer, for the revision poll, and a way to ask a
-//! future whether it is ready without waiting for it, for draining a
-//! subscription.
+//! [`crate::sync`] adds a way to ask a future whether it is ready without
+//! waiting for it, for draining a subscription.
 //!
-//! That is deliberately the whole of it: no task handles and no executor. The
-//! crate owns no server and must keep building for
-//! `wasm32-unknown-unknown`, where the JS event loop drives the same future
-//! and nothing sleeps at all.
+//! That is deliberately the whole of it: no task handles and no executor.
 
 use std::future::Future;
 
@@ -22,9 +18,7 @@ use std::future::Future;
 /// already delivered, wait for nothing" means for a subscription, and it is
 /// the same contract `tokio::time::timeout` with a zero duration has — which
 /// is what `gproxy-sdk`'s own drain uses. Written out here instead so that
-/// draining costs this crate no timer on either target: wasm has no Tokio
-/// clock, and a zero-length sleep through the JS event loop would turn every
-/// edge request's drain into a macrotask.
+/// draining costs this crate no timer.
 ///
 /// Dropping a half-polled `recv()` is safe because [`gproxy_cache::Subscription`]
 /// documents it as cancel-safe for both supplied backends.
@@ -39,18 +33,9 @@ pub(crate) async fn ready_now<F: Future>(future: F) -> Option<F::Output> {
     .await
 }
 
-/// Wait out an interval, for the revision poll's loop. There is no wasm
-/// implementation on purpose: an isolate has no loop to sleep in, and
-/// `App::tick` is what it calls instead.
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) async fn sleep(duration: std::time::Duration) {
-    tokio::time::sleep(duration).await;
-}
-
 /// Run `future` to completion in the background, and report whether anything
-/// will. Natively this needs a Tokio runtime and returns false without one, in
-/// which case the caller falls back to letting the cache entry expire.
-#[cfg(not(target_arch = "wasm32"))]
+/// will. This needs a Tokio runtime and returns false without one, in which
+/// case the caller falls back to letting the cache entry expire.
 pub(crate) fn spawn<F>(future: F) -> bool
 where
     F: Future<Output = ()> + Send + 'static,
@@ -64,36 +49,10 @@ where
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-pub(crate) fn spawn<F>(future: F) -> bool
-where
-    F: Future<Output = ()> + 'static,
-{
-    wasm_bindgen_futures::spawn_local(future);
-    true
-}
-
-/// Await an operation with a deadline on either runtime.
-#[cfg(not(target_arch = "wasm32"))]
+/// Await an operation with a deadline.
 pub(crate) async fn timeout<F: Future>(
     duration: std::time::Duration,
     future: F,
 ) -> Option<F::Output> {
     tokio::time::timeout(duration, future).await.ok()
-}
-
-#[cfg(target_arch = "wasm32")]
-pub(crate) async fn timeout<F: Future>(
-    duration: std::time::Duration,
-    future: F,
-) -> Option<F::Output> {
-    use futures_util::future::{Either, select};
-    let timer = std::pin::pin!(gloo_timers::future::TimeoutFuture::new(
-        u32::try_from(duration.as_millis()).unwrap_or(u32::MAX)
-    ));
-    let future = std::pin::pin!(future);
-    match select(future, timer).await {
-        Either::Left((value, _)) => Some(value),
-        Either::Right(_) => None,
-    }
 }

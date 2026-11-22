@@ -13,10 +13,6 @@
 //! header and body decoding, CORS, the client address, the mount grammar, the
 //! two error envelopes, streaming, and the lifetime of a rate-limit lease.
 //!
-//! That boundary is why a second host ([`gproxy-host-edge`]) can exist at all.
-//! If anything product-shaped lived here, the edge deployment would have to
-//! reimplement it and the two would drift.
-//!
 //! # The route table
 //!
 //! | Route | What it is |
@@ -64,37 +60,8 @@
 //! the token when it decides between `Completed` and `Cancelled`, so a token
 //! fired after the last byte would record a finished request as an abandoned
 //! one. [`response::CancelOnDrop`] has the whole rule.
-//!
-//! # One router, two targets
-//!
-//! This crate builds for `wasm32-unknown-unknown` as well as for a native
-//! target, and [`gproxy-host-edge`] mounts *this* [`Router`] inside a Workers
-//! fetch handler rather than writing the route table a second time. Everything
-//! that differs between the two is socket-shaped and named by a `cfg`:
-//!
-//! | Native only | Why |
-//! |---|---|
-//! | [`console`] | `rust-embed` and a filesystem; a Worker serves its console from Workers Assets |
-//! | [`peer_ip`] | `ConnectInfo` is axum's `tokio` feature, and a Worker has `cf-connecting-ip` instead |
-//!
-//! No route is in that table, and none may join it. `/admin/api/update` is not
-//! an exception to it: the routes are target-independent and compile for wasm
-//! like everything else here, and their absence at the edge comes from the
-//! edge host handing [`HostState::with_updates`] nothing — a *runtime* fact,
-//! not a `cfg`. See [`update`].
-//!
-//! The one thing the wasm build asks of every handler is [`send`]. On that
-//! target the engine below this crate is `!Send` on purpose — a JS transport
-//! handle belongs to the isolate that made it — while axum's
-//! [`Handler`](axum::handler::Handler) requires `Future: Send`. Wrapping a
-//! handler's body in [`send`] bridges the two, costs nothing natively, and
-//! fails the wasm build loudly at the one handler that forgot it rather than
-//! quietly anywhere else.
-//!
-//! [`gproxy-host-edge`]: https://github.com/LeenHawk/gproxy
 
 pub mod admin;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod console;
 #[cfg(feature = "documentation")]
 pub mod documentation;
@@ -107,7 +74,6 @@ pub mod policy;
 pub mod portal;
 pub mod response;
 pub mod runtime_settings;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod serve;
 pub mod session;
 pub mod update;
@@ -152,11 +118,10 @@ pub const SIGN_IN_BODY_BYTES: usize = 64 * 1024;
 /// what lets axum hand a copy to every request.
 pub struct HostState<C> {
     app: Arc<App<C>>,
-    #[cfg(not(target_arch = "wasm32"))]
     console: Arc<console::Console>,
     /// The self-update implementation, when the host owns an executable to
-    /// replace. `None` at the edge and in the wasm build, where the routes are
-    /// then never mounted. See [`update`].
+    /// replace. `None` otherwise, and the routes are then never mounted. See
+    /// [`update`].
     updates: Option<Arc<dyn update::UpdateService>>,
     derived: Arc<Derived>,
 }
@@ -176,7 +141,6 @@ impl<C> Clone for HostState<C> {
     fn clone(&self) -> Self {
         Self {
             app: self.app.clone(),
-            #[cfg(not(target_arch = "wasm32"))]
             console: self.console.clone(),
             updates: self.updates.clone(),
             derived: self.derived.clone(),
@@ -189,7 +153,6 @@ impl<C> HostState<C> {
     /// [`AppConfig::console`](gproxy_app::config::ConsoleConfig) once here
     /// rather than per request.
     pub fn new(app: Arc<App<C>>) -> Self {
-        #[cfg(not(target_arch = "wasm32"))]
         let console = {
             let data = std::path::Path::new(app.config().data_dir.as_deref().unwrap_or("data"));
             Arc::new(
@@ -200,7 +163,6 @@ impl<C> HostState<C> {
         };
         Self {
             app,
-            #[cfg(not(target_arch = "wasm32"))]
             console,
             updates: None,
             derived: Arc::default(),
@@ -245,12 +207,12 @@ impl<C> HostState<C> {
     }
 
     /// The host's self-update implementation, if it supplied one. `None` is
-    /// what keeps the update routes off the edge build's router.
+    /// what keeps the update routes off a router whose host has no executable
+    /// to replace.
     pub fn updates(&self) -> Option<&Arc<dyn update::UpdateService>> {
         self.updates.as_ref()
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn console(&self) -> &console::Console {
         &self.console
     }
@@ -330,83 +292,43 @@ async fn publication<C>(State(state): State<HostState<C>>, Path(id): Path<String
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    send(async move {
-        let publication = match state.app.read_publication(&id).await {
-            Ok(publication) => publication,
-            Err(error) => return ErrorResponse(error).into_response(),
-        };
-        let mut headers = http::HeaderMap::new();
-        if let Some(mime) = publication
-            .metadata
-            .mime
-            .as_deref()
-            .and_then(|mime| HeaderValue::from_str(mime).ok())
-        {
-            headers.insert(header::CONTENT_TYPE, mime);
-        }
-        if let Some(name) = publication.metadata.filename.as_deref()
-            // A filename comes from an upstream and lands in a header, so
-            // anything that could break the header or the quoting is refused
-            // rather than escaped.
-            && !name.contains(['"', '\\', '\r', '\n'])
-            && let Ok(value) = HeaderValue::from_str(&format!("inline; filename=\"{name}\""))
-        {
-            headers.insert(header::CONTENT_DISPOSITION, value);
-        }
-        // The type came from an upstream and the body is served inline on the
-        // console's origin. Taken at its word — no sniffing — and sandboxed,
-        // so an HTML or SVG "image" runs no script with the console's origin.
-        headers.insert(
-            header::X_CONTENT_TYPE_OPTIONS,
-            HeaderValue::from_static("nosniff"),
-        );
-        headers.insert(
-            header::CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static("sandbox; default-src 'none'; style-src 'unsafe-inline'"),
-        );
-        response::passthrough(StatusCode::OK, headers, publication.body)
-    })
-    .await
+    let publication = match state.app.read_publication(&id).await {
+        Ok(publication) => publication,
+        Err(error) => return ErrorResponse(error).into_response(),
+    };
+    let mut headers = http::HeaderMap::new();
+    if let Some(mime) = publication
+        .metadata
+        .mime
+        .as_deref()
+        .and_then(|mime| HeaderValue::from_str(mime).ok())
+    {
+        headers.insert(header::CONTENT_TYPE, mime);
+    }
+    if let Some(name) = publication.metadata.filename.as_deref()
+        // A filename comes from an upstream and lands in a header, so
+        // anything that could break the header or the quoting is refused
+        // rather than escaped.
+        && !name.contains(['"', '\\', '\r', '\n'])
+        && let Ok(value) = HeaderValue::from_str(&format!("inline; filename=\"{name}\""))
+    {
+        headers.insert(header::CONTENT_DISPOSITION, value);
+    }
+    // The type came from an upstream and the body is served inline on the
+    // console's origin. Taken at its word — no sniffing — and sandboxed,
+    // so an HTML or SVG "image" runs no script with the console's origin.
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("sandbox; default-src 'none'; style-src 'unsafe-inline'"),
+    );
+    response::passthrough(StatusCode::OK, headers, publication.body)
 }
 
 // ----------------------------------------------------------------- shared --
-
-/// Make a handler's body satisfy axum's `Send` bound on every target.
-///
-/// Natively this is the identity function and the value is returned untouched.
-/// On `wasm32-unknown-unknown` it is `send_wrapper::SendWrapper`, which is the
-/// bridge between two deliberate positions that would otherwise be
-/// irreconcilable:
-///
-/// - the engine below this crate is `!Send` on wasm because a JS handle
-///   belongs to the isolate that made it, and `gproxy-client`'s `ClientBounds`
-///   states exactly that (`Send + Sync` natively, empty on wasm), so every
-///   future that awaits an upstream call is `!Send` too;
-/// - `axum::handler::Handler` requires `type Future: Future<Output = Response>
-///   + Send + 'static`, and `axum::body::Body::from_stream` requires
-///   `S: TryStream + Send + 'static`.
-///
-/// A Worker isolate is single-threaded, so the wrapper's promise holds, and it
-/// is checked rather than assumed: a poll from another thread panics.
-///
-/// It takes any value, so the same call wraps a future (a handler) and a
-/// stream (a response body).
-///
-/// # Every handler needs it
-///
-/// A handler that forgets is a compile error on the wasm target, naming that
-/// handler. That is the whole enforcement mechanism, and it is the reason this
-/// is a wrapper at the handler rather than a `cfg` on the router: a route that
-/// cannot compile for the edge cannot silently fail to exist there.
-#[cfg(not(target_arch = "wasm32"))]
-pub fn send<T>(value: T) -> T {
-    value
-}
-
-#[cfg(target_arch = "wasm32")]
-pub fn send<T>(value: T) -> send_wrapper::SendWrapper<T> {
-    send_wrapper::SendWrapper::new(value)
-}
 
 /// Wall clock in milliseconds. `gproxy-app`'s own is crate-private, which is
 /// correct — a host that needs a clock has one.
@@ -449,32 +371,11 @@ pub(crate) fn matched_path(request: &Request) -> &str {
 /// The fallback is deliberately **not** loopback. An unknown peer must not be
 /// a trusted one: a deployment that forgot the connect-info layer would
 /// otherwise start believing `x-forwarded-for` from the open internet.
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn peer_ip(request: &Request) -> std::net::IpAddr {
     request
         .extensions()
         .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
         .map(|info| info.0.ip())
-        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED))
-}
-
-/// The same question at the edge, where there is no socket to ask.
-///
-/// `ConnectInfo` is behind axum's `tokio` feature, which is a server's half of
-/// the crate and not compiled here. A Worker is handed the client address by
-/// the runtime instead, in `cf-connecting-ip`, and that header is trustworthy
-/// for the same reason the socket is: Cloudflare sets it on the edge and a
-/// client cannot forge it past that point.
-///
-/// The fallback matches the native one and for the same reason: an unknown
-/// peer is not a trusted peer, so `x-forwarded-for` from it is not believed.
-#[cfg(target_arch = "wasm32")]
-pub(crate) fn peer_ip(request: &Request) -> std::net::IpAddr {
-    request
-        .headers()
-        .get("cf-connecting-ip")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.trim().parse().ok())
         .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED))
 }
 

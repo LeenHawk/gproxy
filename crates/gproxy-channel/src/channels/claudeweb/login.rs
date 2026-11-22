@@ -9,12 +9,10 @@ use super::{
     bootstrap::{self, BootstrapFailure},
     id, now_ms, prepare, read_body,
 };
-use crate::{
-    OutboundClient,
-    channel::{
-        ChannelError, CredentialRefresh, CredentialUpdate, OperationFuture, ProviderView,
-        RefreshContext,
-    },
+use crate::OutboundClient;
+use gproxy_upstream::{
+    CredentialRefresh, CredentialUpdate, ProviderView, RefreshContext, UpstreamError,
+    UpstreamFuture,
 };
 
 async fn fetch_bootstrap(
@@ -22,7 +20,7 @@ async fn fetch_bootstrap(
     provider: ProviderView<'_>,
     cookie: &str,
     device_id: Option<&str>,
-) -> Result<(StatusCode, Bytes), ChannelError> {
+) -> Result<(StatusCode, Bytes), UpstreamError> {
     let config = ClaudeWebConfig::from_view(provider)?;
     let base = auth::base_url(provider);
     let url = prepare::endpoint_url(
@@ -83,15 +81,15 @@ impl CredentialRefresh for ClaudeWeb {
     /// Re-validate the cookie. A definitive rejection, a logged-out bootstrap
     /// or a banned organization is final; other failures are transient.
     /// Persist public account and model metadata.
-    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let secret = context.credential.secret;
             let cookie = auth::field(secret, "cookie")
                 .or_else(|| auth::field(secret, "session_key"))
                 .ok_or_else(|| {
-                    ChannelError::RefreshRejected("credential has no session cookie".into())
+                    UpstreamError::RefreshRejected("credential has no session cookie".into())
                 })?;
-            let cookie = auth::normalize_cookie(cookie).ok_or(ChannelError::InvalidCredential)?;
+            let cookie = auth::normalize_cookie(cookie).ok_or(UpstreamError::InvalidCredential)?;
             let device_id = match auth::field(secret, "device_id") {
                 Some(value) => value.to_owned(),
                 None => id::uuid()?,
@@ -100,20 +98,20 @@ impl CredentialRefresh for ClaudeWeb {
             let (status, body) =
                 fetch_bootstrap(context.client, context.provider, &cookie, device_id).await?;
             if let Some(reason) = definitive_rejection(status, &body) {
-                return Err(ChannelError::RefreshRejected(reason));
+                return Err(UpstreamError::RefreshRejected(reason));
             }
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let bootstrap = bootstrap::parse(&body).map_err(|failure| match failure {
                 BootstrapFailure::LoggedOut => {
-                    ChannelError::RefreshRejected("claude.ai session is logged out".into())
+                    UpstreamError::RefreshRejected("claude.ai session is logged out".into())
                 }
-                BootstrapFailure::Malformed(message) => ChannelError::InvalidResponse(message),
+                BootstrapFailure::Malformed(message) => UpstreamError::InvalidResponse(message),
             })?;
             let now = now_ms()?;
             if bootstrap::banned(&bootstrap, now) {
-                return Err(ChannelError::RefreshRejected(
+                return Err(UpstreamError::RefreshRejected(
                     "claude.ai account is banned".into(),
                 ));
             }

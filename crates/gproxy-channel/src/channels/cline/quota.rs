@@ -15,13 +15,15 @@
 use super::auth;
 use super::config::{ID, base_url};
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
+    QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
     QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
     QuotaWindow,
 };
 use crate::channels::shared::compatible::ability::{decimal, send};
 use crate::channels::shared::compatible::http::invalid_response;
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
+};
 use http::{HeaderMap, HeaderValue, Method, header};
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -157,7 +159,7 @@ fn iso_to_ms(value: &str) -> Option<i64> {
 }
 
 /// The envelope every Cline account endpoint wraps its payload in.
-fn data(body: &[u8]) -> Result<Value, ChannelError> {
+fn data(body: &[u8]) -> Result<Value, UpstreamError> {
     let value: Value = serde_json::from_slice(body)
         .map_err(|error| invalid_response(format!("{ID} quota: {error}")))?;
     if value.get("success").and_then(Value::as_bool) != Some(true) {
@@ -184,7 +186,7 @@ fn label(kind: &str) -> String {
 
 /// `limits[]` as windows. The upstream states a percentage and a reset and
 /// nothing else, so no total is inferred for it.
-fn plan_entries(data: &Value) -> Result<Vec<QuotaEntry>, ChannelError> {
+fn plan_entries(data: &Value) -> Result<Vec<QuotaEntry>, UpstreamError> {
     let limits = data
         .get("limits")
         .and_then(Value::as_array)
@@ -232,7 +234,7 @@ fn plan_entries(data: &Value) -> Result<Vec<QuotaEntry>, ChannelError> {
         .collect()
 }
 
-fn balance_entry(data: &Value) -> Result<QuotaEntry, ChannelError> {
+fn balance_entry(data: &Value) -> Result<QuotaEntry, UpstreamError> {
     let remaining = data
         .get("balance")
         .and_then(decimal)
@@ -289,7 +291,7 @@ async fn non_credit_models(context: &CredentialContext<'_>) -> Option<Vec<String
 }
 
 impl QuotaQuery for super::Cline {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let base = base_url(context.provider);
             let mut entries = Vec::new();
@@ -304,7 +306,7 @@ impl QuotaQuery for super::Cline {
                     headers.insert(
                         header::AUTHORIZATION,
                         HeaderValue::from_str(&format!("Bearer {key}"))
-                            .map_err(|_| ChannelError::InvalidCredential)?,
+                            .map_err(|_| UpstreamError::InvalidCredential)?,
                     );
                 }
                 None => auth::apply(&mut headers, &context.credential)?,
@@ -323,7 +325,7 @@ impl QuotaQuery for super::Cline {
                     Err(error) => failure = Some(error),
                 },
                 Some(Err(error)) => failure = Some(error),
-                None => failure = Some(ChannelError::UpstreamResponse { status, body }),
+                None => failure = Some(UpstreamError::UpstreamResponse { status, body }),
             }
 
             // The balance is a second endpoint keyed on the account id the
@@ -353,7 +355,8 @@ impl QuotaQuery for super::Cline {
                     },
                     Some(Err(error)) => failure = failure.or(Some(error)),
                     None => {
-                        failure = failure.or(Some(ChannelError::UpstreamResponse { status, body }));
+                        failure =
+                            failure.or(Some(UpstreamError::UpstreamResponse { status, body }));
                     }
                 }
             }

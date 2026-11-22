@@ -4,22 +4,21 @@
 //! like a successful, truncated audio file. Bill only reported text_words.
 
 use super::{Volcengine, json_response};
-use crate::channel::{BaseChannel, ChannelError, OperationContext, PrepareContext};
+use crate::channel::{BaseChannel, OperationContext, PrepareContext};
 use crate::channels::shared::compatible::http::invalid_response;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures_util::StreamExt;
 use gproxy_protocol::{
-    HttpBody, Operation, OperationKey, WireResponse,
-    codec::NdjsonDecoder,
-    connection::ByteStream,
+    HttpBody, Operation, OperationKey, WireResponse, codec::NdjsonDecoder, connection::ByteStream,
 };
+use gproxy_upstream::UpstreamError;
 use http::{HeaderValue, StatusCode, header};
 use serde_json::{Value, json};
 
 pub(super) const CHARACTERS_HEADER: &str = "x-gproxy-volcengine-audio-characters";
 
-pub(super) fn request(bytes: &[u8]) -> Result<Vec<u8>, ChannelError> {
-    let invalid = |message: &str| ChannelError::InvalidConfig(message.into());
+pub(super) fn request(bytes: &[u8]) -> Result<Vec<u8>, UpstreamError> {
+    let invalid = |message: &str| UpstreamError::InvalidConfig(message.into());
     let mut body: Value = serde_json::from_slice(bytes).map_err(|e| invalid(&e.to_string()))?;
     if body["model"].as_str() != Some("doubao-seed-tts-2.0") {
         return Err(invalid(
@@ -102,7 +101,7 @@ pub(super) fn request(bytes: &[u8]) -> Result<Vec<u8>, ChannelError> {
 pub(super) async fn call(
     channel: &Volcengine,
     ctx: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let request = channel.prepare(PrepareContext {
         provider: ctx.provider,
         credential: ctx.credential,
@@ -117,7 +116,7 @@ pub(super) async fn call(
         unreachable!("prepare buffers speech")
     };
     let body: Value =
-        serde_json::from_slice(body).map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+        serde_json::from_slice(body).map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
     let content_type = match body
         .pointer("/req_params/audio_params/format")
         .and_then(Value::as_str)

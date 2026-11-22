@@ -3,10 +3,9 @@
 //! binding mechanics behind resource routes. Policy lives in each channel's
 //! route table; this module only executes what a class asks for.
 
-use crate::channel::{
-    ChannelError, CredentialContext, ResourceBindingRecord, ServiceCaller, ServiceRoute,
-};
+use crate::channel::ServiceRoute;
 use gproxy_protocol::{HttpBody, WireResponse, connection::Bytes};
+use gproxy_upstream::{CredentialContext, ResourceBindingRecord, ServiceCaller, UpstreamError};
 use http::{HeaderMap, HeaderValue, StatusCode, header};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -64,7 +63,7 @@ pub(crate) fn unix_now_ms() -> i64 {
 }
 
 /// Buffer a service body; the host already bounded the client request.
-pub(crate) async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
+pub(crate) async fn read_body(body: HttpBody) -> Result<Bytes, UpstreamError> {
     crate::channel::read_body(body).await
 }
 
@@ -83,7 +82,7 @@ pub(crate) async fn create_bound(
     upstream: http::Request<HttpBody>,
     id_of: fn(&Value) -> Option<String>,
     fallback_id: Option<&str>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let WireResponse {
         status,
         headers,

@@ -1,10 +1,10 @@
 //! Request/response helpers shared by the OpenAI-compatible channels.
 
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 #[allow(dead_code)] // not every compatible channel reports response errors
-pub(crate) fn invalid_response(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(message.into())
+pub(crate) fn invalid_response(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(message.into())
 }
 
 pub(crate) use crate::channel::read_body;

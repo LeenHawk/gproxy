@@ -30,17 +30,16 @@ use crate::{
     ExecutionTarget, RefreshMode, api::lifecycle::now_ms, ids,
 };
 use futures_util::StreamExt;
-pub use gproxy_channel::channel::{CallerRole, ServiceView};
-use gproxy_channel::{
-    ChannelError,
-    channel::{
-        CallerIdentity, CallerUsage, CallerUsageWindow, CredentialContext, OperationFuture,
-        ResourceBindingRecord, ServiceCaller, ServiceContext,
-    },
-};
+use gproxy_channel::channel::ServiceContext;
+pub use gproxy_channel::channel::ServiceView;
 use gproxy_protocol::{HttpBody, WireRequest, WireResponse, capability::UpstreamConnection};
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::{resource::resource_binding, usage::usage_record};
+pub use gproxy_upstream::CallerRole;
+use gproxy_upstream::{
+    CallerIdentity, CallerUsage, CallerUsageWindow, CredentialContext, ResourceBindingRecord,
+    ServiceCaller, UpstreamError, UpstreamFuture,
+};
 use rust_decimal::{Decimal, prelude::ToPrimitive};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::{collections::BTreeMap, sync::Arc};
@@ -74,8 +73,8 @@ pub struct ServiceRequest<B = HttpBody> {
     pub request: WireRequest<B>,
 }
 
-fn host_error(error: impl std::fmt::Display) -> ChannelError {
-    ChannelError::Host(error.to_string())
+fn host_error(error: impl std::fmt::Display) -> UpstreamError {
+    UpstreamError::Host(error.to_string())
 }
 
 /// Which facts back a synthesized view.
@@ -182,7 +181,7 @@ impl<C: BatchConnectionTrait + Send + Sync> TargetCaller<'_, C> {
         &self,
         user_id: Option<&str>,
         budgets: &[BudgetOwner],
-    ) -> Result<CallerUsage, ChannelError> {
+    ) -> Result<CallerUsage, UpstreamError> {
         let rows = match user_id {
             Some(user_id) => self
                 .core
@@ -240,7 +239,7 @@ impl<C: BatchConnectionTrait + Send + Sync> TargetCaller<'_, C> {
     /// in the target that carries an upstream reading, averaged into one
     /// window with the earliest start and reset. Usage rows carry no
     /// credential, so token totals stay zero.
-    async fn pool_usage(&self) -> Result<CallerUsage, ChannelError> {
+    async fn pool_usage(&self) -> Result<CallerUsage, UpstreamError> {
         let now = now_ms();
         let rows = self
             .core
@@ -294,7 +293,7 @@ impl<C: BatchConnectionTrait + Send + Sync> ServiceCaller for TargetCaller<'_, C
         &self.identity
     }
 
-    fn usage<'a>(&'a self) -> OperationFuture<'a, CallerUsage> {
+    fn usage<'a>(&'a self) -> UpstreamFuture<'a, CallerUsage> {
         Box::pin(async move {
             match &self.facts {
                 Facts::Scope {
@@ -309,7 +308,7 @@ impl<C: BatchConnectionTrait + Send + Sync> ServiceCaller for TargetCaller<'_, C
         &'a self,
         kind: &'a str,
         upstream_id: &'a str,
-    ) -> OperationFuture<'a, Option<ResourceBindingRecord>> {
+    ) -> UpstreamFuture<'a, Option<ResourceBindingRecord>> {
         Box::pin(async move {
             let rows = self
                 .core
@@ -328,7 +327,7 @@ impl<C: BatchConnectionTrait + Send + Sync> ServiceCaller for TargetCaller<'_, C
     fn list_bindings<'a>(
         &'a self,
         kind: &'a str,
-    ) -> OperationFuture<'a, Vec<ResourceBindingRecord>> {
+    ) -> UpstreamFuture<'a, Vec<ResourceBindingRecord>> {
         Box::pin(async move {
             let rows = self
                 .core
@@ -341,7 +340,7 @@ impl<C: BatchConnectionTrait + Send + Sync> ServiceCaller for TargetCaller<'_, C
         })
     }
 
-    fn save_binding<'a>(&'a self, record: ResourceBindingRecord) -> OperationFuture<'a, ()> {
+    fn save_binding<'a>(&'a self, record: ResourceBindingRecord) -> UpstreamFuture<'a, ()> {
         Box::pin(async move {
             let scope = match &self.facts {
                 Facts::Scope { scope, .. } => scope.clone(),
@@ -378,11 +377,7 @@ impl<C: BatchConnectionTrait + Send + Sync> ServiceCaller for TargetCaller<'_, C
         })
     }
 
-    fn delete_binding<'a>(
-        &'a self,
-        kind: &'a str,
-        upstream_id: &'a str,
-    ) -> OperationFuture<'a, ()> {
+    fn delete_binding<'a>(&'a self, kind: &'a str, upstream_id: &'a str) -> UpstreamFuture<'a, ()> {
         Box::pin(async move {
             let bindings = self.core.store().resource_bindings();
             let ids = bindings
@@ -530,8 +525,13 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         &self,
         request: ServiceRequest,
     ) -> CoreResult<WireResponse<HttpBody>> {
-        let Some(services) = request.target.provider.channel.services() else {
-            return Err(CoreError::Channel(ChannelError::UnsupportedService));
+        let Some(services) = request
+            .target
+            .provider
+            .channel()
+            .and_then(|channel| channel.services())
+        else {
+            return Err(CoreError::Channel(UpstreamError::UnsupportedService));
         };
         Self::check_view(&request)?;
         let selected = self
@@ -585,8 +585,13 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         &self,
         request: ServiceRequest<()>,
     ) -> CoreResult<UpstreamConnection> {
-        let Some(services) = request.target.provider.channel.services() else {
-            return Err(CoreError::Channel(ChannelError::UnsupportedService));
+        let Some(services) = request
+            .target
+            .provider
+            .channel()
+            .and_then(|channel| channel.services())
+        else {
+            return Err(CoreError::Channel(UpstreamError::UnsupportedService));
         };
         Self::check_view(&request)?;
         let selected = self

@@ -4,10 +4,11 @@
 //! consumed. The explicit remaining percentage disambiguates the two meanings.
 use super::{DEFAULT_BASE_URL, MiniMax};
 use crate::channel::{
-    ChannelError, CredentialContext, OperationFuture, QuotaAllowance, QuotaBalance, QuotaEntry,
-    QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaValue,
+    QuotaAllowance, QuotaBalance, QuotaEntry, QuotaQuery, QuotaResetBehavior, QuotaScope,
+    QuotaSnapshot, QuotaSubject, QuotaValue,
 };
 use crate::channels::shared::compatible::ability::{bearer, decimal, require_success, send};
+use gproxy_upstream::{CredentialContext, UpstreamError, UpstreamFuture};
 use http::Method;
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -85,7 +86,7 @@ fn allowance(item: &Value, weekly: bool) -> QuotaAllowance {
 }
 
 impl QuotaQuery for MiniMax {
-    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let key = ctx
                 .credential
@@ -93,7 +94,7 @@ impl QuotaQuery for MiniMax {
                 .get("api_key")
                 .and_then(Value::as_str)
                 .filter(|s| !s.trim().is_empty())
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             let balance = key.starts_with("sk-api-");
             let path = if balance {
                 "/account/query_balance"
@@ -115,12 +116,12 @@ impl QuotaQuery for MiniMax {
             .await?;
             let body = require_success(status, body)?;
             let value: Value = serde_json::from_slice(&body)
-                .map_err(|e| ChannelError::InvalidResponse(e.to_string()))?;
+                .map_err(|e| UpstreamError::InvalidResponse(e.to_string()))?;
             if value
                 .pointer("/base_resp/status_code")
                 .is_some_and(|v| v.as_i64() != Some(0))
             {
-                return Err(ChannelError::InvalidResponse(
+                return Err(UpstreamError::InvalidResponse(
                     "MiniMax quota request rejected".into(),
                 ));
             }
@@ -130,7 +131,7 @@ impl QuotaQuery for MiniMax {
                         .get("available_amount")
                         .and_then(decimal)
                         .ok_or_else(|| {
-                            ChannelError::InvalidResponse(
+                            UpstreamError::InvalidResponse(
                                 "MiniMax balance reply missing available_amount".into(),
                             )
                         })?;
@@ -150,7 +151,7 @@ impl QuotaQuery for MiniMax {
                     .get("model_remains")
                     .and_then(Value::as_array)
                     .ok_or_else(|| {
-                        ChannelError::InvalidResponse(
+                        UpstreamError::InvalidResponse(
                             "MiniMax quota reply missing model_remains".into(),
                         )
                     })?;

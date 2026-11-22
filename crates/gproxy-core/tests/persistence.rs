@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 //! Real SQLite verification of capture/usage persistence, including abandoned
 //! execution futures and response bodies. No live upstream is required.
 mod support;
@@ -15,6 +13,7 @@ use gproxy_store::entity::{
     config::setting,
     usage::{upstream_event as event, upstream_record as capture, usage_record},
 };
+use gproxy_upstream::UpstreamKind;
 use http::StatusCode;
 use sea_orm::{EntityTrait, Set};
 use serde_json::json;
@@ -427,13 +426,16 @@ async fn websocket_frames_and_handshake_are_persisted_without_double_usage() {
 /// A channel that consumes two physical responses and returns a buffered local
 /// representation, as catalog/account adapters do.
 struct TwoCalls(TestChannel);
-impl gproxy_channel::BaseChannel for TwoCalls {
+impl UpstreamKind for TwoCalls {
     fn id(&self) -> &'static str {
         "test"
     }
+}
+
+impl gproxy_channel::BaseChannel for TwoCalls {
     fn native_dialects(
         &self,
-        provider: gproxy_channel::channel::ProviderView<'_>,
+        provider: gproxy_upstream::ProviderView<'_>,
         operation: gproxy_protocol::Operation,
     ) -> Vec<gproxy_protocol::Dialect> {
         self.0.native_dialects(provider, operation)
@@ -441,7 +443,7 @@ impl gproxy_channel::BaseChannel for TwoCalls {
     fn list_models<'a>(
         &'a self,
         ctx: gproxy_channel::channel::OperationContext<'a>,
-    ) -> gproxy_channel::channel::OperationFuture<'a, WireResponse> {
+    ) -> gproxy_upstream::UpstreamFuture<'a, WireResponse> {
         Box::pin(async move {
             for path in ["/first", "/second"] {
                 let request = http::Request::builder()
@@ -510,13 +512,16 @@ async fn channel_internal_calls_get_distinct_logs_and_buffered_return_settles() 
 /// A channel that, for one generation, logs in first, collects the answer,
 /// then cleans up after itself, and hands back the collected answer.
 struct Surrounded(TestChannel);
-impl gproxy_channel::BaseChannel for Surrounded {
+impl UpstreamKind for Surrounded {
     fn id(&self) -> &'static str {
         "test"
     }
+}
+
+impl gproxy_channel::BaseChannel for Surrounded {
     fn native_dialects(
         &self,
-        provider: gproxy_channel::channel::ProviderView<'_>,
+        provider: gproxy_upstream::ProviderView<'_>,
         operation: gproxy_protocol::Operation,
     ) -> Vec<gproxy_protocol::Dialect> {
         self.0.native_dialects(provider, operation)
@@ -524,7 +529,7 @@ impl gproxy_channel::BaseChannel for Surrounded {
     fn generate_content<'a>(
         &'a self,
         ctx: gproxy_channel::channel::OperationContext<'a>,
-    ) -> gproxy_channel::channel::OperationFuture<'a, WireResponse> {
+    ) -> gproxy_upstream::UpstreamFuture<'a, WireResponse> {
         Box::pin(async move {
             let mut answer = String::new();
             for path in ["/login", "/answer", "/cleanup"] {

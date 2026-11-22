@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 //! `Resources`: publications over Store rows and the file backend, upstream
 //! reads by id through the scope's provider, and the contract's edge cases.
 
@@ -729,7 +727,7 @@ fn default_fetch_policy_denies_internal_addresses_and_allows_public_ones() {
         policy.decide(&public, &[v4(93, 184, 216, 34)]),
         FetchDecision::Allow
     );
-    // No resolver (wasm32): a name alone is allowed, a loopback name is not.
+    // No resolved addresses: a name alone is allowed, a loopback name is not.
     assert_eq!(policy.decide(&public, &[]), FetchDecision::Allow);
     assert!(matches!(
         policy.decide(&url("http://localhost:8080/x"), &[]),

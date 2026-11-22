@@ -7,11 +7,14 @@
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
-use gproxy_channel::channel::{CredentialContext, CredentialView, PrepareContext, ProviderView};
-use gproxy_channel::{BaseChannel, ChannelError, OutboundClient, channels::vertex::Vertex};
+use gproxy_channel::channel::PrepareContext;
+use gproxy_channel::{BaseChannel, OutboundClient, channels::vertex::Vertex};
 use gproxy_protocol::capability::{CapabilityError, CapabilityFuture};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse, connection::Bytes,
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamKind,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -122,7 +125,7 @@ fn prepare<'a>(
     dialect: Dialect,
     request: WireRequest<HttpBody>,
     endpoint_override: Option<&'a str>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     Vertex.prepare(PrepareContext {
         provider: provider(config, base_url),
         credential: credential(secret),
@@ -134,9 +137,7 @@ fn prepare<'a>(
 
 /// `CredentialUpdate` is deliberately not `Debug`, so a refusal is unwrapped
 /// by hand rather than through `unwrap_err`.
-fn refusal(
-    result: Result<gproxy_channel::channel::CredentialUpdate, ChannelError>,
-) -> ChannelError {
+fn refusal(result: Result<gproxy_upstream::CredentialUpdate, UpstreamError>) -> UpstreamError {
     match result {
         Ok(_) => panic!("expected the upstream to refuse"),
         Err(error) => error,
@@ -402,7 +403,7 @@ fn a_missing_project_names_the_configuration_key() {
     )
     .unwrap_err();
     assert!(
-        matches!(&error, ChannelError::InvalidConfig(message) if message.contains("`project`")),
+        matches!(&error, UpstreamError::InvalidConfig(message) if message.contains("`project`")),
         "{error}"
     );
 }
@@ -428,7 +429,7 @@ fn prepare_never_mints_a_token_and_says_so_when_none_exists() {
         None,
     )
     .unwrap_err();
-    assert!(matches!(error, ChannelError::InvalidCredential), "{error}");
+    assert!(matches!(error, UpstreamError::InvalidCredential), "{error}");
 }
 
 #[test]
@@ -594,7 +595,7 @@ async fn a_revoked_key_is_a_definitive_rejection_and_an_outage_is_not() {
             .await,
     );
     assert!(
-        matches!(&error, ChannelError::RefreshRejected(reason) if reason == "invalid_grant"),
+        matches!(&error, UpstreamError::RefreshRejected(reason) if reason == "invalid_grant"),
         "{error}"
     );
 
@@ -615,7 +616,7 @@ async fn a_revoked_key_is_a_definitive_rejection_and_an_outage_is_not() {
     assert!(
         matches!(
             error,
-            ChannelError::UpstreamResponse {
+            UpstreamError::UpstreamResponse {
                 status: StatusCode::SERVICE_UNAVAILABLE,
                 ..
             }
@@ -645,7 +646,7 @@ async fn a_key_that_cannot_sign_is_rejected_without_a_round_trip() {
             .await,
     );
     assert!(
-        matches!(&error, ChannelError::RefreshRejected(reason) if reason.contains("private_key")),
+        matches!(&error, UpstreamError::RefreshRejected(reason) if reason.contains("private_key")),
         "{error}"
     );
     assert!(client.sent().is_empty(), "nothing was sent");

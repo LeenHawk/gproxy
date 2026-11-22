@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 mod support;
 use support::*;
 
@@ -84,14 +82,14 @@ async fn static_api_key_quota_auth_errors_preserve_the_upstream_error() {
         let h = harness(full(), "sticky").await;
         static_api_key(&h).await;
         h.channel.quota_errors.lock().unwrap().push_back(
-            gproxy_channel::ChannelError::UpstreamResponse {
+            gproxy_upstream::UpstreamError::UpstreamResponse {
                 status,
                 body: Default::default(),
             },
         );
         let error = h.core.query_credential_quota("p", "a").await.unwrap_err();
         assert!(
-            matches!(error, CoreError::Channel(gproxy_channel::ChannelError::UpstreamResponse { status: actual, .. }) if actual == status)
+            matches!(error, CoreError::Channel(gproxy_upstream::UpstreamError::UpstreamResponse { status: actual, .. }) if actual == status)
         );
         assert_eq!(*h.channel.quota_versions.lock().unwrap(), vec![1]);
         assert!(h.channel.refresh_calls.lock().unwrap().is_empty());
@@ -110,7 +108,7 @@ async fn manual_refresh_of_a_static_api_key_is_unsupported_without_marking_dead(
         let error = h.core.refresh_credential("p", "a", mode).await.unwrap_err();
         assert!(matches!(
             error,
-            CoreError::Channel(gproxy_channel::ChannelError::UnsupportedService)
+            CoreError::Channel(gproxy_upstream::UpstreamError::UnsupportedService)
         ));
         assert_eq!(
             stored_version(&h, "a").await,

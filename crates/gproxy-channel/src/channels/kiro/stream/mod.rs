@@ -15,9 +15,9 @@ mod sse;
 mod tools;
 
 use super::usage;
-use crate::channel::ChannelError;
 use crate::channels::shared::aws_eventstream::{Frame, FrameParser};
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 
 /// Event-stream frames in, Responses SSE bytes out.
@@ -75,7 +75,7 @@ impl Translator {
         self.completed.as_ref()
     }
 
-    pub(super) fn push(&mut self, chunk: &[u8]) -> Result<Bytes, ChannelError> {
+    pub(super) fn push(&mut self, chunk: &[u8]) -> Result<Bytes, UpstreamError> {
         let mut out = Vec::new();
         for frame in self.parser.push(chunk)? {
             let name = name(&frame).to_owned();
@@ -95,7 +95,7 @@ impl Translator {
     /// Upstream EOF. Emits the terminal events and records the completed
     /// response; an answer that never started, ended mid-tool-call or ended in
     /// an exception is refused.
-    pub(super) fn finish(&mut self) -> Result<Bytes, ChannelError> {
+    pub(super) fn finish(&mut self) -> Result<Bytes, UpstreamError> {
         if self.failed {
             return Err(decode("the upstream ended with an exception event"));
         }
@@ -114,7 +114,7 @@ impl Translator {
         name: &str,
         payload: &Value,
         out: &mut Vec<u8>,
-    ) -> Result<(), ChannelError> {
+    ) -> Result<(), UpstreamError> {
         match name {
             "assistantResponseEvent" => {
                 let Some(text) = payload.get("content").and_then(Value::as_str) else {
@@ -346,6 +346,6 @@ fn name(frame: &Frame) -> &str {
         .unwrap_or_default()
 }
 
-fn decode(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(format!("Kiro stream: {}", message.into()))
+fn decode(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("Kiro stream: {}", message.into()))
 }

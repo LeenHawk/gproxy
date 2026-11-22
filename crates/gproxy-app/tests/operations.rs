@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The identity operation families against a real database.
 //!
 //! Every test here drives a real `Gproxy` handle over in-memory SQLite, so a

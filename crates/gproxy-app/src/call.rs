@@ -261,7 +261,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
                 .snapshot()
                 .limits
                 .for_operation(request.operation.operation);
-            gproxy_core::form::model(&request.parts.headers, &request.body, limits.codec()).await?
+            gproxy_core::form::model(&request.parts.headers, &request.body, limits.codec())
+                .await
+                .map_err(gproxy_core::CoreError::from)?
         } else {
             None
         };

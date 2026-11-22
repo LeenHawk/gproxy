@@ -23,12 +23,15 @@ mod usage;
 
 pub use config::{DEFAULT_BASE_URL, DashScopeConfig, ID};
 
-use crate::channel::{UsageExtras, 
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, LoginMode, OperationContext, OperationFuture, PrepareContext, ProviderView,
-    };
+use crate::channel::{
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, OperationContext,
+    PrepareContext, UsageExtras,
+};
 use crate::channels::shared::compatible::http::read_body;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamFuture, UpstreamKind,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DashScope;
@@ -41,7 +44,7 @@ impl DashScope {
         &self,
         operation: Operation,
         ctx: OperationContext<'_>,
-    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    ) -> Result<WireResponse<HttpBody>, UpstreamError> {
         let request = self.prepare(PrepareContext {
             provider: ctx.provider,
             credential: ctx.credential,
@@ -76,11 +79,13 @@ impl DashScope {
     }
 }
 
-impl BaseChannel for DashScope {
+impl UpstreamKind for DashScope {
     fn id(&self) -> &'static str {
         ID
     }
+}
 
+impl BaseChannel for DashScope {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -110,24 +115,24 @@ impl BaseChannel for DashScope {
         vec![Dialect::OpenAiChat, Dialect::OpenAi, Dialect::Claude]
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let (builder, request) = request::build(ctx)?;
         builder
             .body(request.body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     fn create_image<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.image_call(Operation::CreateImage, context))
     }
 
     fn edit_image<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.image_call(Operation::EditImage, context))
     }
 

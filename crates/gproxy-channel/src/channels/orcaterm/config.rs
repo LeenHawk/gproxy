@@ -1,4 +1,4 @@
-use crate::channel::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -15,9 +15,9 @@ pub struct OrcaTermConfig {
 }
 
 impl OrcaTermConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|e| ChannelError::InvalidConfig(e.to_string()))
+            .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))
     }
 
     pub(super) fn base_url<'a>(&self, provider: ProviderView<'a>) -> &'a str {
@@ -46,7 +46,7 @@ impl OrcaTermConfig {
             .trim_end_matches('/')
     }
 
-    pub(super) fn oauth_provider(&self) -> Result<&str, ChannelError> {
+    pub(super) fn oauth_provider(&self) -> Result<&str, UpstreamError> {
         let provider = self
             .oauth_provider
             .as_deref()
@@ -59,15 +59,15 @@ impl OrcaTermConfig {
             });
         match provider {
             "wechat" | "txcloud" | "google" | "github" => Ok(provider),
-            _ => Err(ChannelError::InvalidConfig(
+            _ => Err(UpstreamError::InvalidConfig(
                 "OrcaTerm oauth_provider must be wechat, txcloud, google or github".into(),
             )),
         }
     }
 }
 
-pub(super) fn invalid(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(format!("OrcaTerm: {}", message.into()))
+pub(super) fn invalid(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("OrcaTerm: {}", message.into()))
 }
 
 pub(super) fn now_ms() -> i64 {
@@ -77,9 +77,9 @@ pub(super) fn now_ms() -> i64 {
         .as_millis() as i64
 }
 
-pub(super) fn new_id() -> Result<String, ChannelError> {
+pub(super) fn new_id() -> Result<String, UpstreamError> {
     let mut bytes = [0u8; 16];
-    getrandom::fill(&mut bytes).map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+    getrandom::fill(&mut bytes).map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
     bytes[6] = bytes[6] & 0x0f | 0x40;
     bytes[8] = bytes[8] & 0x3f | 0x80;
     let hex = bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();

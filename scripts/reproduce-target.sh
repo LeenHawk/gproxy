@@ -2,20 +2,12 @@
 # Exercise the production build/package scripts without publishing or signing.
 set -euo pipefail
 export TARGET_TRIPLE="${1:?target}"
-kind="${2:?cli|headless|application|edge|serverless}"
+kind="${2:?cli|headless|application}"
 export CI_PROJECT_DIR="$PWD" CI_COMMIT_SHA="$GPROXY_BUILD_HASH"
 export GITHUB_SHA="$GPROXY_BUILD_HASH" GITHUB_REF_TYPE=tag
 export GITHUB_REF_NAME="v$(bash scripts/release-metadata.sh version)"
 export CI_COMMIT_TAG="$GITHUB_REF_NAME"
-requested_target="$TARGET_TRIPLE"
-if [[ "$kind" = edge || "$kind" = serverless ]]; then export TARGET_TRIPLE=; fi
 source scripts/gitlab/env.sh
-export TARGET_TRIPLE="$requested_target"
-if [ "$kind" = edge ]; then
-  export TARGET_OS=wasm UPX_ENABLED=false ARTIFACT_NAME=gproxy-edge
-elif [ "$kind" = serverless ]; then
-  export TARGET_OS=linux UPX_ENABLED=true ARTIFACT_NAME="gproxy-serverless-linux-${TARGET_TRIPLE%%-*}-musl"
-fi
 source scripts/reproducible-env.sh
 export GPROXY_UNSIGNED_BUILD=1
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
@@ -61,11 +53,6 @@ case "$kind" in
     bash scripts/mobile/build-android.sh "${kind#store-}" universal
     mkdir -p dist/release
     cp dist/mobile/"${kind#store-}"/universal/* dist/release/
-    ;;
-  edge) bash scripts/package-edge-release.sh ;;
-  serverless)
-    bash scripts/build-serverless.sh "$TARGET_TRIPLE"
-    bash scripts/package-serverless-release.sh
     ;;
   application)
     export ARTIFACT_NAME="$APPLICATION_ARTIFACT" APPLE_SIGNING_IDENTITY=-

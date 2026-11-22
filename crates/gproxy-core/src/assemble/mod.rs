@@ -6,17 +6,18 @@ use crate::CredentialStrategy;
 use crate::{
     BlockSource, CoreData, CredentialBlock, LimitsError, RewriteCompileError, SecretError,
 };
-use gproxy_channel::channel::{CredentialView, ProviderView, QuotaScope};
+use gproxy_channel::channel::QuotaScope;
 use gproxy_protocol::Operation;
 use gproxy_store::entity::{
     limits::credential_block,
     upstream::{credential, provider},
 };
+use gproxy_upstream::{CredentialView, ProviderView};
 use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 
 mod native;
-pub use native::{assemble, connection_config};
+pub use native::{Kinds, assemble, connection_config};
 
 /// Custom vocabularies parsed for estimation, by file id.
 pub type VocabularyMap = HashMap<String, gproxy_tokenizer::Vocabulary>;

@@ -42,21 +42,41 @@ pub use config::{DEFAULT_BASE_URL, ID, OrcaTermConfig};
 pub use request::CLIENT_HEADERS;
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, NormalizedUsage, OAuthDeviceCode,
-    OperationContext, OperationFuture, ProviderView, QuotaQuery, UsageCompleteness, UsageExtras,
-    UsageSource,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, NormalizedUsage,
+    OperationContext, QuotaQuery, UsageCompleteness, UsageExtras, UsageSource,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, LoginMode, OAuthDeviceCode, ProviderView,
+    UpstreamError, UpstreamFuture, UpstreamKind,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct OrcaTerm;
 
-impl BaseChannel for OrcaTerm {
+impl UpstreamKind for OrcaTerm {
     fn id(&self) -> &'static str {
         ID
     }
 
+    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
+        Some(self)
+    }
+
+    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), UpstreamError> {
+        auth::headers(secret).map(|_| ())
+    }
+
+    fn initial_credential_expiry(&self, _secret: &serde_json::Value) -> Option<i64> {
+        Some(0)
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for OrcaTerm {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -110,44 +130,31 @@ impl BaseChannel for OrcaTerm {
     fn generate_content<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(response::invoke(ctx, false))
     }
 
     fn stream_generate_content<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(response::invoke(ctx, true))
     }
 
     fn list_models<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::list(ctx))
     }
 
     fn web_search<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(response::search(ctx))
     }
-    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        Some(self)
-    }
-    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), ChannelError> {
-        auth::headers(secret).map(|_| ())
-    }
 
-    fn initial_credential_expiry(&self, _secret: &serde_json::Value) -> Option<i64> {
-        Some(0)
-    }
-
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
-    }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }

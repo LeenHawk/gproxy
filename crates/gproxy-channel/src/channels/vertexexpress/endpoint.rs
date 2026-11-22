@@ -1,9 +1,9 @@
 //! Where a Vertex Express method lives. [`method_url`] is the single place
 //! this channel computes an upstream URL.
 
-use crate::channel::ChannelError;
 use crate::channels::shared::google_model;
 use gproxy_protocol::{Dialect, Operation, OperationKey};
+use gproxy_upstream::UpstreamError;
 
 /// Default origin when no region is configured.
 pub(super) const DEFAULT_ORIGIN: &str = "https://aiplatform.googleapis.com";
@@ -12,13 +12,13 @@ pub(super) const DEFAULT_ORIGIN: &str = "https://aiplatform.googleapis.com";
 pub(super) fn origin(
     base_url: Option<&str>,
     location: Option<&str>,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let location = trimmed(location).unwrap_or("global");
     if !location
         .bytes()
         .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
     {
-        return Err(ChannelError::InvalidConfig(
+        return Err(UpstreamError::InvalidConfig(
             "invalid Vertex Express location".into(),
         ));
     }
@@ -48,7 +48,7 @@ pub(super) fn method_url(
     path: &str,
     query: Option<&str>,
     api_key: &str,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let (url, inherited) = match trimmed(endpoint_override) {
         Some(url) => {
             let (head, tail) = match url.split_once('?') {
@@ -56,7 +56,7 @@ pub(super) fn method_url(
                 None => (url, None),
             };
             if tail.is_some_and(|tail| tail.split('&').any(|part| name_of(part) == "key")) {
-                return Err(ChannelError::InvalidConfig(
+                return Err(UpstreamError::InvalidConfig(
                     "a Vertex Express endpoint override must not embed an API key".into(),
                 ));
             }
@@ -80,15 +80,15 @@ pub(super) fn method_url(
     Ok(format!("{url}?{}", parts.join("&")))
 }
 
-fn method_path(operation: OperationKey, path: &str) -> Result<String, ChannelError> {
+fn method_path(operation: OperationKey, path: &str) -> Result<String, UpstreamError> {
     let verb = match (operation.operation, operation.dialect) {
         (Operation::GenerateContent, Dialect::Gemini) => "generateContent",
         (Operation::StreamGenerateContent, Dialect::Gemini) => "streamGenerateContent",
         (Operation::CountTokens, Dialect::Gemini) => "countTokens",
-        _ => return Err(ChannelError::UnsupportedOperation(operation)),
+        _ => return Err(UpstreamError::UnsupportedOperation(operation)),
     };
     let model = google_model::from_path(path)?.ok_or_else(|| {
-        ChannelError::InvalidConfig(
+        UpstreamError::InvalidConfig(
             "a Vertex Express request must name its model in the path".into(),
         )
     })?;

@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 mod support;
 use futures_util::{SinkExt, StreamExt};
 use gproxy_app::{AppError, DataPlaneRequest};

@@ -6,8 +6,8 @@
 //! uses two of those codes as "keep polling", which is why the envelope is
 //! parsed rather than judged by HTTP status alone.
 
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::UpstreamError;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
@@ -30,15 +30,15 @@ pub(super) struct Envelope<T> {
 
 impl<T> Envelope<T> {
     /// The payload, or the envelope's own error.
-    pub(super) fn data(self, what: &str) -> Result<T, ChannelError> {
+    pub(super) fn data(self, what: &str) -> Result<T, UpstreamError> {
         if self.code != OK {
-            return Err(ChannelError::InvalidResponse(format!(
+            return Err(UpstreamError::InvalidResponse(format!(
                 "WorkBuddy {what}: {} ({})",
                 self.msg, self.code
             )));
         }
         self.data.ok_or_else(|| {
-            ChannelError::InvalidResponse(format!("WorkBuddy {what}: the envelope has no data"))
+            UpstreamError::InvalidResponse(format!("WorkBuddy {what}: the envelope has no data"))
         })
     }
 }
@@ -46,9 +46,9 @@ impl<T> Envelope<T> {
 pub(super) fn parse<T: serde::de::DeserializeOwned>(
     body: &[u8],
     what: &str,
-) -> Result<Envelope<T>, ChannelError> {
+) -> Result<Envelope<T>, UpstreamError> {
     serde_json::from_slice(body)
-        .map_err(|error| ChannelError::InvalidResponse(format!("WorkBuddy {what}: {error}")))
+        .map_err(|error| UpstreamError::InvalidResponse(format!("WorkBuddy {what}: {error}")))
 }
 
 /// Lift `data` to the top level, keeping any outer field it did not name. A

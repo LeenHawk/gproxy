@@ -4,9 +4,7 @@ use super::{
     images, models, request,
     tools::{Pending, Tools, json_content},
 };
-use crate::channel::{
-    ChannelError, ChannelState, CredentialView, OperationContext, PrepareContext,
-};
+use crate::channel::{OperationContext, PrepareContext};
 use crate::channels::shared::compatible::http::read_body;
 use futures_util::StreamExt;
 use gproxy_protocol::{
@@ -14,10 +12,10 @@ use gproxy_protocol::{
     codec::{SseDecoder, SseFrame},
     connection::{ByteStream, Bytes},
 };
+use gproxy_upstream::{CredentialView, UpstreamError, UpstreamState};
 use http::{HeaderValue, header};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, sync::Arc};
-
 
 /// Locate a JSON string's closing quote without mistaking an escaped quote for
 /// the delimiter. Outer SSE JSON already guarantees valid UTF-8.
@@ -151,7 +149,7 @@ impl Translator {
         collect: bool,
         tools: Tools,
         input_tokens: u64,
-    ) -> Result<Self, ChannelError> {
+    ) -> Result<Self, UpstreamError> {
         Ok(Self {
             decoder: SseDecoder::new(crate::channel::UNBOUNDED),
             id: format!("chatcmpl-{}", new_id()?),
@@ -211,7 +209,7 @@ impl Translator {
         );
     }
 
-    fn project(&mut self, committed: bool, out: &mut Vec<u8>) -> Result<(), ChannelError> {
+    fn project(&mut self, committed: bool, out: &mut Vec<u8>) -> Result<(), UpstreamError> {
         let fields = partial_strings(json_content(&self.current));
         if !self.native_reasoning
             && let Some(thinking) = fields.get("thinking")
@@ -244,7 +242,7 @@ impl Translator {
         Ok(())
     }
 
-    fn finish_message(&mut self, out: &mut Vec<u8>) -> Result<(), ChannelError> {
+    fn finish_message(&mut self, out: &mut Vec<u8>) -> Result<(), UpstreamError> {
         if self.current.is_empty() {
             return Ok(());
         }
@@ -286,7 +284,7 @@ impl Translator {
         Ok(())
     }
 
-    fn event(&mut self, frame: SseFrame, out: &mut Vec<u8>) -> Result<(), ChannelError> {
+    fn event(&mut self, frame: SseFrame, out: &mut Vec<u8>) -> Result<(), UpstreamError> {
         if self.done {
             return Ok(());
         }
@@ -387,7 +385,7 @@ impl Translator {
         Ok(())
     }
 
-    fn push(&mut self, bytes: &[u8]) -> Result<Bytes, ChannelError> {
+    fn push(&mut self, bytes: &[u8]) -> Result<Bytes, UpstreamError> {
         let frames = self
             .decoder
             .push(bytes)
@@ -399,7 +397,7 @@ impl Translator {
         Ok(out.into())
     }
 
-    fn finish(&mut self) -> Result<Bytes, ChannelError> {
+    fn finish(&mut self) -> Result<Bytes, UpstreamError> {
         // OrcaTerm ends with `data: [DONE]` without a line terminator. Its
         // desktop client flushes the last line at EOF; do the same locally
         // while retaining the shared decoder's strict SSE framing.
@@ -417,7 +415,7 @@ impl Translator {
         Ok(out.into())
     }
 
-    async fn persist(&mut self, state: &dyn ChannelState) -> Result<(), ChannelError> {
+    async fn persist(&mut self, state: &dyn UpstreamState) -> Result<(), UpstreamError> {
         if let Some((id, pending)) = self.pending.take() {
             pending.save(state, &id).await?;
         }
@@ -458,7 +456,7 @@ fn byte_stream(body: HttpBody) -> ByteStream {
     }
 }
 
-fn translate(body: HttpBody, translator: Translator, state: Arc<dyn ChannelState>) -> ByteStream {
+fn translate(body: HttpBody, translator: Translator, state: Arc<dyn UpstreamState>) -> ByteStream {
     Box::pin(futures_util::stream::unfold(
         Some((byte_stream(body), translator, state)),
         |slot| async move {
@@ -501,9 +499,9 @@ fn translate(body: HttpBody, translator: Translator, state: Arc<dyn ChannelState
 pub(super) async fn invoke(
     ctx: OperationContext<'_>,
     streaming: bool,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     if ctx.dialect != gproxy_protocol::Dialect::OpenAiChat {
-        return Err(ChannelError::UnsupportedOperation(OperationKey {
+        return Err(UpstreamError::UnsupportedOperation(OperationKey {
             operation: if streaming {
                 Operation::StreamGenerateContent
             } else {
@@ -557,7 +555,7 @@ async fn send_chat(
     ctx: OperationContext<'_>,
     mut chat: request::ChatRequest,
     streaming: bool,
-) -> Result<(WireResponse<HttpBody>, Tools, String, u64), ChannelError> {
+) -> Result<(WireResponse<HttpBody>, Tools, String, u64), UpstreamError> {
     let model = chat.body["user"]["setting"]["model"]
         .as_str()
         .expect("validated model")
@@ -591,7 +589,7 @@ async fn send_chat(
         None => ctx.credential,
     };
     chat.body["user"]["id"] =
-        json!(auth::fact(credential, "user_id").ok_or(ChannelError::InvalidCredential)?);
+        json!(auth::fact(credential, "user_id").ok_or(UpstreamError::InvalidCredential)?);
     let origin = OrcaTermConfig::from_view(ctx.provider)?
         .base_url(ctx.provider)
         .to_owned();
@@ -670,7 +668,7 @@ async fn send_chat(
 /// Return their actual result text, not an unverified model-generated answer.
 pub(super) async fn search(
     ctx: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let HttpBody::Bytes(bytes) = &ctx.request.body else {
         return Err(request::bad("requires a buffered search request"));
     };

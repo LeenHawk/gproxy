@@ -14,7 +14,6 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
        libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libdbus-1-dev \
        libayatana-appindicator3-dev librsvg2-dev patchelf \
     && rm -rf /var/lib/apt/lists/* \
-    && rustup component add clippy rustfmt \
-    && rustup target add wasm32-unknown-unknown
+    && rustup component add clippy rustfmt
 COPY --from=docker /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=docker /usr/local/libexec/docker/cli-plugins/docker-buildx /usr/local/libexec/docker/cli-plugins/docker-buildx

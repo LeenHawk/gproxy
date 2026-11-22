@@ -4,11 +4,10 @@ use super::{
     images,
     tools::Tools,
 };
-use crate::channel::{
-    BaseChannel, ChannelError, ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable,
-};
+use crate::channel::{BaseChannel, ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable};
 use crate::channels::shared::compatible::http::insert_configured;
 use gproxy_protocol::HttpBody;
+use gproxy_upstream::UpstreamError;
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde_json::{Value, json};
 
@@ -31,11 +30,15 @@ const OWNED_HEADERS: &[&str] = &[
 // its older product version and macOS platform on the Windows build.
 const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) OrcaTerm/1.0.0 Chrome/120.0.0.0 Safari/537.36";
 
-pub(super) fn insert(headers: &mut HeaderMap, name: &str, value: &str) -> Result<(), ChannelError> {
+pub(super) fn insert(
+    headers: &mut HeaderMap,
+    name: &str,
+    value: &str,
+) -> Result<(), UpstreamError> {
     insert_configured(headers, name, value)
 }
 
-pub(super) fn configured_headers(config: &OrcaTermConfig) -> Result<HeaderMap, ChannelError> {
+pub(super) fn configured_headers(config: &OrcaTermConfig) -> Result<HeaderMap, UpstreamError> {
     let mut headers = HeaderMap::new();
     for (name, value) in &config.headers {
         insert(&mut headers, name, value)?;
@@ -44,11 +47,11 @@ pub(super) fn configured_headers(config: &OrcaTermConfig) -> Result<HeaderMap, C
     Ok(headers)
 }
 
-pub(super) fn bad(message: &str) -> ChannelError {
-    ChannelError::InvalidConfig(format!("OrcaTerm request: {message}"))
+pub(super) fn bad(message: &str) -> UpstreamError {
+    UpstreamError::InvalidConfig(format!("OrcaTerm request: {message}"))
 }
 
-fn text(value: &Value) -> Result<String, ChannelError> {
+fn text(value: &Value) -> Result<String, UpstreamError> {
     if let Some(text) = value.as_str() {
         return Ok(text.into());
     }
@@ -78,7 +81,7 @@ pub(super) struct ChatRequest {
     pub tool_result: Option<(String, String)>,
 }
 
-pub(super) fn build(input: &Value) -> Result<ChatRequest, ChannelError> {
+pub(super) fn build(input: &Value) -> Result<ChatRequest, UpstreamError> {
     let model = input["model"]
         .as_str()
         .filter(|m| !m.trim().is_empty())
@@ -220,12 +223,12 @@ pub(super) fn build(input: &Value) -> Result<ChatRequest, ChannelError> {
 pub(super) fn prepare(
     ctx: PrepareContext<'_>,
     body: Value,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     if !OrcaTerm
         .native_dialects(ctx.provider, ctx.operation.operation)
         .contains(&ctx.operation.dialect)
     {
-        return Err(ChannelError::UnsupportedOperation(ctx.operation));
+        return Err(UpstreamError::UnsupportedOperation(ctx.operation));
     }
     let config = OrcaTermConfig::from_view(ctx.provider)?;
     let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLIENT_HEADERS)?;
@@ -246,7 +249,7 @@ pub(super) fn prepare(
         None => {
             let mut url =
                 url::Url::parse(&format!("{}/assistant/chat", config.base_url(ctx.provider)))
-                    .map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+                    .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
             url.query_pairs_mut()
                 .append_pair("name", "orcaterm")
                 .append_pair("mode", "0")

@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! Keeping the identity snapshot in step: the mechanism, its guards, and the
 //! question a single-node deployment turns on.
 //!
@@ -36,7 +35,7 @@ use gproxy_sdk::{Gproxy, GproxyBuilder};
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 
 /// An instance that keeps a subscription of its own, which is what a host
-/// without a background loop — an edge isolate, a test — asks for.
+/// without a background loop — a per-request host, a test — asks for.
 async fn manual(app: &Arc<App<DatabaseConnection>>) {
     app.start_sync(SyncMode::Manual, Duration::from_secs(30))
         .await;

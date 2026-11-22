@@ -29,15 +29,18 @@ use super::{
     base_url, fact, header_value, invalid_config, merge_beta, stainless_arch, stainless_os,
 };
 use crate::channel::{
-    CallerRole, CallerUsage, CallerUsageWindow, ChannelError, ChannelServices, CredentialContext,
-    CredentialView, HeaderAllowlist, OperationFuture, ResourceAccess, ServiceClass, ServiceContext,
-    ServiceRoute, ServiceTransport,
+    ChannelServices, HeaderAllowlist, ResourceAccess, ServiceClass, ServiceContext, ServiceRoute,
+    ServiceTransport,
 };
 use crate::channels::shared::services_common::{
     classify, create_bound, json_of, json_response, keyword_filter, keywords, param, read_body,
     stable_id,
 };
 use gproxy_protocol::{HttpBody, WireRequest, WireResponse};
+use gproxy_upstream::{
+    CallerRole, CallerUsage, CallerUsageWindow, CredentialContext, CredentialView, UpstreamError,
+    UpstreamFuture,
+};
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 use serde_json::{Value, json};
 use std::sync::OnceLock;
@@ -485,7 +488,7 @@ fn service_headers(
     access_token: &str,
     source: &HeaderMap,
     allowlist: Option<&HeaderAllowlist>,
-) -> Result<HeaderMap, ChannelError> {
+) -> Result<HeaderMap, UpstreamError> {
     let client_header = |name: &'static str| {
         let name = HeaderName::from_static(name);
         if allowlist.is_some_and(|list| !list.allows(&name)) {
@@ -555,7 +558,7 @@ use crate::channel::forwardable;
 fn forward(
     account: &CredentialContext<'_>,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     let config = ClaudecodeConfig::from_view(account.provider)?;
     let identity = super::account(&account.credential)?;
     let allowlist = HeaderAllowlist::from_view_for(
@@ -620,7 +623,7 @@ fn forward(
 async fn send<'a>(
     account: &CredentialContext<'a>,
     request: WireRequest<HttpBody>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     Ok(account.client.send(forward(account, request)?).await?)
 }
 
@@ -885,7 +888,7 @@ async fn resource_call<'a>(
     access: ResourceAccess,
     params: &[(&'static str, &str)],
     ctx: ServiceContext<'a>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     match access {
         List => {
             let ServiceContext {
@@ -944,14 +947,14 @@ impl ChannelServices for Claudecode {
         routes()
     }
 
-    fn call<'a>(&'a self, ctx: ServiceContext<'a>) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    fn call<'a>(&'a self, ctx: ServiceContext<'a>) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             if !is_vendor_path(&ctx.request.path) {
-                return Err(ChannelError::UnsupportedService);
+                return Err(UpstreamError::UnsupportedService);
             }
             let path = ctx.request.path.clone();
             let Some((route, params)) = classify(routes(), &ctx.request.method, &path) else {
-                return Err(ChannelError::UnsupportedService);
+                return Err(UpstreamError::UnsupportedService);
             };
             let raw = !ctx.view.is_synthesized();
             match route.class {

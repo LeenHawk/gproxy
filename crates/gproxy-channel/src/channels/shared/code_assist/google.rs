@@ -17,10 +17,10 @@
 
 use super::{invalid_response, send, text, unix_now_ms};
 use crate::OutboundClient;
-use crate::channel::{
-    AuthorizationRequest, AuthorizationStart, ChannelError, CredentialUpdate, OAuthCredential,
-};
 use crate::channels::shared::timer::sleep;
+use gproxy_upstream::{
+    AuthorizationRequest, AuthorizationStart, CredentialUpdate, OAuthCredential, UpstreamError,
+};
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -65,7 +65,7 @@ pub(crate) struct GoogleTool<'a> {
     /// What the tool does when `loadCodeAssist` names no project: use the
     /// hint, onboard on some tier, or refuse. The two tools disagree, so the
     /// rule is theirs (`loaded`, then the project hint).
-    pub onboarding: fn(&Value, Option<&str>) -> Result<Onboarding, ChannelError>,
+    pub onboarding: fn(&Value, Option<&str>) -> Result<Onboarding, UpstreamError>,
     /// Whether failed project discovery rejects an otherwise valid OAuth
     /// login. Channels may persist the tokens and retry discovery on refresh.
     pub require_project: bool,
@@ -93,8 +93,8 @@ pub(crate) enum Onboarding {
 /// gives up; both tools poll without a limit, a login request cannot.
 const ONBOARD_POLL_BUDGET: Duration = Duration::from_secs(60);
 
-fn header_value(value: &str) -> Result<HeaderValue, ChannelError> {
-    HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)
+fn header_value(value: &str) -> Result<HeaderValue, UpstreamError> {
+    HeaderValue::from_str(value).map_err(|_| UpstreamError::InvalidCredential)
 }
 
 /// Percent-encode a query or form component (v3 `shared/http.rs::form`).
@@ -153,7 +153,7 @@ fn search_params(pairs: &[(&str, &str)]) -> String {
 /// banner and runtime (`authclient.js` `DEFAULT_REQUEST_INTERCEPTOR`).
 /// node-fetch also asks for `gzip, deflate, br`; the channel's connection
 /// decides what it can decode, so `Accept-Encoding` is left to it.
-fn form_headers(tool: &GoogleTool<'_>) -> Result<HeaderMap, ChannelError> {
+fn form_headers(tool: &GoogleTool<'_>) -> Result<HeaderMap, UpstreamError> {
     let mut headers = HeaderMap::new();
     headers.insert(header::ACCEPT, HeaderValue::from_static("*/*"));
     headers.insert(
@@ -237,7 +237,7 @@ async fn token_request(
     // existing credential is being renewed; during a login it is just a
     // failed attempt the operator repeats.
     renewing: bool,
-) -> Result<Tokens, ChannelError> {
+) -> Result<Tokens, UpstreamError> {
     let (status, _, bytes) = send(
         client,
         Method::POST,
@@ -248,9 +248,9 @@ async fn token_request(
     .await?;
     if !status.is_success() {
         if renewing && let Some(code) = token_error(status, &bytes) {
-            return Err(ChannelError::RefreshRejected(code));
+            return Err(UpstreamError::RefreshRejected(code));
         }
-        return Err(ChannelError::UpstreamResponse {
+        return Err(UpstreamError::UpstreamResponse {
             status,
             body: bytes,
         });
@@ -285,7 +285,7 @@ pub(crate) async fn exchange(
     redirect_uri: &str,
     code_verifier: &str,
     project_hint: Option<&str>,
-) -> Result<OAuthCredential, ChannelError> {
+) -> Result<OAuthCredential, UpstreamError> {
     let redirect_uri = match redirect_uri.trim() {
         "" => tool.redirect_uri,
         given => given,
@@ -336,9 +336,9 @@ pub(crate) async fn refresh(
     code_assist_base: &str,
     secret: &Value,
     project_hint: Option<&str>,
-) -> Result<CredentialUpdate, ChannelError> {
+) -> Result<CredentialUpdate, UpstreamError> {
     let refresh_token = text(secret, "refresh_token").ok_or_else(|| {
-        ChannelError::RefreshRejected("credential has no refresh token".to_owned())
+        UpstreamError::RefreshRejected("credential has no refresh token".to_owned())
     })?;
     // google-auth-library `refreshTokenNoCache` field order.
     let tokens = token_request(
@@ -404,7 +404,7 @@ fn credential(
     }
 }
 
-pub(crate) fn encode_secret(credential: &OAuthCredential) -> Result<Value, ChannelError> {
+pub(crate) fn encode_secret(credential: &OAuthCredential) -> Result<Value, UpstreamError> {
     serde_json::to_value(credential).map_err(|error| invalid_response(error.to_string()))
 }
 
@@ -434,7 +434,7 @@ async fn code_assist_call(
     access_token: &str,
     path: &str,
     body: Option<Vec<u8>>,
-) -> Result<Value, ChannelError> {
+) -> Result<Value, UpstreamError> {
     let mut headers = HeaderMap::new();
     headers.insert(
         header::ACCEPT,
@@ -469,7 +469,7 @@ async fn code_assist_call(
     )
     .await?;
     if !status.is_success() {
-        return Err(ChannelError::UpstreamResponse {
+        return Err(UpstreamError::UpstreamResponse {
             status,
             body: bytes,
         });
@@ -501,7 +501,7 @@ pub(crate) fn default_tier(loaded: &Value) -> Option<&str> {
 /// The refusal for an account that has no project and none can be had:
 /// the server's ineligibility reasons when it gives any, else a request for
 /// a project (gemini-cli `setup.ts::throwIneligibleOrProjectIdError`).
-pub(crate) fn project_required(loaded: &Value) -> ChannelError {
+pub(crate) fn project_required(loaded: &Value) -> UpstreamError {
     let reasons = loaded
         .get("ineligibleTiers")
         .and_then(Value::as_array)
@@ -552,7 +552,7 @@ async fn discover(
     access_token: &str,
     hint: Option<&str>,
     fields: &mut BTreeMap<String, Value>,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     let hint = hint.map(str::trim).filter(|hint| !hint.is_empty());
     let metadata = (tool.metadata)(hint);
     // `{cloudaicompanionProject?, metadata}`: gemini-cli's object literal and

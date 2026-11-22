@@ -18,10 +18,8 @@ getrandom = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync"], optional = true }
 web-time = { workspace = true, optional = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 redis = { workspace = true, optional = true, features = ["script"] }
 futures-util = { workspace = true, optional = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+[dev-dependencies]
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time", "io-util"] }

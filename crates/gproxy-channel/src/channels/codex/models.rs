@@ -3,17 +3,18 @@
 use super::common::{invalid_config, invalid_response};
 use super::headers::{account, backend_headers, base_urls};
 use super::{CLI_HEADERS, CLI_VERSION, CodexConfig};
-use crate::channel::{ChannelError, HeaderAllowlist, OperationContext, PrepareContext};
+use crate::channel::{HeaderAllowlist, OperationContext, PrepareContext};
 use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireResponse,
     connection::Bytes,
     wire::openai::models::{ListModelsResponseBody, ListObject, Model, ModelObject},
 };
+use gproxy_upstream::UpstreamError;
 use http::{HeaderValue, Method, StatusCode, header};
 use serde_json::json;
 use url::Url;
 
-pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
     let config = CodexConfig::from_view(ctx.provider)?;
     let (base, _) = base_urls(ctx.provider);
     // The captured CLI only has /models. GetModel searches this directory.
@@ -50,7 +51,7 @@ pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>
 pub(super) async fn invoke(
     operation: Operation,
     ctx: OperationContext<'_>,
-) -> Result<WireResponse, ChannelError> {
+) -> Result<WireResponse, UpstreamError> {
     let requested = if operation == Operation::GetModel {
         let segment = ctx
             .request
@@ -123,7 +124,7 @@ pub(super) async fn invoke(
     Ok(response)
 }
 
-fn normalize(mut model: Model) -> Result<Model, ChannelError> {
+fn normalize(mut model: Model) -> Result<Model, UpstreamError> {
     if let Some(slug) = model.slug.take() {
         model.id = slug;
     }

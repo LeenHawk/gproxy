@@ -4,7 +4,7 @@ use sea_orm::{ColumnTrait, ColumnType, DbErr, EntityTrait, IdenStatic, Iterable}
 
 use crate::error;
 
-/// The Rust/SeaORM value type expected from a D1 result column.
+/// The Rust/SeaORM value type expected from a projected result column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum D1Type {

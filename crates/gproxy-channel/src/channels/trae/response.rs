@@ -4,22 +4,22 @@ use super::{
     common::{invalid, now_ms, random_hex},
     models, request,
 };
-use crate::channel::{ChannelError, OperationContext, PrepareContext};
+use crate::channel::{OperationContext, PrepareContext};
 use futures_util::{StreamExt, stream};
 use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireResponse,
     codec::{SseDecoder, SseFrame},
     connection::{ByteStream, Bytes, TransportError},
 };
+use gproxy_upstream::UpstreamError;
 use http::{HeaderValue, StatusCode, header};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, VecDeque};
 
-
 fn encode(value: &Value, out: &mut Vec<Bytes>) {
     out.push(Bytes::from(format!("data: {value}\n\n")));
 }
-fn snapshot(previous: &mut String, current: &str) -> Result<String, ChannelError> {
+fn snapshot(previous: &mut String, current: &str) -> Result<String, UpstreamError> {
     if current.is_empty() || previous.starts_with(current) {
         return Ok(String::new());
     }
@@ -48,7 +48,7 @@ struct Translator {
     finish_reason: String,
 }
 impl Translator {
-    fn new(model: String, collect: bool) -> Result<Self, ChannelError> {
+    fn new(model: String, collect: bool) -> Result<Self, UpstreamError> {
         Ok(Self {
             decoder: SseDecoder::new(crate::channel::UNBOUNDED),
             id: format!("chatcmpl-{}", random_hex::<16>()?),
@@ -128,7 +128,7 @@ impl Translator {
             self.usage["total_tokens"] = json!(input.saturating_add(output));
         }
     }
-    fn calls(&mut self, calls: &[Value], out: &mut Vec<Bytes>) -> Result<(), ChannelError> {
+    fn calls(&mut self, calls: &[Value], out: &mut Vec<Bytes>) -> Result<(), UpstreamError> {
         let mut deltas = Vec::new();
         for (position, call) in calls.iter().enumerate() {
             let index = call["index"].as_u64().unwrap_or_else(|| {
@@ -185,7 +185,7 @@ impl Translator {
         }
         Ok(())
     }
-    fn frames(&mut self, frames: Vec<SseFrame>) -> Result<Vec<Bytes>, ChannelError> {
+    fn frames(&mut self, frames: Vec<SseFrame>) -> Result<Vec<Bytes>, UpstreamError> {
         let mut out = Vec::new();
         for frame in frames {
             let SseFrame::Event(event) = frame else {
@@ -277,11 +277,11 @@ impl Translator {
         }
         Ok(out)
     }
-    fn push(&mut self, bytes: &[u8]) -> Result<Vec<Bytes>, ChannelError> {
+    fn push(&mut self, bytes: &[u8]) -> Result<Vec<Bytes>, UpstreamError> {
         let frames = self.decoder.push(bytes).map_err(invalid)?;
         self.frames(frames)
     }
-    fn finish(&mut self) -> Result<Vec<Bytes>, ChannelError> {
+    fn finish(&mut self) -> Result<Vec<Bytes>, UpstreamError> {
         let frames = self.decoder.finish().map_err(invalid)?;
         let mut out = self.frames(frames)?;
         if self.error.is_some() {
@@ -344,9 +344,9 @@ fn byte_stream(body: HttpBody) -> ByteStream {
 pub(super) async fn invoke(
     ctx: OperationContext<'_>,
     streaming: bool,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let HttpBody::Bytes(bytes) = &ctx.request.body else {
-        return Err(ChannelError::InvalidConfig(
+        return Err(UpstreamError::InvalidConfig(
             "Trae requires a JSON request".into(),
         ));
     };
@@ -354,7 +354,7 @@ pub(super) async fn invoke(
     let model = input["model"]
         .as_str()
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| ChannelError::InvalidConfig("Trae: model is required".into()))?
+        .ok_or_else(|| UpstreamError::InvalidConfig("Trae: model is required".into()))?
         .to_owned();
     let selected =
         models::selected(ctx.provider, ctx.credential, ctx.client.as_ref(), &model).await?;

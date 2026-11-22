@@ -39,7 +39,7 @@ upload_bundle() {
   python3 scripts/cnb/api.py upload "$RUNNER_TEMP/$RELEASE_RUN_ID-$name.tar.gz"
 }
 
-case "${1:?prepare|cli|application|upload|edge}" in
+case "${1:?prepare|cli|application|upload}" in
   prepare)
     download_console
     [ "${BUILDER:-}" = cargo-alpine ] || rustup target add "$TARGET_TRIPLE"
@@ -145,16 +145,5 @@ case "${1:?prepare|cli|application|upload|edge}" in
     scripts/build-provenance.sh
     ;;
   upload) upload_bundle "$TARGET_TRIPLE" ;;
-  edge)
-    download_console
-    cargo install worker-build --locked --version 0.9.0
-    scripts/package-edge-release.sh
-    scripts/build-provenance.sh
-    mkdir -p "$RUNNER_TEMP/edge"
-    unzip -q dist/release/gproxy-edge-cloudflare.zip -d "$RUNNER_TEMP/edge"
-    pnpm --dir "$RUNNER_TEMP/edge/cloudflare" install --no-frozen-lockfile --ignore-scripts
-    pnpm --dir "$RUNNER_TEMP/edge/cloudflare" check
-    upload_bundle edge
-    ;;
   *) exit 2 ;;
 esac

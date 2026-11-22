@@ -2,16 +2,17 @@
 
 use super::auth::{self, Mode};
 use super::config::KimiConfig;
-use crate::channel::{ChannelError, HeaderAllowlist, PrepareContext, forwardable};
+use crate::channel::{HeaderAllowlist, PrepareContext, forwardable};
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{Dialect, HttpBody, WireRequest};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderName, HeaderValue, header};
 
 const ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 
 pub(super) fn build(
     ctx: PrepareContext<'_>,
-) -> Result<(http::request::Builder, WireRequest<HttpBody>), ChannelError> {
+) -> Result<(http::request::Builder, WireRequest<HttpBody>), UpstreamError> {
     let config = KimiConfig::from_view(ctx.provider)?;
     let mode = auth::mode(&ctx.credential);
     let token = auth::token(&ctx.credential, mode)?;
@@ -39,7 +40,7 @@ pub(super) fn build(
     if mode == Mode::Subscription && ctx.operation.dialect == Dialect::Claude {
         headers.insert(
             HeaderName::from_static("x-api-key"),
-            HeaderValue::from_str(token).map_err(|_| ChannelError::InvalidCredential)?,
+            HeaderValue::from_str(token).map_err(|_| UpstreamError::InvalidCredential)?,
         );
         headers.insert(
             HeaderName::from_static("anthropic-version"),
@@ -49,7 +50,7 @@ pub(super) fn build(
         headers.insert(
             header::AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {token}"))
-                .map_err(|_| ChannelError::InvalidCredential)?,
+                .map_err(|_| UpstreamError::InvalidCredential)?,
         );
     }
     if mode == Mode::Subscription {

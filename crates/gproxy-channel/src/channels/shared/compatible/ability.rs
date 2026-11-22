@@ -2,14 +2,14 @@
 //! token refresh, device login — and the money values they read.
 //!
 //! These exchanges are fully buffered and their failures are errors rather
-//! than responses: a quota probe that answers 401 is a `ChannelError`, not a
+//! than responses: a quota probe that answers 401 is a `UpstreamError`, not a
 //! snapshot with a 401 in it.
 
 use super::http::read_body;
 use crate::OutboundClient;
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{HttpBody, WireResponse};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderMap, Method, StatusCode};
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -22,7 +22,7 @@ pub(crate) async fn send(
     url: &str,
     headers: HeaderMap,
     body: Option<Vec<u8>>,
-) -> Result<(StatusCode, HeaderMap, Bytes), ChannelError> {
+) -> Result<(StatusCode, HeaderMap, Bytes), UpstreamError> {
     let mut builder = http::Request::builder().method(method).uri(url);
     if let Some(map) = builder.headers_mut() {
         *map = headers;
@@ -32,7 +32,7 @@ pub(crate) async fn send(
             Some(bytes) => HttpBody::Bytes(Bytes::from(bytes)),
             None => HttpBody::Bytes(Bytes::new()),
         })
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
     let WireResponse {
         status,
         headers,
@@ -53,24 +53,24 @@ pub(crate) async fn send(
     feature = "vercel",
     feature = "xai"
 ))]
-pub(crate) fn bearer(token: &str) -> Result<HeaderMap, ChannelError> {
+pub(crate) fn bearer(token: &str) -> Result<HeaderMap, UpstreamError> {
     use http::{HeaderValue, header};
     let mut headers = HeaderMap::new();
     headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {token}"))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     Ok(headers)
 }
 
 /// The status is a definite upstream refusal of this ability call.
-pub(crate) fn require_success(status: StatusCode, body: Bytes) -> Result<Bytes, ChannelError> {
+pub(crate) fn require_success(status: StatusCode, body: Bytes) -> Result<Bytes, UpstreamError> {
     if status.is_success() {
         Ok(body)
     } else {
-        Err(ChannelError::UpstreamResponse { status, body })
+        Err(UpstreamError::UpstreamResponse { status, body })
     }
 }
 

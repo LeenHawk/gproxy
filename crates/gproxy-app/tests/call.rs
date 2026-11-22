@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The data plane end to end: a `Caller` goes in, the engine runs with exactly
 //! what admission decided, and the charges come back attached to the outcome.
 //!

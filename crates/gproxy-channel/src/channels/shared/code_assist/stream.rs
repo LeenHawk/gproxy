@@ -9,11 +9,11 @@
 //! nesting changes.
 
 use super::{invalid_response, normalize_content, unwrap_value};
-use crate::channel::ChannelError;
 use futures_util::{StreamExt, stream};
 use gproxy_protocol::HttpBody;
 use gproxy_protocol::codec::{SseDecoder, SseEncoder, SseEvent, SseFrame};
 use gproxy_protocol::connection::{ByteStream, Bytes, TransportError};
+use gproxy_upstream::UpstreamError;
 use serde_json::Value;
 use std::collections::VecDeque;
 
@@ -30,7 +30,7 @@ impl Codec {
         }
     }
 
-    fn emit(&mut self, frames: Vec<SseFrame>) -> Result<Vec<Bytes>, ChannelError> {
+    fn emit(&mut self, frames: Vec<SseFrame>) -> Result<Vec<Bytes>, UpstreamError> {
         let mut output = Vec::with_capacity(frames.len());
         for frame in frames {
             let bytes = match frame {
@@ -52,7 +52,7 @@ impl Codec {
         Ok(output)
     }
 
-    fn push(&mut self, chunk: &[u8]) -> Result<Vec<Bytes>, ChannelError> {
+    fn push(&mut self, chunk: &[u8]) -> Result<Vec<Bytes>, UpstreamError> {
         let frames = self
             .decoder
             .push(chunk)
@@ -60,7 +60,7 @@ impl Codec {
         self.emit(frames)
     }
 
-    fn finish(&mut self) -> Result<Vec<Bytes>, ChannelError> {
+    fn finish(&mut self) -> Result<Vec<Bytes>, UpstreamError> {
         let frames = self
             .decoder
             .finish()

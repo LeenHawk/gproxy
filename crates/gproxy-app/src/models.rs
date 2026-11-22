@@ -54,10 +54,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
                     .credential_ids
                     .iter()
                     .any(|id| credentials.contains(id))
-                || provider
-                    .channel
-                    .local_operations()
-                    .contains(&Operation::ListModels)
+                || provider.channel().is_none_or(|channel| {
+                    channel.local_operations().contains(&Operation::ListModels)
+                })
             {
                 continue;
             }

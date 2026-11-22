@@ -19,20 +19,34 @@ mod request;
 mod response;
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthAuthorizationCode, OperationContext,
-    OperationFuture, ProviderView, QuotaQuery,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, OperationContext,
+    QuotaQuery,
 };
 pub use config::{ID, TraeConfig};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, LoginMode, OAuthAuthorizationCode, ProviderView,
+    UpstreamFuture, UpstreamKind,
+};
 pub use request::CLI_HEADERS;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Trae;
-impl BaseChannel for Trae {
+impl UpstreamKind for Trae {
     fn id(&self) -> &'static str {
         ID
     }
+
+    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
+        Some(&oauth::OAuth)
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(&oauth::OAuth)
+    }
+}
+
+impl BaseChannel for Trae {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor { id:ID,display_name:"Trae",credential_kinds:vec!["oauth"],login_modes:vec![LoginMode::AuthorizationCode],
             capabilities:ChannelCapabilities { refresh:true,quota_query:true,..Default::default() },
@@ -71,26 +85,20 @@ impl BaseChannel for Trae {
     fn generate_content<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(response::invoke(ctx, false))
     }
     fn stream_generate_content<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(response::invoke(ctx, true))
     }
     fn list_models<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::list(ctx))
-    }
-    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
-        Some(&oauth::OAuth)
-    }
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(&oauth::OAuth)
     }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(&quota::Quota)

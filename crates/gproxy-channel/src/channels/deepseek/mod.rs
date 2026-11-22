@@ -19,20 +19,25 @@ mod usage;
 pub use config::{DEFAULT_BASE_URL, DeepSeekConfig, ID};
 pub use quota::BALANCE_DIMENSION;
 
-use crate::channel::{UsageExtras, 
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, LoginMode, PrepareContext, ProviderView, QuotaModel, QuotaQuery,
-    };
+use crate::channel::{
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, PrepareContext,
+    QuotaModel, QuotaQuery, UsageExtras,
+};
 use gproxy_protocol::{Dialect, HttpBody, Operation};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DeepSeek;
 
-impl BaseChannel for DeepSeek {
+impl UpstreamKind for DeepSeek {
     fn id(&self) -> &'static str {
         ID
     }
+}
 
+impl BaseChannel for DeepSeek {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -65,11 +70,11 @@ impl BaseChannel for DeepSeek {
         vec![Dialect::OpenAiChat, Dialect::OpenAi, Dialect::Claude]
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let (builder, request) = request::build(ctx)?;
         builder
             .body(request.body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     fn quota_model(&self) -> Option<&dyn QuotaModel> {

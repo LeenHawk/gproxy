@@ -1,6 +1,6 @@
 use super::invalid;
-use crate::channel::ChannelError;
 use gproxy_protocol::wire::openai::responses::*;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -38,7 +38,7 @@ eof_line: "*** End of File" LF
 pub(super) fn normalize_definitions(
     tools: &mut Option<Vec<Tool>>,
     choice: &mut Option<ToolChoice>,
-) -> Result<Aliases, ChannelError> {
+) -> Result<Aliases, UpstreamError> {
     let mut aliases = Aliases::default();
     let Some(tools) = tools else {
         return Ok(aliases);
@@ -123,7 +123,7 @@ pub(super) fn normalize_definitions(
 pub(super) fn normalize_history(
     items: &mut [InputItem],
     aliases: &mut Aliases,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     for item in items {
         let (kind, mut value) = match item {
             InputItem::ShellCall(call) => (

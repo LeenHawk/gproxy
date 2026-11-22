@@ -12,12 +12,6 @@ pub fn inventory() {
     let mut routes = BTreeSet::new();
     for entry in fs::read_dir("src/admin").unwrap() {
         let path = entry.unwrap().path();
-        // The font router, like its DTO, exists only on native hosts.
-        if std::env::var("CARGO_CFG_TARGET_ARCH").unwrap() == "wasm32"
-            && path.file_name().is_some_and(|name| name == "fonts.rs")
-        {
-            continue;
-        }
         if path.extension().is_some_and(|ext| ext == "rs")
             && !path.to_string_lossy().ends_with("_docs.rs")
         {

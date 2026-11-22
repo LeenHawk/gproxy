@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 //! Operator limits on upstream credentials: `quotas` rows owned by a
 //! credential or provider become Counted dimensions, charged before the
 //! exchange (requests) or after settlement (USD cost), blocking the

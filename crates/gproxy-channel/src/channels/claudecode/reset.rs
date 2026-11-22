@@ -8,9 +8,10 @@ use super::{
     Claudecode, account, base_url, fact, header_value, invalid_response, send, unix_now_ms,
 };
 use crate::channel::{
-    ChannelError, CredentialContext, OperationFuture, QuotaReset, QuotaResetCredits,
-    QuotaResetOption, QuotaResetOutcome, QuotaResetRequest, QuotaResetResult,
+    QuotaReset, QuotaResetCredits, QuotaResetOption, QuotaResetOutcome, QuotaResetRequest,
+    QuotaResetResult,
 };
+use gproxy_upstream::{CredentialContext, UpstreamError, UpstreamFuture};
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -28,7 +29,7 @@ async fn call(
     method: Method,
     path: &str,
     body: Option<Value>,
-) -> Result<Value, ChannelError> {
+) -> Result<Value, UpstreamError> {
     let account = account(&context.credential)?;
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -61,7 +62,7 @@ async fn call(
     )
     .await?;
     if !status.is_success() {
-        return Err(ChannelError::UpstreamResponse {
+        return Err(UpstreamError::UpstreamResponse {
             status,
             body: bytes,
         });
@@ -193,14 +194,14 @@ impl Grant {
     }
 }
 
-fn unauthorized(error: &ChannelError) -> bool {
-    matches!(error, ChannelError::UpstreamResponse { status, .. } if *status == StatusCode::UNAUTHORIZED)
+fn unauthorized(error: &UpstreamError) -> bool {
+    matches!(error, UpstreamError::UpstreamResponse { status, .. } if *status == StatusCode::UNAUTHORIZED)
 }
 
 /// Why one offer could not be read while the other could.
-fn query_failure(error: &ChannelError) -> &'static str {
+fn query_failure(error: &UpstreamError) -> &'static str {
     match error {
-        ChannelError::UpstreamResponse { status, .. }
+        UpstreamError::UpstreamResponse { status, .. }
             if *status == StatusCode::TOO_MANY_REQUESTS =>
         {
             "rate_limited"
@@ -212,7 +213,14 @@ fn query_failure(error: &ChannelError) -> &'static str {
 fn unavailable(program: &str, reason: &str) -> QuotaResetOption {
     QuotaResetOption {
         program: program.into(),
-        title: Some(if program == "juniper_tide" { "5-hour reset (once a week)" } else { "Granted reset" }.into()),
+        title: Some(
+            if program == "juniper_tide" {
+                "5-hour reset (once a week)"
+            } else {
+                "Granted reset"
+            }
+            .into(),
+        ),
         description: None,
         scope_labels: Vec::new(),
         grant_id: None,
@@ -226,7 +234,7 @@ fn unavailable(program: &str, reason: &str) -> QuotaResetOption {
     }
 }
 
-fn weekly_option(value: Option<&Value>) -> Result<QuotaResetOption, ChannelError> {
+fn weekly_option(value: Option<&Value>) -> Result<QuotaResetOption, UpstreamError> {
     let Some(value) = value.filter(|v| !v.is_null()) else {
         return Ok(unavailable("juniper_tide", "unavailable"));
     };
@@ -236,7 +244,10 @@ fn weekly_option(value: Option<&Value>) -> Result<QuotaResetOption, ChannelError
     Ok(QuotaResetOption {
         program: "juniper_tide".into(),
         title: Some("5-hour reset (once a week)".into()),
-        description: Some("Resets the 5-hour limit once a week. Usage still counts toward the weekly limit.".into()),
+        description: Some(
+            "Resets the 5-hour limit once a week. Usage still counts toward the weekly limit."
+                .into(),
+        ),
         scope_labels: vec!["5-hour quota".into()],
         grant_id: None,
         label: None,
@@ -257,7 +268,7 @@ fn weekly_option(value: Option<&Value>) -> Result<QuotaResetOption, ChannelError
     })
 }
 
-fn grant_options(value: Option<&Value>, now: i64) -> Result<Vec<QuotaResetOption>, ChannelError> {
+fn grant_options(value: Option<&Value>, now: i64) -> Result<Vec<QuotaResetOption>, UpstreamError> {
     let Some(value) = value.filter(|v| !v.is_null()) else {
         return Ok(vec![unavailable("cedar_ember", "unavailable")]);
     };
@@ -348,7 +359,7 @@ impl QuotaReset for Claudecode {
     fn credits<'a>(
         &'a self,
         context: CredentialContext<'a>,
-    ) -> OperationFuture<'a, QuotaResetCredits> {
+    ) -> UpstreamFuture<'a, QuotaResetCredits> {
         Box::pin(async move {
             // The two offers are queried apart. One offer's rate limit or
             // malformed response must not hide the other; only a rejected
@@ -378,8 +389,7 @@ impl QuotaReset for Claudecode {
                 (_, Err(error)) if unauthorized(&error) => return Err(error),
                 (weekly, granted) => (
                     weekly.unwrap_or_else(|e| unavailable("juniper_tide", query_failure(&e))),
-                    granted
-                        .unwrap_or_else(|e| vec![unavailable("cedar_ember", query_failure(&e))]),
+                    granted.unwrap_or_else(|e| vec![unavailable("cedar_ember", query_failure(&e))]),
                 ),
             };
             let mut options = vec![weekly];
@@ -399,13 +409,13 @@ impl QuotaReset for Claudecode {
         &'a self,
         context: CredentialContext<'a>,
         request: QuotaResetRequest<'a>,
-    ) -> OperationFuture<'a, QuotaResetResult> {
+    ) -> UpstreamFuture<'a, QuotaResetResult> {
         Box::pin(async move {
             let program = request
                 .program
-                .ok_or_else(|| ChannelError::InvalidConfig("select a reset program".into()))?;
+                .ok_or_else(|| UpstreamError::InvalidConfig("select a reset program".into()))?;
             if !matches!(program, "juniper_tide" | "cedar_ember") {
-                return Err(ChannelError::InvalidConfig("unknown reset program".into()));
+                return Err(UpstreamError::InvalidConfig("unknown reset program".into()));
             }
             // Revalidate only the selected program. An unrelated offer's
             // rate limit or malformed response must not block this redemption.
@@ -453,7 +463,7 @@ impl QuotaReset for Claudecode {
                     .to_owned(),
             };
             if org.is_empty() || !org.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
-                return Err(ChannelError::InvalidCredential);
+                return Err(UpstreamError::InvalidCredential);
             }
             let mut body = json!({"program": program});
             if program == "cedar_ember" {

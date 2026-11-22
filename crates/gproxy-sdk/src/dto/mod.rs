@@ -32,16 +32,15 @@ mod usage;
 
 /// The `ts-rs` declarations, and the check that the export list still covers
 /// every `pub use` below. Tests only, and only where a filesystem exists.
-#[cfg(all(test, feature = "ts", not(target_arch = "wasm32")))]
+#[cfg(all(test, feature = "ts"))]
 mod export;
 
 /// The channel catalogue, defined in `gproxy-channel` and re-exported here so
 /// that everything a management call returns is one import and one TypeScript
 /// export away. `manage().catalog().channels()` answers with these, and a
 /// console renders a provider form from them.
-pub use gproxy_channel::{
-    ChannelCapabilities, ChannelDescriptor, ConfigKey, ConfigKeyKind, LoginMode,
-};
+pub use gproxy_channel::{ChannelCapabilities, ChannelDescriptor};
+pub use gproxy_upstream::{ConfigKey, ConfigKeyKind, LoginMode};
 
 pub use catalog::{
     ApplyDefaultPricesReportDto, ApplyDefaultPricesRequest, ApplyRulePreset, CatalogProviderDto,

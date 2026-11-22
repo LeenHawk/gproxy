@@ -21,13 +21,13 @@ use super::{
     DEFAULT_REDIRECT_URI, DEFAULT_TOKEN_URL, EDITOR_USER_AGENT, IDE_VERSION, NODE_CLIENT,
     OAUTH_SCOPE, base_url,
 };
-use crate::channel::{
-    AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, CredentialRefresh,
-    CredentialUpdate, LoginContext, OAuthAuthorizationCode, OAuthCredential, OperationFuture,
-    RefreshContext,
-};
 use crate::channels::shared::code_assist::google::{self, GoogleTool, Onboarding};
 use gproxy_protocol::capability::CapabilityFuture;
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, AuthorizationStart, CredentialRefresh,
+    CredentialUpdate, LoginContext, OAuthAuthorizationCode, OAuthCredential, RefreshContext,
+    UpstreamError, UpstreamFuture,
+};
 use serde_json::Value;
 use std::time::Duration;
 
@@ -48,7 +48,7 @@ const FREE_TIER: &str = "free-tier";
 /// CPA `internal/auth/antigravity/auth.go::defaultAntigravityTierID`:
 /// try the default allowed tier, then the current tier, then `free-tier`.
 /// Ineligibility messages are not a local gate; let `onboardUser` decide.
-fn onboarding(loaded: &Value, _hint: Option<&str>) -> Result<Onboarding, ChannelError> {
+fn onboarding(loaded: &Value, _hint: Option<&str>) -> Result<Onboarding, UpstreamError> {
     let tier = google::default_tier(loaded)
         .map(str::trim)
         .filter(|tier| !tier.is_empty())
@@ -118,7 +118,7 @@ impl OAuthAuthorizationCode for Antigravity {
         &'a self,
         context: LoginContext<'a>,
         request: AuthorizationRequest<'a>,
-    ) -> OperationFuture<'a, AuthorizationStart> {
+    ) -> UpstreamFuture<'a, AuthorizationStart> {
         Box::pin(async move {
             let config = AntigravityConfig::from_view(context.provider)?;
             Ok(google::authorize(
@@ -133,7 +133,7 @@ impl OAuthAuthorizationCode for Antigravity {
         &'a self,
         context: LoginContext<'a>,
         grant: AuthorizationCode<'a>,
-    ) -> OperationFuture<'a, OAuthCredential> {
+    ) -> UpstreamFuture<'a, OAuthCredential> {
         Box::pin(async move {
             let config = AntigravityConfig::from_view(context.provider)?;
             google::exchange(
@@ -154,7 +154,7 @@ impl CredentialRefresh for Antigravity {
     fn refresh<'a>(
         &'a self,
         context: RefreshContext<'a>,
-    ) -> CapabilityFuture<'a, Result<CredentialUpdate, ChannelError>> {
+    ) -> CapabilityFuture<'a, Result<CredentialUpdate, UpstreamError>> {
         Box::pin(async move {
             let config = AntigravityConfig::from_view(context.provider)?;
             google::refresh(

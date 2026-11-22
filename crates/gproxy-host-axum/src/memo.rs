@@ -9,13 +9,6 @@
 
 use std::sync::{Arc, Mutex, Weak};
 
-#[cfg(not(target_arch = "wasm32"))]
-type SnapshotWeak<T> = Weak<T>;
-// Even a weak reference to a JS-backed snapshot belongs to its isolate. Use
-// the host's checked Send bridge so axum can keep it in shared router state.
-#[cfg(target_arch = "wasm32")]
-type SnapshotWeak<T> = send_wrapper::SendWrapper<Weak<T>>;
-
 /// The snapshots a derived value depends on.
 pub(crate) trait SnapshotKey {
     type Weak: Send;
@@ -25,11 +18,11 @@ pub(crate) trait SnapshotKey {
 
 impl<A> SnapshotKey for Arc<A>
 where
-    SnapshotWeak<A>: Send,
+    Weak<A>: Send,
 {
-    type Weak = SnapshotWeak<A>;
+    type Weak = Weak<A>;
     fn downgrade(&self) -> Self::Weak {
-        crate::send(Arc::downgrade(self))
+        Arc::downgrade(self)
     }
     fn is(&self, weak: &Self::Weak) -> bool {
         std::ptr::eq(Arc::as_ptr(self), weak.as_ptr())

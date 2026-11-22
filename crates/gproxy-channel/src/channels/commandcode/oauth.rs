@@ -10,11 +10,11 @@
 //! /alpha/whoami rather than inventing an OAuth token endpoint or refresh token.
 
 use super::{CommandCode, config::base_url, request};
-use crate::channel::{
-    AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, LoginContext,
-    OAuthAuthorizationCode, OAuthCredential, OperationFuture,
-};
 use crate::channels::shared::compatible::ability::{require_success, send};
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, AuthorizationStart, LoginContext,
+    OAuthAuthorizationCode, OAuthCredential, UpstreamError, UpstreamFuture,
+};
 use http::Method;
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde_json::Value;
@@ -28,10 +28,10 @@ impl OAuthAuthorizationCode for CommandCode {
         &'a self,
         _: LoginContext<'a>,
         request: AuthorizationRequest<'a>,
-    ) -> OperationFuture<'a, AuthorizationStart> {
+    ) -> UpstreamFuture<'a, AuthorizationStart> {
         Box::pin(async move {
             if !request.redirect_uri.trim().is_empty() {
-                return Err(ChannelError::InvalidConfig(
+                return Err(UpstreamError::InvalidConfig(
                     "Command Code uses manual authorization-result completion; omit redirect_uri"
                         .into(),
                 ));
@@ -54,11 +54,11 @@ impl OAuthAuthorizationCode for CommandCode {
         &'a self,
         context: LoginContext<'a>,
         grant: AuthorizationCode<'a>,
-    ) -> OperationFuture<'a, OAuthCredential> {
+    ) -> UpstreamFuture<'a, OAuthCredential> {
         Box::pin(async move {
             let key = grant.code.trim();
             if key.is_empty() {
-                return Err(ChannelError::InvalidCredential);
+                return Err(UpstreamError::InvalidCredential);
             }
             // Same validation as CLI validateCommandApiKey; do not trust
             // account fields copied from a callback or return the key as metadata.
@@ -72,7 +72,7 @@ impl OAuthAuthorizationCode for CommandCode {
             .await?;
             let account: Value =
                 serde_json::from_slice(&require_success(status, body)?).map_err(|_| {
-                    ChannelError::InvalidResponse("invalid Command Code account response".into())
+                    UpstreamError::InvalidResponse("invalid Command Code account response".into())
                 })?;
             let mut provider_fields = BTreeMap::new();
             for (name, path) in [

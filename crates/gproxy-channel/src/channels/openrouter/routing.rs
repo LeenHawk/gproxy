@@ -13,12 +13,12 @@
 //! exchange can be priced from local rates alone.
 
 use super::config::OpenRouterConfig;
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Map, Value, json};
 
 /// Apply every body-level preference. Returns whether anything changed, so a
 /// body that needs nothing keeps its original bytes.
-pub(super) fn apply(value: &mut Value, config: &OpenRouterConfig) -> Result<bool, ChannelError> {
+pub(super) fn apply(value: &mut Value, config: &OpenRouterConfig) -> Result<bool, UpstreamError> {
     let model = value
         .get("model")
         .and_then(Value::as_str)
@@ -44,7 +44,7 @@ fn routing(
     object: &mut Map<String, Value>,
     config: &OpenRouterConfig,
     model: Option<&str>,
-) -> Result<bool, ChannelError> {
+) -> Result<bool, UpstreamError> {
     if object.get("provider").is_some_and(|value| !value.is_null()) {
         return Ok(false);
     }
@@ -70,7 +70,7 @@ fn usage_accounting(object: &mut Map<String, Value>, config: &OpenRouterConfig) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::channel::ProviderView;
+    use gproxy_upstream::ProviderView;
 
     fn config(json: Value) -> OpenRouterConfig {
         OpenRouterConfig::from_view(ProviderView {
@@ -115,7 +115,7 @@ mod tests {
                 &mut json!({"model": "m"}),
                 &config(json!({"provider": "azure"}))
             ),
-            Err(ChannelError::InvalidConfig(_))
+            Err(UpstreamError::InvalidConfig(_))
         ));
     }
 

@@ -748,7 +748,7 @@ fn link_statement(
     .build(backend)
 }
 
-#[cfg(all(test, not(target_arch = "wasm32")))]
+#[cfg(test)]
 mod storage_tests {
     use super::*;
     use gproxy_store::capture::{compress, decompress};

@@ -83,7 +83,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Providers<'_, C> {
     /// without telling anybody.
     fn channel(&self, channel: &str) -> SdkResult<String> {
         let channel = crud::text(channel, "channel")?;
-        if self.writer.core().channels().get(&channel).is_none() {
+        if self.writer.core().upstream_kind(&channel).is_none() {
             return Err(SdkError::invalid(format!(
                 "channel `{channel}` is not registered in this build"
             )));

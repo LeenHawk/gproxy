@@ -58,6 +58,23 @@ pub(crate) fn document(api: &mut Api) {
         "permissions"
     );
     family!(
+        "/mcp-scopes",
+        a::McpScopeWrite,
+        a::McpScopePatch,
+        a::McpScopeDto,
+        a::McpScopeDto,
+        "mcp-scopes"
+    );
+    family!(
+        "/mcp-tool-natures",
+        a::McpToolNatureWrite,
+        a::McpToolNaturePatch,
+        a::McpToolNatureDto,
+        a::McpToolNatureDto,
+        "mcp-tool-natures"
+    );
+    api.get::<Vec<a::McpToolDto>>("/admin/api/mcp-tools/{provider_id}", "mcp-tool-natures");
+    family!(
         "/rate-limits",
         a::RateLimitWrite,
         a::RateLimitPatch,
@@ -79,6 +96,8 @@ pub(crate) fn document(api: &mut Api) {
         "organizations",
         "teams",
         "permissions",
+        "mcp-scopes",
+        "mcp-tool-natures",
         "rate-limits",
     ] {
         api.empty("delete", &format!("/admin/api/{section}/{{id}}"), section);

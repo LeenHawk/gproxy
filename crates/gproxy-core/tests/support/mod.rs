@@ -3,13 +3,12 @@
 
 use futures_util::StreamExt;
 use gproxy_channel::{
-    BaseChannel, ChannelError, OutboundClient,
+    BaseChannel, OutboundClient,
     channel::{
-        ChannelServices, CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView,
-        OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaAllowance,
-        QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel,
-        QuotaQuery, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
-        QuotaWindow, RefreshContext, ServiceContext,
+        ChannelServices, OperationContext, PrepareContext, QuotaAllowance, QuotaDimension,
+        QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel, QuotaQuery,
+        QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+        ServiceContext,
     },
 };
 use gproxy_core::{
@@ -31,6 +30,10 @@ use gproxy_store::{
             rewrite_rule_set,
         },
     },
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView, ProviderView,
+    RefreshContext, UpstreamError, UpstreamFuture, UpstreamKind,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbBackend, Set};
@@ -158,7 +161,7 @@ pub struct TestChannel {
     pub refreshes: Mutex<VecDeque<RefreshReply>>,
     pub refresh_calls: Mutex<Vec<(String, i64)>>,
     pub quota_snapshots: Mutex<VecDeque<QuotaSnapshot>>,
-    pub quota_errors: Mutex<VecDeque<ChannelError>>,
+    pub quota_errors: Mutex<VecDeque<UpstreamError>>,
     pub quota_versions: Mutex<Vec<i64>>,
     /// When set, the channel exposes `ChannelServices`; off by default so the
     /// "channel without services" path is the one most tests see.
@@ -166,17 +169,21 @@ pub struct TestChannel {
     /// Credential ids the service calls ran with, in order.
     pub service_calls: Mutex<Vec<String>>,
 }
-impl BaseChannel for TestChannel {
+impl UpstreamKind for TestChannel {
     fn id(&self) -> &'static str {
         "test"
     }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for TestChannel {
     fn services(&self) -> Option<&dyn ChannelServices> {
         self.expose_services
             .load(Ordering::Relaxed)
             .then_some(self as &dyn ChannelServices)
-    }
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
     }
     fn quota_model(&self) -> Option<&dyn QuotaModel> {
         Some(self)
@@ -221,7 +228,7 @@ impl BaseChannel for TestChannel {
     fn compact_content<'a>(
         &'a self,
         mut context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             let entry = context.state.get("turns").await?;
             let (turn, expected) = match &entry {
@@ -269,7 +276,7 @@ impl BaseChannel for TestChannel {
             Ok(context.client.send(request).await?)
         })
     }
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let url = match ctx.endpoint_override {
             Some(url) => url.to_owned(),
             None => format!("{}{}", ctx.provider.base_url.unwrap(), ctx.request.path),
@@ -289,12 +296,12 @@ impl BaseChannel for TestChannel {
         }
         builder
             .body(ctx.request.body)
-            .map_err(|_| ChannelError::InvalidCredential)
+            .map_err(|_| UpstreamError::InvalidCredential)
     }
     fn prepare_connect(
         &self,
         ctx: PrepareContext<'_, ()>,
-    ) -> Result<http::Request<()>, ChannelError> {
+    ) -> Result<http::Request<()>, UpstreamError> {
         let mut builder = http::Request::builder()
             .method(ctx.request.method)
             .uri(format!(
@@ -314,7 +321,7 @@ impl BaseChannel for TestChannel {
         }
         builder
             .body(())
-            .map_err(|_| ChannelError::InvalidCredential)
+            .map_err(|_| UpstreamError::InvalidCredential)
     }
 }
 /// Dimensions come from credential metadata:
@@ -370,7 +377,7 @@ impl QuotaModel for TestChannel {
 }
 /// `x-test-quota: <dimension>=<remaining>[;reset=<unix ms>]`, one entry.
 impl QuotaHeaders for TestChannel {
-    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, ChannelError> {
+    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, UpstreamError> {
         let Some(value) = context.headers.get("x-test-quota") else {
             return Ok(Vec::new());
         };
@@ -399,7 +406,7 @@ impl ChannelServices for TestChannel {
     fn call<'a>(
         &'a self,
         context: ServiceContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             self.service_calls.lock().unwrap().push(format!(
                 "{}:{:?}:{}",
@@ -457,7 +464,7 @@ impl ChannelServices for TestChannel {
                 let (kind, id) = rest.split_once('/').unwrap();
                 context
                     .caller
-                    .save_binding(gproxy_channel::channel::ResourceBindingRecord {
+                    .save_binding(gproxy_upstream::ResourceBindingRecord {
                         kind: kind.to_owned(),
                         upstream_id: id.to_owned(),
                         credential_id: context.account.credential.id.to_owned(),
@@ -482,7 +489,7 @@ impl ChannelServices for TestChannel {
     }
 }
 impl QuotaQuery for TestChannel {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         self.quota_versions
             .lock()
             .unwrap()
@@ -511,7 +518,7 @@ impl CredentialRefresh for TestChannel {
     fn refresh<'a>(
         &'a self,
         context: RefreshContext<'a>,
-    ) -> CapabilityFuture<'a, Result<CredentialUpdate, ChannelError>> {
+    ) -> CapabilityFuture<'a, Result<CredentialUpdate, UpstreamError>> {
         self.refresh_calls
             .lock()
             .unwrap()
@@ -532,8 +539,10 @@ impl CredentialRefresh for TestChannel {
                     secret: json!({"api_key": api_key}),
                     expires_at_ms,
                 }),
-                RefreshReply::Rejected(reason) => Err(ChannelError::RefreshRejected(reason.into())),
-                RefreshReply::Failed => Err(ChannelError::InvalidResponse("upstream down".into())),
+                RefreshReply::Rejected(reason) => {
+                    Err(UpstreamError::RefreshRejected(reason.into()))
+                }
+                RefreshReply::Failed => Err(UpstreamError::InvalidResponse("upstream down".into())),
             }
         })
     }

@@ -5,11 +5,11 @@
 //! `id`. The channel declares `Dialect::OpenAi` for `ListModels`, so the reply
 //! is rewritten into `{object: "list", data: [...]}` (v3 `shape.rs`).
 
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 
-pub(super) fn rewrite(body: &[u8]) -> Result<Bytes, ChannelError> {
+pub(super) fn rewrite(body: &[u8]) -> Result<Bytes, UpstreamError> {
     let value: Value =
         serde_json::from_slice(body).map_err(|error| invalid(format!("model JSON: {error}")))?;
     let Value::Object(mut outer) = value else {
@@ -48,8 +48,8 @@ pub(super) fn rewrite(body: &[u8]) -> Result<Bytes, ChannelError> {
     ))
 }
 
-fn invalid(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(format!("WorkBuddy: {}", message.into()))
+fn invalid(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("WorkBuddy: {}", message.into()))
 }
 
 #[cfg(test)]

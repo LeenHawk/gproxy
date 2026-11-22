@@ -6,31 +6,20 @@ mod binding;
 mod descriptor;
 mod fallback;
 mod headers;
-mod oauth;
 mod operations;
 mod quota;
 pub(crate) mod reason;
-mod refresh;
-mod registry;
 mod rejection;
 mod service;
-mod state;
 mod usage;
 
 pub use binding::ChannelBinding;
-pub use descriptor::{
-    ChannelCapabilities, ChannelDescriptor, ConfigKey, ConfigKeyKind, HOST_CONFIG_KEYS, LoginMode,
-};
+pub use descriptor::{ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS};
 pub use fallback::{CLAUDE_FALLBACK_KEYS, ClaudeFallback, claude_fallback_model};
 pub use headers::{
     ChannelHeaders, HeaderAllowlist, forwardable, insert_configured, strip_query_auth,
 };
-pub use oauth::{
-    AcquiredCredential, AuthorizationCode, AuthorizationRequest, AuthorizationStart,
-    DeviceAuthorization, DevicePoll, LoginContext, OAuthAuthorizationCode, OAuthCredential,
-    OAuthDeviceCode,
-};
-pub use operations::{OperationContext, OperationFuture};
+pub use operations::OperationContext;
 // Unused when no channel feature is enabled.
 #[allow(unused_imports)]
 pub(crate) use operations::{UNBOUNDED, read_body};
@@ -41,13 +30,10 @@ pub use quota::{
     QuotaResetResult, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
     QuotaWindow, classify_by_id,
 };
-pub use registry::{ChannelRegistry, RegistryError};
 pub use service::{
-    CallerIdentity, CallerRole, CallerUsage, CallerUsageWindow, ChannelServices, ResourceAccess,
-    ResourceBindingRecord, ServiceCaller, ServiceClass, ServiceContext, ServiceRoute,
-    ServiceTransport, ServiceView, match_template,
+    ChannelServices, ResourceAccess, ServiceClass, ServiceContext, ServiceRoute, ServiceTransport,
+    ServiceView, match_template,
 };
-pub use state::{ChannelState, NoState};
 pub use usage::{
     CacheCreation, NormalizedUsage, ResponseUsage, TokenUsage, UsageAttempt, UsageCompleteness,
     UsageExtras, UsageSource, UsageStreamEnd, UsageTransport, usage_object, with_extras,
@@ -60,87 +46,16 @@ pub use rejection::{
     retry_after, standard_rejection,
 };
 
-pub use refresh::{CredentialRefresh, CredentialUpdate, RefreshContext, RefreshReason};
-
-use gproxy_client::{ConnectionConfig, OutboundClient};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
-    capability::{CapabilityError, UpstreamConnection},
+    capability::UpstreamConnection,
 };
-use serde_json::Value;
+use gproxy_upstream::{
+    CredentialView, ProviderView, UpstreamError, UpstreamFuture, UpstreamKind, UpstreamRegistry,
+};
 
-#[derive(Debug, thiserror::Error)]
-pub enum ChannelError {
-    #[error("channel service is not supported")]
-    UnsupportedService,
-    #[error("invalid upstream response: {0}")]
-    InvalidResponse(String),
-    #[error("upstream returned {status}")]
-    UpstreamResponse {
-        status: http::StatusCode,
-        body: gproxy_protocol::connection::Bytes,
-    },
-    #[error("operation is not supported: {0:?}")]
-    UnsupportedOperation(OperationKey),
-    #[error("wrong transport for operation: {0:?}")]
-    WrongTransport(OperationKey),
-    #[error("invalid channel configuration: {0}")]
-    InvalidConfig(String),
-    #[error("invalid credential")]
-    InvalidCredential,
-    /// The upstream definitively refused to refresh this credential
-    /// (invalid_grant, revoked or expired refresh token). Retrying later does
-    /// not help; the host remembers the failure according to the channel's
-    /// rejection policy until the credential changes.
-    /// Transient transport or 5xx failures must not use this variant.
-    #[error("credential refresh rejected: {0}")]
-    RefreshRejected(String),
-    /// A continuation of an earlier request is held by another host process
-    /// (a live upstream connection cannot move). The host routes the request
-    /// to that instance; nothing about the credential is wrong.
-    #[error("continuation is held by instance `{instance_id}`")]
-    ContinuationElsewhere { instance_id: String },
-    /// The host's caller facts (`ServiceCaller`) could not be read or written.
-    #[error("host service failed: {0}")]
-    Host(String),
-    #[error(transparent)]
-    Transport(#[from] CapabilityError),
-}
-
-/// Public provider configuration. Channels decode `config` into their own typed
-/// settings; secrets belong exclusively to CredentialView.
-#[derive(Clone, Copy)]
-pub struct ProviderView<'a> {
-    pub id: &'a str,
-    pub channel: &'a str,
-    pub base_url: Option<&'a str>,
-    pub config: &'a Value,
-}
-
-/// A decrypted, host-authorized credential borrowed for this binding.
-/// Intentionally not Debug or serializable. The host owns decryption and checks
-/// owner permissions, enabled state and expiry before binding.
-#[derive(Clone, Copy)]
-pub struct CredentialView<'a> {
-    pub id: &'a str,
-    pub provider_id: &'a str,
-    pub auth_kind: &'a str,
-    pub secret: &'a Value,
-    /// Public, non-secret facts the host recorded for this credential, such
-    /// as the plan a login discovered; `QuotaModel` reads its dimensions here.
-    pub metadata: &'a Value,
-    pub version: i64,
-    pub expires_at_ms: Option<i64>,
-}
-
-/// The caller's selected account and client, shared by refresh, quotas and CLI
-/// services. This is passed through directly, without additional binding checks.
-#[derive(Clone, Copy)]
-pub struct CredentialContext<'a> {
-    pub provider: ProviderView<'a>,
-    pub credential: CredentialView<'a>,
-    pub client: &'a dyn OutboundClient,
-}
+/// The registry of the model channels compiled into a host.
+pub type ChannelRegistry = UpstreamRegistry<dyn BaseChannel>;
 
 pub struct PrepareContext<'a, B = HttpBody> {
     pub provider: ProviderView<'a>,
@@ -153,22 +68,14 @@ pub struct PrepareContext<'a, B = HttpBody> {
     pub endpoint_override: Option<&'a str>,
 }
 
-/// Transport defaults vary between API calls and browser session exchanges.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ConnectionPurpose {
-    Request,
-    Browser,
-}
-
-/// Channel identity plus independently overridable operation methods.
+/// An upstream kind plus the model side: independently overridable operation
+/// methods. `UpstreamKind` holds the identity and the account side.
 ///
-/// Only `id` is required. Preparation defaults to UnsupportedOperation.
+/// Nothing is required. Preparation defaults to UnsupportedOperation.
 /// Implement common preparation or override individual asynchronous operations;
 /// each implementation determines which requests it supports.
 /// Optional abilities outside protocol operations retain default-None accessors.
-pub trait BaseChannel: Send + Sync {
-    fn id(&self) -> &'static str;
-
+pub trait BaseChannel: UpstreamKind {
     /// This channel as configuration data: identity, login flows, optional
     /// abilities, provider configuration keys. The default answers from the
     /// capability accessors below, names the channel after its id and declares
@@ -176,34 +83,11 @@ pub trait BaseChannel: Send + Sync {
     /// rows carry nothing but the common host keys. Concrete channels override
     /// it to add a display name and the keys they decode.
     fn descriptor(&self) -> ChannelDescriptor {
-        let mut login_modes = Vec::new();
-        if self.oauth_authorization_code().is_some() {
-            login_modes.push(LoginMode::AuthorizationCode);
-        }
-        if self.oauth_device_code().is_some() {
-            login_modes.push(LoginMode::DeviceCode);
-        }
-
         ChannelDescriptor {
             id: self.id(),
-            display_name: self.id(),
-            credential_kinds: {
-                let mut kinds = Vec::new();
-                for mode in &login_modes {
-                    let kind = match mode {
-                        LoginMode::ApiKey => "api_key",
-                        LoginMode::AuthorizationCode | LoginMode::DeviceCode => "oauth",
-                    };
-                    if !kinds.contains(&kind) {
-                        kinds.push(kind);
-                    }
-                }
-                if kinds.is_empty() {
-                    kinds.push("api_key");
-                }
-                kinds
-            },
-            login_modes,
+            display_name: self.display_name(),
+            credential_kinds: self.credential_kinds(),
+            login_modes: self.login_modes(),
             capabilities: ChannelCapabilities {
                 refresh: self.credential_refresh().is_some(),
                 quota_query: self.quota_query().is_some(),
@@ -213,34 +97,8 @@ pub trait BaseChannel: Send + Sync {
                 // channel that has them says so itself.
                 ..Default::default()
             },
-            config_keys: Vec::new(),
+            config_keys: self.config_keys(),
         }
-    }
-
-    /// Validate manually supplied secret material without making an upstream request.
-    /// Channels with structured cloud credentials override this at the storage boundary.
-    fn validate_credential_secret(&self, _secret: &Value) -> Result<(), ChannelError> {
-        Ok(())
-    }
-
-    /// Expiry required by newly supplied material, e.g. an unexchanged service-account
-    /// key. Returning zero schedules refresh through the normal request-time flow.
-    fn initial_credential_expiry(&self, _secret: &Value) -> Option<i64> {
-        None
-    }
-
-    /// The outbound client this channel's upstream expects when nothing names
-    /// one: the host resolves credential profile → provider profile → Setting default → this → `ConnectionConfig::default()`. Channels whose
-    /// upstream fingerprints its clients return the captured client identity;
-    /// any explicit host profile on the credential or provider still wins.
-    fn default_connection(&self) -> Option<ConnectionConfig> {
-        None
-    }
-
-    /// A login may need a browser transport while normal API traffic does not.
-    fn default_connection_for(&self, purpose: ConnectionPurpose) -> Option<ConnectionConfig> {
-        let _ = purpose;
-        self.default_connection()
     }
 
     /// An explicit conversion destination for channels accepting multiple native wires.
@@ -312,23 +170,23 @@ pub trait BaseChannel: Send + Sync {
     fn prepare(
         &self,
         context: PrepareContext<'_>,
-    ) -> Result<http::Request<HttpBody>, ChannelError> {
-        Err(ChannelError::UnsupportedOperation(context.operation))
+    ) -> Result<http::Request<HttpBody>, UpstreamError> {
+        Err(UpstreamError::UnsupportedOperation(context.operation))
     }
 
     /// Common WebSocket handshake preparation; a socket is never an HTTP body.
     fn prepare_connect(
         &self,
         context: PrepareContext<'_, ()>,
-    ) -> Result<http::Request<()>, ChannelError> {
-        Err(ChannelError::UnsupportedOperation(context.operation))
+    ) -> Result<http::Request<()>, UpstreamError> {
+        Err(UpstreamError::UnsupportedOperation(context.operation))
     }
 
     /// List the models visible to the assigned credential.
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::ListModels, context)
     }
 
@@ -336,7 +194,7 @@ pub trait BaseChannel: Send + Sync {
     fn get_model<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::GetModel, context)
     }
 
@@ -344,7 +202,7 @@ pub trait BaseChannel: Send + Sync {
     fn count_tokens<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CountTokens, context)
     }
 
@@ -352,7 +210,7 @@ pub trait BaseChannel: Send + Sync {
     fn generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::GenerateContent, context)
     }
 
@@ -360,7 +218,7 @@ pub trait BaseChannel: Send + Sync {
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::StreamGenerateContent, context)
     }
 
@@ -368,7 +226,7 @@ pub trait BaseChannel: Send + Sync {
     fn retrieve_interaction<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::RetrieveInteraction, context)
     }
 
@@ -376,7 +234,7 @@ pub trait BaseChannel: Send + Sync {
     fn cancel_interaction<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CancelInteraction, context)
     }
 
@@ -384,7 +242,7 @@ pub trait BaseChannel: Send + Sync {
     fn delete_interaction<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::DeleteInteraction, context)
     }
 
@@ -392,7 +250,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_moderation<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateModeration, context)
     }
 
@@ -400,7 +258,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_decision<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateDecision, context)
     }
 
@@ -408,7 +266,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_voice<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateVoice, context)
     }
 
@@ -416,7 +274,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_realtime_client_secret<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateRealtimeClientSecret, context)
     }
 
@@ -424,7 +282,7 @@ pub trait BaseChannel: Send + Sync {
     fn hangup_realtime_call<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::HangupRealtimeCall, context)
     }
 
@@ -432,7 +290,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_live_session<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateLiveSession, context)
     }
 
@@ -440,7 +298,7 @@ pub trait BaseChannel: Send + Sync {
     fn hangup_live_session<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::HangupLiveSession, context)
     }
 
@@ -448,7 +306,7 @@ pub trait BaseChannel: Send + Sync {
     fn compact_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CompactContent, context)
     }
 
@@ -456,7 +314,7 @@ pub trait BaseChannel: Send + Sync {
     fn summarize_memory<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::SummarizeMemory, context)
     }
 
@@ -464,7 +322,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_conversation<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateConversation, context)
     }
 
@@ -472,7 +330,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_embedding<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateEmbedding, context)
     }
 
@@ -480,7 +338,7 @@ pub trait BaseChannel: Send + Sync {
     fn batch_create_embedding<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::BatchCreateEmbedding, context)
     }
 
@@ -488,7 +346,7 @@ pub trait BaseChannel: Send + Sync {
     fn rerank<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::Rerank, context)
     }
 
@@ -496,7 +354,7 @@ pub trait BaseChannel: Send + Sync {
     fn web_search<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::WebSearch, context)
     }
 
@@ -504,7 +362,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_image<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateImage, context)
     }
 
@@ -512,7 +370,7 @@ pub trait BaseChannel: Send + Sync {
     fn edit_image<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::EditImage, context)
     }
 
@@ -520,7 +378,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_speech<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateSpeech, context)
     }
 
@@ -528,7 +386,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_transcription<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateTranscription, context)
     }
 
@@ -536,7 +394,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_translation<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateTranslation, context)
     }
 
@@ -544,7 +402,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_file<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateFile, context)
     }
 
@@ -552,7 +410,7 @@ pub trait BaseChannel: Send + Sync {
     fn list_files<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::ListFiles, context)
     }
 
@@ -560,7 +418,7 @@ pub trait BaseChannel: Send + Sync {
     fn retrieve_file<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::RetrieveFile, context)
     }
 
@@ -568,7 +426,7 @@ pub trait BaseChannel: Send + Sync {
     fn retrieve_file_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::RetrieveFileContent, context)
     }
 
@@ -576,7 +434,7 @@ pub trait BaseChannel: Send + Sync {
     fn delete_file<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::DeleteFile, context)
     }
 
@@ -584,7 +442,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_video<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateVideo, context)
     }
 
@@ -592,7 +450,7 @@ pub trait BaseChannel: Send + Sync {
     fn retrieve_video<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::RetrieveVideo, context)
     }
 
@@ -600,7 +458,7 @@ pub trait BaseChannel: Send + Sync {
     fn list_videos<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::ListVideos, context)
     }
 
@@ -608,7 +466,7 @@ pub trait BaseChannel: Send + Sync {
     fn delete_video<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::DeleteVideo, context)
     }
 
@@ -617,7 +475,7 @@ pub trait BaseChannel: Send + Sync {
     fn download_video_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::DownloadVideoContent, context)
     }
 
@@ -625,7 +483,7 @@ pub trait BaseChannel: Send + Sync {
     fn create_realtime_call<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         operations::http(self, Operation::CreateRealtimeCall, context)
     }
 
@@ -633,7 +491,7 @@ pub trait BaseChannel: Send + Sync {
     fn connect_live<'a>(
         &'a self,
         context: OperationContext<'a, ()>,
-    ) -> OperationFuture<'a, UpstreamConnection> {
+    ) -> UpstreamFuture<'a, UpstreamConnection> {
         operations::websocket(self, Operation::ConnectLive, context)
     }
 
@@ -641,7 +499,7 @@ pub trait BaseChannel: Send + Sync {
     fn connect_realtime<'a>(
         &'a self,
         context: OperationContext<'a, ()>,
-    ) -> OperationFuture<'a, UpstreamConnection> {
+    ) -> UpstreamFuture<'a, UpstreamConnection> {
         operations::websocket(self, Operation::ConnectRealtime, context)
     }
 
@@ -649,7 +507,7 @@ pub trait BaseChannel: Send + Sync {
     fn generate_content_websocket<'a>(
         &'a self,
         context: OperationContext<'a, ()>,
-    ) -> OperationFuture<'a, UpstreamConnection> {
+    ) -> UpstreamFuture<'a, UpstreamConnection> {
         operations::websocket(self, Operation::GenerateContent, context)
     }
 
@@ -657,20 +515,8 @@ pub trait BaseChannel: Send + Sync {
     fn stream_generate_content_websocket<'a>(
         &'a self,
         context: OperationContext<'a, ()>,
-    ) -> OperationFuture<'a, UpstreamConnection> {
+    ) -> UpstreamFuture<'a, UpstreamConnection> {
         operations::websocket(self, Operation::StreamGenerateContent, context)
-    }
-
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        None
-    }
-
-    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
-        None
-    }
-
-    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        None
     }
 
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {

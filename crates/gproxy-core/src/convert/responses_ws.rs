@@ -1,200 +1,40 @@
-//! Generation across the Responses WebSocket boundary, both ways.
-//!
-//! - An HTTP streaming client (Chat, Claude, Gemini) whose upstream speaks
-//!   Responses over WebSocket: one connection, one `response.create` turn,
-//!   client-dialect bytes driven from a task that owns the socket.
-//! - A Responses WebSocket client whose upstream speaks Chat, Claude or
-//!   Gemini over HTTP: core fabricates the accepted socket, decodes each
-//!   `response.create` message, converts it as one HTTP stream and writes
-//!   the Responses server events back as text frames on the same lane.
+//! A Responses WebSocket client whose upstream speaks Chat, Claude or Gemini
+//! over HTTP: core fabricates the accepted socket, decodes each
+//! `response.create` message, converts it as one HTTP stream and writes the
+//! Responses server events back as text frames on the same lane. The other
+//! direction, an HTTP client over a Responses WebSocket upstream, is
+//! `gproxy_convert::responses_ws`.
 //!
 //! HTTP segments reuse the admitted retry plan for explicit rejections. Once
 //! accepted, the stream is never replayed after a transport or event failure.
 
 mod bridge;
-mod responses_http;
 
-use super::{
-    Call, Converted,
-    generate::{OwnedState, decode, namespace, stream_headers, stream_settings},
-};
 use crate::{
     Core, CoreError, CoreResult, ProtocolState, RequestContext, StateScope, UsageState,
     WebSocketExecution,
     api::{Execution, UsageCompletion, lifecycle::now_ms},
     execute::Funnel,
 };
+use gproxy_convert::{
+    STATE_TTL,
+    generate::{OwnedState, stream_settings},
+    responses_ws::FRAME_QUEUE,
+};
 use gproxy_protocol::{
-    Dialect, Operation, OperationKey, WireRequest, WireResponse,
-    adapt::{
-        generate::{
-            GenerationIdentity,
-            chat_responses::ChatViaResponses,
-            claude_responses::ClaudeViaResponses,
-            gemini_responses::GeminiViaResponses,
-            stream::{
-                StreamSettings, StreamTarget,
-                websocket::{GenerationWsConnect, connect},
-            },
-        },
-        responses_ws::ResponsesWsLimits,
-    },
+    Dialect, WireRequest, WireResponse,
+    adapt::generate::stream::StreamSettings,
     capability::UpstreamConnection,
-    connection::{ByteStream, TransportError, WebSocket, WsFrame},
+    connection::{TransportError, WebSocket, WsFrame},
     transform::{TransformError, identity::IdentityTarget},
-    wire::openai::{
-        chat as h,
-        responses::websocket::{ClientEvent, ErrorDetail, ErrorMessage, ErrorMessageType},
+    wire::openai::responses::websocket::{
+        ClientEvent, ErrorDetail, ErrorMessage, ErrorMessageType,
     },
 };
 use gproxy_seaorm::BatchConnectionTrait;
 use http::{HeaderMap, StatusCode};
 use std::{collections::HashSet, sync::Arc, time::SystemTime};
 use tokio::sync::mpsc;
-
-/// The upstream key for a Responses WebSocket generation.
-const WS_KEY: OperationKey = OperationKey {
-    operation: Operation::StreamGenerateContent,
-    dialect: Dialect::OpenAiResponsesWebSocket,
-};
-
-/// Frames buffered between the conversion task and the caller.
-const FRAME_QUEUE: usize = 16;
-
-fn handshake_request() -> WireRequest<()> {
-    WireRequest {
-        method: http::Method::GET,
-        path: "/v1/responses".into(),
-        query: None,
-        headers: HeaderMap::new(),
-        body: (),
-    }
-}
-
-/// HTTP streaming client over a Responses WebSocket upstream.
-pub(crate) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'static>(
-    call: &Call<'_, C>,
-    settings: StreamSettings,
-) -> Result<Converted, TransformError> {
-    if call.client.dialect == Dialect::OpenAi {
-        return responses_http::over_websocket(call, settings).await;
-    }
-    let client = call.client.dialect;
-    let upstream = call.upstream;
-    let body = call.body();
-    let limits = call.limits;
-    // Identities and continuation state are Responses'; the socket is transport.
-    let state = &call.generation_state_for(Dialect::OpenAi)?;
-    let (media, media_scope) = call.resources();
-    let resources = &call.generation_resources(&media, &media_scope);
-    let endpoint = super::generate_endpoint(Dialect::OpenAi, &state.target.model, true)?;
-    let identities = GenerationIdentity::new(namespace(), namespace(), client, Dialect::OpenAi)?;
-    let stream_target = StreamTarget {
-        endpoint,
-        identities,
-    };
-    let client_framing = settings.client_framing;
-    macro_rules! run {
-        ($pair:ty, $input:ty) => {{
-            let input: $input = decode(body, limits)?;
-            run!(@drive <$pair>::prepare_stream_with_capabilities(
-                input, stream_target, settings, state, resources
-            ))
-        }};
-        ($pair:ty, $input:ty, $ctx:expr) => {{
-            let input: $input = decode(body, limits)?;
-            let context = $ctx;
-            run!(@drive <$pair>::prepare_stream_with_capabilities(
-                input, stream_target, context, settings, state, resources
-            ))
-        }};
-        (@drive $prepare:expr) => {{
-            Box::pin(async move {
-                let invocation = Box::new(Box::pin($prepare).await?);
-                let session = match connect(
-                    upstream,
-                    &WS_KEY,
-                    handshake_request(),
-                    ResponsesWsLimits::default(),
-                    state,
-                )
-                .await
-                {
-                    Ok(GenerationWsConnect::Connected { session, .. }) => session,
-                    Ok(GenerationWsConnect::Rejected(response)) => {
-                        return Ok(Converted::Rejected(response));
-                    }
-                    Err(error) => return Err(error.error),
-                };
-                let owned = OwnedState::capture(call, state);
-                let (tx, rx) = mpsc::channel::<Result<_, TransportError>>(FRAME_QUEUE);
-                // The turn borrows the invocation and the session, so a task
-                // owns all three and feeds the client stream through a queue.
-                // The caller dropping the stream closes the queue, which ends
-                // the task and releases the socket.
-                crate::rt::spawn(async move {
-                    let mut invocation = invocation;
-                    let mut session = session;
-                    let access = owned.access();
-                    let mut turn = match invocation.start_websocket(&mut session, &access).await {
-                        Ok(turn) => turn,
-                        Err(error) => {
-                            let _ = tx.send(Err(super::stream_error::converted(error, client, client_framing, 0))).await;
-                            return;
-                        }
-                    };
-                    let mut sequence = 0i64;
-                    loop {
-                        match turn.next(&access).await {
-                            Ok(Some(chunk)) => {
-                                sequence += i64::from(chunk.event.is_some());
-                                if !chunk.bytes.is_empty()
-                                    && tx.send(Ok(chunk.bytes)).await.is_err()
-                                {
-                                    return;
-                                }
-                            }
-                            Ok(None) => return,
-                            Err(error) => {
-                                let _ = tx.send(Err(super::stream_error::converted(error, client, client_framing, sequence))).await;
-                                return;
-                            }
-                        }
-                    }
-                });
-                let stream: ByteStream = Box::pin(futures_util::stream::unfold(
-                    rx,
-                    |mut rx| async move { rx.recv().await.map(|item| (item, rx)) },
-                ));
-                Ok(Converted::Stream(WireResponse {
-                    status: StatusCode::OK,
-                    headers: stream_headers(client_framing),
-                    body: stream,
-                }))
-            })
-            .await
-        }};
-    }
-    match client {
-        Dialect::OpenAiChat => run!(ChatViaResponses, h::GenerateContentRequestBody),
-        Dialect::Claude => run!(
-            ClaudeViaResponses,
-            gproxy_protocol::wire::claude::generate_content::GenerateContentRequestBody,
-            gproxy_protocol::transform::generate::claude_responses::stream::ResponsesToClaudeContext::default()
-        ),
-        Dialect::Gemini => run!(
-            GeminiViaResponses,
-            gproxy_protocol::wire::gemini::GenerateContentRequestBody,
-            gproxy_protocol::transform::generate::gemini_responses::stream::ResponsesToGeminiContext::default()
-        ),
-        other => {
-            Err(TransformError::unsupported(
-                "generate.websocket",
-                format!("no generation from {other:?} over a Responses WebSocket upstream"),
-            ))
-        }
-    }
-}
 
 fn error_frame(status: u16, lane: Option<String>, message: String) -> WsFrame {
     let message = ErrorMessage {
@@ -304,7 +144,7 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
         // identity records written under it are compared against the read-back value.
         expires_at: SystemTime::UNIX_EPOCH
             + std::time::Duration::from_millis(now.max(0) as u64)
-            + super::call::STATE_TTL,
+            + STATE_TTL,
     };
     if let Some(binding) = session.binding() {
         owned.expires_at = SystemTime::UNIX_EPOCH

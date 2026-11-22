@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The router, driven end to end with `tower::ServiceExt::oneshot`.
 //!
 //! Every test here builds the **real** router over a real in-memory instance

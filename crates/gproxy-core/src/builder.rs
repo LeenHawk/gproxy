@@ -6,8 +6,9 @@ use crate::{
 };
 use arc_swap::ArcSwap;
 use gproxy_cache::Cache;
-use gproxy_channel::{BaseChannel, ChannelRegistry, RegistryError};
+use gproxy_channel::{BaseChannel, ChannelRegistry};
 use gproxy_store::Store;
+use gproxy_upstream::{RegistryError, UpstreamKind, UpstreamRegistry};
 use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
@@ -26,6 +27,7 @@ pub struct CoreBuilder<C> {
     observer: Option<Arc<dyn Observer>>,
     codec: Option<Arc<dyn SecretCodec>>,
     channels: ChannelRegistry,
+    upstreams: UpstreamRegistry,
     clients: Option<gproxy_client::ClientPool>,
     files: Option<gproxy_file::Operator>,
     publication_url: Option<Arc<dyn PublicationUrl>>,
@@ -42,6 +44,7 @@ impl<C> CoreBuilder<C> {
             observer: None,
             codec: None,
             channels: ChannelRegistry::new(),
+            upstreams: UpstreamRegistry::new(),
             clients: None,
             files: None,
             publication_url: None,
@@ -50,7 +53,7 @@ impl<C> CoreBuilder<C> {
             data: None,
         }
     }
-    /// A stable identity for this process (hostname, pod name, isolate id).
+    /// A stable identity for this process (hostname, pod name).
     /// Random when not supplied, which is right for a single instance.
     pub fn instance_id(mut self, instance_id: impl Into<String>) -> Self {
         self.instance_id = Some(Arc::from(instance_id.into()));
@@ -77,6 +80,12 @@ impl<C> CoreBuilder<C> {
     pub fn channels(mut self, channels: ChannelRegistry) -> Self {
         self.channels = channels;
         self
+    }
+    /// Register an upstream kind that is not a model channel. Its id shares
+    /// the provider `channel` namespace; a clash with a channel fails `build`.
+    pub fn upstream(mut self, kind: Arc<dyn UpstreamKind>) -> Result<Self, RegistryError> {
+        self.upstreams.register(kind)?;
+        Ok(self)
     }
     /// Outbound client cache. Defaults to `ClientPool::default()`.
     pub fn client_pool(mut self, clients: gproxy_client::ClientPool) -> Self {
@@ -118,6 +127,13 @@ impl<C> CoreBuilder<C> {
     where
         C: gproxy_seaorm::BatchConnectionTrait + Send + Sync + 'static,
     {
+        if let Some(id) = self
+            .upstreams
+            .ids()
+            .find(|id| self.channels.get(id).is_some())
+        {
+            return Err(RegistryError::Duplicate(id.to_owned()).into());
+        }
         let observer = self
             .observer
             .unwrap_or_else(|| Arc::new(crate::StoreObserver::new(self.store.clone())));
@@ -127,6 +143,7 @@ impl<C> CoreBuilder<C> {
             observer,
             codec: self.codec.ok_or(BuildError::MissingSecretCodec)?,
             channels: Arc::new(self.channels),
+            upstreams: Arc::new(self.upstreams),
             clients: self.clients.unwrap_or_default(),
             files: self.files,
             publication_url: self.publication_url,
@@ -144,7 +161,7 @@ impl<C> CoreBuilder<C> {
             initial
                 .providers
                 .get(&credential.provider_id)
-                .is_some_and(|provider| provider.channel.credential_refresh().is_some())
+                .is_some_and(|provider| provider.upstream().credential_refresh().is_some())
         }) {
             core.bind_response_refresh(Arc::make_mut(&mut initial));
             core.data.store(initial);

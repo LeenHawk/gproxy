@@ -5,7 +5,8 @@ use super::{
     event::{Event, invalid},
     tools,
 };
-use crate::{channel::ChannelError, channels::codex::shape::tools::Aliases};
+use crate::channels::codex::shape::tools::Aliases;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
@@ -33,7 +34,7 @@ impl Lifecycle {
         }
     }
 
-    pub fn normalize(&mut self, mut event: Event) -> Result<Vec<Event>, ChannelError> {
+    pub fn normalize(&mut self, mut event: Event) -> Result<Vec<Event>, UpstreamError> {
         if self.terminal {
             return Err(invalid("event after terminal response"));
         }

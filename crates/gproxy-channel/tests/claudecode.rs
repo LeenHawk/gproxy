@@ -3,11 +3,10 @@
 mod support;
 
 use gproxy_channel::{
-    BaseChannel, ChannelError, OperationContext, OutboundClient,
+    BaseChannel, OperationContext, OutboundClient,
     channel::{
-        AuthorizationCode, AuthorizationRequest, CallerUsage, CallerUsageWindow, ChannelState,
-        CredentialContext, CredentialView, LoginContext, NoState, PrepareContext, ProviderView,
-        QuotaHeaderContext, QuotaScope, QuotaValue, QuotaWindow, ServiceContext, ServiceView,
+        PrepareContext, QuotaHeaderContext, QuotaScope, QuotaValue, QuotaWindow, ServiceContext,
+        ServiceView,
     },
     channels::claudecode::{
         CLI_USER_AGENT, Claudecode, DEFAULT_CLIENT_ID, DEFAULT_REDIRECT_URI, KIND_FILE, KIND_SKILL,
@@ -20,6 +19,11 @@ use gproxy_protocol::{
         Version,
     },
     connection::Bytes,
+};
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, CallerUsage, CallerUsageWindow, CredentialContext,
+    CredentialView, LoginContext, NoState, ProviderView, UpstreamError, UpstreamKind,
+    UpstreamState,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -145,8 +149,8 @@ fn messages_request(headers: HeaderMap, body: Value) -> WireRequest {
 
 #[test]
 fn default_connections_separate_api_requests_and_browser_initialization() {
-    use gproxy_channel::channel::ConnectionPurpose;
     use gproxy_client::{Backend, EmulationConfig};
+    use gproxy_upstream::ConnectionPurpose;
     let api = Claudecode.default_connection().expect("channel default");
     assert_eq!(api.backend, Backend::Wreq);
     assert!(api.emulation.is_none());
@@ -330,7 +334,7 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
             },
             endpoint_override: None,
         }),
-        Err(ChannelError::UnsupportedOperation(_))
+        Err(UpstreamError::UnsupportedOperation(_))
     ));
     assert_eq!(
         Claudecode.native_dialects(provider(&config, None), Operation::StreamGenerateContent),
@@ -469,7 +473,7 @@ struct MemoryState {
     entries: Mutex<HashMap<String, Entry>>,
     counter: AtomicU64,
 }
-impl ChannelState for MemoryState {
+impl UpstreamState for MemoryState {
     fn get<'a>(
         &'a self,
         key: &'a str,
@@ -813,7 +817,7 @@ async fn authorize_url_and_code_exchange_follow_the_cli() {
         )
         .await;
     assert!(
-        matches!(result, Err(ChannelError::InvalidResponse(message)) if message.contains("user:inference"))
+        matches!(result, Err(UpstreamError::InvalidResponse(message)) if message.contains("user:inference"))
     );
     assert_eq!(settings_client.sent().len(), 1);
 }
@@ -941,7 +945,7 @@ async fn cookie_import_bootstraps_authorizes_and_exchanges() {
 
     assert!(matches!(
         Claudecode.validate_credential_secret(&json!({"cookie": "not a cookie"})),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
 }
 
@@ -1037,22 +1041,22 @@ async fn refresh_rotates_tokens_and_classifies_rejections() {
 
     let error = refresher.refresh(context()).await.err().expect("rejected");
     assert!(
-        matches!(&error, ChannelError::RefreshRejected(code) if code == "invalid_grant"),
+        matches!(&error, UpstreamError::RefreshRejected(code) if code == "invalid_grant"),
         "{error}"
     );
     let error = refresher.refresh(context()).await.err().expect("transient");
     assert!(
-        matches!(error, ChannelError::UpstreamResponse { status, .. } if status == StatusCode::BAD_GATEWAY),
+        matches!(error, UpstreamError::UpstreamResponse { status, .. } if status == StatusCode::BAD_GATEWAY),
         "a 5xx is transient"
     );
     let error = refresher.refresh(context()).await.err().expect("transient");
     assert!(
-        matches!(error, ChannelError::UpstreamResponse { status, .. } if status == StatusCode::UNAUTHORIZED),
+        matches!(error, UpstreamError::UpstreamResponse { status, .. } if status == StatusCode::UNAUTHORIZED),
         "a 401 without invalid_grant is transient"
     );
     let error = refresher.refresh(context()).await.err().expect("transient");
     assert!(
-        matches!(error, ChannelError::UpstreamResponse { status, .. } if status == StatusCode::TOO_MANY_REQUESTS),
+        matches!(error, UpstreamError::UpstreamResponse { status, .. } if status == StatusCode::TOO_MANY_REQUESTS),
         "a 429 is transient"
     );
 
@@ -1066,7 +1070,7 @@ async fn refresh_rotates_tokens_and_classifies_rejections() {
         .await
         .err()
         .expect("rejected");
-    assert!(matches!(error, ChannelError::RefreshRejected(_)));
+    assert!(matches!(error, UpstreamError::RefreshRejected(_)));
 }
 
 #[test]
@@ -2024,7 +2028,7 @@ async fn key_minting_is_refused_everywhere_and_other_classes_follow_the_view() {
         ))
         .await
         .unwrap_err();
-    assert!(matches!(error, ChannelError::UnsupportedService));
+    assert!(matches!(error, UpstreamError::UnsupportedService));
 }
 
 // ----------------------------------------------------------- magic cache

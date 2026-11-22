@@ -1,7 +1,6 @@
 //! Devin's Claude surface. Vendor signatures and budget interpretation stay
 //! here; shared transforms receive only ordinary, declared protocol fields.
 use super::reasoning::Reasoning;
-use crate::channel::ChannelError;
 use gproxy_protocol::{
     connection::Bytes,
     transform::{
@@ -10,13 +9,14 @@ use gproxy_protocol::{
     },
     wire::claude::stream::StreamEvent,
 };
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 
-fn invalid(error: impl std::fmt::Display) -> ChannelError {
-    ChannelError::InvalidResponse(error.to_string())
+fn invalid(error: impl std::fmt::Display) -> UpstreamError {
+    UpstreamError::InvalidResponse(error.to_string())
 }
 
-pub(super) fn request(mut value: Value) -> Result<Value, ChannelError> {
+pub(super) fn request(mut value: Value) -> Result<Value, UpstreamError> {
     let model = value
         .get("model")
         .and_then(Value::as_str)
@@ -75,7 +75,7 @@ pub(super) fn request(mut value: Value) -> Result<Value, ChannelError> {
     Ok(body)
 }
 
-fn project(message: &mut Value) -> Result<(), ChannelError> {
+fn project(message: &mut Value) -> Result<(), UpstreamError> {
     if message.get("reasoning_details").is_none() {
         return Ok(());
     }
@@ -99,7 +99,7 @@ fn project(message: &mut Value) -> Result<(), ChannelError> {
     Ok(())
 }
 
-pub(super) fn response(mut value: Value) -> Result<Value, ChannelError> {
+pub(super) fn response(mut value: Value) -> Result<Value, UpstreamError> {
     let usage = extra_usage(&value);
     if let Some(message) = value.pointer_mut("/choices/0/message") {
         project(message)?;
@@ -139,7 +139,7 @@ pub(super) struct Stream {
     usage: serde_json::Map<String, Value>,
 }
 impl Stream {
-    pub fn new() -> Result<Self, ChannelError> {
+    pub fn new() -> Result<Self, UpstreamError> {
         let mut namespace = [0; 16];
         getrandom::fill(&mut namespace).map_err(invalid)?;
         Ok(Self {
@@ -152,7 +152,7 @@ impl Stream {
             usage: Default::default(),
         })
     }
-    pub fn push(&mut self, chunks: Vec<Value>) -> Result<Bytes, ChannelError> {
+    pub fn push(&mut self, chunks: Vec<Value>) -> Result<Bytes, UpstreamError> {
         let mut events = Vec::new();
         for mut chunk in chunks {
             self.usage.extend(extra_usage(&chunk));
@@ -168,7 +168,7 @@ impl Stream {
         }
         encode(events, &self.usage)
     }
-    pub fn finish(mut self) -> Result<Bytes, ChannelError> {
+    pub fn finish(mut self) -> Result<Bytes, UpstreamError> {
         self.inner.push_done().map_err(invalid)?;
         encode(self.inner.finish().map_err(invalid)?.chunks, &self.usage)
     }
@@ -176,7 +176,7 @@ impl Stream {
 fn encode(
     events: Vec<StreamEvent>,
     usage: &serde_json::Map<String, Value>,
-) -> Result<Bytes, ChannelError> {
+) -> Result<Bytes, UpstreamError> {
     let mut out = String::new();
     for event in events {
         let mut value = serde_json::to_value(event).map_err(invalid)?;

@@ -7,12 +7,7 @@ use std::sync::Arc;
 /// Seven days; blocks live longer than this are re-warmed on reload.
 const MAX_BLOCK_CACHE_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
 
-pub(crate) fn now_ms() -> i64 {
-    web_time::SystemTime::now()
-        .duration_since(web_time::UNIX_EPOCH)
-        .map(|d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
-        .unwrap_or(0)
-}
+pub(crate) use gproxy_convert::now_ms;
 
 impl<C: BatchConnectionTrait> Core<C> {
     /// Read provider execution configuration from this Core's Store and assemble
@@ -34,7 +29,10 @@ impl<C: BatchConnectionTrait> Core<C> {
         let vocabularies = self.load_vocabularies(&control, &previous).await?;
         let mut assembly = crate::assemble::assemble(
             &control,
-            &self.channels,
+            crate::assemble::Kinds {
+                channels: &self.channels,
+                upstreams: &self.upstreams,
+            },
             self.codec.as_ref(),
             &self.clients,
             vocabularies,
@@ -143,17 +141,14 @@ impl<C: BatchConnectionTrait> Core<C> {
         &self,
         provider_id: &str,
     ) -> CoreResult<Arc<dyn gproxy_client::OutboundClient>> {
-        self.provider_client_for(
-            provider_id,
-            gproxy_channel::channel::ConnectionPurpose::Request,
-        )
-        .await
+        self.provider_client_for(provider_id, gproxy_upstream::ConnectionPurpose::Request)
+            .await
     }
 
     pub async fn provider_client_for(
         &self,
         provider_id: &str,
-        purpose: gproxy_channel::channel::ConnectionPurpose,
+        purpose: gproxy_upstream::ConnectionPurpose,
     ) -> CoreResult<Arc<dyn gproxy_client::OutboundClient>> {
         self.provider_client_for_proxy(provider_id, purpose, None)
             .await
@@ -162,7 +157,7 @@ impl<C: BatchConnectionTrait> Core<C> {
     pub(crate) async fn provider_client_for_proxy(
         &self,
         provider_id: &str,
-        purpose: gproxy_channel::channel::ConnectionPurpose,
+        purpose: gproxy_upstream::ConnectionPurpose,
         credential_proxy: Option<&serde_json::Value>,
     ) -> CoreResult<Arc<dyn gproxy_client::OutboundClient>> {
         let snapshot = self.snapshot();
@@ -176,7 +171,7 @@ impl<C: BatchConnectionTrait> Core<C> {
         let mut config = match profile_id {
             Some(id) => self.connection_profile_config(id).await?,
             None => provider
-                .channel
+                .upstream()
                 .default_connection_for(purpose)
                 .unwrap_or_default(),
         };

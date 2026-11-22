@@ -4,11 +4,10 @@ mod support;
 
 use base64::Engine;
 use gproxy_channel::{
-    BaseChannel, ChannelError, OutboundClient,
+    BaseChannel, OutboundClient,
     channel::{
-        AuthorizationRequest, CallerUsage, CallerUsageWindow, ChannelState, CredentialContext,
-        CredentialView, DevicePoll, LoginContext, OperationContext, PrepareContext, ProviderView,
-        QuotaHeaderContext, QuotaScope, QuotaValue, ServiceContext, ServiceView,
+        OperationContext, PrepareContext, QuotaHeaderContext, QuotaScope, QuotaValue,
+        ServiceContext, ServiceView,
     },
     channels::codex::{CLI_VERSION, Codex, DEFAULT_CLIENT_ID, KIND_FILE, KIND_PLUGIN, KIND_TASK},
 };
@@ -19,6 +18,10 @@ use gproxy_protocol::{
         UpstreamConnection, Version,
     },
     connection::Bytes,
+};
+use gproxy_upstream::{
+    AuthorizationRequest, CallerUsage, CallerUsageWindow, CredentialContext, CredentialView,
+    DevicePoll, LoginContext, ProviderView, UpstreamError, UpstreamKind, UpstreamState,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -133,7 +136,7 @@ impl MemoryState {
             .map(|(payload, _, _)| String::from_utf8(payload.to_vec()).unwrap())
     }
 }
-impl ChannelState for MemoryState {
+impl UpstreamState for MemoryState {
     fn get<'a>(
         &'a self,
         key: &'a str,
@@ -365,7 +368,7 @@ fn prepares_responses_calls_against_the_codex_backend() {
             },
             endpoint_override: None,
         }),
-        Err(ChannelError::UnsupportedOperation(_))
+        Err(UpstreamError::UnsupportedOperation(_))
     ));
     assert_eq!(
         Codex.native_dialects(provider(&config, None), Operation::GenerateContent),
@@ -428,17 +431,17 @@ async fn refresh_rotates_tokens_and_classifies_rejections() {
 
     let error = refresher.refresh(context()).await.err().expect("rejected");
     assert!(
-        matches!(&error, ChannelError::RefreshRejected(code) if code == "invalid_grant"),
+        matches!(&error, UpstreamError::RefreshRejected(code) if code == "invalid_grant"),
         "{error}"
     );
     let error = refresher.refresh(context()).await.err().expect("transient");
     assert!(
-        matches!(error, ChannelError::UpstreamResponse { status, .. } if status == StatusCode::BAD_GATEWAY),
+        matches!(error, UpstreamError::UpstreamResponse { status, .. } if status == StatusCode::BAD_GATEWAY),
         "a 5xx is transient"
     );
     let error = refresher.refresh(context()).await.err().expect("rejected");
     assert!(
-        matches!(error, ChannelError::RefreshRejected(_)),
+        matches!(error, UpstreamError::RefreshRejected(_)),
         "401 is final"
     );
 }
@@ -1357,7 +1360,7 @@ async fn restricted_telemetry_and_unknown_routes_depend_on_the_view() {
         ))
         .await
         .unwrap_err();
-    assert!(matches!(error, ChannelError::UnsupportedService));
+    assert!(matches!(error, UpstreamError::UnsupportedService));
 }
 
 #[tokio::test]
@@ -2688,7 +2691,7 @@ async fn realtime_multipart_read_failures_are_transport_errors_with_sources() {
         })
         .await
         .unwrap_err();
-    let ChannelError::Transport(error) = error else {
+    let UpstreamError::Transport(error) = error else {
         panic!("transport error: {error}")
     };
     assert_eq!(
@@ -2924,7 +2927,7 @@ async fn reset_refuses_a_selection_from_another_channel_without_sending() {
             },
         )
         .await;
-    assert!(matches!(result, Err(ChannelError::InvalidConfig(_))));
+    assert!(matches!(result, Err(UpstreamError::InvalidConfig(_))));
     assert!(client.sent().is_empty());
 }
 

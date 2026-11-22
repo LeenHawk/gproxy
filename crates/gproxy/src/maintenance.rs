@@ -520,14 +520,16 @@ mod tests {
     #[tokio::test]
     async fn sqlite_budget_reclaims_completed_history() {
         let db = fixture().await;
-        assert!(occupied_bytes(&db).await.unwrap() > 1024 * 1024);
+        // Two megabytes: the empty schema alone is nearly one.
+        let budget = 2 * 1024 * 1024;
+        assert!(occupied_bytes(&db).await.unwrap() > budget);
         assert!(
-            clean(&db, None, None, None, Some(1), 300_000_000)
+            clean(&db, None, None, None, Some(2), 300_000_000)
                 .await
                 .unwrap()
                 > 0
         );
-        assert!(occupied_bytes(&db).await.unwrap() <= 1024 * 1024);
+        assert!(occupied_bytes(&db).await.unwrap() <= budget);
         assert!(
             downstream_record::Entity::find_by_id("active")
                 .one(&db)

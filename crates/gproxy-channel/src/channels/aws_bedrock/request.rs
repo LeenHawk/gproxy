@@ -14,10 +14,11 @@ use serde_json::{Value, json};
 use super::config::BedrockConfig;
 use super::endpoint::{self, Plane};
 use super::{ID, sigv4};
-use crate::channel::{ChannelError, CredentialView, HeaderAllowlist, ProviderView, forwardable};
+use crate::channel::{HeaderAllowlist, forwardable};
 use crate::channels::shared::claude_images;
 use gproxy_protocol::HttpBody;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError};
 
 /// Headers the channel owns: a client must not be able to present its own
 /// signature material, and the Anthropic headers are folded into the body.
@@ -57,11 +58,11 @@ pub(super) enum Auth<'a> {
 }
 
 impl<'a> Auth<'a> {
-    pub(super) fn from_credential(credential: CredentialView<'a>) -> Result<Self, ChannelError> {
+    pub(super) fn from_credential(credential: CredentialView<'a>) -> Result<Self, UpstreamError> {
         Self::from_secret(credential.secret)
     }
 
-    pub(super) fn from_secret(secret: &'a Value) -> Result<Self, ChannelError> {
+    pub(super) fn from_secret(secret: &'a Value) -> Result<Self, UpstreamError> {
         if let Some(key) = field(secret, "api_key") {
             return Ok(Self::Bearer(key));
         }
@@ -69,7 +70,7 @@ impl<'a> Auth<'a> {
             field(secret, "access_key_id"),
             field(secret, "secret_access_key"),
         ) else {
-            return Err(ChannelError::InvalidCredential);
+            return Err(UpstreamError::InvalidCredential);
         };
         Ok(Self::AccessKey(sigv4::Credentials {
             access_key_id,
@@ -95,9 +96,9 @@ pub(super) fn build(
     config: &BedrockConfig,
     target: Target<'_>,
     now_secs: u64,
-) -> Result<Signed, ChannelError> {
+) -> Result<Signed, UpstreamError> {
     let uri: http::Uri = target.url.parse().map_err(|error| {
-        ChannelError::InvalidConfig(format!("AWS endpoint `{}`: {error}", target.url))
+        UpstreamError::InvalidConfig(format!("AWS endpoint `{}`: {error}", target.url))
     })?;
     let allowlist = HeaderAllowlist::from_view(provider)?;
     let mut headers = forwardable(target.client_headers, allowlist.as_ref(), ALSO_DROP);
@@ -115,7 +116,7 @@ pub(super) fn build(
             headers.insert(
                 header::AUTHORIZATION,
                 HeaderValue::from_str(&format!("Bearer {key}"))
-                    .map_err(|_| ChannelError::InvalidCredential)?,
+                    .map_err(|_| UpstreamError::InvalidCredential)?,
             );
         }
         Auth::AccessKey(credentials) => sigv4::sign(
@@ -142,14 +143,14 @@ pub(super) fn build(
 }
 
 impl Signed {
-    pub(super) fn into_request(self) -> Result<http::Request<HttpBody>, ChannelError> {
+    pub(super) fn into_request(self) -> Result<http::Request<HttpBody>, UpstreamError> {
         let mut builder = http::Request::builder().method(self.method).uri(self.url);
         if let Some(map) = builder.headers_mut() {
             *map = self.headers;
         }
         builder
             .body(HttpBody::Bytes(self.body))
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 
@@ -158,13 +159,13 @@ pub(super) fn invoke_body(
     body: &[u8],
     config: &BedrockConfig,
     client_headers: &HeaderMap,
-) -> Result<Bytes, ChannelError> {
+) -> Result<Bytes, UpstreamError> {
     let mut value: Value = serde_json::from_slice(body).map_err(|error| {
-        ChannelError::InvalidConfig(format!("{ID} request body is not JSON: {error}"))
+        UpstreamError::InvalidConfig(format!("{ID} request body is not JSON: {error}"))
     })?;
     claude_images::fit(&mut value, true);
     let object = value.as_object_mut().ok_or_else(|| {
-        ChannelError::InvalidConfig(format!("{ID} request body is not an object"))
+        UpstreamError::InvalidConfig(format!("{ID} request body is not an object"))
     })?;
     object.remove("model");
     object.remove("stream");
@@ -197,5 +198,5 @@ pub(super) fn invoke_body(
     }
     serde_json::to_vec(&value)
         .map(Bytes::from)
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
 }

@@ -49,10 +49,14 @@ pub use quota::GO_SOURCE;
 pub use request::SESSION_HEADERS;
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, PrepareContext, ProviderView,
-    QuotaQuery, };
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, PrepareContext,
+    QuotaQuery,
+};
 use gproxy_protocol::{Dialect, HttpBody, Operation};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, LoginMode, OAuthDeviceCode, ProviderView,
+    UpstreamError, UpstreamKind,
+};
 
 /// One OpenCode product; register [`OpenCode::ZEN`] and [`OpenCode::GO`].
 #[derive(Debug, Clone, Copy)]
@@ -73,11 +77,21 @@ impl OpenCode {
     }
 }
 
-impl BaseChannel for OpenCode {
+impl UpstreamKind for OpenCode {
     fn id(&self) -> &'static str {
         self.tier.id()
     }
 
+    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
+        self.is_zen().then_some(self as &dyn OAuthDeviceCode)
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        self.is_zen().then_some(self as &dyn CredentialRefresh)
+    }
+}
+
+impl BaseChannel for OpenCode {
     fn descriptor(&self) -> ChannelDescriptor {
         let zen = self.is_zen();
         let base_url = ConfigKey::optional(
@@ -149,16 +163,8 @@ impl BaseChannel for OpenCode {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         request::build(ctx, self.tier)
-    }
-
-    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        self.is_zen().then_some(self as &dyn OAuthDeviceCode)
-    }
-
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        self.is_zen().then_some(self as &dyn CredentialRefresh)
     }
 
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {

@@ -12,49 +12,19 @@ pub(crate) struct DecodedRow {
     pub values: BTreeMap<String, Value>,
 }
 
+#[cfg(feature = "libsql")]
 #[derive(Debug)]
 pub(crate) struct DecodedExecution {
     pub rows_affected: u64,
     pub last_insert_id: u64,
 }
 
-#[cfg(target_arch = "wasm32")]
-impl From<DecodedRow> for sea_orm::ProxyRow {
-    fn from(row: DecodedRow) -> Self {
-        Self { values: row.values }
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-impl From<DecodedRow> for sea_orm::QueryResult {
-    fn from(row: DecodedRow) -> Self {
-        sea_orm::ProxyRow::from(row).into()
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-impl From<DecodedExecution> for sea_orm::ProxyExecResult {
-    fn from(result: DecodedExecution) -> Self {
-        Self {
-            rows_affected: result.rows_affected,
-            last_insert_id: result.last_insert_id,
-        }
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-impl From<DecodedExecution> for sea_orm::ExecResult {
-    fn from(result: DecodedExecution) -> Self {
-        sea_orm::ProxyExecResult::from(result).into()
-    }
-}
-
-/// Natively the libSQL connection has no SeaORM driver of its own: decoded
+/// The libSQL connection has no SeaORM driver of its own: decoded
 /// rows and execution results are materialised through the mock driver,
 /// which is the only public constructor for `QueryResult`/`ExecResult`
 /// outside sqlx (SeaORM 2.0.3's `proxy` feature does not build next to
 /// `sqlx-sqlite`).
-#[cfg(all(not(target_arch = "wasm32"), feature = "libsql"))]
+#[cfg(feature = "libsql")]
 impl From<DecodedRow> for sea_orm::QueryResult {
     fn from(row: DecodedRow) -> Self {
         use sea_orm::{DbBackend, MockDatabase, MockDatabaseTrait, Statement};
@@ -66,7 +36,7 @@ impl From<DecodedRow> for sea_orm::QueryResult {
     }
 }
 
-#[cfg(all(not(target_arch = "wasm32"), feature = "libsql"))]
+#[cfg(feature = "libsql")]
 impl From<DecodedExecution> for sea_orm::ExecResult {
     fn from(result: DecodedExecution) -> Self {
         use sea_orm::{DbBackend, MockDatabase, MockDatabaseTrait, MockExecResult, Statement};
@@ -233,7 +203,7 @@ fn cell(value: &Json, kind: D1Type) -> Result<Value, DbErr> {
     })
 }
 
-/// D1 raw({columnNames:true}) preserves ordering and exposes duplicate aliases.
+/// A raw row array (`[[names], [cells]...]`) preserves ordering and exposes duplicate aliases.
 pub(crate) fn rows(raw: &Json, projection: &Projection) -> Result<Vec<DecodedRow>, DbErr> {
     let raw = raw
         .as_array()
@@ -279,76 +249,6 @@ pub(crate) fn rows(raw: &Json, projection: &Projection) -> Result<Vec<DecodedRow
                     (*name).to_owned()
                 };
                 values.insert(name, cell(value, column.kind)?);
-            }
-            Ok(DecodedRow { values })
-        })
-        .collect()
-}
-
-#[cfg(any(target_arch = "wasm32", test))]
-pub(crate) fn execution(result: &Json) -> Result<DecodedExecution, DbErr> {
-    if result["success"].as_bool() != Some(true) {
-        return Err(error("D1 operation reported failure"));
-    }
-    let changes = integer(&result["meta"]["changes"])?;
-    let last_id = match result["meta"].get("last_row_id") {
-        Some(value) if !value.is_null() => integer(value)?,
-        _ => 0,
-    };
-    Ok(DecodedExecution {
-        rows_affected: u64::try_from(changes)
-            .map_err(|_| error("negative D1 affected row count"))?,
-        last_insert_id: u64::try_from(last_id).map_err(|_| error("negative D1 last row id"))?,
-    })
-}
-
-/// D1 batch returns named objects rather than raw rows/column metadata.
-/// Query aliases must be distinct: duplicate SQL aliases are lost by D1 before
-/// decoding and cannot be recovered or validated here. Empty results have no schema.
-#[cfg(any(target_arch = "wasm32", test))]
-pub(crate) fn batch_rows(result: &Json, projection: &Projection) -> Result<Vec<DecodedRow>, DbErr> {
-    if projection.positional {
-        return Err(error("D1 batch results have no positional column metadata"));
-    }
-    if result["success"].as_bool() != Some(true) {
-        return Err(error("D1 query batch step reported failure"));
-    }
-    let rows = result["results"]
-        .as_array()
-        .ok_or_else(|| error("missing D1 batch query rows"))?;
-    let Some(first) = rows.first() else {
-        return Ok(Vec::new());
-    };
-    let first = first
-        .as_object()
-        .ok_or_else(|| error("expected D1 batch row object"))?;
-    let columns = first
-        .keys()
-        .map(|name| {
-            let column = projection
-                .columns
-                .get(name)
-                .ok_or_else(|| error(format!("unregistered D1 result alias: {name}")))?;
-            Ok((name, column))
-        })
-        .collect::<Result<Vec<_>, DbErr>>()?;
-    rows.iter()
-        .map(|row| {
-            let row = row
-                .as_object()
-                .ok_or_else(|| error("expected D1 batch row object"))?;
-            if row.len() != columns.len() {
-                return Err(error("inconsistent D1 batch result columns"));
-            }
-            let mut values = BTreeMap::new();
-            for (name, column) in &columns {
-                let value = row
-                    .get(*name)
-                    .ok_or_else(|| error("missing D1 batch result column"))?;
-                if value.is_null() && !column.nullable {
-                    return Err(error(format!("unexpected NULL in D1 column: {name}")));
-                }
-                values.insert((*name).clone(), cell(value, column.kind)?);
             }
             Ok(DecodedRow { values })
         })

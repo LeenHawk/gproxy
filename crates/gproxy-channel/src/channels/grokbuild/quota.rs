@@ -14,13 +14,15 @@ use super::auth::{Reply, apply};
 use super::config::{GrokBuildConfig, ID};
 use super::unix_now_ms;
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
+    QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
     QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
     QuotaWindow,
 };
 use crate::channels::shared::compatible::ability::{decimal, require_success, send};
 use crate::channels::shared::compatible::http::invalid_response;
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
+};
 use http::{HeaderMap, HeaderName, HeaderValue, Method};
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -235,11 +237,11 @@ fn window(id: String, label: Option<String>, allowance: QuotaAllowance) -> Quota
     }
 }
 
-pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
+pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, UpstreamError> {
     entries_with_settings(body, &Value::Null)
 }
 
-fn entries_with_settings(body: &[u8], settings: &Value) -> Result<Vec<QuotaEntry>, ChannelError> {
+fn entries_with_settings(body: &[u8], settings: &Value) -> Result<Vec<QuotaEntry>, UpstreamError> {
     let raw: Value = serde_json::from_slice(body)
         .map_err(|error| invalid_response(format!("{ID} billing: {error}")))?;
     let payload = serde_json::from_value::<BillingResponse>(raw.clone()).ok();
@@ -435,7 +437,7 @@ fn entries_with_settings(body: &[u8], settings: &Value) -> Result<Vec<QuotaEntry
 }
 
 impl QuotaQuery for super::GrokBuild {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = GrokBuildConfig::from_view(context.provider)?;
             let mut headers = HeaderMap::new();
@@ -451,7 +453,7 @@ impl QuotaQuery for super::GrokBuild {
             if let Some(user) = super::auth::fact(&context.credential, "sub") {
                 headers.insert(
                     HeaderName::from_static("x-userid"),
-                    HeaderValue::from_str(user).map_err(|_| ChannelError::InvalidCredential)?,
+                    HeaderValue::from_str(user).map_err(|_| UpstreamError::InvalidCredential)?,
                 );
             }
             let url = format!(

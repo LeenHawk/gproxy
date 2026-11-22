@@ -113,12 +113,12 @@ type DialogProps = {
 function RecordForm({ fields, original, mode, onSubmit, pending, submitDisabled, error, extra, extraAfter, advancedExtra, advancedFields, onOpenChange, inline = false }: DialogProps & { inline?: boolean }) {
   const { t } = useTranslation()
   const formId = useId()
-  const offered = fields.filter((field) => mode === "create" || !field.createOnly)
   const [values, setValues] = useState<FormValues>(() => {
     const seeded: FormValues = {}
     for (const field of fields) seeded[field.name] = readValue(field, original)
     return seeded
   })
+  const offered = fields.filter((field) => (mode === "create" || !field.createOnly) && !field.hidden?.(values))
 
   const [invalid, setInvalid] = useState<{ name: string; message: string } | null>(null)
   const fail = (field: FormField, message: string) => {

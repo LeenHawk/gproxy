@@ -253,6 +253,18 @@ pub const ADMIN_SECTIONS: &[AdminSection] = &[
         capabilities: READ_WRITE,
     },
     AdminSection {
+        id: "mcp-scopes",
+        path: "/mcp-scopes",
+        minimum: SectionScope::Instance,
+        capabilities: READ_WRITE,
+    },
+    AdminSection {
+        id: "mcp-tool-natures",
+        path: "/mcp-tool-natures",
+        minimum: SectionScope::Instance,
+        capabilities: READ_WRITE,
+    },
+    AdminSection {
         id: "rate-limits",
         path: "/rate-limits",
         minimum: SectionScope::Instance,

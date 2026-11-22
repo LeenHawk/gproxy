@@ -1,18 +1,16 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 //! Vendor service dispatch: views validated against the caller's role, one
 //! usable credential (or the named one), bindings limited to the caller's
 //! scope or the target's credentials, nothing observed.
 
 mod support;
 
-use gproxy_channel::{ChannelError, channel::CallerRole};
 use gproxy_core::{
     BlockSource, CoreError, CredentialBlocks, CredentialStatus, ExecutionTarget, ServiceRequest,
     ServiceView, keys,
 };
 use gproxy_protocol::{HttpBody, WireRequest, connection::Bytes};
 use gproxy_store::operations::credentials::CredentialStatusUpdate;
+use gproxy_upstream::{CallerRole, UpstreamError};
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::json;
 use std::{sync::atomic::Ordering, time::Duration};
@@ -185,7 +183,7 @@ async fn a_channel_without_services_is_unsupported() {
         .unwrap_err();
     assert!(matches!(
         error,
-        CoreError::Channel(ChannelError::UnsupportedService)
+        CoreError::Channel(UpstreamError::UnsupportedService)
     ));
     assert!(h.client.seen.lines().is_empty());
 }

@@ -29,9 +29,6 @@ probe-out/
 !/crates/gproxy-host-axum/assets/web/.gitkeep
 /crates/gproxy-host-tauri/ui/*
 !/crates/gproxy-host-tauri/ui/.gitkeep
-/deploy/cloudflare/build/
-/deploy/cloudflare/public/
-/deploy/cloudflare/.wrangler/
 .codex-review-*.md
 
 # local development instructions and design notes

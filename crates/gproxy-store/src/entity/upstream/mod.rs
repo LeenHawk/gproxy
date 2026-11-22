@@ -1,6 +1,7 @@
 //! Providers, credentials, model catalog, operation overrides, and rewrite rules.
 
 pub mod credential;
+pub mod mcp_tool_nature;
 pub mod model;
 pub mod operation_endpoint;
 pub mod operation_rule;

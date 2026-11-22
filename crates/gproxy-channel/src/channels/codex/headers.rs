@@ -2,14 +2,13 @@
 
 use super::common::invalid_config;
 use super::{CodexConfig, DEFAULT_BASE_URL, agent};
-use crate::channel::{
-    ChannelError, ChannelHeaders, CredentialView, HeaderAllowlist, ProviderView, forwardable,
-};
+use crate::channel::{ChannelHeaders, HeaderAllowlist, forwardable};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError};
 use http::{HeaderMap, HeaderName, HeaderValue, header};
 use serde_json::Value;
 
-fn header_value(value: &str) -> Result<HeaderValue, ChannelError> {
-    HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)
+fn header_value(value: &str) -> Result<HeaderValue, UpstreamError> {
+    HeaderValue::from_str(value).map_err(|_| UpstreamError::InvalidCredential)
 }
 
 /// The Codex API origin (`.../backend-api/codex`) and the ChatGPT backend it
@@ -36,13 +35,13 @@ pub(super) struct Account<'a> {
     pub(super) fedramp: bool,
 }
 
-pub(super) fn account<'a>(credential: &CredentialView<'a>) -> Result<Account<'a>, ChannelError> {
+pub(super) fn account<'a>(credential: &CredentialView<'a>) -> Result<Account<'a>, UpstreamError> {
     let access_token = credential
         .secret
         .get("access_token")
         .and_then(Value::as_str)
         .filter(|t| !t.is_empty())
-        .ok_or(ChannelError::InvalidCredential)?;
+        .ok_or(UpstreamError::InvalidCredential)?;
     let account_id = credential
         .metadata
         .get("chatgpt_account_id")
@@ -116,7 +115,7 @@ pub(super) fn backend_headers(
     config: &CodexConfig,
     account: &Account<'_>,
     source: Option<(&HeaderMap, Option<&HeaderAllowlist>)>,
-) -> Result<HeaderMap, ChannelError> {
+) -> Result<HeaderMap, UpstreamError> {
     let mut headers = match source {
         Some((source, allowlist)) => forwardable(
             source,

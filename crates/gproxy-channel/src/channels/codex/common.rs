@@ -1,19 +1,18 @@
 //! Shared service I/O and channel errors.
 
 use crate::OutboundClient;
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{HttpBody, WireResponse};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderMap, Method, StatusCode};
 
-pub(super) fn invalid_config(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidConfig(message.into())
+pub(super) fn invalid_config(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidConfig(message.into())
 }
 
-pub(super) fn invalid_response(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(message.into())
+pub(super) fn invalid_response(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(message.into())
 }
-
 
 pub(super) async fn send_json(
     client: &dyn OutboundClient,
@@ -21,7 +20,7 @@ pub(super) async fn send_json(
     url: &str,
     headers: HeaderMap,
     body: Option<Vec<u8>>,
-) -> Result<(StatusCode, HeaderMap, Bytes), ChannelError> {
+) -> Result<(StatusCode, HeaderMap, Bytes), UpstreamError> {
     let mut builder = http::Request::builder().method(method).uri(url);
     if let Some(map) = builder.headers_mut() {
         *map = headers;

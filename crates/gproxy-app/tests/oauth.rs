@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The OAuth issuer against a real database.
 //!
 //! Everything here drives the same code a host would: a `Gproxy` handle over

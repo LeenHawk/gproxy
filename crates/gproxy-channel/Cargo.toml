@@ -7,13 +7,13 @@ license.workspace = true
 repository.workspace = true
 
 [features]
-schema = ["dep:schemars", "gproxy-protocol/schema"]
+schema = ["dep:schemars", "gproxy-protocol/schema", "gproxy-upstream/schema"]
 default = []
 # Not a channel. `ts-rs` declarations for the descriptor types, so the console
 # that renders a provider form off `BaseChannel::descriptor` is typed against
 # the descriptor itself rather than a hand-written copy. Nothing here exports;
 # `gproxy-sdk`'s export list names these types beside its own DTOs.
-ts = ["dep:ts-rs"]
+ts = ["dep:ts-rs", "gproxy-upstream/ts"]
 
 # Google AI Studio (Gemini API key) upstream: the native Gemini methods and
 # the /v1beta/openai compatibility layer off one origin, SSE and JSON-array
@@ -258,6 +258,7 @@ futures-util = { workspace = true, optional = true }
 getrandom = { workspace = true, optional = true }
 gproxy-client.workspace = true
 gproxy-protocol.workspace = true
+gproxy-upstream.workspace = true
 http.workspace = true
 hmac = { workspace = true, optional = true }
 miniz_oxide = { workspace = true, optional = true }

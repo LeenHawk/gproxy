@@ -26,11 +26,13 @@
 //! is accepted there is unverified, so nothing is read.
 
 use crate::channel::{
-    BaseChannel, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind, HOST_CONFIG_KEYS,
-    HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable, insert_configured,
-    strip_query_auth,
+    BaseChannel, ChannelDescriptor, HOST_CONFIG_KEYS, HeaderAllowlist, PrepareContext, forwardable,
+    insert_configured, strip_query_auth,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 use http::{HeaderName, HeaderValue, header};
 use serde::Deserialize;
 use serde_json::Value;
@@ -48,9 +50,9 @@ pub struct OpenDesignConfig {
 }
 
 impl OpenDesignConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 
@@ -63,18 +65,18 @@ fn base_url(provider: ProviderView<'_>) -> &str {
         .trim_end_matches('/')
 }
 
-fn api_key(secret: &Value) -> Result<&str, ChannelError> {
+fn api_key(secret: &Value) -> Result<&str, UpstreamError> {
     secret
         .get("api_key")
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|key| !key.is_empty())
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }
 
 /// Each dialect's own endpoint. The client's path is not trusted: the
 /// gateway mounts everything at a fixed place under `/v1`.
-fn path(operation: OperationKey) -> Result<&'static str, ChannelError> {
+fn path(operation: OperationKey) -> Result<&'static str, UpstreamError> {
     match (operation.operation, operation.dialect) {
         (Operation::ListModels, Dialect::OpenAiChat | Dialect::OpenAi) => Ok("/v1/models"),
         (Operation::GenerateContent | Operation::StreamGenerateContent, Dialect::OpenAiChat) => {
@@ -86,18 +88,20 @@ fn path(operation: OperationKey) -> Result<&'static str, ChannelError> {
         (Operation::GenerateContent | Operation::StreamGenerateContent, Dialect::Claude) => {
             Ok("/v1/messages")
         }
-        _ => Err(ChannelError::UnsupportedOperation(operation)),
+        _ => Err(UpstreamError::UnsupportedOperation(operation)),
     }
 }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct OpenDesign;
 
-impl BaseChannel for OpenDesign {
+impl UpstreamKind for OpenDesign {
     fn id(&self) -> &'static str {
         ID
     }
+}
 
+impl BaseChannel for OpenDesign {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -135,7 +139,7 @@ impl BaseChannel for OpenDesign {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = OpenDesignConfig::from_view(ctx.provider)?;
         let key = api_key(ctx.credential.secret)?;
         let url = match ctx.endpoint_override {
@@ -161,7 +165,7 @@ impl BaseChannel for OpenDesign {
             // The Claude surface takes the key the way Anthropic does.
             headers.insert(
                 HeaderName::from_static("x-api-key"),
-                HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
+                HeaderValue::from_str(key).map_err(|_| UpstreamError::InvalidCredential)?,
             );
             headers
                 .entry(HeaderName::from_static("anthropic-version"))
@@ -170,7 +174,7 @@ impl BaseChannel for OpenDesign {
             headers.insert(
                 header::AUTHORIZATION,
                 HeaderValue::from_str(&format!("Bearer {key}"))
-                    .map_err(|_| ChannelError::InvalidCredential)?,
+                    .map_err(|_| UpstreamError::InvalidCredential)?,
             );
         }
         for (name, value) in &config.headers {
@@ -191,6 +195,6 @@ impl BaseChannel for OpenDesign {
         }
         builder
             .body(body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }

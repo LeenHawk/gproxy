@@ -16,10 +16,8 @@ use std::{
 
 use gproxy_app::{App, AppConfig, Caller, snapshot::encode_key_hash};
 use gproxy_channel::{
-    BaseChannel, ChannelError,
-    channel::{
-        CallerRole, ChannelServices, PrepareContext, ProviderView, ServiceContext, ServiceView,
-    },
+    BaseChannel,
+    channel::{ChannelServices, PrepareContext, ServiceContext, ServiceView},
 };
 use gproxy_core::PlaintextCodec;
 use gproxy_protocol::{
@@ -45,6 +43,7 @@ use gproxy_store::entity::{
     upstream::{credential, provider, provider_model},
     usage::usage_record,
 };
+use gproxy_upstream::{CallerRole, ProviderView, UpstreamError, UpstreamKind};
 use http::StatusCode;
 use sea_orm::{DatabaseConnection, Set};
 use serde_json::{Value, json};
@@ -57,11 +56,13 @@ pub type Handle = Gproxy<DatabaseConnection>;
 /// provider rows.
 pub struct TestChannel;
 
-impl BaseChannel for TestChannel {
+impl UpstreamKind for TestChannel {
     fn id(&self) -> &'static str {
         "test"
     }
+}
 
+impl BaseChannel for TestChannel {
     fn native_dialects(&self, provider: ProviderView<'_>, _: Operation) -> Vec<Dialect> {
         if let Some(dialects) = provider.config.get("test_dialects") {
             return serde_json::from_value(dialects.clone()).unwrap();
@@ -77,7 +78,7 @@ impl BaseChannel for TestChannel {
         ]
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let url = match ctx.endpoint_override {
             Some(url) => url.to_owned(),
             None => format!(
@@ -96,7 +97,7 @@ impl BaseChannel for TestChannel {
             .secret
             .get("api_key")
             .and_then(Value::as_str)
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let mut builder = http::Request::builder()
             .method(ctx.request.method)
             .uri(url)
@@ -106,7 +107,7 @@ impl BaseChannel for TestChannel {
         }
         builder
             .body(ctx.request.body)
-            .map_err(|_| ChannelError::InvalidCredential)
+            .map_err(|_| UpstreamError::InvalidCredential)
     }
 
     /// The handshake half of `prepare`, which is what makes this channel's
@@ -116,7 +117,7 @@ impl BaseChannel for TestChannel {
     fn prepare_connect(
         &self,
         ctx: PrepareContext<'_, ()>,
-    ) -> Result<http::Request<()>, ChannelError> {
+    ) -> Result<http::Request<()>, UpstreamError> {
         let path = match ctx.request.query.as_deref() {
             Some(query) => format!("{}?{query}", ctx.request.path),
             None => ctx.request.path.to_owned(),
@@ -130,7 +131,7 @@ impl BaseChannel for TestChannel {
             .secret
             .get("api_key")
             .and_then(Value::as_str)
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let mut builder = http::Request::builder()
             .method(ctx.request.method)
             .uri(url)
@@ -140,7 +141,7 @@ impl BaseChannel for TestChannel {
         }
         builder
             .body(())
-            .map_err(|_| ChannelError::InvalidCredential)
+            .map_err(|_| UpstreamError::InvalidCredential)
     }
 
     fn services(&self) -> Option<&dyn ChannelServices> {
@@ -185,7 +186,7 @@ impl ChannelServices for TestChannel {
     fn connect<'a>(
         &'a self,
         context: ServiceContext<'a, ()>,
-    ) -> gproxy_channel::channel::OperationFuture<'a, UpstreamConnection> {
+    ) -> gproxy_upstream::UpstreamFuture<'a, UpstreamConnection> {
         Box::pin(async move {
             if context.view.is_synthesized() {
                 let mut headers = HeaderMap::new();
@@ -219,7 +220,7 @@ impl ChannelServices for TestChannel {
     fn call<'a>(
         &'a self,
         context: ServiceContext<'a>,
-    ) -> gproxy_channel::channel::OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> gproxy_upstream::UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             let usage = context.caller.usage().await?;
             let body = json!({
@@ -619,6 +620,7 @@ pub async fn handle() -> (Handle, Arc<ScriptClient>) {
         .plaintext_secrets()
         .without_default_channels()
         .channel(Arc::new(TestChannel))
+        .upstream(gproxy_app::mcp::kind())
         .client_pool(ClientPool::with_client(client.clone()))
         .cache(Arc::new(
             gproxy_cache::MemoryCache::new(gproxy_cache::MemoryOptions::default()).unwrap(),

@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-use crate::channel::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 
 pub const ID: &str = "devin";
 
@@ -93,9 +93,9 @@ impl Default for DevinConfig {
 }
 
 impl DevinConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     /// The origin, without a trailing slash.
@@ -112,13 +112,13 @@ impl DevinConfig {
     /// Apply `config.headers`. These are the provider's own additions and are
     /// written after the channel's transport headers, so an operator can add
     /// what the upstream needs without being able to drop what it requires.
-    pub fn static_headers(&self, headers: &mut http::HeaderMap) -> Result<(), ChannelError> {
+    pub fn static_headers(&self, headers: &mut http::HeaderMap) -> Result<(), UpstreamError> {
         for (name, value) in &self.headers {
             headers.insert(
                 http::HeaderName::from_bytes(name.as_bytes())
-                    .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+                    .map_err(|_| UpstreamError::InvalidConfig(format!("header `{name}`")))?,
                 http::HeaderValue::from_str(value)
-                    .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+                    .map_err(|_| UpstreamError::InvalidConfig(format!("header `{name}`")))?,
             );
         }
         Ok(())

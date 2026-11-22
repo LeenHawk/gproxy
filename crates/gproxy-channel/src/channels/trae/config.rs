@@ -1,4 +1,4 @@
-use crate::channel::{ChannelError, CredentialView, ProviderView};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -46,9 +46,9 @@ pub(super) fn region(value: &str) -> &str {
 }
 
 impl TraeConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|e| ChannelError::InvalidConfig(e.to_string()))
+            .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))
     }
 
     pub(super) fn version(&self) -> &str {

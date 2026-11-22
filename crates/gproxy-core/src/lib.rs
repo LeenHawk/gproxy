@@ -3,10 +3,6 @@
 //! holds each instance's immutable configuration snapshot.
 
 #![forbid(unsafe_code)]
-// wasm32-unknown-unknown is single-threaded and the JS transport handles held
-// through `dyn OutboundClient` are thread-bound; shared ownership still goes
-// through Arc so the engine's API is identical on every target.
-#![cfg_attr(target_arch = "wasm32", allow(clippy::arc_with_non_send_sync))]
 
 pub mod api;
 pub mod assemble;
@@ -21,8 +17,10 @@ pub mod data;
 pub mod estimate;
 mod execute;
 pub mod fetch_policy;
-pub mod form;
-mod ids;
+pub use gproxy_convert::form;
+mod ids {
+    pub(crate) use gproxy_convert::random_id;
+}
 pub mod keys;
 pub mod limits;
 pub mod observe;
@@ -72,6 +70,7 @@ use arc_swap::ArcSwap;
 use gproxy_cache::Cache;
 use gproxy_channel::ChannelRegistry;
 use gproxy_store::Store;
+use gproxy_upstream::UpstreamRegistry;
 use std::sync::Arc;
 
 /// Assembled engine dependencies, built through `CoreBuilder`. Construction
@@ -84,6 +83,8 @@ pub struct Core<C> {
     observer: Arc<dyn Observer>,
     codec: Arc<dyn SecretCodec>,
     channels: Arc<ChannelRegistry>,
+    /// Upstream kinds with no model side.
+    upstreams: Arc<UpstreamRegistry>,
     clients: gproxy_client::ClientPool,
     files: Option<gproxy_file::Operator>,
     publication_url: Option<Arc<dyn PublicationUrl>>,
@@ -139,6 +140,17 @@ impl<C> Core<C> {
     pub fn channels(&self) -> &Arc<ChannelRegistry> {
         &self.channels
     }
+    /// The registered upstream kinds that are not model channels.
+    pub fn upstreams(&self) -> &Arc<UpstreamRegistry> {
+        &self.upstreams
+    }
+    /// The implementation a provider row's `channel` names, of either sort.
+    pub fn upstream_kind(&self, id: &str) -> Option<&dyn gproxy_upstream::UpstreamKind> {
+        match self.channels.get(id) {
+            Some(channel) => Some(channel.as_ref()),
+            None => self.upstreams.get(id).map(|kind| kind.as_ref()),
+        }
+    }
     pub fn clients(&self) -> &gproxy_client::ClientPool {
         &self.clients
     }
@@ -164,6 +176,7 @@ impl<C> Core<C> {
             observer: self.observer,
             codec: self.codec,
             channels: self.channels,
+            upstreams: self.upstreams,
             data: self.data.into_inner(),
         }
     }
@@ -177,5 +190,6 @@ pub struct CoreParts<C> {
     pub observer: Arc<dyn Observer>,
     pub codec: Arc<dyn SecretCodec>,
     pub channels: Arc<ChannelRegistry>,
+    pub upstreams: Arc<UpstreamRegistry>,
     pub data: Arc<CoreData>,
 }

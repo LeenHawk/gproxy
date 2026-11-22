@@ -6,17 +6,15 @@
 //! All paths are under samples/claude-code-2.1.302/.
 
 use super::{ClaudecodeConfig, unix_now_ms};
+use crate::OutboundClient;
 use crate::channels::shared::timer::sleep;
-use crate::{
-    OutboundClient,
-    channel::{ChannelError, ChannelState, CredentialView},
-};
 use futures_util::StreamExt;
 use gproxy_protocol::{
     HttpBody, WireResponse,
     capability::{CasResult, StateWrite, Version},
     connection::Bytes,
 };
+use gproxy_upstream::{CredentialView, UpstreamError, UpstreamState};
 use http::{HeaderMap, HeaderValue, Request, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -329,11 +327,11 @@ async fn overloaded(response: &mut WireResponse<HttpBody>) -> bool {
 }
 
 async fn save(
-    store: &dyn ChannelState,
+    store: &dyn UpstreamState,
     key: &str,
     state: &Session,
     version: &mut Option<Version>,
-) -> Result<bool, ChannelError> {
+) -> Result<bool, UpstreamError> {
     let until = [
         state
             .slow_reset_ms
@@ -369,11 +367,11 @@ async fn save(
 pub(super) async fn send(
     config: &ClaudecodeConfig,
     client: &dyn OutboundClient,
-    store: &dyn ChannelState,
+    store: &dyn UpstreamState,
     session: &str,
     request: Request<HttpBody>,
     explicit: bool,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     if !config.low_priority && !config.extended_usage && !explicit {
         return Ok(client.send(request).await?);
     }

@@ -7,7 +7,7 @@ Store entities, routing policies, database connections, or implicit memory fallb
 
 | Feature | Backend |
 |---|---|
-| `memory` (default) | Process-local shared state; native and WASM |
+| `memory` (default) | Process-local shared state |
 | `redis` | Native async Redis/Valkey with TCP/TLS and independent subscribers |
 | No features | Public contracts only; implement `Cache` for another backend |
 
@@ -100,7 +100,7 @@ Slow consumers receive `ResyncRequired` when the bounded delivery queue overruns
 Redis disconnect closes the subscription explicitly; recreate it and reload.
 Dropping a Redis subscription aborts its reader task. `recv` is cancellation-safe.
 Memory subscribers are notified across clones of the same cache, not separate
-processes or independently constructed caches. WASM memory is isolate-local.
+processes or independently constructed caches.
 
 There is no replay, acknowledgement, exactly-once guarantee or atomicity between
 Store commits and publish. Publish with zero subscribers succeeds. A process may
@@ -132,7 +132,6 @@ only for async notifications; the application drives polling.
 ```sh
 cargo test -p gproxy-cache
 cargo clippy -p gproxy-cache --all-features --all-targets -- -D warnings
-cargo clippy -p gproxy-cache --target wasm32-unknown-unknown --all-features --all-targets -- -D warnings
 GPROXY_CACHE_REDIS_URL=redis://127.0.0.1:6379 cargo test -p gproxy-cache --all-features -- --include-ignored
 ```
 

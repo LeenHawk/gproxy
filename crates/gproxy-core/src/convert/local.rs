@@ -51,7 +51,7 @@ pub(crate) fn run(
                 .filter(|m| m.enabled)
                 .flat_map(|m| {
                     m.exposed_names().into_iter().map(|name| {
-                        let mut value = super::models::local_metadata(
+                        let mut value = gproxy_convert::local_model_metadata(
                             &m.metadata,
                             key.dialect,
                             &provider.entity.name,

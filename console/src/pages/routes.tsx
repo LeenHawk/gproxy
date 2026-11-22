@@ -18,6 +18,7 @@ const AboutPage = lazy(() => import("@/pages/about").then(module => ({ default: 
 const ApiKeysPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.ApiKeysPage })))
 const OAuthClientsPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.OAuthClientsPage })))
 const OrganizationsPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.OrganizationsPage })))
+const McpScopesPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.McpScopesPage })))
 const PermissionsPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.PermissionsPage })))
 const RateLimitsPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.RateLimitsPage })))
 const TeamsPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.TeamsPage })))
@@ -70,6 +71,7 @@ const ROUTES: Record<string, ComponentType> = {
   "/identity/organizations": OrganizationsPage,
   "/identity/teams": TeamsPage,
   "/identity/permissions": PermissionsPage,
+  "/identity/mcp-scopes": McpScopesPage,
   "/identity/rate-limits": RateLimitsPage,
   "/identity/oauth-clients": OAuthClientsPage,
   "/identity/sessions": SessionsPage,
@@ -101,7 +103,7 @@ export function Routes() {
   const context = useConsoleContext()
   useScrollReset(route)
 
-  const provider = /^\/providers\/([^/]+)(?:\/(credentials|models|settings|rules|routing|operations|endpoints))?$/.exec(route)
+  const provider = /^\/providers\/([^/]+)(?:\/(credentials|models|tools|settings|rules|routing|operations|endpoints))?$/.exec(route)
   if (provider || route === "/providers") {
     if (!mayEnter(context, route)) return <Forbidden />
     const providerId = provider ? decodeURIComponent(provider[1]) : undefined

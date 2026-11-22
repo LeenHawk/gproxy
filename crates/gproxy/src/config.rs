@@ -130,7 +130,7 @@ pub fn layer(options: &cli::Options, file: Option<AppConfig>) -> Result<Settings
         config.data_dir = Some(data_dir);
     }
     // Not a flag override: the default belongs here rather than in `AppConfig`,
-    // because the edge host has no filesystem to resolve it against.
+    // which stays plain data and never looks at the filesystem.
     if config.data_dir.is_none() {
         config.data_dir = Some(default_data_dir());
     }

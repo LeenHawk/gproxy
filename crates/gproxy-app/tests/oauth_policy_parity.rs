@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The in-memory OAuth client allowlist against the SQL one.
 //!
 //! `gproxy-app` evaluates the policy from the snapshot and `gproxy-store`

@@ -11,11 +11,13 @@
 use std::collections::BTreeMap;
 
 use gproxy_channel::channel::{
-    BaseChannel, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable,
-    insert_configured, strip_query_auth,
+    BaseChannel, ChannelDescriptor, ChannelHeaders, HOST_CONFIG_KEYS, HeaderAllowlist,
+    PrepareContext, forwardable, insert_configured, strip_query_auth,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 use http::{HeaderValue, header};
 use serde::Deserialize;
 use serde_json::Value;
@@ -38,11 +40,13 @@ pub struct AcmeConfig {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Acme;
 
-impl BaseChannel for Acme {
+impl UpstreamKind for Acme {
     fn id(&self) -> &'static str {
         ID
     }
+}
 
+impl BaseChannel for Acme {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -97,15 +101,15 @@ impl BaseChannel for Acme {
     }
 
     /// Pure and synchronous: no I/O here. The host sends what this returns.
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         if !self
             .native_dialects(ctx.provider, ctx.operation.operation)
             .contains(&ctx.operation.dialect)
         {
-            return Err(ChannelError::UnsupportedOperation(ctx.operation));
+            return Err(UpstreamError::UnsupportedOperation(ctx.operation));
         }
         let config: AcmeConfig = serde_json::from_value(ctx.provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
         let key = ctx
             .credential
             .secret
@@ -113,7 +117,7 @@ impl BaseChannel for Acme {
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|key| !key.is_empty())
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
 
         // An endpoint override is the complete URL, not a base to append to.
         let url = match ctx.endpoint_override {
@@ -154,7 +158,7 @@ impl BaseChannel for Acme {
         headers.insert(
             header::AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {key}"))
-                .map_err(|_| ChannelError::InvalidCredential)?,
+                .map_err(|_| UpstreamError::InvalidCredential)?,
         );
         if matches!(&ctx.request.body, HttpBody::Bytes(bytes) if !bytes.is_empty()) {
             headers
@@ -168,6 +172,6 @@ impl BaseChannel for Acme {
         }
         builder
             .body(ctx.request.body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }

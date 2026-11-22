@@ -12,8 +12,8 @@
 mod reasoning;
 mod tools;
 
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Map, Value};
 
 /// Fields the proxy has no place for (v3 `shape/responses/mod.rs`).
@@ -28,7 +28,7 @@ const DROPPED: &[&str] = &[
 /// Only this model family is given a cache key it did not ask for.
 const COMPOSER_PREFIX: &str = "grok-composer-";
 
-pub(super) fn request(body: &[u8]) -> Result<Bytes, ChannelError> {
+pub(super) fn request(body: &[u8]) -> Result<Bytes, UpstreamError> {
     let mut value: Value = serde_json::from_slice(body)
         .map_err(|error| invalid(format!("the Responses body is not JSON: {error}")))?;
     let object = value
@@ -61,7 +61,7 @@ pub(super) fn cache_key(body: &[u8]) -> Option<String> {
         .map(str::to_owned)
 }
 
-fn ensure_cache_key(object: &mut Map<String, Value>) -> Result<(), ChannelError> {
+fn ensure_cache_key(object: &mut Map<String, Value>) -> Result<(), UpstreamError> {
     let stated = object
         .get("prompt_cache_key")
         .and_then(Value::as_str)
@@ -81,11 +81,11 @@ fn ensure_cache_key(object: &mut Map<String, Value>) -> Result<(), ChannelError>
 }
 
 /// A version-4 UUID, the shape the CLI's cache keys have.
-pub(super) fn uuid() -> Result<String, ChannelError> {
+pub(super) fn uuid() -> Result<String, UpstreamError> {
     use std::fmt::Write as _;
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|error| {
-        ChannelError::InvalidConfig(format!(
+        UpstreamError::InvalidConfig(format!(
             "operating-system randomness is unavailable: {error}"
         ))
     })?;
@@ -107,8 +107,8 @@ pub(super) fn uuid() -> Result<String, ChannelError> {
     ))
 }
 
-pub(super) fn invalid(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidConfig(format!("Grok Build: {}", message.into()))
+pub(super) fn invalid(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidConfig(format!("Grok Build: {}", message.into()))
 }
 
 #[cfg(test)]

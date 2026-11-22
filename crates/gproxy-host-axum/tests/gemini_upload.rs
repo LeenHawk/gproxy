@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! Gemini resumable uploads through the whole router
 //! (`gproxy_core::owned::upload`): the start's upstream upload URL is replaced
 //! by a gateway session bound to the caller, the follow-up is proxied to the

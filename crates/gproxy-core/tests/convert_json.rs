@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 //! Buffered JSON conversion families over the attempt loop: embeddings,
 //! compaction and memory summarisation. Each test drives a client
 //! dialect into a provider whose only native dialect differs, then checks the

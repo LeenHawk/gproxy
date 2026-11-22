@@ -22,7 +22,7 @@ extraction and local token estimation.
 | `rewrite` | Rule compilation, selection by phase/operation/model/headers, Body/Header/Query application, raw-preserving per-unit stream rewriting (SSE, JSON array, NDJSON) |
 | `select` / `availability` | Credential choice inside the permitted set with strategy, affinity and blocks; failure streaks and cooldowns |
 | `execute` (private) | HTTP and WebSocket attempt loops, observed client/body/socket wrappers, request buffering, the settlement funnel and its `Settled` proof |
-| `convert` | Passthrough-or-convert routing, native endpoints, and one driver per protocol family running protocol's adaptation flows over the attempt-bound upstream |
+| `convert` | The provider's operation rules over `gproxy-convert`'s default routing, the local handlers, and the Responses WebSocket client bridged onto HTTP upstreams; the drivers are `gproxy-convert`'s, run over core's capabilities |
 | `capability` | Core's `AttemptUpstream`, `ProtocolState` and `Resources`, the host capabilities protocol adaptations are generic over |
 | `refresh` | Explicit credential refresh: cross-instance lease, channel `CredentialRefresh`, seal, version CAS, publication, `Dead` on definitive rejection |
 | `quota` | `QuotaHeaders`/`QuotaQuery` observations into `credential_quota_cycles` and exhaustion blocks; Counted dimensions metered in Store `counted_windows` rows |
@@ -354,9 +354,7 @@ fill the returned metadata. Two residual risks stay with the host: the
 outbound client resolves the name again when it connects, so core cannot pin
 the checked addresses (a name that rebinds between the two lookups escapes the
 check — front the fetch with an egress proxy or an allow-list of names you
-control if that matters), and on wasm32 there is no resolver, so the policy
-judges names alone (literal IP hosts are still checked) and the platform's
-`fetch` follows redirects itself.
+control if that matters).
 
 Publishing by URL (images `response_format: url`) needs the host's link builder,
 `CoreBuilder::publication_url(Arc<dyn PublicationUrl>)`. Core has no public HTTP
@@ -380,26 +378,15 @@ nothing is retried, no failure is recorded against the credential, and the conti
 stays where it is. A multi-instance host either routes the conversation to that instance
 or keeps the conversation sticky in the first place; a single instance never sees it.
 
-## wasm32
+## Validation
 
-SQLite/filesystem integration tests run on native targets only, matching their
-platform-specific dev dependencies. The wasm check includes the library and
-portable test targets; it does not execute tests in a browser.
-
-The engine runs on wasm32-unknown-unknown with the same API: timers and
-background tasks come from the JS event loop, outbound transport from
-gproxy-client's `fetch`/`workers` features or a host-injected `OutboundClient`
-(see the client README), file storage from gproxy-file's `s3` feature (R2 or
-any S3-compatible store over fetch; the local filesystem backend is native
-only), and estimation from the same tokenizer stack. The bundled DeepSeek
-vocabulary is the `bundled-vocabulary` feature (on by default, about 4 MiB in
-the binary); without it, models with no catalog vocabulary file use the
-character estimate. Tests run natively only.
+The bundled DeepSeek vocabulary is the `bundled-vocabulary` feature (on by
+default, about 4 MiB in the binary); without it, models with no catalog
+vocabulary file use the character estimate.
 
 ```sh
 cargo test -p gproxy-core
 cargo clippy -p gproxy-core --all-targets -- -D warnings
-cargo clippy -p gproxy-core --target wasm32-unknown-unknown --all-targets -- -D warnings
 ```
 
 Tests run against an in-memory SQLite Store, the memory cache and scripted

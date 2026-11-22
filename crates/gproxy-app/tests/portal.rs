@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The portal surface against a real database.
 //!
 //! Every test runs two users in two different organizations over one in-memory

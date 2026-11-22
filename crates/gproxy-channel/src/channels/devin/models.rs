@@ -17,7 +17,7 @@ use std::{collections::BTreeMap, sync::LazyLock};
 
 use serde::Deserialize;
 
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 /// The one selector a free-tier account can run
 /// (`devin-connect-models.js::FREE_TIER_SELECTOR`). Recorded for operators
@@ -222,7 +222,7 @@ fn is_selector(name: &str, extra: &BTreeMap<String, String>) -> bool {
 /// Resolve legacy/configured aliases; forward other selectors unchanged.
 /// The host owns admission, and new live selectors must survive restarts without
 /// depending on this crate's historical snapshot. Never substitute another model.
-pub fn resolve(name: &str, extra: &BTreeMap<String, String>) -> Result<String, ChannelError> {
+pub fn resolve(name: &str, extra: &BTreeMap<String, String>) -> Result<String, UpstreamError> {
     if name.is_empty() {
         return Err(super::bad_request("devin request has no model"));
     }
@@ -245,8 +245,8 @@ fn is_router(name: &str) -> bool {
 
 /// A router selector fails for a reason of its own, so it says so rather than
 /// reading as a misspelled model.
-fn router(name: &str) -> ChannelError {
-    ChannelError::InvalidConfig(format!(
+fn router(name: &str) -> UpstreamError {
+    UpstreamError::InvalidConfig(format!(
         "devin: `{name}` is a router selector. Resolving one to a concrete \
          model needs an AssignModel round trip, which this channel does not \
          implement because every field number of that method is a guess in \
@@ -274,14 +274,14 @@ pub fn catalogue(extra: &BTreeMap<String, String>) -> Vec<String> {
 pub(super) fn decode_list(
     bytes: &[u8],
     extra: &BTreeMap<String, String>,
-) -> Result<serde_json::Value, ChannelError> {
+) -> Result<serde_json::Value, UpstreamError> {
     use super::proto;
     use serde_json::json;
     let fields = proto::parse(bytes)?;
     let mut data = BTreeMap::new();
     for field in fields.iter().filter(|field| field.number == 1) {
         let proto::Value::Bytes(bytes) = field.value else {
-            return Err(ChannelError::InvalidResponse(
+            return Err(UpstreamError::InvalidResponse(
                 "invalid Devin model entry".into(),
             ));
         };
@@ -330,7 +330,7 @@ pub(super) fn resolve_request(
     name: &str,
     request: &serde_json::Value,
     extra: &BTreeMap<String, String>,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     const LEVELS: &[&str] = &["none", "minimal", "low", "medium", "high", "xhigh", "max"];
     fn split(selector: &str) -> (&str, Option<&str>, &str) {
         let (stem, tail) = ["-priority", "-fast", "-1m"]

@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 //! Deterministic ownership transfers between admission/read and the durable
 //! operation. The peer deliberately never receives snapshot invalidation.
 mod support;

@@ -228,14 +228,8 @@ class Cnb:
 def verify_packages():
     directory = Path("dist/release")
     matrix = json.loads(Path("scripts/release-targets.json").read_text())["include"]
-    expected = ["gproxy-edge.wasm", "gproxy-edge-cloudflare.zip", "gproxy-edge.provenance.json"]
+    expected = []
     if os.environ.get("GITHUB_ACTIONS") == "true":
-        for arch in ("x86_64", "aarch64"):
-            name = f"gproxy-serverless-linux-{arch}-musl"
-            expected += [name + ".zip", name + ".provenance.json"]
-            with zipfile.ZipFile(directory / (name + ".zip")) as archive:
-                if "gproxy-serverless" not in archive.namelist():
-                    raise ValueError(f"Missing serverless executable: {name}")
         for row in matrix:
             if not (name := row.get("headless_artifact")):
                 continue
@@ -288,7 +282,7 @@ def verify_packages():
                 actual = hashlib.file_digest(stream, "sha256").hexdigest()
             if actual != expected_hash:
                 raise ValueError(f"Release checksum mismatch: {name}")
-    print("Complete CLI, Application and Edge artifact sets verified")
+    print("Complete CLI and Application artifact sets verified")
 
 
 def upload_assets(host, release, assets):
@@ -304,7 +298,7 @@ def upload_assets(host, release, assets):
 
 
 def release_assets(directory):
-    extensions = {".zip", ".deb", ".dmg", ".msix", ".apk", ".aab", ".hap", ".wasm"}
+    extensions = {".zip", ".deb", ".dmg", ".msix", ".apk", ".aab", ".hap"}
     assets = sorted(path for path in directory.iterdir()
                     if path.is_file() and path.suffix in extensions)
     checksums = directory / "SHA256SUMS"

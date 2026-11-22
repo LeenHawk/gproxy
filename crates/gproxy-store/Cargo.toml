@@ -13,7 +13,6 @@ schema = ["dep:schemars"]
 [dependencies]
 schemars = { workspace = true, optional = true }
 async-trait = { workspace = true }
-gproxy-cache = { workspace = true, default-features = false }
 sea-orm = { workspace = true, features = ["with-rust_decimal"] }
 web-time = { workspace = true }
 serde = { workspace = true }
@@ -25,13 +24,8 @@ tracing = { workspace = true }
 getrandom = { workspace = true }
 blake3 = { workspace = true }
 fastcdc = { workspace = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 zstd = { workspace = true }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-ruzstd = { workspace = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+[dev-dependencies]
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }

@@ -9,11 +9,12 @@ use super::{
     prepare,
 };
 use crate::{AttemptContext, RewriteRuleData, api::lifecycle::now_ms};
-use gproxy_channel::{ChannelBinding, ChannelError, channel::ChannelState};
+use gproxy_channel::ChannelBinding;
 use gproxy_protocol::{
     HttpBody, OperationKey, WireRequest, WireResponse, capability::CapabilityLimits,
 };
 use gproxy_store::entity::upstream::operation_endpoint::EndpointTransport;
+use gproxy_upstream::{UpstreamError, UpstreamState};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -23,7 +24,7 @@ pub(crate) struct NativeCall {
     pub operation: OperationKey,
     pub response_rules: Vec<Arc<RewriteRuleData>>,
     pub limits: CapabilityLimits,
-    pub state: Arc<dyn ChannelState>,
+    pub state: Arc<dyn UpstreamState>,
     pub instance_id: Arc<str>,
 }
 
@@ -47,7 +48,7 @@ impl NativeCall {
     pub async fn send(
         self,
         mut wire: WireRequest<HttpBody>,
-    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    ) -> Result<WireResponse<HttpBody>, UpstreamError> {
         gproxy_protocol::adapt::generate::claude_compat::prepare(self.operation, &mut wire);
         let injected = super::chat_usage::opt_in(self.operation, &mut wire);
         let response = super::fallback::run(self, wire).await?;
@@ -61,7 +62,7 @@ impl NativeCall {
     pub async fn send_once(
         &self,
         mut wire: WireRequest<HttpBody>,
-    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    ) -> Result<WireResponse<HttpBody>, UpstreamError> {
         if super::thinking::enabled(
             &self.attempt.request.target.provider.entity.config,
             self.operation,
@@ -89,6 +90,12 @@ impl NativeCall {
         }
         let request = &attempt.request;
         let provider = &request.target.provider;
+        let channel = provider.channel().ok_or_else(|| {
+            UpstreamError::InvalidConfig(format!(
+                "provider `{}` is not a model channel",
+                provider.entity.id
+            ))
+        })?;
         let remaining = request
             .deadline
             .map(|at| at.saturating_duration_since(web_time::Instant::now()));
@@ -99,7 +106,7 @@ impl NativeCall {
             self.funnel.clone(),
             attempt.clone(),
             self.operation,
-            provider.channel.clone(),
+            channel.clone(),
             self.response_rules.clone(),
             self.limits,
             now_ms(),
@@ -123,7 +130,7 @@ impl NativeCall {
             request.target.upstream_model.as_deref(),
         );
         let binding = ChannelBinding::new(
-            provider.channel.as_ref(),
+            channel.as_ref(),
             prepare::provider_view(provider),
             prepare::credential_view(&attempt.credential, &attempt.credential_version),
             Arc::new(observed),
@@ -133,13 +140,13 @@ impl NativeCall {
         .endpoint(endpoint.as_deref());
         let result = tokio::select! {
             biased;
-            () = request.cancellation.cancelled() => Err(ChannelError::Host("request cancelled".into())),
+            () = request.cancellation.cancelled() => Err(UpstreamError::Host("request cancelled".into())),
             result = crate::rt::timeout(timeout, binding.send(self.operation, wire)) =>
-                result.unwrap_or_else(|| Err(ChannelError::Host("upstream operation deadline exceeded".into()))),
+                result.unwrap_or_else(|| Err(UpstreamError::Host("upstream operation deadline exceeded".into()))),
         };
         let result = match (result, meter) {
             (Ok(response), Some(meter)) => Ok(meter.response(
-                provider.channel.clone(),
+                channel.clone(),
                 self.operation,
                 self.limits.read_bytes,
                 response,

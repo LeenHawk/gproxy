@@ -2,8 +2,6 @@ use crate::{D1Type, Projection, SelectProjection};
 use sea_orm::{ColumnTrait, DbBackend, EntityTrait, QueryOrder, QuerySelect, QueryTrait};
 
 #[path = "../../tests/support/relations.rs"]
-// Database setup is also reused by the external WASM/D1 integration harness.
-#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 mod entities;
 use entities::{child, parent, profile, tag};
 
@@ -117,7 +115,6 @@ fn only_selected_columns_require_supported_d1_types() {
     assert_eq!(projection.column_type("amount"), None);
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 async fn database() -> sea_orm::DatabaseConnection {
     use sea_orm::{ConnectOptions, ConnectionTrait, Database, Statement};
     let mut options = ConnectOptions::new("sqlite::memory:");
@@ -134,53 +131,45 @@ async fn database() -> sea_orm::DatabaseConnection {
     db
 }
 
-// Execute actual ORM-generated SQL on SQLite, then feed its named result objects
-// through the D1 batch decoder and SeaORM's own model/optional-model selectors.
-#[cfg(not(target_arch = "wasm32"))]
-async fn d1_rows<Q: SelectProjection>(
+// Execute actual ORM-generated SQL on SQLite, then feed its rows through the
+// projected decoder and SeaORM's own model/optional-model selectors.
+async fn decoded_rows<Q: SelectProjection>(
     db: &sea_orm::DatabaseConnection,
     query: &Q,
 ) -> Vec<sea_orm::QueryResult> {
     use crate::BatchConnectionTrait;
-    use serde_json::{Map, Value, json};
+    use serde_json::{Value, json};
     let batch = query.batch_query(DbBackend::Sqlite).unwrap();
     let rows = db
         .query_batch(std::slice::from_ref(&batch))
         .await
         .unwrap()
         .remove(0);
-    let objects = rows
-        .iter()
-        .map(|row| {
-            batch
-                .projection
-                .columns
-                .iter()
-                .map(|(name, column)| {
-                    let value = match column.kind {
-                        D1Type::I32 => json!(row.try_get::<Option<i32>>("", name).unwrap()),
-                        D1Type::Text => json!(row.try_get::<Option<String>>("", name).unwrap()),
-                        other => panic!("unexpected fixture type {other:?}"),
-                    };
-                    (name.clone(), value)
-                })
-                .collect::<Map<_, _>>()
-        })
-        .map(Value::Object)
-        .collect::<Vec<_>>();
-    crate::codec::batch_rows(
-        &json!({"success":true,"results":objects}),
-        &batch.projection,
-    )
-    .unwrap()
-    .into_iter()
-    .map(super::query_result)
-    .collect()
+    let columns = &batch.projection.columns;
+    let names = columns.keys().map(|name| json!(name)).collect();
+    let cells = rows.iter().map(|row| {
+        columns
+            .iter()
+            .map(|(name, column)| match column.kind {
+                D1Type::I32 => json!(row.try_get::<Option<i32>>("", name).unwrap()),
+                D1Type::Text => json!(row.try_get::<Option<String>>("", name).unwrap()),
+                other => panic!("unexpected fixture type {other:?}"),
+            })
+            .collect()
+    });
+    let raw: Vec<Value> = std::iter::once(names)
+        .chain(cells)
+        .map(Value::Array)
+        .collect();
+    crate::codec::rows(&Value::Array(raw), &batch.projection)
+        .unwrap()
+        .into_iter()
+        .map(super::query_result)
+        .collect()
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 #[tokio::test]
-async fn real_left_inner_and_three_way_joins_roundtrip_through_d1_decoder() {
+async fn real_left_inner_and_three_way_joins_roundtrip_through_projected_decoder() {
     use sea_orm::{SelectThreeModel, SelectTwoModel, SelectTwoRequiredModel, SelectorTrait};
     let db = database().await;
     let left = parent::Entity::find()
@@ -188,7 +177,7 @@ async fn real_left_inner_and_three_way_joins_roundtrip_through_d1_decoder() {
         .order_by_asc(parent::Column::Id)
         .order_by_asc(child::Column::Id);
     let expected = left.clone().all(&db).await.unwrap();
-    let actual = d1_rows(&db, &left)
+    let actual = decoded_rows(&db, &left)
         .await
         .into_iter()
         .map(SelectTwoModel::<parent::Model, child::Model>::from_raw_query_result)
@@ -201,7 +190,7 @@ async fn real_left_inner_and_three_way_joins_roundtrip_through_d1_decoder() {
         .find_both_related(child::Entity)
         .order_by_asc(child::Column::Id);
     let expected = inner.clone().all(&db).await.unwrap();
-    let actual = d1_rows(&db, &inner)
+    let actual = decoded_rows(&db, &inner)
         .await
         .into_iter()
         .map(SelectTwoRequiredModel::<parent::Model, child::Model>::from_raw_query_result)
@@ -214,7 +203,7 @@ async fn real_left_inner_and_three_way_joins_roundtrip_through_d1_decoder() {
         .order_by_asc(parent::Column::Id)
         .order_by_asc(child::Column::Id);
     let expected = three.clone().all(&db).await.unwrap();
-    let actual = d1_rows(&db, &three)
+    let actual = decoded_rows(&db, &three)
         .await
         .into_iter()
         .map(SelectThreeModel::<parent::Model, child::Model, profile::Model>::from_raw_query_result)
@@ -224,7 +213,6 @@ async fn real_left_inner_and_three_way_joins_roundtrip_through_d1_decoder() {
     assert!(actual.last().unwrap().2.is_none());
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 #[tokio::test]
 async fn many_to_many_and_one_to_one_keep_missing_relations_optional() {
     use sea_orm::{SelectTwoModel, SelectorTrait};
@@ -233,7 +221,7 @@ async fn many_to_many_and_one_to_one_keep_missing_relations_optional() {
         .find_with_related(tag::Entity)
         .order_by_asc(child::Column::Id)
         .order_by_asc(tag::Column::Id);
-    let rows = d1_rows(&db, &query)
+    let rows = decoded_rows(&db, &query)
         .await
         .into_iter()
         .map(SelectTwoModel::<child::Model, tag::Model>::from_raw_query_result)
@@ -252,7 +240,7 @@ async fn many_to_many_and_one_to_one_keep_missing_relations_optional() {
         .find_also_related(profile::Entity)
         .order_by_asc(parent::Column::Id);
     let expected = one.clone().all(&db).await.unwrap();
-    let actual = d1_rows(&db, &one)
+    let actual = decoded_rows(&db, &one)
         .await
         .into_iter()
         .map(SelectTwoModel::<parent::Model, profile::Model>::from_raw_query_result)
@@ -262,7 +250,6 @@ async fn many_to_many_and_one_to_one_keep_missing_relations_optional() {
     assert_eq!(actual.len(), 2);
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 #[tokio::test]
 async fn bound_conditions_relation_filters_and_exists_survive_projection() {
     use sea_orm::sea_query::{Expr, ExprTrait, Query};
@@ -282,7 +269,7 @@ async fn bound_conditions_relation_filters_and_exists_survive_projection() {
                 .add(child::Column::Note.is_null()),
         )
         .order_by_asc(parent::Column::Id);
-    let rows = d1_rows(&db, &query)
+    let rows = decoded_rows(&db, &query)
         .await
         .into_iter()
         .map(SelectTwoModel::<parent::Model, child::Model>::from_raw_query_result)
@@ -302,7 +289,7 @@ async fn bound_conditions_relation_filters_and_exists_survive_projection() {
             .sql
             .contains(needle)
     );
-    assert!(d1_rows(&db, &quoted).await.is_empty());
+    assert!(decoded_rows(&db, &quoted).await.is_empty());
 
     let exists = Query::select()
         .expr(Expr::val(1))
@@ -314,7 +301,7 @@ async fn bound_conditions_relation_filters_and_exists_survive_projection() {
         .and_where(child::Column::Name.eq("first"))
         .to_owned();
     let parents = parent::Entity::find().filter(Expr::exists(exists));
-    let rows = d1_rows(&db, &parents).await;
+    let rows = decoded_rows(&db, &parents).await;
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].try_get::<i32>("", "id").unwrap(), 1);
 }

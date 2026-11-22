@@ -4,7 +4,8 @@
     "oauth": "OAuth",
     "cookie": "Cookie",
     "service_account": "Service account",
-    "aws_access_key": "AWS access key pair"
+    "aws_access_key": "AWS access key pair",
+    "none": "No authentication"
   },
   "overview": {
     "title": "Hello, {{name}}",
@@ -1254,5 +1255,19 @@
     "filter": "Providers",
     "all": "All",
     "empty": "No credentials yet."
+  },
+  "mcp": {
+    "tools": "Tools",
+    "toolCalls": "Tool calls",
+    "scope": "Scope",
+    "declaredNature": "Declared",
+    "nature": "Nature",
+    "override": "Override",
+    "declared": "As declared",
+    "natures": {
+      "read": "Read",
+      "write": "Write",
+      "destructive": "Destructive"
+    }
   }
 }

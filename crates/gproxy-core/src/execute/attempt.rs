@@ -234,6 +234,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
         .execution_limits()
         .for_operation(operation.operation);
     let provider = request.target.provider.clone();
+    let channel = provider.model_channel()?.clone();
     let upstream_model = request.target.upstream_model.clone();
 
     let route = match convert::route_for_model(&provider, operation, upstream_model.as_deref()) {
@@ -252,12 +253,8 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
         )));
     }
     let local = route == Route::Local
-        && !(provider
-            .channel
-            .local_operations()
-            .contains(&operation.operation)
-            && provider
-                .channel
+        && !(channel.local_operations().contains(&operation.operation)
+            && channel
                 .native_dialects_for_model(
                     prepare::provider_view(&provider),
                     operation.operation,
@@ -294,7 +291,10 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
     let claude_compat = gproxy_protocol::adapt::generate::claude_compat::applies_to(operation);
     let want_replay = strip_thinking
         || claude_compat
-        || provider.channel.claude_fallback().is_some()
+        || provider
+            .channel()
+            .and_then(|channel| channel.claude_fallback())
+            .is_some()
         || converting
         || local
         || remap_model
@@ -311,10 +311,10 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
     }
     if !converting {
         if let Some(model) = upstream_model.as_deref() {
-            prepare::apply_model(&mut wire, operation.dialect, model);
+            gproxy_convert::prepare::apply_model(&mut wire, operation.dialect, model);
             let mut codec = limits.codec();
             codec.max_body_bytes = limits.max_request_body_bytes;
-            prepare::apply_form_model(&mut wire, model, codec).await?;
+            gproxy_convert::prepare::apply_form_model(&mut wire, model, codec).await?;
             if matches!(
                 operation.operation,
                 gproxy_protocol::Operation::CreateRealtimeCall
@@ -463,8 +463,8 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
             agent_assignment: assignment.as_ref().map(|h| h.reference.clone()),
         });
         funnel.trace(TraceEvent::AttemptStarted(&attempt));
-        let channel_state: Arc<dyn gproxy_channel::channel::ChannelState> =
-            Arc::new(crate::ChannelStateStore::new(
+        let channel_state: Arc<dyn gproxy_upstream::UpstreamState> =
+            Arc::new(crate::ScopedState::channel(
                 ProtocolState::new(core, limits.capability(budget)),
                 &provider.entity.id,
                 &credential.id,
@@ -483,7 +483,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
         let dispatched: Result<Answer, Fault> = match route {
             Route::Passthrough | Route::Local => {
                 let mut this_wire = this_wire;
-                prepare::drop_thinking_handles(operation, &mut this_wire);
+                gproxy_convert::prepare::drop_thinking_handles(operation, &mut this_wire);
                 let native = super::NativeCall {
                     funnel: funnel.clone(),
                     attempt: attempt.clone(),
@@ -498,7 +498,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                     () = cancellation.cancelled() => Err(Fault::Cancelled),
                     result = crate::rt::timeout(capability.operation_total, native.send(this_wire)) => match result {
                         Some(Ok(response)) => Ok(response),
-                        Some(Err(error @ gproxy_channel::ChannelError::InvalidConfig(_))) => {
+                        Some(Err(error @ gproxy_upstream::UpstreamError::InvalidConfig(_))) => {
                             Err(Fault::Client(CoreError::Channel(error)))
                         }
                         Some(Err(error)) => Err(Fault::Failed(CoreError::Channel(error))),
@@ -543,8 +543,22 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                     .conversation
                     .clone()
                     .unwrap_or_else(|| request.request_id.clone());
-                let call = convert::Call {
-                    core,
+                let (resources, resource_scope) =
+                    crate::Resources::for_attempt(core, &upstream_host, limits.codec(), &scope);
+                let job_scope = StateScope {
+                    scope: scope.scope.clone(),
+                    provider_id: provider.entity.id.clone(),
+                    conversation: None,
+                };
+                let models: Vec<_> = provider
+                    .models
+                    .iter()
+                    .map(|model| convert::ModelFacts {
+                        upstream_name: &model.upstream_name,
+                        metadata: &model.metadata,
+                    })
+                    .collect();
+                let call = convert::Call::<convert::CoreHost<'_, C>> {
                     upstream: &upstream_host,
                     client: operation,
                     target: upstream,
@@ -553,8 +567,16 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                     limits: limits.codec(),
                     state_store: &state_store,
                     state_scope: &scope,
+                    job_scope: &job_scope,
+                    resources: &resources,
+                    resource_scope: &resource_scope,
                     conversation_key: &conversation_key,
                     provider_id: &provider.entity.id,
+                    provider_name: &provider.entity.name,
+                    base_url: provider.entity.base_url.as_deref(),
+                    models: &models,
+                    operation_id: &attempt.attempt_id,
+                    publishes_urls: core.publication_url().is_some(),
                     now_ms: now,
                     collect: operation.operation == gproxy_protocol::Operation::GenerateContent
                         && target.operation == gproxy_protocol::Operation::StreamGenerateContent,
@@ -627,7 +649,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
             }
             Err(Fault::Client(error)) => {
                 let outcome = AttemptOutcome::Failed(
-                    gproxy_channel::ChannelError::InvalidResponse(error.to_string()),
+                    gproxy_upstream::UpstreamError::InvalidResponse(error.to_string()),
                 );
                 funnel.trace(TraceEvent::AttemptFinished {
                     attempt: &attempt,
@@ -638,12 +660,12 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
                 return Err(error);
             }
             Err(Fault::Failed(CoreError::Channel(
-                gproxy_channel::ChannelError::ContinuationElsewhere { instance_id },
+                gproxy_upstream::UpstreamError::ContinuationElsewhere { instance_id },
             ))) => {
                 // Not this credential's fault and not retryable here: the
                 // caller has to reach the process holding the continuation.
                 let outcome =
-                    AttemptOutcome::Failed(gproxy_channel::ChannelError::ContinuationElsewhere {
+                    AttemptOutcome::Failed(gproxy_upstream::UpstreamError::ContinuationElsewhere {
                         instance_id: instance_id.clone(),
                     });
                 funnel.trace(TraceEvent::AttemptFinished {
@@ -663,9 +685,9 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
             Err(Fault::Failed(error)) => {
                 let outcome = AttemptOutcome::Failed(match &error {
                     CoreError::Channel(channel) => {
-                        gproxy_channel::ChannelError::InvalidResponse(channel.to_string())
+                        gproxy_upstream::UpstreamError::InvalidResponse(channel.to_string())
                     }
-                    other => gproxy_channel::ChannelError::InvalidResponse(other.to_string()),
+                    other => gproxy_upstream::UpstreamError::InvalidResponse(other.to_string()),
                 });
                 funnel.trace(TraceEvent::AttemptFinished {
                     attempt: &attempt,
@@ -718,7 +740,7 @@ pub(crate) async fn run_http_attempts<C: BatchConnectionTrait + Send + Sync + 's
             refusal = Some(super::rejection::body_prefix(&mut answer.response.body).await);
         }
         let rejection = refusal.as_ref().and_then(|body| {
-            provider.channel.classify_rejection(RejectionContext {
+            channel.classify_rejection(RejectionContext {
                 status,
                 headers: answer.headers(),
                 body,

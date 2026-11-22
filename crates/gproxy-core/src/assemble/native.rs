@@ -1,19 +1,28 @@
-//! Assembly proper: profiles resolve to pooled clients on every target.
+//! Assembly proper: profiles resolve to pooled clients.
 
 use super::{Assembly, AssemblyError, LiveBlocks, ProviderConfig, block_from_row};
 use crate::{
     ConfigRevision, CoreData, CredentialData, CredentialState, CredentialVersion, ExecutionLimits,
-    OperationEndpointKey, ProviderData, RewriteRuleSetData, SecretCodec,
+    OperationEndpointKey, ProviderData, ProviderKind, RewriteRuleSetData, SecretCodec,
     credential_limit::CredentialLimit, rewrite::compile_rule,
 };
-use gproxy_channel::{ChannelRegistry, channel::CredentialView};
+use gproxy_channel::ChannelRegistry;
 use gproxy_protocol::{Dialect, Operation, OperationKey};
 use gproxy_store::{ControlData, entity::config::connection_profile};
+use gproxy_upstream::{CredentialView, UpstreamRegistry};
 use std::{collections::HashMap, sync::Arc};
+
+/// The implementations a provider row may name.
+#[derive(Clone, Copy)]
+pub struct Kinds<'a> {
+    pub channels: &'a ChannelRegistry,
+    /// Upstream kinds with no model side.
+    pub upstreams: &'a UpstreamRegistry,
+}
 
 pub async fn assemble(
     control: &ControlData,
-    channels: &ChannelRegistry,
+    kinds: Kinds<'_>,
     codec: &dyn SecretCodec,
     clients: &gproxy_client::ClientPool,
     vocabularies: super::VocabularyMap,
@@ -70,13 +79,19 @@ pub async fn assemble(
     }
     let mut providers = HashMap::new();
     for row in control.providers.iter().filter(|p| p.enabled) {
-        let channel = channels
-            .get(&row.channel)
-            .ok_or_else(|| AssemblyError::UnknownChannel {
-                provider_id: row.id.clone(),
-                channel: row.channel.clone(),
-            })?
-            .clone();
+        let kind = match (
+            kinds.channels.get(&row.channel),
+            kinds.upstreams.get(&row.channel),
+        ) {
+            (Some(channel), _) => ProviderKind::Channel(channel.clone()),
+            (None, Some(kind)) => ProviderKind::Upstream(kind.clone()),
+            (None, None) => {
+                return Err(AssemblyError::UnknownChannel {
+                    provider_id: row.id.clone(),
+                    channel: row.channel.clone(),
+                });
+            }
+        };
         let config: ProviderConfig = serde_json::from_value(row.config.clone()).map_err(|e| {
             AssemblyError::InvalidProviderConfig {
                 provider_id: row.id.clone(),
@@ -142,7 +157,7 @@ pub async fn assemble(
             ProviderData {
                 entity: Arc::new(row.clone()),
                 effective_config,
-                channel,
+                kind,
                 credential_ids: Vec::new(),
                 models: control
                     .provider_models
@@ -199,8 +214,8 @@ pub async fn assemble(
         let mut config = match explicit {
             Some(id) => resolve(id)?,
             None => provider
-                .channel
-                .default_connection_for(gproxy_channel::channel::ConnectionPurpose::Request)
+                .upstream()
+                .default_connection_for(gproxy_upstream::ConnectionPurpose::Request)
                 .unwrap_or_default(),
         };
         config.proxy = super::resolve_proxy(
@@ -222,8 +237,8 @@ pub async fn assemble(
                 source,
             })?;
         let mut quota = provider
-            .channel
-            .quota_model()
+            .channel()
+            .and_then(|channel| channel.quota_model())
             .map(|model| {
                 model.dimensions(
                     provider.view(),
@@ -432,7 +447,10 @@ mod vocabulary_settings_tests {
             let data = store.load_control_data().await.unwrap();
             let out = assemble(
                 &data,
-                &ChannelRegistry::new(),
+                Kinds {
+                    channels: &ChannelRegistry::new(),
+                    upstreams: &UpstreamRegistry::new(),
+                },
                 &crate::PlaintextCodec,
                 &gproxy_client::ClientPool::default(),
                 HashMap::from([("fixture".to_owned(), vocabulary.clone())]),

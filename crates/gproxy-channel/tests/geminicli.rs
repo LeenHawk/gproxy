@@ -4,18 +4,20 @@
 mod support;
 
 use gproxy_channel::channel::{
-    AuthorizationCode, AuthorizationRequest, BaseChannel, ChannelError, CredentialContext,
-    CredentialRefresh, CredentialView, LoginContext, NoState, OperationContext, PrepareContext,
-    ProviderView, QuotaScope, QuotaValue,
+    BaseChannel, OperationContext, PrepareContext, QuotaScope, QuotaValue,
 };
 use gproxy_channel::channels::geminicli::{
     CLI_USER_AGENT, DEFAULT_CLIENT_ID, DEFAULT_REDIRECT_URI, GOOG_API_CLIENT, GeminiCli,
 };
-use gproxy_channel::{ChannelDescriptor, LoginMode, OutboundClient};
+use gproxy_channel::{ChannelDescriptor, OutboundClient};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
     connection::Bytes,
+};
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, CredentialContext, CredentialRefresh, CredentialView,
+    LoginContext, LoginMode, NoState, ProviderView, UpstreamError, UpstreamKind,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -138,7 +140,7 @@ fn prepare(
     credential_view: CredentialView<'_>,
     operation: Operation,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     GeminiCli.prepare(PrepareContext {
         provider: provider(config, None),
         credential: credential_view,
@@ -420,7 +422,7 @@ fn a_credential_without_a_project_or_a_token_is_invalid() {
         ),
     )
     .expect_err("no project");
-    assert!(matches!(error, ChannelError::InvalidCredential));
+    assert!(matches!(error, UpstreamError::InvalidCredential));
 
     let no_token = json!({"provider_fields": {"project_id": "p"}});
     let error = prepare(
@@ -434,7 +436,7 @@ fn a_credential_without_a_project_or_a_token_is_invalid() {
         ),
     )
     .expect_err("no access token");
-    assert!(matches!(error, ChannelError::InvalidCredential));
+    assert!(matches!(error, UpstreamError::InvalidCredential));
 }
 
 // -------------------------------------------------------------- responses
@@ -862,7 +864,7 @@ async fn a_definitive_refusal_becomes_refresh_rejected() {
         .err()
         .expect("rejected");
     assert!(
-        matches!(&error, ChannelError::RefreshRejected(code) if code == "invalid_grant"),
+        matches!(&error, UpstreamError::RefreshRejected(code) if code == "invalid_grant"),
         "{error}"
     );
 }
@@ -886,7 +888,7 @@ async fn a_transient_refusal_is_not_a_rejection() {
         .err()
         .expect("failed");
     assert!(
-        matches!(error, ChannelError::UpstreamResponse { status, .. } if status == StatusCode::SERVICE_UNAVAILABLE)
+        matches!(error, UpstreamError::UpstreamResponse { status, .. } if status == StatusCode::SERVICE_UNAVAILABLE)
     );
 }
 
@@ -905,6 +907,6 @@ async fn a_credential_without_a_refresh_token_is_rejected_without_a_call() {
         .await
         .err()
         .expect("rejected");
-    assert!(matches!(error, ChannelError::RefreshRejected(_)));
+    assert!(matches!(error, UpstreamError::RefreshRejected(_)));
     assert!(client.sent().is_empty());
 }

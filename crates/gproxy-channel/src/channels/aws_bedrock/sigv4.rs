@@ -29,7 +29,7 @@ use hmac::{Hmac, KeyInit as _, Mac as _};
 use http::{HeaderMap, HeaderName, HeaderValue, Method, Uri};
 use sha2::{Digest as _, Sha256};
 
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -90,7 +90,7 @@ pub fn sign(
     credentials: Credentials<'_>,
     scope: Scope<'_>,
     now_secs: u64,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     let (_, timestamp) = format_time(now_secs);
     insert(headers, "x-amz-date", &timestamp)?;
     insert(
@@ -116,7 +116,7 @@ pub fn authorization(
     credentials: Credentials<'_>,
     scope: Scope<'_>,
     now_secs: u64,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let (date, timestamp) = format_time(now_secs);
     let payload_hash = hex(Sha256::digest(request.payload));
     let (canonical_headers, signed_headers) = canonical_headers(request.uri, headers)?;
@@ -150,7 +150,7 @@ fn signing_key(
     secret_access_key: &str,
     date: &str,
     scope: Scope<'_>,
-) -> Result<Vec<u8>, ChannelError> {
+) -> Result<Vec<u8>, UpstreamError> {
     let date_key = hmac(
         format!("AWS4{secret_access_key}").as_bytes(),
         date.as_bytes(),
@@ -160,19 +160,19 @@ fn signing_key(
     hmac(&service_key, b"aws4_request")
 }
 
-fn hmac(key: &[u8], value: &[u8]) -> Result<Vec<u8>, ChannelError> {
+fn hmac(key: &[u8], value: &[u8]) -> Result<Vec<u8>, UpstreamError> {
     // HMAC accepts a key of any length, so this only guards against a future
     // backend that refuses one rather than against a reachable input.
-    let mut mac = HmacSha256::new_from_slice(key).map_err(|_| ChannelError::InvalidCredential)?;
+    let mut mac = HmacSha256::new_from_slice(key).map_err(|_| UpstreamError::InvalidCredential)?;
     mac.update(value);
     Ok(mac.finalize().into_bytes().to_vec())
 }
 
 /// Canonical headers plus the `;`-joined signed header names. `host` comes
 /// from the URI authority because it is not in the map the channel builds.
-fn canonical_headers(uri: &Uri, headers: &HeaderMap) -> Result<(String, String), ChannelError> {
+fn canonical_headers(uri: &Uri, headers: &HeaderMap) -> Result<(String, String), UpstreamError> {
     let authority = uri.authority().ok_or_else(|| {
-        ChannelError::InvalidConfig("the AWS endpoint URL has no host to sign".into())
+        UpstreamError::InvalidConfig("the AWS endpoint URL has no host to sign".into())
     })?;
     let mut sorted = BTreeMap::<String, Vec<String>>::new();
     sorted.insert("host".into(), vec![authority.as_str().into()]);
@@ -183,7 +183,7 @@ fn canonical_headers(uri: &Uri, headers: &HeaderMap) -> Result<(String, String),
         let value = value
             .to_str()
             .map_err(|_| {
-                ChannelError::InvalidConfig(format!(
+                UpstreamError::InvalidConfig(format!(
                     "header `{name}` is not text and cannot be signed"
                 ))
             })?
@@ -202,7 +202,7 @@ fn canonical_headers(uri: &Uri, headers: &HeaderMap) -> Result<(String, String),
 
 /// The path with every segment normalized to AWS's encoding. Bedrock is not
 /// S3, so the path is encoded once rather than twice.
-fn canonical_uri(path: &str) -> Result<String, ChannelError> {
+fn canonical_uri(path: &str) -> Result<String, UpstreamError> {
     if path.is_empty() {
         return Ok("/".into());
     }
@@ -214,7 +214,7 @@ fn canonical_uri(path: &str) -> Result<String, ChannelError> {
 
 /// Parameters re-encoded and sorted by encoded name then encoded value; a
 /// parameter without `=` signs as an empty value.
-fn canonical_query(query: &str) -> Result<String, ChannelError> {
+fn canonical_query(query: &str) -> Result<String, UpstreamError> {
     let mut pairs = query
         .split('&')
         .filter(|pair| !pair.is_empty())
@@ -225,7 +225,7 @@ fn canonical_query(query: &str) -> Result<String, ChannelError> {
                 encode(&percent_decode(value)?),
             ))
         })
-        .collect::<Result<Vec<_>, ChannelError>>()?;
+        .collect::<Result<Vec<_>, UpstreamError>>()?;
     pairs.sort();
     Ok(pairs
         .into_iter()
@@ -234,7 +234,7 @@ fn canonical_query(query: &str) -> Result<String, ChannelError> {
         .join("&"))
 }
 
-fn percent_decode(value: &str) -> Result<Vec<u8>, ChannelError> {
+fn percent_decode(value: &str) -> Result<Vec<u8>, UpstreamError> {
     let bytes = value.as_bytes();
     let mut output = Vec::with_capacity(bytes.len());
     let mut index = 0;
@@ -242,13 +242,13 @@ fn percent_decode(value: &str) -> Result<Vec<u8>, ChannelError> {
         if bytes[index] == b'%' {
             let pair = bytes
                 .get(index + 1..index + 3)
-                .ok_or_else(|| ChannelError::InvalidConfig("invalid percent encoding".into()))?;
+                .ok_or_else(|| UpstreamError::InvalidConfig("invalid percent encoding".into()))?;
             let text = std::str::from_utf8(pair)
-                .map_err(|_| ChannelError::InvalidConfig("invalid percent encoding".into()))?;
-            output.push(
-                u8::from_str_radix(text, 16)
-                    .map_err(|_| ChannelError::InvalidConfig("invalid percent encoding".into()))?,
-            );
+                .map_err(|_| UpstreamError::InvalidConfig("invalid percent encoding".into()))?;
+            output
+                .push(u8::from_str_radix(text, 16).map_err(|_| {
+                    UpstreamError::InvalidConfig("invalid percent encoding".into())
+                })?);
             index += 3;
         } else {
             output.push(bytes[index]);
@@ -275,11 +275,11 @@ pub(super) fn encode(value: &[u8]) -> String {
     output
 }
 
-fn insert(headers: &mut HeaderMap, name: &'static str, value: &str) -> Result<(), ChannelError> {
+fn insert(headers: &mut HeaderMap, name: &'static str, value: &str) -> Result<(), UpstreamError> {
     headers.insert(
         HeaderName::from_static(name),
         HeaderValue::from_str(value).map_err(|_| {
-            ChannelError::InvalidConfig(format!("`{name}` is not a valid header value"))
+            UpstreamError::InvalidConfig(format!("`{name}` is not a valid header value"))
         })?,
     );
     Ok(())

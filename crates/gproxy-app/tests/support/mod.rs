@@ -16,10 +16,8 @@ use std::{
 
 use gproxy_app::{App, AppConfig, Caller, snapshot::encode_key_hash};
 use gproxy_channel::{
-    BaseChannel, ChannelError,
-    channel::{
-        CallerRole, ChannelServices, PrepareContext, ProviderView, ServiceContext, ServiceView,
-    },
+    BaseChannel,
+    channel::{ChannelServices, PrepareContext, ServiceContext, ServiceView},
 };
 use gproxy_core::PlaintextCodec;
 use gproxy_protocol::{
@@ -43,6 +41,7 @@ use gproxy_store::entity::{
     upstream::{credential, provider, provider_model},
     usage::usage_record,
 };
+use gproxy_upstream::{CallerRole, ProviderView, UpstreamError, UpstreamKind};
 use http::StatusCode;
 use sea_orm::{DatabaseConnection, Set};
 use serde_json::{Value, json};
@@ -55,13 +54,15 @@ pub type Handle = Gproxy<DatabaseConnection>;
 /// provider rows.
 pub struct TestChannel;
 
+impl UpstreamKind for TestChannel {
+    fn id(&self) -> &'static str {
+        "test"
+    }
+}
+
 impl BaseChannel for TestChannel {
     fn quota_model(&self) -> Option<&dyn gproxy_channel::channel::QuotaModel> {
         Some(self)
-    }
-
-    fn id(&self) -> &'static str {
-        "test"
     }
 
     fn native_dialects(&self, _: ProviderView<'_>, _: Operation) -> Vec<Dialect> {
@@ -73,7 +74,7 @@ impl BaseChannel for TestChannel {
         ]
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let url = match ctx.endpoint_override {
             Some(url) => url.to_owned(),
             None => format!(
@@ -87,7 +88,7 @@ impl BaseChannel for TestChannel {
             .secret
             .get("api_key")
             .and_then(Value::as_str)
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let mut builder = http::Request::builder()
             .method(ctx.request.method)
             .uri(url)
@@ -97,7 +98,7 @@ impl BaseChannel for TestChannel {
         }
         builder
             .body(ctx.request.body)
-            .map_err(|_| ChannelError::InvalidCredential)
+            .map_err(|_| UpstreamError::InvalidCredential)
     }
 
     fn services(&self) -> Option<&dyn ChannelServices> {
@@ -114,7 +115,7 @@ impl ChannelServices for TestChannel {
     fn call<'a>(
         &'a self,
         context: ServiceContext<'a>,
-    ) -> gproxy_channel::channel::OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> gproxy_upstream::UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             let usage = context.caller.usage().await?;
             let body = json!({
@@ -598,7 +599,7 @@ impl gproxy_channel::channel::QuotaModel for TestChannel {
     fn dimensions(
         &self,
         _: ProviderView<'_>,
-        credential: gproxy_channel::channel::CredentialView<'_>,
+        credential: gproxy_upstream::CredentialView<'_>,
     ) -> Vec<gproxy_channel::channel::QuotaDimension> {
         use gproxy_channel::channel::{
             QuotaDimension, QuotaMetric, QuotaScope, QuotaTracking, QuotaWindow,

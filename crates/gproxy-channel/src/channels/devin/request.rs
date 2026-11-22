@@ -11,7 +11,7 @@ use sha2::{Digest as _, Sha256};
 use super::config::DevinConfig;
 use super::models;
 use super::proto::Message;
-use crate::channel::{ChannelError, CredentialView};
+use gproxy_upstream::{CredentialView, UpstreamError};
 
 // GetChatMessageRequest
 const REQ_CLIENT_METADATA: u32 = 1;
@@ -83,13 +83,13 @@ pub(super) struct Auth<'a> {
 /// `api_key` accepted for manual credentials and `access_token` for saved OAuth logins,
 /// plus an optional `fingerprint`, an optional `device_seed` and an optional
 /// short-lived `user_jwt`.
-pub(super) fn auth<'a>(credential: &CredentialView<'a>) -> Result<Auth<'a>, ChannelError> {
+pub(super) fn auth<'a>(credential: &CredentialView<'a>) -> Result<Auth<'a>, UpstreamError> {
     let token = ["session_token", "api_key", "token", "access_token"]
         .into_iter()
         .find_map(|key| credential.secret.get(key).and_then(Value::as_str))
         .map(str::trim)
         .filter(|token| !token.is_empty())
-        .ok_or(ChannelError::InvalidCredential)?;
+        .ok_or(UpstreamError::InvalidCredential)?;
     let fingerprint = match credential.secret.get("fingerprint").and_then(Value::as_str) {
         Some(configured) => validate_fingerprint(configured.trim())?.to_owned(),
         None => derive_fingerprint(&fingerprint_seed(credential)),
@@ -135,9 +135,9 @@ fn fingerprint_seed(credential: &CredentialView<'_>) -> String {
 /// Reject a fingerprint the upstream would reject, here rather than there:
 /// the server's complaint is an opaque "internal" error that looks like a
 /// dead account.
-pub fn validate_fingerprint(value: &str) -> Result<&str, ChannelError> {
+pub fn validate_fingerprint(value: &str) -> Result<&str, UpstreamError> {
     if value.len() != FINGERPRINT_HEX_CHARS || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(ChannelError::InvalidCredential);
+        return Err(UpstreamError::InvalidCredential);
     }
     Ok(value)
 }
@@ -172,10 +172,10 @@ pub fn derive_fingerprint(seed: &str) -> String {
 
 /// A random version-4 UUID: the per-message and per-session identifiers the
 /// upstream lets the client choose.
-pub(super) fn uuid() -> Result<String, ChannelError> {
+pub(super) fn uuid() -> Result<String, UpstreamError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|error| {
-        ChannelError::InvalidConfig(format!(
+        UpstreamError::InvalidConfig(format!(
             "operating-system randomness is unavailable: {error}"
         ))
     })?;
@@ -220,7 +220,7 @@ struct Turn {
     reasoning: super::reasoning::Reasoning,
 }
 
-pub(super) fn parse(body: &[u8]) -> Result<Value, ChannelError> {
+pub(super) fn parse(body: &[u8]) -> Result<Value, UpstreamError> {
     let value: Value = serde_json::from_slice(body)
         .map_err(|error| super::bad_request(format!("devin request JSON: {error}")))?;
     if value.is_object() {
@@ -268,7 +268,7 @@ pub(super) fn build(
     request: &Value,
     config: &DevinConfig,
     auth: &Auth<'_>,
-) -> Result<Prepared, ChannelError> {
+) -> Result<Prepared, UpstreamError> {
     let model = request
         .get("model")
         .and_then(Value::as_str)
@@ -526,7 +526,7 @@ pub(super) fn build(
     })
 }
 
-fn chat_message(turn: &Turn) -> Result<Message, ChannelError> {
+fn chat_message(turn: &Turn) -> Result<Message, UpstreamError> {
     let mut message = Message::new();
     message
         .string(MSG_UUID, &uuid()?)

@@ -126,7 +126,7 @@ where
             .map(|ids| {
                 let condition = if width == 1 {
                     // IN avoids a linear OR expression tree, whose depth can
-                    // exceed D1's limit even within its parameter budget.
+                    // exceed SQLite's limit even within its parameter budget.
                     let column = E::PrimaryKey::iter().next().expect("one primary key");
                     Condition::all().add(
                         column
@@ -155,7 +155,7 @@ where
         Ok(E::insert(item).build(self.db.get_database_backend()))
     }
 
-    /// Evaluate the insert condition inside the database, including in a D1 batch.
+    /// Evaluate the insert condition inside the database, including in a libSQL batch.
     pub fn insert_if_statement(
         &self,
         item: E::ActiveModel,

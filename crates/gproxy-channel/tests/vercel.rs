@@ -1,11 +1,12 @@
 #![cfg(feature = "vercel")]
 mod support;
 use gproxy_channel::{
-    BaseChannel, ChannelError,
-    channel::{CredentialContext, PrepareContext, QuotaValue},
+    BaseChannel,
+    channel::{PrepareContext, QuotaValue},
     channels::vercel::{BALANCE_DIMENSION, DEFAULT_BASE_URL, Vercel},
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, connection::Bytes};
+use gproxy_upstream::{CredentialContext, UpstreamError};
 use http::StatusCode;
 use serde_json::{Value, json};
 use support::{OneShot, credential, provider, request};
@@ -245,7 +246,7 @@ fn rejects_missing_credentials_and_unsupported_operations() {
         });
         assert!(matches!(
             result,
-            Err(ChannelError::InvalidCredential | ChannelError::UnsupportedOperation(_))
+            Err(UpstreamError::InvalidCredential | UpstreamError::UnsupportedOperation(_))
         ));
     }
 }

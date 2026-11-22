@@ -3,9 +3,9 @@
 //! origin it needs, resolved once per request.
 
 use super::config::{DEFAULT_LOCATION, VertexConfig, setting};
-use crate::channel::{ChannelError, CredentialView, ProviderView};
 use crate::channels::shared::google_model;
 use gproxy_protocol::{Dialect, Operation, OperationKey};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError};
 
 /// The Google Cloud coordinates every project-scoped method is addressed by.
 pub(super) struct Place {
@@ -26,7 +26,7 @@ pub(super) fn resolve(
     config: &VertexConfig,
     provider: ProviderView<'_>,
     credential: CredentialView<'_>,
-) -> Result<Place, ChannelError> {
+) -> Result<Place, UpstreamError> {
     let secret = |name: &str| {
         credential
             .secret
@@ -36,7 +36,7 @@ pub(super) fn resolve(
     let project = setting(config.project.as_deref())
         .or_else(|| setting(secret("project_id")))
         .ok_or_else(|| {
-            ChannelError::InvalidConfig(
+            UpstreamError::InvalidConfig(
                 "config key `project` is required when the service-account key has no project_id"
                     .into(),
             )
@@ -95,7 +95,7 @@ pub(super) fn method_url(
     operation: OperationKey,
     query: Option<&str>,
     model: Option<&str>,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let (url, inherited) = match setting(endpoint_override) {
         Some(url) => match url.split_once('?') {
             Some((head, tail)) => (head.to_owned(), Some(tail)),
@@ -123,11 +123,11 @@ fn method_path(
     place: &Place,
     operation: OperationKey,
     model: Option<&str>,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let Place {
         project, location, ..
     } = place;
-    let named = |publisher: &str, version: &str, verb: &str| -> Result<String, ChannelError> {
+    let named = |publisher: &str, version: &str, verb: &str| -> Result<String, UpstreamError> {
         let model = google_model::resource_path(required_model(operation, model)?, publisher)?;
         let resource = if model.starts_with("projects/") {
             model
@@ -172,20 +172,20 @@ fn method_path(
                 "/v1beta1/projects/{project}/locations/{location}/endpoints/openapi/chat/completions"
             ))
         }
-        _ => Err(ChannelError::UnsupportedOperation(operation)),
+        _ => Err(UpstreamError::UnsupportedOperation(operation)),
     }
 }
 
-fn required_model(operation: OperationKey, model: Option<&str>) -> Result<&str, ChannelError> {
+fn required_model(operation: OperationKey, model: Option<&str>) -> Result<&str, UpstreamError> {
     setting(model).ok_or_else(|| {
-        ChannelError::InvalidConfig(format!(
+        UpstreamError::InvalidConfig(format!(
             "{:?} on Vertex needs an upstream model; none was found in the request",
             operation.operation
         ))
     })
 }
 
-fn validate_segment(name: &'static str, value: &str) -> Result<(), ChannelError> {
+fn validate_segment(name: &'static str, value: &str) -> Result<(), UpstreamError> {
     let valid = !value.is_empty()
         && value
             .bytes()
@@ -193,7 +193,7 @@ fn validate_segment(name: &'static str, value: &str) -> Result<(), ChannelError>
     if valid {
         Ok(())
     } else {
-        Err(ChannelError::InvalidConfig(format!(
+        Err(UpstreamError::InvalidConfig(format!(
             "config key `{name}` may only contain letters, digits, `-` and `_`"
         )))
     }

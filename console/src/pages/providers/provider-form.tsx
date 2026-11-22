@@ -2,6 +2,7 @@ import { useId, useState, type FormEvent } from "react"
 import { RotateCcw } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { ChannelDescriptor, ProviderDto, ProviderWrite } from "@/generated/sdk"
+import { MCP_CHANNEL } from "@/api/mcp"
 import { SearchableSelect } from "@/components/searchable-select"
 import { optionSource } from "@/api/options"
 import { connectionProfiles } from "@/api/configuration"
@@ -46,10 +47,12 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
     [channel]: (provider?.config ?? {}) as ConfigObject,
   })
   const [resets, setResets] = useState<Record<string, number>>({})
-  const descriptor = catalog.find((item) => item.id === channel)
+  const mcp = channel === MCP_CHANNEL
+  const configKeys = catalog.find((item) => item.id === channel)?.configKeys ?? []
+  const baseUrlKey = configKeys.find((field) => field.name === "base_url")
   const hiddenKeys = ["user_agent", "client_id", "client_secret", "oauth_client_id", "sso_client_id", "sso_client_secret", ...(["antigravity", "geminicli"].includes(channel) ? ["project_id"] : [])]
   const config = Object.fromEntries(Object.entries(configs[channel] ?? {}).filter(([key]) => !hiddenKeys.includes(key)))
-  const fields = descriptor?.configKeys.filter((field) => field.name !== "base_url" && !hiddenKeys.includes(field.name)) ?? []
+  const fields = configKeys.filter((field) => field.name !== "base_url" && !hiddenKeys.includes(field.name))
   const change = (key: string, value: unknown) =>
     setConfigs((previous) => ({
       ...previous,
@@ -91,9 +94,9 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
           <Input
             id={`${id}-url`}
             type="url"
-            required={descriptor?.configKeys.find((field) => field.name === "base_url")?.required}
+            required={baseUrlKey?.required}
             value={baseUrl}
-            placeholder={configPlaceholder(descriptor?.configKeys.find(field => field.name === "base_url"), descriptor?.configKeys ?? [], config, baseUrl) ?? (descriptor?.configKeys.find(field => field.name === "base_url")?.required ? undefined : t("providerForm.dynamicAddress"))}
+            placeholder={configPlaceholder(baseUrlKey, configKeys, config, baseUrl) ?? (baseUrlKey?.required ? undefined : t("providerForm.dynamicAddress"))}
             onChange={(e) => setBaseUrl(e.target.value)}
           />
         </Field>
@@ -113,10 +116,10 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
           </Field>
         ))}</FieldGroup>
         <Field data-field-span="full"><FieldLabel htmlFor={`${id}-proxy`}>{t("proxy.provider")}</FieldLabel><ProxyControl id={`${id}-proxy`} value={proxy} onChange={setProxy} scope={provider ? { scope: "provider", provider_id: provider.id } : { scope: "global", parent: true }} /></Field>
-        <Field>
+        {mcp ? null : <Field>
           <FieldLabel htmlFor={`${id}-auto-refresh-models`}>{t("providerForm.autoRefreshModels")}</FieldLabel>
           <Switch id={`${id}-auto-refresh-models`} checked={config.auto_refresh_models !== false} onCheckedChange={value => change("auto_refresh_models", value)} />
-        </Field>
+        </Field>}
       </FieldGroup>
       <FieldGroup key={channel} className="grid gap-5 border-t pt-6 sm:grid-cols-2">
         {fields.map((field) => (
@@ -149,7 +152,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
             <ConfigControl
               id={`${id}-${field.name}`}
               field={field}
-              placeholder={configPlaceholder(field, descriptor?.configKeys ?? [], config, baseUrl)}
+              placeholder={configPlaceholder(field, configKeys, config, baseUrl)}
               value={config[field.name]}
               onChange={(value) => change(field.name, value)}
             />

@@ -8,12 +8,6 @@ samples
 upstream_docs
 console/node_modules
 console/dist
-deploy/cloudflare/node_modules
-deploy/cloudflare/pkg
-deploy/cloudflare/public
-deploy/netlify/node_modules
-deploy/netlify/pkg
-deploy/netlify/public
 
 # Signing keys and local deployment notes never enter build contexts.
 dev-docs

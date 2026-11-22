@@ -1,6 +1,6 @@
 //! Provider configuration and upstream constants.
 
-use crate::channel::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -66,9 +66,9 @@ impl Default for OpenRouterConfig {
 }
 
 impl OpenRouterConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     /// The routing preferences for `model`: its own override, else the
@@ -77,14 +77,14 @@ impl OpenRouterConfig {
     pub(super) fn routing(
         &self,
         model: Option<&str>,
-    ) -> Result<Option<&Map<String, Value>>, ChannelError> {
+    ) -> Result<Option<&Map<String, Value>>, UpstreamError> {
         let value = model
             .and_then(|model| self.model_providers.get(model))
             .or(self.provider.as_ref());
         match value {
             None | Some(Value::Null) => Ok(None),
             Some(Value::Object(map)) => Ok(Some(map)),
-            Some(_) => Err(ChannelError::InvalidConfig(
+            Some(_) => Err(UpstreamError::InvalidConfig(
                 "provider routing preferences must be a JSON object".into(),
             )),
         }

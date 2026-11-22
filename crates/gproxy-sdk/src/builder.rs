@@ -60,6 +60,7 @@ struct Options {
     cache: Option<Arc<dyn Cache>>,
     codec: Option<Arc<dyn SecretCodec>>,
     channels: Vec<Arc<dyn BaseChannel>>,
+    upstreams: Vec<Arc<dyn gproxy_upstream::UpstreamKind>>,
     default_channels: bool,
     clients: Option<ClientPool>,
     files: Option<Operator>,
@@ -80,6 +81,7 @@ impl Default for Options {
             cache: None,
             codec: None,
             channels: Vec::new(),
+            upstreams: Vec::new(),
             default_channels: true,
             clients: None,
             files: None,
@@ -96,7 +98,6 @@ impl Default for Options {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl GproxyBuilder<sea_orm::DatabaseConnection> {
     /// A SQLite file, created if it is not there yet.
     ///
@@ -140,7 +141,7 @@ impl GproxyBuilder<sea_orm::DatabaseConnection> {
 
 impl<C> GproxyBuilder<C> {
     /// An already-open connection: a pool the host also uses for its own
-    /// tables, a libSQL client, a Cloudflare D1 binding.
+    /// tables, a libSQL client.
     pub fn connection(connection: C) -> Self {
         Self {
             connection,
@@ -149,9 +150,8 @@ impl<C> GproxyBuilder<C> {
     }
 
     /// Shared transient state and the invalidation transport. Defaults to a
-    /// process-local `MemoryCache` natively and to `StoreCache` on wasm32,
-    /// which is correct for one instance; several instances need a cache they
-    /// actually share (Redis natively, `StoreCache` over D1/libSQL at the edge).
+    /// process-local `MemoryCache`, which is correct for one instance; several
+    /// instances need a cache they actually share (Redis).
     pub fn cache(mut self, cache: Arc<dyn Cache>) -> Self {
         self.options.cache = Some(cache);
         self
@@ -174,6 +174,13 @@ impl<C> GproxyBuilder<C> {
     /// compiled-in one with the same id.
     pub fn channel(mut self, channel: Arc<dyn BaseChannel>) -> Self {
         self.options.channels.push(channel);
+        self
+    }
+
+    /// Register an upstream kind that is not a model channel, such as a tool
+    /// server. Its id shares the provider `channel` namespace with channels.
+    pub fn upstream(mut self, kind: Arc<dyn gproxy_upstream::UpstreamKind>) -> Self {
+        self.options.upstreams.push(kind);
         self
     }
 
@@ -297,6 +304,7 @@ impl Options {
             cache,
             codec,
             channels,
+            upstreams,
             default_channels,
             clients,
             files,
@@ -329,7 +337,7 @@ impl Options {
 
         let cache = match cache {
             Some(cache) => cache,
-            None => default_cache(&store)?,
+            None => default_cache()?,
         };
 
         let mut core = Core::builder(store.clone())
@@ -337,6 +345,11 @@ impl Options {
             .secret_codec(codec)
             .channels(channels)
             .file_storage(files);
+        for kind in upstreams {
+            core = core
+                .upstream(kind)
+                .map_err(|error| SdkError::conflict(error.to_string()))?;
+        }
         if let Some(clients) = clients {
             core = core.client_pool(clients);
         }
@@ -411,13 +424,8 @@ fn default_channels() -> Vec<Arc<dyn BaseChannel>> {
     gproxy_channel::channels::compiled_in()
 }
 
-/// One instance in one process shares state through memory; an isolate that
-/// shares nothing with the next one shares it through the database instead.
-#[cfg(not(target_arch = "wasm32"))]
-fn default_cache<C>(_store: &Arc<Store<C>>) -> SdkResult<Arc<dyn Cache>>
-where
-    C: BatchConnectionTrait + Send + Sync + 'static,
-{
+/// One instance in one process shares state through memory.
+fn default_cache() -> SdkResult<Arc<dyn Cache>> {
     #[cfg(feature = "memory")]
     {
         Ok(Arc::new(gproxy_cache::MemoryCache::default()))
@@ -428,12 +436,4 @@ where
             "a cache is required: enable the `memory` feature or call cache()",
         ))
     }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn default_cache<C>(store: &Arc<Store<C>>) -> SdkResult<Arc<dyn Cache>>
-where
-    C: BatchConnectionTrait + Send + Sync + 'static,
-{
-    Ok(Arc::new(gproxy_store::StoreCache::new(store.clone())))
 }

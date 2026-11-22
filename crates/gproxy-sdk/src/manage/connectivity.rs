@@ -21,7 +21,7 @@
 use std::{collections::BTreeSet, num::NonZeroU32, sync::Arc, time::Duration};
 
 use futures_util::StreamExt;
-use gproxy_channel::channel::{NormalizedUsage, ProviderView};
+use gproxy_channel::channel::NormalizedUsage;
 use gproxy_client::{ConnectionConfig, OutboundClient};
 use gproxy_core::{
     CoreData, CredentialData, ExecutionTarget, ProviderData, RequestContext, UsageAttribution,
@@ -33,6 +33,7 @@ use gproxy_protocol::{
 };
 use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
 use gproxy_store::entity::upstream::{model, provider_model};
+use gproxy_upstream::ProviderView;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryTrait, Set, sea_query::OnConflict};
 use serde_json::{Value, json};
 use web_time::Instant;
@@ -530,10 +531,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             Some(id) => self.profile_config(id).await?,
             None => provider
                 .as_ref()
-                .and_then(|p| self.writer.core().channels().get(&p.channel))
+                .and_then(|p| self.writer.core().upstream_kind(&p.channel))
                 .and_then(|channel| {
-                    channel
-                        .default_connection_for(gproxy_channel::channel::ConnectionPurpose::Request)
+                    channel.default_connection_for(gproxy_upstream::ConnectionPurpose::Request)
                 })
                 .unwrap_or_default(),
         };
@@ -669,16 +669,19 @@ fn credentials(
 /// envelope variant is skipped: it has no HTTP path.
 fn native_dialect(provider: &Arc<ProviderData>, operation: Operation) -> SdkResult<Dialect> {
     provider
-        .channel
-        .native_dialects(
-            ProviderView {
-                id: &provider.entity.id,
-                channel: &provider.entity.channel,
-                base_url: provider.entity.base_url.as_deref(),
-                config: &provider.entity.config,
-            },
-            operation,
-        )
+        .channel()
+        .map(|channel| {
+            channel.native_dialects(
+                ProviderView {
+                    id: &provider.entity.id,
+                    channel: &provider.entity.channel,
+                    base_url: provider.entity.base_url.as_deref(),
+                    config: &provider.entity.config,
+                },
+                operation,
+            )
+        })
+        .unwrap_or_default()
         .into_iter()
         .find(|dialect| {
             !matches!(dialect, Dialect::OpenAiResponsesWebSocket)

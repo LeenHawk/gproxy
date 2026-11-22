@@ -44,23 +44,17 @@ opt-out, and a build with neither is refused.
 |---|---|
 | One channel's name (`codex`, `kiro`, `openai`, …) | Compile that channel in and register it by default |
 | `channels` | Every channel this workspace ships |
-| `postgres` / `mysql` | Extra SeaORM drivers, native only. SQLite is always available natively |
-| `libsql` | libSQL/Turso over the Hrana HTTP pipeline, every target |
-| `d1` | Marker for a Cloudflare D1 binding, which wasm32 always has |
-| `memory` (default) | Process-local `MemoryCache`, the default cache on native targets |
+| `postgres` / `mysql` | Extra SeaORM drivers. SQLite is always available |
+| `libsql` | libSQL/Turso over the Hrana HTTP pipeline |
+| `memory` (default) | Process-local `MemoryCache`, the default cache |
 | `redis` | Redis/Valkey, for a deployment with more than one instance |
-| `fs` (default) | Local filesystem object storage, native only |
+| `fs` (default) | Local filesystem object storage |
 | `s3` | S3/R2 object storage |
 | `bundled-vocabulary` (default) | Ship DeepSeek's vocabulary for token estimation |
 | `ts` | `ts-rs` declarations for every DTO and for the channel descriptors, plus the export test — see [Type export](#type-export) |
-| `client-sdk` | `ClientBackend`: serve a `gproxy-client-sdk` `Client` from this handle in process (native only) |
+| `client-sdk` | `ClientBackend`: serve a `gproxy-client-sdk` `Client` from this handle in process |
 
-The default set compiles for `wasm32-unknown-unknown`, and so does `libsql`.
-On wasm the cache defaults to `gproxy_store::StoreCache` and synchronization is
-always manual: an isolate does not outlive its request, so `tick()` at the top
-of a request is the whole mechanism.
-
-Native builds use the `reqwest` transport. A host that wants another backend
+Builds use the `reqwest` transport. A host that wants another backend
 (`wreq` for TLS emulation, `reqwest-native` for the Codex CLI's stack) enables
 that feature on `gproxy-client` itself, or hands the builder a `ClientPool` of
 its own.
@@ -658,7 +652,7 @@ test, not a missing file.
   `gproxy_store::load_all_data`.
 - **Downstream authentication.** Nothing here decides who a caller is; the
   handle is given a scope and a set of allowed providers and credentials.
-- **A server.** No listener, no router, no middleware, no CLI. Native and edge
+- **A server.** No listener, no router, no middleware, no CLI. Native
   hosts are built on top of this crate.
 - **A console.** This crate generates the TypeScript types a UI is written
   against; the UI itself, its session handling and its HTTP transport are the

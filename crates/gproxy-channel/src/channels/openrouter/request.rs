@@ -2,10 +2,11 @@
 
 use super::config::{DEFAULT_BASE_URL, OpenRouterConfig};
 use super::routing;
-use crate::channel::{ChannelError, ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable};
-use crate::channels::shared::{cache, claude_images};
+use crate::channel::{ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable};
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
+use crate::channels::shared::{cache, claude_images};
 use gproxy_protocol::{Dialect, HttpBody, Operation, connection::Bytes};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderMap, HeaderName, HeaderValue, header};
 
 /// Attribution headers a client may set for itself. A provider allow-list
@@ -51,7 +52,7 @@ pub(super) fn target<B>(ctx: &PrepareContext<'_, B>) -> String {
 pub(super) fn headers<B>(
     ctx: &PrepareContext<'_, B>,
     config: &OpenRouterConfig,
-) -> Result<HeaderMap, ChannelError> {
+) -> Result<HeaderMap, UpstreamError> {
     let key = ctx
         .credential
         .secret
@@ -59,13 +60,13 @@ pub(super) fn headers<B>(
         .and_then(|value| value.as_str())
         .map(str::trim)
         .filter(|key| !key.is_empty())
-        .ok_or(ChannelError::InvalidCredential)?;
+        .ok_or(UpstreamError::InvalidCredential)?;
     let allowlist = HeaderAllowlist::from_view_for(ctx.provider, ATTRIBUTION_HEADERS)?;
     let mut headers = forwardable(&ctx.request.headers, allowlist.as_ref(), &[]);
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {key}"))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     for (name, value) in [
         ("http-referer", config.referer.as_deref()),
@@ -81,7 +82,7 @@ pub(super) fn headers<B>(
         headers.insert(
             HeaderName::from_static(name),
             HeaderValue::from_str(value)
-                .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+                .map_err(|_| UpstreamError::InvalidConfig(format!("header `{name}`")))?,
         );
     }
     for (name, value) in &config.headers {
@@ -99,7 +100,7 @@ pub(super) fn body(
     config: &OpenRouterConfig,
     dialect: Dialect,
     operation: Operation,
-) -> Result<HttpBody, ChannelError> {
+) -> Result<HttpBody, UpstreamError> {
     let HttpBody::Bytes(bytes) = body else {
         return Ok(body);
     };
@@ -124,17 +125,24 @@ pub(super) fn body(
             }
         }
     }
-    if matches!(operation, Operation::GenerateContent | Operation::StreamGenerateContent)
-        && dialect == Dialect::Claude
+    if matches!(
+        operation,
+        Operation::GenerateContent | Operation::StreamGenerateContent
+    ) && dialect == Dialect::Claude
     {
         // The route may land on Bedrock or Vertex, where documents count too.
         changed |= claude_images::fit(&mut value, true);
     }
-    if matches!(operation, Operation::GenerateContent | Operation::StreamGenerateContent)
-        && matches!(dialect, Dialect::Claude | Dialect::OpenAiChat)
+    if matches!(
+        operation,
+        Operation::GenerateContent | Operation::StreamGenerateContent
+    ) && matches!(dialect, Dialect::Claude | Dialect::OpenAiChat)
     {
         changed |= crate::channels::shared::claude_fallback::reseller(
-            &mut value, &config.fallback_mode, &config.fallback_models, dialect == Dialect::Claude,
+            &mut value,
+            &config.fallback_mode,
+            &config.fallback_models,
+            dialect == Dialect::Claude,
         );
     }
     changed |= routing::apply(&mut value, config)?;

@@ -1,0 +1,83 @@
+[package]
+name = "gproxy-lite"
+description = "A single-tenant GPROXY engine without a database, for serverless and edge platforms"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# Every channel `gproxy-channel` has. A deployment is built with all of
+# them: the channels are a small part of the module, so leaving some out
+# saves little.
+all-channels = [
+    "gproxy-channel/aistudio",
+    "gproxy-channel/azure",
+    "gproxy-channel/claudeapi",
+    "gproxy-channel/cloudflare_ai_gateway",
+    "gproxy-channel/custom",
+    "gproxy-channel/dashscope",
+    "gproxy-channel/deepseek",
+    "gproxy-channel/glm",
+    "gproxy-channel/minimax",
+    "gproxy-channel/nvidia",
+    "gproxy-channel/openai",
+    "gproxy-channel/opendesign",
+    "gproxy-channel/openrouter",
+    "gproxy-channel/vercel",
+    "gproxy-channel/vertexexpress",
+    "gproxy-channel/volcengine",
+    "gproxy-channel/xai",
+    "gproxy-channel/antigravity",
+    "gproxy-channel/aws_bedrock",
+    "gproxy-channel/claudecode",
+    "gproxy-channel/claudeweb",
+    "gproxy-channel/cline",
+    "gproxy-channel/codex",
+    "gproxy-channel/commandcode",
+    "gproxy-channel/copilotcli",
+    "gproxy-channel/devin",
+    "gproxy-channel/geminicli",
+    "gproxy-channel/grokbuild",
+    "gproxy-channel/kimi",
+    "gproxy-channel/kiro",
+    "gproxy-channel/opencode",
+    "gproxy-channel/orcaterm",
+    "gproxy-channel/playground",
+    "gproxy-channel/trae",
+    "gproxy-channel/vertex",
+    "gproxy-channel/workbuddy",
+]
+
+[dependencies]
+futures-util = { workspace = true, features = ["sink"] }
+gproxy-channel = { workspace = true }
+gproxy-client = { workspace = true }
+gproxy-convert = { workspace = true }
+gproxy-protocol = { workspace = true }
+gproxy-upstream = { workspace = true }
+http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true, features = ["rt", "time"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+base64 = { workspace = true }
+gloo-timers = { workspace = true }
+gproxy-client = { workspace = true, features = ["fetch", "workers"] }
+js-sys = { workspace = true }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+wasm-streams = { workspace = true }
+web-sys = { workspace = true, features = ["Headers", "ReadableStream", "Request", "Response", "ResponseInit", "WebSocket"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+gproxy-channel = { workspace = true, features = ["claudeapi", "codex", "custom", "openai"] }
+gproxy-client = { workspace = true, features = ["reqwest"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "sync", "time", "io-util"] }

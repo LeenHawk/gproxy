@@ -1,7 +1,7 @@
-use crate::channel::ChannelError;
 use gproxy_protocol::wire::openai::responses::{
     ApplyPatchCreate, ApplyPatchDelete, ApplyPatchOperation, ApplyPatchUpdate,
 };
+use gproxy_upstream::UpstreamError;
 
 #[derive(Clone, Copy)]
 enum PatchKind {
@@ -10,15 +10,15 @@ enum PatchKind {
     Update,
 }
 
-pub(super) fn patch_operation(input: &str) -> Result<ApplyPatchOperation, ChannelError> {
+pub(super) fn patch_operation(input: &str) -> Result<ApplyPatchOperation, UpstreamError> {
     let mut lines = input.lines();
     lines
         .find(|line| *line == "*** Begin Patch")
         .ok_or_else(|| {
-            ChannelError::InvalidResponse("apply_patch input missing begin marker".into())
+            UpstreamError::InvalidResponse("apply_patch input missing begin marker".into())
         })?;
     let header = lines.next().ok_or_else(|| {
-        ChannelError::InvalidResponse("apply_patch input missing operation".into())
+        UpstreamError::InvalidResponse("apply_patch input missing operation".into())
     })?;
     let (kind, path) = if let Some(path) = header.strip_prefix("*** Add File: ") {
         (PatchKind::Create, path)
@@ -27,12 +27,12 @@ pub(super) fn patch_operation(input: &str) -> Result<ApplyPatchOperation, Channe
     } else if let Some(path) = header.strip_prefix("*** Update File: ") {
         (PatchKind::Update, path)
     } else {
-        return Err(ChannelError::InvalidResponse(
+        return Err(UpstreamError::InvalidResponse(
             "apply_patch input has an unknown operation".into(),
         ));
     };
     if path.trim().is_empty() {
-        return Err(ChannelError::InvalidResponse(
+        return Err(UpstreamError::InvalidResponse(
             "apply_patch input has an empty path".into(),
         ));
     }
@@ -48,7 +48,7 @@ pub(super) fn patch_operation(input: &str) -> Result<ApplyPatchOperation, Channe
             || line.starts_with("*** Update File: ")
             || line.starts_with("*** Move to: ")
         {
-            return Err(ChannelError::InvalidResponse("apply_patch has multiple operations or a move that cannot fit one native operation".into()));
+            return Err(UpstreamError::InvalidResponse("apply_patch has multiple operations or a move that cannot fit one native operation".into()));
         }
         diff.push(if matches!(kind, PatchKind::Create) {
             line.strip_prefix('+').unwrap_or(line)
@@ -57,7 +57,7 @@ pub(super) fn patch_operation(input: &str) -> Result<ApplyPatchOperation, Channe
         });
     }
     if !ended {
-        return Err(ChannelError::InvalidResponse(
+        return Err(UpstreamError::InvalidResponse(
             "apply_patch input missing end marker".into(),
         ));
     }

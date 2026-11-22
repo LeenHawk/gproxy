@@ -22,10 +22,10 @@
 use super::config::{ID, WorkBuddyConfig};
 use super::envelope::{self, ACCOUNT_PENDING, AUTH_PENDING};
 use super::{encode_component, json_headers, send, unix_now_ms};
-use crate::channel::{
-    ChannelError, CredentialRefresh, CredentialUpdate, CredentialView, DeviceAuthorization,
-    DevicePoll, LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
-    RefreshReason,
+use gproxy_upstream::{
+    CredentialRefresh, CredentialUpdate, CredentialView, DeviceAuthorization, DevicePoll,
+    LoginContext, OAuthCredential, OAuthDeviceCode, RefreshContext, RefreshReason, UpstreamError,
+    UpstreamFuture,
 };
 use http::{HeaderName, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
@@ -147,7 +147,7 @@ fn domain_header(
     headers: &mut http::HeaderMap,
     domain: Option<&str>,
     base: &str,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     let name = HeaderName::from_static("x-domain");
     let domain = domain
         .map(str::trim)
@@ -162,14 +162,14 @@ fn domain_header(
     if let Some(domain) = domain {
         headers.insert(
             name,
-            HeaderValue::from_str(&domain).map_err(|_| ChannelError::InvalidCredential)?,
+            HeaderValue::from_str(&domain).map_err(|_| UpstreamError::InvalidCredential)?,
         );
     }
     Ok(())
 }
 
 impl OAuthDeviceCode for super::WorkBuddy {
-    fn start<'a>(&'a self, context: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
+    fn start<'a>(&'a self, context: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
             let config = WorkBuddyConfig::from_view(context.provider)?;
             let base = config.base_url(context.provider);
@@ -190,7 +190,7 @@ impl OAuthDeviceCode for super::WorkBuddy {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let state = envelope::parse::<AuthState>(&body, "auth state")?.data("auth state")?;
             Ok(DeviceAuthorization {
@@ -213,7 +213,7 @@ impl OAuthDeviceCode for super::WorkBuddy {
         &'a self,
         context: LoginContext<'a>,
         authorization: &'a DeviceAuthorization,
-    ) -> OperationFuture<'a, DevicePoll> {
+    ) -> UpstreamFuture<'a, DevicePoll> {
         Box::pin(async move {
             let config = WorkBuddyConfig::from_view(context.provider)?;
             let base = config.base_url(context.provider);
@@ -231,7 +231,7 @@ impl OAuthDeviceCode for super::WorkBuddy {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let wrapped = envelope::parse::<Tokens>(&body, "auth token")?;
             if wrapped.code == AUTH_PENDING {
@@ -243,7 +243,7 @@ impl OAuthDeviceCode for super::WorkBuddy {
             headers.insert(
                 header::AUTHORIZATION,
                 HeaderValue::from_str(&format!("Bearer {}", tokens.access_token))
-                    .map_err(|_| ChannelError::InvalidCredential)?,
+                    .map_err(|_| UpstreamError::InvalidCredential)?,
             );
             domain_header(&mut headers, tokens.domain.as_deref(), &base)?;
             opt_out(&mut headers, false);
@@ -256,7 +256,7 @@ impl OAuthDeviceCode for super::WorkBuddy {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let wrapped = envelope::parse::<Account>(&body, "account")?;
             if wrapped.code == ACCOUNT_PENDING {
@@ -336,7 +336,7 @@ impl CredentialRefresh for super::WorkBuddy {
         (last_refresh.saturating_add(interval) < now_ms).then_some(RefreshReason::Scheduled)
     }
 
-    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let config = WorkBuddyConfig::from_view(context.provider)?;
             let secret = context.credential.secret;
@@ -346,13 +346,13 @@ impl CredentialRefresh for super::WorkBuddy {
                 .map(str::trim)
                 .filter(|token| !token.is_empty())
                 .ok_or_else(|| {
-                    ChannelError::RefreshRejected("credential has no refresh token".into())
+                    UpstreamError::RefreshRejected("credential has no refresh token".into())
                 })?;
             let mut headers = login_headers();
             headers.insert(
                 HeaderName::from_static("x-refresh-token"),
                 HeaderValue::from_str(refresh_token)
-                    .map_err(|_| ChannelError::InvalidCredential)?,
+                    .map_err(|_| UpstreamError::InvalidCredential)?,
             );
             headers.insert(
                 HeaderName::from_static("x-auth-refresh-source"),
@@ -364,7 +364,7 @@ impl CredentialRefresh for super::WorkBuddy {
                 headers.insert(
                     header::AUTHORIZATION,
                     HeaderValue::from_str(&format!("Bearer {access}"))
-                        .map_err(|_| ChannelError::InvalidCredential)?,
+                        .map_err(|_| UpstreamError::InvalidCredential)?,
                 );
             }
             super::auth::account_headers(&mut headers, &context.credential)?;
@@ -387,13 +387,13 @@ impl CredentialRefresh for super::WorkBuddy {
             // pending codes are documented, so anything else may be transient
             // and must not kill the credential.
             if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
-                return Err(ChannelError::RefreshRejected(format!(
+                return Err(UpstreamError::RefreshRejected(format!(
                     "http {}",
                     status.as_u16()
                 )));
             }
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let wrapped = envelope::parse::<Tokens>(&body, "token refresh")?;
             let code = wrapped.code;
@@ -402,19 +402,19 @@ impl CredentialRefresh for super::WorkBuddy {
             // carrying its token (`AuthenticationHttpInterceptor.checkToLogout`),
             // so that refusal ends the grant as surely as an HTTP 401.
             if code == 401 {
-                return Err(ChannelError::RefreshRejected(format!(
+                return Err(UpstreamError::RefreshRejected(format!(
                     "envelope 401: {message}"
                 )));
             }
             let tokens = wrapped.data("token refresh").map_err(|error| {
                 if code == AUTH_PENDING {
-                    ChannelError::InvalidResponse(format!("{ID} refresh: {message} ({code})"))
+                    UpstreamError::InvalidResponse(format!("{ID} refresh: {message} ({code})"))
                 } else {
                     error
                 }
             })?;
             if tokens.access_token.trim().is_empty() {
-                return Err(ChannelError::InvalidResponse(format!(
+                return Err(UpstreamError::InvalidResponse(format!(
                     "{ID} refresh: the envelope has no access_token"
                 )));
             }
@@ -424,7 +424,7 @@ impl CredentialRefresh for super::WorkBuddy {
             let mut updated = secret.clone();
             let object = updated
                 .as_object_mut()
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             object.insert(
                 "access_token".into(),
                 Value::String(tokens.access_token.clone()),

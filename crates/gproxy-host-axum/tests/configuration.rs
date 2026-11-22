@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The configuration half of `/admin/api`, through the router.
 //!
 //! What is tested here is the **binding**, not the operations: the sdk's own
@@ -494,8 +493,8 @@ async fn the_catalogues_answer_from_this_binary() {
         .map(|channel| channel["id"].as_str().unwrap())
         .collect();
     // A descriptor goes over the wire as itself, which is what a console
-    // renders a provider form from.
-    assert_eq!(ids, ["test"], "{}", channels.text());
+    // renders a provider form from. The harness registers the MCP kind too.
+    assert_eq!(ids, ["mcp", "test"], "{}", channels.text());
 
     assert_eq!(
         read(&host, "/admin/api/tls-presets").await.status,

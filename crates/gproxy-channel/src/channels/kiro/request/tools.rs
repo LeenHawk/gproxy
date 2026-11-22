@@ -1,7 +1,7 @@
 //! Tool calls, tool results and tool declarations inside the envelope.
 
 use super::{content, invalid};
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 
 /// The upstream caps a tool description; v3 measured the limit at 10237
@@ -11,7 +11,7 @@ const MAX_DESCRIPTION_CHARS: usize = 10_237;
 const MAX_NAME_CHARS: usize = 64;
 
 /// A `function_call_output` as the envelope's tool result.
-pub(super) fn result(item: &Value) -> Result<Value, ChannelError> {
+pub(super) fn result(item: &Value) -> Result<Value, UpstreamError> {
     let output = item
         .get("output")
         .ok_or_else(|| invalid("Kiro tool output has no output"))?;
@@ -27,7 +27,7 @@ pub(super) fn result(item: &Value) -> Result<Value, ChannelError> {
 
 /// A `function_call` joins the assistant turn before it; without one, an
 /// assistant turn is opened to hold it.
-pub(super) fn append_call(messages: &mut Vec<Value>, item: &Value) -> Result<(), ChannelError> {
+pub(super) fn append_call(messages: &mut Vec<Value>, item: &Value) -> Result<(), UpstreamError> {
     let arguments = item
         .get("arguments")
         .and_then(Value::as_str)
@@ -78,7 +78,7 @@ pub(super) fn flush_results(messages: &mut Vec<Value>, results: &mut Vec<Value>,
 
 /// Responses tool declarations as `toolSpecification` entries. Anything that
 /// is not a function tool has no counterpart and is left out.
-pub(super) fn definitions(tools: Option<&Value>) -> Result<Vec<Value>, ChannelError> {
+pub(super) fn definitions(tools: Option<&Value>) -> Result<Vec<Value>, UpstreamError> {
     let Some(tools) = tools.and_then(Value::as_array) else {
         return Ok(Vec::new());
     };
@@ -177,7 +177,7 @@ fn sanitize(name: &str) -> String {
     }
 }
 
-fn call_id(item: &Value) -> Result<&str, ChannelError> {
+fn call_id(item: &Value) -> Result<&str, UpstreamError> {
     item.get("call_id")
         .or_else(|| item.get("id"))
         .and_then(Value::as_str)

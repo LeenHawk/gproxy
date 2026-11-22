@@ -678,7 +678,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "itoa",
- "matchit 0.8.4",
+ "matchit",
  "memchr",
  "mime",
  "percent-encoding",
@@ -1219,10 +1219,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
 dependencies = [
  "iana-time-zone",
- "js-sys",
  "num-traits",
  "serde",
- "wasm-bindgen",
  "windows-link",
 ]
 
@@ -3027,20 +3025,20 @@ dependencies = [
  "form_urlencoded",
  "futures-util",
  "getrandom 0.4.3",
- "gloo-timers",
  "gproxy-cache",
  "gproxy-channel",
  "gproxy-core",
+ "gproxy-mcp",
  "gproxy-protocol",
  "gproxy-sdk",
  "gproxy-seaorm",
  "gproxy-store",
+ "gproxy-upstream",
  "http",
  "regex",
  "rust_decimal",
  "schemars 1.2.3",
  "sea-orm",
- "send_wrapper",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -3051,7 +3049,6 @@ dependencies = [
  "tracing",
  "ts-rs",
  "url",
- "wasm-bindgen-futures",
  "web-time",
  "zeroize",
 ]
@@ -3081,6 +3078,7 @@ dependencies = [
  "gloo-timers",
  "gproxy-client",
  "gproxy-protocol",
+ "gproxy-upstream",
  "hmac",
  "http",
  "image",
@@ -3162,6 +3160,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "gproxy-convert"
+version = "4.2.7"
+dependencies = [
+ "base64 0.23.1",
+ "futures-util",
+ "getrandom 0.4.3",
+ "gproxy-channel",
+ "gproxy-protocol",
+ "gproxy-upstream",
+ "http",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "web-time",
+]
+
+[[package]]
 name = "gproxy-core"
 version = "4.2.7"
 dependencies = [
@@ -3172,15 +3191,16 @@ dependencies = [
  "futures-core",
  "futures-util",
  "getrandom 0.4.3",
- "gloo-timers",
  "gproxy-cache",
  "gproxy-channel",
  "gproxy-client",
+ "gproxy-convert",
  "gproxy-file",
  "gproxy-protocol",
  "gproxy-seaorm",
  "gproxy-store",
  "gproxy-tokenizer",
+ "gproxy-upstream",
  "http",
  "jmespath",
  "json-patch 5.0.0",
@@ -3200,7 +3220,6 @@ dependencies = [
  "tokio-util",
  "tracing",
  "url",
- "wasm-bindgen-futures",
  "web-time",
  "zeroize",
 ]
@@ -3211,18 +3230,10 @@ version = "4.2.7"
 dependencies = [
  "gproxy-channel",
  "gproxy-protocol",
+ "gproxy-upstream",
  "http",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "gproxy-example-edge"
-version = "4.2.7"
-dependencies = [
- "gproxy-example-channel",
- "gproxy-host-edge",
- "worker",
 ]
 
 [[package]]
@@ -3257,16 +3268,16 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
- "gloo-timers",
  "gproxy-app",
  "gproxy-cache",
  "gproxy-channel",
- "gproxy-client",
+ "gproxy-convert",
  "gproxy-core",
  "gproxy-protocol",
  "gproxy-sdk",
  "gproxy-seaorm",
  "gproxy-store",
+ "gproxy-upstream",
  "http",
  "hyper-util",
  "mime_guess",
@@ -3275,7 +3286,6 @@ dependencies = [
  "ruzstd",
  "schemars 1.2.3",
  "sea-orm",
- "send_wrapper",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -3288,31 +3298,7 @@ dependencies = [
  "tracing",
  "utoipa",
  "web-time",
- "worker",
  "zip",
-]
-
-[[package]]
-name = "gproxy-host-edge"
-version = "4.2.7"
-dependencies = [
- "axum",
- "gproxy-app",
- "gproxy-cache",
- "gproxy-client",
- "gproxy-file",
- "gproxy-host-axum",
- "gproxy-sdk",
- "gproxy-seaorm",
- "gproxy-store",
- "http",
- "js-sys",
- "serde",
- "serde_json",
- "tokio",
- "tower",
- "wasm-bindgen",
- "worker",
 ]
 
 [[package]]
@@ -3347,6 +3333,47 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "windows",
+]
+
+[[package]]
+name = "gproxy-lite"
+version = "4.2.7"
+dependencies = [
+ "base64 0.23.1",
+ "futures-util",
+ "gloo-timers",
+ "gproxy-channel",
+ "gproxy-client",
+ "gproxy-convert",
+ "gproxy-protocol",
+ "gproxy-upstream",
+ "http",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "thiserror 2.0.21",
+ "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-streams 0.7.1",
+ "web-sys",
+]
+
+[[package]]
+name = "gproxy-mcp"
+version = "4.2.7"
+dependencies = [
+ "futures-util",
+ "gproxy-client",
+ "gproxy-protocol",
+ "gproxy-upstream",
+ "http",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]
@@ -3388,7 +3415,6 @@ dependencies = [
  "base64 0.23.1",
  "futures-util",
  "getrandom 0.4.3",
- "gloo-timers",
  "gproxy-cache",
  "gproxy-channel",
  "gproxy-client",
@@ -3398,6 +3424,7 @@ dependencies = [
  "gproxy-protocol",
  "gproxy-seaorm",
  "gproxy-store",
+ "gproxy-upstream",
  "http",
  "rust_decimal",
  "schemars 1.2.3",
@@ -3412,7 +3439,6 @@ dependencies = [
  "tracing",
  "ts-rs",
  "url",
- "wasm-bindgen-futures",
  "web-time",
 ]
 
@@ -3424,20 +3450,14 @@ dependencies = [
  "base64 0.23.1",
  "futures-executor",
  "futures-util",
- "js-sys",
  "rust_decimal",
  "sea-orm",
  "sea-orm-migration",
  "sea-query-sqlx",
  "sea-schema",
- "send_wrapper",
  "serde",
- "serde-wasm-bindgen",
  "serde_json",
- "time",
  "tokio",
- "wasm-bindgen",
- "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -3448,10 +3468,8 @@ dependencies = [
  "blake3",
  "fastcdc",
  "getrandom 0.4.3",
- "gproxy-cache",
  "gproxy-seaorm",
  "rust_decimal",
- "ruzstd",
  "schemars 1.2.3",
  "sea-orm",
  "serde",
@@ -3469,6 +3487,27 @@ version = "4.2.7"
 dependencies = [
  "tiktoken-rs",
  "tokenizers",
+]
+
+[[package]]
+name = "gproxy-upstream"
+version = "4.2.7"
+dependencies = [
+ "base64 0.23.1",
+ "form_urlencoded",
+ "getrandom 0.4.3",
+ "gproxy-client",
+ "gproxy-protocol",
+ "http",
+ "schemars 1.2.3",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "thiserror 2.0.21",
+ "tokio",
+ "ts-rs",
+ "url",
+ "web-time",
 ]
 
 [[package]]
@@ -4661,12 +4700,6 @@ dependencies = [
 
 [[package]]
 name = "matchit"
-version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
-
-[[package]]
-name = "matchit"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
@@ -5681,26 +5714,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pin-project"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6c2123f4708bbd422630a6dae7c03f678b1ce1f1c99e4c4b3beac69c8174cc9"
-dependencies = [
- "pin-project-internal",
-]
-
-[[package]]
-name = "pin-project-internal"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "358938fd6df944c1e44bb328b60fb275f13c804aac47ba26a1165d45a3f87756"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.10",
-]
-
-[[package]]
 name = "pin-project-lite"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6537,6 +6550,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "rmcp"
+version = "3.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "391f153431ab68664d946513ea0cb3edbca78eaf99c5a983036cacab6220d85b"
+dependencies = [
+ "chrono",
+ "futures",
+ "indexmap 2.14.2",
+ "libc",
+ "percent-encoding",
+ "pin-project-lite",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "unicode-general-category",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "roff"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7182,17 +7218,6 @@ dependencies = [
  "serde",
  "serde_core",
  "typeid",
-]
-
-[[package]]
-name = "serde-wasm-bindgen"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8302e169f0eddcc139c70f139d19d6467353af16f9fce27e8c30158036a1e16b"
-dependencies = [
- "js-sys",
- "serde",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -8495,7 +8520,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb87b95ec50ddfa440816d227a17b2ccbdda963a316a727fda0fc4334f7d134"
 dependencies = [
  "deranged",
- "js-sys",
  "num-conv",
  "powerfmt",
  "serde_core",
@@ -9085,6 +9109,12 @@ name = "unicode-bidi"
 version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
+
+[[package]]
+name = "unicode-general-category"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b993bddc193ae5bd0d623b49ec06ac3e9312875fdae725a975c51db1cc1677f"
 
 [[package]]
 name = "unicode-ident"
@@ -9950,65 +9980,6 @@ dependencies = [
  "group",
  "hybrid-array",
  "primefield",
-]
-
-[[package]]
-name = "worker"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d055db1ea6baa6c329730897f63ff7b6ac93c46a9f053804e497e5960eb98e3"
-dependencies = [
- "async-trait",
- "bytes",
- "chrono",
- "futures-channel",
- "futures-util",
- "http",
- "http-body",
- "js-sys",
- "matchit 0.7.3",
- "pin-project",
- "serde",
- "serde-wasm-bindgen",
- "serde_json",
- "serde_urlencoded",
- "strum",
- "tokio",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-streams 0.7.1",
- "web-sys",
- "worker-macros",
- "worker-sys",
-]
-
-[[package]]
-name = "worker-macros"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37729e2aa37d2bc2a755e4cc71c6e567b31496c0f2de634c200608aa70bd3ead"
-dependencies = [
- "async-trait",
- "proc-macro2",
- "quote",
- "strum",
- "syn 3.0.10",
- "wasm-bindgen",
- "wasm-bindgen-macro-support",
- "worker-sys",
-]
-
-[[package]]
-name = "worker-sys"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9adbe3d1305578979a7019a140bbfb7448254e73c0e62521717e4ce8c2ab5a64"
-dependencies = [
- "cfg-if",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]

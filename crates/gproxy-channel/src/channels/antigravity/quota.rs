@@ -30,12 +30,14 @@ use super::{
     Antigravity, AntigravityConfig, apply_headers, base_url, catalog_request, fact, models,
 };
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaDimension,
-    QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaScope, QuotaSnapshot, QuotaTracking,
-    QuotaWindow, classify_by_id,
+    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaScope, QuotaSnapshot,
+    QuotaTracking, QuotaWindow, classify_by_id,
 };
 use crate::channels::shared::code_assist;
 use crate::channels::shared::code_assist::quota::{iso_to_ms, used_percent};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
+};
 use http::{HeaderMap, Method, StatusCode};
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
@@ -185,7 +187,7 @@ struct Catalogue {
 }
 
 impl Catalogue {
-    fn read(body: &[u8]) -> Result<Self, ChannelError> {
+    fn read(body: &[u8]) -> Result<Self, UpstreamError> {
         let catalogue = models::quota_info(body)?;
         let mut members = Family::ALL.map(|family| (family, Vec::new(), None));
         for (model_id, model) in &catalogue {
@@ -307,7 +309,7 @@ fn unserved(status: StatusCode) -> bool {
 }
 
 impl QuotaQuery for Antigravity {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = AntigravityConfig::from_view(context.provider)?;
             let (url, headers, body) =
@@ -321,7 +323,7 @@ impl QuotaQuery for Antigravity {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: catalogue,
                 });
@@ -346,7 +348,7 @@ impl QuotaQuery for Antigravity {
                 if status.is_success() {
                     entries = summary_entries(&summary, Some(&catalogue));
                 } else if !unserved(status) {
-                    return Err(ChannelError::UpstreamResponse {
+                    return Err(UpstreamError::UpstreamResponse {
                         status,
                         body: summary,
                     });

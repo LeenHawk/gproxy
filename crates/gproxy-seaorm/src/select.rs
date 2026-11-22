@@ -9,7 +9,7 @@ use sea_orm::{
 
 use crate::{BatchConnectionTrait, BatchQuery, D1Type, Projection, error};
 
-/// Derive named D1 projections from ordinary SeaORM entity/relation selects.
+/// Derive named projections from ordinary SeaORM entity/relation selects.
 ///
 /// Handles entity columns and A_/B_/... relation aliases, including optional
 /// joined entities. Filters/order/LIMIT/OFFSET and column subsets are supported.
@@ -43,7 +43,7 @@ pub trait SelectProjection: QueryTrait<QueryStatement = SelectStatement> {
         Ok(BatchQuery::new(backend.build(&query), projection))
     }
 
-    /// Build the same SQL, deriving D1 result types only when the connection
+    /// Build the same SQL, deriving result types only when the connection
     /// needs them. Native row decoding does not use this extra metadata.
     fn batch_query_for<C: BatchConnectionTrait + ?Sized>(
         &self,

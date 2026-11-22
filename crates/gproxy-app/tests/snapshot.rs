@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The identity snapshot against a real database: one `load_all_data()` read
 //! becomes one `AppData`, and the indexes answer for the rows that were there.
 

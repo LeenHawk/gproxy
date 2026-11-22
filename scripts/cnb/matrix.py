@@ -34,10 +34,4 @@ for row in json.loads(Path("scripts/release-targets.json").read_text())["include
     if row["builder"] in ("cargo-alpine", "termux"):
         pipeline["services"] = ["docker"]
     pipelines.append(pipeline)
-pipelines.append({
-    "name": "Edge / Cloudflare", "runner": {"tags": "cnb:arch:amd64", "cpus": 16},
-    "docker": {"build": ".cnb/Dockerfile", "volumes": ["/usr/local/cargo/registry:copy-on-write", "target:copy-on-write"]},
-    "env": {"TARGET_TRIPLE": "wasm32-unknown-unknown", "ARTIFACT_NAME": "gproxy-edge", "BUILDER": "worker-build"},
-    "stages": [{"name": "Build and verify Edge bundle", "timeout": "90m", "script": "bash scripts/cnb/package.sh edge"}],
-})
 print(json.dumps({"**": {"api_trigger_release": pipelines}}, indent=2))

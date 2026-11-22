@@ -3,13 +3,14 @@
 //! Kimi's two products: which one a credential reaches, the CLI identity a
 //! subscription must present, and the login that mints it.
 
-use gproxy_channel::channel::{
-    CredentialContext, CredentialRefresh, DevicePoll, LoginContext, OAuthDeviceCode,
-    PrepareContext, QuotaModel, QuotaQuery, QuotaValue,
-};
+use gproxy_channel::BaseChannel;
+use gproxy_channel::channel::{PrepareContext, QuotaModel, QuotaQuery, QuotaValue};
 use gproxy_channel::channels::kimi::{BALANCE_DIMENSION, Kimi, WEEKLY_DIMENSION};
-use gproxy_channel::{BaseChannel, ChannelError, LoginMode};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
+use gproxy_upstream::{
+    CredentialContext, CredentialRefresh, DevicePoll, LoginContext, LoginMode, OAuthDeviceCode,
+    UpstreamError,
+};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::{Value, json};
 
@@ -33,7 +34,7 @@ fn prepare(
     secret: &Value,
     dialect: Dialect,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     Kimi.prepare(PrepareContext {
         provider: provider("kimi", config, base_url),
         credential: credential(auth_kind, secret, &Value::Null),
@@ -186,7 +187,7 @@ fn a_subscription_credential_without_a_device_id_is_refused() {
             Dialect::OpenAiChat,
             request("/v1/chat/completions", None)
         ),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
 }
 
@@ -442,7 +443,7 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_m
         },
     )
     .await;
-    assert!(matches!(error, Err(ChannelError::RefreshRejected(_))));
+    assert!(matches!(error, Err(UpstreamError::RefreshRejected(_))));
 
     let transient = OneShot::new(StatusCode::BAD_GATEWAY, "upstream down".into());
     let error = CredentialRefresh::refresh(
@@ -455,7 +456,7 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_m
     )
     .await;
     assert!(
-        matches!(error, Err(ChannelError::UpstreamResponse { .. })),
+        matches!(error, Err(UpstreamError::UpstreamResponse { .. })),
         "a gateway failure is not a dead credential"
     );
 

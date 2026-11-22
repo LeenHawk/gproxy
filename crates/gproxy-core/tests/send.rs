@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 //! Every future the engine hands a host must be `Send`.
 //!
 //! A host spawns one task per request: an axum handler's future is spawned
@@ -13,15 +11,12 @@
 //! to a `WireRequest<HttpBody>` (or to anything containing one) is not `Send`.
 //! Holding such a reference across a single await makes the whole future
 //! non-`Send`, and the only symptom is that a host can no longer spawn it.
-//!
-//! On wasm32 `ByteStream` carries no `Send` bound at all and the host is
-//! single-threaded, so the whole file is native-only rather than weakened.
 
 mod support;
 
-use gproxy_channel::channel::CallerRole;
 use gproxy_core::{ServiceRequest, ServiceView};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
+use gproxy_upstream::CallerRole;
 use http::{HeaderMap, Method, StatusCode};
 use serde_json::json;
 use std::sync::{Arc, atomic::Ordering};

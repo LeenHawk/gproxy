@@ -12,10 +12,10 @@
 //! the channel rewrites a delivered body. A frame whose `:message-type` is
 //! `exception` becomes a Messages `error` event and closes the stream.
 
-use crate::channel::ChannelError;
 use crate::channels::shared::aws_eventstream::{FrameParser, decode};
 use base64::Engine as _;
 use gproxy_protocol::connection::{Bytes, TransportError};
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 
 /// Event-stream frames in, Claude Messages SSE bytes out.
@@ -41,7 +41,7 @@ impl Translator {
         self.failed
     }
 
-    pub(super) fn push(&mut self, chunk: &[u8]) -> Result<Bytes, ChannelError> {
+    pub(super) fn push(&mut self, chunk: &[u8]) -> Result<Bytes, UpstreamError> {
         let mut out = Vec::new();
         for frame in self.parser.push(chunk)? {
             if frame.exception_type.is_some() || frame.message_type.as_deref() == Some("exception")
@@ -89,7 +89,7 @@ impl Translator {
     }
 
     /// Upstream EOF. A clean end must have delivered `message_stop`.
-    pub(super) fn finish(&mut self) -> Result<(), ChannelError> {
+    pub(super) fn finish(&mut self) -> Result<(), UpstreamError> {
         if self.failed {
             return Ok(());
         }
@@ -111,6 +111,6 @@ pub(super) fn encode(event: &Value) -> Bytes {
     Bytes::from(format!("event: {name}\ndata: {event}\n\n"))
 }
 
-pub(super) fn transport_error(error: ChannelError) -> TransportError {
+pub(super) fn transport_error(error: UpstreamError) -> TransportError {
     error.to_string().into()
 }

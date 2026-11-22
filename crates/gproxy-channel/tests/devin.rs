@@ -7,17 +7,18 @@ mod support;
 
 use futures_util::StreamExt;
 use gproxy_channel::{
-    BaseChannel, ChannelError, OutboundClient,
-    channel::{
-        ChannelState, CredentialContext, CredentialView, LoginMode, NoState, OperationContext,
-        ProviderView, QuotaScope, QuotaSubject, QuotaValue,
-    },
+    BaseChannel, OutboundClient,
+    channel::{OperationContext, QuotaScope, QuotaSubject, QuotaValue},
     channels::devin::{self, Devin},
 };
 use gproxy_protocol::{
     Dialect, HttpBody, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
     connection::Bytes,
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, LoginMode, NoState, ProviderView, UpstreamError,
+    UpstreamKind, UpstreamState,
 };
 use http::{HeaderMap, Method, StatusCode};
 use rust_decimal::Decimal;
@@ -112,7 +113,7 @@ fn context<'a>(
             body: HttpBody::Bytes(Bytes::from(serde_json::to_vec(&body).unwrap())),
         },
         client,
-        state: Arc::new(NoState::default()) as Arc<dyn ChannelState>,
+        state: Arc::new(NoState::default()) as Arc<dyn UpstreamState>,
         instance_id: Arc::from("local"),
         endpoint_override: None,
     }
@@ -293,7 +294,7 @@ fn envelope_round_trips_through_the_frame_reader() {
     let truncated = &message.as_bytes()[..message.as_bytes().len() - 2];
     assert!(matches!(
         devin::proto::parse(truncated).unwrap_err(),
-        ChannelError::InvalidResponse(_)
+        UpstreamError::InvalidResponse(_)
     ));
 }
 
@@ -402,12 +403,12 @@ fn the_fingerprint_is_stable_per_credential_and_shape_checked() {
     assert!(devin::validate_fingerprint(&first).is_ok());
     assert!(matches!(
         devin::validate_fingerprint(&"ab".repeat(100)).unwrap_err(),
-        ChannelError::InvalidCredential
+        UpstreamError::InvalidCredential
     ));
     assert!(
         matches!(
             devin::validate_fingerprint(&"z".repeat(devin::FINGERPRINT_HEX_CHARS)).unwrap_err(),
-            ChannelError::InvalidCredential
+            UpstreamError::InvalidCredential
         ),
         "732 characters that are not hexadecimal are still the wrong value"
     );
@@ -428,7 +429,7 @@ async fn a_short_fingerprint_is_refused_before_anything_is_sent() {
         ))
         .await
         .unwrap_err();
-    assert!(matches!(error, ChannelError::InvalidCredential), "{error}");
+    assert!(matches!(error, UpstreamError::InvalidCredential), "{error}");
     assert!(
         client.sent().is_empty(),
         "a malformed fingerprint must never reach the upstream"
@@ -450,7 +451,7 @@ async fn a_missing_session_token_is_an_invalid_credential() {
         ))
         .await
         .unwrap_err();
-    assert!(matches!(error, ChannelError::InvalidCredential), "{error}");
+    assert!(matches!(error, UpstreamError::InvalidCredential), "{error}");
     assert!(client.sent().is_empty());
 }
 
@@ -692,7 +693,7 @@ fn a_router_selector_is_refused_with_its_own_reason() {
     let extra = std::collections::BTreeMap::new();
     for name in ["adaptive", "arena-alpha"] {
         let error = devin::resolve(name, &extra).unwrap_err();
-        let ChannelError::InvalidConfig(message) = &error else {
+        let UpstreamError::InvalidConfig(message) = &error else {
             panic!("expected a configuration refusal: {error}");
         };
         assert!(
@@ -1574,7 +1575,7 @@ async fn a_transient_fault_on_the_account_call_is_not_read_as_a_dead_token() {
         })
         .await
         .unwrap_err();
-    let ChannelError::UpstreamResponse { status, .. } = error else {
+    let UpstreamError::UpstreamResponse { status, .. } = error else {
         panic!("the classified refusal");
     };
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);

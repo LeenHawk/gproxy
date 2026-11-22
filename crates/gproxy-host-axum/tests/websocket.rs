@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! Upgrades, the duplex pump and what a socket holds open.
 //!
 //! Two kinds of test, for two reasons:

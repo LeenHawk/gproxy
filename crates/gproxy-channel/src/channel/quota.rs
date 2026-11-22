@@ -5,7 +5,9 @@ use http::{HeaderMap, StatusCode};
 use rust_decimal::Decimal;
 use std::borrow::Cow;
 
-use super::{ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
+};
 
 /// Serialized as `"all"`, `{"models":[..]}`, `{"except_models":[..]}`,
 /// `{"model_prefixes":[..]}` or `"unknown"`; persisted by the host as JSON.
@@ -128,7 +130,7 @@ pub struct QuotaSnapshot {
 /// E.g. Codex /wham/usage or ClaudeCode /api/oauth/usage. An implementation
 /// handles any provider-specific pagination through the assigned client.
 pub trait QuotaQuery: Send + Sync {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot>;
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -330,13 +332,13 @@ pub trait QuotaReset: Send + Sync {
     fn credits<'a>(
         &'a self,
         context: CredentialContext<'a>,
-    ) -> OperationFuture<'a, QuotaResetCredits>;
+    ) -> UpstreamFuture<'a, QuotaResetCredits>;
 
     fn reset<'a>(
         &'a self,
         context: CredentialContext<'a>,
         request: QuotaResetRequest<'a>,
-    ) -> OperationFuture<'a, QuotaResetResult>;
+    ) -> UpstreamFuture<'a, QuotaResetResult>;
 }
 
 pub struct QuotaHeaderContext<'a> {
@@ -349,5 +351,5 @@ pub struct QuotaHeaderContext<'a> {
 /// Observe response headers, e.g. Codex's x-codex-* and feature-specific limit
 /// families. Empty means no quota data was reported. The host timestamps receipt.
 pub trait QuotaHeaders: Send + Sync {
-    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, ChannelError>;
+    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, UpstreamError>;
 }

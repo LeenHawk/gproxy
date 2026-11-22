@@ -11,7 +11,7 @@ use std::{fmt, str::FromStr};
 /// for money fields; the same representation also stores quantities/multipliers.
 ///
 /// Entity fields use BigInteger with `select_as = "char(32)"` and
-/// `save_as = "decimal(20,0)"`. These casts preserve signed i64 atoms through D1
+/// `save_as = "decimal(20,0)"`. These casts preserve signed i64 atoms through JSON row transports
 /// and work with SQLite, PostgreSQL and MySQL SQL syntax. No floating point.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FixedDecimal(i64);

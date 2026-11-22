@@ -4,11 +4,8 @@ mod support;
 
 use futures_util::StreamExt;
 use gproxy_channel::{
-    BaseChannel, ChannelError, OutboundClient,
-    channel::{
-        ChannelState, CredentialContext, CredentialView, OperationContext, ProviderView,
-        QuotaScope, QuotaValue,
-    },
+    BaseChannel, OutboundClient,
+    channel::{OperationContext, QuotaScope, QuotaValue},
     channels::claudeweb::{ClaudeWeb, SessionState, continuation_key},
 };
 use gproxy_protocol::{
@@ -18,6 +15,9 @@ use gproxy_protocol::{
         StateEntry, StateWrite, Version,
     },
     connection::Bytes,
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamKind, UpstreamState,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -93,7 +93,7 @@ impl MemoryState {
         self.entries.lock().unwrap().keys().cloned().collect()
     }
 }
-impl ChannelState for MemoryState {
+impl UpstreamState for MemoryState {
     fn get<'a>(
         &'a self,
         key: &'a str,
@@ -618,7 +618,7 @@ async fn tool_use_parks_the_turn_and_tool_result_resumes_it() {
         .await
         .expect_err("expired continuation");
     assert!(
-        matches!(&error, ChannelError::Transport(e) if e.kind() == CapabilityErrorKind::Expired),
+        matches!(&error, UpstreamError::Transport(e) if e.kind() == CapabilityErrorKind::Expired),
         "{error}"
     );
     let mixed = json!({
@@ -640,7 +640,7 @@ async fn tool_use_parks_the_turn_and_tool_result_resumes_it() {
         .await
         .expect_err("mixed continuations");
     assert!(
-        matches!(&error, ChannelError::Transport(e) if e.kind() == CapabilityErrorKind::Invalid),
+        matches!(&error, UpstreamError::Transport(e) if e.kind() == CapabilityErrorKind::Invalid),
         "{error}"
     );
 }
@@ -735,7 +735,7 @@ async fn non_streaming_generate_collects_one_message() {
         .unwrap();
     assert!(matches!(
         error,
-        ChannelError::UpstreamResponse { status, .. } if status == StatusCode::TOO_MANY_REQUESTS
+        UpstreamError::UpstreamResponse { status, .. } if status == StatusCode::TOO_MANY_REQUESTS
     ));
     assert_eq!(client.sent()[3].0, Method::DELETE);
 }
@@ -825,7 +825,7 @@ async fn cookie_import_bootstraps_the_account() {
     assert_eq!(client.sent().len(), 1, "the model list is local");
     assert!(matches!(
         channel.validate_credential_secret(&json!({"cookie": "not a cookie"})),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
 }
 
@@ -864,17 +864,17 @@ async fn refresh_revalidates_and_rejects_dead_sessions() {
 
     let error = refresher.refresh(context()).await.err().unwrap();
     assert!(
-        matches!(error, ChannelError::RefreshRejected(_)),
+        matches!(error, UpstreamError::RefreshRejected(_)),
         "401 is final: {error}"
     );
     let error = refresher.refresh(context()).await.err().unwrap();
     assert!(
-        matches!(error, ChannelError::RefreshRejected(_)),
+        matches!(error, UpstreamError::RefreshRejected(_)),
         "logged out is final: {error}"
     );
     let error = refresher.refresh(context()).await.err().unwrap();
     assert!(
-        matches!(error, ChannelError::UpstreamResponse { status, .. } if status == StatusCode::BAD_GATEWAY),
+        matches!(error, UpstreamError::UpstreamResponse { status, .. } if status == StatusCode::BAD_GATEWAY),
         "a 5xx is transient"
     );
 }
@@ -1016,7 +1016,10 @@ async fn usage_windows_and_scoped_limits_become_quota_entries() {
         .await
         .err()
         .unwrap();
-    assert!(matches!(error, ChannelError::InvalidResponse(_)), "{error}");
+    assert!(
+        matches!(error, UpstreamError::InvalidResponse(_)),
+        "{error}"
+    );
 }
 
 /// claude.ai reports no token counts; the translated Messages output carries
@@ -1155,7 +1158,7 @@ async fn allowed_headers_and_channel_headers_are_enforced() {
         .await
         .err()
         .unwrap();
-    assert!(matches!(error, ChannelError::InvalidConfig(_)));
+    assert!(matches!(error, UpstreamError::InvalidConfig(_)));
     assert_eq!(
         channel.native_dialects(provider(&config, None), Operation::StreamGenerateContent),
         vec![Dialect::Claude]
@@ -1217,7 +1220,7 @@ async fn a_continuation_held_by_another_instance_is_named_not_expired() {
         .await
         .expect_err("held elsewhere");
     assert!(
-        matches!(&error, ChannelError::ContinuationElsewhere { instance_id } if instance_id == "instance-a"),
+        matches!(&error, UpstreamError::ContinuationElsewhere { instance_id } if instance_id == "instance-a"),
         "{error}"
     );
     assert_eq!(

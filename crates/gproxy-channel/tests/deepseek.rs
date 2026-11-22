@@ -3,10 +3,11 @@
 //! DeepSeek puts three compatible surfaces on one origin at three different
 //! paths, and names its cache hits its own way.
 
+use gproxy_channel::BaseChannel;
 use gproxy_channel::channel::{PrepareContext, QuotaValue};
 use gproxy_channel::channels::deepseek::{BALANCE_DIMENSION, DeepSeek};
-use gproxy_channel::{BaseChannel, ChannelError, LoginMode};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
+use gproxy_upstream::{LoginMode, UpstreamError};
 use http::{HeaderMap, StatusCode};
 use serde_json::{Value, json};
 
@@ -19,7 +20,7 @@ fn prepare(
     operation: Operation,
     dialect: Dialect,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     let secret = json!({"api_key": "sk-deepseek"});
     DeepSeek.prepare(PrepareContext {
         provider: provider("deepseek", config, base_url),
@@ -204,6 +205,6 @@ fn the_descriptor_declares_three_native_shapes_and_an_api_key() {
             request: request("/v1/chat/completions", None),
             endpoint_override: None,
         }),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
 }

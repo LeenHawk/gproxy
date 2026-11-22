@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! `commit_revision`: one bump per call, atomic with the caller's statements.
 
 use gproxy_seaorm::BatchStatement;

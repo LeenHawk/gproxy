@@ -3,16 +3,15 @@
 //! xAI sits on OpenAI's shapes but keeps its own media paths, its own
 //! metering unit and its billing on another host entirely.
 
-use gproxy_channel::channel::{
-    CredentialContext, PrepareContext, QuotaModel, QuotaQuery, QuotaValue,
-};
+use gproxy_channel::BaseChannel;
+use gproxy_channel::channel::{PrepareContext, QuotaModel, QuotaQuery, QuotaValue};
 use gproxy_channel::channels::xai::{
     COST_TICKS_METRIC, POSTPAID_DIMENSION, PREPAID_DIMENSION, UPSTREAM_COST_METRIC,
     UPSTREAM_PRICED_DIMENSION, Xai,
 };
-use gproxy_channel::{BaseChannel, ChannelError, LoginMode};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
+use gproxy_upstream::{CredentialContext, LoginMode, UpstreamError};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::{Value, json};
 
@@ -24,7 +23,7 @@ fn prepare(
     base_url: Option<&str>,
     operation: Operation,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     let secret = json!({"api_key": "xai-upstream"});
     Xai.prepare(PrepareContext {
         provider: provider("xai", config, base_url),
@@ -102,7 +101,7 @@ fn a_speech_body_is_rewritten_into_xais_own_fields() {
     assert!(
         matches!(
             prepare(&json!({}), None, Operation::CreateSpeech, streamed),
-            Err(ChannelError::InvalidConfig(_))
+            Err(UpstreamError::InvalidConfig(_))
         ),
         "the rename needs the body in hand"
     );

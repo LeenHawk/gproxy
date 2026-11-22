@@ -3,15 +3,16 @@
 //! OpenCode: the tier that decides the origin, the key each surface wants,
 //! the conversation header, and the login, refresh and Go usage windows.
 
-use gproxy_channel::channel::{
-    CredentialContext, CredentialRefresh, DevicePoll, LoginContext, OAuthDeviceCode,
-    PrepareContext, QuotaValue,
-};
+use gproxy_channel::channel::{PrepareContext, QuotaValue};
 use gproxy_channel::channels::opencode::{GO_SOURCE, OpenCode};
-use gproxy_channel::{BaseChannel, ChannelError, LoginMode, OutboundClient};
+use gproxy_channel::{BaseChannel, OutboundClient};
 use gproxy_protocol::capability::{CapabilityError, CapabilityFuture};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
+use gproxy_upstream::{
+    CredentialContext, CredentialRefresh, DevicePoll, LoginContext, LoginMode, OAuthDeviceCode,
+    UpstreamError, UpstreamKind,
+};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::{Value, json};
 use std::collections::VecDeque;
@@ -73,7 +74,7 @@ fn prepare(
     operation: Operation,
     dialect: Dialect,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     channel.prepare(PrepareContext {
         provider: provider(channel.id(), config, base_url),
         credential: credential("oauth", secret, &Value::Null),
@@ -194,7 +195,7 @@ fn an_account_token_authenticates_the_same_way_a_pasted_key_does() {
             Dialect::OpenAiChat,
             request("/v1/chat/completions", None)
         ),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
 }
 
@@ -532,14 +533,14 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_c
     );
     assert!(matches!(
         CredentialRefresh::refresh(&OpenCode::ZEN, context(&rejected)).await,
-        Err(ChannelError::RefreshRejected(_))
+        Err(UpstreamError::RefreshRejected(_))
     ));
 
     let transient = OneShot::new(StatusCode::BAD_GATEWAY, "upstream down".into());
     assert!(
         matches!(
             CredentialRefresh::refresh(&OpenCode::ZEN, context(&transient)).await,
-            Err(ChannelError::UpstreamResponse { .. })
+            Err(UpstreamError::UpstreamResponse { .. })
         ),
         "a gateway failure is not a dead credential"
     );

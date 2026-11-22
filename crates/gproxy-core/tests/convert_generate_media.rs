@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 //! Media references in a converted generation request. A reference the
 //! upstream dialect reads itself is passed through untouched; any other is
 //! fetched in the caller's scope and sent inline, and a failed fetch fails the

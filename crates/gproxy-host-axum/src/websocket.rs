@@ -85,8 +85,6 @@
 use std::sync::Arc;
 
 use axum::response::{IntoResponse, Response};
-#[cfg_attr(not(target_arch = "wasm32"), path = "websocket/native.rs")]
-#[cfg_attr(target_arch = "wasm32", path = "websocket/workers.rs")]
 mod upgrade;
 use futures_util::{SinkExt as _, StreamExt as _};
 use gproxy_app::{

@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The lease-lifetime rule, observed from outside.
 //!
 //! [`CallOutcome::admitted`](gproxy_app::CallOutcome) carries the request's

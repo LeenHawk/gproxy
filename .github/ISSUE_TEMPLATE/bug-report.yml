@@ -29,9 +29,6 @@ body:
         - 容器 / Container
         - Android
         - HarmonyOS
-        - Cloudflare
-        - Netlify
-        - Vercel
         - 从源码构建 / Built from source
         - 其他 / Other
     validations:
@@ -40,7 +37,7 @@ body:
     id: environment
     attributes:
       label: 运行环境 / Environment
-      description: 操作系统与架构、数据库（SQLite / PostgreSQL / MySQL / D1）、前置反向代理等。/ OS and architecture, database, reverse proxy, etc.
+      description: 操作系统与架构、数据库（SQLite / PostgreSQL / MySQL）、前置反向代理等。/ OS and architecture, database, reverse proxy, etc.
       placeholder: "Ubuntu 24.04 x86_64, PostgreSQL 17, nginx"
   - type: textarea
     id: request-path

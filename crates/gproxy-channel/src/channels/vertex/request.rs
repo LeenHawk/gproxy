@@ -6,12 +6,15 @@ use super::config::VertexConfig;
 use super::endpoint;
 use super::{ID, Vertex, auth};
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, OperationContext, OperationFuture,
-    PrepareContext, ProviderView, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, HeaderAllowlist,
+    OperationContext, PrepareContext, forwardable,
 };
 use crate::channels::shared::{claude_images, google_model};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, ProviderView, UpstreamError, UpstreamFuture,
+    UpstreamKind,
+};
 use http::{HeaderValue, header};
 use serde_json::Value;
 
@@ -19,19 +22,12 @@ use serde_json::Value;
 /// the `anthropic-version` header the direct API uses.
 const VERTEX_ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 
-impl BaseChannel for Vertex {
-    fn claude_fallback(&self) -> Option<crate::channel::ClaudeFallback> {
-        Some(crate::channel::ClaudeFallback {
-            credit: true,
-            recommended_model: "claude-opus-4-8",
-        })
-    }
-
+impl UpstreamKind for Vertex {
     fn id(&self) -> &'static str {
         ID
     }
 
-    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), ChannelError> {
+    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), UpstreamError> {
         auth::validate_secret(secret)
     }
 
@@ -43,6 +39,19 @@ impl BaseChannel for Vertex {
                 .get("expires_at_ms")
                 .and_then(serde_json::Value::as_i64)
         }
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for Vertex {
+    fn claude_fallback(&self) -> Option<crate::channel::ClaudeFallback> {
+        Some(crate::channel::ClaudeFallback {
+            credit: true,
+            recommended_model: "claude-opus-4-8",
+        })
     }
 
     fn descriptor(&self) -> ChannelDescriptor {
@@ -82,14 +91,14 @@ impl BaseChannel for Vertex {
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, gproxy_protocol::WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, gproxy_protocol::WireResponse<HttpBody>> {
         Box::pin(super::models::list(self, context))
     }
 
     fn get_model<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, gproxy_protocol::WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, gproxy_protocol::WireResponse<HttpBody>> {
         Box::pin(super::models::get(self, context))
     }
 
@@ -147,7 +156,7 @@ impl BaseChannel for Vertex {
     /// request whose model lives in the body has to be read to be addressed.
     /// A streamed request body cannot be read here, and the error says so
     /// rather than sending an unaddressed request.
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = VertexConfig::from_view(ctx.provider)?;
         let place = endpoint::resolve(&config, ctx.provider, ctx.credential)?;
         let token = auth::access_token(ctx.credential.secret)?;
@@ -167,7 +176,7 @@ impl BaseChannel for Vertex {
         headers.insert(
             header::AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {token}"))
-                .map_err(|_| ChannelError::InvalidCredential)?,
+                .map_err(|_| UpstreamError::InvalidCredential)?,
         );
         // Vertex's Anthropic publisher rejects the direct API's version header.
         if ctx.operation.dialect == Dialect::Claude {
@@ -182,11 +191,7 @@ impl BaseChannel for Vertex {
         }
         builder
             .body(body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
-    }
-
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 
@@ -196,7 +201,7 @@ impl BaseChannel for Vertex {
 fn model_for(
     request: &WireRequest<HttpBody>,
     operation: OperationKey,
-) -> Result<Option<String>, ChannelError> {
+) -> Result<Option<String>, UpstreamError> {
     match (operation.operation, operation.dialect) {
         (Operation::ListModels, _) | (_, Dialect::OpenAiChat) => Ok(None),
         // Anthropic's token counter is addressed by a fixed model name.
@@ -204,14 +209,14 @@ fn model_for(
         (_, Dialect::Claude) => {
             let body = buffered(&request.body, operation)?;
             let value: Value = serde_json::from_slice(body)
-                .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+                .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
             let model = value
                 .get("model")
                 .and_then(Value::as_str)
                 .map(str::trim)
                 .filter(|model| !model.is_empty())
                 .ok_or_else(|| {
-                    ChannelError::InvalidConfig(
+                    UpstreamError::InvalidConfig(
                         "a Claude request to Vertex must name its model in the body".into(),
                     )
                 })?;
@@ -224,16 +229,16 @@ fn model_for(
 /// OpenAPI Chat's model is passed through unchanged, for buffered and streamed
 /// bodies alike. Anthropic generation names its model in the URL instead, and
 /// token counting keeps the publisher-local id in the body.
-fn body(body: HttpBody, operation: OperationKey) -> Result<HttpBody, ChannelError> {
+fn body(body: HttpBody, operation: OperationKey) -> Result<HttpBody, UpstreamError> {
     if operation.dialect != Dialect::Claude {
         return Ok(body);
     }
     let bytes = buffered(&body, operation)?;
     let mut value: Value = serde_json::from_slice(bytes)
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
     claude_images::fit(&mut value, true);
     let object = value.as_object_mut().ok_or_else(|| {
-        ChannelError::InvalidConfig("a Claude request body must be a JSON object".into())
+        UpstreamError::InvalidConfig("a Claude request body must be a JSON object".into())
     })?;
     object.insert(
         "anthropic_version".into(),
@@ -246,14 +251,14 @@ fn body(body: HttpBody, operation: OperationKey) -> Result<HttpBody, ChannelErro
         object.insert("model".into(), Value::String(id));
     }
     let encoded = serde_json::to_vec(&value)
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
     Ok(HttpBody::Bytes(Bytes::from(encoded)))
 }
 
-fn buffered(body: &HttpBody, operation: OperationKey) -> Result<&[u8], ChannelError> {
+fn buffered(body: &HttpBody, operation: OperationKey) -> Result<&[u8], UpstreamError> {
     match body {
         HttpBody::Bytes(bytes) => Ok(bytes),
-        HttpBody::Stream(_) => Err(ChannelError::InvalidConfig(format!(
+        HttpBody::Stream(_) => Err(UpstreamError::InvalidConfig(format!(
             "{:?} on Vertex needs a buffered request body: the model and the \
              anthropic_version are read from it",
             operation.operation

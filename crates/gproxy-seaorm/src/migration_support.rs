@@ -1,7 +1,7 @@
 use sea_orm::{ConnectionTrait, DbBackend, DbErr, Statement};
 use sea_orm_migration::SchemaManager;
 
-/// D1 equivalents of SchemaManager's SQLx-gated inspection helpers.
+/// Projected-connection equivalents of SchemaManager's SQLx-gated inspection helpers.
 #[async_trait::async_trait]
 pub trait D1SchemaManagerExt {
     async fn d1_has_table(&self, table: &str) -> Result<bool, DbErr>;
@@ -47,9 +47,9 @@ async fn exists<C: ConnectionTrait>(
     .try_get("", EXISTS_COLUMN)
 }
 
-/// The alias every probe below selects its answer under. It is the D1
-/// projection's name because D1 is the only connection that needs the column
-/// declared in advance; the other backends simply inherit it.
+/// The alias every probe below selects its answer under. A projected
+/// connection needs the column declared in advance; the other backends simply
+/// inherit the name.
 const EXISTS_COLUMN: &str = "__d1_exists";
 
 /// Ask a live schema what it already has, on whichever backend the migration is

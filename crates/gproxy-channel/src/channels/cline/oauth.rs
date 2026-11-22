@@ -15,13 +15,13 @@
 
 use super::auth;
 use super::config::{ClineConfig, DEFAULT_CLIENT_ID, ID, base_url};
-use crate::channel::{
-    ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
-    LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
-};
 use crate::channels::shared::compatible::ability::send;
 use crate::channels::shared::compatible::http::invalid_response;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::{
+    CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll, LoginContext,
+    OAuthCredential, OAuthDeviceCode, RefreshContext, UpstreamError, UpstreamFuture,
+};
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -105,7 +105,7 @@ fn text(value: Option<&Value>) -> Option<&str> {
 }
 
 /// The `data` of a Cline envelope, or the error it reported instead.
-fn envelope(body: &Bytes) -> Result<Value, ChannelError> {
+fn envelope(body: &Bytes) -> Result<Value, UpstreamError> {
     let value: Value = serde_json::from_slice(body)
         .map_err(|error| invalid_response(format!("{ID} envelope: {error}")))?;
     if value.get("success").and_then(Value::as_bool) == Some(false) {
@@ -121,7 +121,7 @@ fn envelope(body: &Bytes) -> Result<Value, ChannelError> {
 /// The credential a registration or a rotation establishes. `accessToken` is
 /// what traffic presents; `refreshToken` is what mints the next one; the two
 /// account facts are public and belong on the credential row.
-fn credential(data: &Value) -> Result<OAuthCredential, ChannelError> {
+fn credential(data: &Value) -> Result<OAuthCredential, UpstreamError> {
     let access = text(data.get("accessToken"))
         .ok_or_else(|| invalid_response(format!("{ID}: no accessToken in the reply")))?;
     let mut provider_fields = std::collections::BTreeMap::new();
@@ -189,7 +189,7 @@ fn likely_invalid_grant(status: StatusCode, body: &Bytes) -> Option<String> {
 }
 
 impl OAuthDeviceCode for super::Cline {
-    fn start<'a>(&'a self, context: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
+    fn start<'a>(&'a self, context: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
             let config = ClineConfig::from_view(context.provider)?;
             let (status, _, body) = send(
@@ -201,7 +201,7 @@ impl OAuthDeviceCode for super::Cline {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let reply: DeviceCodeReply = serde_json::from_slice(&body)
                 .map_err(|error| invalid_response(format!("{ID} device code: {error}")))?;
@@ -224,7 +224,7 @@ impl OAuthDeviceCode for super::Cline {
         &'a self,
         context: LoginContext<'a>,
         authorization: &'a DeviceAuthorization,
-    ) -> OperationFuture<'a, DevicePoll> {
+    ) -> UpstreamFuture<'a, DevicePoll> {
         Box::pin(async move {
             let config = ClineConfig::from_view(context.provider)?;
             let (status, _, body) = send(
@@ -242,7 +242,7 @@ impl OAuthDeviceCode for super::Cline {
             // A pending authorization is an error status carrying an OAuth
             // code, so the body is read before the status is judged.
             let Ok(reply) = serde_json::from_slice::<WorkOsTokens>(&body) else {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             };
             let Some((access, refresh)) = reply.pair() else {
                 return Ok(match reply.error.as_deref() {
@@ -253,7 +253,7 @@ impl OAuthDeviceCode for super::Cline {
                     },
                     Some("access_denied" | "invalid_grant") => DevicePoll::Denied,
                     Some("expired_token") => DevicePoll::Expired,
-                    _ => return Err(ChannelError::UpstreamResponse { status, body }),
+                    _ => return Err(UpstreamError::UpstreamResponse { status, body }),
                 });
             };
             // WorkOS proved who the person is; Cline still has to hand out an
@@ -271,7 +271,7 @@ impl OAuthDeviceCode for super::Cline {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let acquired = credential(&envelope(&body)?)?;
             // A registration that cannot be renewed is a failed login, as
@@ -287,7 +287,7 @@ impl OAuthDeviceCode for super::Cline {
 }
 
 impl CredentialRefresh for super::Cline {
-    fn supports(&self, credential: &crate::channel::CredentialView<'_>) -> bool {
+    fn supports(&self, credential: &gproxy_upstream::CredentialView<'_>) -> bool {
         credential
             .secret
             .get("refresh_token")
@@ -295,7 +295,7 @@ impl CredentialRefresh for super::Cline {
             .is_some_and(|token| !token.trim().is_empty())
     }
 
-    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let refresh_token = context
                 .credential
@@ -305,7 +305,7 @@ impl CredentialRefresh for super::Cline {
                 .map(str::trim)
                 .filter(|token| !token.is_empty())
                 .ok_or_else(|| {
-                    ChannelError::RefreshRejected("credential has no refresh token".into())
+                    UpstreamError::RefreshRejected("credential has no refresh token".into())
                 })?;
             let (status, _, body) = send(
                 context.client,
@@ -323,8 +323,8 @@ impl CredentialRefresh for super::Cline {
                 // Only the upstream saying "this token is finished" is
                 // definitive; a gateway failure is not a dead credential.
                 return Err(match likely_invalid_grant(status, &body) {
-                    Some(reason) => ChannelError::RefreshRejected(reason),
-                    None => ChannelError::UpstreamResponse { status, body },
+                    Some(reason) => UpstreamError::RefreshRejected(reason),
+                    None => UpstreamError::UpstreamResponse { status, body },
                 });
             }
             // A 2xx that reports `success: false` or carries no access token
@@ -337,7 +337,7 @@ impl CredentialRefresh for super::Cline {
             let mut secret = context.credential.secret.clone();
             let object = secret
                 .as_object_mut()
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             // Remove only a known legacy token copy, before its old value
             // becomes indistinguishable from an independently pasted key.
             if auth::legacy_token_copy(context.credential.secret) {

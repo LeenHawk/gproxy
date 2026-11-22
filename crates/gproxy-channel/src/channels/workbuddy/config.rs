@@ -1,6 +1,6 @@
 //! Provider `config` JSON for WorkBuddy. Unknown keys are ignored.
 
-use crate::channel::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -42,9 +42,9 @@ impl Default for WorkBuddyConfig {
 }
 
 impl WorkBuddyConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     pub(super) fn base_url(&self, provider: ProviderView<'_>) -> String {

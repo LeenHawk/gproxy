@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! `sync` is the name the sdk and the hosts call the schema step by, and what
 //! it means changed: it creates the schema on an empty database, applies
 //! outstanding migrations on one this build created, and refuses anything else.

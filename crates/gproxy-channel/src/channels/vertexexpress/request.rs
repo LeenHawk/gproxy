@@ -4,17 +4,20 @@
 
 use super::{ID, VertexExpress, endpoint};
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, HeaderAllowlist,
+    PrepareContext, forwardable,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 
-impl BaseChannel for VertexExpress {
+impl UpstreamKind for VertexExpress {
     fn id(&self) -> &'static str {
         ID
     }
 
-    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), ChannelError> {
+    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), UpstreamError> {
         if secret
             .get("api_key")
             .and_then(serde_json::Value::as_str)
@@ -22,12 +25,14 @@ impl BaseChannel for VertexExpress {
         {
             Ok(())
         } else {
-            Err(ChannelError::InvalidConfig(
+            Err(UpstreamError::InvalidConfig(
                 "credential requires a nonempty `api_key`".into(),
             ))
         }
     }
+}
 
+impl BaseChannel for VertexExpress {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -60,7 +65,7 @@ impl BaseChannel for VertexExpress {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let key = ctx
             .credential
             .secret
@@ -68,7 +73,7 @@ impl BaseChannel for VertexExpress {
             .and_then(serde_json::Value::as_str)
             .map(str::trim)
             .filter(|key| !key.is_empty())
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let location = [
             ctx.credential.metadata.get("location"),
             ctx.credential.secret.get("location"),
@@ -101,6 +106,6 @@ impl BaseChannel for VertexExpress {
         }
         builder
             .body(ctx.request.body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }

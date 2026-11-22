@@ -12,9 +12,9 @@ use std::{fmt, time::Duration};
 mod memory;
 #[cfg(feature = "memory")]
 pub use memory::{MemoryCache, MemoryOptions};
-#[cfg(all(feature = "redis", not(target_arch = "wasm32")))]
+#[cfg(feature = "redis")]
 mod redis_backend;
-#[cfg(all(feature = "redis", not(target_arch = "wasm32")))]
+#[cfg(feature = "redis")]
 pub use redis_backend::{RedisCache, RedisOptions};
 
 pub type Result<T> = std::result::Result<T, CacheError>;
@@ -35,7 +35,7 @@ pub enum CacheError {
     Closed,
     #[error("cannot generate cache token: {0}")]
     Entropy(String),
-    #[cfg(all(feature = "redis", not(target_arch = "wasm32")))]
+    #[cfg(feature = "redis")]
     #[error("Redis operation failed: {0}")]
     Redis(#[from] redis::RedisError),
     #[error("cache connection timed out")]
@@ -53,10 +53,7 @@ impl Version {
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
-    #[cfg(any(
-        feature = "memory",
-        all(feature = "redis", not(target_arch = "wasm32"))
-    ))]
+    #[cfg(any(feature = "memory", feature = "redis"))]
     fn fresh() -> Result<Self> {
         let mut bytes = [0; 32];
         getrandom::fill(&mut bytes).map_err(|e| CacheError::Entropy(e.to_string()))?;
@@ -195,10 +192,7 @@ impl Default for Limits {
         }
     }
 }
-#[cfg(any(
-    feature = "memory",
-    all(feature = "redis", not(target_arch = "wasm32"))
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 impl Limits {
     fn validate(&self) -> Result<()> {
         if self.max_key_bytes == 0
@@ -235,15 +229,9 @@ impl Limits {
 
 // Lua sorted-set timestamps use exact IEEE-754 integers. This bound leaves
 // room for current Unix milliseconds and is far beyond practical cache TTLs.
-#[cfg(any(
-    feature = "memory",
-    all(feature = "redis", not(target_arch = "wasm32"))
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 const MAX_TTL_MS: u64 = (1_u64 << 52) - 1;
-#[cfg(any(
-    feature = "memory",
-    all(feature = "redis", not(target_arch = "wasm32"))
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 fn ttl_ms(ttl: Duration) -> Result<u64> {
     let ms = ttl.as_nanos().div_ceil(1_000_000);
     if ms == 0 || ms > u128::from(MAX_TTL_MS) {
@@ -253,10 +241,7 @@ fn ttl_ms(ttl: Duration) -> Result<u64> {
     }
     Ok(ms as u64)
 }
-#[cfg(any(
-    feature = "memory",
-    all(feature = "redis", not(target_arch = "wasm32"))
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 fn counter_args(amount: u64, limit: u64) -> Result<()> {
     if amount == 0 || amount > i64::MAX as u64 || limit > i64::MAX as u64 {
         return Err(CacheError::Invalid(

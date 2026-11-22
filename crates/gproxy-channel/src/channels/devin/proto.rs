@@ -12,7 +12,7 @@
 //! See the wire-type table in the protobuf encoding reference: 0 varint,
 //! 1 fixed64, 2 length-delimited, 5 fixed32.
 
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 const WIRE_VARINT: u32 = 0;
 const WIRE_FIXED64: u32 = 1;
@@ -113,11 +113,11 @@ pub struct Field<'a> {
     pub value: Value<'a>,
 }
 
-fn malformed(detail: &str) -> ChannelError {
-    ChannelError::InvalidResponse(format!("devin protobuf: {detail}"))
+fn malformed(detail: &str) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("devin protobuf: {detail}"))
 }
 
-fn read_varint(bytes: &[u8], offset: &mut usize) -> Result<u64, ChannelError> {
+fn read_varint(bytes: &[u8], offset: &mut usize) -> Result<u64, UpstreamError> {
     let mut value = 0_u64;
     let mut shift = 0_u32;
     loop {
@@ -138,7 +138,7 @@ fn read_varint(bytes: &[u8], offset: &mut usize) -> Result<u64, ChannelError> {
     }
 }
 
-fn take<'a>(bytes: &'a [u8], offset: &mut usize, len: usize) -> Result<&'a [u8], ChannelError> {
+fn take<'a>(bytes: &'a [u8], offset: &mut usize, len: usize) -> Result<&'a [u8], UpstreamError> {
     let end = offset
         .checked_add(len)
         .filter(|end| *end <= bytes.len())
@@ -151,7 +151,7 @@ fn take<'a>(bytes: &'a [u8], offset: &mut usize, len: usize) -> Result<&'a [u8],
 /// Every field of one message, in wire order and including repeats. Groups
 /// (wire types 3 and 4) are rejected: the upstream does not use them and a
 /// buffer that claims to is not the message we think it is.
-pub fn parse(bytes: &[u8]) -> Result<Vec<Field<'_>>, ChannelError> {
+pub fn parse(bytes: &[u8]) -> Result<Vec<Field<'_>>, UpstreamError> {
     let mut fields = Vec::new();
     let mut offset = 0_usize;
     while offset < bytes.len() {

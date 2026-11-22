@@ -1,11 +1,7 @@
-#![cfg(not(target_arch = "wasm32"))]
 mod support;
 use support::*;
 
-use gproxy_channel::{
-    channel::ProviderView,
-    channels::{codex::Codex, openai::OpenAi},
-};
+use gproxy_channel::channels::{codex::Codex, openai::OpenAi};
 use gproxy_core::convert::{Route, default_route};
 use gproxy_protocol::{
     Dialect, Operation, OperationKey,
@@ -16,6 +12,7 @@ use gproxy_protocol::{
     },
 };
 use gproxy_store::entity::{config::setting, upstream::provider};
+use gproxy_upstream::ProviderView;
 use http::StatusCode;
 use sea_orm::Set;
 use serde_json::{Value, json};

@@ -19,7 +19,7 @@ use serde_json::Value;
 
 use super::config::BedrockConfig;
 use super::sigv4;
-use crate::channel::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 
 /// The SigV4 service name for both Bedrock planes.
 pub const SIGNING_SERVICE: &str = "bedrock";
@@ -46,7 +46,7 @@ pub(super) fn origin(
     provider: ProviderView<'_>,
     config: &BedrockConfig,
     plane: Plane,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let region = config.region()?;
     let configured = match plane {
         Plane::Runtime => provider.base_url,
@@ -73,7 +73,7 @@ pub(super) fn url(
     query: Option<&str>,
     model: Option<&str>,
     endpoint_override: Option<&str>,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let base = match endpoint_override
         .map(str::trim)
         .filter(|url| !url.is_empty())
@@ -125,7 +125,7 @@ pub(super) fn model_filters(query: Option<&str>) -> Option<String> {
 
 /// The Bedrock model id from a generation body. Inference profile ids
 /// (`us.anthropic.…`) and ARNs both arrive here as the body's `model`.
-pub(super) fn model_from_body(body: &[u8]) -> Result<String, ChannelError> {
+pub(super) fn model_from_body(body: &[u8]) -> Result<String, UpstreamError> {
     serde_json::from_slice::<Value>(body)
         .ok()
         .as_ref()
@@ -135,7 +135,7 @@ pub(super) fn model_from_body(body: &[u8]) -> Result<String, ChannelError> {
         .filter(|model| !model.is_empty())
         .map(str::to_owned)
         .ok_or_else(|| {
-            ChannelError::InvalidConfig(
+            UpstreamError::InvalidConfig(
                 "the request body carries no `model`; Bedrock addresses the model in the URL"
                     .into(),
             )
@@ -163,13 +163,10 @@ pub(super) fn serves_messages(model: &str) -> bool {
 }
 
 /// The model id from a `/v1/models/{id}` style path.
-pub(super) fn model_from_path(path: &str) -> Result<String, ChannelError> {
-    let segment = path
-        .split_once("/models/")
-        .map(|(_, id)| id)
-        .unwrap_or("");
+pub(super) fn model_from_path(path: &str) -> Result<String, UpstreamError> {
+    let segment = path.split_once("/models/").map(|(_, id)| id).unwrap_or("");
     if segment.is_empty() {
-        return Err(ChannelError::InvalidConfig(
+        return Err(UpstreamError::InvalidConfig(
             "the request path names no model".into(),
         ));
     }
@@ -180,7 +177,7 @@ fn encode_segment(value: &str) -> String {
     sigv4::encode(value.as_bytes())
 }
 
-fn percent_decode_segment(value: &str) -> Result<String, ChannelError> {
+fn percent_decode_segment(value: &str) -> Result<String, UpstreamError> {
     let bytes = value.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut index = 0;
@@ -191,7 +188,7 @@ fn percent_decode_segment(value: &str) -> Result<String, ChannelError> {
                 .and_then(|pair| std::str::from_utf8(pair).ok())
                 .and_then(|text| u8::from_str_radix(text, 16).ok())
                 .ok_or_else(|| {
-                    ChannelError::InvalidConfig("the model id is not percent encoded".into())
+                    UpstreamError::InvalidConfig("the model id is not percent encoded".into())
                 })?;
             out.push(pair);
             index += 3;
@@ -201,7 +198,7 @@ fn percent_decode_segment(value: &str) -> Result<String, ChannelError> {
         }
     }
     String::from_utf8(out)
-        .map_err(|_| ChannelError::InvalidConfig("the model id is not UTF-8".into()))
+        .map_err(|_| UpstreamError::InvalidConfig("the model id is not UTF-8".into()))
 }
 
 pub(super) fn method_for(plane: Plane) -> Method {

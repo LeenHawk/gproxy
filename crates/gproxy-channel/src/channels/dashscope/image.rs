@@ -7,8 +7,8 @@
 //! the reply back into `{data: [{url}]}`, parking the vendor's own usage
 //! object under `dashscope_usage` for the usage extractor to read.
 
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Map, Value, json};
 
 /// The path the envelope is posted to, under the origin rather than under
@@ -31,8 +31,8 @@ const OPENAI_ONLY: &[&str] = &[
     "user",
 ];
 
-fn invalid(message: &str) -> ChannelError {
-    ChannelError::InvalidConfig(message.into())
+fn invalid(message: &str) -> UpstreamError {
+    UpstreamError::InvalidConfig(message.into())
 }
 
 /// An image reference, however the caller wrote it: a bare URL string, an
@@ -51,7 +51,7 @@ fn image_url(value: &Value) -> Option<String> {
 
 /// Convert an OpenAI image request into the DashScope envelope. `edit` also
 /// carries the source images, which lead the content array.
-pub(super) fn request(body: &[u8], edit: bool) -> Result<Bytes, ChannelError> {
+pub(super) fn request(body: &[u8], edit: bool) -> Result<Bytes, UpstreamError> {
     let mut object: Map<String, Value> = serde_json::from_slice(body)
         .map_err(|_| invalid("DashScope image requests must be a JSON object"))?;
     let model = object.remove("model");
@@ -164,7 +164,7 @@ mod tests {
         );
         assert!(matches!(
             request(json!({"model": "m"}).to_string().as_bytes(), false),
-            Err(ChannelError::InvalidConfig(_))
+            Err(UpstreamError::InvalidConfig(_))
         ));
     }
 

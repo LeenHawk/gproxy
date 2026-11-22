@@ -6,11 +6,11 @@
 //! rewritten into `{object: "list", data: [...]}` before the host sees it
 //! (v3 `kiro/model_list.rs`).
 
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Map, Value, json};
 
-pub(super) fn rewrite(body: &[u8]) -> Result<Bytes, ChannelError> {
+pub(super) fn rewrite(body: &[u8]) -> Result<Bytes, UpstreamError> {
     let value: Value =
         serde_json::from_slice(body).map_err(|error| invalid(format!("model JSON: {error}")))?;
     let Value::Object(mut root) = value else {
@@ -50,8 +50,8 @@ fn model_id(value: &Map<String, Value>) -> Option<&str> {
         .find_map(|name| value.get(name).and_then(Value::as_str))
 }
 
-fn invalid(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(format!("Kiro: {}", message.into()))
+fn invalid(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("Kiro: {}", message.into()))
 }
 
 #[cfg(test)]

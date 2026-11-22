@@ -33,12 +33,9 @@ pub use services::{KIND_FILE, KIND_PLUGIN, KIND_SKILL, service_routes};
 
 use crate::OutboundClient;
 use crate::channel::{
-    AuthorizationCode, AuthorizationRequest, AuthorizationStart, BaseChannel, ChannelCapabilities,
-    ChannelDescriptor, ChannelError, ChannelHeaders, ChannelServices, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, CredentialUpdate, CredentialView, HOST_CONFIG_KEYS, HeaderAllowlist,
-    LoginContext, LoginMode, OAuthAuthorizationCode, OAuthCredential, OperationContext,
-    OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel, QuotaQuery,
-    QuotaReset, RefreshContext, RefreshReason, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelHeaders, ChannelServices,
+    HOST_CONFIG_KEYS, HeaderAllowlist, OperationContext, PrepareContext, QuotaHeaders, QuotaModel,
+    QuotaQuery, QuotaReset, forwardable,
 };
 pub use crate::channels::shared::claude_fallback::FallbackMode;
 use crate::channels::shared::{cache, claude_fallback, claude_images};
@@ -46,6 +43,12 @@ use gproxy_client::{Backend, ConnectionConfig};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse, capability::StateWrite,
     connection::Bytes,
+};
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, AuthorizationStart, ConfigKey, ConfigKeyKind,
+    CredentialRefresh, CredentialUpdate, CredentialView, LoginContext, LoginMode,
+    OAuthAuthorizationCode, OAuthCredential, ProviderView, RefreshContext, RefreshReason,
+    UpstreamError, UpstreamFuture, UpstreamKind,
 };
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
@@ -217,9 +220,9 @@ impl Default for ClaudecodeConfig {
 }
 
 impl ClaudecodeConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 
@@ -239,16 +242,16 @@ pub fn default_connection() -> ConnectionConfig {
     }
 }
 
-fn invalid_config(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidConfig(message.into())
+fn invalid_config(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidConfig(message.into())
 }
 
-fn invalid_response(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(message.into())
+fn invalid_response(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(message.into())
 }
 
-fn header_value(value: &str) -> Result<HeaderValue, ChannelError> {
-    HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)
+fn header_value(value: &str) -> Result<HeaderValue, UpstreamError> {
+    HeaderValue::from_str(value).map_err(|_| UpstreamError::InvalidCredential)
 }
 
 fn base_url(provider: ProviderView<'_>) -> String {
@@ -317,9 +320,9 @@ struct Account<'a> {
     account_uuid: Option<String>,
 }
 
-fn account<'a>(credential: &CredentialView<'a>) -> Result<Account<'a>, ChannelError> {
+fn account<'a>(credential: &CredentialView<'a>) -> Result<Account<'a>, UpstreamError> {
     let access_token =
-        non_empty(credential.secret.get("access_token")).ok_or(ChannelError::InvalidCredential)?;
+        non_empty(credential.secret.get("access_token")).ok_or(UpstreamError::InvalidCredential)?;
     let account_uuid = fact(credential, "account_uuid").map(str::to_owned);
     let device_id = fact(credential, "device_id")
         .map(str::to_owned)
@@ -547,7 +550,7 @@ fn apply_headers(
     access_token: &str,
     session_id: &str,
     user_agent: &str,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     headers.insert(
         header::AUTHORIZATION,
         header_value(&format!("Bearer {access_token}"))?,
@@ -608,8 +611,8 @@ fn is_messages(operation: Operation) -> bool {
     )
 }
 
-fn unsupported(operation: Operation) -> ChannelError {
-    ChannelError::UnsupportedOperation(gproxy_protocol::OperationKey {
+fn unsupported(operation: Operation) -> UpstreamError {
+    UpstreamError::UnsupportedOperation(gproxy_protocol::OperationKey {
         operation,
         dialect: Dialect::Claude,
     })
@@ -617,7 +620,7 @@ fn unsupported(operation: Operation) -> ChannelError {
 
 /// The native path (v3 `prepare.rs`). The client's `/v1/models/{model}`
 /// path is kept for GetModel because the model id lives only there.
-fn operation_path(operation: Operation, request_path: &str) -> Result<String, ChannelError> {
+fn operation_path(operation: Operation, request_path: &str) -> Result<String, UpstreamError> {
     Ok(match operation {
         Operation::ListModels => "/v1/models".into(),
         Operation::GetModel => {
@@ -666,11 +669,56 @@ fn client_header<'a>(
     headers.get(&name)?.to_str().ok()
 }
 
-impl BaseChannel for Claudecode {
+impl UpstreamKind for Claudecode {
     fn id(&self) -> &'static str {
         ID
     }
 
+    fn default_connection(&self) -> Option<ConnectionConfig> {
+        Some(default_connection())
+    }
+
+    fn default_connection_for(
+        &self,
+        purpose: gproxy_upstream::ConnectionPurpose,
+    ) -> Option<ConnectionConfig> {
+        Some(match purpose {
+            gproxy_upstream::ConnectionPurpose::Request => default_connection(),
+            gproxy_upstream::ConnectionPurpose::Browser => super::shared::browser_connection(),
+        })
+    }
+
+    fn validate_credential_secret(&self, secret: &Value) -> Result<(), UpstreamError> {
+        if non_empty(secret.get("access_token")).is_some()
+            || non_empty(secret.get("refresh_token")).is_some()
+            || non_empty(secret.get("cookie"))
+                .and_then(cookie::normalize)
+                .is_some()
+        {
+            Ok(())
+        } else {
+            Err(UpstreamError::InvalidCredential)
+        }
+    }
+
+    fn initial_credential_expiry(&self, secret: &Value) -> Option<i64> {
+        if non_empty(secret.get("access_token")).is_none() {
+            Some(0)
+        } else {
+            secret.get("expires_at_ms").and_then(Value::as_i64)
+        }
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+
+    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for Claudecode {
     /// A Claude.ai subscription through the CLI: PKCE or a claude.ai cookie to
     /// log in, a refreshable token, unified rate-limit windows, and the CLI's
     /// own non-protocol endpoints.
@@ -756,20 +804,6 @@ impl BaseChannel for Claudecode {
         }
     }
 
-    fn default_connection(&self) -> Option<ConnectionConfig> {
-        Some(default_connection())
-    }
-
-    fn default_connection_for(
-        &self,
-        purpose: crate::channel::ConnectionPurpose,
-    ) -> Option<ConnectionConfig> {
-        Some(match purpose {
-            crate::channel::ConnectionPurpose::Request => default_connection(),
-            crate::channel::ConnectionPurpose::Browser => super::shared::browser_connection(),
-        })
-    }
-
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent
@@ -781,7 +815,7 @@ impl BaseChannel for Claudecode {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         self.prepare_with(ctx, None)
     }
 
@@ -791,44 +825,17 @@ impl BaseChannel for Claudecode {
     fn generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.messages_http(Operation::GenerateContent, context))
     }
 
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.messages_http(Operation::StreamGenerateContent, context))
     }
 
-    fn validate_credential_secret(&self, secret: &Value) -> Result<(), ChannelError> {
-        if non_empty(secret.get("access_token")).is_some()
-            || non_empty(secret.get("refresh_token")).is_some()
-            || non_empty(secret.get("cookie"))
-                .and_then(cookie::normalize)
-                .is_some()
-        {
-            Ok(())
-        } else {
-            Err(ChannelError::InvalidCredential)
-        }
-    }
-
-    fn initial_credential_expiry(&self, secret: &Value) -> Option<i64> {
-        if non_empty(secret.get("access_token")).is_none() {
-            Some(0)
-        } else {
-            secret.get("expires_at_ms").and_then(Value::as_i64)
-        }
-    }
-
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
-    }
-    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
-        Some(self)
-    }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
@@ -851,7 +858,7 @@ impl Claudecode {
         &self,
         ctx: PrepareContext<'_>,
         prev_req: Option<&str>,
-    ) -> Result<http::Request<HttpBody>, ChannelError> {
+    ) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = ClaudecodeConfig::from_view(ctx.provider)?;
         let account = account(&ctx.credential)?;
         let operation = ctx.operation.operation;
@@ -1011,7 +1018,7 @@ impl Claudecode {
         &self,
         operation: Operation,
         ctx: OperationContext<'_>,
-    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    ) -> Result<WireResponse<HttpBody>, UpstreamError> {
         let config = ClaudecodeConfig::from_view(ctx.provider)?;
         let explicit_usage = usage_limit::requested_mode(&ctx.request.headers, &config).is_some();
         let account = account(&ctx.credential)?;
@@ -1082,7 +1089,7 @@ impl Claudecode {
 
 // ---------------------------------------------------------------- tokens
 
-pub(super) async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
+pub(super) async fn read_body(body: HttpBody) -> Result<Bytes, UpstreamError> {
     crate::channel::read_body(body).await
 }
 
@@ -1092,7 +1099,7 @@ pub(super) async fn send(
     url: &str,
     headers: HeaderMap,
     body: Option<Vec<u8>>,
-) -> Result<(StatusCode, HeaderMap, Bytes), ChannelError> {
+) -> Result<(StatusCode, HeaderMap, Bytes), UpstreamError> {
     let mut builder = http::Request::builder().method(method).uri(url);
     if let Some(map) = builder.headers_mut() {
         *map = headers;
@@ -1204,7 +1211,7 @@ pub(super) fn credential_from_tokens(
     previous_refresh: Option<String>,
     previous_scopes: Vec<String>,
     mut fields: BTreeMap<String, Value>,
-) -> Result<OAuthCredential, ChannelError> {
+) -> Result<OAuthCredential, UpstreamError> {
     let access_token = tokens
         .access_token
         .filter(|t| !t.trim().is_empty())
@@ -1270,7 +1277,7 @@ pub(super) fn credential_from_tokens(
 pub(super) fn secret_json(
     credential: &OAuthCredential,
     cookie: Option<&str>,
-) -> Result<Value, ChannelError> {
+) -> Result<Value, UpstreamError> {
     let mut secret =
         serde_json::to_value(credential).map_err(|e| invalid_response(e.to_string()))?;
     if let (Some(cookie), Some(object)) = (cookie, secret.as_object_mut()) {
@@ -1430,18 +1437,18 @@ fn token_error(body: &[u8]) -> (Option<String>, Option<String>) {
 /// A failed refresh classified as CLI 2.1.302 does (`nQ`, `NUr`): an
 /// `account_on_hold` grant error (400/401/403) and a 400/401 `invalid_grant`
 /// are definitive; anything else is a failed attempt the host retries later.
-fn refresh_failure(status: StatusCode, body: Bytes) -> ChannelError {
+fn refresh_failure(status: StatusCode, body: Bytes) -> UpstreamError {
     let (code, description) = token_error(&body);
     if matches!(status.as_u16(), 400 | 401 | 403)
         && matches!(code.as_deref(), Some("invalid_grant" | "access_denied"))
         && description.as_deref() == Some(ACCOUNT_ON_HOLD)
     {
-        return ChannelError::RefreshRejected(ACCOUNT_ON_HOLD.into());
+        return UpstreamError::RefreshRejected(ACCOUNT_ON_HOLD.into());
     }
     if matches!(status.as_u16(), 400 | 401) && code.as_deref() == Some("invalid_grant") {
-        return ChannelError::RefreshRejected("invalid_grant".into());
+        return UpstreamError::RefreshRejected("invalid_grant".into());
     }
-    ChannelError::UpstreamResponse { status, body }
+    UpstreamError::UpstreamResponse { status, body }
 }
 
 /// One JSON `refresh_token` grant with the given scope.
@@ -1450,7 +1457,7 @@ async fn request_refresh(
     token_url: &str,
     refresh_token: &str,
     scope: &str,
-) -> Result<(StatusCode, Bytes), ChannelError> {
+) -> Result<(StatusCode, Bytes), UpstreamError> {
     let body = ordered_json(&[
         ("grant_type", "refresh_token"),
         ("refresh_token", refresh_token),
@@ -1469,7 +1476,7 @@ impl OAuthAuthorizationCode for Claudecode {
         &'a self,
         context: LoginContext<'a>,
         request: AuthorizationRequest<'a>,
-    ) -> OperationFuture<'a, AuthorizationStart> {
+    ) -> UpstreamFuture<'a, AuthorizationStart> {
         Box::pin(async move {
             let config = ClaudecodeConfig::from_view(context.provider)?;
             let redirect_uri = if request.redirect_uri.trim().is_empty() {
@@ -1502,7 +1509,7 @@ impl OAuthAuthorizationCode for Claudecode {
         &'a self,
         context: LoginContext<'a>,
         grant: AuthorizationCode<'a>,
-    ) -> OperationFuture<'a, OAuthCredential> {
+    ) -> UpstreamFuture<'a, OAuthCredential> {
         Box::pin(async move {
             let config = ClaudecodeConfig::from_view(context.provider)?;
             let body = ordered_json(&[
@@ -1522,7 +1529,7 @@ impl OAuthAuthorizationCode for Claudecode {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });
@@ -1585,20 +1592,20 @@ impl CredentialRefresh for Claudecode {
     fn connection_purpose(
         &self,
         credential: &CredentialView<'_>,
-    ) -> crate::channel::ConnectionPurpose {
+    ) -> gproxy_upstream::ConnectionPurpose {
         if non_empty(credential.secret.get("refresh_token")).is_none()
             && non_empty(credential.secret.get("cookie")).is_some()
         {
-            crate::channel::ConnectionPurpose::Browser
+            gproxy_upstream::ConnectionPurpose::Browser
         } else {
-            crate::channel::ConnectionPurpose::Request
+            gproxy_upstream::ConnectionPurpose::Request
         }
     }
 
     /// JSON `refresh_token` grant with the default scope plus any optional
     /// scopes the credential already holds (v3 `auth.rs`). A credential that
     /// only has a claude.ai cookie re-mints its tokens through the cookie.
-    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let config = ClaudecodeConfig::from_view(context.provider)?;
             let secret = context.credential.secret;
@@ -1609,7 +1616,7 @@ impl CredentialRefresh for Claudecode {
                     return cookie::refresh(context, &config, cookie.unwrap_or_default()).await;
                 }
                 None => {
-                    return Err(ChannelError::RefreshRejected(
+                    return Err(UpstreamError::RefreshRejected(
                         "credential has no refresh token".into(),
                     ));
                 }

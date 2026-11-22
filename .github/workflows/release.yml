@@ -898,143 +898,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  serverless:
-    name: Serverless (${{ matrix.arch }})
-    needs: [prepare, console]
-    runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            target: x86_64-unknown-linux-musl
-            runner: ubuntu-24.04
-          - arch: aarch64
-            target: aarch64-unknown-linux-musl
-            runner: ubuntu-24.04-arm
-    env:
-      ARTIFACT_NAME: gproxy-serverless-linux-${{ matrix.arch }}-musl
-      TARGET_TRIPLE: ${{ matrix.target }}
-      GPROXY_BUILD_HASH: ${{ github.sha }}
-      GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
-      BUILDER: cargo-alpine
-      UPX_ENABLED: 'true'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: console-dist
-          path: crates/gproxy-host-axum/assets/web
-      - uses: ./.github/actions/ghcr-rust-cache
-        with:
-          key: serverless-${{ matrix.target }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - run: bash scripts/build-serverless.sh "$TARGET_TRIPLE"
-      - run: target/${{ matrix.target }}/release/gproxy-serverless --version
-      - name: Install Serverless UPX packer
-        run: bash scripts/install-upx.sh
-      - run: bash scripts/package-serverless-release.sh
-      - run: bash scripts/build-provenance.sh
-      - uses: ./.github/actions/attest-release
-        with:
-          artifact: ${{ env.ARTIFACT_NAME }}
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: serverless-${{ matrix.target }}
-          path: dist/release/${{ env.ARTIFACT_NAME }}.*
-          if-no-files-found: error
-          retention-days: 1
-
-  edge:
-    name: Edge bundles
-    needs: [prepare, console]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: console-dist
-          path: console/dist
-      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # 1.99.0
-        with:
-          toolchain: 1.99.0
-          targets: wasm32-unknown-unknown
-      - uses: ./.github/actions/ghcr-rust-cache
-        with:
-          key: release-edge
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-        with:
-          package_json_file: console/package.json
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24.21.0'
-          cache: pnpm
-          cache-dependency-path: console/pnpm-lock.yaml
-      - name: Install worker-build
-        run: cargo install worker-build --locked --version 0.9.0
-      - run: scripts/package-edge-release.sh
-      - name: Record build provenance
-        env:
-          ARTIFACT_NAME: gproxy-edge
-          GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
-          TARGET_TRIPLE: wasm32-unknown-unknown
-          BUILDER: worker-build
-        run: scripts/build-provenance.sh
-      - name: Attest release packages
-        uses: ./.github/actions/attest-release
-        with:
-          artifact: gproxy-edge
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: edge-bundles
-          path: |
-            dist/release/gproxy-edge.provenance.json
-            dist/release/gproxy-edge.wasm
-            dist/release/gproxy-edge.wasm.sha256
-            dist/release/gproxy-edge-cloudflare.zip
-            dist/release/gproxy-edge-cloudflare.zip.sha256
-          retention-days: 1
-
-  edge-check:
-    name: Edge bundle check
-    needs: edge
-    runs-on: ubuntu-24.04
-    # `wrangler deploy --dry-run` validates the packaged Worker and its
-    # configuration without an account. It installs the locked Wrangler in a
-    # separate job, apart from the attestation token and from the
-    # files being attested, and checks the bundle exactly as it was packaged.
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: edge-bundles
-          path: dist/release
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-        with:
-          version: 9.15.9
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24.21.0'
-      - name: Dry-run the Cloudflare deployment
-        run: |
-          work="$RUNNER_TEMP/edge"
-          mkdir -p "$work"
-          unzip -q dist/release/gproxy-edge-cloudflare.zip -d "$work"
-          pnpm --dir "$work/cloudflare" install --frozen-lockfile --ignore-scripts
-          pnpm --dir "$work/cloudflare" check
-
   android-toolchain:
     name: Shared Android toolchain
     needs: prepare
@@ -1206,7 +1069,7 @@ jobs:
     name: Publish GitHub, GitLab and CNB releases
     env:
       GPROXY_CONTAINER_SOURCE: ${{ needs.container-manifest.outputs.source }}
-    needs: [prepare, native, riscv, ohos-application, headless, headless-riscv, alpine-packages, serverless, edge, edge-check, container-manifest, publish-crates, android-packages]
+    needs: [prepare, native, riscv, ohos-application, headless, headless-riscv, alpine-packages, container-manifest, publish-crates, android-packages]
     runs-on: ubuntu-24.04
     concurrency:
       group: gproxy-release-publication
@@ -1223,16 +1086,7 @@ jobs:
           merge-multiple: true
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: edge-bundles
-          path: dist/release
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
           pattern: headless-*
-          path: dist/release
-          merge-multiple: true
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: serverless-*
           path: dist/release
           merge-multiple: true
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1331,7 +1185,7 @@ jobs:
 
   cache-cleanup:
     name: Clean old GHCR build caches
-    needs: [gate, native, riscv, ohos-application, headless, headless-riscv, serverless, edge, android-build, android-packages]
+    needs: [gate, native, riscv, ohos-application, headless, headless-riscv, android-build, android-packages]
     if: ${{ always() && !cancelled() && needs.gate.outputs.run == 'true' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-24.04
     permissions:

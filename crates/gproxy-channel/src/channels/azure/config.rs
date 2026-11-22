@@ -1,6 +1,6 @@
 //! Provider `config` JSON this channel decodes. Unknown keys are ignored.
 
-use crate::channel::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 use serde::Deserialize;
 
 #[derive(Debug, Default, Deserialize)]
@@ -25,9 +25,9 @@ pub struct AzureConfig {
 }
 
 impl AzureConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 

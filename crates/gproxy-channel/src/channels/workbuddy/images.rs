@@ -12,8 +12,8 @@
 //! forwarded as the caller wrote it and the upstream decides.
 
 use super::envelope;
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Map, Value};
 
 /// What a generation body may carry.
@@ -51,11 +51,11 @@ const EDIT_FIELDS: &[&str] = &[
 const CREATE_MODEL: &str = "hunyuan-image-v3.0";
 const EDIT_MODEL: &str = "hunyuan-image-v2.0-general-edit";
 
-fn invalid(message: &str) -> ChannelError {
-    ChannelError::InvalidConfig(format!("WorkBuddy: {message}"))
+fn invalid(message: &str) -> UpstreamError {
+    UpstreamError::InvalidConfig(format!("WorkBuddy: {message}"))
 }
 
-pub(super) fn request(body: &[u8], edit: bool) -> Result<Bytes, ChannelError> {
+pub(super) fn request(body: &[u8], edit: bool) -> Result<Bytes, UpstreamError> {
     let mut object: Map<String, Value> = serde_json::from_slice(body)
         .map_err(|_| invalid("an image request must be a JSON object"))?;
     let allowed = if edit { EDIT_FIELDS } else { CREATE_FIELDS };

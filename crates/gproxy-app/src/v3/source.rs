@@ -1,4 +1,4 @@
-//! Read v3 rows through typed projections on native databases, D1 and libSQL.
+//! Read v3 rows through typed projections on native databases and libSQL.
 use super::{
     Error, Result,
     document::{self, Document},

@@ -15,13 +15,9 @@ use crate::{
     UsageReport, api::lifecycle::now_ms, credential_limit::counted_units, execute::Funnel, ids,
 };
 use gproxy_cache::Cache;
-use gproxy_channel::{
-    ChannelError,
-    channel::{
-        CredentialContext, QuotaAllowance, QuotaDimension, QuotaEntry, QuotaHeaderContext,
-        QuotaMetric, QuotaModel, QuotaScope, QuotaSnapshot, QuotaTracking, QuotaValue, QuotaWindow,
-        classify_by_id,
-    },
+use gproxy_channel::channel::{
+    QuotaAllowance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaMetric, QuotaModel,
+    QuotaScope, QuotaSnapshot, QuotaTracking, QuotaValue, QuotaWindow, classify_by_id,
 };
 use gproxy_protocol::{Operation, OperationKey, capability::CapabilityFuture};
 use gproxy_seaorm::BatchConnectionTrait;
@@ -30,6 +26,7 @@ use gproxy_store::{
     entity::limits::{credential_block, credential_quota_cycle},
     operations::counted::{CountedCharge, CountedOutcome},
 };
+use gproxy_upstream::{CredentialContext, UpstreamError};
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::{
@@ -83,7 +80,7 @@ pub(crate) fn quota_model<'a>(
 ) -> Option<&'a dyn QuotaModel> {
     data.providers
         .get(&credential.provider_id)
-        .and_then(|provider| provider.channel.quota_model())
+        .and_then(|provider| provider.channel().and_then(|channel| channel.quota_model()))
 }
 
 /// The credential's dimension an observed entry reports on, placed by the
@@ -489,7 +486,10 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
         let Some(provider) = snapshot.providers.get(&credential.provider_id) else {
             return Ok(Vec::new());
         };
-        let Some(observer) = provider.channel.quota_headers() else {
+        let Some(observer) = provider
+            .channel()
+            .and_then(|channel| channel.quota_headers())
+        else {
             return Ok(Vec::new());
         };
         let entries = observer
@@ -663,9 +663,9 @@ impl<C: BatchConnectionTrait> Core<C> {
                         ..context
                     };
                     provider
-                        .channel
-                        .quota_query()
-                        .ok_or(ChannelError::UnsupportedService)?
+                        .channel()
+                        .and_then(|channel| channel.quota_query())
+                        .ok_or(UpstreamError::UnsupportedService)?
                         .query(context)
                         .await
                 })
@@ -802,9 +802,9 @@ impl<C: BatchConnectionTrait> Core<C> {
             .quota_operation(provider_id, credential_id, filter, |provider, context| {
                 Box::pin(async move {
                     provider
-                        .channel
-                        .quota_reset()
-                        .ok_or(ChannelError::UnsupportedService)?
+                        .channel()
+                        .and_then(|channel| channel.quota_reset())
+                        .ok_or(UpstreamError::UnsupportedService)?
                         .credits(context)
                         .await
                 })
@@ -845,9 +845,9 @@ impl<C: BatchConnectionTrait> Core<C> {
                 let grant_id = request.grant_id.map(str::to_owned);
                 Box::pin(async move {
                     provider
-                        .channel
-                        .quota_reset()
-                        .ok_or(ChannelError::UnsupportedService)?
+                        .channel()
+                        .and_then(|channel| channel.quota_reset())
+                        .ok_or(UpstreamError::UnsupportedService)?
                         .reset(
                             context,
                             gproxy_channel::channel::QuotaResetRequest {
@@ -896,7 +896,7 @@ impl<C: BatchConnectionTrait> Core<C> {
         invoke: impl for<'a> Fn(
             &'a crate::ProviderData,
             CredentialContext<'a>,
-        ) -> gproxy_channel::channel::OperationFuture<'a, T>,
+        ) -> gproxy_upstream::UpstreamFuture<'a, T>,
     ) -> CoreResult<(Arc<CredentialData>, T)>
     where
         C: Send,
@@ -958,7 +958,7 @@ impl<C: BatchConnectionTrait> Core<C> {
             // Imported credentials can have no expiry; allow one auth retry.
             if crate::refresh::can_refresh(&provider, &credential, &version)
                 && !retried
-                && matches!(&result, Err(ChannelError::UpstreamResponse { status, .. }) if *status == http::StatusCode::UNAUTHORIZED)
+                && matches!(&result, Err(UpstreamError::UpstreamResponse { status, .. }) if *status == http::StatusCode::UNAUTHORIZED)
             {
                 self.refresh_credential_with_filter(
                     provider_id,

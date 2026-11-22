@@ -10,6 +10,7 @@ use gproxy_protocol::{Dialect, Operation, OperationKey, connection::StreamFramin
 use gproxy_store::entity::upstream::{
     provider, provider_rewrite_rule_set, rewrite_rule, rewrite_rule_set,
 };
+use gproxy_upstream::UpstreamKind;
 use http::{HeaderMap, HeaderValue};
 use serde_json::json;
 use std::sync::Arc;
@@ -281,11 +282,13 @@ fn json_array_and_ndjson_units_are_rewritten_individually() {
 }
 
 struct Channel;
-impl BaseChannel for Channel {
+impl UpstreamKind for Channel {
     fn id(&self) -> &'static str {
         "test"
     }
 }
+
+impl BaseChannel for Channel {}
 
 fn snapshot(rules: Vec<Arc<RewriteRuleData>>) -> (CoreData, ProviderData) {
     let set = RewriteRuleSetData {
@@ -317,7 +320,7 @@ fn snapshot(rules: Vec<Arc<RewriteRuleData>>) -> (CoreData, ProviderData) {
             enabled: true,
             created_at_ms: 0,
         }),
-        channel: Arc::new(Channel),
+        kind: gproxy_core::ProviderKind::Channel(Arc::new(Channel)),
         credential_ids: vec![],
         models: vec![],
         operation_rules: vec![],

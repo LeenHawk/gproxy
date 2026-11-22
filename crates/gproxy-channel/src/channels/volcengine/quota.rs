@@ -9,12 +9,15 @@
 
 use super::{Config, Edition, Volcengine, control};
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior,
-    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+    QuotaAllowance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
+    QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
+    QuotaWindow,
 };
 use crate::channels::shared::compatible::{ability::decimal, http::invalid_response};
 use gproxy_protocol::Operation;
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
+};
 use serde_json::{Value, json};
 
 const WINDOWS: [(&str, &str); 4] = [
@@ -30,7 +33,7 @@ const CODING_WINDOWS: [(&str, &str); 3] = [
     ("monthly", "monthly"),
 ];
 
-async fn coding_personal(ctx: CredentialContext<'_>) -> Result<QuotaSnapshot, ChannelError> {
+async fn coding_personal(ctx: CredentialContext<'_>) -> Result<QuotaSnapshot, UpstreamError> {
     let result = control::call(ctx, "GetCodingPlanUsage", json!({}), None).await?;
     let windows = result
         .get("QuotaUsage")
@@ -75,7 +78,7 @@ async fn coding_personal(ctx: CredentialContext<'_>) -> Result<QuotaSnapshot, Ch
 }
 
 impl QuotaQuery for Volcengine {
-    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = Config::read(ctx.provider)?;
             let enterprise = matches!(config.edition, Edition::Enterprise);
@@ -90,7 +93,7 @@ impl QuotaQuery for Volcengine {
                         .and_then(Value::as_str)
                         .filter(|s| !s.is_empty())
                         .ok_or_else(|| {
-                            ChannelError::InvalidConfig(
+                            UpstreamError::InvalidConfig(
                                 "Enterprise Ark quota requires credential metadata.seat_id".into(),
                             )
                         })?,
@@ -119,7 +122,7 @@ impl QuotaQuery for Volcengine {
                 }
             } else {
                 let seat = seat.ok_or_else(|| {
-                    ChannelError::InvalidConfig(
+                    UpstreamError::InvalidConfig(
                         "Enterprise Ark quota requires credential metadata.seat_id".into(),
                     )
                 })?;

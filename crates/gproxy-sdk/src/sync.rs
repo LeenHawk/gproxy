@@ -30,9 +30,7 @@ pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(30);
 /// Resubscription backoff after the notification topic closes or refuses.
 /// Only the background loop resubscribes; `tick` leaves a closed topic to the
 /// revision poll of the same call.
-#[cfg(not(target_arch = "wasm32"))]
 const MIN_BACKOFF: Duration = Duration::from_secs(1);
-#[cfg(not(target_arch = "wasm32"))]
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 /// A zero timeout: take what is already delivered, wait for nothing.
@@ -42,12 +40,11 @@ const NOTHING_PENDING: Duration = Duration::ZERO;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SyncMode {
     /// The handle runs its own subscription and poll loops. Needs a Tokio
-    /// runtime and a process that outlives the request, so this is the native
-    /// server mode; on wasm32 it behaves as `Manual`.
+    /// runtime and a process that outlives the request.
     #[default]
     Background,
     /// Nothing happens unless the host calls `tick` or `sync_now`. This is
-    /// what an edge isolate wants, and what a test wants.
+    /// what a per-request host wants, and what a test wants.
     Manual,
 }
 
@@ -68,7 +65,7 @@ impl SyncHandle {
 /// subscribe, so a write landing between now and the first `tick` is not
 /// missed by both mechanisms.
 pub(crate) async fn prepare(cache: &Arc<dyn Cache>, mode: SyncMode) -> SyncHandle {
-    let manual = mode == SyncMode::Manual || cfg!(target_arch = "wasm32");
+    let manual = mode == SyncMode::Manual;
     SyncHandle {
         cancel: CancellationToken::new(),
         subscription: if manual { subscribe(cache).await } else { None },
@@ -93,41 +90,32 @@ async fn subscribe(cache: &Arc<dyn Cache>) -> Option<tokio::sync::Mutex<Box<dyn 
     }
 }
 
-/// Start the background loops, if this target and mode have any.
+/// Start the background loops, if this mode has any.
 pub(crate) fn spawn<C>(inner: &Arc<Inner<C>>, mode: SyncMode, poll_interval: Duration)
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    #[cfg(target_arch = "wasm32")]
-    {
-        // An isolate does not outlive the request that created it; a loop here
-        // would be cancelled mid-sleep and never poll. `tick` is the answer.
-        let _ = (inner, mode, poll_interval);
+    if mode != SyncMode::Background {
+        return;
     }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        if mode != SyncMode::Background {
-            return;
-        }
-        let Some(sync) = inner.sync.get() else {
-            return;
-        };
-        let cancel = sync.cancel.clone();
-        let polling = rt::spawn(poll_loop(
-            Arc::downgrade(inner),
-            poll_interval,
-            cancel.clone(),
-        ));
-        let listening = rt::spawn(subscription_loop(
-            Arc::downgrade(inner),
-            inner.cache.clone(),
-            cancel,
-        ));
-        if !polling || !listening {
-            tracing::warn!(
-                "no Tokio runtime for background synchronization; build with SyncMode::Manual and call tick()"
-            );
-        }
+    let Some(sync) = inner.sync.get() else {
+        return;
+    };
+    let cancel = sync.cancel.clone();
+    let polling = rt::spawn(poll_loop(
+        Arc::downgrade(inner),
+        poll_interval,
+        cancel.clone(),
+    ));
+    let listening = rt::spawn(subscription_loop(
+        Arc::downgrade(inner),
+        inner.cache.clone(),
+        cancel,
+    ));
+    if !polling || !listening {
+        tracing::warn!(
+            "no Tokio runtime for background synchronization; build with SyncMode::Manual and call tick()"
+        );
     }
 }
 
@@ -214,7 +202,6 @@ where
 
 /// The durable backstop: poll the revision, reload when it moved. Holds a
 /// `Weak`, so dropping the last handle ends the loop at its next wake.
-#[cfg(not(target_arch = "wasm32"))]
 async fn poll_loop<C>(
     inner: std::sync::Weak<Inner<C>>,
     interval: Duration,
@@ -225,7 +212,7 @@ async fn poll_loop<C>(
     loop {
         tokio::select! {
             _ = cancel.cancelled() => return,
-            _ = rt::sleep(interval) => {}
+            _ = tokio::time::sleep(interval) => {}
         }
         let Some(handle) = inner.upgrade() else {
             return;
@@ -240,7 +227,6 @@ async fn poll_loop<C>(
 /// topic is resubscribed with a 1s→30s backoff, and every fresh subscription
 /// opens with `ResyncRequired`, so whatever was published while we were away
 /// is recovered by the reload that follows.
-#[cfg(not(target_arch = "wasm32"))]
 async fn subscription_loop<C>(
     inner: std::sync::Weak<Inner<C>>,
     cache: Arc<dyn Cache>,
@@ -279,7 +265,7 @@ async fn subscription_loop<C>(
         }
         tokio::select! {
             _ = cancel.cancelled() => return,
-            _ = rt::sleep(backoff) => {}
+            _ = tokio::time::sleep(backoff) => {}
         }
         backoff = (backoff * 2).min(MAX_BACKOFF);
     }

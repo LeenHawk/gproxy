@@ -1,9 +1,9 @@
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 use http::{HeaderMap, HeaderName, HeaderValue};
 use serde_json::Value;
 
-pub(super) fn invalid(message: impl std::fmt::Display) -> ChannelError {
-    ChannelError::InvalidResponse(format!("Trae: {message}"))
+pub(super) fn invalid(message: impl std::fmt::Display) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("Trae: {message}"))
 }
 
 pub(super) fn now_ms() -> i64 {
@@ -13,10 +13,10 @@ pub(super) fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
-pub(super) fn random_hex<const N: usize>() -> Result<String, ChannelError> {
+pub(super) fn random_hex<const N: usize>() -> Result<String, UpstreamError> {
     let mut bytes = [0; N];
     getrandom::fill(&mut bytes)
-        .map_err(|_| ChannelError::InvalidConfig("Trae: randomness unavailable".into()))?;
+        .map_err(|_| UpstreamError::InvalidConfig("Trae: randomness unavailable".into()))?;
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 
@@ -24,19 +24,19 @@ pub(super) fn insert(
     headers: &mut HeaderMap,
     name: &'static str,
     value: &str,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     headers.insert(
         HeaderName::from_static(name),
-        HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)?,
+        HeaderValue::from_str(value).map_err(|_| UpstreamError::InvalidCredential)?,
     );
     Ok(())
 }
 
-pub(super) fn json(body: &[u8]) -> Result<Value, ChannelError> {
+pub(super) fn json(body: &[u8]) -> Result<Value, UpstreamError> {
     serde_json::from_slice(body).map_err(invalid)
 }
 
-pub(super) fn check(value: &Value) -> Result<(), ChannelError> {
+pub(super) fn check(value: &Value) -> Result<(), UpstreamError> {
     if let Some(error) = value
         .pointer("/ResponseMetadata/Error")
         .filter(|v| !v.is_null())

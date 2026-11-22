@@ -3,9 +3,10 @@
 //! Vertex Express mode: one global origin, a Gemini-only method surface and
 //! the API key in the query. No upstream is contacted.
 
-use gproxy_channel::channel::{CredentialView, PrepareContext, ProviderView};
-use gproxy_channel::{BaseChannel, ChannelError, channels::vertexexpress::VertexExpress};
+use gproxy_channel::channel::PrepareContext;
+use gproxy_channel::{BaseChannel, channels::vertexexpress::VertexExpress};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError, UpstreamKind};
 use http::{HeaderMap, HeaderValue, Method};
 use serde_json::{Value, json};
 
@@ -53,7 +54,7 @@ fn prepare<'a>(
     dialect: Dialect,
     request: WireRequest<HttpBody>,
     endpoint_override: Option<&'a str>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     VertexExpress.prepare(PrepareContext {
         provider: provider(config, base_url),
         credential: credential(secret),
@@ -176,7 +177,7 @@ fn endpoint_override_wins_but_must_not_carry_a_key() {
     )
     .unwrap_err();
     assert!(
-        matches!(&error, ChannelError::InvalidConfig(message) if message.contains("API key")),
+        matches!(&error, UpstreamError::InvalidConfig(message) if message.contains("API key")),
         "{error}"
     );
 }
@@ -194,7 +195,7 @@ fn a_request_without_a_model_names_what_is_missing() {
     )
     .unwrap_err();
     assert!(
-        matches!(&error, ChannelError::InvalidConfig(message) if message.contains("model")),
+        matches!(&error, UpstreamError::InvalidConfig(message) if message.contains("model")),
         "{error}"
     );
 }
@@ -211,7 +212,7 @@ fn a_credential_without_a_key_is_refused() {
         None,
     )
     .unwrap_err();
-    assert!(matches!(error, ChannelError::InvalidCredential), "{error}");
+    assert!(matches!(error, UpstreamError::InvalidCredential), "{error}");
 }
 
 #[test]
@@ -259,7 +260,7 @@ fn every_declared_dialect_can_be_prepared_and_nothing_else_is_served() {
     )
     .unwrap_err();
     assert!(
-        matches!(error, ChannelError::UnsupportedOperation(_)),
+        matches!(error, UpstreamError::UnsupportedOperation(_)),
         "{error}"
     );
 }

@@ -12,9 +12,12 @@ use std::collections::HashSet;
 
 use super::{ClaudeWeb, ClaudeWebConfig, auth, prepare, read_body};
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior,
-    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+    QuotaAllowance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
+    QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
+    QuotaWindow,
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
 };
 
 const FIVE_HOURS: i64 = 5 * 60 * 60;
@@ -67,7 +70,7 @@ impl QuotaModel for ClaudeWeb {
 }
 
 impl QuotaQuery for ClaudeWeb {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = ClaudeWebConfig::from_view(context.provider)?;
             let auth = auth::Auth::read(&context.credential)?;
@@ -85,7 +88,7 @@ impl QuotaQuery for ClaudeWeb {
             let response = context.client.send(request).await?;
             let body = read_body(response.body).await?;
             if !response.status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status: response.status,
                     body,
                 });
@@ -137,9 +140,9 @@ struct WebLimitModel {
 
 /// The live endpoint always carries the primary windows, so a payload
 /// without them is invalid rather than "no usage".
-pub(super) fn parse_usage(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
+pub(super) fn parse_usage(body: &[u8]) -> Result<Vec<QuotaEntry>, UpstreamError> {
     let usage: WebUsage = serde_json::from_slice(body)
-        .map_err(|error| ChannelError::InvalidResponse(format!("claude.ai usage: {error}")))?;
+        .map_err(|error| UpstreamError::InvalidResponse(format!("claude.ai usage: {error}")))?;
     let mut entries = vec![
         window_entry(
             FIVE_HOUR_ID.into(),
@@ -233,7 +236,8 @@ fn window_entry(
         value: QuotaValue::Window(QuotaAllowance {
             used: used_percent,
             limit: Some(Decimal::ONE_HUNDRED),
-            remaining: used_percent.map(|used| Decimal::ONE_HUNDRED.saturating_sub(used).max(Decimal::ZERO)),
+            remaining: used_percent
+                .map(|used| Decimal::ONE_HUNDRED.saturating_sub(used).max(Decimal::ZERO)),
             used_percent,
             unlimited: None,
             unit: Some("percent".into()),

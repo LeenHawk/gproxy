@@ -56,22 +56,50 @@ pub use identity::CLI_HEADERS;
 pub use quota::QUOTA_SOURCE;
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, OperationContext,
-    OperationFuture, PrepareContext, ProviderView, QuotaQuery,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, OperationContext,
+    PrepareContext, QuotaQuery,
 };
 use gproxy_client::ConnectionConfig;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, LoginMode, OAuthDeviceCode, ProviderView,
+    UpstreamError, UpstreamFuture, UpstreamKind,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CopilotCli;
 
-impl BaseChannel for CopilotCli {
+impl UpstreamKind for CopilotCli {
     fn id(&self) -> &'static str {
         ID
     }
 
+    /// No client fingerprint by default; the CLI's captured TLS identity is
+    /// a public TLS preset an operator selects in a connection profile.
+    fn default_connection(&self) -> Option<ConnectionConfig> {
+        None
+    }
+
+    /// A credential from the channel's earlier design cannot be used: its
+    /// GitHub token belongs to another OAuth app.
+    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), UpstreamError> {
+        if auth::legacy(secret) {
+            return Err(UpstreamError::InvalidConfig(auth::LEGACY_REASON.into()));
+        }
+        Ok(())
+    }
+
+    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
+        Some(self)
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for CopilotCli {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -127,12 +155,6 @@ impl BaseChannel for CopilotCli {
         }
     }
 
-    /// No client fingerprint by default; the CLI's captured TLS identity is
-    /// a public TLS preset an operator selects in a connection profile.
-    fn default_connection(&self) -> Option<ConnectionConfig> {
-        None
-    }
-
     /// The Copilot backend serves Chat Completions, Responses and a
     /// catalogue; every other dialect is the host's conversion problem.
     fn native_dialects(&self, provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
@@ -174,16 +196,7 @@ impl BaseChannel for CopilotCli {
         })
     }
 
-    /// A credential from the channel's earlier design cannot be used: its
-    /// GitHub token belongs to another OAuth app.
-    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), ChannelError> {
-        if auth::legacy(secret) {
-            return Err(ChannelError::InvalidConfig(auth::LEGACY_REASON.into()));
-        }
-        Ok(())
-    }
-
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         request::build(ctx)
     }
 
@@ -192,7 +205,7 @@ impl BaseChannel for CopilotCli {
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             let mut response = send(self, Operation::ListModels, context).await?;
             if response.status.is_success() {
@@ -211,7 +224,7 @@ impl BaseChannel for CopilotCli {
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             let responses = context.dialect == Dialect::OpenAi;
             let mut response = send(self, Operation::StreamGenerateContent, context).await?;
@@ -221,14 +234,6 @@ impl BaseChannel for CopilotCli {
             }
             Ok(response)
         })
-    }
-
-    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        Some(self)
-    }
-
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
     }
 
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
@@ -244,7 +249,7 @@ async fn send(
     channel: &CopilotCli,
     operation: Operation,
     context: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let request = channel.prepare(PrepareContext {
         provider: context.provider,
         credential: context.credential,
@@ -257,4 +262,3 @@ async fn send(
     })?;
     Ok(context.client.send(request).await?)
 }
-

@@ -2,9 +2,10 @@
 
 use super::auth::{self, CHANNEL_HEADERS, CLIENT_HEADERS};
 use super::config::{ClineConfig, base_url};
-use crate::channel::{ChannelError, HeaderAllowlist, PrepareContext, forwardable};
+use crate::channel::{HeaderAllowlist, PrepareContext, forwardable};
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderValue, Method, header};
 
 /// The catalogue the Cline extension reads (v3 `cline/prepare.rs::target`).
@@ -15,17 +16,17 @@ pub(super) const CHAT_PATH: &str = "/chat/completions";
 /// The method and path an operation reaches, or `UnsupportedOperation`.
 /// Cline's REST surface has exactly two routes, so the client's own path is
 /// never trusted.
-fn target(operation: OperationKey) -> Result<(Method, &'static str), ChannelError> {
+fn target(operation: OperationKey) -> Result<(Method, &'static str), UpstreamError> {
     match (operation.operation, operation.dialect) {
         (Operation::ListModels, _) => Ok((Method::GET, MODELS_PATH)),
         (Operation::GenerateContent | Operation::StreamGenerateContent, Dialect::OpenAiChat) => {
             Ok((Method::POST, CHAT_PATH))
         }
-        _ => Err(ChannelError::UnsupportedOperation(operation)),
+        _ => Err(UpstreamError::UnsupportedOperation(operation)),
     }
 }
 
-pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
     let config = ClineConfig::from_view(ctx.provider)?;
     let (method, path) = target(ctx.operation)?;
     let url = match ctx.endpoint_override {
@@ -59,5 +60,5 @@ pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, 
     }
     builder
         .body(ctx.request.body)
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
 }

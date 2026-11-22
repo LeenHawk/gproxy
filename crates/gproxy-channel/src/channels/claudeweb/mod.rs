@@ -10,7 +10,7 @@
 //!
 //! Unlike v3, no host orchestration is involved: `generate_content` and
 //! `stream_generate_content` run every step themselves with the owned client
-//! and record tool boundaries in the scoped `ChannelState` (see `turn`).
+//! and record tool boundaries in the scoped `UpstreamState` (see `turn`).
 //!
 //! The TLS/HTTP fingerprint claude.ai expects from a browser is a
 //! ConnectionProfile concern: the host binds this provider to a client with
@@ -49,11 +49,14 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialRefresh, HOST_CONFIG_KEYS, OperationContext, OperationFuture, ProviderView,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, OperationContext,
     QuotaModel, QuotaQuery, UsageExtras,
 };
 use gproxy_client::ConnectionConfig;
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, ProviderView, UpstreamError, UpstreamFuture,
+    UpstreamKind,
+};
 
 pub const ID: &str = "claudeweb";
 
@@ -87,18 +90,18 @@ impl Default for ClaudeWebConfig {
 }
 
 impl ClaudeWebConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
-    fn static_headers(&self, headers: &mut HeaderMap) -> Result<(), ChannelError> {
+    fn static_headers(&self, headers: &mut HeaderMap) -> Result<(), UpstreamError> {
         for (name, value) in &self.headers {
             headers.insert(
                 HeaderName::from_bytes(name.as_bytes())
-                    .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+                    .map_err(|_| UpstreamError::InvalidConfig(format!("header `{name}`")))?,
                 HeaderValue::from_str(value)
-                    .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+                    .map_err(|_| UpstreamError::InvalidConfig(format!("header `{name}`")))?,
             );
         }
         Ok(())
@@ -122,29 +125,29 @@ impl ClaudeWeb {
     }
 }
 
-fn bad_request(message: impl Into<String>) -> ChannelError {
-    ChannelError::Transport(CapabilityError::new(
+fn bad_request(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::Transport(CapabilityError::new(
         CapabilityErrorKind::Invalid,
         CapabilityErrorStage::Start,
         message,
     ))
 }
 
-fn expired(message: impl Into<String>) -> ChannelError {
-    ChannelError::Transport(CapabilityError::new(
+fn expired(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::Transport(CapabilityError::new(
         CapabilityErrorKind::Expired,
         CapabilityErrorStage::Start,
         message,
     ))
 }
 
-fn now_ms() -> Result<i64, ChannelError> {
+fn now_ms() -> Result<i64, UpstreamError> {
     let millis = web_time::SystemTime::now()
         .duration_since(web_time::UNIX_EPOCH)
-        .map_err(|_| ChannelError::InvalidConfig("system clock is before the Unix epoch".into()))?
+        .map_err(|_| UpstreamError::InvalidConfig("system clock is before the Unix epoch".into()))?
         .as_millis();
     i64::try_from(millis)
-        .map_err(|_| ChannelError::InvalidConfig("Unix milliseconds overflow".into()))
+        .map_err(|_| UpstreamError::InvalidConfig("Unix milliseconds overflow".into()))
 }
 
 /// A wall-clock instant for `StateWrite::expires_at`; built from the epoch
@@ -173,11 +176,33 @@ pub fn default_connection() -> ConnectionConfig {
     super::shared::browser_connection()
 }
 
-impl BaseChannel for ClaudeWeb {
+impl UpstreamKind for ClaudeWeb {
     fn id(&self) -> &'static str {
         ID
     }
 
+    fn default_connection(&self) -> Option<ConnectionConfig> {
+        Some(default_connection())
+    }
+
+    fn validate_credential_secret(&self, secret: &Value) -> Result<(), UpstreamError> {
+        auth::field(secret, "cookie")
+            .or_else(|| auth::field(secret, "session_key"))
+            .and_then(auth::normalize_cookie)
+            .map(|_| ())
+            .ok_or(UpstreamError::InvalidCredential)
+    }
+
+    fn initial_credential_expiry(&self, _secret: &Value) -> Option<i64> {
+        Some(0)
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for ClaudeWeb {
     /// A claude.ai browser session: the only way in is the `sessionKey`
     /// cookie, revalidated at `/api/bootstrap` rather than refreshed against a
     /// token endpoint. Account limits come from the organization usage call.
@@ -225,10 +250,6 @@ impl BaseChannel for ClaudeWeb {
         }
     }
 
-    fn default_connection(&self) -> Option<ConnectionConfig> {
-        Some(default_connection())
-    }
-
     fn local_operations(&self) -> &'static [Operation] {
         &[Operation::ListModels]
     }
@@ -246,10 +267,10 @@ impl BaseChannel for ClaudeWeb {
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             if context.dialect != Dialect::Claude {
-                return Err(ChannelError::UnsupportedOperation(
+                return Err(UpstreamError::UnsupportedOperation(
                     gproxy_protocol::OperationKey {
                         operation: Operation::ListModels,
                         dialect: context.dialect,
@@ -258,7 +279,7 @@ impl BaseChannel for ClaudeWeb {
             }
             let models = models::from_metadata(context.credential.metadata);
             let body = serde_json::to_vec(&models::claude_list(&models))
-                .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
+                .map_err(|error| UpstreamError::InvalidResponse(error.to_string()))?;
             Ok(local_response("application/json", Bytes::from(body)))
         })
     }
@@ -266,10 +287,10 @@ impl BaseChannel for ClaudeWeb {
     fn generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             if context.dialect != Dialect::Claude {
-                return Err(ChannelError::UnsupportedOperation(
+                return Err(UpstreamError::UnsupportedOperation(
                     gproxy_protocol::OperationKey {
                         operation: Operation::GenerateContent,
                         dialect: context.dialect,
@@ -279,7 +300,7 @@ impl BaseChannel for ClaudeWeb {
             let turn = turn::start(self, context).await?;
             let message = turn.collect().await?;
             let body = serde_json::to_vec(&message)
-                .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
+                .map_err(|error| UpstreamError::InvalidResponse(error.to_string()))?;
             Ok(local_response("application/json", Bytes::from(body)))
         })
     }
@@ -287,10 +308,10 @@ impl BaseChannel for ClaudeWeb {
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             if context.dialect != Dialect::Claude {
-                return Err(ChannelError::UnsupportedOperation(
+                return Err(UpstreamError::UnsupportedOperation(
                     gproxy_protocol::OperationKey {
                         operation: Operation::StreamGenerateContent,
                         dialect: context.dialect,
@@ -312,21 +333,6 @@ impl BaseChannel for ClaudeWeb {
         })
     }
 
-    fn validate_credential_secret(&self, secret: &Value) -> Result<(), ChannelError> {
-        auth::field(secret, "cookie")
-            .or_else(|| auth::field(secret, "session_key"))
-            .and_then(auth::normalize_cookie)
-            .map(|_| ())
-            .ok_or(ChannelError::InvalidCredential)
-    }
-
-    fn initial_credential_expiry(&self, _secret: &Value) -> Option<i64> {
-        Some(0)
-    }
-
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
-    }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }

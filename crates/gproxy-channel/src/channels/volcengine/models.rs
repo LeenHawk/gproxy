@@ -1,7 +1,8 @@
 use super::{Config, Edition, Volcengine, control, json_response};
-use crate::channel::{ChannelError, CredentialContext, OperationContext};
+use crate::channel::OperationContext;
 use crate::channels::shared::compatible::http::invalid_response;
 use gproxy_protocol::{HttpBody, WireResponse};
+use gproxy_upstream::{CredentialContext, UpstreamError};
 use http::StatusCode;
 use serde_json::{Value, json};
 
@@ -9,7 +10,7 @@ pub(super) async fn reply(
     channel: &Volcengine,
     ctx: OperationContext<'_>,
     single: bool,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let config = Config::read(ctx.provider)?;
     let (action, body) = if channel.agent {
         (
@@ -43,17 +44,17 @@ pub(super) async fn reply(
                 .ok_or_else(|| invalid_response("Ark catalogue missing ModelID"))?;
             Ok(json!({"id": id, "object": "model", "created": 0, "owned_by": "volcengine"}))
         })
-        .collect::<Result<Vec<_>, ChannelError>>()?;
+        .collect::<Result<Vec<_>, UpstreamError>>()?;
     Ok(if single {
         let id = ctx
             .request
             .path
             .split_once("/models/")
             .map(|(_, id)| id)
-            .ok_or_else(|| ChannelError::InvalidConfig("model id missing".into()))?;
+            .ok_or_else(|| UpstreamError::InvalidConfig("model id missing".into()))?;
         let id = percent_encoding::percent_decode_str(id)
             .decode_utf8()
-            .map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+            .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
         match models
             .into_iter()
             .find(|model| model["id"].as_str() == Some(id.as_ref()))

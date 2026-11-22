@@ -1,4 +1,0 @@
-# Set these in the deployment form; do not commit actual secrets.
-GPROXY_ADMIN_PASSWORD=
-# Optional. Without it, upstream credentials are stored unencrypted.
-GPROXY_MASTER_KEY=

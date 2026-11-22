@@ -4,8 +4,8 @@
 //! persistence and redaction. Nothing here is a public pipeline hook.
 
 use crate::{AttemptContext, ExchangeContext, RequestContext, UsageReport};
-use gproxy_channel::ChannelError;
 use gproxy_protocol::{capability::CapabilityFuture, connection::WsFrame};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderMap, Method, StatusCode, Uri};
 use std::time::Duration;
 
@@ -106,7 +106,7 @@ pub enum AttemptOutcome {
         status: StatusCode,
         retry_after: Option<Duration>,
     },
-    Failed(ChannelError),
+    Failed(UpstreamError),
     Cancelled,
     DeadlineExceeded,
 }

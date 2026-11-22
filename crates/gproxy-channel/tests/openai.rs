@@ -3,17 +3,17 @@
 mod support;
 
 use gproxy_channel::{
-    BaseChannel, ChannelError, OutboundClient,
-    channel::{
-        CredentialContext, CredentialView, PrepareContext, ProviderView, QuotaHeaderContext,
-        QuotaValue,
-    },
+    BaseChannel, OutboundClient,
+    channel::{PrepareContext, QuotaHeaderContext, QuotaValue},
     channels::openai::{OpenAi, RESPONSES_MULTI_AGENT_BETA, RESPONSES_WS_BETA},
 };
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture, UpstreamConnection},
     connection::Bytes,
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamKind,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use rust_decimal::Decimal;
@@ -134,7 +134,7 @@ fn prepare<'a>(
     dialect: Dialect,
     request: WireRequest<HttpBody>,
     endpoint_override: Option<&'a str>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     OpenAi.prepare(PrepareContext {
         provider: provider(config, base_url),
         credential: credential(secret),
@@ -150,7 +150,7 @@ fn connect(
     dialect: Dialect,
     path: &str,
     query: Option<&str>,
-) -> Result<http::Request<()>, ChannelError> {
+) -> Result<http::Request<()>, UpstreamError> {
     let config = json!({});
     OpenAi.prepare_connect(PrepareContext {
         provider: provider(&config, None),
@@ -309,7 +309,7 @@ fn forwards_the_native_path_and_replaces_the_credential() {
             request("/v1/responses", None, b"{}"),
             None
         ),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
 }
 
@@ -414,7 +414,7 @@ fn opens_the_two_socket_surfaces_and_refuses_the_rest() {
             "/v1/realtime",
             None
         ),
-        Err(ChannelError::InvalidConfig(_))
+        Err(UpstreamError::InvalidConfig(_))
     ));
     assert!(matches!(
         connect(
@@ -424,7 +424,7 @@ fn opens_the_two_socket_surfaces_and_refuses_the_rest() {
             "/v1/responses",
             None
         ),
-        Err(ChannelError::WrongTransport(_))
+        Err(UpstreamError::WrongTransport(_))
     ));
 }
 
@@ -557,6 +557,6 @@ async fn reads_the_organization_cost_report_across_its_pages() {
                 client: &client,
             })
             .await,
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
 }

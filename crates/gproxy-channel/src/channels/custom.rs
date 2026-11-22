@@ -9,11 +9,14 @@
 //! restrict forwarding to a named set. No protocol conversion happens here.
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, HeaderAllowlist,
+    PrepareContext, forwardable,
 };
 use crate::channels::shared::cache;
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily, WireRequest};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 use http::{HeaderName, HeaderValue, header};
 use serde::Deserialize;
 
@@ -48,9 +51,9 @@ pub struct CustomConfig {
 }
 
 impl CustomConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 
@@ -61,7 +64,7 @@ impl Custom {
     fn build<B>(
         &self,
         ctx: PrepareContext<'_, B>,
-    ) -> Result<(http::request::Builder, WireRequest<B>), ChannelError> {
+    ) -> Result<(http::request::Builder, WireRequest<B>), UpstreamError> {
         let config = CustomConfig::from_view(ctx.provider)?;
         let key = ctx
             .credential
@@ -69,7 +72,7 @@ impl Custom {
             .get("api_key")
             .and_then(|v| v.as_str())
             .filter(|k| !k.is_empty())
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let mut request = ctx.request;
         let url = match ctx.endpoint_override {
             Some(url) => url.to_owned(),
@@ -77,7 +80,7 @@ impl Custom {
                 let base = ctx
                     .provider
                     .base_url
-                    .ok_or_else(|| ChannelError::InvalidConfig("base_url is required".into()))?
+                    .ok_or_else(|| UpstreamError::InvalidConfig("base_url is required".into()))?
                     .trim_end_matches('/');
                 let path = if request.path.starts_with('/') {
                     request.path.clone()
@@ -103,27 +106,27 @@ impl Custom {
                 let value = format!("{}{key}", config.auth_prefix.as_deref().unwrap_or(""));
                 headers.insert(
                     HeaderName::from_bytes(name.as_bytes())
-                        .map_err(|_| ChannelError::InvalidConfig("auth_header".into()))?,
-                    HeaderValue::from_str(&value).map_err(|_| ChannelError::InvalidCredential)?,
+                        .map_err(|_| UpstreamError::InvalidConfig("auth_header".into()))?,
+                    HeaderValue::from_str(&value).map_err(|_| UpstreamError::InvalidCredential)?,
                 );
             }
             (None, WireFamily::OpenAi) => {
                 headers.insert(
                     header::AUTHORIZATION,
                     HeaderValue::from_str(&format!("Bearer {key}"))
-                        .map_err(|_| ChannelError::InvalidCredential)?,
+                        .map_err(|_| UpstreamError::InvalidCredential)?,
                 );
             }
             (None, WireFamily::Claude) => {
                 headers.insert(
                     HeaderName::from_static("x-api-key"),
-                    HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
+                    HeaderValue::from_str(key).map_err(|_| UpstreamError::InvalidCredential)?,
                 );
             }
             (None, WireFamily::Gemini) => {
                 headers.insert(
                     HeaderName::from_static("x-goog-api-key"),
-                    HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
+                    HeaderValue::from_str(key).map_err(|_| UpstreamError::InvalidCredential)?,
                 );
             }
         }
@@ -136,9 +139,9 @@ impl Custom {
         for (name, value) in &config.headers {
             headers.insert(
                 HeaderName::from_bytes(name.as_bytes())
-                    .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+                    .map_err(|_| UpstreamError::InvalidConfig(format!("header `{name}`")))?,
                 HeaderValue::from_str(value)
-                    .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+                    .map_err(|_| UpstreamError::InvalidConfig(format!("header `{name}`")))?,
             );
         }
         let mut builder = http::Request::builder()
@@ -151,11 +154,13 @@ impl Custom {
     }
 }
 
-impl BaseChannel for Custom {
+impl UpstreamKind for Custom {
     fn id(&self) -> &'static str {
         ID
     }
+}
 
+impl BaseChannel for Custom {
     /// An API key and a base URL; nothing to refresh, no account to query.
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
@@ -227,7 +232,7 @@ impl BaseChannel for Custom {
 
     /// Buffered JSON bodies are shaped for the magic cache strings by the
     /// operation's native dialect; a streamed request body passes through.
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = CustomConfig::from_view(ctx.provider)?;
         let rules = cache::rules_for(
             ctx.operation.dialect,
@@ -249,7 +254,7 @@ impl BaseChannel for Custom {
                     // `None` when the builder already holds an error, such as a
                     // base URL that is not a URI; that is configuration, not a panic.
                     let headers = builder.headers_mut().ok_or_else(|| {
-                        ChannelError::InvalidConfig("custom request could not be built".into())
+                        UpstreamError::InvalidConfig("custom request could not be built".into())
                     })?;
                     crate::channels::shared::claude_fallback::fallbacks(
                         &mut body,
@@ -266,17 +271,17 @@ impl BaseChannel for Custom {
         };
         builder
             .body(body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     fn prepare_connect(
         &self,
         ctx: PrepareContext<'_, ()>,
-    ) -> Result<http::Request<()>, ChannelError> {
+    ) -> Result<http::Request<()>, UpstreamError> {
         let (builder, _) = self.build(ctx)?;
         builder
             .body(())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 

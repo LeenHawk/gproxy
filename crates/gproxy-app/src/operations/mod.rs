@@ -73,6 +73,7 @@ mod credential_login;
 pub use credential_login::CredentialLogin;
 mod crud;
 pub mod issuer;
+mod mcp;
 mod members;
 mod oauth_clients;
 mod organizations;
@@ -85,6 +86,7 @@ mod users;
 
 pub use api_keys::ApiKeys;
 pub use issuer::{Issuer, IssuerError, IssuerErrorCode, IssuerOrigin};
+pub use mcp::{McpScopes, McpToolNatures};
 pub use members::{OrganizationMembers, TeamMembers};
 pub use oauth_clients::OAuthClients;
 pub use organizations::{Organizations, Teams};
@@ -127,6 +129,8 @@ pub enum Scope {
     RateLimits,
     /// The registered OAuth client list.
     OAuthClients,
+    /// MCP scope rules and tool nature overrides.
+    Mcp,
 }
 
 impl Scope {
@@ -138,6 +142,7 @@ impl Scope {
             Self::Keys => "keys",
             Self::RateLimits => "rate_limits",
             Self::OAuthClients => "oauth_clients",
+            Self::Mcp => "mcp",
         }
     }
 }
@@ -214,6 +219,12 @@ impl<'a, C> Operations<'a, C> {
     }
     pub fn permissions(&self) -> Permissions<'a, C> {
         Permissions::new(self.writer())
+    }
+    pub fn mcp_scopes(&self) -> McpScopes<'a, C> {
+        McpScopes::new(self.writer())
+    }
+    pub fn mcp_tool_natures(&self) -> McpToolNatures<'a, C> {
+        McpToolNatures::new(self.writer())
     }
     pub fn rate_limits(&self) -> RateLimits<'a, C> {
         RateLimits::new(self.writer())

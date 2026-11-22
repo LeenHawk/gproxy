@@ -1,6 +1,7 @@
 #![cfg(any(feature = "cline", feature = "kimi", feature = "opencode"))]
 
 use gproxy_channel::BaseChannel;
+use gproxy_upstream::UpstreamKind;
 use serde_json::json;
 
 mod support;
@@ -29,8 +30,8 @@ fn kimi_refresh_requires_renewable_credentials() {
 #[test]
 #[cfg(feature = "opencode")]
 fn opencode_refresh_requires_renewable_zen_credentials() {
-    use gproxy_channel::channel::CredentialRefresh;
     use gproxy_channel::channels::opencode::OpenCode;
+    use gproxy_upstream::CredentialRefresh;
     check_mixed_credentials(&OpenCode::ZEN);
     assert!(OpenCode::GO.credential_refresh().is_none());
     assert!(!OpenCode::GO.supports(&support::credential(

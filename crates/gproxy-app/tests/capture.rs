@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The downstream half of the request log: the row this crate writes, and the
 //! direct associations from upstream attempts to their downstream request.
 //!

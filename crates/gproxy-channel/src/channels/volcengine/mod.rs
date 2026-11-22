@@ -19,11 +19,13 @@ mod usage;
 mod video;
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelServices, ConfigKey,
-    ConfigKeyKind, HOST_CONFIG_KEYS, LoginMode, OperationContext, OperationFuture, PrepareContext,
-    ProviderView, QuotaModel, QuotaQuery, UsageExtras,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelServices, HOST_CONFIG_KEYS,
+    OperationContext, PrepareContext, QuotaModel, QuotaQuery, UsageExtras,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamFuture, UpstreamKind,
+};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -60,9 +62,9 @@ impl Default for Config {
 }
 
 impl Config {
-    fn read(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    fn read(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|e| ChannelError::InvalidConfig(e.to_string()))
+            .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))
     }
 }
 
@@ -84,7 +86,7 @@ impl Volcengine {
     }
 }
 
-impl BaseChannel for Volcengine {
+impl UpstreamKind for Volcengine {
     fn id(&self) -> &'static str {
         if self.agent {
             "volcengine_agent"
@@ -92,7 +94,9 @@ impl BaseChannel for Volcengine {
             "volcengine_coding"
         }
     }
+}
 
+impl BaseChannel for Volcengine {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: self.id(),
@@ -144,7 +148,7 @@ impl BaseChannel for Volcengine {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         request::prepare(self, ctx)
     }
 
@@ -178,49 +182,49 @@ impl BaseChannel for Volcengine {
     fn list_models<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::reply(self, ctx, false))
     }
     fn get_model<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::reply(self, ctx, true))
     }
     fn create_video<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(video::call(self, Operation::CreateVideo, ctx))
     }
     fn retrieve_video<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(video::call(self, Operation::RetrieveVideo, ctx))
     }
     fn list_videos<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(video::call(self, Operation::ListVideos, ctx))
     }
     fn delete_video<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(video::call(self, Operation::DeleteVideo, ctx))
     }
     fn download_video_content<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(video::download(self, ctx))
     }
     fn create_speech<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(audio::call(self, ctx))
     }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {

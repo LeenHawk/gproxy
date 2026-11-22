@@ -1,6 +1,6 @@
 use super::super::event::invalid;
-use crate::channel::ChannelError;
 use gproxy_protocol::wire::openai::responses::ShellAction;
+use gproxy_upstream::UpstreamError;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -14,7 +14,7 @@ struct Arguments {
     rest: serde_json::Map<String, Value>,
 }
 
-pub(super) fn shell_action(input: &str) -> Result<ShellAction, ChannelError> {
+pub(super) fn shell_action(input: &str) -> Result<ShellAction, UpstreamError> {
     // v3 also accepts a raw shell script; malformed JSON objects remain errors.
     let value = if input.trim_start().starts_with('{') {
         serde_json::from_str(input).map_err(invalid)?

@@ -3,14 +3,17 @@
 //! Cline: the account token it presents, the envelope it answers in, the
 //! catalogue it calls a model list, and the login and refresh behind them.
 
+use gproxy_channel::BaseChannel;
 use gproxy_channel::channel::{
-    CredentialContext, CredentialRefresh, DevicePoll, LoginContext, NoState, OAuthDeviceCode,
     OperationContext, PrepareContext, QuotaModel, QuotaQuery, QuotaValue,
 };
 use gproxy_channel::channels::cline::{BALANCE_DIMENSION, Cline, PLAN_SOURCE};
-use gproxy_channel::{BaseChannel, ChannelError, LoginMode};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
+use gproxy_upstream::{
+    CredentialContext, CredentialRefresh, DevicePoll, LoginContext, LoginMode, NoState,
+    OAuthDeviceCode, UpstreamError, UpstreamKind,
+};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -24,7 +27,7 @@ fn prepare(
     secret: &Value,
     operation: Operation,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     Cline.prepare(PrepareContext {
         provider: provider("cline", config, base_url),
         credential: credential("oauth", secret, &Value::Null),
@@ -178,7 +181,7 @@ fn a_credential_with_neither_token_is_refused() {
             Operation::GenerateContent,
             request("/v1/chat/completions", None)
         ),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
 }
 
@@ -432,7 +435,7 @@ async fn a_probe_that_reads_nothing_at_all_reports_the_refusal() {
         .await;
     assert!(matches!(
         error,
-        Err(ChannelError::UpstreamResponse { status, .. }) if status == StatusCode::FORBIDDEN
+        Err(UpstreamError::UpstreamResponse { status, .. }) if status == StatusCode::FORBIDDEN
     ));
 }
 
@@ -548,13 +551,13 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_r
     );
     assert!(matches!(
         CredentialRefresh::refresh(&Cline, context(&refused)).await,
-        Err(ChannelError::RefreshRejected(_))
+        Err(UpstreamError::RefreshRejected(_))
     ));
 
     let unauthorized = OneShot::new(StatusCode::UNAUTHORIZED, "{}".into());
     assert!(matches!(
         CredentialRefresh::refresh(&Cline, context(&unauthorized)).await,
-        Err(ChannelError::UpstreamResponse { .. })
+        Err(UpstreamError::UpstreamResponse { .. })
     ));
 
     let malformed = OneShot::new(
@@ -563,14 +566,14 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_r
     );
     assert!(matches!(
         CredentialRefresh::refresh(&Cline, context(&malformed)).await,
-        Err(ChannelError::InvalidResponse(_))
+        Err(UpstreamError::InvalidResponse(_))
     ));
 
     let transient = OneShot::new(StatusCode::BAD_GATEWAY, "upstream down".into());
     assert!(
         matches!(
             CredentialRefresh::refresh(&Cline, context(&transient)).await,
-            Err(ChannelError::UpstreamResponse { .. })
+            Err(UpstreamError::UpstreamResponse { .. })
         ),
         "a gateway failure is not a dead credential"
     );

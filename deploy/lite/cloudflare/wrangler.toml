@@ -1,0 +1,22 @@
+name = "gproxy-lite"
+main = "worker.mjs"
+compatibility_date = "2026-09-01"
+
+# All state: credentials that were signed in or renewed, sign-in sessions,
+# conversion state.
+[[durable_objects.bindings]]
+name = "STATE"
+class_name = "State"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["State"]
+
+# Renews the sign-ins that are about to expire, so they outlive a period
+# without requests. Once a day is enough for a refresh token; the times are UTC.
+[triggers]
+crons = ["0 4 * * *"]
+
+# The configuration holds the access key and upstream credentials, so it is a
+# secret: `wrangler secret put GPROXY_LITE_CONFIG`. Locally it is read from
+# `.dev.vars`.

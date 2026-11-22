@@ -1,4 +1,4 @@
-use crate::channel::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 use serde::Deserialize;
 
 pub const DEFAULT_BASE_URL: &str = "https://alkalimakersuite-pa.clients6.google.com";
@@ -20,9 +20,9 @@ impl Default for PlaygroundConfig {
 }
 
 impl PlaygroundConfig {
-    pub(super) fn parse(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub(super) fn parse(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|_| ChannelError::InvalidConfig("invalid Playground configuration".into()))
+            .map_err(|_| UpstreamError::InvalidConfig("invalid Playground configuration".into()))
     }
 }
 

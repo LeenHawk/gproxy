@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 use gproxy_core::{
     CapturePolicy, CaptureSink, ConfigRevision, Core, CoreData, CredentialState, CredentialStatus,
     CredentialVersion, ExchangeContext, ObservationPolicy, Observer, PlaintextCodec,

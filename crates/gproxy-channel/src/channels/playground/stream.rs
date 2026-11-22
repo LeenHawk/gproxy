@@ -6,11 +6,11 @@ use gproxy_protocol::{
 use serde_json::{Value, json};
 
 use super::{request::invalid, wire};
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 /// JSPB's RPC status envelope can omit the first slot: `[,[7,"..."]]`.
 /// Normalize only omitted array entries, never the contents of JSON strings.
-pub(super) fn parse_jspb(bytes: &[u8]) -> Result<Value, ChannelError> {
+pub(super) fn parse_jspb(bytes: &[u8]) -> Result<Value, UpstreamError> {
     let mut out = Vec::with_capacity(bytes.len());
     let (mut string, mut escape, mut previous) = (false, false, 0);
     for &byte in bytes {
@@ -55,7 +55,7 @@ struct Decoder {
 }
 
 impl Decoder {
-    fn push(&mut self, bytes: &[u8], model: &str) -> Result<Vec<Value>, ChannelError> {
+    fn push(&mut self, bytes: &[u8], model: &str) -> Result<Vec<Value>, UpstreamError> {
         let mut values = vec![];
         for &byte in bytes {
             if self.closed {
@@ -96,13 +96,12 @@ impl Decoder {
                 if self.depth == 3 && !self.trailer {
                     let raw = parse_jspb(&std::mem::take(&mut self.value))?;
                     if let Some(response) = wire::response(&raw, model)? {
-                        self.finished |=
-                            response
-                                .get("candidates")
-                                .and_then(Value::as_array)
-                                .is_some_and(|items| {
-                                    items.iter().any(|v| v.get("finishReason").is_some())
-                                });
+                        self.finished |= response
+                            .get("candidates")
+                            .and_then(Value::as_array)
+                            .is_some_and(|items| {
+                                items.iter().any(|v| v.get("finishReason").is_some())
+                            });
                         values.push(response);
                     }
                 } else if self.depth == 2 && self.trailer {
@@ -139,7 +138,7 @@ impl Decoder {
         Ok(values)
     }
 
-    fn finish(&self) -> Result<(), ChannelError> {
+    fn finish(&self) -> Result<(), UpstreamError> {
         if !self.started || !self.closed || self.depth != 0 || self.string || !self.value.is_empty()
         {
             return Err(invalid("truncated RPC stream"));
@@ -192,7 +191,7 @@ pub(super) fn translate(body: HttpBody, model: String) -> ByteStream {
     ))
 }
 
-pub(super) async fn collect(body: HttpBody, model: &str) -> Result<Value, ChannelError> {
+pub(super) async fn collect(body: HttpBody, model: &str) -> Result<Value, UpstreamError> {
     let mut upstream = bytes(body);
     let mut decoder = Decoder::default();
     let mut output = json!({"candidates":[],"modelVersion":model.trim_start_matches("models/")});

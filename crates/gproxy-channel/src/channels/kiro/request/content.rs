@@ -1,7 +1,7 @@
 //! Turns, text and images as the conversation envelope spells them.
 
 use super::invalid;
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 
 /// Model ids the envelope accepts. The upstream spells a minor version with a
@@ -86,7 +86,7 @@ pub(super) fn join(left: Option<&str>, right: &str) -> String {
 
 /// Responses content in any of its shapes, flattened into the one string the
 /// envelope has room for plus the images it carries separately.
-pub(super) fn text_and_images(value: &Value) -> Result<(String, Vec<Value>), ChannelError> {
+pub(super) fn text_and_images(value: &Value) -> Result<(String, Vec<Value>), UpstreamError> {
     match value {
         Value::String(text) => Ok((text.clone(), Vec::new())),
         Value::Array(items) => {
@@ -134,7 +134,7 @@ pub(super) fn text_and_images(value: &Value) -> Result<(String, Vec<Value>), Cha
 
 /// The envelope carries an image as `{format, source: {bytes}}`, so only a
 /// data URL can be forwarded; a remote URL has nothing to become.
-fn image(url: &str) -> Result<Value, ChannelError> {
+fn image(url: &str) -> Result<Value, UpstreamError> {
     let (meta, bytes) = url
         .split_once(',')
         .ok_or_else(|| invalid("Kiro images must be data URLs"))?;

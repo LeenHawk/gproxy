@@ -1,0 +1,1 @@
+GPROXY_LITE_CONFIG='{"access_key":"change-me","providers":[{"name":"openai","channel":"openai","credential":"sk-..."}]}'

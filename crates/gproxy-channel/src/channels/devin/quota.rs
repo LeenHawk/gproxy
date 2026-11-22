@@ -48,10 +48,12 @@ use serde_json::{Value, json};
 use super::config::DevinConfig;
 use super::{Devin, connect, error, request};
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
+    QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
     QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
     QuotaWindow,
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
 };
 
 const DAY_SECONDS: i64 = 24 * 60 * 60;
@@ -118,7 +120,7 @@ fn plan_name(metadata: &Value) -> Option<String> {
 }
 
 impl QuotaQuery for Devin {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = DevinConfig::from_view(context.provider)?;
             let auth = request::auth(&context.credential)?;
@@ -146,10 +148,10 @@ impl QuotaQuery for Devin {
                 .body(gproxy_protocol::HttpBody::Bytes(
                     gproxy_protocol::connection::Bytes::from(
                         serde_json::to_vec(&body)
-                            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?,
+                            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?,
                     ),
                 ))
-                .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+                .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
             let (status, bytes) = super::call(&*context.client, request).await?;
             if !status.is_success() {
                 // Classified, not passed through: the account endpoint wraps
@@ -170,14 +172,14 @@ impl QuotaQuery for Devin {
 /// `userStatus.planStatus` to the daily and weekly entries. A window with
 /// neither a percentage nor a reset is not reported at all, which is how a
 /// plan without that window reads.
-pub(super) fn parse_status(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
+pub(super) fn parse_status(body: &[u8]) -> Result<Vec<QuotaEntry>, UpstreamError> {
     let payload: Value = serde_json::from_slice(body)
-        .map_err(|error| ChannelError::InvalidResponse(format!("devin user status: {error}")))?;
+        .map_err(|error| UpstreamError::InvalidResponse(format!("devin user status: {error}")))?;
     let status = payload
         .pointer("/userStatus/planStatus")
         .filter(|status| status.is_object())
         .ok_or_else(|| {
-            ChannelError::InvalidResponse("devin user status has no planStatus".into())
+            UpstreamError::InvalidResponse("devin user status has no planStatus".into())
         })?;
     let label = status
         .pointer("/planInfo/planName")

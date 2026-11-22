@@ -70,7 +70,7 @@ pnpm --dir console test
 git submodule update --init docs && pnpm --dir docs install && pnpm --dir docs check
 ```
 
-Desktop, mobile and WebAssembly builds are described in [Building from
+Desktop and mobile builds are described in [Building from
 source](https://gproxy.leenhawk.com/development/building/).
 
 ### Guidelines
@@ -179,7 +179,7 @@ pnpm --dir console test
 git submodule update --init docs && pnpm --dir docs install && pnpm --dir docs check
 ```
 
-桌面端、移动端和 WebAssembly 的构建见[从源码构建](https://gproxy.leenhawk.com/zh-cn/development/building/)。
+桌面端和移动端的构建见[从源码构建](https://gproxy.leenhawk.com/zh-cn/development/building/)。
 
 ### 约定
 
@@ -294,7 +294,7 @@ pnpm --dir console test
 git submodule update --init docs && pnpm --dir docs install && pnpm --dir docs check
 ```
 
-Сборка настольных и мобильных приложений и WebAssembly описана в разделе
+Сборка настольных и мобильных приложений описана в разделе
 [Сборка из исходного кода](https://gproxy.leenhawk.com/ru/development/building/).
 
 ### Правила

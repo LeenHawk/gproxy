@@ -14,7 +14,7 @@ use utoipa::openapi::{
     security::{ApiKey, ApiKeyValue, Http, HttpAuthScheme, SecurityRequirement, SecurityScheme},
 };
 
-use super::{Surface, codex_table, table};
+use gproxy_convert::surface::{Surface, codex_table, table};
 
 /// Forwarding paths. The complete exporter adds typed payloads and the
 /// management, portal and OAuth surfaces before publishing the document.

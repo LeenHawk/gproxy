@@ -4,11 +4,9 @@ use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireRequest, WireResponse, capability::UpstreamConnection,
 };
 
-use super::{
-    BaseChannel, ChannelError, ChannelState, CredentialView, NoState, OperationContext,
-    ProviderView,
-};
+use super::{BaseChannel, OperationContext};
 use gproxy_client::OutboundClient;
+use gproxy_upstream::{CredentialView, NoState, ProviderView, UpstreamError, UpstreamState};
 use std::sync::Arc;
 
 /// One explicit channel + provider + credential + client binding.
@@ -20,7 +18,7 @@ pub struct ChannelBinding<'a> {
     provider: ProviderView<'a>,
     credential: CredentialView<'a>,
     client: Arc<dyn OutboundClient>,
-    state: Arc<dyn ChannelState>,
+    state: Arc<dyn UpstreamState>,
     instance_id: Arc<str>,
     endpoint_override: Option<&'a str>,
 }
@@ -51,7 +49,7 @@ impl<'a> ChannelBinding<'a> {
 
     /// Cross-request memory the host keeps for this provider and credential.
     /// Without it the channel sees no state and cannot write any.
-    pub fn state(mut self, state: Arc<dyn ChannelState>) -> Self {
+    pub fn state(mut self, state: Arc<dyn UpstreamState>) -> Self {
         self.state = state;
         self
     }
@@ -67,7 +65,7 @@ impl<'a> ChannelBinding<'a> {
         &self,
         operation: OperationKey,
         request: WireRequest<HttpBody>,
-    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    ) -> Result<WireResponse<HttpBody>, UpstreamError> {
         let context = OperationContext {
             provider: self.provider,
             credential: self.credential,
@@ -120,7 +118,7 @@ impl<'a> ChannelBinding<'a> {
             Operation::HangupLiveSession => self.channel.hangup_live_session(context).await,
             Operation::CreateRealtimeCall => self.channel.create_realtime_call(context).await,
             Operation::ConnectRealtime | Operation::ConnectLive => {
-                Err(ChannelError::WrongTransport(operation))
+                Err(UpstreamError::WrongTransport(operation))
             }
         }
     }
@@ -131,7 +129,7 @@ impl<'a> ChannelBinding<'a> {
         &self,
         operation: OperationKey,
         request: WireRequest<()>,
-    ) -> Result<UpstreamConnection, ChannelError> {
+    ) -> Result<UpstreamConnection, UpstreamError> {
         let context = OperationContext {
             provider: self.provider,
             credential: self.credential,
@@ -151,7 +149,7 @@ impl<'a> ChannelBinding<'a> {
                     .stream_generate_content_websocket(context)
                     .await
             }
-            _ => Err(ChannelError::WrongTransport(operation)),
+            _ => Err(UpstreamError::WrongTransport(operation)),
         }
     }
 }

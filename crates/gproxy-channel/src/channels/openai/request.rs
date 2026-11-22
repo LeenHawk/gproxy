@@ -3,12 +3,14 @@
 
 use super::{DEFAULT_BASE_URL, ID, OpenAi, OpenAiConfig};
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
-    ConfigKeyKind, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
-    QuotaHeaders, QuotaQuery, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelHeaders, HOST_CONFIG_KEYS,
+    HeaderAllowlist, PrepareContext, QuotaHeaders, QuotaQuery, forwardable,
 };
 use crate::channels::shared::cache;
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireRequest};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 use http::{HeaderName, HeaderValue, header};
 
 /// The betas a Responses WebSocket handshake declares (v3 `prepare.rs`).
@@ -36,8 +38,8 @@ pub const CLIENT_HEADERS: ChannelHeaders = ChannelHeaders {
     prefixes: &[],
 };
 
-fn invalid_config(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidConfig(message.into())
+fn invalid_config(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidConfig(message.into())
 }
 
 /// The client's query minus any credential it carried, order preserved.
@@ -57,7 +59,7 @@ fn query(source: Option<String>) -> Option<String> {
 /// is opening; `call_id` wins, because a live call has a model already. The
 /// client's own `model` and `call_id` are re-appended at the end rather than
 /// forwarded in place, so the last one the upstream reads is the chosen one.
-fn realtime_query(source: Option<String>) -> Result<String, ChannelError> {
+fn realtime_query(source: Option<String>) -> Result<String, UpstreamError> {
     let source = source.unwrap_or_default();
     let pairs = source.split('&').filter(|pair| !pair.is_empty());
     let call_id = pairs
@@ -101,7 +103,7 @@ impl OpenAi {
         &self,
         ctx: PrepareContext<'_, B>,
         websocket: bool,
-    ) -> Result<(http::request::Builder, WireRequest<B>), ChannelError> {
+    ) -> Result<(http::request::Builder, WireRequest<B>), UpstreamError> {
         let config = OpenAiConfig::from_view(ctx.provider)?;
         let key = ctx
             .credential
@@ -110,7 +112,7 @@ impl OpenAi {
             .and_then(serde_json::Value::as_str)
             .map(str::trim)
             .filter(|key| !key.is_empty())
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         let operation = ctx.operation.operation;
         let dialect = ctx.operation.dialect;
         let mut request = ctx.request;
@@ -158,7 +160,7 @@ impl OpenAi {
         headers.insert(
             header::AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {key}"))
-                .map_err(|_| ChannelError::InvalidCredential)?,
+                .map_err(|_| UpstreamError::InvalidCredential)?,
         );
         if websocket && dialect == Dialect::OpenAiResponsesWebSocket {
             headers.append(
@@ -188,11 +190,13 @@ impl OpenAi {
     }
 }
 
-impl BaseChannel for OpenAi {
+impl UpstreamKind for OpenAi {
     fn id(&self) -> &'static str {
         ID
     }
+}
 
+impl BaseChannel for OpenAi {
     /// An API key against OpenAI's own platform: nothing to log into, rate
     /// limits on every reply, an organization cost report to query, and
     /// Responses and Realtime over a socket as well as over HTTP.
@@ -295,7 +299,7 @@ impl BaseChannel for OpenAi {
     /// A buffered conversation body is shaped for the magic cache strings; a
     /// streamed request body passes through untouched. Core has already asked
     /// a Chat Completions stream for its closing usage chunk.
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = OpenAiConfig::from_view(ctx.provider)?;
         let rules = cache::rules_for(
             ctx.operation.dialect,
@@ -315,9 +319,9 @@ impl BaseChannel for OpenAi {
     fn prepare_connect(
         &self,
         ctx: PrepareContext<'_, ()>,
-    ) -> Result<http::Request<()>, ChannelError> {
+    ) -> Result<http::Request<()>, UpstreamError> {
         if !is_websocket(ctx.operation.operation, ctx.operation.dialect) {
-            return Err(ChannelError::WrongTransport(ctx.operation));
+            return Err(UpstreamError::WrongTransport(ctx.operation));
         }
         let (builder, _) = self.build(ctx, true)?;
         builder

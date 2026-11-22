@@ -11,11 +11,11 @@ use super::{
     invalid_response, previous_fields, previous_scopes, secret_json, send,
 };
 use crate::OutboundClient;
-use crate::channel::{
-    ChannelError, CredentialUpdate, OAuthCredential, ProviderView, RefreshContext,
-};
 use base64::Engine;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::{
+    CredentialUpdate, OAuthCredential, ProviderView, RefreshContext, UpstreamError,
+};
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -67,8 +67,8 @@ pub(super) async fn exchange(
     provider: ProviderView<'_>,
     config: &ClaudecodeConfig,
     input: &str,
-) -> Result<(OAuthCredential, String), ChannelError> {
-    let cookie = normalize(input).ok_or(ChannelError::InvalidCredential)?;
+) -> Result<(OAuthCredential, String), UpstreamError> {
+    let cookie = normalize(input).ok_or(UpstreamError::InvalidCredential)?;
     let base = base_url(provider);
     let claude_ai = config.claude_ai_url.trim_end_matches('/');
     let organization = discover_organization(client, claude_ai, &cookie).await?;
@@ -103,13 +103,13 @@ pub(super) async fn refresh(
     context: RefreshContext<'_>,
     config: &ClaudecodeConfig,
     cookie: &str,
-) -> Result<CredentialUpdate, ChannelError> {
+) -> Result<CredentialUpdate, UpstreamError> {
     let secret = context.credential.secret;
     let (mut credential, cookie) = exchange(context.client, context.provider, config, cookie)
         .await
         .map_err(|error| match error {
-            ChannelError::InvalidCredential => {
-                ChannelError::RefreshRejected("cookie is not a claude.ai session".into())
+            UpstreamError::InvalidCredential => {
+                UpstreamError::RefreshRejected("cookie is not a claude.ai session".into())
             }
             other => other,
         })?;
@@ -135,16 +135,16 @@ pub(super) async fn refresh(
     })
 }
 
-fn browser_headers(claude_ai: &str, cookie: &str) -> Result<HeaderMap, ChannelError> {
+fn browser_headers(claude_ai: &str, cookie: &str) -> Result<HeaderMap, UpstreamError> {
     let mut headers = HeaderMap::new();
     headers.insert(
         header::COOKIE,
-        HeaderValue::from_str(cookie).map_err(|_| ChannelError::InvalidCredential)?,
+        HeaderValue::from_str(cookie).map_err(|_| UpstreamError::InvalidCredential)?,
     );
     headers.insert(
         header::ORIGIN,
         HeaderValue::from_str(claude_ai)
-            .map_err(|_| ChannelError::InvalidConfig("claude_ai_url".into()))?,
+            .map_err(|_| UpstreamError::InvalidConfig("claude_ai_url".into()))?,
     );
     Ok(headers)
 }
@@ -153,7 +153,7 @@ async fn discover_organization(
     client: &dyn OutboundClient,
     claude_ai: &str,
     cookie: &str,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let mut headers = browser_headers(claude_ai, cookie)?;
     headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     headers.insert(
@@ -164,7 +164,7 @@ async fn discover_organization(
     headers.insert(
         header::REFERER,
         HeaderValue::from_str(&format!("{claude_ai}/new"))
-            .map_err(|_| ChannelError::InvalidConfig("claude_ai_url".into()))?,
+            .map_err(|_| UpstreamError::InvalidConfig("claude_ai_url".into()))?,
     );
     let body = send_ok(
         client,
@@ -199,7 +199,7 @@ async fn authorize(
     organization: &str,
     state: &str,
     challenge: &str,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let payload = json!({
         "response_type": "code",
         "client_id": super::DEFAULT_CLIENT_ID,
@@ -252,7 +252,7 @@ async fn token_exchange(
     verifier: &str,
     state: &str,
     code: &str,
-) -> Result<TokenResponse, ChannelError> {
+) -> Result<TokenResponse, UpstreamError> {
     let body = form_encode(&[
         ("grant_type", "authorization_code"),
         ("client_id", super::DEFAULT_CLIENT_ID),
@@ -281,7 +281,7 @@ async fn token_exchange(
     headers.insert(
         header::ORIGIN,
         HeaderValue::from_str(claude_ai)
-            .map_err(|_| ChannelError::InvalidConfig("claude_ai_url".into()))?,
+            .map_err(|_| UpstreamError::InvalidConfig("claude_ai_url".into()))?,
     );
     headers.insert(
         header::USER_AGENT,
@@ -296,7 +296,7 @@ async fn token_exchange(
     )
     .await?;
     if !status.is_success() {
-        return Err(ChannelError::UpstreamResponse {
+        return Err(UpstreamError::UpstreamResponse {
             status,
             body: bytes,
         });
@@ -313,7 +313,7 @@ async fn send_ok(
     url: &str,
     headers: &HeaderMap,
     body: Option<Vec<u8>>,
-) -> Result<Bytes, ChannelError> {
+) -> Result<Bytes, UpstreamError> {
     let mut last = None;
     for _ in 0..MAX_ATTEMPTS {
         let (status, _, bytes) =
@@ -322,7 +322,7 @@ async fn send_ok(
             return Ok(bytes);
         }
         if !is_cloudflare_challenge(status, &bytes) {
-            return Err(ChannelError::UpstreamResponse {
+            return Err(UpstreamError::UpstreamResponse {
                 status,
                 body: bytes,
             });
@@ -330,12 +330,12 @@ async fn send_ok(
         last = Some((status, bytes));
     }
     let (status, body) = last.unwrap_or((StatusCode::FORBIDDEN, Bytes::new()));
-    Err(ChannelError::UpstreamResponse { status, body })
+    Err(UpstreamError::UpstreamResponse { status, body })
 }
 
 /// claude.ai answers bootstrap with a stream of JSON documents; the one
 /// carrying `account` is the answer.
-fn parse_bootstrap(body: &[u8]) -> Result<Value, ChannelError> {
+fn parse_bootstrap(body: &[u8]) -> Result<Value, UpstreamError> {
     let mut first = None;
     for value in serde_json::Deserializer::from_slice(body)
         .into_iter::<Value>()
@@ -382,12 +382,12 @@ fn query_parameter(uri: &str, name: &str) -> Option<String> {
 }
 
 /// A fresh PKCE verifier, its S256 challenge and a state, all base64url.
-fn pkce() -> Result<(String, String, String), ChannelError> {
+fn pkce() -> Result<(String, String, String), UpstreamError> {
     let mut verifier = [0_u8; 32];
     let mut state = [0_u8; 24];
     getrandom::fill(&mut verifier)
         .and_then(|()| getrandom::fill(&mut state))
-        .map_err(|_| ChannelError::InvalidConfig("secure randomness unavailable".into()))?;
+        .map_err(|_| UpstreamError::InvalidConfig("secure randomness unavailable".into()))?;
     let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
     let verifier = engine.encode(verifier);
     let challenge = engine.encode(Sha256::digest(verifier.as_bytes()));

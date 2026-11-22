@@ -3,16 +3,16 @@
 //! moved into the resource hierarchy, never discarded. Bare ids mean Google
 //! unless the caller explicitly selects the Anthropic wire.
 
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
-pub(crate) fn from_path(path: &str) -> Result<Option<String>, ChannelError> {
+pub(crate) fn from_path(path: &str) -> Result<Option<String>, UpstreamError> {
     let tail = path
         .split_once("/models/")
         .map_or(path.trim_start_matches('/'), |(_, id)| id);
     let raw = tail.split(':').next().unwrap_or(tail);
     let model = percent_encoding::percent_decode_str(raw)
         .decode_utf8()
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
     Ok((!model.is_empty()).then(|| model.into_owned()))
 }
 
@@ -27,13 +27,13 @@ pub(crate) fn publisher(model: &str) -> Option<&str> {
     model.split_once('/').map(|(publisher, _)| publisher)
 }
 
-pub(crate) fn resource(model: &str, default_publisher: &str) -> Result<String, ChannelError> {
+pub(crate) fn resource(model: &str, default_publisher: &str) -> Result<String, UpstreamError> {
     let model = model.strip_prefix("models/").unwrap_or(model);
     if model
         .split('/')
         .any(|part| part.is_empty() || part == "." || part == "..")
     {
-        return Err(ChannelError::InvalidConfig(format!(
+        return Err(UpstreamError::InvalidConfig(format!(
             "`{model}` is not a Vertex model resource"
         )));
     }
@@ -48,7 +48,7 @@ pub(crate) fn resource(model: &str, default_publisher: &str) -> Result<String, C
 
 /// URL escaping is separate from identity: unusual characters are data, not
 /// a reason to reject or rename a model. Keep resource separators and `@`.
-pub(crate) fn resource_path(model: &str, default_publisher: &str) -> Result<String, ChannelError> {
+pub(crate) fn resource_path(model: &str, default_publisher: &str) -> Result<String, UpstreamError> {
     const ESCAPE: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
         .remove(b'-')
         .remove(b'_')
@@ -62,16 +62,16 @@ pub(crate) fn resource_path(model: &str, default_publisher: &str) -> Result<Stri
 
 /// Anthropic's countTokens body names the model within its publisher.
 #[cfg(feature = "vertex")]
-pub(crate) fn anthropic_id(model: &str) -> Result<String, ChannelError> {
+pub(crate) fn anthropic_id(model: &str) -> Result<String, UpstreamError> {
     let resource = resource(model, "anthropic")?;
     let resource = resource
         .strip_prefix("publishers/")
         .or_else(|| resource.split_once("/publishers/").map(|(_, rest)| rest))
         .ok_or_else(|| {
-            ChannelError::InvalidConfig("expected an Anthropic publisher model".into())
+            UpstreamError::InvalidConfig("expected an Anthropic publisher model".into())
         })?;
     resource
         .strip_prefix("anthropic/models/")
         .map(str::to_owned)
-        .ok_or_else(|| ChannelError::InvalidConfig("expected an Anthropic publisher model".into()))
+        .ok_or_else(|| UpstreamError::InvalidConfig("expected an Anthropic publisher model".into()))
 }

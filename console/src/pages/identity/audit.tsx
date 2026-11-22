@@ -6,12 +6,15 @@ import { usePagination } from "@/lib/use-pagination"
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
+import { Wrench } from "lucide-react"
 import * as admin from "@/api/admin"
+import { MCP_TOOL_CALL } from "@/api/mcp"
 import { InstantCell, MaybeCell } from "@/components/cells"
 import { DataTable, IdCell, Pagination } from "@/components/data-table"
 import { Page, PageHeader } from "@/components/page"
 import { EmptyNotice, QueryState } from "@/components/state"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
 
@@ -45,6 +48,11 @@ export function AuditPage() {
           value={actor}
           onChange={(event) => { setActor(event.target.value); setPage(1) }}
         />
+        <Button
+          variant={action === MCP_TOOL_CALL ? "secondary" : "outline"} size="icon"
+          aria-label={t("mcp.toolCalls")} title={t("mcp.toolCalls")} aria-pressed={action === MCP_TOOL_CALL}
+          onClick={() => { setAction(action === MCP_TOOL_CALL ? "" : MCP_TOOL_CALL); setPage(1) }}
+        ><Wrench /></Button>
       </div>
       <QueryState isPending={list.isPending} error={list.error}>
         <div className="space-y-3">

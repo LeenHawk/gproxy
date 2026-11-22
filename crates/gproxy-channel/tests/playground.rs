@@ -4,15 +4,14 @@ mod support;
 
 use futures_util::StreamExt;
 use gproxy_channel::{
-    BaseChannel, OutboundClient,
-    channel::{CredentialContext, NoState, OperationContext},
-    channels::playground::Playground,
+    BaseChannel, OutboundClient, channel::OperationContext, channels::playground::Playground,
 };
 use gproxy_protocol::{
     Dialect, HttpBody, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
     connection::Bytes,
 };
+use gproxy_upstream::{CredentialContext, NoState, UpstreamKind};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::{Value, json};
 use std::{

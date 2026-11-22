@@ -135,15 +135,12 @@ async fn device_details<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        if let Err(error) = crate::oauth::require_manager(&caller) {
-            return ErrorResponse(error).into_response();
-        }
-        let data = state.app().data();
-        let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
-        reply(operations.issuer().device_details(&query.user_code).await)
-    })
-    .await
+    if let Err(error) = crate::oauth::require_manager(&caller) {
+        return ErrorResponse(error).into_response();
+    }
+    let data = state.app().data();
+    let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
+    reply(operations.issuer().device_details(&query.user_code).await)
 }
 
 /// `POST /portal/api/oauth/device`: the person's decision on that code. The
@@ -156,20 +153,17 @@ async fn device_decide<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        if let Err(error) = crate::oauth::require_manager(&caller) {
-            return ErrorResponse(error).into_response();
-        }
-        let data = state.app().data();
-        let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
-        reply(
-            operations
-                .issuer()
-                .device_decision(&caller, &body.user_code, body.decision)
-                .await,
-        )
-    })
-    .await
+    if let Err(error) = crate::oauth::require_manager(&caller) {
+        return ErrorResponse(error).into_response();
+    }
+    let data = state.app().data();
+    let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
+    reply(
+        operations
+            .issuer()
+            .device_decision(&caller, &body.user_code, body.decision)
+            .await,
+    )
 }
 
 /// Login and logout are management operations too, including rejected attempts.
@@ -178,24 +172,21 @@ async fn session_audit<C: BatchConnectionTrait + Send + Sync + 'static>(
     request: Request,
     next: Next,
 ) -> Response {
-    crate::send(async move {
-        let method = request.method().clone();
-        let source = crate::admin::audit_source(&state, &request);
-        let action = session::audit_action("portal", crate::matched_path(&request), &method);
-        let headers = request.headers().clone();
-        let caller = if crate::matched_path(&request).ends_with("/login") {
-            None
-        } else {
-            session::authenticate(state.app(), &method, &headers)
-                .await
-                .ok()
-        };
-        let response = next.run(request).await;
-        let caller = response.extensions().get::<Caller>().cloned().or(caller);
-        crate::admin::audit(state, caller, action, &method, response.status(), source).await;
-        response
-    })
-    .await
+    let method = request.method().clone();
+    let source = crate::admin::audit_source(&state, &request);
+    let action = session::audit_action("portal", crate::matched_path(&request), &method);
+    let headers = request.headers().clone();
+    let caller = if crate::matched_path(&request).ends_with("/login") {
+        None
+    } else {
+        session::authenticate(state.app(), &method, &headers)
+            .await
+            .ok()
+    };
+    let response = next.run(request).await;
+    let caller = response.extensions().get::<Caller>().cloned().or(caller);
+    crate::admin::audit(state, caller, action, &method, response.status(), source).await;
+    response
 }
 
 /// Authenticate, hand the caller to the handler, run, refresh, audit.
@@ -208,30 +199,26 @@ async fn guard<C>(State(state): State<HostState<C>>, mut request: Request, next:
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        // Copied out because `Next::run` consumes the request and a borrow of one
-        // cannot cross an await; see `session::authenticate`.
-        let method = request.method().clone();
-        let headers = request.headers().clone();
-        let action = session::audit_action("portal", crate::matched_path(&request), &method);
-        let source_ip = crate::admin::audit_source(&state, &request);
-        let caller = match session::authenticate(state.app(), &method, &headers).await {
-            Ok(caller) => caller,
-            Err(error) => {
-                let response = ErrorResponse(error).into_response();
-                crate::admin::audit(state, None, action, &method, response.status(), source_ip)
-                    .await;
-                return response;
-            }
-        };
-        request.extensions_mut().insert(caller.clone());
-        let response = crate::error::managed(next.run(request).await);
-        let status = response.status();
-        crate::admin::settle(&state, &method).await;
-        crate::admin::audit(state, Some(caller), action, &method, status, source_ip).await;
-        response
-    })
-    .await
+    // Copied out because `Next::run` consumes the request and a borrow of one
+    // cannot cross an await; see `session::authenticate`.
+    let method = request.method().clone();
+    let headers = request.headers().clone();
+    let action = session::audit_action("portal", crate::matched_path(&request), &method);
+    let source_ip = crate::admin::audit_source(&state, &request);
+    let caller = match session::authenticate(state.app(), &method, &headers).await {
+        Ok(caller) => caller,
+        Err(error) => {
+            let response = ErrorResponse(error).into_response();
+            crate::admin::audit(state, None, action, &method, response.status(), source_ip).await;
+            return response;
+        }
+    };
+    request.extensions_mut().insert(caller.clone());
+    let response = crate::error::managed(next.run(request).await);
+    let status = response.status();
+    crate::admin::settle(&state, &method).await;
+    crate::admin::audit(state, Some(caller), action, &method, status, source_ip).await;
+    response
 }
 
 /// Whether a cookie set for this request should carry `Secure`.
@@ -274,55 +261,52 @@ async fn login<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let secure = secure_cookie(&state, &request);
-        let client = crate::policy::client_ip(
-            crate::peer_ip(&request),
-            request.headers(),
-            &crate::runtime_settings::trusted_proxies(state.app()),
-        )
-        .to_string();
-        let body: LoginBody = match crate::json_body(request).await {
-            Ok(body) => body,
-            Err(response) => return *response,
-        };
-        let data = state.app().data();
-        let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
-        let issued = match operations
-            .portal_login_from(&body.name, &body.password, &client)
-            .await
-        {
-            Ok(issued) => issued,
-            Err(error) => return ErrorResponse(error).into_response(),
-        };
-        let mut response = crate::error::ok_json(&serde_json::json!({
-            "sessionId": issued.id,
-            "token": issued.token,
-            "expiresAtMs": issued.expires_at_ms,
-        }));
-        // Attribute sign-in to the newly authenticated account, never to an
-        // old cookie carried by a browser switching accounts.
-        if let Ok(caller) = state
-            .app()
-            .authenticator(&data)
-            .authenticate_session(&issued.token, crate::now_ms())
-            .await
-        {
-            response.extensions_mut().insert(caller);
-        }
-        match session::set_cookie(&issued.token, state.app().config().session_ttl_secs, secure) {
-            Some(cookie) => session::with_cookie(response, cookie),
-            None => response,
-        }
-    })
-    .await
+    let secure = secure_cookie(&state, &request);
+    let client = crate::policy::client_ip(
+        crate::peer_ip(&request),
+        request.headers(),
+        &crate::runtime_settings::trusted_proxies(state.app()),
+    )
+    .to_string();
+    let body: LoginBody = match crate::json_body(request).await {
+        Ok(body) => body,
+        Err(response) => return *response,
+    };
+    let data = state.app().data();
+    let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
+    let issued = match operations
+        .portal_login_from(&body.name, &body.password, &client)
+        .await
+    {
+        Ok(issued) => issued,
+        Err(error) => return ErrorResponse(error).into_response(),
+    };
+    let mut response = crate::error::ok_json(&serde_json::json!({
+        "sessionId": issued.id,
+        "token": issued.token,
+        "expiresAtMs": issued.expires_at_ms,
+    }));
+    // Attribute sign-in to the newly authenticated account, never to an
+    // old cookie carried by a browser switching accounts.
+    if let Ok(caller) = state
+        .app()
+        .authenticator(&data)
+        .authenticate_session(&issued.token, crate::now_ms())
+        .await
+    {
+        response.extensions_mut().insert(caller);
+    }
+    match session::set_cookie(&issued.token, state.app().config().session_ttl_secs, secure) {
+        Some(cookie) => session::with_cookie(response, cookie),
+        None => response,
+    }
 }
 
 async fn logout<C>(State(state): State<HostState<C>>, request: Request) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { sign_out(state, request).await }).await
+    sign_out(state, request).await
 }
 
 /// The shared body of `POST /portal/api/logout` and
@@ -334,39 +318,36 @@ pub(crate) async fn sign_out<C>(state: HostState<C>, request: Request) -> Respon
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let secure = secure_cookie(&state, &request);
-        let (parts, _body) = request.into_parts();
-        // Logout can revoke a live session and always clears the cookie, even
-        // when it was absent or expired. Check browser writes before either
-        // effect; only an explicitly presented bearer without a cookie is a
-        // script request that does not need an Origin.
-        if (session::cookie(&parts.headers, session::COOKIE_NAME).is_some()
-            || gproxy_app::auth::bearer_token(&parts.headers).is_none())
-            && let Err(error) = gproxy_app::auth::verify_same_origin(
-                &parts.method,
-                &parts.headers,
-                &crate::runtime_settings::cors_origins(state.app()),
-            )
-        {
-            return ErrorResponse(error).into_response();
-        }
-        let token = session::cookie(&parts.headers, session::COOKIE_NAME)
-            .map(str::to_owned)
-            .or_else(|| gproxy_app::auth::bearer_token(&parts.headers).map(str::to_owned));
-        let data = state.app().data();
-        let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
-        // A token that matches nothing still clears the cookie: the client is
-        // ending a session that is already over, and a 401 would leave the browser
-        // holding a cookie it can never discard.
-        let ended = match token {
-            Some(token) => operations.portal_logout(&token).await.unwrap_or(false),
-            None => false,
-        };
-        let response = crate::error::ok_json(&serde_json::json!({ "endedSession": ended }));
-        session::with_cookie(response, session::clear_cookie(secure))
-    })
-    .await
+    let secure = secure_cookie(&state, &request);
+    let (parts, _body) = request.into_parts();
+    // Logout can revoke a live session and always clears the cookie, even
+    // when it was absent or expired. Check browser writes before either
+    // effect; only an explicitly presented bearer without a cookie is a
+    // script request that does not need an Origin.
+    if (session::cookie(&parts.headers, session::COOKIE_NAME).is_some()
+        || gproxy_app::auth::bearer_token(&parts.headers).is_none())
+        && let Err(error) = gproxy_app::auth::verify_same_origin(
+            &parts.method,
+            &parts.headers,
+            &crate::runtime_settings::cors_origins(state.app()),
+        )
+    {
+        return ErrorResponse(error).into_response();
+    }
+    let token = session::cookie(&parts.headers, session::COOKIE_NAME)
+        .map(str::to_owned)
+        .or_else(|| gproxy_app::auth::bearer_token(&parts.headers).map(str::to_owned));
+    let data = state.app().data();
+    let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
+    // A token that matches nothing still clears the cookie: the client is
+    // ending a session that is already over, and a 401 would leave the browser
+    // holding a cookie it can never discard.
+    let ended = match token {
+        Some(token) => operations.portal_logout(&token).await.unwrap_or(false),
+        None => false,
+    };
+    let response = crate::error::ok_json(&serde_json::json!({ "endedSession": ended }));
+    session::with_cookie(response, session::clear_cookie(secure))
 }
 
 async fn context<C>(
@@ -376,7 +357,7 @@ async fn context<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(state, caller, context()) }).await
+    portal!(state, caller, context())
 }
 
 async fn models<C>(
@@ -386,12 +367,9 @@ async fn models<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let data = state.app().data();
-        let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
-        reply(operations.portal(&caller).models())
-    })
-    .await
+    let data = state.app().data();
+    let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
+    reply(operations.portal(&caller).models())
 }
 
 async fn usage<C>(
@@ -402,7 +380,7 @@ async fn usage<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(state, caller, usage(query)) }).await
+    portal!(state, caller, usage(query))
 }
 
 async fn quota<C>(
@@ -412,7 +390,7 @@ async fn quota<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(state, caller, quota()) }).await
+    portal!(state, caller, quota())
 }
 
 async fn recent_requests<C>(
@@ -422,7 +400,7 @@ async fn recent_requests<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(state, caller, recent_requests(RECENT_REQUESTS)) }).await
+    portal!(state, caller, recent_requests(RECENT_REQUESTS))
 }
 
 async fn sessions<C>(
@@ -432,7 +410,7 @@ async fn sessions<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(state, caller, sessions()) }).await
+    portal!(state, caller, sessions())
 }
 
 async fn list_keys<C>(
@@ -442,7 +420,7 @@ async fn list_keys<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(state, caller, keys.list()) }).await
+    portal!(state, caller, keys.list())
 }
 
 async fn create_key<C>(
@@ -453,7 +431,7 @@ async fn create_key<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(state, caller, keys.create(write)) }).await
+    portal!(state, caller, keys.create(write))
 }
 
 async fn delete_key<C>(
@@ -464,7 +442,7 @@ async fn delete_key<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(@empty state, caller, keys.delete(&id)) }).await
+    portal!(@empty state, caller, keys.delete(&id))
 }
 
 async fn rotate_key<C>(
@@ -475,7 +453,7 @@ async fn rotate_key<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(state, caller, keys.rotate(&id)) }).await
+    portal!(state, caller, keys.rotate(&id))
 }
 
 async fn reveal_key<C>(
@@ -486,7 +464,7 @@ async fn reveal_key<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(state, caller, keys.reveal(&id)) }).await
+    portal!(state, caller, keys.reveal(&id))
 }
 
 async fn list_grants<C>(
@@ -496,7 +474,7 @@ async fn list_grants<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(state, caller, oauth_sessions.list()) }).await
+    portal!(state, caller, oauth_sessions.list())
 }
 
 async fn revoke_grant<C>(
@@ -507,7 +485,7 @@ async fn revoke_grant<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(@empty state, caller, oauth_sessions.revoke(&id)) }).await
+    portal!(@empty state, caller, oauth_sessions.revoke(&id))
 }
 
 async fn change_password<C>(
@@ -518,7 +496,7 @@ async fn change_password<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { portal!(@empty state, caller, password.change(change)) }).await
+    portal!(@empty state, caller, password.change(change))
 }
 
 #[cfg(feature = "documentation")]

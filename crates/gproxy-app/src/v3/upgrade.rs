@@ -7,7 +7,7 @@ use gproxy_sdk::{GproxyBuilder, SyncMode};
 use gproxy_seaorm::{
     BatchConnectionTrait, BatchQuery, D1Type, Projection, SchemaSyncConnectionTrait,
 };
-use gproxy_store::{Store, StoreCache, entity::config::setting};
+use gproxy_store::{Store, entity::config::setting};
 use guard::Guard;
 use sea_orm::sea_query::{Alias, ColumnDef, Condition, Expr, ExprTrait, OnConflict, Query, Table};
 use sea_orm::{ConnectionTrait, DbBackend, QueryResult};
@@ -21,8 +21,8 @@ fn now() -> i64 {
     crate::now_ms()
 }
 
-/// `exclusive` is used only by a native host holding its database advisory
-/// lock on a dedicated connection. Workers use the fenced, expiring lease.
+/// `exclusive` is used only by a host holding its database advisory lock on a
+/// dedicated connection. Otherwise the fenced, expiring lease is used.
 pub async fn run<C>(db: C, config: &AppConfig, exclusive: bool) -> Result<bool>
 where
     C: BatchConnectionTrait + SchemaSyncConnectionTrait + Clone + Send + Sync + 'static,
@@ -262,13 +262,12 @@ where
         Store::new(db.db.clone()).resume_install().await?;
         checkpoint(db, 2, None).await?;
     }
-    let store = Arc::new(Store::new(db.clone()));
-    store
+    Store::new(db.clone())
         .settings()
         .update(setting::ActiveModel::default())
         .await?;
     let mut builder = GproxyBuilder::connection(db.clone())
-        .cache(Arc::new(StoreCache::new(store)))
+        .cache(Arc::new(gproxy_cache::MemoryCache::default()))
         .sync_mode(SyncMode::Manual)
         .initial_reload(false);
     builder = match config.master_key.key.resolve()? {

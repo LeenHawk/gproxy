@@ -16,7 +16,7 @@
 
 use http::{HeaderMap, HeaderName, HeaderValue, header};
 
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 /// The origin every call in this channel goes to. A live capture of the real
 /// teams CLI sends `GetChatMessage` here rather than to an account-specific
@@ -98,7 +98,7 @@ impl FrameReader {
     }
 
     /// Every frame that is complete after adding `chunk`.
-    pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<Frame>, ChannelError> {
+    pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<Frame>, UpstreamError> {
         self.buffer.extend_from_slice(chunk);
         let mut frames = Vec::new();
         let mut consumed = 0_usize;
@@ -143,7 +143,7 @@ impl FrameReader {
 /// implements deflate but not this framing, so the header walk is here; the
 /// CRC is not checked (the length check below already catches a truncated
 /// member, and a corrupt one fails to inflate).
-fn inflate_gzip(bytes: &[u8]) -> Result<Vec<u8>, ChannelError> {
+fn inflate_gzip(bytes: &[u8]) -> Result<Vec<u8>, UpstreamError> {
     if bytes.len() < 18 || bytes[0] != 0x1f || bytes[1] != 0x8b {
         return Err(invalid(
             "Connect frame claims gzip but carries no gzip member",
@@ -189,17 +189,17 @@ fn inflate_gzip(bytes: &[u8]) -> Result<Vec<u8>, ChannelError> {
 /// single token is rejected upstream with `permission_denied`
 /// (`devin-connect.js` file header §1, and the `authHeader` line on the
 /// streaming path). The copy inside `ClientMetadata` stays single.
-pub fn authorization(token: &str) -> Result<HeaderValue, ChannelError> {
+pub fn authorization(token: &str) -> Result<HeaderValue, UpstreamError> {
     let token = token.trim();
     if token.is_empty() {
-        return Err(ChannelError::InvalidCredential);
+        return Err(UpstreamError::InvalidCredential);
     }
     HeaderValue::from_str(&format!("Basic {token}-{token}"))
-        .map_err(|_| ChannelError::InvalidCredential)
+        .map_err(|_| UpstreamError::InvalidCredential)
 }
 
 /// Headers for a Connect call carrying protobuf.
-pub fn proto_headers(token: &str) -> Result<HeaderMap, ChannelError> {
+pub fn proto_headers(token: &str) -> Result<HeaderMap, UpstreamError> {
     let mut headers = HeaderMap::new();
     headers.insert(
         header::CONTENT_TYPE,
@@ -265,6 +265,6 @@ pub fn trailer_error(payload: &[u8]) -> Option<TrailerError> {
     })
 }
 
-fn invalid(detail: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(detail.into())
+fn invalid(detail: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(detail.into())
 }

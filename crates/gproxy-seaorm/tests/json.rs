@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 use gproxy_seaorm::json_array_contains_text;
 use sea_orm::{
     ConnectionTrait, Database, DbBackend,

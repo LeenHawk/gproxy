@@ -1,0 +1,7 @@
+shell/pkg/
+*/lite/
+node_modules/
+.wrangler/
+.dev.vars
+.netlify/
+.vercel/

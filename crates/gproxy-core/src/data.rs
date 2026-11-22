@@ -5,6 +5,7 @@ use crate::{limits::ExecutionLimits, runtime::CredentialState};
 use gproxy_channel::{BaseChannel, OutboundClient, channel::QuotaDimension};
 use gproxy_protocol::OperationKey;
 use gproxy_store::entity::upstream;
+use gproxy_upstream::UpstreamKind;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -54,13 +55,22 @@ pub struct CoreData {
     pub pricing: Arc<crate::pricing::PriceBook>,
 }
 
+/// What implements a provider: the provider row's `channel` names either.
+#[derive(Clone)]
+pub enum ProviderKind {
+    Channel(Arc<dyn BaseChannel>),
+    /// An upstream kind with no model side, such as a tool server. Never the
+    /// target of a model operation.
+    Upstream(Arc<dyn UpstreamKind>),
+}
+
 #[derive(Clone)]
 pub struct ProviderData {
     pub entity: Arc<upstream::provider::Model>,
     /// Runtime config with the global and provider header allow-lists merged.
     /// The persisted entity keeps the provider's own settings unchanged.
     pub effective_config: serde_json::Value,
-    pub channel: Arc<dyn BaseChannel>,
+    pub kind: ProviderKind,
     /// References CoreData.credentials; no duplicate credential ownership.
     pub credential_ids: Vec<String>,
     pub models: Vec<Arc<upstream::provider_model::Model>>,
@@ -76,8 +86,40 @@ pub struct ProviderData {
 }
 
 impl ProviderData {
-    pub fn view(&self) -> gproxy_channel::channel::ProviderView<'_> {
-        gproxy_channel::channel::ProviderView {
+    /// The account side: sign-in, refresh, secret validation, default client.
+    pub fn upstream(&self) -> &dyn UpstreamKind {
+        match &self.kind {
+            ProviderKind::Channel(channel) => channel.as_ref(),
+            ProviderKind::Upstream(kind) => kind.as_ref(),
+        }
+    }
+
+    pub(crate) fn upstream_arc(&self) -> Arc<dyn UpstreamKind> {
+        match &self.kind {
+            ProviderKind::Channel(channel) => channel.clone(),
+            ProviderKind::Upstream(kind) => kind.clone(),
+        }
+    }
+
+    pub fn channel(&self) -> Option<&Arc<dyn BaseChannel>> {
+        match &self.kind {
+            ProviderKind::Channel(channel) => Some(channel),
+            ProviderKind::Upstream(_) => None,
+        }
+    }
+
+    /// The channel a model operation runs on.
+    pub fn model_channel(&self) -> crate::CoreResult<&Arc<dyn BaseChannel>> {
+        self.channel().ok_or_else(|| {
+            crate::CoreError::InvalidTarget(format!(
+                "provider `{}` is not a model channel",
+                self.entity.id
+            ))
+        })
+    }
+
+    pub fn view(&self) -> gproxy_upstream::ProviderView<'_> {
+        gproxy_upstream::ProviderView {
             config: &self.effective_config,
             ..crate::assemble::provider_view(&self.entity)
         }
@@ -185,12 +227,7 @@ pub enum RewritePhase {
     Response,
     Both,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum PathSegment {
-    Key(String),
-    Index(usize),
-    Wildcard,
-}
+pub use gproxy_convert::json_path::PathSegment;
 /// Compiled target shape. Execution-data compilation must reject Query with
 /// Response/Both phase and reject event filters on Header/Query targets.
 pub enum RewriteTarget {

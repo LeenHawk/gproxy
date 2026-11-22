@@ -10,8 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use futures_util::StreamExt as _;
 use gproxy_channel::{
-    BaseChannel, ChannelError, ConfigKeyKind, LoginMode, OperationContext,
-    channel::{ChannelState, CredentialView, NoState, ProviderView},
+    BaseChannel, OperationContext,
     channels::aws_bedrock::{AwsBedrock, ID, sigv4},
 };
 use gproxy_client::OutboundClient;
@@ -19,6 +18,10 @@ use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
     connection::Bytes,
+};
+use gproxy_upstream::{
+    ConfigKeyKind, CredentialView, LoginMode, NoState, ProviderView, UpstreamError, UpstreamKind,
+    UpstreamState,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode, Uri};
 use serde_json::{Value, json};
@@ -287,7 +290,7 @@ fn prepared(
     operation: OperationKey,
     request: WireRequest<HttpBody>,
     endpoint_override: Option<&str>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     let metadata = Value::Null;
     AwsBedrock.prepare(gproxy_channel::channel::PrepareContext {
         provider: provider(config, base_url),
@@ -458,7 +461,7 @@ fn a_body_without_a_model_cannot_address_bedrock() {
     )
     .unwrap_err();
     assert!(
-        matches!(&error, ChannelError::InvalidConfig(message) if message.contains("model")),
+        matches!(&error, UpstreamError::InvalidConfig(message) if message.contains("model")),
         "{error}"
     );
 }
@@ -475,7 +478,7 @@ fn an_unrecognised_region_is_a_configuration_error() {
         None,
     )
     .unwrap_err();
-    assert!(matches!(error, ChannelError::InvalidConfig(_)), "{error}");
+    assert!(matches!(error, UpstreamError::InvalidConfig(_)), "{error}");
 }
 
 // ---------------------------------------------------------------- credential
@@ -552,7 +555,7 @@ fn a_half_filled_key_pair_is_an_invalid_credential() {
         )
         .unwrap_err();
         assert!(
-            matches!(error, ChannelError::InvalidCredential),
+            matches!(error, UpstreamError::InvalidCredential),
             "{secret}: {error}"
         );
     }
@@ -645,7 +648,7 @@ fn a_streamed_request_body_cannot_be_signed() {
     )
     .unwrap_err();
     assert!(
-        matches!(&error, ChannelError::InvalidConfig(message) if message.contains("SigV4")),
+        matches!(&error, UpstreamError::InvalidConfig(message) if message.contains("SigV4")),
         "{error}"
     );
 }
@@ -697,7 +700,7 @@ fn each_declared_dialect_matches_what_the_upstream_takes() {
     )
     .unwrap_err();
     assert!(
-        matches!(error, ChannelError::UnsupportedOperation(_)),
+        matches!(error, UpstreamError::UnsupportedOperation(_)),
         "{error}"
     );
 }
@@ -806,7 +809,7 @@ fn operation_context<'a>(
     dialect: Dialect,
     request: WireRequest<HttpBody>,
     client: Arc<dyn OutboundClient>,
-    state: Arc<dyn ChannelState>,
+    state: Arc<dyn UpstreamState>,
 ) -> OperationContext<'a> {
     OperationContext {
         provider,

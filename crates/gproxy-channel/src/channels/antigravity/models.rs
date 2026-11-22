@@ -8,9 +8,10 @@
 //! token limits the payload reported.
 
 use super::Antigravity;
-use crate::channel::{BaseChannel, ChannelError, OperationContext, PrepareContext};
+use crate::channel::{BaseChannel, OperationContext, PrepareContext};
 use crate::channels::shared::code_assist;
 use gproxy_protocol::{HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::UpstreamError;
 use http::{StatusCode, header};
 use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -104,7 +105,7 @@ fn entry(id: &str, metadata: Option<&Value>) -> Value {
     Value::Object(model)
 }
 
-pub(super) fn catalog(body: &[u8]) -> Result<Vec<Value>, ChannelError> {
+pub(super) fn catalog(body: &[u8]) -> Result<Vec<Value>, UpstreamError> {
     let payload: Value = serde_json::from_slice(body).map_err(|error| {
         code_assist::invalid_response(format!("Antigravity catalogue JSON: {error}"))
     })?;
@@ -166,7 +167,7 @@ pub(super) fn catalog(body: &[u8]) -> Result<Vec<Value>, ChannelError> {
 }
 
 /// The quota buckets the same payload carries, keyed by model id.
-pub(super) fn quota_info(body: &[u8]) -> Result<Map<String, Value>, ChannelError> {
+pub(super) fn quota_info(body: &[u8]) -> Result<Map<String, Value>, UpstreamError> {
     let payload: Value = serde_json::from_slice(body).map_err(|error| {
         code_assist::invalid_response(format!("Antigravity catalogue JSON: {error}"))
     })?;
@@ -178,16 +179,16 @@ pub(super) fn quota_info(body: &[u8]) -> Result<Map<String, Value>, ChannelError
 }
 
 /// The model id a `GET /v1beta/models/{id}` path names.
-fn requested(path: &str) -> Result<String, ChannelError> {
+fn requested(path: &str) -> Result<String, UpstreamError> {
     code_assist::request_model(path, None)
-        .ok_or_else(|| ChannelError::InvalidConfig("model id missing from request path".into()))
+        .ok_or_else(|| UpstreamError::InvalidConfig("model id missing from request path".into()))
 }
 
 pub(super) async fn invoke(
     channel: &Antigravity,
     operation: Operation,
     ctx: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let wanted = match operation {
         Operation::GetModel => Some(requested(&ctx.request.path)?),
         _ => None,

@@ -15,15 +15,16 @@ use super::{
     config::{OrcaTermConfig, invalid, now_ms},
 };
 use crate::channel::{
-    ChannelError, CredentialContext, OperationFuture, QuotaAllowance, QuotaEntry, QuotaQuery,
-    QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaValue,
+    QuotaAllowance, QuotaEntry, QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot,
+    QuotaSubject, QuotaValue,
 };
+use gproxy_upstream::{CredentialContext, UpstreamError, UpstreamFuture};
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
 
 const FEATURE: &str = "hunyuan_ai";
 
-fn amount(stats: &Value, field: &str) -> Result<Option<Decimal>, ChannelError> {
+fn amount(stats: &Value, field: &str) -> Result<Option<Decimal>, UpstreamError> {
     let text = match stats.get(field) {
         None | Some(Value::Null) => return Ok(None),
         Some(Value::Number(value)) => value.to_string(),
@@ -46,7 +47,7 @@ fn timestamp(value: &Value) -> Option<i64> {
     .and_then(|date| i64::try_from(date.unix_timestamp_nanos() / 1_000_000).ok())
 }
 
-fn entry(stats: &Value) -> Result<QuotaEntry, ChannelError> {
+fn entry(stats: &Value) -> Result<QuotaEntry, UpstreamError> {
     if stats
         .get("feature")
         .is_some_and(|feature| feature != FEATURE)
@@ -95,7 +96,7 @@ fn entry(stats: &Value) -> Result<QuotaEntry, ChannelError> {
 }
 
 impl QuotaQuery for OrcaTerm {
-    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = OrcaTermConfig::from_view(ctx.provider)?;
             let mut secret = ctx.credential.secret.clone();

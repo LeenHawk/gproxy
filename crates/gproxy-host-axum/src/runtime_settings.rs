@@ -62,7 +62,7 @@ pub async fn info<C>(State(state): State<HostState<C>>) -> Response {
         "footerUrl": data.settings.as_ref().and_then(|s| s.footer_url.as_deref()),
         "version": env!("CARGO_PKG_VERSION"),
         "hash": env!("GPROXY_BUILD_HASH"),
-        "fontManagement": cfg!(not(target_arch = "wasm32")),
+        "fontManagement": true,
     }))
 }
 
@@ -75,18 +75,15 @@ pub async fn cors<C>(
 where
     C: gproxy_seaorm::BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let lists = state.policy_lists();
-        let origin = crate::policy::allowed_origin(request.headers(), &lists.cors_origins);
-        if crate::policy::is_preflight(request.method(), request.headers()) {
-            use axum::response::IntoResponse;
-            return crate::policy::apply_preflight_cors(
-                http::StatusCode::NO_CONTENT.into_response(),
-                origin.as_ref(),
-                request.headers(),
-            );
-        }
-        crate::policy::apply_cors(next.run(request).await, origin.as_ref())
-    })
-    .await
+    let lists = state.policy_lists();
+    let origin = crate::policy::allowed_origin(request.headers(), &lists.cors_origins);
+    if crate::policy::is_preflight(request.method(), request.headers()) {
+        use axum::response::IntoResponse;
+        return crate::policy::apply_preflight_cors(
+            http::StatusCode::NO_CONTENT.into_response(),
+            origin.as_ref(),
+            request.headers(),
+        );
+    }
+    crate::policy::apply_cors(next.run(request).await, origin.as_ref())
 }

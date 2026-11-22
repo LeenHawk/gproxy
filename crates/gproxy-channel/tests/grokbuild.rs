@@ -3,19 +3,20 @@
 
 mod support;
 
-use gproxy_channel::channel::{
-    BaseChannel, ChannelError, CredentialContext, CredentialRefresh, CredentialView, DevicePoll,
-    LoginContext, OAuthDeviceCode, PrepareContext, ProviderView, QuotaQuery, QuotaValue,
-};
+use gproxy_channel::OutboundClient;
+use gproxy_channel::channel::{BaseChannel, PrepareContext, QuotaQuery, QuotaValue};
 use gproxy_channel::channels::grokbuild::{
     CLI_USER_AGENT, COST_TICKS_METRIC, DEFAULT_CLIENT_ID, GrokBuild, UPSTREAM_COST_METRIC,
     UPSTREAM_PRICED_DIMENSION, USAGE_DIMENSION,
 };
-use gproxy_channel::{LoginMode, OutboundClient};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
     connection::Bytes,
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialRefresh, CredentialView, DevicePoll, LoginContext, LoginMode,
+    OAuthDeviceCode, ProviderView, UpstreamError, UpstreamKind,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -133,7 +134,7 @@ fn prepare(
     operation: Operation,
     dialect: Dialect,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     let secret = secret();
     GrokBuild.prepare(PrepareContext {
         provider: provider(config, base_url),
@@ -405,7 +406,7 @@ fn a_credential_without_an_access_token_is_refused() {
             request: request(HeaderMap::new(), "/v1/responses", json!({"input": "hi"})),
             endpoint_override: None,
         }),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
 }
 
@@ -434,7 +435,7 @@ fn the_declared_dialects_follow_the_surface() {
             Dialect::OpenAi,
             request(HeaderMap::new(), "/v1/responses", json!({})),
         ),
-        Err(ChannelError::UnsupportedOperation(_))
+        Err(UpstreamError::UnsupportedOperation(_))
     ));
 }
 
@@ -647,7 +648,7 @@ async fn the_refresh_rotates_and_a_refusal_of_the_token_is_definitive() {
             },
         )
         .await,
-        Err(ChannelError::RefreshRejected(_))
+        Err(UpstreamError::RefreshRejected(_))
     ));
 
     // The CLI tries a gateway failure three times before giving up.
@@ -667,7 +668,7 @@ async fn the_refresh_rotates_and_a_refusal_of_the_token_is_definitive() {
                 },
             )
             .await,
-            Err(ChannelError::UpstreamResponse { .. })
+            Err(UpstreamError::UpstreamResponse { .. })
         ),
         "a gateway failure is not a dead credential"
     );
@@ -684,7 +685,7 @@ async fn the_refresh_rotates_and_a_refusal_of_the_token_is_definitive() {
             },
         )
         .await,
-        Err(ChannelError::RefreshRejected(_))
+        Err(UpstreamError::RefreshRejected(_))
     ));
 }
 
@@ -762,7 +763,7 @@ async fn a_billing_reply_with_nothing_in_it_is_an_error() {
                 client: client.as_ref(),
             })
             .await,
-        Err(ChannelError::InvalidResponse(_))
+        Err(UpstreamError::InvalidResponse(_))
     ));
 
     let refused = ScriptClient::new(vec![reply(
@@ -777,7 +778,7 @@ async fn a_billing_reply_with_nothing_in_it_is_an_error() {
                 client: refused.as_ref(),
             })
             .await,
-        Err(ChannelError::UpstreamResponse { .. })
+        Err(UpstreamError::UpstreamResponse { .. })
     ));
 }
 

@@ -4,17 +4,19 @@
 mod support;
 
 use futures_util::StreamExt as _;
+use gproxy_channel::OutboundClient;
 use gproxy_channel::channel::{
-    BaseChannel, ChannelError, CredentialContext, CredentialRefresh, CredentialView, DevicePoll,
-    LoginContext, NoState, OAuthDeviceCode, OperationContext, PrepareContext, ProviderView,
-    QuotaQuery, QuotaValue,
+    BaseChannel, OperationContext, PrepareContext, QuotaQuery, QuotaValue,
 };
 use gproxy_channel::channels::workbuddy::{CLI_VERSION, ENTERPRISE_DIMENSION, WorkBuddy};
-use gproxy_channel::{LoginMode, OutboundClient};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
     connection::Bytes,
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialRefresh, CredentialView, DevicePoll, LoginContext, LoginMode,
+    NoState, OAuthDeviceCode, ProviderView, UpstreamError, UpstreamKind,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -138,7 +140,7 @@ fn prepare(
     operation: Operation,
     dialect: Dialect,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     let secret = secret();
     WorkBuddy.prepare(PrepareContext {
         provider: provider(config, base_url),
@@ -416,7 +418,7 @@ fn a_credential_without_the_account_the_upstream_matches_is_refused() {
                 json!({"messages": []}),
             ),
         ),
-        Err(ChannelError::InvalidCredential),
+        Err(UpstreamError::InvalidCredential),
     ));
     // The flat v3 layout still satisfies it.
     let secret = json!({"access_token": "a", "user_id": "uid-legacy"});
@@ -764,7 +766,7 @@ async fn the_refresh_rotates_through_a_header_and_a_refusal_is_definitive() {
             },
         )
         .await,
-        Err(ChannelError::RefreshRejected(_))
+        Err(UpstreamError::RefreshRejected(_))
     ));
 
     let transient = ScriptClient::new(vec![raw_reply(StatusCode::BAD_GATEWAY, "down")]);
@@ -779,7 +781,7 @@ async fn the_refresh_rotates_through_a_header_and_a_refusal_is_definitive() {
                 },
             )
             .await,
-            Err(ChannelError::UpstreamResponse { .. })
+            Err(UpstreamError::UpstreamResponse { .. })
         ),
         "a gateway failure is not a dead credential"
     );
@@ -795,7 +797,7 @@ async fn the_refresh_rotates_through_a_header_and_a_refusal_is_definitive() {
             },
         )
         .await,
-        Err(ChannelError::RefreshRejected(_))
+        Err(UpstreamError::RefreshRejected(_))
     ));
 }
 
@@ -884,7 +886,7 @@ async fn a_meter_that_reports_nothing_is_an_error_rather_than_an_empty_snapshot(
                 client: client.as_ref(),
             })
             .await,
-        Err(ChannelError::InvalidResponse(_))
+        Err(UpstreamError::InvalidResponse(_))
     ));
 }
 

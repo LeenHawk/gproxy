@@ -7,7 +7,7 @@ mod lifecycle;
 mod tests;
 mod tools;
 
-use crate::{channel::ChannelError, channels::codex::shape::tools::Aliases};
+use crate::channels::codex::shape::tools::Aliases;
 use event::{Event, invalid};
 use futures_util::{StreamExt, stream};
 use gproxy_protocol::{
@@ -15,6 +15,7 @@ use gproxy_protocol::{
     codec::{SseDecoder, SseEncoder, SseEvent, SseFrame},
     connection::{ByteStream, Bytes, TransportError},
 };
+use gproxy_upstream::UpstreamError;
 use std::collections::VecDeque;
 
 struct Codec {
@@ -37,11 +38,11 @@ impl Codec {
             pending: Vec::new(),
         }
     }
-    fn push(&mut self, bytes: &[u8]) -> Result<Vec<Bytes>, ChannelError> {
+    fn push(&mut self, bytes: &[u8]) -> Result<Vec<Bytes>, UpstreamError> {
         let frames = self.decoder.push(bytes).map_err(invalid)?;
         self.frames(frames)
     }
-    fn frames(&mut self, frames: Vec<SseFrame>) -> Result<Vec<Bytes>, ChannelError> {
+    fn frames(&mut self, frames: Vec<SseFrame>) -> Result<Vec<Bytes>, UpstreamError> {
         let mut output = Vec::new();
         for frame in frames {
             let source = match frame {
@@ -103,7 +104,7 @@ impl Codec {
         }
         Ok(output)
     }
-    fn normalize(&mut self, event: Event, source: &SseEvent) -> Result<Vec<Bytes>, ChannelError> {
+    fn normalize(&mut self, event: Event, source: &SseEvent) -> Result<Vec<Bytes>, UpstreamError> {
         self.lifecycle
             .normalize(event)?
             .into_iter()
@@ -122,7 +123,7 @@ impl Codec {
             })
             .collect()
     }
-    fn finish(&mut self) -> Result<Vec<Bytes>, ChannelError> {
+    fn finish(&mut self) -> Result<Vec<Bytes>, UpstreamError> {
         let frames = self.decoder.finish().map_err(invalid)?;
         let output = self.frames(frames)?;
         if !self.lifecycle.terminal {

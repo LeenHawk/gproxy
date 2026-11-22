@@ -1,0 +1,209 @@
+//! Deterministic mappings from a source OperationKey to one implementation.
+
+use gproxy_channel::channel::BaseChannel;
+use gproxy_protocol::{Dialect, Operation, OperationKey};
+use gproxy_upstream::ProviderView;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "implementation", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Route {
+    Passthrough,
+    TransformTo { target: OperationKey },
+    Local,
+    Unsupported,
+}
+
+/// One operation's explicitly configured source-protocol mappings.
+pub type RoutingMappings = BTreeMap<Dialect, Route>;
+
+pub fn local_supported(key: OperationKey) -> bool {
+    crate::spec_for(key).is_some()
+        && matches!(
+            key.operation,
+            Operation::CountTokens | Operation::ListModels | Operation::GetModel
+        )
+}
+
+/// Only edges protocol adapts are offered to configuration.
+pub fn can_convert(source: OperationKey, target: OperationKey) -> bool {
+    gproxy_protocol::adapt::is_conversion_edge(source, target)
+}
+
+pub fn conversion_targets(source: OperationKey) -> Vec<OperationKey> {
+    let mut targets: Vec<_> = gproxy_protocol::adapt::conversion_targets(source).collect();
+    targets.sort();
+    targets
+}
+
+pub fn default_route(
+    channel: &dyn BaseChannel,
+    provider: ProviderView<'_>,
+    source: OperationKey,
+) -> Route {
+    default_route_for_model(channel, provider, source, None)
+}
+
+/// `default_route` for a request naming `model`, for channels whose upstream
+/// picks its wire by model (`BaseChannel::native_dialects_for_model`).
+pub fn default_route_for_model(
+    channel: &dyn BaseChannel,
+    provider: ProviderView<'_>,
+    source: OperationKey,
+    model: Option<&str>,
+) -> Route {
+    default_with_native(
+        channel,
+        provider,
+        source,
+        &channel.native_dialects_for_model(provider, source.operation, model),
+        model,
+    )
+}
+
+/// `default_route_for_model` over an explicit set of native dialects, for an
+/// engine whose configuration overrides what the channel declares.
+pub fn default_with_native(
+    channel: &dyn BaseChannel,
+    provider: ProviderView<'_>,
+    source: OperationKey,
+    native: &[Dialect],
+    model: Option<&str>,
+) -> Route {
+    if native.contains(&source.dialect) {
+        return if channel.local_operations().contains(&source.operation) {
+            Route::Local
+        } else {
+            Route::Passthrough
+        };
+    }
+    if let Some(target) = channel.default_conversion_target_for_model(provider, source, model)
+        && can_convert(source, target)
+        && (if target.operation == source.operation {
+            native.contains(&target.dialect)
+        } else {
+            channel
+                .native_dialects_for_model(provider, target.operation, model)
+                .contains(&target.dialect)
+        })
+    {
+        return Route::TransformTo { target };
+    }
+    let mut targets: Vec<_> = conversion_targets(source)
+        .into_iter()
+        .filter(|target| {
+            let supported = if target.operation == source.operation {
+                native.to_vec()
+            } else {
+                channel.native_dialects_for_model(provider, target.operation, model)
+            };
+            supported.contains(&target.dialect)
+        })
+        .collect();
+    // WS generation is incremental even though the ingress operation is
+    // GenerateContent. Prefer its HTTP streaming counterpart and, when a
+    // channel accepts several wires, keep Responses before crossing dialects.
+    if source.dialect == Dialect::OpenAiResponsesWebSocket {
+        targets.retain(|t| t.operation == Operation::StreamGenerateContent);
+        if let Some(target) = targets.iter().find(|t| t.dialect == Dialect::OpenAi) {
+            return Route::TransformTo { target: *target };
+        }
+    }
+    // Prefer the same response mode when the channel supports it.
+    if matches!(
+        source.operation,
+        Operation::GenerateContent | Operation::StreamGenerateContent
+    ) && targets.iter().any(|t| t.operation == source.operation)
+    {
+        targets.retain(|t| t.operation == source.operation);
+    }
+    targets.sort_by_key(|t| (t.operation, t.dialect));
+    targets.dedup();
+    match targets.as_slice() {
+        [target] => Route::TransformTo { target: *target },
+        [] if local_supported(source) => Route::Local,
+        _ => Route::Unsupported,
+    }
+}
+
+pub fn validate_mapping(source: OperationKey, mapping: Route) -> Result<(), String> {
+    if crate::spec_for(source).is_none() {
+        return Err("unknown source operation/protocol pair".into());
+    }
+    match mapping {
+        Route::TransformTo { target } if !conversion_targets(source).contains(&target) => {
+            Err("this conversion is not implemented".into())
+        }
+        Route::Local if !local_supported(source) => {
+            Err("this operation has no local handler".into())
+        }
+        _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gproxy_upstream::UpstreamKind;
+
+    /// An upstream that, like Bedrock, serves Claude models on Messages and
+    /// every other model on Chat Completions.
+    struct ByModel;
+
+    impl UpstreamKind for ByModel {
+        fn id(&self) -> &'static str {
+            "by_model"
+        }
+    }
+
+    impl BaseChannel for ByModel {
+        fn native_dialects(&self, _: ProviderView<'_>, _: Operation) -> Vec<Dialect> {
+            vec![Dialect::Claude]
+        }
+        fn native_dialects_for_model(
+            &self,
+            provider: ProviderView<'_>,
+            operation: Operation,
+            model: Option<&str>,
+        ) -> Vec<Dialect> {
+            match model {
+                Some(model) if !model.starts_with("claude") => vec![Dialect::OpenAiChat],
+                _ => self.native_dialects(provider, operation),
+            }
+        }
+    }
+
+    #[test]
+    fn the_same_request_takes_the_wire_its_model_is_served_on() {
+        let config = serde_json::json!({});
+        let view = ProviderView {
+            id: "p",
+            channel: "by_model",
+            base_url: None,
+            config: &config,
+        };
+        let chat = OperationKey {
+            operation: Operation::GenerateContent,
+            dialect: Dialect::OpenAiChat,
+        };
+        assert_eq!(
+            default_route_for_model(&ByModel, view, chat, Some("gpt-5.5")),
+            Route::Passthrough
+        );
+        assert_eq!(
+            default_route_for_model(&ByModel, view, chat, Some("claude-sonnet-5")),
+            Route::TransformTo {
+                target: OperationKey {
+                    operation: Operation::GenerateContent,
+                    dialect: Dialect::Claude,
+                }
+            }
+        );
+        // Without a model, the provider-wide answer: what `native_dialects` says.
+        assert_eq!(
+            default_route(&ByModel, view, chat),
+            default_route_for_model(&ByModel, view, chat, Some("claude-sonnet-5"))
+        );
+    }
+}

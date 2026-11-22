@@ -4,28 +4,26 @@ use std::sync::{
 };
 
 use futures_util::{StreamExt, stream};
-use gproxy_channel::channel::{
-    CredentialRefresh, CredentialUpdate, CredentialView, PrepareContext, ProviderView,
-    RefreshContext,
-};
-use gproxy_channel::{
-    BaseChannel, ChannelBinding, ChannelCapabilities, ChannelError, LoginMode, OutboundClient,
+use gproxy_channel::channel::PrepareContext;
+use gproxy_channel::{BaseChannel, ChannelBinding, ChannelCapabilities, OutboundClient};
+use gproxy_upstream::{
+    ConfigKeyKind, CredentialRefresh, CredentialUpdate, CredentialView, LoginMode, ProviderView,
+    RefreshContext, UpstreamError, UpstreamKind,
 };
 // Only the descriptor tests read it, and each of those is behind its own
 // channel feature, so importing it unconditionally is an unused import in a
 // build with no channel compiled in.
+use gproxy_protocol::capability::{
+    CapabilityError, CapabilityErrorKind, CapabilityErrorStage, CapabilityFuture,
+};
+use gproxy_protocol::connection::Bytes;
+use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
 #[cfg(any(
     feature = "claudecode",
     feature = "claudeweb",
     feature = "codex",
     feature = "custom"
 ))]
-use gproxy_channel::ConfigKeyKind;
-use gproxy_protocol::capability::{
-    CapabilityError, CapabilityErrorKind, CapabilityErrorStage, CapabilityFuture,
-};
-use gproxy_protocol::connection::Bytes;
-use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
 use http::{HeaderMap, Method, StatusCode};
 use serde_json::{Value, json};
 
@@ -37,21 +35,23 @@ const KEY: OperationKey = OperationKey {
 struct Minimal;
 
 // A pass-through channel only needs identity and common request preparation.
-impl BaseChannel for Minimal {
+impl UpstreamKind for Minimal {
     fn id(&self) -> &'static str {
         "minimal"
     }
+}
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+impl BaseChannel for Minimal {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let key = ctx.credential.secret["api_key"]
             .as_str()
-            .ok_or(ChannelError::InvalidCredential)?;
+            .ok_or(UpstreamError::InvalidCredential)?;
         http::Request::builder()
             .method(ctx.request.method)
             .uri(ctx.provider.base_url.unwrap())
             .header("authorization", format!("Bearer {key}"))
             .body(ctx.request.body)
-            .map_err(|_| ChannelError::InvalidCredential)
+            .map_err(|_| UpstreamError::InvalidCredential)
     }
 }
 
@@ -155,7 +155,7 @@ async fn invalid_credentials_do_not_reach_client() {
         binding
             .send(KEY, request(HttpBody::Bytes(Bytes::new())))
             .await,
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
     assert_eq!(client.calls.load(Ordering::SeqCst), 0);
 }
@@ -197,22 +197,26 @@ async fn body_stays_lazy_and_preserves_late_transfer_failure() {
 }
 
 struct Refreshable;
-impl BaseChannel for Refreshable {
+impl UpstreamKind for Refreshable {
     fn id(&self) -> &'static str {
         Minimal.id()
     }
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
-        Minimal.prepare(ctx)
-    }
+
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
         Some(self)
+    }
+}
+
+impl BaseChannel for Refreshable {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
+        Minimal.prepare(ctx)
     }
 }
 impl CredentialRefresh for Refreshable {
     fn refresh<'a>(
         &'a self,
         ctx: RefreshContext<'a>,
-    ) -> CapabilityFuture<'a, Result<CredentialUpdate, ChannelError>> {
+    ) -> CapabilityFuture<'a, Result<CredentialUpdate, UpstreamError>> {
         Box::pin(async move {
             assert_eq!(ctx.credential.version, 0);
             Ok(CredentialUpdate {
@@ -271,7 +275,7 @@ async fn transport_failure_remains_distinct_from_http_error_response() {
         credential(&secret),
         Arc::new(FailingClient),
     );
-    let Err(ChannelError::Transport(error)) = binding
+    let Err(UpstreamError::Transport(error)) = binding
         .send(KEY, request(HttpBody::Bytes(Bytes::new())))
         .await
     else {

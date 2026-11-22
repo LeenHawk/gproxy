@@ -28,20 +28,25 @@ pub use quota::BUDGET_DIMENSION;
 pub use request::ATTRIBUTION_HEADERS;
 pub use usage::{UPSTREAM_COST_METRIC, UPSTREAM_PRICED_DIMENSION};
 
-use crate::channel::{UsageExtras, 
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, LoginMode, PrepareContext, ProviderView, QuotaModel, QuotaQuery,
-    };
+use crate::channel::{
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, PrepareContext,
+    QuotaModel, QuotaQuery, UsageExtras,
+};
 use gproxy_protocol::{Dialect, HttpBody, Operation};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct OpenRouter;
 
-impl BaseChannel for OpenRouter {
+impl UpstreamKind for OpenRouter {
     fn id(&self) -> &'static str {
         ID
     }
+}
 
+impl BaseChannel for OpenRouter {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -117,7 +122,7 @@ impl BaseChannel for OpenRouter {
         vec![Dialect::OpenAi, Dialect::OpenAiChat, Dialect::Claude]
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = OpenRouterConfig::from_view(ctx.provider)?;
         let uri = request::target(&ctx);
         let headers = request::headers(&ctx, &config)?;
@@ -131,7 +136,7 @@ impl BaseChannel for OpenRouter {
         }
         builder
             .body(body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     fn quota_model(&self) -> Option<&dyn QuotaModel> {

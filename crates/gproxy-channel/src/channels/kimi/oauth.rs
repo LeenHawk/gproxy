@@ -13,15 +13,15 @@
 
 use super::auth;
 use super::config::{DEFAULT_CLIENT_ID, DEFAULT_CODE_BASE_URL, ID, KimiConfig};
-use crate::channel::{
-    ChannelError, CredentialRefresh, CredentialUpdate, CredentialView, DeviceAuthorization,
-    DevicePoll, LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
-    RefreshReason,
-};
 use crate::channels::shared::compatible::ability::send;
 use crate::channels::shared::compatible::http::invalid_response;
 use crate::channels::shared::timer;
 use gproxy_protocol::capability::CapabilityErrorKind;
+use gproxy_upstream::{
+    CredentialRefresh, CredentialUpdate, CredentialView, DeviceAuthorization, DevicePoll,
+    LoginContext, OAuthCredential, OAuthDeviceCode, RefreshContext, RefreshReason, UpstreamError,
+    UpstreamFuture,
+};
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -64,10 +64,10 @@ pub(super) fn unix_now_ms() -> i64 {
 }
 
 /// A random version-4 UUID, the shape the CLI uses for a machine id.
-fn device_id() -> Result<String, ChannelError> {
+fn device_id() -> Result<String, UpstreamError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|error| {
-        ChannelError::InvalidConfig(format!(
+        UpstreamError::InvalidConfig(format!(
             "operating-system randomness is unavailable: {error}"
         ))
     })?;
@@ -119,7 +119,7 @@ fn form(pairs: &[(&str, &str)]) -> Vec<u8> {
 /// A form post that also announces the machine. `identity` needs a credential
 /// to read the device id from, and during login there is none yet, so the
 /// caller passes the id it just minted.
-fn login_headers(config: &KimiConfig, device: &str) -> Result<HeaderMap, ChannelError> {
+fn login_headers(config: &KimiConfig, device: &str) -> Result<HeaderMap, UpstreamError> {
     let mut headers = HeaderMap::new();
     headers.insert(
         header::CONTENT_TYPE,
@@ -180,7 +180,7 @@ impl TokenReply {
 }
 
 impl OAuthDeviceCode for super::Kimi {
-    fn start<'a>(&'a self, context: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
+    fn start<'a>(&'a self, context: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
             let config = KimiConfig::from_view(context.provider)?;
             let device = device_id()?;
@@ -193,7 +193,7 @@ impl OAuthDeviceCode for super::Kimi {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let reply: DeviceCodeReply = serde_json::from_slice(&body)
                 .map_err(|error| invalid_response(format!("{ID} device code: {error}")))?;
@@ -235,7 +235,7 @@ impl OAuthDeviceCode for super::Kimi {
         &'a self,
         context: LoginContext<'a>,
         authorization: &'a DeviceAuthorization,
-    ) -> OperationFuture<'a, DevicePoll> {
+    ) -> UpstreamFuture<'a, DevicePoll> {
         Box::pin(async move {
             let config = KimiConfig::from_view(context.provider)?;
             let device = authorization
@@ -259,7 +259,7 @@ impl OAuthDeviceCode for super::Kimi {
             // A pending authorization is an error status with an OAuth code in
             // the body, so the body is read before the status is judged.
             let Ok(reply) = serde_json::from_slice::<TokenReply>(&body) else {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             };
             if let Some((access, refresh)) = reply.token() {
                 let mut provider_fields = BTreeMap::new();
@@ -291,7 +291,7 @@ impl OAuthDeviceCode for super::Kimi {
                 }),
                 Some("access_denied") => Ok(DevicePoll::Denied),
                 Some("expired_token") => Ok(DevicePoll::Expired),
-                _ => Err(ChannelError::UpstreamResponse { status, body }),
+                _ => Err(UpstreamError::UpstreamResponse { status, body }),
             }
         })
     }
@@ -321,7 +321,7 @@ impl CredentialRefresh for super::Kimi {
             .then_some(RefreshReason::ProactiveExpiry)
     }
 
-    fn supports(&self, credential: &crate::channel::CredentialView<'_>) -> bool {
+    fn supports(&self, credential: &gproxy_upstream::CredentialView<'_>) -> bool {
         credential
             .secret
             .get("refresh_token")
@@ -329,7 +329,7 @@ impl CredentialRefresh for super::Kimi {
             .is_some_and(|token| !token.trim().is_empty())
     }
 
-    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let config = KimiConfig::from_view(context.provider)?;
             let secret = context.credential.secret;
@@ -339,7 +339,7 @@ impl CredentialRefresh for super::Kimi {
                 .map(str::trim)
                 .filter(|token| !token.is_empty())
                 .ok_or_else(|| {
-                    ChannelError::RefreshRejected("credential has no refresh token".into())
+                    UpstreamError::RefreshRejected("credential has no refresh token".into())
                 })?;
             // The CLI never refreshes without a device id: it mints one into
             // its home the first time any is asked for (kimi-code
@@ -372,7 +372,7 @@ impl CredentialRefresh for super::Kimi {
                 )
                 .await
                 {
-                    Err(ChannelError::Transport(error))
+                    Err(UpstreamError::Transport(error))
                         if !last && error.kind() == CapabilityErrorKind::Transport => {}
                     Err(error) => return Err(error),
                     Ok((status, _, body)) => {
@@ -402,11 +402,11 @@ impl CredentialRefresh for super::Kimi {
                     http::StatusCode::UNAUTHORIZED | http::StatusCode::FORBIDDEN
                 ) || code.as_deref() == Some("invalid_grant")
                 {
-                    return Err(ChannelError::RefreshRejected(
+                    return Err(UpstreamError::RefreshRejected(
                         code.unwrap_or_else(|| format!("http {}", status.as_u16())),
                     ));
                 }
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let reply = reply.expect("a token reply was just confirmed");
             let (access, refresh) = reply.token().expect("a token pair was just confirmed");
@@ -417,7 +417,7 @@ impl CredentialRefresh for super::Kimi {
             let mut updated = secret.clone();
             let object = updated
                 .as_object_mut()
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             object.insert("access_token".into(), json!(access));
             object.insert("refresh_token".into(), json!(refresh));
             object.insert("expires_at_ms".into(), json!(expires_at_ms));

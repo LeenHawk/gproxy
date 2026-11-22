@@ -98,10 +98,7 @@ struct Turn {
     response_id: Option<String>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 use futures_util::stream::BoxStream;
-#[cfg(target_arch = "wasm32")]
-use futures_util::stream::LocalBoxStream as BoxStream;
 
 type Incoming = BoxStream<'static, (String, Option<Result<WsFrame, TransportError>>)>;
 
@@ -830,13 +827,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Runner<C> {
     }
 
     async fn refresh_caller(&mut self) -> Result<Caller, AppError> {
-        // An edge isolate has no background synchronizer. A WS turn can arrive
-        // long after the upgrade's tick, including after permissions changed.
-        #[cfg(target_arch = "wasm32")]
-        {
-            self.context.app.gproxy().tick().await?;
-            self.context.app.tick().await?;
-        }
         let data = self.context.app.data();
         let authentication = self
             .context

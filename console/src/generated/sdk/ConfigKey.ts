@@ -5,12 +5,12 @@ import type { ConfigKeyKind } from "./ConfigKeyKind";
  * One entry of a provider's configuration. Unless noted, the name is a key of
  * the provider's `config` JSON; `base_url` is the provider's own column.
  */
-export type ConfigKey = { name: string, kind: ConfigKeyKind,
+export type ConfigKey = { name: string, kind: ConfigKeyKind, 
 /**
  * The provider cannot serve a request without it. Everything else has a
- * channel default.
+ * default.
  */
-required: boolean, description: string,
+required: boolean, description: string, 
 /**
  * Display-only default or URL template; never written into config by the UI.
  */

@@ -5,12 +5,12 @@ use super::request::{api_key, base_url};
 use super::{ANTHROPIC_VERSION, Claudeapi, ClaudeapiConfig, QUOTA_DEFAULT_BASE_URL};
 use crate::OutboundClient;
 use crate::channel::{
-    ChannelError, CredentialContext, OperationFuture, QuotaAllowance, QuotaEntry,
-    QuotaHeaderContext, QuotaHeaders, QuotaQuery, QuotaScope, QuotaSnapshot, QuotaSubject,
-    QuotaValue,
+    QuotaAllowance, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaQuery, QuotaScope,
+    QuotaSnapshot, QuotaSubject, QuotaValue,
 };
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{HttpBody, WireResponse};
+use gproxy_upstream::{CredentialContext, UpstreamError, UpstreamFuture};
 use http::{HeaderMap, HeaderValue, Method, header};
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -25,8 +25,8 @@ const DAY_SECONDS: i64 = 24 * 60 * 60;
 /// The report covers the seven complete UTC days before today.
 const REPORT_DAYS: i64 = 7;
 
-fn invalid_response(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(message.into())
+fn invalid_response(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(message.into())
 }
 
 fn header_str<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
@@ -62,7 +62,7 @@ impl QuotaHeaders for Claudeapi {
     /// families Anthropic meters. `reset` is an RFC 3339 instant, not a
     /// duration. A dimension reporting neither a limit nor a remainder was
     /// not reported at all; absent headers mean nothing, not zero.
-    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, ChannelError> {
+    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, UpstreamError> {
         let model = context.upstream_model.trim();
         let mut entries = Vec::new();
         for dimension in DIMENSIONS {
@@ -115,15 +115,15 @@ impl QuotaHeaders for Claudeapi {
     }
 }
 
-async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
+async fn read_body(body: HttpBody) -> Result<Bytes, UpstreamError> {
     crate::channel::read_body(body).await
 }
 
-async fn get(client: &dyn OutboundClient, url: &str, key: &str) -> Result<Bytes, ChannelError> {
+async fn get(client: &dyn OutboundClient, url: &str, key: &str) -> Result<Bytes, UpstreamError> {
     let mut headers = HeaderMap::new();
     headers.insert(
         http::HeaderName::from_static("x-api-key"),
-        HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
+        HeaderValue::from_str(key).map_err(|_| UpstreamError::InvalidCredential)?,
     );
     headers.insert(
         http::HeaderName::from_static("anthropic-version"),
@@ -136,7 +136,7 @@ async fn get(client: &dyn OutboundClient, url: &str, key: &str) -> Result<Bytes,
     }
     let request = builder
         .body(HttpBody::Bytes(Bytes::new()))
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
     let WireResponse {
         status,
         headers: _,
@@ -144,7 +144,7 @@ async fn get(client: &dyn OutboundClient, url: &str, key: &str) -> Result<Bytes,
     } = client.send(request).await?;
     let body = read_body(body).await?;
     if !status.is_success() {
-        return Err(ChannelError::UpstreamResponse { status, body });
+        return Err(UpstreamError::UpstreamResponse { status, body });
     }
     Ok(body)
 }
@@ -152,7 +152,7 @@ async fn get(client: &dyn OutboundClient, url: &str, key: &str) -> Result<Bytes,
 /// One day of the report. The report is refused rather than under-reported
 /// when Anthropic says it has more pages: this endpoint takes no cursor, so a
 /// truncated report would silently understate the spend.
-fn report_entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
+fn report_entries(body: &[u8]) -> Result<Vec<QuotaEntry>, UpstreamError> {
     let raw: Value = serde_json::from_slice(body).map_err(|e| invalid_response(e.to_string()))?;
     if raw.get("has_more").and_then(Value::as_bool) != Some(false) {
         return Err(invalid_response(
@@ -220,13 +220,13 @@ impl QuotaQuery for Claudeapi {
     /// precedence; only when there is none does the provider's own
     /// `base_url` stand in for the report origin, because a relay proxying
     /// inference need not proxy the Admin API.
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = ClaudeapiConfig::from_view(context.provider)?;
             let admin = api_key(context.credential.secret, "quota_api_key");
             let key = admin
                 .or_else(|| api_key(context.credential.secret, "api_key"))
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             let base = config
                 .quota_base_url
                 .as_deref()

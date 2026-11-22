@@ -3,11 +3,9 @@ use super::{
     config::{invalid, now_ms},
 };
 use crate::channels::shared::compatible::http::read_body;
-use crate::{
-    OutboundClient,
-    channel::{ChannelError, ChannelState, OperationContext},
-};
+use crate::{OutboundClient, channel::OperationContext};
 use gproxy_protocol::{HttpBody, WireResponse, capability::StateWrite};
+use gproxy_upstream::{UpstreamError, UpstreamState};
 use http::{HeaderValue, Method, header};
 use serde_json::{Value, json};
 use std::{
@@ -18,7 +16,7 @@ use std::{
 const URL: &str = "https://dnspod.cloud.tencent.com/ajax/rainbow?action=getRainbowConfig";
 const GROUP: &str = "orcaterm.内置模型";
 
-pub(super) fn prepare(endpoint: Option<&str>) -> Result<http::Request<HttpBody>, ChannelError> {
+pub(super) fn prepare(endpoint: Option<&str>) -> Result<http::Request<HttpBody>, UpstreamError> {
     // Public configuration, independently verified without cookies. Never send
     // an account credential or caller headers to this separate DNSPod origin.
     http::Request::builder()
@@ -31,7 +29,7 @@ pub(super) fn prepare(endpoint: Option<&str>) -> Result<http::Request<HttpBody>,
                 .to_string()
                 .into(),
         ))
-        .map_err(|e| ChannelError::InvalidConfig(e.to_string()))
+        .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))
 }
 
 fn number(value: &Value) -> f64 {
@@ -41,7 +39,7 @@ fn number(value: &Value) -> f64 {
         .unwrap_or(0.0)
 }
 
-fn rows(root: &Value) -> Result<&Vec<Value>, ChannelError> {
+fn rows(root: &Value) -> Result<&Vec<Value>, UpstreamError> {
     if root["code"] != 0 {
         return Err(invalid("model configuration request failed"));
     }
@@ -63,7 +61,7 @@ pub(super) struct ModelSettings {
 }
 
 impl ModelSettings {
-    fn from_row(row: &Value) -> Result<Self, ChannelError> {
+    fn from_row(row: &Value) -> Result<Self, UpstreamError> {
         let levels = match &row["thinkingLevels"] {
             Value::Null => vec![],
             Value::String(s) if s.trim().is_empty() => vec![],
@@ -83,7 +81,7 @@ impl ModelSettings {
     pub fn reasoning(
         &self,
         effort: Option<&str>,
-    ) -> Result<(bool, serde_json::Map<String, Value>), ChannelError> {
+    ) -> Result<(bool, serde_json::Map<String, Value>), UpstreamError> {
         let effort = effort.map(|e| if e == "none" { "off" } else { e });
         if self.levels.is_empty() {
             return match effort {
@@ -109,7 +107,7 @@ impl ModelSettings {
 
 const CACHE_KEY: &str = "orcaterm:models:v1";
 
-async fn remember(state: &dyn ChannelState, root: &Value) -> Result<(), ChannelError> {
+async fn remember(state: &dyn UpstreamState, root: &Value) -> Result<(), UpstreamError> {
     let current = state.get(CACHE_KEY).await?;
     // This cache is an optimization; a stateless host can fetch the public configuration.
     let _ = state
@@ -131,9 +129,9 @@ async fn remember(state: &dyn ChannelState, root: &Value) -> Result<(), ChannelE
 
 pub(super) async fn settings(
     client: &dyn OutboundClient,
-    state: &dyn ChannelState,
+    state: &dyn UpstreamState,
     model: &str,
-) -> Result<ModelSettings, ChannelError> {
+) -> Result<ModelSettings, UpstreamError> {
     let root = if let Some(entry) = state.get(CACHE_KEY).await? {
         serde_json::from_slice(&entry.payload)
             .map_err(|_| invalid("invalid cached model configuration"))?
@@ -141,7 +139,7 @@ pub(super) async fn settings(
         let response = client.send(prepare(None)?).await?;
         let bytes = read_body(response.body).await?;
         if !response.status.is_success() {
-            return Err(ChannelError::UpstreamResponse {
+            return Err(UpstreamError::UpstreamResponse {
                 status: response.status,
                 body: bytes,
             });
@@ -159,7 +157,7 @@ pub(super) async fn settings(
     ModelSettings::from_row(row)
 }
 
-fn catalog(root: &Value, user_id: &str) -> Result<Value, ChannelError> {
+fn catalog(root: &Value, user_id: &str) -> Result<Value, UpstreamError> {
     let rows = rows(root)?;
     let mut sorted = rows
         .iter()
@@ -231,7 +229,7 @@ fn catalog(root: &Value, user_id: &str) -> Result<Value, ChannelError> {
 
 pub(super) async fn list(
     ctx: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let request = prepare(ctx.endpoint_override)?;
     let mut response = ctx.client.send(request).await?;
     if !response.status.is_success() {

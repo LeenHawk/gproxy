@@ -11,7 +11,7 @@ use crate::{
     execute::{Exchange, Funnel, ObservedClient, prepare},
     rewrite::{Phase, RewriteContext, apply_body, apply_headers, apply_query, select_rules},
 };
-use gproxy_channel::{ChannelBinding, ChannelError, channel::ChannelState};
+use gproxy_channel::ChannelBinding;
 use gproxy_protocol::{
     HttpBody, OperationKey, WireRequest, WireResponse,
     capability::{
@@ -25,20 +25,21 @@ use gproxy_protocol::{
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::upstream::operation_endpoint::EndpointTransport;
 use gproxy_store::operations::state::{StateChange, StateOutcome, StateValue};
+use gproxy_upstream::{UpstreamError, UpstreamState};
 use http::HeaderMap;
 use std::{sync::Arc, time::SystemTime};
 
-fn channel_error(error: ChannelError) -> CapabilityError {
+fn channel_error(error: UpstreamError) -> CapabilityError {
     match error {
-        ChannelError::Transport(error) => error,
-        ChannelError::UnsupportedOperation(_) | ChannelError::WrongTransport(_) => {
+        UpstreamError::Transport(error) => error,
+        UpstreamError::UnsupportedOperation(_) | UpstreamError::WrongTransport(_) => {
             CapabilityError::new(
                 CapabilityErrorKind::Unsupported,
                 CapabilityErrorStage::Start,
                 error.to_string(),
             )
         }
-        ChannelError::InvalidConfig(_) | ChannelError::InvalidCredential => CapabilityError::new(
+        UpstreamError::InvalidConfig(_) | UpstreamError::InvalidCredential => CapabilityError::new(
             CapabilityErrorKind::Invalid,
             CapabilityErrorStage::Start,
             error.to_string(),
@@ -49,6 +50,17 @@ fn channel_error(error: ChannelError) -> CapabilityError {
             other.to_string(),
         ),
     }
+}
+
+fn model_channel(
+    provider: &crate::ProviderData,
+) -> Result<&Arc<dyn gproxy_channel::BaseChannel>, CapabilityError> {
+    provider.channel().ok_or_else(|| {
+        invalid(format!(
+            "provider `{}` is not a model channel",
+            provider.entity.id
+        ))
+    })
 }
 
 fn invalid(message: String) -> CapabilityError {
@@ -70,7 +82,7 @@ pub struct AttemptUpstream {
     attempt: Arc<AttemptContext>,
     inbound_headers: HeaderMap,
     limits: CapabilityLimits,
-    channel_state: Arc<dyn ChannelState>,
+    channel_state: Arc<dyn UpstreamState>,
     instance_id: Arc<str>,
 }
 impl AttemptUpstream {
@@ -79,7 +91,7 @@ impl AttemptUpstream {
         attempt: Arc<AttemptContext>,
         inbound_headers: HeaderMap,
         limits: CapabilityLimits,
-        channel_state: Arc<dyn ChannelState>,
+        channel_state: Arc<dyn UpstreamState>,
         instance_id: Arc<str>,
     ) -> Self {
         Self {
@@ -169,6 +181,7 @@ impl Upstream for AttemptUpstream {
         Box::pin(async move {
             let request_context = &self.attempt.request;
             let provider = &request_context.target.provider;
+            let channel = model_channel(provider)?;
             let credential = &self.attempt.credential;
             let context = RewriteContext {
                 operation: *target,
@@ -202,7 +215,7 @@ impl Upstream for AttemptUpstream {
                 self.funnel.clone(),
                 self.attempt.clone(),
                 *target,
-                provider.channel.clone(),
+                channel.clone(),
                 response_rules.body.clone(),
                 self.limits,
                 now_ms(),
@@ -215,7 +228,7 @@ impl Upstream for AttemptUpstream {
                 request_context.target.upstream_model.as_deref(),
             );
             let binding = ChannelBinding::new(
-                provider.channel.as_ref(),
+                channel.as_ref(),
                 prepare::provider_view(provider),
                 prepare::credential_view(credential, &self.attempt.credential_version),
                 Arc::new(observed),
@@ -381,26 +394,31 @@ impl<C: BatchConnectionTrait + Send + Sync> StateStore for ProtocolState<C> {
     }
 }
 
-/// A channel's cross-request memory: protocol state rows under a scope core
-/// fixes to one provider and one credential, so a channel can only ever read
-/// and write its own account's keys. Built per binding by the execution path.
-pub struct ChannelStateStore<C> {
+/// An upstream's cross-request memory: protocol state rows under one fixed
+/// scope, so whoever is handed it can only ever read and write its own keys.
+pub struct ScopedState<C> {
     state: ProtocolState<C>,
     scope: StateScope,
 }
-impl<C> ChannelStateStore<C> {
-    pub(crate) fn new(state: ProtocolState<C>, provider_id: &str, credential_id: &str) -> Self {
-        Self {
+impl<C> ScopedState<C> {
+    pub fn new(state: ProtocolState<C>, scope: StateScope) -> Self {
+        Self { state, scope }
+    }
+
+    /// A channel's memory for one provider and one credential. Built per
+    /// binding by the execution path.
+    pub(crate) fn channel(state: ProtocolState<C>, provider_id: &str, credential_id: &str) -> Self {
+        Self::new(
             state,
-            scope: StateScope {
+            StateScope {
                 scope: "channel".to_owned(),
                 provider_id: provider_id.to_owned(),
                 conversation: Some(credential_id.to_owned()),
             },
-        }
+        )
     }
 }
-impl<C: BatchConnectionTrait + Send + Sync> ChannelState for ChannelStateStore<C> {
+impl<C: BatchConnectionTrait + Send + Sync> UpstreamState for ScopedState<C> {
     fn get<'a>(
         &'a self,
         key: &'a str,

@@ -1,15 +1,15 @@
 //! Random identifiers claude.ai lets the client choose: conversation and
 //! turn-message UUIDs, synthesized message ids (v3 `claudeweb/id.rs`).
 
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 /// `{prefix}_{32 hex chars}`, e.g. a Claude Messages `msg_` id.
-pub(super) fn fresh(prefix: &str) -> Result<String, ChannelError> {
+pub(super) fn fresh(prefix: &str) -> Result<String, UpstreamError> {
     Ok(format!("{prefix}_{}", hex(&random()?)))
 }
 
 /// A random version-4 UUID in its canonical lowercase form.
-pub(super) fn uuid() -> Result<String, ChannelError> {
+pub(super) fn uuid() -> Result<String, UpstreamError> {
     let mut bytes = random()?;
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
@@ -23,10 +23,10 @@ pub(super) fn uuid() -> Result<String, ChannelError> {
     ))
 }
 
-fn random() -> Result<[u8; 16], ChannelError> {
+fn random() -> Result<[u8; 16], UpstreamError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|error| {
-        ChannelError::InvalidConfig(format!(
+        UpstreamError::InvalidConfig(format!(
             "operating-system randomness is unavailable: {error}"
         ))
     })?;

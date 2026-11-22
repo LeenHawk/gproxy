@@ -2,9 +2,11 @@ import { invalidateConfiguration } from "@/api/invalidation"
 import { QuotasPanel } from "@/pages/quotas"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { Boxes, KeyRound, ListChecks, Route, Settings2 } from "lucide-react"
+import { Boxes, KeyRound, ListChecks, Route, Settings2, Wrench } from "lucide-react"
 import { toast } from "sonner"
 import { channels, providers, providerPath } from "@/api/configuration"
+import { MCP_CHANNEL, MCP_TOOLS_READ } from "@/api/mcp"
+import { useConsoleContext } from "@/capability/session"
 import type { ChannelDescriptor, ProviderDto } from "@/generated/sdk"
 import { ConfirmButton } from "@/components/confirm"
 import { Page, PageHeader, PageSection } from "@/components/page"
@@ -16,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProviderCredentials } from "@/pages/credentials"
 import { ProviderRules, ProviderOperations, ProviderEndpoints } from "@/pages/providers/rules"
 import { ProviderModels } from "@/pages/providers/models"
+import { ProviderTools } from "@/pages/providers/tools"
 import { useNavigate } from "@/lib/router"
 
 export function ProviderDetailPage({ providerId, tab }: { providerId: string; tab: string }) {
@@ -33,6 +36,9 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
   const client = useQueryClient()
   const navigate = useNavigate()
   const channel = catalog.find((entry) => entry.id === provider.channel)
+  const context = useConsoleContext()
+  // A tool server has no models to list, route or rewrite.
+  const mcp = provider.channel === MCP_CHANNEL
   const saved = () => {
     void client.invalidateQueries({ queryKey: ["admin", "/providers"] })
     void client.invalidateQueries({ queryKey: ["credential-providers"] })
@@ -61,25 +67,31 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
           <ConfirmButton title={t("confirm.deleteTitle", { name: provider.displayName ?? provider.name })} disabled={remove.isPending} onConfirm={() => remove.mutate()}>{t("actions.delete")}</ConfirmButton>
         </>}
       />
-      <p className="break-all text-sm text-muted-foreground">{t("providers.routePrefix")}: <code>/{provider.name}</code></p>
+      <p className="break-all text-sm text-muted-foreground">{t("providers.routePrefix")}: <code>{mcp ? "/connect/mcp" : ""}/{provider.name}</code></p>
       {update.error ? <ErrorNotice error={update.error} /> : null}
       {remove.error ? <ErrorNotice error={remove.error} /> : null}
       <Tabs value={tab} onValueChange={(value) => navigate(`${providerPath(provider.id)}/${value}`)} className="gap-6">
         <TabsList variant="line" className="max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto">
           <TabsTrigger value="credentials"><KeyRound />{t("nav.credentials")}</TabsTrigger>
-          <TabsTrigger value="models"><Boxes />{t("nav.provider-models")}</TabsTrigger>
-          <TabsTrigger value="rules"><ListChecks />{t("nav.provider-rule-sets")}</TabsTrigger>
-          <TabsTrigger value="routing"><Route />{t("nav.operation-rules")}</TabsTrigger>
+          {mcp ? (context.has(MCP_TOOLS_READ) ? <TabsTrigger value="tools"><Wrench />{t("mcp.tools")}</TabsTrigger> : null) : <>
+            <TabsTrigger value="models"><Boxes />{t("nav.provider-models")}</TabsTrigger>
+            <TabsTrigger value="rules"><ListChecks />{t("nav.provider-rule-sets")}</TabsTrigger>
+            <TabsTrigger value="routing"><Route />{t("nav.operation-rules")}</TabsTrigger>
+          </>}
           <TabsTrigger value="settings"><Settings2 />{t("providers.settings")}</TabsTrigger>
         </TabsList>
-        <TabsContent value="rules"><ProviderRules providerId={provider.id} providerName={provider.name} /></TabsContent>
-        <TabsContent value="routing"><ProviderOperations providerId={provider.id} /></TabsContent>
         <TabsContent value="credentials"><ProviderCredentials providerId={provider.id} /></TabsContent>
-        <TabsContent value="models"><ProviderModels provider={provider} /></TabsContent>
+        {mcp ? <TabsContent value="tools"><ProviderTools providerId={provider.id} /></TabsContent> : <>
+          <TabsContent value="rules"><ProviderRules providerId={provider.id} providerName={provider.name} /></TabsContent>
+          <TabsContent value="routing"><ProviderOperations providerId={provider.id} /></TabsContent>
+          <TabsContent value="models"><ProviderModels provider={provider} /></TabsContent>
+        </>}
         <TabsContent value="settings" className="flex flex-col gap-6">
           <ProviderForm key={`${provider.id}-${JSON.stringify(provider)}`} provider={provider} catalog={catalog} onSubmit={(body) => update.mutate(body)} pending={update.isPending} error={update.error} />
-          <PageSection title={t("limits.providerDefaults")}><QuotasPanel ownerKind="provider" ownerId={provider.id} /></PageSection>
-          <PageSection title={t("nav.operation-endpoints")}><ProviderEndpoints providerId={provider.id} /></PageSection>
+          {mcp ? null : <>
+            <PageSection title={t("limits.providerDefaults")}><QuotasPanel ownerKind="provider" ownerId={provider.id} /></PageSection>
+            <PageSection title={t("nav.operation-endpoints")}><ProviderEndpoints providerId={provider.id} /></PageSection>
+          </>}
         </TabsContent>
       </Tabs>
     </Page>

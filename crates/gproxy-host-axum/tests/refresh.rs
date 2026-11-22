@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! Read-your-writes on the management surfaces.
 //!
 //! An identity write commits its rows, bumps `settings.config_revision` and

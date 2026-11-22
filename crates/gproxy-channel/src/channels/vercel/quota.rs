@@ -2,11 +2,13 @@
 //! reports are deliberately not exposed as an automatic quota probe.
 use super::{Vercel, api_key, base_url};
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaBalance,
-    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaScope, QuotaSnapshot,
-    QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+    QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaScope,
+    QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
 };
 use crate::channels::shared::compatible::ability::{bearer, decimal, require_success, send};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
+};
 use http::Method;
 use serde_json::Value;
 
@@ -27,7 +29,7 @@ impl QuotaModel for Vercel {
     }
 }
 impl QuotaQuery for Vercel {
-    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let base = base_url(ctx.provider);
             let base = base.strip_suffix("/v1").unwrap_or(base);
@@ -41,9 +43,9 @@ impl QuotaQuery for Vercel {
             .await?;
             let bytes = require_success(status, body)?;
             let body: Value = serde_json::from_slice(&bytes)
-                .map_err(|e| ChannelError::InvalidResponse(e.to_string()))?;
+                .map_err(|e| UpstreamError::InvalidResponse(e.to_string()))?;
             let remaining = body.get("balance").and_then(decimal).ok_or_else(|| {
-                ChannelError::InvalidResponse("Vercel credits response has no balance".into())
+                UpstreamError::InvalidResponse("Vercel credits response has no balance".into())
             })?;
             Ok(QuotaSnapshot {
                 observed_at_ms: 0,

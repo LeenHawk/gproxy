@@ -15,7 +15,8 @@
 //! fresh one.
 
 use super::config::WorkBuddyConfig;
-use crate::channel::{ChannelError, CredentialView, HeaderAllowlist};
+use crate::channel::HeaderAllowlist;
+use gproxy_upstream::{CredentialView, UpstreamError};
 use http::{HeaderMap, HeaderName, HeaderValue, header};
 use serde_json::Value;
 
@@ -43,14 +44,14 @@ pub(super) fn fact<'a>(credential: &CredentialView<'a>, name: &str) -> Option<&'
         .or_else(|| non_empty(credential.secret.get(name)))
 }
 
-pub(super) fn access_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, ChannelError> {
-    non_empty(credential.secret.get("access_token")).ok_or(ChannelError::InvalidCredential)
+pub(super) fn access_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, UpstreamError> {
+    non_empty(credential.secret.get("access_token")).ok_or(UpstreamError::InvalidCredential)
 }
 
-fn insert(headers: &mut HeaderMap, name: &'static str, value: &str) -> Result<(), ChannelError> {
+fn insert(headers: &mut HeaderMap, name: &'static str, value: &str) -> Result<(), UpstreamError> {
     headers.insert(
         HeaderName::from_static(name),
-        HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)?,
+        HeaderValue::from_str(value).map_err(|_| UpstreamError::InvalidCredential)?,
     );
     Ok(())
 }
@@ -59,16 +60,16 @@ fn insert(headers: &mut HeaderMap, name: &'static str, value: &str) -> Result<()
 pub(super) fn authorize(
     headers: &mut HeaderMap,
     credential: &CredentialView<'_>,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {}", access_token(credential)?))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     // The upstream rejects a token whose account it is not told; the login
     // records the id, so a credential without one is incomplete.
     if fact(credential, "user_id").is_none() {
-        return Err(ChannelError::InvalidCredential);
+        return Err(UpstreamError::InvalidCredential);
     }
     account_headers(headers, credential)
 }
@@ -78,7 +79,7 @@ pub(super) fn authorize(
 pub(super) fn account_headers(
     headers: &mut HeaderMap,
     credential: &CredentialView<'_>,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     if let Some(user_id) = fact(credential, "user_id") {
         insert(headers, "x-user-id", user_id)?;
     }
@@ -98,11 +99,11 @@ pub(super) fn account_headers(
 
 /// A version-4 UUID without its hyphens, the shape the plugin's ids have
 /// (v3 `identity.rs::uuid`).
-fn request_id() -> Result<String, ChannelError> {
+fn request_id() -> Result<String, UpstreamError> {
     use std::fmt::Write as _;
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|error| {
-        ChannelError::InvalidConfig(format!(
+        UpstreamError::InvalidConfig(format!(
             "operating-system randomness is unavailable: {error}"
         ))
     })?;
@@ -138,7 +139,7 @@ pub(super) fn identity(
     headers: &mut HeaderMap,
     config: &WorkBuddyConfig,
     session: Option<&str>,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     let request = request_id()?;
     let conversation = match session {
         Some(session) => session.to_owned(),
@@ -156,7 +157,7 @@ pub(super) fn identity(
     headers.insert(
         header::USER_AGENT,
         HeaderValue::from_str(&config.user_agent()).map_err(|_| {
-            ChannelError::InvalidConfig("WorkBuddy: `user_agent` is not a header value".into())
+            UpstreamError::InvalidConfig("WorkBuddy: `user_agent` is not a header value".into())
         })?,
     );
     for (name, value) in &config.headers {
@@ -168,8 +169,8 @@ pub(super) fn identity(
     Ok(())
 }
 
-fn invalid_header(name: &str) -> ChannelError {
-    ChannelError::InvalidConfig(format!("WorkBuddy: `{name}` is not a header"))
+fn invalid_header(name: &str) -> UpstreamError {
+    UpstreamError::InvalidConfig(format!("WorkBuddy: `{name}` is not a header"))
 }
 
 #[cfg(test)]

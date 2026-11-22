@@ -4,7 +4,8 @@
     "oauth": "OAuth",
     "cookie": "Cookie",
     "service_account": "服务账号",
-    "aws_access_key": "AWS 访问密钥对"
+    "aws_access_key": "AWS 访问密钥对",
+    "none": "无需认证"
   },
   "overview": {
     "title": "你好，{{name}}",
@@ -1254,5 +1255,19 @@
     "filter": "供应商",
     "all": "全部",
     "empty": "还没有凭证。"
+  },
+  "mcp": {
+    "tools": "工具",
+    "toolCalls": "工具调用",
+    "scope": "授权范围",
+    "declaredNature": "声明性质",
+    "nature": "性质",
+    "override": "覆盖",
+    "declared": "按声明",
+    "natures": {
+      "read": "只读",
+      "write": "写入",
+      "destructive": "破坏性"
+    }
   }
 }

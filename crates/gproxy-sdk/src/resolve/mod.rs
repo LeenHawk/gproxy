@@ -366,26 +366,23 @@ impl<C> Gproxy<C> {
                 candidate.upstream_model.as_deref(),
             ),
             Ok(gproxy_core::convert::Route::Local)
-        ) && !(candidate
-            .provider
-            .channel
-            .local_operations()
-            .contains(&request.operation.operation)
-            && candidate
-                .provider
-                .channel
-                .native_dialects_for_model(
-                    gproxy_channel::channel::ProviderView {
-                        id: &candidate.provider.entity.id,
-                        channel: &candidate.provider.entity.channel,
-                        base_url: candidate.provider.entity.base_url.as_deref(),
-                        config: &candidate.provider.entity.config,
-                    },
-                    request.operation.operation,
-                    candidate.upstream_model.as_deref(),
-                )
-                .contains(&request.operation.dialect))
-        {
+        ) && !candidate.provider.channel().is_some_and(|channel| {
+            channel
+                .local_operations()
+                .contains(&request.operation.operation)
+                && channel
+                    .native_dialects_for_model(
+                        gproxy_upstream::ProviderView {
+                            id: &candidate.provider.entity.id,
+                            channel: &candidate.provider.entity.channel,
+                            base_url: candidate.provider.entity.base_url.as_deref(),
+                            config: &candidate.provider.entity.config,
+                        },
+                        request.operation.operation,
+                        candidate.upstream_model.as_deref(),
+                    )
+                    .contains(&request.operation.dialect)
+        }) {
             return Some((Vec::new(), 0));
         }
         let model = candidate.upstream_model.as_deref();

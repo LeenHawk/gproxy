@@ -33,7 +33,7 @@ Report privately through one of:
 Please include:
 
 - Affected version, distribution (Desktop / Android / HarmonyOS / CLI /
-  container / Cloudflare / Netlify / Vercel) and platform
+  container) and platform
 - Relevant configuration (storage backend, whether `GPROXY_MASTER_KEY` is set,
   exposed listeners, reverse proxy in front)
 - Steps to reproduce or a proof of concept, and the impact you observed
@@ -117,8 +117,8 @@ Thank you for helping keep GPROXY and its users safe.
 
 请尽量提供：
 
-- 受影响的版本、发行形式（桌面端 / Android / HarmonyOS / CLI / 容器 /
-  Cloudflare / Netlify / Vercel）及运行平台
+- 受影响的版本、发行形式（桌面端 / Android / HarmonyOS / CLI / 容器）
+  及运行平台
 - 相关配置（存储后端、是否设置 `GPROXY_MASTER_KEY`、对外监听情况、前置反向代理等）
 - 复现步骤或概念验证（PoC），以及观察到的影响
 - 该问题是否已公开或已被他人知晓
@@ -197,7 +197,7 @@ GPROXY 由一名开发者维护，以下时间均为尽力而为：
 Пожалуйста, укажите:
 
 - Затронутую версию, вариант поставки (Desktop / Android / HarmonyOS / CLI /
-  контейнер / Cloudflare / Netlify / Vercel) и платформу
+  контейнер) и платформу
 - Соответствующую конфигурацию (бэкенд хранилища, задан ли `GPROXY_MASTER_KEY`,
   открытые слушатели, обратный прокси перед шлюзом)
 - Шаги воспроизведения или доказательство концепции (PoC), а также наблюдаемые последствия

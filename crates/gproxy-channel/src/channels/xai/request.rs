@@ -1,9 +1,10 @@
 //! xAI's own paths and the speech body they go with.
 
 use super::config::{DEFAULT_BASE_URL, XaiConfig};
-use crate::channel::{ChannelError, ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable};
+use crate::channel::{ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable};
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{HttpBody, Operation, WireRequest, connection::Bytes};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderValue, header};
 use serde_json::{Map, Value};
 
@@ -32,9 +33,9 @@ pub(super) fn path(operation: Operation, path: &str) -> String {
 /// `voice_id` and the container is `output_format.codec`. `model`,
 /// `instructions` and `stream_format` have no counterpart and are dropped
 /// (v3 `xai/shape/audio.rs`).
-fn speech(body: &[u8]) -> Result<Bytes, ChannelError> {
+fn speech(body: &[u8]) -> Result<Bytes, UpstreamError> {
     let mut object: Map<String, Value> = serde_json::from_slice(body)
-        .map_err(|_| ChannelError::InvalidConfig("xAI speech requests must be JSON".into()))?;
+        .map_err(|_| UpstreamError::InvalidConfig("xAI speech requests must be JSON".into()))?;
     for name in ["model", "instructions", "stream_format"] {
         object.remove(name);
     }
@@ -52,7 +53,7 @@ fn speech(body: &[u8]) -> Result<Bytes, ChannelError> {
 
 pub(super) fn build(
     ctx: PrepareContext<'_>,
-) -> Result<(http::request::Builder, WireRequest<HttpBody>), ChannelError> {
+) -> Result<(http::request::Builder, WireRequest<HttpBody>), UpstreamError> {
     let config = XaiConfig::from_view(ctx.provider)?;
     let key = ctx
         .credential
@@ -61,7 +62,7 @@ pub(super) fn build(
         .and_then(|value| value.as_str())
         .map(str::trim)
         .filter(|key| !key.is_empty())
-        .ok_or(ChannelError::InvalidCredential)?;
+        .ok_or(UpstreamError::InvalidCredential)?;
     let operation = ctx.operation.operation;
     let mut request = ctx.request;
     let url = match ctx.endpoint_override {
@@ -91,14 +92,14 @@ pub(super) fn build(
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {key}"))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     for (name, value) in &config.headers {
         insert_configured(&mut headers, name, value)?;
     }
     if operation == Operation::CreateSpeech {
         let HttpBody::Bytes(bytes) = &request.body else {
-            return Err(ChannelError::InvalidConfig(
+            return Err(UpstreamError::InvalidConfig(
                 "xAI speech requests need a buffered JSON body".into(),
             ));
         };

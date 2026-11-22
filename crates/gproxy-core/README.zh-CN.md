@@ -18,7 +18,7 @@
 | `rewrite` | 规则编译、按阶段／操作／模型／头选择、Body/Header/Query 应用、保留原字节的逐单元流改写（SSE、JSON 数组、NDJSON） |
 | `select` / `availability` | 允许集合内按策略、亲和与 block 选凭证；失败 streak 与冷却 |
 | `execute`（私有） | HTTP 与 WebSocket attempt 循环、观测包装的 client／body／socket、请求缓冲、结算漏斗与 `Settled` 证明 |
-| `convert` | 直通或转换的路由、原生端点、每个协议族一个驱动，在 attempt 绑定的 upstream 上运行 protocol 的适配流程 |
+| `convert` | 在 `gproxy-convert` 默认路由之上应用供应商的操作规则，本地处理，以及把 Responses WebSocket 客户端桥接到 HTTP 上游；协议族驱动在 `gproxy-convert` 中，运行在 core 提供的能力之上 |
 | `capability` | core 的 `AttemptUpstream`、`ProtocolState`、`Resources`，即 protocol 适配所依赖的宿主能力 |
 | `refresh` | 显式凭证刷新：跨实例租约、渠道 `CredentialRefresh`、密封、版本 CAS、发布，确定性拒绝写 `Dead` |
 | `quota` | `QuotaHeaders`／`QuotaQuery` 观测写入 `credential_quota_cycles` 与耗尽 block；Counted 维度落 Store `counted_windows` 行计数 |
@@ -257,8 +257,7 @@ multicast 地址，含 IPv4-mapped 形式，无论地址来自 URL 的字面主�
 client，供应商鉴权不会流向任意 origin；body 受读取限额约束（先看 `Content-Length`），
 `Content-Type`／`Content-Disposition` 填入返回的元数据。两处剩余风险留给宿主：出站
 client 连接时会再解析一次域名，core 无法把连接钉在检查过的地址上（两次解析之间换绑的
-域名会绕过检查——在意的话在前面放出口代理，或只 allow-list 自己掌控的域名）；wasm32
-没有解析器，策略只能凭域名判断（字面 IP 主机仍会检查），且平台 `fetch` 自行跟随重定向。
+域名会绕过检查——在意的话在前面放出口代理，或只 allow-list 自己掌控的域名）。
 
 URL 形态的发布（images 的 `response_format: url`）需要宿主提供链接构造器
 `CoreBuilder::publication_url(Arc<dyn PublicationUrl>)`。core 没有公开 HTTP 面，所以
@@ -276,22 +275,14 @@ completion 流）把持有者记在续接记录里。之后的请求落到另一
 `CoreError::ContinuationElsewhere { instance_id }` 失败：不重试、不给凭证记失败、续接原地
 保留。多实例宿主要么把会话转发到那个实例，要么一开始就把会话粘住；单实例永远不会看到它。
 
-## wasm32
+## 验证
 
-依赖 SQLite／文件系统的集成测试只在原生平台运行，与 dev-dependencies 的平台限定一致。
-wasm 检查包含库与可移植的测试目标，不表示已经在浏览器中执行测试。
-
-引擎在 wasm32-unknown-unknown 上以同一套 API 运行：定时器与后台任务来自 JS 事件循环，
-出站传输来自 gproxy-client 的 `fetch`／`workers` feature 或宿主注入的 `OutboundClient`
-（见 client README），文件存储来自 gproxy-file 的 `s3` feature（R2 或任何 S3 兼容存储，
-经 fetch；本地文件系统后端只在原生），估算用同一套 tokenizer。内置的 DeepSeek 词表是
-`bundled-vocabulary` feature（默认开启，约 4 MiB 进二进制）；关闭后没有目录词表文件的
-模型退回字符估算。测试只在原生运行。
+内置的 DeepSeek 词表是 `bundled-vocabulary` feature（默认开启，约 4 MiB 进二进制）；
+关闭后没有目录词表文件的模型退回字符估算。
 
 ```sh
 cargo test -p gproxy-core
 cargo clippy -p gproxy-core --all-targets -- -D warnings
-cargo clippy -p gproxy-core --target wasm32-unknown-unknown --all-targets -- -D warnings
 ```
 
 测试基于内存 SQLite Store、内存 cache 与脚本化渠道／client；它们证明引擎的契约，不代表

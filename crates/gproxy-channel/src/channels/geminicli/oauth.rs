@@ -11,13 +11,13 @@ use super::{
     DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET, DEFAULT_REDIRECT_URI, FALLBACK_TIER, GeminiCli,
     GeminiCliConfig, OAUTH_SCOPE, base_url,
 };
-use crate::channel::{
-    AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, CredentialRefresh,
-    CredentialUpdate, LoginContext, OAuthAuthorizationCode, OAuthCredential, OperationFuture,
-    RefreshContext,
-};
 use crate::channels::shared::code_assist::google::{self, GoogleTool, Onboarding};
 use gproxy_protocol::capability::CapabilityFuture;
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, AuthorizationStart, CredentialRefresh,
+    CredentialUpdate, LoginContext, OAuthAuthorizationCode, OAuthCredential, RefreshContext,
+    UpstreamError, UpstreamFuture,
+};
 use serde_json::Value;
 use std::time::Duration;
 
@@ -44,7 +44,7 @@ fn metadata(project: Option<&str>) -> String {
 /// hint, or it is refused with the server's ineligibility reasons. Only an
 /// account with no tier is onboarded, on the default allowed tier, else
 /// `legacy-tier`.
-fn onboarding(loaded: &Value, hint: Option<&str>) -> Result<Onboarding, ChannelError> {
+fn onboarding(loaded: &Value, hint: Option<&str>) -> Result<Onboarding, UpstreamError> {
     if loaded
         .get("currentTier")
         .is_some_and(|tier| !tier.is_null())
@@ -125,7 +125,7 @@ impl OAuthAuthorizationCode for GeminiCli {
         &'a self,
         context: LoginContext<'a>,
         request: AuthorizationRequest<'a>,
-    ) -> OperationFuture<'a, AuthorizationStart> {
+    ) -> UpstreamFuture<'a, AuthorizationStart> {
         Box::pin(async move {
             let config = GeminiCliConfig::from_view(context.provider)?;
             Ok(google::authorize(
@@ -140,7 +140,7 @@ impl OAuthAuthorizationCode for GeminiCli {
         &'a self,
         context: LoginContext<'a>,
         grant: AuthorizationCode<'a>,
-    ) -> OperationFuture<'a, OAuthCredential> {
+    ) -> UpstreamFuture<'a, OAuthCredential> {
         Box::pin(async move {
             let config = GeminiCliConfig::from_view(context.provider)?;
             google::exchange(
@@ -161,7 +161,7 @@ impl CredentialRefresh for GeminiCli {
     fn refresh<'a>(
         &'a self,
         context: RefreshContext<'a>,
-    ) -> CapabilityFuture<'a, Result<CredentialUpdate, ChannelError>> {
+    ) -> CapabilityFuture<'a, Result<CredentialUpdate, UpstreamError>> {
         Box::pin(async move {
             let config = GeminiCliConfig::from_view(context.provider)?;
             google::refresh(

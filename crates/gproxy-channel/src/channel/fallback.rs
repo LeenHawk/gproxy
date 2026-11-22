@@ -1,7 +1,7 @@
 //! Channel-owned Claude refusal fallback policy. Core executes the plan through
 //! the already selected credential; upstream model names remain channel-owned.
 
-use super::{ConfigKey, ConfigKeyKind};
+use gproxy_upstream::{ConfigKey, ConfigKeyKind};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ClaudeFallback {

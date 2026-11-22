@@ -4,11 +4,13 @@ use super::common::{invalid_response, send_json};
 use super::headers::{account, backend_headers, base_urls, plan_type};
 use super::{Codex, CodexConfig};
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaBalance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric,
-    QuotaModel, QuotaQuery, QuotaReset, QuotaResetBehavior, QuotaResetCredits, QuotaResetOption,
-    QuotaResetOutcome, QuotaResetRequest, QuotaResetResult, QuotaScope, QuotaSnapshot,
-    QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+    QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders,
+    QuotaMetric, QuotaModel, QuotaQuery, QuotaReset, QuotaResetBehavior, QuotaResetCredits,
+    QuotaResetOption, QuotaResetOutcome, QuotaResetRequest, QuotaResetResult, QuotaScope,
+    QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
 };
 use http::{HeaderMap, Method};
 use rust_decimal::Decimal;
@@ -168,7 +170,7 @@ impl QuotaHeaders for Codex {
     /// for every limit family present (`codex` is the account, other names
     /// are metered features), plus `x-codex-credits-*`. An unused slot still
     /// arrives, as `window-minutes: 0` with an empty reset, and is skipped.
-    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, ChannelError> {
+    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, UpstreamError> {
         let headers = context.headers;
         let mut families: Vec<String> = headers
             .keys()
@@ -300,7 +302,7 @@ fn usage_entries(payload: &UsagePayload) -> Vec<QuotaEntry> {
 }
 
 impl QuotaQuery for Codex {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = CodexConfig::from_view(context.provider)?;
             let account = account(&context.credential)?;
@@ -315,7 +317,7 @@ impl QuotaQuery for Codex {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });
@@ -365,7 +367,7 @@ impl QuotaReset for Codex {
     fn credits<'a>(
         &'a self,
         context: CredentialContext<'a>,
-    ) -> OperationFuture<'a, QuotaResetCredits> {
+    ) -> UpstreamFuture<'a, QuotaResetCredits> {
         Box::pin(async move {
             let config = CodexConfig::from_view(context.provider)?;
             let account = account(&context.credential)?;
@@ -379,7 +381,7 @@ impl QuotaReset for Codex {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });
@@ -448,14 +450,14 @@ impl QuotaReset for Codex {
         &'a self,
         context: CredentialContext<'a>,
         request: QuotaResetRequest<'a>,
-    ) -> OperationFuture<'a, QuotaResetResult> {
+    ) -> UpstreamFuture<'a, QuotaResetResult> {
         Box::pin(async move {
             if request
                 .program
                 .is_some_and(|program| program != "codex_rate_limits")
                 || request.grant_id == Some("")
             {
-                return Err(ChannelError::InvalidConfig(
+                return Err(UpstreamError::InvalidConfig(
                     "invalid Codex reset selection".into(),
                 ));
             }
@@ -481,7 +483,7 @@ impl QuotaReset for Codex {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });

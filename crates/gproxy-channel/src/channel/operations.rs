@@ -2,16 +2,13 @@
 
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
-    capability::{CapabilityFuture, UpstreamConnection},
+    capability::UpstreamConnection,
 };
 
-use super::{
-    BaseChannel, ChannelError, ChannelState, CredentialView, PrepareContext, ProviderView,
-};
+use super::{BaseChannel, PrepareContext};
 use gproxy_client::OutboundClient;
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError, UpstreamFuture, UpstreamState};
 use std::sync::Arc;
-
-pub type OperationFuture<'a, T> = CapabilityFuture<'a, Result<T, ChannelError>>;
 
 /// The exact provider, credential and client chosen by the caller. The named
 /// method determines the operation; dialect selects its wire format. Overrides
@@ -26,7 +23,7 @@ pub struct OperationContext<'a, B = HttpBody> {
     pub request: WireRequest<B>,
     pub client: Arc<dyn OutboundClient>,
     /// Cross-request memory scoped to this provider and credential.
-    pub state: Arc<dyn ChannelState>,
+    pub state: Arc<dyn UpstreamState>,
     /// The host process serving this call. A channel that must keep a live
     /// connection between two requests records it, so a later request served
     /// elsewhere can say where the continuation lives instead of failing.
@@ -55,17 +52,17 @@ pub(crate) const UNBOUNDED: gproxy_protocol::codec::CodecLimits =
 #[allow(dead_code)] // unused when no channel feature is enabled
 pub(crate) async fn read_body(
     body: HttpBody,
-) -> Result<gproxy_protocol::connection::Bytes, ChannelError> {
+) -> Result<gproxy_protocol::connection::Bytes, UpstreamError> {
     gproxy_protocol::codec::read_http_body(body, UNBOUNDED)
         .await
-        .map_err(|error| ChannelError::InvalidResponse(error.to_string()))
+        .map_err(|error| UpstreamError::InvalidResponse(error.to_string()))
 }
 
 pub(super) fn http<'a>(
     channel: &'a (impl BaseChannel + ?Sized),
     operation: Operation,
     context: OperationContext<'a>,
-) -> OperationFuture<'a, WireResponse<HttpBody>> {
+) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
     Box::pin(async move {
         let key = OperationKey {
             operation,
@@ -86,7 +83,7 @@ pub(super) fn websocket<'a>(
     channel: &'a (impl BaseChannel + ?Sized),
     operation: Operation,
     context: OperationContext<'a, ()>,
-) -> OperationFuture<'a, UpstreamConnection> {
+) -> UpstreamFuture<'a, UpstreamConnection> {
     Box::pin(async move {
         let key = OperationKey {
             operation,

@@ -17,20 +17,17 @@ ship it:
 ```
 
 Nothing is stored in this repository: `vite build` reads the installed
-packages, and so does `scripts/prepare-edge-fonts.mjs`.
+packages.
 
 ## How hosts get the files
 
-- **Native hosts** download each file from public npm CDNs, trying
-  npmmirror, then jsDelivr, then unpkg
-  (`crates/gproxy-host-axum/src/console/fonts.rs`). A file is accepted only if
-  its SHA-256 matches its name, so the CDN is not trusted. Files are saved in
-  the local `fonts/` directory; a complete download activates the stylesheet.
-  Status checks, startup and font reads never download anything. The pack works
-  offline until the user deletes it in Settings; neither an upgrade nor old
-  cached files opt users in.
-- **Edge** copies the files into the site's static assets and serves them from
-  the same origin; it does not use a CDN.
+Hosts download each file from public npm CDNs, trying npmmirror, then
+jsDelivr, then unpkg (`crates/gproxy-host-axum/src/console/fonts.rs`). A file
+is accepted only if its SHA-256 matches its name, so the CDN is not trusted.
+Files are saved in the local `fonts/` directory; a complete download activates
+the stylesheet. Status checks, startup and font reads never download anything.
+The pack works offline until the user deletes it in Settings; neither an
+upgrade nor old cached files opt users in.
 
 Application fonts belong to the application's data directory, independently of
 a custom gateway instance directory. CLI fonts use the instance data directory.

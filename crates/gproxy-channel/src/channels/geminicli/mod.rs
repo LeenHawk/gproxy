@@ -31,15 +31,17 @@ mod oauth;
 mod quota;
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
-    ConfigKeyKind, CredentialRefresh, CredentialView, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
-    OAuthAuthorizationCode, OperationContext, OperationFuture, PrepareContext, ProviderView,
-    QuotaQuery, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelHeaders, HOST_CONFIG_KEYS,
+    HeaderAllowlist, OperationContext, PrepareContext, QuotaQuery, forwardable,
 };
 use crate::channels::shared::code_assist;
 use gproxy_client::ConnectionConfig;
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse, connection::Bytes,
+};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, CredentialView, LoginMode, OAuthAuthorizationCode,
+    ProviderView, UpstreamError, UpstreamFuture, UpstreamKind,
 };
 use http::{HeaderMap, HeaderName, HeaderValue, Method, header};
 use serde::Deserialize;
@@ -95,9 +97,9 @@ impl Default for GeminiCliConfig {
 }
 
 impl GeminiCliConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 
@@ -153,23 +155,25 @@ pub(super) fn fact<'a>(credential: &CredentialView<'a>, name: &str) -> Option<&'
         .or_else(|| non_empty(credential.secret.get(name)))
 }
 
-pub(super) fn access_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, ChannelError> {
+pub(super) fn access_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, UpstreamError> {
     credential
         .secret
         .get("access_token")
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|token| !token.is_empty())
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }
 
 /// The Cloud project discovered for this credential at login.
-pub(super) fn project(credential: &CredentialView<'_>) -> Result<String, ChannelError> {
-    fact(credential, "project_id").map(str::to_owned).ok_or(ChannelError::InvalidCredential)
+pub(super) fn project(credential: &CredentialView<'_>) -> Result<String, UpstreamError> {
+    fact(credential, "project_id")
+        .map(str::to_owned)
+        .ok_or(UpstreamError::InvalidCredential)
 }
 
-fn header_value(value: &str) -> Result<HeaderValue, ChannelError> {
-    HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)
+fn header_value(value: &str) -> Result<HeaderValue, UpstreamError> {
+    HeaderValue::from_str(value).map_err(|_| UpstreamError::InvalidCredential)
 }
 
 /// `GeminiCLI-tui/0.55.1/<model> (...)`: the CLI appends the model it is
@@ -194,7 +198,7 @@ pub(super) fn apply_headers(
     access_token: &str,
     model: &str,
     json_only: bool,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     headers.insert(
         header::AUTHORIZATION,
         header_value(&format!("Bearer {access_token}"))?,
@@ -207,10 +211,7 @@ pub(super) fn apply_headers(
         header::ACCEPT,
         HeaderValue::from_static(if json_only { "application/json" } else { "*/*" }),
     );
-    headers.insert(
-        header::USER_AGENT,
-        header_value(&user_agent(model))?,
-    );
+    headers.insert(header::USER_AGENT, header_value(&user_agent(model))?);
     if !json_only {
         headers.insert(
             HeaderName::from_static("x-goog-api-client"),
@@ -220,10 +221,10 @@ pub(super) fn apply_headers(
     for (name, value) in &config.headers {
         headers.insert(
             HeaderName::from_bytes(name.as_bytes()).map_err(|_| {
-                ChannelError::InvalidConfig(format!("header `{name}` is not a header name"))
+                UpstreamError::InvalidConfig(format!("header `{name}` is not a header name"))
             })?,
             HeaderValue::from_str(value).map_err(|_| {
-                ChannelError::InvalidConfig(format!("header `{name}` has an invalid value"))
+                UpstreamError::InvalidConfig(format!("header `{name}` has an invalid value"))
             })?,
         );
     }
@@ -233,7 +234,7 @@ pub(super) fn apply_headers(
 /// The Code Assist method for an operation (v3 `prepare.rs`). The client's
 /// own `/v1beta/models/...` path is not trusted: Code Assist mounts every
 /// operation on `/v1internal`.
-fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
+fn operation_path(operation: Operation) -> Result<&'static str, UpstreamError> {
     Ok(match operation {
         // The catalogue is synthesized from the quota buckets; that endpoint
         // is the only per-account model list Code Assist offers.
@@ -242,7 +243,7 @@ fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
         Operation::GenerateContent => "/v1internal:generateContent",
         Operation::StreamGenerateContent => "/v1internal:streamGenerateContent",
         other => {
-            return Err(ChannelError::UnsupportedOperation(OperationKey {
+            return Err(UpstreamError::UnsupportedOperation(OperationKey {
                 operation: other,
                 dialect: Dialect::Gemini,
             }));
@@ -251,7 +252,7 @@ fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
 }
 
 impl GeminiCli {
-    fn build(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn build(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = GeminiCliConfig::from_view(ctx.provider)?;
         let token = access_token(&ctx.credential)?;
         let project = project(&ctx.credential)?;
@@ -267,7 +268,7 @@ impl GeminiCli {
         let buffered = match body {
             HttpBody::Bytes(bytes) => bytes,
             HttpBody::Stream(_) => {
-                return Err(ChannelError::InvalidConfig(
+                return Err(UpstreamError::InvalidConfig(
                     "the Code Assist envelope needs a buffered request body".into(),
                 ));
             }
@@ -278,7 +279,7 @@ impl GeminiCli {
         let (body, stream) = match operation {
             Operation::ListModels | Operation::GetModel => (
                 code_assist::encode(&json!({ "project": project }), |message| {
-                    ChannelError::InvalidConfig(message)
+                    UpstreamError::InvalidConfig(message)
                 })?,
                 false,
             ),
@@ -290,7 +291,7 @@ impl GeminiCli {
                 (code_assist::envelope(&buffered, &model, &project)?, true)
             }
             other => {
-                return Err(ChannelError::UnsupportedOperation(OperationKey {
+                return Err(UpstreamError::UnsupportedOperation(OperationKey {
                     operation: other,
                     dialect: ctx.operation.dialect,
                 }));
@@ -323,7 +324,7 @@ impl GeminiCli {
         }
         builder
             .body(HttpBody::Bytes(body))
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     /// Buffered generation: one JSON object with the Gemini reply under
@@ -332,7 +333,7 @@ impl GeminiCli {
         &self,
         operation: Operation,
         ctx: OperationContext<'_>,
-    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    ) -> Result<WireResponse<HttpBody>, UpstreamError> {
         let OperationContext {
             provider,
             credential,
@@ -366,11 +367,27 @@ impl GeminiCli {
     }
 }
 
-impl BaseChannel for GeminiCli {
+impl UpstreamKind for GeminiCli {
     fn id(&self) -> &'static str {
         ID
     }
 
+    /// No client fingerprint by default; the CLI's captured TLS identity is
+    /// a public TLS preset an operator selects in a connection profile.
+    fn default_connection(&self) -> Option<ConnectionConfig> {
+        None
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+
+    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for GeminiCli {
     /// A Google account through the Gemini CLI: a PKCE login that also
     /// discovers the Cloud project, a refreshable token, and the per-model
     /// quota buckets the CLI reads.
@@ -413,12 +430,6 @@ impl BaseChannel for GeminiCli {
         }
     }
 
-    /// No client fingerprint by default; the CLI's captured TLS identity is
-    /// a public TLS preset an operator selects in a connection profile.
-    fn default_connection(&self) -> Option<ConnectionConfig> {
-        None
-    }
-
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent
@@ -430,44 +441,38 @@ impl BaseChannel for GeminiCli {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         self.build(ctx)
     }
 
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::invoke(self, Operation::ListModels, context))
     }
 
     fn get_model<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::invoke(self, Operation::GetModel, context))
     }
 
     fn generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.generate(Operation::GenerateContent, context))
     }
 
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.generate(Operation::StreamGenerateContent, context))
     }
 
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
-    }
-    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
-        Some(self)
-    }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
@@ -478,13 +483,13 @@ pub(super) fn quota_request(
     config: &GeminiCliConfig,
     provider: ProviderView<'_>,
     credential: &CredentialView<'_>,
-) -> Result<(String, HeaderMap, Bytes), ChannelError> {
+) -> Result<(String, HeaderMap, Bytes), UpstreamError> {
     let token = access_token(credential)?;
     let project = project(credential)?;
     let mut headers = HeaderMap::new();
     apply_headers(&mut headers, config, token, "", true)?;
     let body = code_assist::encode(&json!({ "project": project }), |message| {
-        ChannelError::InvalidConfig(message)
+        UpstreamError::InvalidConfig(message)
     })?;
     Ok((
         format!("{}{}", base_url(provider), "/v1internal:retrieveUserQuota"),

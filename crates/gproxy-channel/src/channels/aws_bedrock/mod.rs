@@ -87,12 +87,15 @@ use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
 use http::{HeaderMap, HeaderValue, StatusCode, header};
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    CredentialView, HOST_CONFIG_KEYS, LoginMode, OperationContext, OperationFuture, PrepareContext,
-    ProviderView,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, OperationContext,
+    PrepareContext,
 };
 use crate::channels::shared::cache;
 use endpoint::Plane;
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialView, LoginMode, ProviderView, UpstreamError,
+    UpstreamFuture, UpstreamKind,
+};
 
 pub const ID: &str = "aws_bedrock";
 
@@ -118,7 +121,7 @@ struct Inputs<'a> {
 impl AwsBedrock {
     /// Resolve, shape and sign one request. `now_secs` is a parameter so the
     /// clock is read once, by the caller, and signing stays replayable.
-    fn signed(&self, inputs: Inputs<'_>, now_secs: u64) -> Result<request::Signed, ChannelError> {
+    fn signed(&self, inputs: Inputs<'_>, now_secs: u64) -> Result<request::Signed, UpstreamError> {
         let config = BedrockConfig::from_view(inputs.provider)?;
         let accept = if inputs.operation
             == (OperationKey {
@@ -194,7 +197,7 @@ impl AwsBedrock {
                 )?;
                 (Plane::Control, url, Bytes::new())
             }
-            _ => return Err(ChannelError::UnsupportedOperation(inputs.operation)),
+            _ => return Err(UpstreamError::UnsupportedOperation(inputs.operation)),
         };
         request::build(
             inputs.provider,
@@ -217,9 +220,9 @@ impl AwsBedrock {
         &self,
         operation: OperationKey,
         context: &OperationContext<'_>,
-    ) -> Result<http::Request<HttpBody>, ChannelError> {
+    ) -> Result<http::Request<HttpBody>, UpstreamError> {
         let HttpBody::Bytes(body) = &context.request.body else {
-            return Err(ChannelError::InvalidConfig(STREAMED_BODY.into()));
+            return Err(UpstreamError::InvalidConfig(STREAMED_BODY.into()));
         };
         self.signed(
             Inputs {
@@ -238,21 +241,30 @@ impl AwsBedrock {
     }
 }
 
+impl UpstreamKind for AwsBedrock {
+    fn id(&self) -> &'static str {
+        ID
+    }
+
+    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), UpstreamError> {
+        request::Auth::from_secret(secret).map(|_| ()).map_err(|_| {
+            UpstreamError::InvalidConfig("AWS credentials require `api_key` or both `access_key_id` and `secret_access_key` (optional `session_token`)".into())
+        })
+    }
+
+    /// AWS authenticates by signature, not by client identity: there is no
+    /// vendor CLI fingerprint worth impersonating, so the host's own default
+    /// client serves.
+    fn default_connection(&self) -> Option<gproxy_client::ConnectionConfig> {
+        None
+    }
+}
+
 impl BaseChannel for AwsBedrock {
     fn claude_fallback(&self) -> Option<crate::channel::ClaudeFallback> {
         Some(crate::channel::ClaudeFallback {
             credit: true,
             recommended_model: "claude-opus-4-8",
-        })
-    }
-
-    fn id(&self) -> &'static str {
-        ID
-    }
-
-    fn validate_credential_secret(&self, secret: &serde_json::Value) -> Result<(), ChannelError> {
-        request::Auth::from_secret(secret).map(|_| ()).map_err(|_| {
-            ChannelError::InvalidConfig("AWS credentials require `api_key` or both `access_key_id` and `secret_access_key` (optional `session_token`)".into())
         })
     }
 
@@ -304,13 +316,6 @@ impl BaseChannel for AwsBedrock {
         }
     }
 
-    /// AWS authenticates by signature, not by client identity: there is no
-    /// vendor CLI fingerprint worth impersonating, so the host's own default
-    /// client serves.
-    fn default_connection(&self) -> Option<gproxy_client::ConnectionConfig> {
-        None
-    }
-
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent | Operation::StreamGenerateContent => vec![Dialect::Claude],
@@ -337,11 +342,11 @@ impl BaseChannel for AwsBedrock {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         // SigV4 hashes the payload, so the body has to be complete. The host
         // buffers generation bodies; a streamed one cannot be signed.
         let HttpBody::Bytes(body) = ctx.request.body else {
-            return Err(ChannelError::InvalidConfig(STREAMED_BODY.into()));
+            return Err(UpstreamError::InvalidConfig(STREAMED_BODY.into()));
         };
         self.signed(
             Inputs {
@@ -363,14 +368,14 @@ impl BaseChannel for AwsBedrock {
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(directory(self, Operation::ListModels, context))
     }
 
     fn get_model<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(directory(self, Operation::GetModel, context))
     }
 
@@ -380,7 +385,7 @@ impl BaseChannel for AwsBedrock {
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             let operation = OperationKey {
                 operation: Operation::StreamGenerateContent,
@@ -422,7 +427,7 @@ async fn directory(
     channel: &AwsBedrock,
     operation: Operation,
     context: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let key = OperationKey {
         operation,
         dialect: context.dialect,
@@ -500,12 +505,11 @@ fn translate(body: HttpBody) -> ByteStream {
     ))
 }
 
-
 /// Unix seconds. `web-time` keeps this working on wasm, where
 /// `std::time::SystemTime::now` is unavailable.
-fn now_secs() -> Result<u64, ChannelError> {
+fn now_secs() -> Result<u64, UpstreamError> {
     web_time::SystemTime::now()
         .duration_since(web_time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_secs())
-        .map_err(|_| ChannelError::InvalidConfig("the system clock is before 1970".into()))
+        .map_err(|_| UpstreamError::InvalidConfig("the system clock is before 1970".into()))
 }

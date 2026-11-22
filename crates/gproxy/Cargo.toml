@@ -21,11 +21,6 @@ path = "src/lib.rs"
 name = "gproxy"
 path = "src/main.rs"
 
-[[bin]]
-name = "gproxy-serverless"
-path = "src/bin/serverless.rs"
-required-features = ["postgres"]
-
 [features]
 # Every channel and native SQL driver; SQLite remains the default store.
 default = ["channels", "memory", "fs", "bundled-vocabulary", "embedded-console", "postgres", "mysql"]
@@ -76,7 +71,7 @@ xai = ["gproxy-sdk/xai"]
 
 # Database drivers. SQLite is always compiled in; these add the others, and
 # `GPROXY_PERSISTENCE`/`GPROXY_DSN` are refused at startup without them.
-postgres = ["gproxy-sdk/postgres", "sea-orm/sqlx-postgres", "gproxy-seaorm/postgres-schema"]
+postgres = ["gproxy-sdk/postgres", "sea-orm/sqlx-postgres"]
 mysql = ["gproxy-sdk/mysql", "sea-orm/sqlx-mysql"]
 
 # Shared transient state. `memory` is one process; `redis` is what several

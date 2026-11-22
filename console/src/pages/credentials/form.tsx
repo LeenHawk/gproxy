@@ -36,7 +36,10 @@ export function CredentialForm({ providerId, channel, credentialKinds, paidUsage
   if (fixedKind) fields.splice(fields.findIndex(field => field.name === "authKind"), 1)
   const secretField = fields.find(field => field.name === "secret")!
   const parseSecret = secretField.parse!
-  secretField.parse = (text, values) => parseSecret(text, { ...values, authKind: String(fixedKind ?? original?.authKind ?? values.authKind) })
+  const kindOf = (values: Record<string, unknown>) => String(fixedKind ?? original?.authKind ?? values.authKind)
+  secretField.parse = (text, values) => parseSecret(text, { ...values, authKind: kindOf(values) })
+  // A credential of kind `none` signs nothing: its secret is the empty object.
+  secretField.hidden = values => kindOf(values) === "none"
   if (channel === "vertex") secretField.description = t("form.vertexSecretHint")
   if (channel === "aws_bedrock") secretField.description = t("form.awsSecretHint")
   if (channel === "playground") {
@@ -77,7 +80,7 @@ export function CredentialForm({ providerId, channel, credentialKinds, paidUsage
         else delete updated.cap_percent
         rest.metadata = updated
       }
-      props.onSubmit({ ...rest, ...(!original && fixedKind ? { authKind: fixedKind } : {}), ...(owner !== undefined || !original ? ownerColumns(String(owner ?? selectedOwner)) : {}) })
+      props.onSubmit({ ...rest, ...(!original && fixedKind ? { authKind: fixedKind } : {}), ...(!original && kindOf(rest) === "none" ? { secret: {} } : {}), ...(owner !== undefined || !original ? ownerColumns(String(owner ?? selectedOwner)) : {}) })
     }}
   /></>
 }

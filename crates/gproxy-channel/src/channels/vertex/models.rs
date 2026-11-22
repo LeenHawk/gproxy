@@ -10,7 +10,8 @@ use serde_json::{Value, json};
 use url::Url;
 
 use super::Vertex;
-use crate::channel::{BaseChannel, ChannelError, OperationContext, PrepareContext};
+use crate::channel::{BaseChannel, OperationContext, PrepareContext};
+use gproxy_upstream::UpstreamError;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,7 +27,7 @@ struct Page {
 pub(super) async fn list(
     channel: &Vertex,
     context: OperationContext<'_>,
-) -> Result<WireResponse, ChannelError> {
+) -> Result<WireResponse, UpstreamError> {
     let request = channel.prepare(PrepareContext {
         provider: context.provider,
         credential: context.credential,
@@ -39,7 +40,7 @@ pub(super) async fn list(
     })?;
     let (parts, _) = request.into_parts();
     let base = Url::parse(&parts.uri.to_string())
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
     // A configured complete endpoint is authoritative: never manufacture an
     // Anthropic URL from it or fetch the same override twice.
     let publishers: &[&str] = if context
@@ -65,7 +66,7 @@ pub(super) async fn list(
                 .method(Method::GET)
                 .uri(url.as_str())
                 .body(HttpBody::Bytes(Bytes::new()))
-                .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+                .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
             *request.headers_mut() = parts.headers.clone();
             request.headers_mut().remove(header::CONTENT_LENGTH);
             let response = context.client.send(request).await?;
@@ -73,8 +74,9 @@ pub(super) async fn list(
             if !response.status.is_success() {
                 return Ok(response);
             }
-            let page: Page = serde_json::from_slice(&crate::channel::read_body(response.body).await?)
-                .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
+            let page: Page =
+                serde_json::from_slice(&crate::channel::read_body(response.body).await?)
+                    .map_err(|error| UpstreamError::InvalidResponse(error.to_string()))?;
             for model in page.publisher_models {
                 let model = normalize(model)?;
                 models
@@ -85,7 +87,7 @@ pub(super) async fn list(
                 break;
             }
             if !tokens.insert(page.next_page_token.clone()) {
-                return Err(ChannelError::InvalidResponse(
+                return Err(UpstreamError::InvalidResponse(
                     "Vertex model directory repeated a page token".into(),
                 ));
             }
@@ -110,7 +112,7 @@ pub(super) async fn list(
         headers,
         body: HttpBody::Bytes(Bytes::from(
             serde_json::to_vec(&json!({"models": models.into_values().collect::<Vec<_>>()}))
-                .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?,
+                .map_err(|error| UpstreamError::InvalidResponse(error.to_string()))?,
         )),
     })
 }
@@ -120,7 +122,7 @@ pub(super) async fn list(
 pub(super) async fn get(
     channel: &Vertex,
     context: OperationContext<'_>,
-) -> Result<WireResponse, ChannelError> {
+) -> Result<WireResponse, UpstreamError> {
     let request = channel.prepare(PrepareContext {
         provider: context.provider,
         credential: context.credential,
@@ -136,10 +138,10 @@ pub(super) async fn get(
         return Ok(response);
     }
     let value = serde_json::from_slice(&crate::channel::read_body(response.body).await?)
-        .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidResponse(error.to_string()))?;
     response.body = HttpBody::Bytes(Bytes::from(
         serde_json::to_vec(&normalize(value)?)
-            .map_err(|error| ChannelError::InvalidResponse(error.to_string()))?,
+            .map_err(|error| UpstreamError::InvalidResponse(error.to_string()))?,
     ));
     response.headers.remove(header::CONTENT_LENGTH);
     response.headers.insert(
@@ -149,9 +151,9 @@ pub(super) async fn get(
     Ok(response)
 }
 
-fn normalize(mut model: Value) -> Result<Value, ChannelError> {
+fn normalize(mut model: Value) -> Result<Value, UpstreamError> {
     let name = model.get("name").and_then(Value::as_str).ok_or_else(|| {
-        ChannelError::InvalidResponse("Vertex publisher model has no name".into())
+        UpstreamError::InvalidResponse("Vertex publisher model has no name".into())
     })?;
     // The publisher is part of the upstream model identity, not the gateway's
     // provider-routing prefix. Preserve the entire model remainder as well.
@@ -163,7 +165,7 @@ fn normalize(mut model: Value) -> Result<Value, ChannelError> {
         None => name.strip_prefix("models/").unwrap_or(name).to_owned(),
     };
     if id.is_empty() {
-        return Err(ChannelError::InvalidResponse(
+        return Err(UpstreamError::InvalidResponse(
             "Vertex publisher model has an empty name".into(),
         ));
     }
@@ -175,4 +177,3 @@ fn normalize(mut model: Value) -> Result<Value, ChannelError> {
     }
     Ok(model)
 }
-

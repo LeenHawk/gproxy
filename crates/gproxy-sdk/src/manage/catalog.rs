@@ -89,14 +89,7 @@ impl<'a, C> Catalog<'a, C> {
     /// `Gproxy::channels()`; it is here too because a management UI reaches
     /// for one catalogue accessor rather than two.
     pub fn channels(&self) -> Vec<ChannelDescriptor> {
-        let registry = self.writer.core().channels();
-        let mut out: Vec<ChannelDescriptor> = registry
-            .ids()
-            .filter_map(|id| registry.get(id))
-            .map(|channel| channel.descriptor())
-            .collect();
-        out.sort_by_key(|descriptor| descriptor.id);
-        out
+        crate::handle::descriptors(self.writer.core())
     }
 
     /// The bundled model catalog: names, context windows and default prices

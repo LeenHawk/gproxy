@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! What a client that goes away costs, observed from outside.
 //!
 //! A client that hangs up has not asked for anything: no header says so, no

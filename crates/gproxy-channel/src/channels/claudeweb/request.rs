@@ -7,7 +7,7 @@ use base64::Engine as _;
 use serde_json::{Value, json};
 
 use super::bad_request;
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 pub(super) struct WebRequest {
     /// The completion body minus `files`, filled in after uploads.
@@ -26,7 +26,7 @@ pub(super) struct Upload {
     pub file_name: String,
 }
 
-pub(super) fn parse(body: &[u8]) -> Result<Value, ChannelError> {
+pub(super) fn parse(body: &[u8]) -> Result<Value, UpstreamError> {
     let value: Value = serde_json::from_slice(body)
         .map_err(|error| bad_request(format!("Claude Web request JSON: {error}")))?;
     if value.is_object() {
@@ -40,7 +40,7 @@ pub(super) fn build(
     request: &Value,
     prompt: &str,
     timezone: &str,
-) -> Result<WebRequest, ChannelError> {
+) -> Result<WebRequest, UpstreamError> {
     let model = request
         .get("model")
         .and_then(Value::as_str)
@@ -159,7 +159,7 @@ pub(super) fn tool_results(request: &Value) -> Vec<Value> {
         .collect()
 }
 
-fn content_text(value: Option<&Value>, uploads: &mut Vec<Upload>) -> Result<String, ChannelError> {
+fn content_text(value: Option<&Value>, uploads: &mut Vec<Upload>) -> Result<String, UpstreamError> {
     match value {
         Some(Value::String(text)) => Ok(text.clone()),
         Some(Value::Array(blocks)) => {
@@ -205,7 +205,7 @@ fn tool_use(block: &Value) -> String {
 }
 
 /// Base64 image sources (or data URLs) become multipart uploads.
-fn collect_image(source: Option<&Value>, uploads: &mut Vec<Upload>) -> Result<(), ChannelError> {
+fn collect_image(source: Option<&Value>, uploads: &mut Vec<Upload>) -> Result<(), UpstreamError> {
     let source = source.ok_or_else(|| bad_request("image source missing"))?;
     let media = source
         .get("media_type")

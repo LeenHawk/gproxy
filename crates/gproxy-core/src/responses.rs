@@ -368,6 +368,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
             .await?;
         }
         let provider = &context.target.provider;
+        let channel = provider.model_channel()?;
         let rules = RewriteContext {
             operation: context.operation,
             upstream_model: context.target.upstream_model.as_deref(),
@@ -382,7 +383,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
                 funnel.clone(),
                 attempt.clone(),
                 context.operation,
-                provider.channel.clone(),
+                channel.clone(),
                 response_rules.body.clone(),
                 limits.capability(None),
                 now_ms(),

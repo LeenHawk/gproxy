@@ -307,22 +307,19 @@ async fn reset_routing_defaults<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("providers", scope);
-        // A row count, not a row: the answer is how much was dropped.
-        match state
-            .app()
-            .gproxy()
-            .manage()
-            .providers()
-            .reset_routing_defaults(&id)
-            .await
-        {
-            Ok(cleared) => crate::error::ok_json(&serde_json::json!({ "cleared": cleared })),
-            Err(error) => ErrorResponse(AppError::from(error)).into_response(),
-        }
-    })
-    .await
+    gate!("providers", scope);
+    // A row count, not a row: the answer is how much was dropped.
+    match state
+        .app()
+        .gproxy()
+        .manage()
+        .providers()
+        .reset_routing_defaults(&id)
+        .await
+    {
+        Ok(cleared) => crate::error::ok_json(&serde_json::json!({ "cleared": cleared })),
+        Err(error) => ErrorResponse(AppError::from(error)).into_response(),
+    }
 }
 
 // ----------------------------------------------------------- credentials --
@@ -341,8 +338,7 @@ async fn reveal_secret<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { scoped!(state, scope, "credentials", credentials.reveal_secret(&id)) })
-        .await
+    scoped!(state, scope, "credentials", credentials.reveal_secret(&id))
 }
 
 #[derive(Deserialize)]
@@ -363,15 +359,12 @@ async fn set_status<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        scoped!(
-            state,
-            scope,
-            "credentials",
-            credentials.set_status(&id, body.status, body.reason)
-        )
-    })
-    .await
+    scoped!(
+        state,
+        scope,
+        "credentials",
+        credentials.set_status(&id, body.status, body.reason)
+    )
 }
 
 /// `?force=true` renews material that has not expired yet, which is what an
@@ -403,15 +396,12 @@ async fn refresh<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        scoped!(
-            state,
-            scope,
-            "credentials",
-            credentials.refresh(&id, query.mode())
-        )
-    })
-    .await
+    scoped!(
+        state,
+        scope,
+        "credentials",
+        credentials.refresh(&id, query.mode())
+    )
 }
 
 async fn usage<C>(
@@ -422,7 +412,7 @@ async fn usage<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { scoped!(state, scope, "credentials", credentials.usage(query)) }).await
+    scoped!(state, scope, "credentials", credentials.usage(query))
 }
 
 async fn quota_read<C>(
@@ -433,8 +423,7 @@ async fn quota_read<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { scoped!(state, scope, "credentials", credentials.quota_read(&id)) })
-        .await
+    scoped!(state, scope, "credentials", credentials.quota_read(&id))
 }
 
 async fn quota_observations<C>(
@@ -446,15 +435,12 @@ async fn quota_observations<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        scoped!(
-            state,
-            scope,
-            "credentials",
-            credentials.quota_observations(&id, query)
-        )
-    })
-    .await
+    scoped!(
+        state,
+        scope,
+        "credentials",
+        credentials.quota_observations(&id, query)
+    )
 }
 
 async fn quota_probe<C>(
@@ -465,8 +451,7 @@ async fn quota_probe<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { scoped!(state, scope, "credentials", credentials.quota_probe(&id)) })
-        .await
+    scoped!(state, scope, "credentials", credentials.quota_probe(&id))
 }
 
 async fn quota_diagnostics<C>(
@@ -477,19 +462,16 @@ async fn quota_diagnostics<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let mut response = scoped!(
-            state,
-            scope,
-            "credentials",
-            credentials.quota_diagnostics(&id)
-        );
-        response
-            .headers_mut()
-            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-        response
-    })
-    .await
+    let mut response = scoped!(
+        state,
+        scope,
+        "credentials",
+        credentials.quota_diagnostics(&id)
+    );
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
 }
 
 async fn quota_reset_credits<C>(
@@ -500,15 +482,12 @@ async fn quota_reset_credits<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        scoped!(
-            state,
-            scope,
-            "credentials",
-            credentials.quota_reset_credits(&id)
-        )
-    })
-    .await
+    scoped!(
+        state,
+        scope,
+        "credentials",
+        credentials.quota_reset_credits(&id)
+    )
 }
 
 async fn quota_reset<C>(
@@ -520,15 +499,12 @@ async fn quota_reset<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        scoped!(
-            state,
-            scope,
-            "credentials",
-            credentials.quota_reset_with(&id, body.map(|Json(body)| body).unwrap_or_default())
-        )
-    })
-    .await
+    scoped!(
+        state,
+        scope,
+        "credentials",
+        credentials.quota_reset_with(&id, body.map(|Json(body)| body).unwrap_or_default())
+    )
 }
 
 async fn health_reset<C>(
@@ -539,8 +515,7 @@ async fn health_reset<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { scoped!(state, scope, "credentials", credentials.health_reset(&id)) })
-        .await
+    scoped!(state, scope, "credentials", credentials.health_reset(&id))
 }
 
 async fn limit_status<C>(
@@ -551,8 +526,7 @@ async fn limit_status<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { scoped!(state, scope, "credentials", credentials.limit_status(&id)) })
-        .await
+    scoped!(state, scope, "credentials", credentials.limit_status(&id))
 }
 
 // ---------------------------------------------------------------- models --
@@ -577,15 +551,12 @@ async fn discover_models<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        manage!(
-            state,
-            scope,
-            "models",
-            connectivity().discover_models(&body.provider_id, body.credential_id.as_deref())
-        )
-    })
-    .await
+    manage!(
+        state,
+        scope,
+        "models",
+        connectivity().discover_models(&body.provider_id, body.credential_id.as_deref())
+    )
 }
 
 #[derive(Deserialize)]
@@ -605,15 +576,12 @@ async fn apply_discovered<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        manage!(
-            state,
-            scope,
-            "models",
-            connectivity().apply_discovered(&body.provider_id, body.upstream_names)
-        )
-    })
-    .await
+    manage!(
+        state,
+        scope,
+        "models",
+        connectivity().apply_discovered(&body.provider_id, body.upstream_names)
+    )
 }
 
 async fn model_test<C>(
@@ -624,8 +592,7 @@ async fn model_test<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { manage!(state, scope, "models", connectivity().model_test(request)) })
-        .await
+    manage!(state, scope, "models", connectivity().model_test(request))
 }
 
 // -------------------------------------------------------------- settings --
@@ -637,7 +604,7 @@ async fn read_settings<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { manage!(state, scope, "settings", settings().get()) }).await
+    manage!(state, scope, "settings", settings().get())
 }
 
 async fn patch_settings<C>(
@@ -648,17 +615,14 @@ async fn patch_settings<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("settings", scope);
-        match state.app().gproxy().manage().settings().update(patch).await {
-            Ok(settings) => match state.app().reload_all().await {
-                Ok(_) => crate::error::ok_json(&settings),
-                Err(error) => ErrorResponse(error).into_response(),
-            },
-            Err(error) => reply_sdk::<gproxy_sdk::dto::SettingsDto>(Err(error)),
-        }
-    })
-    .await
+    gate!("settings", scope);
+    match state.app().gproxy().manage().settings().update(patch).await {
+        Ok(settings) => match state.app().reload_all().await {
+            Ok(_) => crate::error::ok_json(&settings),
+            Err(error) => ErrorResponse(error).into_response(),
+        },
+        Err(error) => reply_sdk::<gproxy_sdk::dto::SettingsDto>(Err(error)),
+    }
 }
 
 // --------------------------------------------------------------- rewrite --
@@ -673,12 +637,9 @@ async fn default_rule_set<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("providers", scope);
-        gate!("provider-rule-sets", scope);
-        manage!(state, scope, "rule-sets", rewrite().ensure_default_set(&id))
-    })
-    .await
+    gate!("providers", scope);
+    gate!("provider-rule-sets", scope);
+    manage!(state, scope, "rule-sets", rewrite().ensure_default_set(&id))
 }
 
 async fn replace_rules<C>(
@@ -690,15 +651,12 @@ async fn replace_rules<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        manage!(
-            state,
-            scope,
-            "rule-sets",
-            rewrite().replace_rules(&id, rules)
-        )
-    })
-    .await
+    manage!(
+        state,
+        scope,
+        "rule-sets",
+        rewrite().replace_rules(&id, rules)
+    )
 }
 
 /// Both ids come from the path, so a body cannot point the write at a
@@ -711,18 +669,15 @@ async fn apply_rule_preset<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        manage!(
-            state,
-            scope,
-            "rule-sets",
-            catalog().apply_rule_preset(ApplyRulePreset {
-                rule_set_id,
-                preset_id,
-            })
-        )
-    })
-    .await
+    manage!(
+        state,
+        scope,
+        "rule-sets",
+        catalog().apply_rule_preset(ApplyRulePreset {
+            rule_set_id,
+            preset_id,
+        })
+    )
 }
 
 // ---------------------------------------------------------------- quotas --
@@ -748,31 +703,28 @@ async fn budget_status<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let mut owners = Vec::new();
-        for pair in query
-            .owners
-            .split(',')
-            .map(str::trim)
-            .filter(|pair| !pair.is_empty())
-        {
-            // Only the first colon splits: an owner kind never contains one, and
-            // an id supplied by a host might.
-            match pair.split_once(':') {
-                Some((kind, id)) if !kind.is_empty() && !id.is_empty() => {
-                    owners.push(BudgetOwner::new(kind, id));
-                }
-                _ => {
-                    return ErrorResponse(AppError::invalid(format!(
-                        "owner `{pair}` is not in `kind:id` form"
-                    )))
-                    .into_response();
-                }
+    let mut owners = Vec::new();
+    for pair in query
+        .owners
+        .split(',')
+        .map(str::trim)
+        .filter(|pair| !pair.is_empty())
+    {
+        // Only the first colon splits: an owner kind never contains one, and
+        // an id supplied by a host might.
+        match pair.split_once(':') {
+            Some((kind, id)) if !kind.is_empty() && !id.is_empty() => {
+                owners.push(BudgetOwner::new(kind, id));
+            }
+            _ => {
+                return ErrorResponse(AppError::invalid(format!(
+                    "owner `{pair}` is not in `kind:id` form"
+                )))
+                .into_response();
             }
         }
-        scoped!(state, scope, "quotas", quotas.budget_status(&owners))
-    })
-    .await
+    }
+    scoped!(state, scope, "quotas", quotas.budget_status(&owners))
 }
 
 async fn reset_budget<C>(
@@ -783,7 +735,7 @@ async fn reset_budget<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { scoped!(state, scope, "quotas", quotas.reset_budget(&id)) }).await
+    scoped!(state, scope, "quotas", quotas.reset_budget(&id))
 }
 
 /// The other half of the same table: a `credential` or `provider` row is an
@@ -799,7 +751,7 @@ async fn reset_limit<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { scoped!(state, scope, "quotas", quotas.reset_limit(&id)) }).await
+    scoped!(state, scope, "quotas", quotas.reset_limit(&id))
 }
 
 // -------------------------------------------------------------- transfer --
@@ -815,23 +767,20 @@ async fn export<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("transfer", scope);
-        let mut response = reply_sdk(
-            state
-                .app()
-                .gproxy()
-                .manage()
-                .transfer()
-                .export(request)
-                .await,
-        );
-        response
-            .headers_mut()
-            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-        response
-    })
-    .await
+    gate!("transfer", scope);
+    let mut response = reply_sdk(
+        state
+            .app()
+            .gproxy()
+            .manage()
+            .transfer()
+            .export(request)
+            .await,
+    );
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
 }
 
 async fn import<C>(
@@ -842,18 +791,23 @@ async fn import<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("transfer", scope);
-        match state.app().gproxy().manage().transfer().import(request).await {
-            Ok(mut report) => {
-                if state.app().reload_all().await.is_err() {
-                    report.warnings.push("Configuration was imported, but runtime reload failed. Retry reload or restart the instance.".to_owned());
-                }
-                crate::error::ok_json(&report)
+    gate!("transfer", scope);
+    match state
+        .app()
+        .gproxy()
+        .manage()
+        .transfer()
+        .import(request)
+        .await
+    {
+        Ok(mut report) => {
+            if state.app().reload_all().await.is_err() {
+                report.warnings.push("Configuration was imported, but runtime reload failed. Retry reload or restart the instance.".to_owned());
             }
-            Err(error) => reply_sdk::<gproxy_sdk::dto::ImportReportDto>(Err(error)),
+            crate::error::ok_json(&report)
         }
-    }).await
+        Err(error) => reply_sdk::<gproxy_sdk::dto::ImportReportDto>(Err(error)),
+    }
 }
 
 // ---------------------------------------------------------- connectivity --
@@ -866,8 +820,7 @@ async fn connectivity_test<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { manage!(state, scope, "connectivity", connectivity().test(request)) })
-        .await
+    manage!(state, scope, "connectivity", connectivity().test(request))
 }
 
 // --------------------------------------------------------------- catalog --
@@ -881,11 +834,8 @@ async fn channels<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("catalog", scope);
-        crate::error::ok_json(&state.app().gproxy().manage().catalog().channels())
-    })
-    .await
+    gate!("catalog", scope);
+    crate::error::ok_json(&state.app().gproxy().manage().catalog().channels())
 }
 
 async fn tls_presets<C>(
@@ -895,11 +845,8 @@ async fn tls_presets<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("catalog", scope);
-        crate::error::ok_json(&state.app().gproxy().manage().catalog().tls_presets())
-    })
-    .await
+    gate!("catalog", scope);
+    crate::error::ok_json(&state.app().gproxy().manage().catalog().tls_presets())
 }
 
 async fn rule_presets<C>(
@@ -909,11 +856,8 @@ async fn rule_presets<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("catalog", scope);
-        crate::error::ok_json(&state.app().gproxy().manage().catalog().rule_presets())
-    })
-    .await
+    gate!("catalog", scope);
+    crate::error::ok_json(&state.app().gproxy().manage().catalog().rule_presets())
 }
 
 /// The prices and context windows this release was built with. It is parsed
@@ -925,11 +869,8 @@ async fn default_models<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("catalog", scope);
-        reply_sdk(state.app().gproxy().manage().catalog().default_models())
-    })
-    .await
+    gate!("catalog", scope);
+    reply_sdk(state.app().gproxy().manage().catalog().default_models())
 }
 
 async fn apply_default_prices<C>(
@@ -940,15 +881,12 @@ async fn apply_default_prices<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        manage!(
-            state,
-            scope,
-            "catalog",
-            catalog().apply_default_prices(request)
-        )
-    })
-    .await
+    manage!(
+        state,
+        scope,
+        "catalog",
+        catalog().apply_default_prices(request)
+    )
 }
 
 // ------------------------------------------------------------- tokenizer --
@@ -960,7 +898,7 @@ async fn vocabularies<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { manage!(state, scope, "tokenizer", tokenizer().vocabularies()) }).await
+    manage!(state, scope, "tokenizer", tokenizer().vocabularies())
 }
 
 async fn fetch_vocabulary<C>(
@@ -971,7 +909,7 @@ async fn fetch_vocabulary<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { manage!(state, scope, "tokenizer", tokenizer().fetch(request)) }).await
+    manage!(state, scope, "tokenizer", tokenizer().fetch(request))
 }
 
 /// How far the download running **in this process** has got. A peer's is
@@ -983,11 +921,8 @@ async fn fetch_progress<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("tokenizer", scope);
-        crate::error::ok_json(&state.app().gproxy().manage().tokenizer().progress())
-    })
-    .await
+    gate!("tokenizer", scope);
+    crate::error::ok_json(&state.app().gproxy().manage().tokenizer().progress())
 }
 
 async fn delete_vocabulary<C>(
@@ -998,8 +933,7 @@ async fn delete_vocabulary<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { manage!(@empty state, scope, "tokenizer", tokenizer().delete(&id)) })
-        .await
+    manage!(@empty state, scope, "tokenizer", tokenizer().delete(&id))
 }
 
 async fn tokenizer_auth<C>(
@@ -1009,7 +943,7 @@ async fn tokenizer_auth<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { manage!(state, scope, "tokenizer", tokenizer().auth()) }).await
+    manage!(state, scope, "tokenizer", tokenizer().auth())
 }
 
 #[derive(Deserialize)]
@@ -1029,8 +963,7 @@ async fn set_tokenizer_auth<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { manage!(state, scope, "tokenizer", tokenizer().set_auth(body.token)) })
-        .await
+    manage!(state, scope, "tokenizer", tokenizer().set_auth(body.token))
 }
 
 /// The other deliberate disclosure, for the same reason as `reveal_secret`:
@@ -1042,21 +975,18 @@ async fn reveal_tokenizer_auth<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("tokenizer", scope);
-        match state
-            .app()
-            .gproxy()
-            .manage()
-            .tokenizer()
-            .reveal_auth()
-            .await
-        {
-            Ok(token) => crate::error::ok_json(&serde_json::json!({ "token": token })),
-            Err(error) => ErrorResponse(AppError::from(error)).into_response(),
-        }
-    })
-    .await
+    gate!("tokenizer", scope);
+    match state
+        .app()
+        .gproxy()
+        .manage()
+        .tokenizer()
+        .reveal_auth()
+        .await
+    {
+        Ok(token) => crate::error::ok_json(&serde_json::json!({ "token": token })),
+        Err(error) => ErrorResponse(AppError::from(error)).into_response(),
+    }
 }
 
 async fn provider_routing<C>(
@@ -1067,15 +997,12 @@ async fn provider_routing<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        manage!(
-            state,
-            scope,
-            "operation-rules",
-            endpoints().operation_rules().effective(&id)
-        )
-    })
-    .await
+    manage!(
+        state,
+        scope,
+        "operation-rules",
+        endpoints().operation_rules().effective(&id)
+    )
 }
 
 async fn set_provider_routing<C>(
@@ -1087,17 +1014,14 @@ async fn set_provider_routing<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        manage!(
-            state,
-            scope,
-            "operation-rules",
-            endpoints()
-                .operation_rules()
-                .set_mapping(&id, &operation, &dialect, write)
-        )
-    })
-    .await
+    manage!(
+        state,
+        scope,
+        "operation-rules",
+        endpoints()
+            .operation_rules()
+            .set_mapping(&id, &operation, &dialect, write)
+    )
 }
 async fn reset_provider_routing<C>(
     State(state): State<HostState<C>>,
@@ -1107,17 +1031,14 @@ async fn reset_provider_routing<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        manage!(
-            state,
-            scope,
-            "operation-rules",
-            endpoints()
-                .operation_rules()
-                .reset_mapping(&id, &operation, &dialect)
-        )
-    })
-    .await
+    manage!(
+        state,
+        scope,
+        "operation-rules",
+        endpoints()
+            .operation_rules()
+            .reset_mapping(&id, &operation, &dialect)
+    )
 }
 
 async fn model_names<C>(
@@ -1128,22 +1049,19 @@ async fn model_names<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        gate!("provider-models", scope);
-        if query.provider_id.is_none() && query.rule_set_id.is_some() {
-            gate!("provider-rule-sets", scope);
-        }
-        reply_sdk(
-            state
-                .app()
-                .gproxy()
-                .manage()
-                .catalog()
-                .model_names(query)
-                .await,
-        )
-    })
-    .await
+    gate!("provider-models", scope);
+    if query.provider_id.is_none() && query.rule_set_id.is_some() {
+        gate!("provider-rule-sets", scope);
+    }
+    reply_sdk(
+        state
+            .app()
+            .gproxy()
+            .manage()
+            .catalog()
+            .model_names(query)
+            .await,
+    )
 }
 
 async fn operation_keys<C>(

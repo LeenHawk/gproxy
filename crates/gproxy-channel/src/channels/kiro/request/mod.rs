@@ -10,16 +10,16 @@
 mod content;
 mod tools;
 
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Map, Value, json};
 
-fn invalid(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidConfig(message.into())
+fn invalid(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidConfig(message.into())
 }
 
 /// `{conversationState, inferenceConfig?}` from a Responses body.
-pub(super) fn build(body: &[u8], conversation_id: &str) -> Result<Bytes, ChannelError> {
+pub(super) fn build(body: &[u8], conversation_id: &str) -> Result<Bytes, UpstreamError> {
     let value: Value = serde_json::from_slice(body)
         .map_err(|error| invalid(format!("Kiro needs a Responses JSON body: {error}")))?;
     let model = content::map_model(
@@ -40,7 +40,7 @@ fn conversation_state(
     value: &Value,
     model: &str,
     conversation_id: &str,
-) -> Result<Value, ChannelError> {
+) -> Result<Value, UpstreamError> {
     let mut messages = Vec::new();
     let mut system = content::optional_text(value.get("instructions"));
     let input = value
@@ -211,10 +211,10 @@ mod tests {
                 .as_bytes(),
             "c",
         );
-        assert!(matches!(error, Err(ChannelError::InvalidConfig(_))));
+        assert!(matches!(error, Err(UpstreamError::InvalidConfig(_))));
         assert!(matches!(
             build(json!({"model": "m"}).to_string().as_bytes(), "c"),
-            Err(ChannelError::InvalidConfig(_))
+            Err(UpstreamError::InvalidConfig(_))
         ));
     }
 }

@@ -9,9 +9,6 @@
 
 [Documentation](https://gproxy.leenhawk.com/) · [Downloads](https://github.com/LeenHawk/gproxy/releases) · [Discussions](https://github.com/LeenHawk/gproxy/discussions) · [Sponsor](https://github.com/sponsors/LeenHawk)
 
-<a href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32"></a>
-<a href="https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless"><img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" height="32"></a>
-<a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D"><img src="https://vercel.com/button" alt="Deploy with Vercel" height="32"></a>
 <a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
 <a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
 
@@ -38,8 +35,7 @@ The full manual is at **<https://gproxy.leenhawk.com/>**.
   to the next one and the client does not need to know.
 - The client only speaks the OpenAI format and the upstream is Claude or
   Gemini, or the other way round.
-- The gateway has to stay up on a server, a NAS, in a container or on
-  Cloudflare Workers.
+- The gateway has to stay up on a server, a NAS or in a container.
 
 If all you want is to switch models for Claude Code or Codex on your own
 computer, a desktop switcher is less work. GPROXY does not edit those tools'
@@ -128,12 +124,9 @@ in [Adding a channel](https://gproxy.leenhawk.com/development/adding-a-channel).
   built in, or a headless build without the console.
 - A container.
 - A desktop and mobile app with the console and a setup wizard built in.
-- A Cloudflare Worker or a Netlify or Vercel function, with the same channels
-  as the native build.
 - A Rust library: embed it in your own program through `gproxy-sdk`.
 
-The database can be SQLite, PostgreSQL or MySQL, or D1 or libSQL/Turso on
-Cloudflare.
+The database can be SQLite, PostgreSQL or MySQL.
 
 ## Installing
 
@@ -221,22 +214,22 @@ console built in.
 
 ## Hosted deployment
 
-The deploy buttons at the top of this page use the templates described here. The
-Cloudflare, Netlify and Vercel ones deploy a prebuilt bundle of the latest
-stable release; nothing is compiled. Cloudflare uses D1 or
-libSQL/Turso, the other two use PostgreSQL. Render and Heroku run the native
-binary in a small container with PostgreSQL.
+The deploy buttons at the top of this page use the Render and Heroku
+templates. Both run the native binary in a small container with PostgreSQL.
 
 You will be asked for an administrator password and a master key. Read
-[Hosted deployments](https://gproxy.leenhawk.com/deployment/edge) and
 [Docker, Render and Heroku](https://gproxy.leenhawk.com/deployment/containers)
-first; they cover database choice, plan costs and the limits of each platform
-(Netlify has no WebSocket support, for example).
+first; it covers database choice, plan costs and the limits of each platform.
+
+Cloudflare Workers, Netlify and Vercel run `gproxy-lite` instead: a
+single-tenant engine with one access key and no database, built from the same
+channels and protocol conversion. The templates are in `deploy/lite`; see
+[Cloudflare Workers, Netlify, and Vercel](https://gproxy.leenhawk.com/deployment/lite).
 
 ## Upgrading from v3
 
 Stop v3 and back up its database, master key and startup configuration. Then
-start v4 with the same configuration. SQLite, PostgreSQL, MySQL and D1
+start v4 with the same configuration. SQLite, PostgreSQL and MySQL
 databases are migrated on first start; accounts, passwords, API keys and
 usage history are kept, and anything that could not be mapped is listed in the
 migration report. Do not run v3 and v4 against the same database at the same
@@ -283,8 +276,7 @@ cargo run -p gproxy -- serve
 ```
 
 [Building from source](https://gproxy.leenhawk.com/development/building)
-covers the headless build, the desktop app, the Workers bundle and the checks
-CI runs. Contributors should also read
+covers the headless build, the desktop app and the checks CI runs. Contributors should also read
 [CONTRIBUTING.md](CONTRIBUTING.md) and
 [Architecture](https://gproxy.leenhawk.com/development/architecture); to add an
 upstream, see [Adding a

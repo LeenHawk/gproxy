@@ -17,13 +17,12 @@
 //! documents, so they are taken from the request.
 
 use super::CloudflareAiGateway;
-use crate::channel::{
-    BaseChannel, ChannelError, CredentialView, OperationContext, PrepareContext, ProviderView,
-};
+use crate::channel::{BaseChannel, OperationContext, PrepareContext};
 use crate::channels::shared::compatible::http::{invalid_response, read_body};
 use gproxy_client::OutboundClient;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError};
 use http::{Method, header};
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
@@ -36,8 +35,8 @@ const MAX_PAGES: usize = 20;
 /// (which Cloudflare files under text classification).
 const SERVED_TASKS: [&str; 3] = ["Text Generation", "Text Embeddings", "Text Classification"];
 
-fn invalid(message: &str) -> ChannelError {
-    ChannelError::InvalidConfig(message.into())
+fn invalid(message: &str) -> UpstreamError {
+    UpstreamError::InvalidConfig(message.into())
 }
 
 impl CloudflareAiGateway {
@@ -46,7 +45,7 @@ impl CloudflareAiGateway {
         ctx: &Target<'_>,
         operation: Operation,
         request: WireRequest,
-    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    ) -> Result<WireResponse<HttpBody>, UpstreamError> {
         let prepared = self.prepare(PrepareContext {
             provider: ctx.provider,
             credential: ctx.credential,
@@ -63,7 +62,7 @@ impl CloudflareAiGateway {
     pub(super) async fn models(
         &self,
         ctx: OperationContext<'_>,
-    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    ) -> Result<WireResponse<HttpBody>, UpstreamError> {
         let headers = ctx.request.headers;
         let ctx = Target::of(
             ctx.provider,
@@ -117,7 +116,7 @@ impl CloudflareAiGateway {
     pub(super) async fn rerank_run(
         &self,
         ctx: OperationContext<'_>,
-    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    ) -> Result<WireResponse<HttpBody>, UpstreamError> {
         let WireRequest {
             query,
             headers,
@@ -229,7 +228,7 @@ fn model(row: &Value) -> Option<Value> {
 
 /// A model id goes into the `/ai/run/` path. Cloudflare's ids carry slashes
 /// and `@`; anything that would leave the path or climb out of it is refused.
-fn run_model(model: &str) -> Result<&str, ChannelError> {
+fn run_model(model: &str) -> Result<&str, UpstreamError> {
     let model = model.trim();
     if model.is_empty()
         || model
@@ -245,7 +244,7 @@ fn run_model(model: &str) -> Result<&str, ChannelError> {
 }
 
 /// The OpenAI-dialect rerank request as `(model, documents, run body)`.
-fn rerank_request(source: &Value) -> Result<(String, Vec<String>, Vec<u8>), ChannelError> {
+fn rerank_request(source: &Value) -> Result<(String, Vec<String>, Vec<u8>), UpstreamError> {
     let model = source
         .get("model")
         .and_then(Value::as_str)
@@ -287,7 +286,7 @@ fn rerank_response(
     payload: &Value,
     model: &str,
     documents: &[String],
-) -> Result<Vec<u8>, ChannelError> {
+) -> Result<Vec<u8>, UpstreamError> {
     let scores = payload
         .pointer("/result/response")
         .and_then(Value::as_array)

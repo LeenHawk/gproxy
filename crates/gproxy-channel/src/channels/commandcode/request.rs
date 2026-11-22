@@ -2,12 +2,11 @@ use super::{
     CommandCode,
     config::{CommandCodeConfig, api_key, base_url},
 };
-use crate::channel::{
-    BaseChannel, ChannelError, ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable,
-};
+use crate::channel::{BaseChannel, ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable};
 use crate::channels::shared::claude_images;
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{HttpBody, Operation};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -31,12 +30,12 @@ const IDENTITY_HEADERS: &[&str] = &[
     "x-cmd-provider-deepseek-internal",
 ];
 
-pub(super) fn headers(key: &str) -> Result<HeaderMap, ChannelError> {
+pub(super) fn headers(key: &str) -> Result<HeaderMap, UpstreamError> {
     let mut out = HeaderMap::new();
     out.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {key}"))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     out.insert(
         header::CONTENT_TYPE,
@@ -51,8 +50,8 @@ pub(super) fn headers(key: &str) -> Result<HeaderMap, ChannelError> {
     Ok(out)
 }
 
-fn invalid(message: &str) -> ChannelError {
-    ChannelError::InvalidConfig(format!("Command Code request: {message}"))
+fn invalid(message: &str) -> UpstreamError {
+    UpstreamError::InvalidConfig(format!("Command Code request: {message}"))
 }
 
 fn text_blocks(value: &Value) -> String {
@@ -74,7 +73,7 @@ fn text_blocks(value: &Value) -> String {
 
 /// Match the CLI's non-git buildServerConfig without reading the gateway's
 /// workspace or machine identity. The upstream requires all nine fields.
-fn workspace_config() -> Result<Value, ChannelError> {
+fn workspace_config() -> Result<Value, UpstreamError> {
     let elapsed = web_time::SystemTime::now()
         .duration_since(web_time::UNIX_EPOCH)
         .map_err(|e| invalid(&format!("invalid system clock: {e}")))?;
@@ -98,7 +97,7 @@ fn workspace_config() -> Result<Value, ChannelError> {
 }
 
 /// CLI toWireMessages/toWireTools: Claude blocks become AI SDK model messages.
-fn envelope(body: &[u8]) -> Result<Value, ChannelError> {
+fn envelope(body: &[u8]) -> Result<Value, UpstreamError> {
     let mut input: Value = serde_json::from_slice(body).map_err(|e| invalid(&e.to_string()))?;
     claude_images::fit(&mut input, false);
     let model = input["model"]
@@ -192,12 +191,12 @@ fn envelope(body: &[u8]) -> Result<Value, ChannelError> {
     )
 }
 
-pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
     if !CommandCode
         .native_dialects(ctx.provider, ctx.operation.operation)
         .contains(&ctx.operation.dialect)
     {
-        return Err(ChannelError::UnsupportedOperation(ctx.operation));
+        return Err(UpstreamError::UnsupportedOperation(ctx.operation));
     }
     let config = CommandCodeConfig::from_view(ctx.provider)?;
     let catalog = ctx.operation.operation == Operation::ListModels;
@@ -251,15 +250,15 @@ pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, 
         .method(if catalog { Method::GET } else { Method::POST })
         .uri(url)
         .body(body)
-        .map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+        .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
     *request.headers_mut() = out;
     Ok(request)
 }
 
 /// A session for callers without a CLI session id; never share unrelated turns.
-pub(super) fn new_id() -> Result<String, ChannelError> {
+pub(super) fn new_id() -> Result<String, UpstreamError> {
     let mut bytes = [0u8; 16];
-    getrandom::fill(&mut bytes).map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+    getrandom::fill(&mut bytes).map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     let text = bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();

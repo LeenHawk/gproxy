@@ -27,7 +27,7 @@
 //!
 //! # What each class means downstream
 //!
-//! A class becomes a [`ChannelError::UpstreamResponse`] whose status is the
+//! A class becomes a [`UpstreamError::UpstreamResponse`] whose status is the
 //! one that actually describes the fault rather than the shell it arrived in.
 //! `mod.rs` hands that back to the host as an *answer*, so
 //! `gproxy-core::execute::attempt::classify` reads the status:
@@ -51,7 +51,7 @@
 use http::StatusCode;
 use serde_json::{Value, json};
 
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 /// What the upstream actually said, behind whatever status it said it with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -150,10 +150,10 @@ impl Upstream {
     /// The carrier this channel returns. `mod.rs` delivers it as an answer so
     /// core classifies it by status; `quota.rs` returns it as an error,
     /// because an account read has no answer to deliver.
-    pub fn into_error(self) -> ChannelError {
+    pub fn into_error(self) -> UpstreamError {
         let status = self.class.status();
         let body = serde_json::to_vec(&self.body()).unwrap_or_else(|_| self.message.into_bytes());
-        ChannelError::UpstreamResponse {
+        UpstreamError::UpstreamResponse {
             status,
             body: gproxy_protocol::connection::Bytes::from(body),
         }
@@ -412,7 +412,7 @@ pub fn classify(message: &str, code: Option<&str>, status: Option<StatusCode>) -
 }
 
 /// Classify a non-2xx reply whose body is a Connect error payload.
-pub fn from_response(status: StatusCode, body: &[u8]) -> ChannelError {
+pub fn from_response(status: StatusCode, body: &[u8]) -> UpstreamError {
     let (code, message) = payload(body);
     let message = message.unwrap_or_else(|| String::from_utf8_lossy(body).into_owned());
     classify(&message, code.as_deref(), Some(status)).into_error()
@@ -420,18 +420,18 @@ pub fn from_response(status: StatusCode, body: &[u8]) -> ChannelError {
 
 /// Classify a `GetChatMessage` end-of-stream trailer. The trailer arrives on a
 /// 200, so there is no status to help and the text is all there is.
-pub fn from_trailer(code: Option<&str>, message: &str) -> ChannelError {
+pub fn from_trailer(code: Option<&str>, message: &str) -> UpstreamError {
     classify(message, code, None).into_error()
 }
 
 /// Flatten a classified refusal that arrived too late to be an answer. Once
 /// content has been streamed the status is spent, and the only thing left to
-/// carry is the text — [`ChannelError::UpstreamResponse`] displays its status
+/// carry is the text — [`UpstreamError::UpstreamResponse`] displays its status
 /// and not its body, so the reason would otherwise be lost to whoever reads
 /// the failed stream.
-pub fn as_stream_failure(error: ChannelError) -> ChannelError {
+pub fn as_stream_failure(error: UpstreamError) -> UpstreamError {
     match error {
-        ChannelError::UpstreamResponse { status, body } => {
+        UpstreamError::UpstreamResponse { status, body } => {
             let detail = serde_json::from_slice::<Value>(&body)
                 .ok()
                 .and_then(|value| {
@@ -443,7 +443,7 @@ pub fn as_stream_failure(error: ChannelError) -> ChannelError {
                     })
                 })
                 .unwrap_or_else(|| String::from_utf8_lossy(&body).into_owned());
-            ChannelError::InvalidResponse(format!("devin upstream error ({status}): {detail}"))
+            UpstreamError::InvalidResponse(format!("devin upstream error ({status}): {detail}"))
         }
         other => other,
     }

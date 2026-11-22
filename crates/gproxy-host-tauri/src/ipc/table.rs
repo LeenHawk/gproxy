@@ -112,6 +112,24 @@ ipc_table! {
         batch(items: Vec<app::BatchItem<app::PermissionWrite, app::PermissionPatch>>);
     }
 
+    admin mcp_scopes [.mcp_scopes()] {
+        list(query: app::ListQuery);
+        get[id];
+        create(write: app::McpScopeWrite);
+        update[id](patch: app::McpScopePatch);
+        delete[id];
+        batch(items: Vec<app::BatchItem<app::McpScopeWrite, app::McpScopePatch>>);
+    }
+
+    admin mcp_tool_natures [.mcp_tool_natures()] {
+        list(query: app::ListQuery);
+        get[id];
+        create(write: app::McpToolNatureWrite);
+        update[id](patch: app::McpToolNaturePatch);
+        delete[id];
+        batch(items: Vec<app::BatchItem<app::McpToolNatureWrite, app::McpToolNaturePatch>>);
+    }
+
     admin rate_limits [.rate_limits()] {
         list(query: app::ListQuery);
         get[id];

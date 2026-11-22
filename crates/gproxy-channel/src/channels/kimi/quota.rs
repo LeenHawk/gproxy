@@ -12,12 +12,13 @@ use super::auth::{self, Mode};
 use super::config::{ID, KimiConfig};
 use super::oauth::unix_now_ms;
 use crate::channel::{
-    CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance, QuotaBalance,
-    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior,
-    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+    QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
+    QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
+    QuotaWindow,
 };
 use crate::channels::shared::compatible::ability::{bearer, decimal, require_success, send};
 use crate::channels::shared::compatible::http::invalid_response;
+use gproxy_upstream::{CredentialContext, CredentialView, ProviderView, UpstreamFuture};
 use http::Method;
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -219,7 +220,7 @@ fn balance_entries(payload: &Value) -> Vec<QuotaEntry> {
 }
 
 impl QuotaQuery for super::Kimi {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = KimiConfig::from_view(context.provider)?;
             let mode = auth::mode(&context.credential);

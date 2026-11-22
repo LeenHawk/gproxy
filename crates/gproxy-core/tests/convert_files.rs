@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 //! files family: OpenAI/Claude/Gemini file CRUD converted to a provider that
 //! speaks another dialect, driven through `Core::send`.
 

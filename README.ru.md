@@ -9,9 +9,6 @@
 
 [Документация](https://gproxy.leenhawk.com/ru/) · [Загрузки](https://github.com/LeenHawk/gproxy/releases) · [Обсуждения](https://github.com/LeenHawk/gproxy/discussions) · [Поддержать](https://github.com/sponsors/LeenHawk)
 
-<a href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fcloudflare-button"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32"></a>
-<a href="https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=dev&create_from_path=deploy%2Fserverless"><img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" height="32"></a>
-<a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev%2Fdeploy%2Fserverless&project-name=gproxy&repository-name=gproxy&env=GPROXY_ADMIN_PASSWORD&products=%5B%7B%22type%22%3A%22integration%22%2C%22group%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D"><img src="https://vercel.com/button" alt="Deploy with Vercel" height="32"></a>
 <a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
 <a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
 
@@ -38,8 +35,7 @@ OAuth-вход от подписок вроде Claude Code или Codex, cookie
   сбой, запрос уходит на следующую, а клиенту знать об этом не нужно.
 - Клиент понимает только формат OpenAI, а провайдер — Claude или Gemini, или
   наоборот.
-- Шлюз должен постоянно работать на сервере, NAS, в контейнере или на
-  Cloudflare Workers.
+- Шлюз должен постоянно работать на сервере, NAS или в контейнере.
 
 Если нужно только переключать модели для Claude Code или Codex на своём
 компьютере, проще взять настольный переключатель.
@@ -131,12 +127,9 @@ DeepSeek, GLM, Kimi, MiniMax, DashScope, Volcengine, xAI, NVIDIA NIM и друг
 - Контейнер.
 - Настольное и мобильное приложение со встроенной консолью и мастером
   настройки.
-- Cloudflare Worker или функция Netlify / Vercel с тем же набором каналов, что
-  и в обычной сборке.
 - Библиотека для Rust: шлюз встраивается в вашу программу через `gproxy-sdk`.
 
-База данных — SQLite, PostgreSQL или MySQL, а на Cloudflare — D1 или
-libSQL/Turso.
+База данных — SQLite, PostgreSQL или MySQL.
 
 ## Установка
 
@@ -223,23 +216,26 @@ Gemini (`/v1beta/models/fast:generateContent`). Пошагово всё это �
 
 ## Размещение на платформах
 
-Кнопки развёртывания в начале страницы используют описанные здесь шаблоны. Шаблоны для
-Cloudflare, Netlify и Vercel разворачивают готовую сборку последней
-стабильной версии, ничего не компилируя. Cloudflare использует D1 или
-libSQL/Turso, две другие платформы — PostgreSQL. Render и Heroku запускают
-обычный исполняемый файл в небольшом контейнере, тоже с PostgreSQL.
+Кнопки развёртывания в начале страницы используют шаблоны Render и Heroku.
+Обе платформы запускают обычный исполняемый файл в небольшом контейнере с
+PostgreSQL.
 
 При развёртывании понадобятся пароль администратора и мастер-ключ. Сначала
-прочитайте [Размещение на платформах](https://gproxy.leenhawk.com/ru/deployment/edge)
-и [Docker, Render и Heroku](https://gproxy.leenhawk.com/ru/deployment/containers):
+прочитайте [Docker, Render и Heroku](https://gproxy.leenhawk.com/ru/deployment/containers):
 там описаны выбор базы данных, стоимость тарифов и ограничения каждой
-платформы (например, на Netlify нет WebSocket).
+платформы.
+
+На Cloudflare Workers, Netlify и Vercel вместо него работает `gproxy-lite`:
+движок для одного арендатора с одним ключом доступа и без базы данных,
+построенный на тех же каналах и том же преобразовании протоколов. Шаблоны
+лежат в `deploy/lite`; см.
+[Cloudflare Workers, Netlify и Vercel](https://gproxy.leenhawk.com/ru/deployment/lite).
 
 ## Обновление с v3
 
 Остановите v3 и сделайте резервную копию базы данных, мастер-ключа и
 конфигурации запуска. Затем запустите v4 с той же конфигурацией. Базы SQLite,
-PostgreSQL, MySQL и D1 переносятся при первом запуске; учётные записи, пароли,
+PostgreSQL и MySQL переносятся при первом запуске; учётные записи, пароли,
 API-ключи и история использования сохраняются, а всё, что не удалось
 перенести, попадает в отчёт о миграции. Не подключайте v3 и v4 к одной базе
 одновременно. Подробности — в разделе
@@ -285,7 +281,7 @@ pnpm --dir console build
 cargo run -p gproxy -- serve
 ```
 
-Сборка без консоли, настольного приложения и пакета для Workers, а также
+Сборка headless-версии и настольного приложения, а также
 проверки, которые выполняет CI, описаны в разделе [Сборка из исходного
 кода](https://gproxy.leenhawk.com/ru/development/building). Участникам стоит
 прочитать [CONTRIBUTING.md](CONTRIBUTING.md) и

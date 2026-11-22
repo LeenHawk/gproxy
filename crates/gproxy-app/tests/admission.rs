@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! Admission against a real database: one `load_all_data()` becomes one
 //! `AppData`, a `Caller` goes in, and an `Admitted` comes out with the
 //! provider set, the credential set, the budget chain, the scope, the session

@@ -8,10 +8,11 @@ use super::{
     request,
 };
 use crate::channel::{
-    ChannelError, CredentialContext, OperationFuture, QuotaAllowance, QuotaEntry, QuotaQuery,
-    QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaValue,
+    QuotaAllowance, QuotaEntry, QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot,
+    QuotaSubject, QuotaValue,
 };
 use crate::channels::shared::compatible::ability::{decimal, require_success, send};
+use gproxy_upstream::{CredentialContext, UpstreamError, UpstreamFuture};
 use http::Method;
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
@@ -25,7 +26,7 @@ fn millis(value: &Value) -> Option<i64> {
         .and_then(|v| v.checked_mul(1000))
 }
 
-pub(super) fn entries(value: &Value) -> Result<Vec<QuotaEntry>, ChannelError> {
+pub(super) fn entries(value: &Value) -> Result<Vec<QuotaEntry>, UpstreamError> {
     check(value)?;
     let packs = value["user_entitlement_pack_list"]
         .as_array()
@@ -93,7 +94,7 @@ pub(super) fn entries(value: &Value) -> Result<Vec<QuotaEntry>, ChannelError> {
     Ok(entries)
 }
 impl QuotaQuery for Quota {
-    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, ctx: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = TraeConfig::from_view(ctx.provider)?;
             let version = if config.international { "v1" } else { "v2" };

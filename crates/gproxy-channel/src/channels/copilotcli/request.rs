@@ -3,14 +3,15 @@
 use super::auth;
 use super::config::CopilotCliConfig;
 use super::identity::{CHANNEL_HEADERS, CLI_HEADERS};
-use crate::channel::{ChannelError, HeaderAllowlist, PrepareContext, forwardable};
+use crate::channel::{HeaderAllowlist, PrepareContext, forwardable};
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderValue, Method, header};
 
 /// The Copilot backend answers the catalogue and the two generation routes,
 /// so the client's own path is never trusted (v3 `copilotcli/prepare.rs::target`).
-fn target(operation: OperationKey) -> Result<(Method, &'static str), ChannelError> {
+fn target(operation: OperationKey) -> Result<(Method, &'static str), UpstreamError> {
     match (operation.operation, operation.dialect) {
         (Operation::ListModels, _) => Ok((Method::GET, "/models")),
         (Operation::GenerateContent | Operation::StreamGenerateContent, Dialect::OpenAiChat) => {
@@ -19,11 +20,11 @@ fn target(operation: OperationKey) -> Result<(Method, &'static str), ChannelErro
         (Operation::GenerateContent | Operation::StreamGenerateContent, Dialect::OpenAi) => {
             Ok((Method::POST, "/responses"))
         }
-        _ => Err(ChannelError::UnsupportedOperation(operation)),
+        _ => Err(UpstreamError::UnsupportedOperation(operation)),
     }
 }
 
-pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
     let config = CopilotCliConfig::from_view(ctx.provider)?;
     let (method, path) = target(ctx.operation)?;
     let url = match ctx.endpoint_override {
@@ -68,5 +69,5 @@ pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, 
     }
     builder
         .body(body)
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
 }

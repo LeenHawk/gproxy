@@ -39,13 +39,16 @@
 //!    inherent ones are compiled per backend behind `sea-orm-migration`'s
 //!    `sqlx-*` features, which this workspace does not enable, and answer
 //!    `BackendNotSupported` instead of the question. The probes work on every
-//!    backend including a D1 binding.
+//!    backend including libSQL.
 //!
 //! 5. **Never edit a released migration.** Once a version of gproxy that
 //!    contains it has run anywhere, its name is in somebody's ledger and it will
 //!    not run again; changing its body changes only what *new* databases get,
 //!    and quietly forks the schema in two. A mistake in a released migration is
 //!    fixed by appending another one.
+//!
+//! A removed entity gets the mirror image: a migration that drops its table
+//! where `probe_table` still finds it. Schema sync only ever adds.
 //!
 //! Data backfills belong in migrations too, and they need no guard beyond the
 //! obvious one: on a fresh database there are no rows to backfill, so a
@@ -75,6 +78,8 @@ mod m20261030_000001_dialect_rule_operations;
 mod m20261102_000001_usage_response_model;
 mod m20261106_000001_provider_timeouts;
 mod m20261114_000001_rate_limit_scope;
+mod m20261122_000001_mcp_scopes;
+mod m20261122_000002_drop_store_cache;
 
 /// Every migration this build carries, oldest first.
 ///
@@ -98,6 +103,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20261102_000001_usage_response_model::Migration),
             Box::new(m20261106_000001_provider_timeouts::Migration),
             Box::new(m20261114_000001_rate_limit_scope::Migration),
+            Box::new(m20261122_000001_mcp_scopes::Migration),
+            Box::new(m20261122_000002_drop_store_cache::Migration),
         ]
     }
 }
@@ -105,7 +112,7 @@ impl MigratorTrait for Migrator {
 /// What this build found in the database it was pointed at.
 ///
 /// Read from the table census alone, which is the cheapest fact that is also
-/// portable to every backend the adapter reaches, D1 included. Nothing here
+/// portable to every backend the adapter reaches, libSQL included. Nothing here
 /// inspects a column: this answers *whose* database this is, not whether it is
 /// up to date — that second question is the ledger's, and only a database that
 /// gets past this gate has a ledger worth reading.

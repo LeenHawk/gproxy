@@ -1,11 +1,8 @@
 #![cfg(feature = "custom")]
 
-use gproxy_channel::{
-    BaseChannel, ChannelError,
-    channel::{CredentialView, PrepareContext, ProviderView},
-    channels::custom::Custom,
-};
+use gproxy_channel::{BaseChannel, channel::PrepareContext, channels::custom::Custom};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError};
 use http::{HeaderMap, HeaderValue, Method};
 use serde_json::{Value, json};
 
@@ -55,7 +52,7 @@ fn prepare<'a>(
     dialect: Dialect,
     request: WireRequest<HttpBody>,
     endpoint_override: Option<&'a str>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     Custom.prepare(PrepareContext {
         provider: provider(config, base_url),
         credential: credential(secret),
@@ -166,7 +163,7 @@ fn config_overrides_auth_and_adds_headers_and_declares_dialects() {
             request("/x", None),
             None
         ),
-        Err(ChannelError::InvalidConfig(_))
+        Err(UpstreamError::InvalidConfig(_))
     ));
     assert!(matches!(
         prepare(
@@ -177,7 +174,7 @@ fn config_overrides_auth_and_adds_headers_and_declares_dialects() {
             request("/x", None),
             None
         ),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
     let ws = Custom
         .prepare_connect(PrepareContext {
@@ -255,7 +252,7 @@ fn allowed_headers_restricts_forwarding_to_the_named_set() {
             request("/v1/messages", None),
             None
         ),
-        Err(ChannelError::InvalidConfig(_))
+        Err(UpstreamError::InvalidConfig(_))
     ));
 }
 

@@ -3,11 +3,12 @@
 mod stream;
 
 use super::native::NativeCall;
-use gproxy_channel::{ChannelError, channel::ClaudeFallback};
+use gproxy_channel::channel::ClaudeFallback;
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, WireRequest, WireResponse, codec::read_http_body,
     connection::Bytes,
 };
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
@@ -44,7 +45,10 @@ struct Plan {
 }
 
 impl Policy {
-    fn read(call: &NativeCall, wire: &WireRequest<HttpBody>) -> Result<Option<Self>, ChannelError> {
+    fn read(
+        call: &NativeCall,
+        wire: &WireRequest<HttpBody>,
+    ) -> Result<Option<Self>, UpstreamError> {
         if call.operation.dialect != Dialect::Claude
             || !matches!(
                 call.operation.operation,
@@ -54,7 +58,10 @@ impl Policy {
             return Ok(None);
         }
         let provider = &call.attempt.request.target.provider;
-        let Some(capability) = provider.channel.claude_fallback() else {
+        let Some(channel) = provider.channel() else {
+            return Ok(None);
+        };
+        let Some(capability) = channel.claude_fallback() else {
             return Ok(None);
         };
         let HttpBody::Bytes(bytes) = &wire.body else {
@@ -108,7 +115,7 @@ impl Policy {
                 if model.is_empty() {
                     continue;
                 }
-                let model = provider.channel.fallback_model(primary, model);
+                let model = channel.fallback_model(primary, model);
                 if model == primary || candidates.iter().any(|v| v["model"] == model) {
                     continue;
                 }
@@ -128,9 +135,7 @@ impl Policy {
         }
         let default = setting == "default" || candidates.is_empty();
         if candidates.is_empty() {
-            let model = provider
-                .channel
-                .fallback_model(primary, capability.recommended_model);
+            let model = channel.fallback_model(primary, capability.recommended_model);
             if model != primary {
                 candidates.push(json!({"model":model}));
             }
@@ -150,7 +155,7 @@ impl Policy {
         if refused["stop_reason"] != "refusal" || self.sent >= MAX_SENDS || self.tried.len() >= 4 {
             return None;
         }
-        let channel = &call.attempt.request.target.provider.channel;
+        let channel = call.attempt.request.target.provider.channel()?;
         let mut entry = None;
         if let Some(model) = refused
             .pointer("/stop_details/recommended_model")
@@ -242,8 +247,8 @@ impl Policy {
     }
 }
 
-fn invalid(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(message.into())
+fn invalid(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(message.into())
 }
 
 fn replay(template: &WireRequest<Bytes>, body: &Value) -> WireRequest<HttpBody> {
@@ -258,7 +263,7 @@ fn replay(template: &WireRequest<Bytes>, body: &Value) -> WireRequest<HttpBody> 
     }
 }
 
-async fn collect(call: &NativeCall, body: HttpBody) -> Result<Bytes, ChannelError> {
+async fn collect(call: &NativeCall, body: HttpBody) -> Result<Bytes, UpstreamError> {
     let request = &call.attempt.request;
     let timeout = request
         .deadline
@@ -284,7 +289,7 @@ async fn send_plan(
     policy: &mut Policy,
     plan: &mut Plan,
     emitted: bool,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let mut temporary_retries = 0;
     loop {
         policy.sent += 1;
@@ -337,7 +342,7 @@ async fn send_plan(
 pub(super) async fn run(
     call: NativeCall,
     wire: WireRequest<HttpBody>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let Some(mut policy) = Policy::read(&call, &wire)? else {
         return call.send_once(wire).await;
     };

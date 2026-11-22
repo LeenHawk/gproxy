@@ -8,13 +8,11 @@ use super::{
     image_processing,
     request::{bad, configured_headers},
 };
+use crate::OutboundClient;
 use crate::channels::shared::compatible::http::read_body;
-use crate::{
-    OutboundClient,
-    channel::{ChannelError, ChannelState, CredentialView, ProviderView},
-};
 use base64::Engine as _;
 use gproxy_protocol::{HttpBody, capability::StateWrite};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError, UpstreamState};
 use http::{HeaderValue, Method, header};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -35,7 +33,7 @@ pub(super) fn content(
     value: &Value,
     target: &str,
     uploads: &mut Vec<Upload>,
-) -> Result<(String, Vec<Value>), ChannelError> {
+) -> Result<(String, Vec<Value>), UpstreamError> {
     if let Some(text) = value.as_str() {
         return Ok((text.into(), vec![]));
     }
@@ -115,8 +113,8 @@ pub(super) async fn upload_all(
     provider: ProviderView<'_>,
     credential: CredentialView<'_>,
     client: &dyn OutboundClient,
-    state: &dyn ChannelState,
-) -> Result<(), ChannelError> {
+    state: &dyn UpstreamState,
+) -> Result<(), UpstreamError> {
     let config = OrcaTermConfig::from_view(provider)?;
     for upload in uploads {
         let mut hash = Sha256::new();
@@ -173,7 +171,7 @@ pub(super) async fn upload_all(
         let response = client.send(request).await?;
         let bytes = read_body(response.body).await?;
         if !response.status.is_success() {
-            return Err(ChannelError::UpstreamResponse {
+            return Err(UpstreamError::UpstreamResponse {
                 status: response.status,
                 body: bytes,
             });

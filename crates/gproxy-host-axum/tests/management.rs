@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The two management surfaces through the router: `/admin/api` and
 //! `/portal/api`.
 //!

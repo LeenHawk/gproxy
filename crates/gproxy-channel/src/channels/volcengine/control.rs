@@ -4,11 +4,11 @@
 //! volcenginesdkcore/signv4.py (HMAC-SHA256, no AWS4 secret prefix).
 
 use super::Config;
-use crate::channel::{ChannelError, CredentialContext};
 use crate::channels::shared::compatible::{
     ability::{require_success, send},
     http::invalid_response,
 };
+use gproxy_upstream::{CredentialContext, UpstreamError};
 use hmac::{Hmac, KeyInit as _, Mac as _};
 use http::{HeaderMap, HeaderValue, Method};
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
@@ -26,7 +26,7 @@ pub(super) async fn call(
     action: &str,
     body: Value,
     endpoint: Option<&str>,
-) -> Result<Value, ChannelError> {
+) -> Result<Value, UpstreamError> {
     let config = Config::read(ctx.provider)?;
     let url = endpoint.map(str::to_owned).unwrap_or_else(|| {
         format!(
@@ -37,10 +37,10 @@ pub(super) async fn call(
     let body = body.to_string();
     let seconds = web_time::SystemTime::now()
         .duration_since(web_time::UNIX_EPOCH)
-        .map_err(|e| ChannelError::InvalidConfig(e.to_string()))?
+        .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?
         .as_secs();
     let date = time::OffsetDateTime::from_unix_timestamp(seconds as i64)
-        .map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+        .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
     let timestamp = format!(
         "{:04}{:02}{:02}T{:02}{:02}{:02}Z",
         date.year(),
@@ -74,9 +74,9 @@ pub(super) async fn call(
         .ok_or_else(|| invalid_response("Ark control reply missing Result"))
 }
 
-fn hmac(key: &[u8], message: &[u8]) -> Result<Vec<u8>, ChannelError> {
+fn hmac(key: &[u8], message: &[u8]) -> Result<Vec<u8>, UpstreamError> {
     let mut mac =
-        Hmac::<Sha256>::new_from_slice(key).map_err(|_| ChannelError::InvalidCredential)?;
+        Hmac::<Sha256>::new_from_slice(key).map_err(|_| UpstreamError::InvalidCredential)?;
     mac.update(message);
     Ok(mac.finalize().into_bytes().to_vec())
 }
@@ -94,24 +94,24 @@ fn sign(
     body: &[u8],
     secret: &Value,
     timestamp: &str,
-) -> Result<HeaderMap, ChannelError> {
+) -> Result<HeaderMap, UpstreamError> {
     let key = |name| {
         secret
             .get(name)
             .and_then(Value::as_str)
             .filter(|s| !s.trim().is_empty())
             .ok_or_else(|| {
-                ChannelError::InvalidConfig(format!(
+                UpstreamError::InvalidConfig(format!(
                     "Ark control APIs require credential secret.{name}"
                 ))
             })
     };
     let ak = key("access_key_id")?;
     let sk = key("secret_access_key")?;
-    let url = url::Url::parse(url).map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+    let url = url::Url::parse(url).map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
     let host = url
         .host_str()
-        .ok_or_else(|| ChannelError::InvalidConfig("Ark control URL has no host".into()))?;
+        .ok_or_else(|| UpstreamError::InvalidConfig("Ark control URL has no host".into()))?;
     let host = match url.port() {
         Some(port) => format!("{host}:{port}"),
         None => host.into(),
@@ -170,7 +170,7 @@ fn sign(
         .map(|(name, value)| {
             Ok((
                 http::HeaderName::from_static(name),
-                HeaderValue::from_str(&value).map_err(|_| ChannelError::InvalidCredential)?,
+                HeaderValue::from_str(&value).map_err(|_| UpstreamError::InvalidCredential)?,
             ))
         })
         .collect()

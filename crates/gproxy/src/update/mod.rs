@@ -35,10 +35,8 @@
 //!
 //! # Where it is not
 //!
-//! Not in `gproxy-host-axum`. That crate compiles for
-//! `wasm32-unknown-unknown` as well, because the Workers host mounts its
-//! router, and a module that downloads files and renames one over
-//! `/proc/self/exe` cannot go there. The host declares a trait
+//! Not in `gproxy-host-axum`: a module that downloads files and renames one
+//! over `/proc/self/exe` does not belong in a router. The host declares a trait
 //! ([`gproxy_host_axum::UpdateService`]); this module implements it; the
 //! routes exist only in a process that supplied one.
 //!

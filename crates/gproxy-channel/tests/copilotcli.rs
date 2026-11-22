@@ -4,13 +4,14 @@
 //! names its origin, the CLI identity the backend expects, and the seat's
 //! metered features.
 
-use gproxy_channel::channel::{
-    CredentialContext, CredentialRefresh, DevicePoll, LoginContext, OAuthDeviceCode,
-    PrepareContext, QuotaQuery, QuotaScope, QuotaValue,
-};
+use gproxy_channel::BaseChannel;
+use gproxy_channel::channel::{PrepareContext, QuotaQuery, QuotaScope, QuotaValue};
 use gproxy_channel::channels::copilotcli::{CopilotCli, QUOTA_SOURCE};
-use gproxy_channel::{BaseChannel, ChannelError, LoginMode};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
+use gproxy_upstream::{
+    CredentialContext, CredentialRefresh, DevicePoll, LoginContext, LoginMode, OAuthDeviceCode,
+    UpstreamError, UpstreamKind,
+};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::{Value, json};
 
@@ -30,7 +31,7 @@ fn prepare(
     metadata: &Value,
     operation: Operation,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     CopilotCli.prepare(PrepareContext {
         provider: provider("copilotcli", config, base_url),
         credential: credential("oauth", secret, metadata),
@@ -112,7 +113,7 @@ async fn a_credential_from_the_old_app_must_sign_in_again() {
                 Operation::GenerateContent,
                 request("/v1/chat/completions", None)
             ),
-            Err(ChannelError::InvalidCredential)
+            Err(UpstreamError::InvalidCredential)
         ));
         assert!(CopilotCli.validate_credential_secret(&old).is_err());
         let refresh = CopilotCli.credential_refresh().unwrap();
@@ -131,7 +132,7 @@ async fn a_credential_from_the_old_app_must_sign_in_again() {
             })
             .await;
         assert!(
-            matches!(&outcome, Err(ChannelError::RefreshRejected(reason)) if reason.contains("re-login")),
+            matches!(&outcome, Err(UpstreamError::RefreshRejected(reason)) if reason.contains("re-login")),
             "refused without asking GitHub"
         );
     }
@@ -473,7 +474,7 @@ async fn the_probe_is_the_refresh_and_a_revoked_token_is_definitive() {
         )
         .await;
         assert!(
-            matches!(outcome, Err(ChannelError::RefreshRejected(_))),
+            matches!(outcome, Err(UpstreamError::RefreshRejected(_))),
             "{status}"
         );
     }
@@ -488,7 +489,7 @@ async fn the_probe_is_the_refresh_and_a_revoked_token_is_definitive() {
     assert!(
         matches!(
             CredentialRefresh::refresh(&CopilotCli, context(&transient)).await,
-            Err(ChannelError::UpstreamResponse { .. })
+            Err(UpstreamError::UpstreamResponse { .. })
         ),
         "a gateway failure is not a dead credential"
     );
@@ -532,7 +533,7 @@ async fn a_credential_with_no_github_token_cannot_be_refreshed() {
             }
         )
         .await,
-        Err(ChannelError::RefreshRejected(_))
+        Err(UpstreamError::RefreshRejected(_))
     ));
 }
 

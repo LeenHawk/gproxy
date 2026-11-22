@@ -53,6 +53,8 @@ pub struct IdentityData {
     pub teams: Vec<entity::identity::team::Model>,
     pub team_members: Vec<entity::identity::team_member::Model>,
     pub permissions: Vec<entity::identity::permission::Model>,
+    pub mcp_scopes: Vec<entity::identity::mcp_scope::Model>,
+    pub mcp_tool_natures: Vec<entity::upstream::mcp_tool_nature::Model>,
     pub rate_limits: Vec<entity::limits::rate_limit::Model>,
     pub oauth_clients: Vec<entity::oauth::client::Model>,
 }
@@ -161,6 +163,8 @@ fn identity_queries(backend: DbBackend) -> Result<Vec<BatchQuery>> {
         ordered::<entity::identity::team::Entity>().batch_query(backend)?,
         ordered::<entity::identity::team_member::Entity>().batch_query(backend)?,
         ordered::<entity::identity::permission::Entity>().batch_query(backend)?,
+        ordered::<entity::identity::mcp_scope::Entity>().batch_query(backend)?,
+        ordered::<entity::upstream::mcp_tool_nature::Entity>().batch_query(backend)?,
         ordered::<entity::limits::rate_limit::Entity>().batch_query(backend)?,
         ordered::<entity::oauth::client::Entity>().batch_query(backend)?,
     ])
@@ -175,6 +179,8 @@ fn identity_data(sets: &mut Sets) -> Result<IdentityData> {
         teams: take(sets)?,
         team_members: take(sets)?,
         permissions: take(sets)?,
+        mcp_scopes: take(sets)?,
+        mcp_tool_natures: take(sets)?,
         rate_limits: take(sets)?,
         oauth_clients: take(sets)?,
     })

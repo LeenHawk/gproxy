@@ -57,6 +57,7 @@ export const IDENTITY_FAMILIES = [
   "organizations",
   "teams",
   "permissions",
+  "mcp-scopes",
   "rate-limits",
   "oauth-clients",
   "sessions",

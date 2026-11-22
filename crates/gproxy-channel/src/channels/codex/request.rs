@@ -7,10 +7,9 @@ use super::{
     CLI_HEADERS, Codex, CodexConfig, ID, default_connection, identity, models, realtime, shape, sse,
 };
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelServices,
-    ChannelState, ConfigKey, ConfigKeyKind, CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist,
-    LoginMode, OAuthAuthorizationCode, OAuthDeviceCode, OperationContext, OperationFuture,
-    PrepareContext, ProviderView, QuotaHeaders, QuotaModel, QuotaQuery, QuotaReset,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelServices, HOST_CONFIG_KEYS,
+    HeaderAllowlist, OperationContext, PrepareContext, QuotaHeaders, QuotaModel, QuotaQuery,
+    QuotaReset,
 };
 use crate::channels::shared::cache;
 use crate::channels::shared::services_common::unix_now_ms;
@@ -22,13 +21,17 @@ use gproxy_protocol::capability::{
 };
 use gproxy_protocol::connection::{Bytes, TransportError, WebSocket};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, LoginMode, OAuthAuthorizationCode,
+    OAuthDeviceCode, ProviderView, UpstreamError, UpstreamFuture, UpstreamKind, UpstreamState,
+};
 use http::{HeaderMap, HeaderName, HeaderValue, header};
 
 const RESPONSES_WS_BETA: &str = "responses_websockets=2026-02-06";
 
 /// The backend path for an operation; the client's native path is not
 /// trusted because the Codex backend mounts Responses under its own prefix.
-fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
+fn operation_path(operation: Operation) -> Result<&'static str, UpstreamError> {
     Ok(match operation {
         Operation::GenerateContent | Operation::StreamGenerateContent => "/responses",
         Operation::CompactContent => "/responses/compact",
@@ -38,7 +41,7 @@ fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
         Operation::CreateRealtimeCall => "/realtime/calls",
         Operation::WebSearch => "/alpha/search",
         other => {
-            return Err(ChannelError::UnsupportedOperation(
+            return Err(UpstreamError::UnsupportedOperation(
                 gproxy_protocol::OperationKey {
                     operation: other,
                     dialect: Dialect::OpenAi,
@@ -88,7 +91,7 @@ struct Remembered {
 }
 
 impl Codex {
-    async fn installation_id(&self, state: &dyn ChannelState, account: &Account<'_>) -> String {
+    async fn installation_id(&self, state: &dyn UpstreamState, account: &Account<'_>) -> String {
         let entry = state.get(identity::INSTALLATION_KEY).await.ok().flatten();
         let persisted = entry
             .as_ref()
@@ -124,7 +127,7 @@ impl Codex {
     /// gets a fresh window 0 and no turn state every call.
     async fn identity(
         &self,
-        state: &dyn ChannelState,
+        state: &dyn UpstreamState,
         account: &Account<'_>,
         headers: &HeaderMap,
         body: Option<&[u8]>,
@@ -190,7 +193,7 @@ impl Codex {
     /// one replay.
     async fn remember(
         &self,
-        state: &dyn ChannelState,
+        state: &dyn UpstreamState,
         identity: &Identity,
         remembered: Remembered,
         response: &HeaderMap,
@@ -231,7 +234,7 @@ impl Codex {
         &self,
         operation: Operation,
         ctx: OperationContext<'_>,
-    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    ) -> Result<WireResponse<HttpBody>, UpstreamError> {
         let config = CodexConfig::from_view(ctx.provider)?;
         let OperationContext {
             provider,
@@ -251,7 +254,7 @@ impl Codex {
                 let mut bytes = Vec::new();
                 while let Some(chunk) = stream.next().await {
                     bytes.extend_from_slice(&chunk.map_err(|error| {
-                        ChannelError::Transport(CapabilityError::with_source(
+                        UpstreamError::Transport(CapabilityError::with_source(
                             CapabilityErrorKind::Transport,
                             CapabilityErrorStage::BodyTransfer,
                             "Codex request body read failed",
@@ -338,7 +341,7 @@ impl Codex {
         &self,
         operation: Operation,
         ctx: OperationContext<'_, ()>,
-    ) -> Result<UpstreamConnection, ChannelError> {
+    ) -> Result<UpstreamConnection, UpstreamError> {
         let config = CodexConfig::from_view(ctx.provider)?;
         let OperationContext {
             provider,
@@ -420,7 +423,7 @@ impl Codex {
         ctx: PrepareContext<'_>,
         identity: Option<&Identity>,
         installation_id: Option<&str>,
-    ) -> Result<(http::Request<HttpBody>, Option<shape::tools::Aliases>), ChannelError> {
+    ) -> Result<(http::Request<HttpBody>, Option<shape::tools::Aliases>), UpstreamError> {
         let mut ctx = ctx;
         if ctx.operation.operation == Operation::CreateRealtimeCall {
             realtime::prepare_buffered(&mut ctx)?;
@@ -490,7 +493,7 @@ impl Codex {
         websocket: bool,
         identity: Option<&Identity>,
         installation_id: Option<&str>,
-    ) -> Result<(http::request::Builder, WireRequest<B>), ChannelError> {
+    ) -> Result<(http::request::Builder, WireRequest<B>), UpstreamError> {
         let config = CodexConfig::from_view(ctx.provider)?;
         let account = account(&ctx.credential)?;
         let mut request = ctx.request;
@@ -561,11 +564,29 @@ impl Codex {
     }
 }
 
-impl BaseChannel for Codex {
+impl UpstreamKind for Codex {
     fn id(&self) -> &'static str {
         ID
     }
 
+    fn default_connection(&self) -> Option<ConnectionConfig> {
+        Some(default_connection())
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+
+    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
+        Some(self)
+    }
+
+    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for Codex {
     /// A ChatGPT account: both OAuth flows, a refreshable token, account
     /// limits at `/wham/usage`, the CLI's own backend endpoints, and Responses
     /// over a WebSocket as well as HTTP.
@@ -621,10 +642,6 @@ impl BaseChannel for Codex {
         }
     }
 
-    fn default_connection(&self) -> Option<ConnectionConfig> {
-        Some(default_connection())
-    }
-
     fn default_conversion_target(
         &self,
         _provider: ProviderView<'_>,
@@ -665,7 +682,7 @@ impl BaseChannel for Codex {
     /// Plain preparation replaces device identity without reading state;
     /// the asynchronous Responses operations also buffer streamed JSON. The
     /// Responses operations below read and write channel state around it.
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         if matches!(
             ctx.operation.operation,
             Operation::ListModels | Operation::GetModel
@@ -679,7 +696,7 @@ impl BaseChannel for Codex {
     fn prepare_connect(
         &self,
         ctx: PrepareContext<'_, ()>,
-    ) -> Result<http::Request<()>, ChannelError> {
+    ) -> Result<http::Request<()>, UpstreamError> {
         if ctx.operation.operation == Operation::ConnectRealtime {
             return realtime::prepare_connect(ctx);
         }
@@ -692,67 +709,58 @@ impl BaseChannel for Codex {
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::invoke(Operation::ListModels, context))
     }
     fn get_model<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::invoke(Operation::GetModel, context))
     }
 
     fn generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.responses_http(Operation::GenerateContent, context))
     }
 
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.responses_http(Operation::StreamGenerateContent, context))
     }
 
     fn compact_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.responses_http(Operation::CompactContent, context))
     }
 
     fn generate_content_websocket<'a>(
         &'a self,
         context: OperationContext<'a, ()>,
-    ) -> OperationFuture<'a, UpstreamConnection> {
+    ) -> UpstreamFuture<'a, UpstreamConnection> {
         Box::pin(self.responses_websocket(Operation::GenerateContent, context))
     }
 
     fn stream_generate_content_websocket<'a>(
         &'a self,
         context: OperationContext<'a, ()>,
-    ) -> OperationFuture<'a, UpstreamConnection> {
+    ) -> UpstreamFuture<'a, UpstreamConnection> {
         Box::pin(self.responses_websocket(Operation::StreamGenerateContent, context))
     }
 
     fn create_realtime_call<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(realtime::create_call(self, context))
     }
 
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
-    }
-    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
-        Some(self)
-    }
-    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        Some(self)
-    }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }

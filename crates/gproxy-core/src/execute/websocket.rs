@@ -90,6 +90,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     let snapshot = request.snapshot.clone();
     let limits = request.execution_limits();
     let provider = request.target.provider.clone();
+    let channel = provider.model_channel()?.clone();
     let operation = request.operation;
     let upstream_model = request.target.upstream_model.clone();
 
@@ -280,14 +281,14 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
             funnel.clone(),
             attempt.clone(),
             operation,
-            provider.channel.clone(),
+            channel.clone(),
             response_rules.body.clone(),
             limits.capability(None),
             now,
         );
         let observed = ObservedClient::new(credential.websocket_client.clone(), exchange.clone());
-        let channel_state: Arc<dyn gproxy_channel::channel::ChannelState> =
-            Arc::new(crate::ChannelStateStore::new(
+        let channel_state: Arc<dyn gproxy_upstream::UpstreamState> =
+            Arc::new(crate::ScopedState::channel(
                 crate::ProtocolState::new(core, limits.capability(None)),
                 &provider.entity.id,
                 &credential.id,
@@ -298,7 +299,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
             upstream_model.as_deref(),
         );
         let binding = ChannelBinding::new(
-            provider.channel.as_ref(),
+            channel.as_ref(),
             prepare::provider_view(&provider),
             prepare::credential_view(&credential, &version),
             Arc::new(observed),
@@ -340,7 +341,8 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                 return Err(CoreError::Cancelled);
             }
             Some(Err(error)) => {
-                let client_fault = matches!(error, gproxy_channel::ChannelError::InvalidConfig(_));
+                let client_fault =
+                    matches!(error, gproxy_upstream::UpstreamError::InvalidConfig(_));
                 let outcome = AttemptOutcome::Failed(error);
                 funnel.trace(TraceEvent::AttemptFinished {
                     attempt: &attempt,

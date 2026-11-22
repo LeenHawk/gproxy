@@ -10,9 +10,9 @@
 
 use serde_json::Value;
 
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
-pub(super) fn rewrite(body: &[u8], single: bool) -> Result<Vec<u8>, ChannelError> {
+pub(super) fn rewrite(body: &[u8], single: bool) -> Result<Vec<u8>, UpstreamError> {
     let mut value: Value = serde_json::from_slice(body)
         .map_err(|error| invalid(format!("model response JSON: {error}")))?;
     if single {
@@ -56,7 +56,7 @@ fn active_text(value: &Value) -> bool {
     active && text
 }
 
-fn model(value: Value) -> Result<Value, ChannelError> {
+fn model(value: Value) -> Result<Value, UpstreamError> {
     let Value::Object(mut model) = value else {
         return Err(invalid("a model summary is not an object"));
     };
@@ -79,10 +79,10 @@ fn model(value: Value) -> Result<Value, ChannelError> {
     Ok(Value::Object(model))
 }
 
-fn encode(value: &Value) -> Result<Vec<u8>, ChannelError> {
+fn encode(value: &Value) -> Result<Vec<u8>, UpstreamError> {
     serde_json::to_vec(value).map_err(|error| invalid(error.to_string()))
 }
 
-fn invalid(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(format!("AWS Bedrock: {}", message.into()))
+fn invalid(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("AWS Bedrock: {}", message.into()))
 }

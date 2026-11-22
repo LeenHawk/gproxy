@@ -36,6 +36,7 @@ mod api_keys;
 mod audit;
 mod common;
 mod credential_management;
+mod mcp;
 mod members;
 mod oauth;
 mod oauth_clients;
@@ -49,7 +50,7 @@ mod users;
 
 /// The `ts-rs` declarations, and the check that the export list still covers
 /// every `pub use` below. Tests only, and only where a filesystem exists.
-#[cfg(all(test, feature = "ts", not(target_arch = "wasm32")))]
+#[cfg(all(test, feature = "ts"))]
 mod export;
 
 pub use admin_context::{AdminContextDto, AdminContextUserDto, AdminScopeDto, AdminSectionDto};
@@ -59,6 +60,10 @@ pub use api_keys::{
 pub use audit::{AuditEventDto, AuditQuery};
 pub use common::{BatchItem, BatchPatch, ListQuery, Page, double_option};
 pub use credential_management::{CredentialOwnerOptionDto, CredentialProviderDto};
+pub use mcp::{
+    McpScopeDto, McpScopePatch, McpScopeWrite, McpToolDto, McpToolNatureDto, McpToolNaturePatch,
+    McpToolNatureWrite,
+};
 pub use members::{MemberPatch, MemberWrite, MembershipDto, OrganizationMemberDto, TeamMemberDto};
 pub use oauth::{
     AuthorizationDenied, AuthorizationIssued, AuthorizationServerMetadata, AuthorizeDetails,

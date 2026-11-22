@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The control/routing/identity split and the single-batch `load_all_data`.
 
 use gproxy_store::{

@@ -2,14 +2,9 @@
 //!
 //! This type does not read files, the environment or the filesystem, and it
 //! never opens anything. The binary layers `clap` → env → `.env` → a TOML file
-//! → these defaults into one `AppConfig` and then constructs backends from it;
-//! the edge host deserializes the same shape out of its Worker bindings. That
-//! is why everything here is `Deserialize + Serialize` with a default for every
-//! field: the two hosts must agree on one configuration vocabulary, and a
-//! config file may set only what it wants to change.
-//!
-//! Paths are kept as strings rather than `PathBuf` so the type stays usable on
-//! `wasm32`, where there is no filesystem to resolve them against.
+//! → these defaults into one `AppConfig` and then constructs backends from it.
+//! Everything here is `Deserialize + Serialize` with a default for every
+//! field, so a config file may set only what it wants to change.
 
 use crate::AppError;
 use base64::Engine;
@@ -23,8 +18,7 @@ const THIRTY_DAYS_SECS: u64 = 30 * 24 * 3600;
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct AppConfig {
-    /// Listen address of a native host. Ignored by the edge host, which is
-    /// given its socket by the runtime.
+    /// Listen address.
     pub host: String,
     pub port: u16,
     /// Root for instance state a backend resolves relative paths against: the
@@ -93,8 +87,6 @@ pub enum StoreBackendConfig {
     Sqlite { path: String },
     /// Any SeaORM connection string (`postgres://`, `mysql://`, `sqlite://`).
     Url { dsn: String },
-    /// A Cloudflare D1 binding name, resolved from the Worker environment.
-    D1 { binding: String },
     Libsql {
         url: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -112,7 +104,7 @@ impl Default for StoreBackendConfig {
 
 /// Shared TTL state, counters and invalidation notices. `Memory` is per
 /// process: correct for a single instance, and silently wrong for several,
-/// which is why a multi-instance deployment must name `Redis` or `Store`.
+/// which is why a multi-instance deployment must name `Redis`.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -124,8 +116,6 @@ pub enum CacheBackendConfig {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         namespace: Option<String>,
     },
-    /// The database itself as the cache, for edge deployments with no Redis.
-    Store,
 }
 
 /// The key that seals upstream credential secrets at rest, and the rotation
@@ -387,16 +377,22 @@ mod tests {
     #[test]
     fn backends_deserialize_from_their_tag() {
         let config: AppConfig = serde_json::from_str(
-            r#"{"store": {"kind": "d1", "binding": "DB"}, "cache": {"kind": "store"}}"#,
+            r#"{"store": {"kind": "url", "dsn": "postgres://db/gproxy"}, "cache": {"kind": "redis", "url": "redis://cache"}}"#,
         )
         .unwrap();
         assert_eq!(
             config.store,
-            StoreBackendConfig::D1 {
-                binding: "DB".into()
+            StoreBackendConfig::Url {
+                dsn: "postgres://db/gproxy".into()
             }
         );
-        assert_eq!(config.cache, CacheBackendConfig::Store);
+        assert_eq!(
+            config.cache,
+            CacheBackendConfig::Redis {
+                url: "redis://cache".into(),
+                namespace: None
+            }
+        );
     }
 
     #[test]

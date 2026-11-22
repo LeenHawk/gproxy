@@ -1,25 +1,26 @@
 use super::{DEFAULT_BASE_URL, MiniMax, MiniMaxConfig, video};
-use crate::channel::{BaseChannel, ChannelError, HeaderAllowlist, PrepareContext, forwardable};
+use crate::channel::{BaseChannel, HeaderAllowlist, PrepareContext, forwardable};
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{Dialect, HttpBody, Operation};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderValue, header};
 
-pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
     if !MiniMax
         .native_dialects(ctx.provider, ctx.operation.operation)
         .contains(&ctx.operation.dialect)
     {
-        return Err(ChannelError::UnsupportedOperation(ctx.operation));
+        return Err(UpstreamError::UnsupportedOperation(ctx.operation));
     }
     let config: MiniMaxConfig = serde_json::from_value(ctx.provider.config.clone())
-        .map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+        .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
     let key = ctx
         .credential
         .secret
         .get("api_key")
         .and_then(serde_json::Value::as_str)
         .filter(|s| !s.trim().is_empty())
-        .ok_or(ChannelError::InvalidCredential)?;
+        .ok_or(UpstreamError::InvalidCredential)?;
     let mut request = ctx.request;
     let path = match ctx.operation.operation {
         Operation::ListModels | Operation::GetModel => request.path.clone(),
@@ -38,7 +39,7 @@ pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>
         Operation::DeleteVideo => {
             format!("/v2/video_generation/{}", video::task_id(&request.path)?)
         }
-        _ => return Err(ChannelError::UnsupportedOperation(ctx.operation)),
+        _ => return Err(UpstreamError::UnsupportedOperation(ctx.operation)),
     };
     let base = ctx
         .provider
@@ -66,7 +67,7 @@ pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>
                 .split('&')
                 .any(|part| matches!(part.split('=').next(), Some("after" | "order")))
         }) {
-            return Err(ChannelError::InvalidConfig(
+            return Err(UpstreamError::InvalidConfig(
                 "MiniMax lists videos with page_num/page_size; after/order are unsupported".into(),
             ));
         }
@@ -88,14 +89,14 @@ pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {key}"))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     for (name, value) in &config.headers {
         insert_configured(&mut headers, name, value)?;
     }
     if ctx.operation.operation == Operation::CreateVideo {
         let HttpBody::Bytes(body) = request.body else {
-            return Err(ChannelError::InvalidConfig(
+            return Err(UpstreamError::InvalidConfig(
                 "MiniMax video requests require buffered JSON".into(),
             ));
         };
@@ -110,5 +111,5 @@ pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>
     *builder.headers_mut().expect("fresh builder") = headers;
     builder
         .body(request.body)
-        .map_err(|e| ChannelError::InvalidConfig(e.to_string()))
+        .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))
 }

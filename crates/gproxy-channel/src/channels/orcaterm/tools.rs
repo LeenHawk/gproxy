@@ -5,8 +5,8 @@ use super::{
     config::{invalid, new_id, now_ms},
     request,
 };
-use crate::channel::{ChannelError, ChannelState};
 use gproxy_protocol::capability::{CasResult, StateWrite};
+use gproxy_upstream::{UpstreamError, UpstreamState};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -77,7 +77,7 @@ fn expires() -> SystemTime {
         + Duration::from_millis(now_ms().max(0) as u64)
         + Duration::from_secs(TTL)
 }
-fn text<'a>(value: &'a Value, name: &str) -> Result<&'a str, ChannelError> {
+fn text<'a>(value: &'a Value, name: &str) -> Result<&'a str, UpstreamError> {
     value[name]
         .as_str()
         .ok_or_else(|| invalid(format!("native tool has no {name}")))
@@ -87,7 +87,7 @@ fn quote(path: &str) -> String {
 }
 
 impl Tools {
-    pub fn from_request(input: &Value) -> Result<Self, ChannelError> {
+    pub fn from_request(input: &Value) -> Result<Self, UpstreamError> {
         let mut out = Self {
             cwd: working_directory(input),
             ..Default::default()
@@ -253,11 +253,11 @@ impl Tools {
 
     pub async fn prepare(
         &mut self,
-        state: &dyn ChannelState,
+        state: &dyn UpstreamState,
         body: &mut Value,
         result: Option<(String, String)>,
         origin: String,
-    ) -> Result<(), ChannelError> {
+    ) -> Result<(), UpstreamError> {
         if let Some((call_id, result)) = result {
             let entry = state.get(&key(&call_id)).await?.ok_or_else(|| {
                 request::bad("tool continuation expired or belongs to another credential")
@@ -305,7 +305,11 @@ impl Tools {
         Ok(())
     }
 
-    pub fn review(&self, tool: &Value, message_id: &str) -> Result<(Value, Pending), ChannelError> {
+    pub fn review(
+        &self,
+        tool: &Value,
+        message_id: &str,
+    ) -> Result<(Value, Pending), UpstreamError> {
         let name = text(tool, "name")?;
         let binding = self.bindings.get(name).ok_or_else(|| {
             invalid(format!(
@@ -356,7 +360,7 @@ impl Tools {
         binding: &Binding,
         name: &str,
         args: &Value,
-    ) -> Result<Value, ChannelError> {
+    ) -> Result<Value, UpstreamError> {
         let path = || self.path(args);
         let mut out = match &binding.kind {
             Kind::Shell { command, cwd } => {
@@ -451,7 +455,7 @@ impl Tools {
         Ok(out)
     }
 
-    fn path(&self, args: &Value) -> Result<String, ChannelError> {
+    fn path(&self, args: &Value) -> Result<String, UpstreamError> {
         let path = text(args, "file_path")?;
         if path.starts_with('/') || path.as_bytes().get(1) == Some(&b':') {
             Ok(path.to_owned())
@@ -465,7 +469,7 @@ impl Tools {
 }
 
 impl Pending {
-    pub async fn save(&self, state: &dyn ChannelState, id: &str) -> Result<(), ChannelError> {
+    pub async fn save(&self, state: &dyn UpstreamState, id: &str) -> Result<(), UpstreamError> {
         let key = key(id);
         let write = StateWrite {
             payload: serde_json::to_vec(self)

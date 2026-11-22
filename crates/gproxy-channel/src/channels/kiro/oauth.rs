@@ -30,10 +30,11 @@
 use super::config::{DEFAULT_REDIRECT_URI, ID, KiroConfig, OAUTH_SCOPE, validate_region};
 use super::{fact, form_encode, json_headers, non_empty, send, unix_now_ms};
 use crate::OutboundClient;
-use crate::channel::{
-    AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, CredentialRefresh,
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, AuthorizationStart, CredentialRefresh,
     CredentialUpdate, CredentialView, DeviceAuthorization, DevicePoll, LoginContext,
-    OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
+    OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, RefreshContext, UpstreamError,
+    UpstreamFuture,
 };
 use http::{HeaderMap, Method, StatusCode};
 use serde::Deserialize;
@@ -62,11 +63,11 @@ const EXPIRY_MARGIN_MS: i64 = 60_000;
 /// What the upstream grants when it does not say.
 const DEFAULT_EXPIRES_IN_SECS: i64 = 3_600;
 
-fn invalid_response(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(format!("{ID}: {}", message.into()))
+fn invalid_response(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("{ID}: {}", message.into()))
 }
 
-fn oidc_base(region: &str) -> Result<String, ChannelError> {
+fn oidc_base(region: &str) -> Result<String, UpstreamError> {
     validate_region(region)?;
     Ok(format!("https://oidc.{region}.amazonaws.com"))
 }
@@ -80,7 +81,7 @@ fn expires_at_ms(seconds: Option<i64>) -> i64 {
     )
 }
 
-fn required(value: Option<String>, name: &str) -> Result<String, ChannelError> {
+fn required(value: Option<String>, name: &str) -> Result<String, UpstreamError> {
     value
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| invalid_response(format!("the reply has no {name}")))
@@ -185,7 +186,7 @@ struct Registration {
 }
 
 impl OAuthDeviceCode for super::Kiro {
-    fn start<'a>(&'a self, context: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
+    fn start<'a>(&'a self, context: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
             let config = KiroConfig::from_view(context.provider)?;
             let body = json!({"clientId": CLIENT_NAME, "loginProvider": config.login_provider()});
@@ -198,7 +199,7 @@ impl OAuthDeviceCode for super::Kiro {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });
@@ -240,7 +241,7 @@ impl OAuthDeviceCode for super::Kiro {
         &'a self,
         context: LoginContext<'a>,
         authorization: &'a DeviceAuthorization,
-    ) -> OperationFuture<'a, DevicePoll> {
+    ) -> UpstreamFuture<'a, DevicePoll> {
         Box::pin(async move {
             let config = KiroConfig::from_view(context.provider)?;
             // Written out because `json!` sorts its keys; kiro-cli sends
@@ -264,7 +265,7 @@ impl OAuthDeviceCode for super::Kiro {
                 return Ok(DevicePoll::Pending);
             }
             let Ok(reply) = serde_json::from_slice::<DevicePollReply>(&bytes) else {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });
@@ -308,7 +309,7 @@ impl OAuthAuthorizationCode for super::Kiro {
         &'a self,
         context: LoginContext<'a>,
         request: AuthorizationRequest<'a>,
-    ) -> OperationFuture<'a, AuthorizationStart> {
+    ) -> UpstreamFuture<'a, AuthorizationStart> {
         Box::pin(async move {
             let config = KiroConfig::from_view(context.provider)?;
             let region = config.region()?.to_owned();
@@ -320,7 +321,7 @@ impl OAuthAuthorizationCode for super::Kiro {
                 register_client(context.client, &region, redirect_uri, config.start_url())
                     .await?
                     .ok_or_else(|| {
-                        ChannelError::InvalidConfig(
+                        UpstreamError::InvalidConfig(
                             "AWS OIDC did not register a client for this login".into(),
                         )
                     })?;
@@ -352,12 +353,12 @@ impl OAuthAuthorizationCode for super::Kiro {
         &'a self,
         context: LoginContext<'a>,
         grant: AuthorizationCode<'a>,
-    ) -> OperationFuture<'a, OAuthCredential> {
+    ) -> UpstreamFuture<'a, OAuthCredential> {
         Box::pin(async move {
             let config = KiroConfig::from_view(context.provider)?;
             let (client_id, client_secret) =
                 state_client(grant.provider_state).ok_or_else(|| {
-                    ChannelError::InvalidConfig(
+                    UpstreamError::InvalidConfig(
                         "OAuth login state has no registered Identity Center client".into(),
                     )
                 })?;
@@ -379,7 +380,7 @@ impl OAuthAuthorizationCode for super::Kiro {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });
@@ -429,7 +430,7 @@ async fn register_client(
     region: &str,
     redirect_uri: &str,
     start_url: &str,
-) -> Result<Option<Registration>, ChannelError> {
+) -> Result<Option<Registration>, UpstreamError> {
     let body = json!({
         "clientName": REGISTRATION_CLIENT_NAME,
         "clientType": "public",
@@ -582,7 +583,7 @@ fn definitive(
 }
 
 impl CredentialRefresh for super::Kiro {
-    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let config = KiroConfig::from_view(context.provider)?;
             let secret = context.credential.secret;
@@ -592,7 +593,7 @@ impl CredentialRefresh for super::Kiro {
                 .map(str::trim)
                 .filter(|token| !token.is_empty())
                 .ok_or_else(|| {
-                    ChannelError::RefreshRejected("credential has no refresh token".into())
+                    UpstreamError::RefreshRejected("credential has no refresh token".into())
                 })?;
             let social = !is_identity_center(&context.credential);
             let (url, body) = if !social {
@@ -601,12 +602,12 @@ impl CredentialRefresh for super::Kiro {
                 if client_secret_expires_at_ms(&context.credential).is_some_and(|expires| {
                     expires <= unix_now_ms().saturating_add(EXPIRY_MARGIN_MS)
                 }) {
-                    return Err(ChannelError::RefreshRejected(
+                    return Err(UpstreamError::RefreshRejected(
                         "the registered Identity Center client has expired".into(),
                     ));
                 }
                 let (client_id, client_secret) =
-                    own_client(&context.credential).ok_or(ChannelError::InvalidCredential)?;
+                    own_client(&context.credential).ok_or(UpstreamError::InvalidCredential)?;
                 let region = fact(&context.credential, "region")
                     .map(str::to_owned)
                     .unwrap_or_else(|| config.region.clone());
@@ -635,9 +636,9 @@ impl CredentialRefresh for super::Kiro {
             .await?;
             if !status.is_success() {
                 if let Some(code) = definitive(social, status, &reply_headers, &bytes) {
-                    return Err(ChannelError::RefreshRejected(code));
+                    return Err(UpstreamError::RefreshRejected(code));
                 }
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });
@@ -651,7 +652,7 @@ impl CredentialRefresh for super::Kiro {
             let mut updated = secret.clone();
             let object = updated
                 .as_object_mut()
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             object.insert("access_token".into(), Value::String(access));
             if let Some(token) = reply.refresh_token.filter(|token| !token.trim().is_empty()) {
                 object.insert("refresh_token".into(), Value::String(token));

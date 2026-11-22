@@ -61,14 +61,16 @@ pub use quota::{TOP_UP_URL, USAGE_DIMENSION};
 pub use usage::{COST_TICKS_METRIC, UPSTREAM_COST_METRIC, UPSTREAM_PRICED_DIMENSION};
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
-    ConfigKeyKind, CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
-    OAuthDeviceCode, OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaQuery,
-    UsageExtras, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelHeaders, HOST_CONFIG_KEYS,
+    HeaderAllowlist, OperationContext, PrepareContext, QuotaQuery, UsageExtras, forwardable,
 };
 use crate::channels::shared::compatible::http::strip_query_auth;
 use config::base_url;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, LoginMode, OAuthDeviceCode, ProviderView,
+    UpstreamError, UpstreamFuture, UpstreamKind,
+};
 use serde_json::{Map, Value};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -196,7 +198,7 @@ fn operation_path(operation: Operation, surface: Surface, path: &str) -> String 
 /// `voice_id` and the container is `output_format.codec`; `model`,
 /// `instructions` and `stream_format` have no counterpart (v3
 /// `grokbuild/shape/media.rs`).
-fn speech(body: &[u8]) -> Result<gproxy_protocol::connection::Bytes, ChannelError> {
+fn speech(body: &[u8]) -> Result<gproxy_protocol::connection::Bytes, UpstreamError> {
     let mut object: Map<String, Value> = serde_json::from_slice(body)
         .map_err(|_| shape::invalid("a speech request must be a JSON object"))?;
     for name in ["model", "instructions", "stream_format"] {
@@ -224,29 +226,46 @@ fn speech(body: &[u8]) -> Result<gproxy_protocol::connection::Bytes, ChannelErro
     ))
 }
 
-impl BaseChannel for GrokBuild {
+impl UpstreamKind for GrokBuild {
     fn id(&self) -> &'static str {
         ID
     }
 
+    /// v3 sent no connection profile for Grok Build and there is no capture of
+    /// the CLI's ClientHello to reproduce, so the operator's own profile is
+    /// the only thing that decides the outbound stack.
+    fn default_connection(&self) -> Option<gproxy_client::ConnectionConfig> {
+        None
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+
+    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for GrokBuild {
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         models::list(self, context)
     }
 
     fn generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         models::generate(self, Operation::GenerateContent, context)
     }
 
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         models::generate(self, Operation::StreamGenerateContent, context)
     }
 
@@ -302,13 +321,6 @@ impl BaseChannel for GrokBuild {
         }
     }
 
-    /// v3 sent no connection profile for Grok Build and there is no capture of
-    /// the CLI's ClientHello to reproduce, so the operator's own profile is
-    /// the only thing that decides the outbound stack.
-    fn default_connection(&self) -> Option<gproxy_client::ConnectionConfig> {
-        None
-    }
-
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent | Operation::StreamGenerateContent => {
@@ -327,11 +339,11 @@ impl BaseChannel for GrokBuild {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = GrokBuildConfig::from_view(ctx.provider)?;
         let OperationKey { operation, dialect } = ctx.operation;
         if self.native_dialects(ctx.provider, operation).is_empty() {
-            return Err(ChannelError::UnsupportedOperation(ctx.operation));
+            return Err(UpstreamError::UnsupportedOperation(ctx.operation));
         }
         let surface = surface(operation, dialect);
         let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLI_HEADERS)?;
@@ -431,7 +443,7 @@ impl BaseChannel for GrokBuild {
             headers.insert(
                 http::header::USER_AGENT,
                 http::HeaderValue::from_str(&auth::user_agent(true))
-                    .map_err(|_| ChannelError::InvalidConfig("invalid CLI user agent".into()))?,
+                    .map_err(|_| UpstreamError::InvalidConfig("invalid CLI user agent".into()))?,
             );
         }
         if generation {
@@ -458,15 +470,9 @@ impl BaseChannel for GrokBuild {
         }
         builder
             .body(body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
-    }
-    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        Some(self)
-    }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }

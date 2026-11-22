@@ -13,10 +13,8 @@
 
 use gproxy_protocol::{HttpBody, WireRequest, WireResponse, capability::UpstreamConnection};
 use http::Method;
-use serde_json::Value;
 
-use super::{ChannelError, CredentialContext, OperationFuture};
-use gproxy_client::ClientBounds;
+use gproxy_upstream::{CredentialContext, ServiceCaller, UpstreamError, UpstreamFuture};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "schema", derive(serde::Serialize, schemars::JsonSchema))]
@@ -24,14 +22,6 @@ use gproxy_client::ClientBounds;
 pub enum ServiceTransport {
     Http,
     WebSocket,
-}
-
-/// Who the host says is calling. Core validates which views a role may use;
-/// channels only shape answers (an admin's roles line reads "admin").
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CallerRole {
-    Admin,
-    Member,
 }
 
 /// Which picture of the account a service call renders.
@@ -197,70 +187,6 @@ pub fn match_template<'p>(
     rest.is_empty().then_some(params)
 }
 
-/// The host's stable, opaque name for the caller (or, under the Pool view,
-/// for the provider). Channels derive vendor-shaped ids from it; they never
-/// see a user record.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CallerIdentity {
-    pub id: String,
-    pub display_name: Option<String>,
-}
-
-/// One usage window the host tracks, in the host's own key vocabulary
-/// (`primary`/`secondary`, `5h`/`7d`, a model family, ...).
-#[derive(Debug, Clone, PartialEq)]
-pub struct CallerUsageWindow {
-    pub key: String,
-    pub used_percent: Option<f64>,
-    pub period_start_ms: Option<i64>,
-    pub reset_at_ms: Option<i64>,
-}
-
-/// What the host attributed to the caller (or merged for the pool): lifetime
-/// tokens, settled cost as a decimal string, and the windows it meters.
-/// No windows means the host allots none; channels then omit window fields.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct CallerUsage {
-    pub input_tokens: u64,
-    pub output_tokens: u64,
-    pub cost: Option<String>,
-    pub windows: Vec<CallerUsageWindow>,
-}
-
-/// An upstream resource created through the gateway. `kind` is the
-/// channel's vocabulary (`codex:task`, `claude:file`, ...), `credential_id`
-/// the credential that created it (item routes forward with it), `summary`
-/// the public metadata the vendor returned at creation, enough to list.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResourceBindingRecord {
-    pub kind: String,
-    pub upstream_id: String,
-    pub credential_id: String,
-    pub summary: Value,
-}
-
-/// The host's facts behind a synthesized view. Under `Caller` they are the
-/// caller's own; under `Pool` the whole provider's. The channel cannot tell
-/// which beyond `role()`; it shapes what it is given. Failures are
-/// `ChannelError::Host`.
-pub trait ServiceCaller: ClientBounds {
-    fn role(&self) -> CallerRole;
-    fn identity(&self) -> &CallerIdentity;
-    fn usage<'a>(&'a self) -> OperationFuture<'a, CallerUsage>;
-    fn find_binding<'a>(
-        &'a self,
-        kind: &'a str,
-        upstream_id: &'a str,
-    ) -> OperationFuture<'a, Option<ResourceBindingRecord>>;
-    fn list_bindings<'a>(
-        &'a self,
-        kind: &'a str,
-    ) -> OperationFuture<'a, Vec<ResourceBindingRecord>>;
-    fn save_binding<'a>(&'a self, record: ResourceBindingRecord) -> OperationFuture<'a, ()>;
-    fn delete_binding<'a>(&'a self, kind: &'a str, upstream_id: &'a str)
-    -> OperationFuture<'a, ()>;
-}
-
 pub struct ServiceContext<'a, B = HttpBody> {
     /// The credential the host selected for this call (under
     /// `ServiceView::Credential` the named one).
@@ -303,15 +229,15 @@ pub trait ChannelServices: Send + Sync {
     fn call<'a>(
         &'a self,
         _context: ServiceContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
-        Box::pin(async { Err(ChannelError::UnsupportedService) })
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(async { Err(UpstreamError::UnsupportedService) })
     }
 
     fn connect<'a>(
         &'a self,
         _context: ServiceContext<'a, ()>,
-    ) -> OperationFuture<'a, UpstreamConnection> {
-        Box::pin(async { Err(ChannelError::UnsupportedService) })
+    ) -> UpstreamFuture<'a, UpstreamConnection> {
+        Box::pin(async { Err(UpstreamError::UnsupportedService) })
     }
 }
 

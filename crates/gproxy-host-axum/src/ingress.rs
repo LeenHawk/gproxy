@@ -12,16 +12,19 @@
 //! 3. **The OAuth issuer**, at `{mount}/v1/oauth/…`. Before the data plane
 //!    because these paths are *this* instance's, not an upstream's, and they
 //!    answer in a different error envelope.
-//! 4. **A channel's vendor service route**, e.g. Codex's `/backend-api/…`.
+//! 4. **The MCP gateway**, at `{mount}/connect/mcp` and
+//!    `{mount}/connect/mcp/{server}`: the tools of the registered MCP servers.
+//!    On a provider mount both mean that one server.
+//! 5. **A channel's vendor service route**, e.g. Codex's `/backend-api/…`.
 //!    Only on a provider or namespace mount: matching a service route needs a
 //!    channel, and the aggregated mount names none.
-//! 5. **The data plane** — `/v1/messages`, `/v1/chat/completions`,
+//! 6. **The data plane** — `/v1/messages`, `/v1/chat/completions`,
 //!    `/v1beta/models/{model}:generateContent` and the rest of
 //!    [`surface`]. The body is decoded, the operation is matched, and
 //!    [`App::call`](gproxy_app::App::call) does the rest. A surface the table
 //!    marks as a handshake goes to [`crate::websocket`] instead, which admits
 //!    it before it upgrades anything.
-//! 6. **The console**, with its SPA fallback, behind the configuration switch.
+//! 7. **The console**, with its SPA fallback, behind the configuration switch.
 //!
 //! Anything that reaches the end is a 404.
 //!
@@ -37,13 +40,12 @@
 //! A provider mount restricts resolution to that provider, including operations
 //! that name no model. Root model listings come from the published catalogue.
 
+mod mcp;
 mod models;
 pub mod surface;
 
 use std::sync::Arc;
 
-#[cfg(target_arch = "wasm32")]
-use axum::body::to_bytes;
 use axum::{
     extract::{Request, State},
     response::{IntoResponse, Response},
@@ -72,7 +74,7 @@ pub async fn handle<C>(State(state): State<HostState<C>>, request: Request) -> R
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { dispatch(&state, request).await }).await
+    dispatch(&state, request).await
 }
 
 async fn dispatch<C>(state: &HostState<C>, request: Request) -> Response
@@ -101,9 +103,10 @@ where
     let (mount, remainder) = Mount::parse(&path, &index, |remainder| {
         surface::is_surface(&parts.method, remainder)
             || crate::oauth::is_issuer_path(remainder)
+            || mcp::is_path(remainder)
             || core.providers.values().any(|provider| {
                 service_route(provider, &parts.method, remainder).is_some()
-                    || (provider.channel.id() == "codex"
+                    || (provider.upstream().id() == "codex"
                         && surface::match_codex_path(
                             &parts.method,
                             remainder,
@@ -116,6 +119,10 @@ where
 
     if let Some(issuer) = crate::oauth::route(&parts.method, &remainder) {
         return crate::oauth::handle(state, issuer, &mount, scheme, parts, body).await;
+    }
+
+    if mcp::is_path(&remainder) {
+        return mcp::handle(state, &mount, &remainder, parts, body, client_ip).await;
     }
 
     if let Some(response) = service_call(
@@ -134,10 +141,6 @@ where
         return response;
     }
 
-    // A Worker serves its console from Workers Assets, in front of this
-    // handler and without waking the isolate; the embedded bundle is native
-    // only. See the `console` row in the crate-level table.
-    #[cfg(not(target_arch = "wasm32"))]
     if let Some(response) = state
         .console()
         .serve(&parts.method, &path, parts.uri.query(), &parts.headers)
@@ -152,12 +155,10 @@ where
 /// How long a client may leave a request body without sending more of it.
 /// Not a limit on the whole body: a large upload on a slow link is slow, not
 /// stalled.
-#[cfg(not(target_arch = "wasm32"))]
 const BODY_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// A request body, whole, or the response that refuses it: `413` past `cap`,
 /// `408` once the client stops sending for [`BODY_IDLE_TIMEOUT`].
-#[cfg(not(target_arch = "wasm32"))]
 async fn read_body(body: axum::body::Body, cap: usize) -> Result<Bytes, Box<Response>> {
     use futures_util::StreamExt;
 
@@ -188,14 +189,6 @@ async fn read_body(body: axum::body::Body, cap: usize) -> Result<Bytes, Box<Resp
     }
 }
 
-/// A Worker's platform delivers the body; there is no socket to stall.
-#[cfg(target_arch = "wasm32")]
-async fn read_body(body: axum::body::Body, cap: usize) -> Result<Bytes, Box<Response>> {
-    to_bytes(body, cap).await.map_err(|_| {
-        Box::new((StatusCode::PAYLOAD_TOO_LARGE, "request body too large").into_response())
-    })
-}
-
 /// How much of this request's body is read, decided before any of it is.
 ///
 /// A file upload is the one request allowed `max_upload_body_bytes`, and which
@@ -218,7 +211,7 @@ fn service_route<'a>(
     method: &Method,
     path: &str,
 ) -> Option<&'a ServiceRoute> {
-    provider.channel.services()?.route(method, path)
+    provider.channel()?.services()?.route(method, path)
 }
 
 /// Step 4: a vendor service the channel declares, forwarded as it is.
@@ -367,7 +360,7 @@ fn is_codex_model_path(
     parts: &http::request::Parts,
     remainder: &str,
 ) -> bool {
-    provider.channel.id() == "codex"
+    provider.upstream().id() == "codex"
         && surface::match_codex_path(&parts.method, remainder, &parts.headers, None).is_some()
 }
 
@@ -432,7 +425,7 @@ where
         .provider_name()
         .and_then(|name| index.provider_id(name))
         .and_then(|id| core.providers.get(id))
-        .is_some_and(|provider| provider.channel.id() == "codex");
+        .is_some_and(|provider| provider.upstream().id() == "codex");
     let matched = if codex {
         surface::match_codex_path(&parts.method, remainder, &parts.headers, json.as_ref())
     } else {

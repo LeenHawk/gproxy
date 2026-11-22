@@ -3,7 +3,8 @@ use super::super::{
     tools,
 };
 use super::{ItemState, content};
-use crate::{channel::ChannelError, channels::codex::shape::tools::Aliases};
+use crate::channels::codex::shape::tools::Aliases;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 
 impl ItemState {
@@ -12,7 +13,7 @@ impl ItemState {
         index: u32,
         aliases: &Aliases,
         original: Option<Event>,
-    ) -> Result<Vec<Event>, ChannelError> {
+    ) -> Result<Vec<Event>, UpstreamError> {
         let item = self
             .item
             .as_mut()

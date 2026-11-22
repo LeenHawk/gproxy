@@ -10,8 +10,8 @@ use super::{
     OrcaTerm, auth,
     config::{OrcaTermConfig, new_id, now_ms},
 };
-use crate::channel::{
-    ChannelError, DeviceAuthorization, DevicePoll, LoginContext, OAuthDeviceCode, OperationFuture,
+use gproxy_upstream::{
+    DeviceAuthorization, DevicePoll, LoginContext, OAuthDeviceCode, UpstreamError, UpstreamFuture,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -20,13 +20,13 @@ use std::collections::BTreeMap;
 const LOGIN_WINDOW_MS: i64 = 10 * 60 * 1000;
 
 impl OAuthDeviceCode for OrcaTerm {
-    fn start<'a>(&'a self, ctx: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
+    fn start<'a>(&'a self, ctx: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
             let config = OrcaTermConfig::from_view(ctx.provider)?;
             let session_id = new_id()?;
             let site = config.site_url();
             let mut url = url::Url::parse(&format!("{site}/oauth/authorize"))
-                .map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+                .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
             // Return to the existing website, avoiding an installed desktop
             // application's URI handler consuming the handoff before we do.
             url.query_pairs_mut().extend_pairs([
@@ -51,13 +51,13 @@ impl OAuthDeviceCode for OrcaTerm {
         &'a self,
         ctx: LoginContext<'a>,
         authorization: &'a DeviceAuthorization,
-    ) -> OperationFuture<'a, DevicePoll> {
+    ) -> UpstreamFuture<'a, DevicePoll> {
         Box::pin(async move {
             if authorization.expires_at_ms.is_some_and(|at| at <= now_ms()) {
                 return Ok(DevicePoll::Expired);
             }
             if authorization.device_code.trim().is_empty() {
-                return Err(ChannelError::InvalidCredential);
+                return Err(UpstreamError::InvalidCredential);
             }
             let config = OrcaTermConfig::from_view(ctx.provider)?;
             let response = auth::rpc_response(

@@ -15,8 +15,8 @@
 //! reaches the upstream under its own name.
 
 use super::config::GrokBuildConfig;
-use crate::channel::{ChannelError, CredentialView};
 use crate::channels::shared::compatible::http::insert_configured;
+use gproxy_upstream::{CredentialView, UpstreamError};
 use http::{HeaderMap, HeaderName, HeaderValue, header};
 use serde_json::Value;
 
@@ -69,8 +69,8 @@ pub(super) fn fact<'a>(credential: &CredentialView<'a>, name: &str) -> Option<&'
         .or_else(|| non_empty(credential.secret.get(name)))
 }
 
-pub(super) fn access_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, ChannelError> {
-    non_empty(credential.secret.get("access_token")).ok_or(ChannelError::InvalidCredential)
+pub(super) fn access_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, UpstreamError> {
+    non_empty(credential.secret.get("access_token")).ok_or(UpstreamError::InvalidCredential)
 }
 
 /// What the reply is expected to look like, which decides `Accept`.
@@ -81,10 +81,10 @@ pub(super) enum Reply {
     Audio,
 }
 
-fn insert(headers: &mut HeaderMap, name: &'static str, value: &str) -> Result<(), ChannelError> {
+fn insert(headers: &mut HeaderMap, name: &'static str, value: &str) -> Result<(), UpstreamError> {
     headers.insert(
         HeaderName::from_static(name),
-        HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)?,
+        HeaderValue::from_str(value).map_err(|_| UpstreamError::InvalidCredential)?,
     );
     Ok(())
 }
@@ -93,7 +93,7 @@ fn insert(headers: &mut HeaderMap, name: &'static str, value: &str) -> Result<()
 pub(super) fn apply_catalog_identity(
     headers: &mut HeaderMap,
     credential: &CredentialView<'_>,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     if let Some(user) = fact(credential, "sub") {
         insert(headers, "x-userid", user)?;
     }
@@ -109,11 +109,11 @@ pub(super) fn apply(
     credential: &CredentialView<'_>,
     reply: Reply,
     conversation: Option<&str>,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {}", access_token(credential)?))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     // A multipart upload keeps the content type the caller wrote, boundary
     // and all; only a body with none is declared JSON.
@@ -140,7 +140,7 @@ pub(super) fn apply(
     headers.insert(
         header::USER_AGENT,
         HeaderValue::from_str(&user_agent(false))
-            .map_err(|_| ChannelError::InvalidConfig("invalid CLI user agent".into()))?,
+            .map_err(|_| UpstreamError::InvalidConfig("invalid CLI user agent".into()))?,
     );
     if let Some(conversation) = conversation.map(str::trim).filter(|id| !id.is_empty()) {
         insert(headers, "x-grok-conv-id", conversation)?;

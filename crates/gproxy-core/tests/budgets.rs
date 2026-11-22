@@ -1,5 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 //! Caller budgets: pricing at settlement, pre-attempt rejection, lazy
 //! windows, calendar and permanent periods, manual reset and model scoping.
 mod support;
@@ -604,9 +602,10 @@ async fn host_defined_owner_chains_charge_every_level() {
 
 #[tokio::test]
 async fn the_caller_service_view_renders_budget_windows() {
-    use gproxy_channel::channel::{CallerRole, ServiceView};
+    use gproxy_channel::channel::ServiceView;
     use gproxy_core::ServiceRequest;
     use gproxy_protocol::{HttpBody, WireRequest, connection::Bytes};
+    use gproxy_upstream::CallerRole;
     let h = harness(full(), "sticky").await;
     h.channel
         .expose_services

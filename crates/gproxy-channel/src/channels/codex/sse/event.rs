@@ -1,7 +1,7 @@
 //! Sparse backend envelopes precede complete protocol items. Keep their unknown
 //! fields intact while repairing lifecycle; native tool payloads are validated
 //! with the protocol types in `tools` once their input is complete.
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -53,7 +53,7 @@ impl Event {
         event.item = Some(item);
         event
     }
-    pub fn index(&self) -> Result<u32, ChannelError> {
+    pub fn index(&self) -> Result<u32, UpstreamError> {
         self.output_index
             .ok_or_else(|| invalid("output_index missing"))
     }
@@ -76,11 +76,11 @@ impl Event {
     }
 }
 
-pub(super) fn invalid(error: impl std::fmt::Display) -> ChannelError {
-    ChannelError::InvalidResponse(format!("Codex Responses SSE: {error}"))
+pub(super) fn invalid(error: impl std::fmt::Display) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("Codex Responses SSE: {error}"))
 }
 
-pub(super) fn created(response: &Value) -> Result<Event, ChannelError> {
+pub(super) fn created(response: &Value) -> Result<Event, UpstreamError> {
     let id = response
         .get("id")
         .and_then(Value::as_str)

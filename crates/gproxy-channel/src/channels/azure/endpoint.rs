@@ -3,8 +3,8 @@
 //! serve it.
 
 use super::config::{AzureConfig, setting};
-use crate::channel::ChannelError;
 use gproxy_protocol::{Operation, OperationKey, WireFamily};
+use gproxy_upstream::UpstreamError;
 
 /// Azure's image operations are not on the version-less v1 surface, so they
 /// carry a version of their own when the provider configured none. These are
@@ -45,7 +45,7 @@ pub(super) fn method_url(
     operation: OperationKey,
     path: &str,
     query: Option<&str>,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let (url, inherited) = match endpoint_override.map(str::trim).filter(|u| !u.is_empty()) {
         Some(url) => match url.split_once('?') {
             Some((head, tail)) => (head.to_owned(), Some(tail)),
@@ -68,12 +68,12 @@ pub(super) fn method_url(
     )
 }
 
-fn origin(config: &AzureConfig, base_url: Option<&str>) -> Result<String, ChannelError> {
+fn origin(config: &AzureConfig, base_url: Option<&str>) -> Result<String, UpstreamError> {
     if let Some(base) = base_url.map(str::trim).filter(|base| !base.is_empty()) {
         return Ok(base.trim_end_matches('/').to_owned());
     }
     let resource = setting(config.resource.as_deref()).ok_or_else(|| {
-        ChannelError::InvalidConfig(
+        UpstreamError::InvalidConfig(
             "config key `resource` is required when the provider has no base_url".into(),
         )
     })?;
@@ -85,7 +85,7 @@ fn family_path(
     config: &AzureConfig,
     operation: OperationKey,
     path: &str,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let path = if path.starts_with('/') {
         path.to_owned()
     } else {
@@ -107,7 +107,7 @@ fn family_path(
             None => Ok(format!("/openai{path}")),
         },
         WireFamily::Claude => Ok(format!("/anthropic{path}")),
-        WireFamily::Gemini => Err(ChannelError::UnsupportedOperation(operation)),
+        WireFamily::Gemini => Err(UpstreamError::UnsupportedOperation(operation)),
     }
 }
 
@@ -116,10 +116,10 @@ fn query_string(
     operation: Operation,
     inherited: Option<&str>,
     query: Option<&str>,
-) -> Result<Option<String>, ChannelError> {
+) -> Result<Option<String>, UpstreamError> {
     let configured = setting(config.api_version.as_deref());
     if setting(config.deployment.as_deref()).is_some() && configured.is_none() {
-        return Err(ChannelError::InvalidConfig(
+        return Err(UpstreamError::InvalidConfig(
             "config key `api_version` is required when `deployment` is set".into(),
         ));
     }
@@ -141,14 +141,14 @@ fn query_string(
 /// A configured value that becomes part of a host name or a path segment. An
 /// invalid one is a configuration mistake, not something to percent-encode
 /// into a URL that would then silently address the wrong resource.
-fn validate_segment(name: &'static str, value: &str) -> Result<(), ChannelError> {
+fn validate_segment(name: &'static str, value: &str) -> Result<(), UpstreamError> {
     let valid = value
         .bytes()
         .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'));
     if valid {
         Ok(())
     } else {
-        Err(ChannelError::InvalidConfig(format!(
+        Err(UpstreamError::InvalidConfig(format!(
             "config key `{name}` may only contain letters, digits, `-`, `_` and `.`"
         )))
     }

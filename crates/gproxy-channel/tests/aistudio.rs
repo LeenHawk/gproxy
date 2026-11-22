@@ -2,12 +2,9 @@
 
 mod support;
 
-use gproxy_channel::{
-    BaseChannel, ChannelError,
-    channel::{CredentialView, PrepareContext, ProviderView},
-    channels::aistudio::Aistudio,
-};
+use gproxy_channel::{BaseChannel, channel::PrepareContext, channels::aistudio::Aistudio};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError, UpstreamKind};
 use http::{HeaderMap, HeaderValue, Method};
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
@@ -63,7 +60,7 @@ fn prepare<'a>(
     dialect: Dialect,
     request: WireRequest<HttpBody>,
     endpoint_override: Option<&'a str>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     Aistudio.prepare(PrepareContext {
         provider: provider(config, base_url),
         credential: credential(secret),
@@ -223,7 +220,7 @@ fn authenticates_each_surface_with_the_header_that_surface_wants() {
             request("/v1beta/models/x:generateContent", None, b"{}"),
             None
         ),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
     assert!(matches!(
         prepare(
@@ -235,7 +232,7 @@ fn authenticates_each_surface_with_the_header_that_surface_wants() {
             request("/v1beta/models/x:generateContent", None, b"{}"),
             None
         ),
-        Err(ChannelError::InvalidConfig(_))
+        Err(UpstreamError::InvalidConfig(_))
     ));
 }
 
@@ -301,7 +298,7 @@ fn gemini_live_prepares_native_websocket_path_and_assigned_api_key() {
     );
     assert!(matches!(
         make("/v1/realtime", None, None, Dialect::OpenAi),
-        Err(ChannelError::UnsupportedOperation(_))
+        Err(UpstreamError::UnsupportedOperation(_))
     ));
 }
 

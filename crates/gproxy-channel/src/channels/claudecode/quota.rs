@@ -8,10 +8,12 @@
 
 use super::{Claudecode, ClaudecodeConfig, account, base_url, fact, invalid_response, send};
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaBreakdownRow, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel,
-    QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking,
-    QuotaValue, QuotaWindow,
+    QuotaAllowance, QuotaBreakdownRow, QuotaDimension, QuotaEntry, QuotaHeaderContext,
+    QuotaHeaders, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior, QuotaScope,
+    QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
 };
 use http::{HeaderMap, HeaderValue, Method, header};
 use rust_decimal::Decimal;
@@ -106,9 +108,13 @@ impl QuotaModel for Claudecode {
         };
         match super::usage_limit::requested_mode(headers, &config) {
             Some(super::usage_limit::Mode::Slow) => dimension == "five_hour",
-            Some(super::usage_limit::Mode::Extended) => matches!(dimension, "five_hour" | "seven_day"),
-            None => (config.low_priority && dimension == "five_hour")
-                || (config.extended_usage && matches!(dimension, "five_hour" | "seven_day")),
+            Some(super::usage_limit::Mode::Extended) => {
+                matches!(dimension, "five_hour" | "seven_day")
+            }
+            None => {
+                (config.low_priority && dimension == "five_hour")
+                    || (config.extended_usage && matches!(dimension, "five_hour" | "seven_day"))
+            }
         }
     }
 
@@ -187,7 +193,8 @@ fn window_entry(
         value: QuotaValue::Window(QuotaAllowance {
             used: used_percent,
             limit: Some(Decimal::ONE_HUNDRED),
-            remaining: used_percent.map(|used| Decimal::ONE_HUNDRED.saturating_sub(used).max(Decimal::ZERO)),
+            remaining: used_percent
+                .map(|used| Decimal::ONE_HUNDRED.saturating_sub(used).max(Decimal::ZERO)),
             used_percent,
             unlimited: None,
             unit: Some("percent".into()),
@@ -251,7 +258,14 @@ fn present(value: &Value, field: &str) -> bool {
 /// https://github.com/router-for-me/Cli-Proxy-API-Management-Center/pull/466.
 /// Keep null-dollar/legacy shapes on the existing window path.
 fn cloud_session_credits(value: &Value) -> Option<QuotaEntry> {
-    let dollars = |field| value.get(field)?.as_number()?.to_string().parse::<Decimal>().ok();
+    let dollars = |field| {
+        value
+            .get(field)?
+            .as_number()?
+            .to_string()
+            .parse::<Decimal>()
+            .ok()
+    };
     let limit = dollars("limit_dollars");
     let used = dollars("used_dollars");
     let remaining = dollars("remaining_dollars");
@@ -274,7 +288,10 @@ fn cloud_session_credits(value: &Value) -> Option<QuotaEntry> {
             remaining,
             used_percent,
             unit: Some("USD".into()),
-            period_end_ms: value.get("resets_at").and_then(Value::as_str).and_then(iso_to_ms),
+            period_end_ms: value
+                .get("resets_at")
+                .and_then(Value::as_str)
+                .and_then(iso_to_ms),
             reset_behavior: QuotaResetBehavior::Expiring,
             ..Default::default()
         }),
@@ -358,26 +375,41 @@ fn slug(value: &str) -> String {
         .collect()
 }
 
-pub(super) fn usage_entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
+pub(super) fn usage_entries(body: &[u8]) -> Result<Vec<QuotaEntry>, UpstreamError> {
     let usage: UsagePayload =
         serde_json::from_slice(body).map_err(|e| invalid_response(e.to_string()))?;
     let mut entries = Vec::new();
     for (key, value) in &usage.windows {
-        if key == "iguana_necktie" && let Some(credits) = cloud_session_credits(value) {
+        if key == "iguana_necktie"
+            && let Some(credits) = cloud_session_credits(value)
+        {
             entries.push(credits);
             continue;
         }
         if key == "seven_day_breakdown" {
-            let rows = value.get("rows").and_then(Value::as_array).into_iter().flatten()
-                .filter_map(|row| Some(QuotaBreakdownRow {
-                    key: row.get("key")?.as_str()?.to_owned(),
-                    label: row.get("display_name").and_then(Value::as_str).map(str::to_owned),
-                    percent: percent(row.get("percent").and_then(Value::as_f64))?,
-                })).collect::<Vec<_>>();
+            let rows = value
+                .get("rows")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|row| {
+                    Some(QuotaBreakdownRow {
+                        key: row.get("key")?.as_str()?.to_owned(),
+                        label: row
+                            .get("display_name")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned),
+                        percent: percent(row.get("percent").and_then(Value::as_f64))?,
+                    })
+                })
+                .collect::<Vec<_>>();
             if !rows.is_empty() {
                 entries.push(QuotaEntry {
-                    id: key.clone(), source_id: key.clone(), label: None,
-                    subject: QuotaSubject::Account, model_scope: QuotaScope::All,
+                    id: key.clone(),
+                    source_id: key.clone(),
+                    label: None,
+                    subject: QuotaSubject::Account,
+                    model_scope: QuotaScope::All,
                     value: QuotaValue::Breakdown(rows),
                 });
             }
@@ -441,7 +473,7 @@ pub(super) fn usage_entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError
 impl QuotaQuery for Claudecode {
     /// `GET {base}/api/oauth/usage` with the CLI user agent; without it the
     /// endpoint serves an aggressively rate-limited bucket (v3 `quota.rs`).
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let account = account(&context.credential)?;
             let mut headers = HeaderMap::new();
@@ -472,7 +504,7 @@ impl QuotaQuery for Claudecode {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });
@@ -495,7 +527,7 @@ impl QuotaHeaders for Claudecode {
     /// the CLI clamps and shows as a percentage; `-reset` is Unix seconds
     /// (`samples/claude-code-2.1.252`, 2.1.225+ usage UI). Absent headers
     /// mean nothing was reported; unknown claims are not read.
-    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, ChannelError> {
+    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, UpstreamError> {
         let headers = context.headers;
         let mut entries = Vec::new();
         for claim in CLAIMS {
@@ -528,36 +560,55 @@ impl QuotaHeaders for Claudecode {
         // replacements. Observing them must not block ordinary requests.
         for (id, label, utilization, reset, seconds) in [
             (
-                "slow_budget", "Low-priority allowance",
+                "slow_budget",
+                "Low-priority allowance",
                 "anthropic-ratelimit-unified-slow-budget-utilization",
-                "anthropic-ratelimit-unified-slow-budget-reset", SEVEN_DAYS,
+                "anthropic-ratelimit-unified-slow-budget-reset",
+                SEVEN_DAYS,
             ),
             (
-                "grace_five_hour", "5h grace",
+                "grace_five_hour",
+                "5h grace",
                 "anthropic-ratelimit-unified-grace-5h-utilization",
-                "anthropic-ratelimit-unified-5h-reset", FIVE_HOURS,
+                "anthropic-ratelimit-unified-5h-reset",
+                FIVE_HOURS,
             ),
             (
-                "grace_seven_day", "7d grace",
+                "grace_seven_day",
+                "7d grace",
                 "anthropic-ratelimit-unified-grace-7d-utilization",
-                "anthropic-ratelimit-unified-7d-reset", SEVEN_DAYS,
+                "anthropic-ratelimit-unified-7d-reset",
+                SEVEN_DAYS,
             ),
         ] {
-            if id.starts_with("grace_") && (!context.status.is_success()
-                || !headers.contains_key("anthropic-ratelimit-unified-status")) {
+            if id.starts_with("grace_")
+                && (!context.status.is_success()
+                    || !headers.contains_key("anthropic-ratelimit-unified-status"))
+            {
                 continue;
             }
             let Some(used) = header_str(headers, utilization)
                 .and_then(|value| value.parse::<f64>().ok())
-                .filter(|value| value.is_finite()) else { continue; };
+                .filter(|value| value.is_finite())
+            else {
+                continue;
+            };
             let end = header_str(headers, reset)
-                .or_else(|| (id == "slow_budget").then(|| header_str(headers, "anthropic-ratelimit-unified-7d-reset")).flatten())
+                .or_else(|| {
+                    (id == "slow_budget")
+                        .then(|| header_str(headers, "anthropic-ratelimit-unified-7d-reset"))
+                        .flatten()
+                })
                 .and_then(|value| value.parse::<f64>().ok())
                 .filter(|value| value.is_finite() && *value >= 0.0)
                 .map(|seconds| (seconds.round() as i64).saturating_mul(1000));
             entries.push(window_entry(
-                id.into(), Some(label.into()), QuotaScope::All,
-                percent(Some(used.clamp(0.0, 1.0) * 100.0)), Some(seconds), end,
+                id.into(),
+                Some(label.into()),
+                QuotaScope::All,
+                percent(Some(used.clamp(0.0, 1.0) * 100.0)),
+                Some(seconds),
+                end,
             ));
         }
         Ok(entries)
@@ -577,14 +628,20 @@ mod tests {
             .map(|family| family_window_id(family))
             .collect();
         for claim in CLAIMS {
-            assert_eq!(window_scope(claim.id), claim.family.map_or(QuotaScope::All, family_scope));
+            assert_eq!(
+                window_scope(claim.id),
+                claim.family.map_or(QuotaScope::All, family_scope)
+            );
             match claim.family {
                 Some(family) => assert!(families.contains(&family_window_id(family))),
                 None => assert!(matches!(claim.id, "five_hour" | "seven_day")),
             }
         }
         assert_eq!(
-            CLAIMS.iter().find(|claim| claim.codename == "7d_oi").map(|claim| claim.id),
+            CLAIMS
+                .iter()
+                .find(|claim| claim.codename == "7d_oi")
+                .map(|claim| claim.id),
             Some("seven_day_fable")
         );
     }

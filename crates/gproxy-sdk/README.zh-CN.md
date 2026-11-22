@@ -39,22 +39,17 @@ settings 行、装配引擎、载入首个快照，并在 `SyncMode::Background`
 |---|---|
 | 某个渠道名（`codex`、`kiro`、`openai`……） | 编入该渠道并默认注册 |
 | `channels` | 本工作区提供的全部渠道 |
-| `postgres` / `mysql` | 额外的 SeaORM 驱动，仅原生；原生始终自带 SQLite |
-| `libsql` | 经 Hrana HTTP pipeline 的 libSQL／Turso，全平台 |
-| `d1` | Cloudflare D1 绑定的标记，wasm32 本就自带 |
-| `memory`（默认） | 进程内 `MemoryCache`，原生默认 cache |
+| `postgres` / `mysql` | 额外的 SeaORM 驱动；始终自带 SQLite |
+| `libsql` | 经 Hrana HTTP pipeline 的 libSQL／Turso |
+| `memory`（默认） | 进程内 `MemoryCache`，默认 cache |
 | `redis` | Redis／Valkey，多实例部署用 |
-| `fs`（默认） | 本地文件系统对象存储，仅原生 |
+| `fs`（默认） | 本地文件系统对象存储 |
 | `s3` | S3／R2 对象存储 |
 | `bundled-vocabulary`（默认） | 内置 DeepSeek 词表用于 token 估算 |
 | `ts` | 为每个 DTO 与渠道描述符生成 `ts-rs` 声明，并带导出测试——见[类型导出](#类型导出) |
-| `client-sdk` | `ClientBackend`：在进程内用这个句柄驱动 `gproxy-client-sdk` 的 `Client`（仅原生平台） |
+| `client-sdk` | `ClientBackend`：在进程内用这个句柄驱动 `gproxy-client-sdk` 的 `Client` |
 
-默认集可在 `wasm32-unknown-unknown` 上编译，`libsql` 亦然。wasm 上 cache 默认是
-`gproxy_store::StoreCache`，同步一律手动：isolate 活不过一次请求，在请求开头调用
-`tick()` 就是全部机制。
-
-原生构建使用 `reqwest` 传输。想要别的后端（`wreq` 做 TLS 指纹、`reqwest-native`
+构建使用 `reqwest` 传输。想要别的后端（`wreq` 做 TLS 指纹、`reqwest-native`
 对齐 Codex CLI 的栈）的宿主自行在 `gproxy-client` 上打开该 feature，或把自己的
 `ClientPool` 交给 builder。
 
@@ -533,7 +528,7 @@ GPROXY_TS_OUT=console/src/generated \
   应用，它通过 `gproxy_store::load_all_data` 读同一个持久 revision。
 - **下游鉴权**：这里不判断调用方是谁；句柄拿到的是 scope 以及允许的供应商与
   凭证集合。
-- **server**：没有监听、路由、中间件或 CLI。原生与边缘宿主建在本 crate 之上。
+- **server**：没有监听、路由、中间件或 CLI。原生宿主建在本 crate 之上。
 - **控制台**：本 crate 只生成界面所依据的 TypeScript 类型；界面本身、它的会话处理与
   HTTP 传输都属于应用层。
 - **执行**：尝试、协议转换、改写、观测、预算与结算都属于 `gproxy-core`，本 crate

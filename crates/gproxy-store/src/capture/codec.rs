@@ -9,38 +9,17 @@ pub const SEGMENT_BYTES: usize = 64 * 1024;
 pub const SEGMENT_IDLE: Duration = Duration::from_secs(1);
 
 pub fn compress(bytes: &[u8]) -> Result<(String, Vec<u8>)> {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let compressed = zstd::bulk::compress(bytes, 3).map_err(|e| invalid(e.to_string()))?;
-        if compressed.len() < bytes.len() {
-            return Ok(("zstd".into(), compressed));
-        }
+    let compressed = zstd::bulk::compress(bytes, 3).map_err(|e| invalid(e.to_string()))?;
+    if compressed.len() < bytes.len() {
+        return Ok(("zstd".into(), compressed));
     }
-    // Edge builds have no native zstd encoder. They can still read native
-    // captures and write the same schema using identity encoding.
     Ok(("identity".into(), bytes.to_vec()))
 }
 
 pub fn decompress(encoding: &str, bytes: &[u8]) -> Result<Vec<u8>> {
     match encoding {
         "identity" => Ok(bytes.to_vec()),
-        "zstd" => {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                zstd::stream::decode_all(bytes).map_err(|e| invalid(e.to_string()))
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                use std::io::Read;
-                let mut decoder = ruzstd::decoding::StreamingDecoder::new(bytes)
-                    .map_err(|e| invalid(e.to_string()))?;
-                let mut out = Vec::new();
-                decoder
-                    .read_to_end(&mut out)
-                    .map_err(|e| invalid(e.to_string()))?;
-                Ok(out)
-            }
-        }
+        "zstd" => zstd::stream::decode_all(bytes).map_err(|e| invalid(e.to_string())),
         _ => Err(invalid(format!("unknown capture encoding {encoding}"))),
     }
 }

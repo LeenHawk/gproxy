@@ -1,4 +1,4 @@
-//! Shared v3 data conversion, usable by native and Workers hosts.
+//! Shared v3 data conversion.
 use crate::{App, Operations};
 use document::Document;
 use gproxy_sdk::dto::{ImportMode, ImportRequest};

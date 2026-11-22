@@ -16,21 +16,7 @@
 //! from the same definitions — a console that renders a provider form off a
 //! descriptor cannot then be typed against a hand-written copy of it.
 
-/// How a credential for this channel comes into existence.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "ts", ts(rename_all = "snake_case"))]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub enum LoginMode {
-    /// Browser redirect with PKCE; `OAuthAuthorizationCode`.
-    AuthorizationCode,
-    /// User code shown, host polls; `OAuthDeviceCode`.
-    DeviceCode,
-    /// A key the operator pastes. No channel trait is involved: the secret is
-    /// stored as given and the channel injects it at request time.
-    ApiKey,
-}
+use gproxy_upstream::{ConfigKey, ConfigKeyKind, LoginMode, UpstreamKind};
 
 /// Optional abilities beyond protocol operations. All false is a legitimate
 /// channel: an API-key upstream needs none of them.
@@ -56,74 +42,6 @@ pub struct ChannelCapabilities {
     /// `allow_paid_usage`, so the console offers the switch. Not derivable
     /// either: the method has a default, and overriding it is invisible here.
     pub paid_usage: bool,
-}
-
-/// How a configuration value is written, for form rendering and validation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "ts", ts(rename_all = "snake_case"))]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub enum ConfigKeyKind {
-    String,
-    Bool,
-    Integer,
-    /// Any other JSON shape: an array, or an object that is not headers.
-    Json,
-    /// HTTP header names, or header name/value pairs.
-    HeaderList,
-}
-
-/// One entry of a provider's configuration. Unless noted, the name is a key of
-/// the provider's `config` JSON; `base_url` is the provider's own column.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-pub struct ConfigKey {
-    pub name: &'static str,
-    pub kind: ConfigKeyKind,
-    /// The provider cannot serve a request without it. Everything else has a
-    /// channel default.
-    pub required: bool,
-    pub description: &'static str,
-    /// Display-only default or URL template; never written into config by the UI.
-    pub placeholder: Option<&'static str>,
-}
-
-impl ConfigKey {
-    pub const fn with_placeholder(mut self, placeholder: &'static str) -> Self {
-        self.placeholder = Some(placeholder);
-        self
-    }
-
-    pub const fn required(
-        name: &'static str,
-        kind: ConfigKeyKind,
-        description: &'static str,
-    ) -> Self {
-        Self {
-            name,
-            kind,
-            required: true,
-            description,
-            placeholder: None,
-        }
-    }
-    pub const fn optional(
-        name: &'static str,
-        kind: ConfigKeyKind,
-        description: &'static str,
-    ) -> Self {
-        Self {
-            name,
-            kind,
-            required: false,
-            description,
-            placeholder: None,
-        }
-    }
 }
 
 /// Read from the `config` JSON for every channel, by the host rather than by
@@ -166,6 +84,22 @@ pub struct ChannelDescriptor {
 }
 
 impl ChannelDescriptor {
+    /// An upstream kind that is not a channel, in the same catalog: it has
+    /// accounts and a sign-in, and no model side to describe.
+    pub fn of_upstream(kind: &dyn UpstreamKind) -> Self {
+        Self {
+            id: kind.id(),
+            display_name: kind.display_name(),
+            login_modes: kind.login_modes(),
+            credential_kinds: kind.credential_kinds(),
+            capabilities: ChannelCapabilities {
+                refresh: kind.credential_refresh().is_some(),
+                ..Default::default()
+            },
+            config_keys: kind.config_keys(),
+        }
+    }
+
     /// Convenience for tests and UIs that look one key up by name.
     pub fn config_key(&self, name: &str) -> Option<&ConfigKey> {
         self.config_keys.iter().find(|key| key.name == name)

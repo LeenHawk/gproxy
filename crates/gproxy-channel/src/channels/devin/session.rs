@@ -1,11 +1,11 @@
 //! Stable CLI conversation metadata. Counters live in host-owned, credential-
 //! scoped state rather than a process-global cache inside the channel.
 use super::{proto::Message, request::Auth};
-use crate::channel::{ChannelError, ChannelState};
 use gproxy_protocol::{
     capability::{CapabilityErrorKind, CasResult, StateWrite},
     connection::Bytes,
 };
+use gproxy_upstream::{UpstreamError, UpstreamState};
 use http::HeaderMap;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -45,8 +45,8 @@ impl Session {
         body: &Value,
         headers: &HeaderMap,
         auth: &Auth<'_>,
-        state: &dyn ChannelState,
-    ) -> Result<Self, ChannelError> {
+        state: &dyn UpstreamState,
+    ) -> Result<Self, UpstreamError> {
         let metadata = body
             .pointer("/metadata/user_id")
             .or_else(|| body.get("user"))

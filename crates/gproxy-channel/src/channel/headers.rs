@@ -4,7 +4,7 @@
 //! provider can allow additional names. Headers a channel injects itself (its own
 //! authentication, static config headers) are not subject to the list.
 
-use super::{ChannelError, ProviderView};
+use gproxy_upstream::{ProviderView, UpstreamError};
 use http::{HeaderMap, HeaderName, HeaderValue};
 
 /// Headers a vendor's own client sends that its channel always lets through,
@@ -66,7 +66,7 @@ pub struct HeaderAllowlist {
 impl HeaderAllowlist {
     /// Use the channel defaults when the provider configures no list;
     /// an invalid header name is a configuration error.
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Option<Self>, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Option<Self>, UpstreamError> {
         Self::from_view_for(provider, ChannelHeaders::NONE)
     }
 
@@ -75,7 +75,7 @@ impl HeaderAllowlist {
     pub fn from_view_for(
         provider: ProviderView<'_>,
         channel: ChannelHeaders,
-    ) -> Result<Option<Self>, ChannelError> {
+    ) -> Result<Option<Self>, UpstreamError> {
         let Some(value) = provider.config.get("allowed_headers") else {
             return Ok(Some(Self {
                 names: Vec::new(),
@@ -84,13 +84,13 @@ impl HeaderAllowlist {
         };
         let names = value
             .as_array()
-            .ok_or_else(|| ChannelError::InvalidConfig("allowed_headers must be an array".into()))?
+            .ok_or_else(|| UpstreamError::InvalidConfig("allowed_headers must be an array".into()))?
             .iter()
             .map(|item| {
                 item.as_str()
                     .and_then(|name| HeaderName::from_bytes(name.trim().as_bytes()).ok())
                     .ok_or_else(|| {
-                        ChannelError::InvalidConfig(format!(
+                        UpstreamError::InvalidConfig(format!(
                             "allowed_headers entry `{item}` is not a header name"
                         ))
                     })
@@ -148,12 +148,12 @@ pub fn insert_configured(
     headers: &mut HeaderMap,
     name: &str,
     value: &str,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     headers.insert(
         HeaderName::from_bytes(name.as_bytes())
-            .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+            .map_err(|_| UpstreamError::InvalidConfig(format!("header `{name}`")))?,
         HeaderValue::from_str(value)
-            .map_err(|_| ChannelError::InvalidConfig(format!("header `{name}`")))?,
+            .map_err(|_| UpstreamError::InvalidConfig(format!("header `{name}`")))?,
     );
     Ok(())
 }

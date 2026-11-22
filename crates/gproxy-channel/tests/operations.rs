@@ -1,10 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use futures_util::{SinkExt, StreamExt, sink, stream};
-use gproxy_channel::channel::{
-    CredentialView, OperationContext, OperationFuture, PrepareContext, ProviderView,
-};
-use gproxy_channel::{BaseChannel, ChannelBinding, ChannelError, OutboundClient};
+use gproxy_channel::channel::{OperationContext, PrepareContext};
+use gproxy_channel::{BaseChannel, ChannelBinding, OutboundClient};
 use gproxy_protocol::capability::{
     CapabilityError, CapabilityErrorKind, CapabilityFuture, UpstreamConnection,
 };
@@ -13,6 +11,7 @@ use gproxy_protocol::spec::{OPERATION_SPECS, OperationTransport};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WebSocket, WireRequest, WireResponse,
 };
+use gproxy_upstream::{CredentialView, ProviderView, UpstreamError, UpstreamFuture, UpstreamKind};
 use http::{HeaderMap, Method, StatusCode};
 use serde_json::{Value, json};
 
@@ -69,11 +68,13 @@ impl OutboundClient for Client {
 }
 
 struct Empty;
-impl BaseChannel for Empty {
+impl UpstreamKind for Empty {
     fn id(&self) -> &'static str {
         "test"
     }
 }
+
+impl BaseChannel for Empty {}
 #[tokio::test]
 async fn all_declared_surfaces_default_to_unsupported_without_io() {
     let config = json!({});
@@ -98,7 +99,7 @@ async fn all_declared_surfaces_default_to_unsupported_without_io() {
                 }
             };
             assert!(
-                matches!(error, ChannelError::UnsupportedOperation(key) if key == spec.key),
+                matches!(error, UpstreamError::UnsupportedOperation(key) if key == spec.key),
                 "{error:?}"
             );
         }
@@ -110,23 +111,26 @@ async fn all_declared_surfaces_default_to_unsupported_without_io() {
 // Running the real protocol surface table catches wrong or missing dispatch arms.
 macro_rules! http_overrides {
     ($($method:ident => $operation:ident),* $(,)?) => { $(
-        fn $method<'a>(&'a self, _: OperationContext<'a>) -> OperationFuture<'a, WireResponse> {
+        fn $method<'a>(&'a self, _: OperationContext<'a>) -> UpstreamFuture<'a, WireResponse> {
             Box::pin(async { Ok(response(Operation::$operation.id())) })
         }
     )* };
 }
 macro_rules! ws_overrides {
     ($($method:ident => $operation:ident),* $(,)?) => { $(
-        fn $method<'a>(&'a self, _: OperationContext<'a, ()>) -> OperationFuture<'a, UpstreamConnection> {
+        fn $method<'a>(&'a self, _: OperationContext<'a, ()>) -> UpstreamFuture<'a, UpstreamConnection> {
             Box::pin(async { Ok(UpstreamConnection::Rejected(response(Operation::$operation.id()))) })
         }
     )* };
 }
 struct Overrides;
-impl BaseChannel for Overrides {
+impl UpstreamKind for Overrides {
     fn id(&self) -> &'static str {
         "test"
     }
+}
+
+impl BaseChannel for Overrides {
     http_overrides! {
         list_models => ListModels, get_model => GetModel, count_tokens => CountTokens,
         generate_content => GenerateContent, stream_generate_content => StreamGenerateContent,
@@ -192,11 +196,14 @@ async fn every_operation_dispatches_to_its_independent_override_without_prepare(
 }
 
 struct PassThrough;
-impl BaseChannel for PassThrough {
+impl UpstreamKind for PassThrough {
     fn id(&self) -> &'static str {
         "test"
     }
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+}
+
+impl BaseChannel for PassThrough {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         Ok(http::Request::builder()
             .uri(format!(
                 "https://example.com/{}",
@@ -208,7 +215,7 @@ impl BaseChannel for PassThrough {
     fn prepare_connect(
         &self,
         ctx: PrepareContext<'_, ()>,
-    ) -> Result<http::Request<()>, ChannelError> {
+    ) -> Result<http::Request<()>, UpstreamError> {
         Ok(http::Request::builder()
             .uri(format!(
                 "wss://example.com/{}",
@@ -249,11 +256,14 @@ async fn common_http_preparation_receives_the_correct_operation() {
 }
 
 struct TwoPages;
-impl BaseChannel for TwoPages {
+impl UpstreamKind for TwoPages {
     fn id(&self) -> &'static str {
         "test"
     }
-    fn list_models<'a>(&'a self, ctx: OperationContext<'a>) -> OperationFuture<'a, WireResponse> {
+}
+
+impl BaseChannel for TwoPages {
+    fn list_models<'a>(&'a self, ctx: OperationContext<'a>) -> UpstreamFuture<'a, WireResponse> {
         Box::pin(async move {
             assert_eq!(ctx.credential.id, "c");
             assert_eq!(ctx.provider.id, "p");
@@ -273,7 +283,7 @@ impl BaseChannel for TwoPages {
                         .unwrap(),
                 )
                 .await
-                .map_err(ChannelError::from)
+                .map_err(UpstreamError::from)
         })
     }
 }
@@ -427,15 +437,15 @@ async fn dispatch_uses_method_shape_and_leaves_dialect_support_to_channel() {
         binding
             .send(ws, request(HttpBody::Bytes(Bytes::new())))
             .await,
-        Err(ChannelError::WrongTransport(_))
+        Err(UpstreamError::WrongTransport(_))
     ));
     assert!(matches!(
         binding.connect(http, request(())).await,
-        Err(ChannelError::WrongTransport(_))
+        Err(UpstreamError::WrongTransport(_))
     ));
     assert!(matches!(
         binding.connect(ws, request(())).await,
-        Err(ChannelError::Transport(error)) if error.kind() == CapabilityErrorKind::Unsupported
+        Err(UpstreamError::Transport(error)) if error.kind() == CapabilityErrorKind::Unsupported
     ));
     let channel_defined_pair = OperationKey {
         operation: Operation::ListModels,

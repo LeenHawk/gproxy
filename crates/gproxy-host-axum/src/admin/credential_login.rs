@@ -34,29 +34,23 @@ async fn providers<C: BatchConnectionTrait + Send + Sync + 'static>(
     State(state): State<HostState<C>>,
     Extension(scope): Extension<AdminScope>,
 ) -> Response {
-    crate::send(async move {
-        gate!("credentials", scope);
-        let data = state.app().data();
-        let scoped = ScopedManage::new(state.app().gproxy(), &data, &scope);
-        reply(scoped.credentials().providers().await)
-    })
-    .await
+    gate!("credentials", scope);
+    let data = state.app().data();
+    let scoped = ScopedManage::new(state.app().gproxy(), &data, &scope);
+    reply(scoped.credentials().providers().await)
 }
 
 async fn owners<C: BatchConnectionTrait + Send + Sync + 'static>(
     State(state): State<HostState<C>>,
     Extension(scope): Extension<AdminScope>,
 ) -> Response {
-    crate::send(async move {
-        gate!("credentials", scope);
-        let data = state.app().data();
-        crate::error::ok_json(
-            &ScopedManage::new(state.app().gproxy(), &data, &scope)
-                .credentials()
-                .owners(),
-        )
-    })
-    .await
+    gate!("credentials", scope);
+    let data = state.app().data();
+    crate::error::ok_json(
+        &ScopedManage::new(state.app().gproxy(), &data, &scope)
+            .credentials()
+            .owners(),
+    )
 }
 
 async fn discover<C: BatchConnectionTrait + Send + Sync + 'static>(
@@ -64,15 +58,12 @@ async fn discover<C: BatchConnectionTrait + Send + Sync + 'static>(
     Extension(scope): Extension<AdminScope>,
     Path(id): Path<String>,
 ) -> Response {
-    crate::send(async move {
-        scoped!(
-            state,
-            scope,
-            "credentials",
-            credentials.discover_models(&id)
-        )
-    })
-    .await
+    scoped!(
+        state,
+        scope,
+        "credentials",
+        credentials.discover_models(&id)
+    )
 }
 
 #[derive(Deserialize)]
@@ -86,15 +77,12 @@ async fn test<C: BatchConnectionTrait + Send + Sync + 'static>(
     Path(id): Path<String>,
     Json(body): Json<Model>,
 ) -> Response {
-    crate::send(async move {
-        scoped!(
-            state,
-            scope,
-            "credentials",
-            credentials.model_test(&id, body.model)
-        )
-    })
-    .await
+    scoped!(
+        state,
+        scope,
+        "credentials",
+        credentials.model_test(&id, body.model)
+    )
 }
 
 macro_rules! login_handler {
@@ -105,13 +93,10 @@ macro_rules! login_handler {
             Extension(caller): Extension<Caller>,
             Json(request): Json<$request>,
         ) -> Response {
-            crate::send(async move {
-                gate!("credentials", scope);
-                let data = state.app().data();
-                let login = CredentialLogin::new(state.app().gproxy(), &data, &scope, &caller);
-                reply(login.$method(request).await)
-            })
-            .await
+            gate!("credentials", scope);
+            let data = state.app().data();
+            let login = CredentialLogin::new(state.app().gproxy(), &data, &scope, &caller);
+            reply(login.$method(request).await)
         }
     };
 }
@@ -131,16 +116,13 @@ async fn device_poll<C: BatchConnectionTrait + Send + Sync + 'static>(
     Extension(caller): Extension<Caller>,
     Json(body): Json<Poll>,
 ) -> Response {
-    crate::send(async move {
-        gate!("credentials", scope);
-        let data = state.app().data();
-        reply(
-            CredentialLogin::new(state.app().gproxy(), &data, &scope, &caller)
-                .device_poll(&body.login_session_id)
-                .await,
-        )
-    })
-    .await
+    gate!("credentials", scope);
+    let data = state.app().data();
+    reply(
+        CredentialLogin::new(state.app().gproxy(), &data, &scope, &caller)
+            .device_poll(&body.login_session_id)
+            .await,
+    )
 }
 
 #[cfg(feature = "documentation")]

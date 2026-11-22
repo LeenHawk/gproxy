@@ -92,7 +92,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> OperationRules<'_, C> {
             .channels()
             .get(&provider.channel)
             .ok_or_else(|| SdkError::invalid(format!("unknown channel `{}`", provider.channel)))?;
-        let view = gproxy_channel::channel::ProviderView {
+        let view = gproxy_upstream::ProviderView {
             id: &provider.id,
             channel: &provider.channel,
             base_url: provider.base_url.as_deref(),

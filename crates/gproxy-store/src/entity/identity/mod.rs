@@ -2,6 +2,7 @@
 
 pub mod api_key;
 pub mod audit_event;
+pub mod mcp_scope;
 pub mod membership_role;
 pub mod organization;
 pub mod organization_member;

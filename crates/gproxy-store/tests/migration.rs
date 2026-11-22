@@ -1,4 +1,3 @@
-#![cfg(not(target_arch = "wasm32"))]
 //! The claim this file exists to hold up: the schema a fresh database gets from
 //! the migrator and the schema it gets from the fast path are the same schema,
 //! column for column and index for index.
@@ -160,6 +159,8 @@ async fn running_the_migrator_twice_is_a_no_op() {
             "m20261102_000001_usage_response_model",
             "m20261106_000001_provider_timeouts",
             "m20261114_000001_rate_limit_scope",
+            "m20261122_000001_mcp_scopes",
+            "m20261122_000002_drop_store_cache",
         ]
     );
     let after_first = schema(store.connection()).await;
@@ -536,6 +537,37 @@ async fn usage_timing_upgrade_matches_fresh_columns() {
         columns(&older, "usage_records").await,
         columns(&fresh, "usage_records").await
     );
+}
+
+/// A database that still has the retired cache tables loses them, indexes and
+/// all, and ends up with exactly what a fresh install has.
+#[tokio::test]
+async fn the_store_cache_tables_are_dropped_from_an_older_database() {
+    let fresh = connection().await;
+    Store::new(fresh.clone()).install().await.unwrap();
+
+    let older = connection().await;
+    Store::new(older.clone()).install().await.unwrap();
+    for sql in [
+        "CREATE TABLE cache_entries (key varchar NOT NULL PRIMARY KEY, value blob NOT NULL, \
+         version blob NOT NULL, expires_at_ms bigint NOT NULL)",
+        "CREATE INDEX \"idx-cache_entries-expires_at_ms\" ON cache_entries (expires_at_ms)",
+        "CREATE TABLE cache_counters (key varchar NOT NULL PRIMARY KEY, value bigint NOT NULL, \
+         generation blob NOT NULL, expires_at_ms bigint NOT NULL)",
+        "CREATE INDEX \"idx-cache_counters-expires_at_ms\" ON cache_counters (expires_at_ms)",
+        "CREATE TABLE cache_permits (key varchar NOT NULL, owner blob NOT NULL, \
+         expires_at_ms bigint NOT NULL, PRIMARY KEY (key, owner))",
+        "CREATE INDEX \"idx-cache_permits-expires_at_ms\" ON cache_permits (expires_at_ms)",
+        "INSERT INTO cache_entries VALUES ('k', x'01', x'02', 1)",
+        "DELETE FROM seaql_migrations WHERE version = 'm20261122_000002_drop_store_cache'",
+    ] {
+        older.execute_unprepared(sql).await.unwrap();
+    }
+    let store = Store::new(older.clone());
+    let report = store.sync().await.unwrap();
+    assert_eq!(report.applied, ["m20261122_000002_drop_store_cache"]);
+    assert_same_schema(&older, &fresh).await;
+    assert!(store.sync().await.unwrap().applied.is_empty());
 }
 
 #[tokio::test]

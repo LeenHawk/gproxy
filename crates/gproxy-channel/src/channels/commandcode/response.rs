@@ -1,16 +1,17 @@
 use super::{CommandCode, request::CLI_VERSION};
-use crate::channel::{BaseChannel, ChannelError, OperationContext, PrepareContext};
+use crate::channel::{BaseChannel, OperationContext, PrepareContext};
 use crate::channels::shared::compatible::http::read_body;
 use futures_util::StreamExt;
 use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireResponse,
     connection::{ByteStream, Bytes},
 };
+use gproxy_upstream::UpstreamError;
 use http::{HeaderValue, StatusCode, header};
 use serde_json::{Value, json};
 
-fn invalid(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(format!("Command Code: {}", message.into()))
+fn invalid(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("Command Code: {}", message.into()))
 }
 fn encode(value: &Value, out: &mut Vec<u8>) {
     out.extend_from_slice(
@@ -180,7 +181,7 @@ impl Translator {
         );
     }
 
-    fn event(&mut self, line: &[u8], out: &mut Vec<u8>) -> Result<(), ChannelError> {
+    fn event(&mut self, line: &[u8], out: &mut Vec<u8>) -> Result<(), UpstreamError> {
         if line.iter().all(u8::is_ascii_whitespace) {
             return Ok(());
         }
@@ -201,7 +202,7 @@ impl Translator {
                 .and_then(|n| StatusCode::from_u16(n).ok())
                 .filter(|status| status.is_client_error() || status.is_server_error())
                 .unwrap_or(StatusCode::BAD_GATEWAY);
-            return Err(ChannelError::UpstreamResponse {
+            return Err(UpstreamError::UpstreamResponse {
                 status,
                 body: json!({"error":{"type":"upstream_error", "message":message}})
                     .to_string()
@@ -280,7 +281,7 @@ impl Translator {
         Ok(())
     }
 
-    fn push(&mut self, chunk: &[u8]) -> Result<Bytes, ChannelError> {
+    fn push(&mut self, chunk: &[u8]) -> Result<Bytes, UpstreamError> {
         self.pending.extend_from_slice(chunk);
         let mut out = Vec::new();
         let mut offset = 0;
@@ -294,7 +295,7 @@ impl Translator {
         Ok(out.into())
     }
 
-    fn finish(&mut self) -> Result<Bytes, ChannelError> {
+    fn finish(&mut self) -> Result<Bytes, UpstreamError> {
         let mut out = Vec::new();
         let tail = std::mem::take(&mut self.pending);
         self.event(&tail, &mut out)?;
@@ -344,7 +345,7 @@ pub(super) async fn invoke(
     channel: &CommandCode,
     ctx: OperationContext<'_>,
     streaming: bool,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let operation = if streaming {
         Operation::StreamGenerateContent
     } else {
@@ -405,7 +406,7 @@ pub(super) async fn invoke(
 pub(super) async fn models(
     channel: &CommandCode,
     ctx: OperationContext<'_>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let prepared = channel.prepare(PrepareContext {
         provider: ctx.provider,
         credential: ctx.credential,

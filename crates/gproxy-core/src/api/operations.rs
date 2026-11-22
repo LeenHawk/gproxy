@@ -1,8 +1,8 @@
 use super::{CoreError, CoreResult, HttpExecution, WebSocketExecution};
 use crate::{Core, RequestContext};
-use gproxy_channel::ChannelError;
 use gproxy_protocol::{HttpBody, Operation, WireRequest};
 use gproxy_seaorm::BatchConnectionTrait;
+use gproxy_upstream::UpstreamError;
 use std::sync::Arc;
 
 fn require_operation(context: &RequestContext, expected: Operation) -> CoreResult<()> {
@@ -28,7 +28,7 @@ macro_rules! http_operations {
                 // every arm in this poll's stack frame in debug builds.
                 match context.operation.operation {
                     $(Operation::$operation)|+ => self.execute_http(context, request).await,
-                    Operation::ConnectRealtime | Operation::ConnectLive => Err(ChannelError::WrongTransport(context.operation).into()),
+                    Operation::ConnectRealtime | Operation::ConnectLive => Err(UpstreamError::WrongTransport(context.operation).into()),
                 }
             }
             $(
@@ -90,7 +90,7 @@ macro_rules! websocket_operations {
             pub async fn connect(&self, context: Arc<RequestContext>, request: WireRequest<()>) -> CoreResult<WebSocketExecution> {
                 match context.operation.operation {
                     $(Operation::$operation => self.$method(context, request).await,)+
-                    _ => Err(ChannelError::WrongTransport(context.operation).into()),
+                    _ => Err(UpstreamError::WrongTransport(context.operation).into()),
                 }
             }
             $(

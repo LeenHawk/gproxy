@@ -7,9 +7,10 @@ use std::sync::Arc;
 
 use gproxy_channel::channel::PrepareContext;
 use gproxy_channel::channels::dashscope::DashScope;
-use gproxy_channel::{BaseChannel, ChannelBinding, ChannelError, LoginMode};
+use gproxy_channel::{BaseChannel, ChannelBinding};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
+use gproxy_upstream::{LoginMode, UpstreamError};
 use http::{HeaderMap, StatusCode};
 use serde_json::{Value, json};
 
@@ -22,7 +23,7 @@ fn prepare(
     operation: Operation,
     dialect: Dialect,
     request: WireRequest<HttpBody>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     let secret = json!({"api_key": "sk-dashscope"});
     DashScope.prepare(PrepareContext {
         provider: provider("dashscope", config, base_url),
@@ -224,7 +225,7 @@ fn an_image_request_that_cannot_be_converted_is_refused_before_the_call() {
                 Dialect::OpenAi,
                 streamed
             ),
-            Err(ChannelError::InvalidConfig(_))
+            Err(UpstreamError::InvalidConfig(_))
         ),
         "a multipart upload is not converted"
     );
@@ -239,7 +240,7 @@ fn an_image_request_that_cannot_be_converted_is_refused_before_the_call() {
             Dialect::OpenAi,
             no_prompt
         ),
-        Err(ChannelError::InvalidConfig(_))
+        Err(UpstreamError::InvalidConfig(_))
     ));
 }
 

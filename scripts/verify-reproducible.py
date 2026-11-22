@@ -11,9 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def expected_packages():
     rows = json.loads((ROOT / "scripts/release-targets.json").read_text())["include"]
-    names = {"gproxy-edge.wasm", "gproxy-edge-cloudflare.zip"}
-    for arch in ("x86_64", "aarch64"):
-        names.add(f"gproxy-serverless-linux-{arch}-musl.zip")
+    names = set()
     cli_extensions = {"linux": ".deb", "android": ".deb", "windows": ".msix", "macos": ".dmg"}
     app_extensions = {"linux": ".deb", "android": ".apk", "windows": ".msix", "macos": ".dmg", "ohos": ".hap"}
     for row in rows:

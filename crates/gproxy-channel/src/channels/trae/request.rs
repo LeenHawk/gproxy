@@ -4,11 +4,10 @@ use super::{
     common::{insert, invalid, random_hex},
     config::{APP_ID, TraeConfig, VERSION_CODE, fact},
 };
-use crate::channel::{
-    ChannelError, ChannelHeaders, CredentialView, HeaderAllowlist, PrepareContext, forwardable,
-};
+use crate::channel::{ChannelHeaders, HeaderAllowlist, PrepareContext, forwardable};
 use crate::channels::shared::compatible::http::insert_configured;
 use gproxy_protocol::{HttpBody, connection::Bytes};
+use gproxy_upstream::{CredentialView, UpstreamError};
 use http::{HeaderMap, Method};
 use serde_json::{Value, json};
 
@@ -49,11 +48,11 @@ const OWNED: &[&str] = &[
 pub(super) fn headers(
     config: &TraeConfig,
     credential: &CredentialView<'_>,
-) -> Result<HeaderMap, ChannelError> {
+) -> Result<HeaderMap, UpstreamError> {
     let token = credential.secret["access_token"]
         .as_str()
         .filter(|s| !s.is_empty())
-        .ok_or(ChannelError::InvalidCredential)?;
+        .ok_or(UpstreamError::InvalidCredential)?;
     let mut headers = HeaderMap::new();
     for (name, value) in &config.headers {
         insert_configured(&mut headers, name, value)?;
@@ -85,7 +84,7 @@ pub(super) fn headers(
         insert(
             &mut headers,
             name,
-            fact(credential, key).ok_or(ChannelError::InvalidCredential)?,
+            fact(credential, key).ok_or(UpstreamError::InvalidCredential)?,
         )?;
     }
     if let Some(region) = fact(credential, "region") {
@@ -104,7 +103,7 @@ pub(super) fn headers(
 pub(super) fn chat(
     ctx: PrepareContext<'_>,
     selected: &Value,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     let config = TraeConfig::from_view(ctx.provider)?;
     let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLI_HEADERS)?;
     let mut drop_headers = CLI_HEADERS.names.to_vec();
@@ -134,16 +133,16 @@ pub(super) fn chat(
         .map(Ok)
         .unwrap_or_else(random_hex::<16>)?;
     let HttpBody::Bytes(bytes) = ctx.request.body else {
-        return Err(ChannelError::InvalidConfig(
+        return Err(UpstreamError::InvalidConfig(
             "Trae requires a JSON request body".into(),
         ));
     };
     let mut input: Value =
-        serde_json::from_slice(&bytes).map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+        serde_json::from_slice(&bytes).map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
     let messages = input
         .get_mut("messages")
         .and_then(Value::as_array_mut)
-        .ok_or_else(|| ChannelError::InvalidConfig("Trae: messages must be an array".into()))?;
+        .ok_or_else(|| UpstreamError::InvalidConfig("Trae: messages must be an array".into()))?;
     for message in messages.iter_mut() {
         if message["role"] == "developer" {
             message["role"] = json!("system");
@@ -153,7 +152,7 @@ pub(super) fn chat(
             None | Some(Value::Null) => message["content"] = json!([]),
             Some(Value::Array(_)) => {}
             _ => {
-                return Err(ChannelError::InvalidConfig(
+                return Err(UpstreamError::InvalidConfig(
                     "Trae: unsupported message content".into(),
                 ));
             }

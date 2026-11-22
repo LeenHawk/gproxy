@@ -1,9 +1,7 @@
 //! libSQL / Turso over the Hrana HTTP pipeline (`POST {base}/v2/pipeline`).
 //!
 //! The connection speaks the JSON protocol; sending it is the caller's HTTP
-//! transport (`LibsqlTransport`), so the same connection works natively and
-//! on wasm32 with whatever fetch the host has. Writes are one pipeline
-//! batch bracketed by `BEGIN`/`COMMIT` with a `ROLLBACK` step conditioned
+//! transport (`LibsqlTransport`). Writes are one pipeline batch bracketed by `BEGIN`/`COMMIT` with a `ROLLBACK` step conditioned
 //! on failure, so a failing statement rolls the whole batch back on the
 //! server. No interactive transactions: `TransactionTrait` is not implemented.
 
@@ -16,19 +14,7 @@ use sea_orm::{ConnectionTrait, DbBackend, DbErr, EntityTrait, ExecResult, QueryR
 use serde_json::{Value as Json, json};
 use std::{future::Future, pin::Pin, sync::Arc};
 
-#[cfg(not(target_arch = "wasm32"))]
 pub type LibsqlFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
-#[cfg(target_arch = "wasm32")]
-pub type LibsqlFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
-
-#[cfg(not(target_arch = "wasm32"))]
-pub trait TransportBounds: Send + Sync {}
-#[cfg(not(target_arch = "wasm32"))]
-impl<T: Send + Sync + ?Sized> TransportBounds for T {}
-#[cfg(target_arch = "wasm32")]
-pub trait TransportBounds {}
-#[cfg(target_arch = "wasm32")]
-impl<T: ?Sized> TransportBounds for T {}
 
 /// One pipeline call: an absolute URL, headers (authorization and content
 /// type included) and a JSON body.
@@ -45,25 +31,20 @@ pub struct LibsqlResponse {
     pub body: Vec<u8>,
 }
 
-/// The HTTP leg, supplied by the host: a reqwest client natively, fetch on
-/// wasm32, or anything that can POST JSON and return the whole body.
-pub trait LibsqlTransport: TransportBounds {
+/// The HTTP leg, supplied by the host: a reqwest client, or anything that can
+/// POST JSON and return the whole body.
+pub trait LibsqlTransport: Send + Sync {
     fn post<'a>(
         &'a self,
         request: LibsqlRequest,
     ) -> LibsqlFuture<'a, Result<LibsqlResponse, DbErr>>;
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-type Transport = Arc<dyn LibsqlTransport>;
-#[cfg(target_arch = "wasm32")]
-type Transport = send_wrapper::SendWrapper<Arc<dyn LibsqlTransport>>;
-
 /// SeaORM connection to a libSQL server. Cloning shares the transport and
-/// credentials; projections are per view like `D1Connection`.
+/// credentials; each view carries its own projection.
 #[derive(Clone)]
 pub struct LibsqlConnection {
-    transport: Transport,
+    transport: Arc<dyn LibsqlTransport>,
     pipeline_url: Arc<str>,
     auth: Option<Arc<str>>,
     pub(crate) projection: Projection,
@@ -97,10 +78,7 @@ impl LibsqlConnection {
             _ => return Err(error("libsql URL must be libsql://, https:// or http://")),
         };
         Ok(Self {
-            #[cfg(not(target_arch = "wasm32"))]
             transport,
-            #[cfg(target_arch = "wasm32")]
-            transport: send_wrapper::SendWrapper::new(transport),
             pipeline_url: format!("{base}/v2/pipeline").into(),
             auth: auth_token
                 .map(str::trim)
@@ -144,16 +122,7 @@ impl LibsqlConnection {
     /// One pipeline round trip: returns the `results` array.
     async fn pipeline(&self, requests: Vec<Json>) -> Result<Vec<Json>, DbErr> {
         let request = self.request(requests)?;
-        let response = {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                self.transport.post(request).await?
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                send_wrapper::SendWrapper::new(self.transport.post(request)).await?
-            }
-        };
+        let response = self.transport.post(request).await?;
         let body: Json = serde_json::from_slice(&response.body).map_err(|_| {
             error(format!(
                 "libsql pipeline returned HTTP {} with a non-JSON body",
@@ -299,7 +268,7 @@ fn cell(value: &Json) -> Result<Json, DbErr> {
     })
 }
 
-/// A `StmtResult` as D1's raw row array (`[[names], [cells]...]`).
+/// A `StmtResult` as the raw row array `codec::rows` decodes (`[[names], [cells]...]`).
 fn raw_rows(result: &Json) -> Result<Json, DbErr> {
     let names: Vec<Json> = result
         .get("cols")

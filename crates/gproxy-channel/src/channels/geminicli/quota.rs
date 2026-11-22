@@ -12,12 +12,10 @@
 //! rate-limit response headers either, so there is no `QuotaHeaders`.
 
 use super::{GeminiCli, GeminiCliConfig, quota_request};
-use crate::channel::{
-    ChannelError, CredentialContext, OperationFuture, QuotaEntry, QuotaQuery, QuotaScope,
-    QuotaSnapshot,
-};
+use crate::channel::{QuotaEntry, QuotaQuery, QuotaScope, QuotaSnapshot};
 use crate::channels::shared::code_assist;
 use crate::channels::shared::code_assist::quota::{component, decimal, iso_to_ms, used_percent};
+use gproxy_upstream::{CredentialContext, UpstreamError, UpstreamFuture};
 use http::Method;
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -96,7 +94,7 @@ impl Bucket {
     }
 }
 
-pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
+pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, UpstreamError> {
     let payload: UserQuota = serde_json::from_slice(body).map_err(|error| {
         code_assist::invalid_response(format!("Code Assist quota response JSON: {error}"))
     })?;
@@ -109,7 +107,7 @@ pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
 }
 
 impl QuotaQuery for GeminiCli {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let config = GeminiCliConfig::from_view(context.provider)?;
             let (url, headers, body) =
@@ -123,7 +121,7 @@ impl QuotaQuery for GeminiCli {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });

@@ -1,11 +1,11 @@
 //! Browser PKCE flow used by the Devin CLI. Endpoint and token contracts:
 //! samples/CLIProxyAPI/internal/auth/devin/devin_auth.go.
 
-use crate::channel::{
-    AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, LoginContext,
-    OAuthAuthorizationCode, OAuthCredential, OperationFuture,
-};
 use gproxy_protocol::{HttpBody, connection::Bytes};
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, AuthorizationStart, LoginContext,
+    OAuthAuthorizationCode, OAuthCredential, UpstreamError, UpstreamFuture,
+};
 use serde_json::{Value, json};
 
 use super::{Devin, DevinConfig};
@@ -15,11 +15,11 @@ impl OAuthAuthorizationCode for Devin {
         &'a self,
         context: LoginContext<'a>,
         request: AuthorizationRequest<'a>,
-    ) -> OperationFuture<'a, AuthorizationStart> {
+    ) -> UpstreamFuture<'a, AuthorizationStart> {
         Box::pin(async move {
             let config = DevinConfig::from_view(context.provider)?;
             let mut url = url::Url::parse(&config.authorize_url)
-                .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+                .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
             {
                 let mut query = url.query_pairs_mut();
                 if !request.redirect_uri.is_empty() {
@@ -46,7 +46,7 @@ impl OAuthAuthorizationCode for Devin {
         &'a self,
         context: LoginContext<'a>,
         grant: AuthorizationCode<'a>,
-    ) -> OperationFuture<'a, OAuthCredential> {
+    ) -> UpstreamFuture<'a, OAuthCredential> {
         Box::pin(async move {
             let config = DevinConfig::from_view(context.provider)?;
             let body = json!({
@@ -57,13 +57,13 @@ impl OAuthAuthorizationCode for Devin {
                 .header(http::header::CONTENT_TYPE, "application/json")
                 .header(http::header::ACCEPT, "application/json")
                 .body(HttpBody::Bytes(Bytes::from(body.to_string())))
-                .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+                .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
             let (status, body) = super::call(context.client, request).await?;
             if !status.is_success() {
                 return Err(super::error::from_response(status, &body));
             }
             let value: Value = serde_json::from_slice(&body).map_err(|_| {
-                ChannelError::InvalidResponse("invalid Devin token response".into())
+                UpstreamError::InvalidResponse("invalid Devin token response".into())
             })?;
             let token = value
                 .get("token")
@@ -71,7 +71,7 @@ impl OAuthAuthorizationCode for Devin {
                 .map(str::trim)
                 .filter(|token| !token.is_empty())
                 .ok_or_else(|| {
-                    ChannelError::InvalidResponse("Devin token response has no token".into())
+                    UpstreamError::InvalidResponse("Devin token response has no token".into())
                 })?;
             // Only raw JWTs need the CLI session prefix; opaque keys stay intact.
             let access_token = if token.starts_with("eyJ") {

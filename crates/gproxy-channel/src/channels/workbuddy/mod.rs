@@ -53,15 +53,16 @@ pub use quota::ENTERPRISE_DIMENSION;
 
 use crate::OutboundClient;
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
-    ConfigKeyKind, CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
-    OAuthDeviceCode, OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaQuery,
-    forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelHeaders, HOST_CONFIG_KEYS,
+    HeaderAllowlist, OperationContext, PrepareContext, QuotaQuery, forwardable,
 };
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, LoginMode, OAuthDeviceCode, ProviderView,
+    UpstreamError, UpstreamFuture, UpstreamKind,
+};
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
-
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct WorkBuddy;
@@ -146,7 +147,7 @@ pub(super) fn json_headers() -> HeaderMap {
     headers
 }
 
-pub(super) async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
+pub(super) async fn read_body(body: HttpBody) -> Result<Bytes, UpstreamError> {
     crate::channel::read_body(body).await
 }
 
@@ -157,14 +158,14 @@ pub(super) async fn send(
     url: &str,
     headers: HeaderMap,
     body: Option<Vec<u8>>,
-) -> Result<(StatusCode, HeaderMap, Bytes), ChannelError> {
+) -> Result<(StatusCode, HeaderMap, Bytes), UpstreamError> {
     let mut builder = http::Request::builder().method(method).uri(url);
     if let Some(map) = builder.headers_mut() {
         *map = headers;
     }
     let request = builder
         .body(HttpBody::Bytes(body.map(Bytes::from).unwrap_or_default()))
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
     let WireResponse {
         status,
         headers,
@@ -174,14 +175,14 @@ pub(super) async fn send(
 }
 
 /// Where an operation lives under the origin (v3 `model.rs::path`).
-fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
+fn operation_path(operation: Operation) -> Result<&'static str, UpstreamError> {
     Ok(match operation {
         Operation::ListModels => "/v3/config",
         Operation::CreateImage => "/v2/images/generations",
         Operation::EditImage => "/v2/images/edits",
         Operation::GenerateContent | Operation::StreamGenerateContent => "/v2/chat/completions",
         other => {
-            return Err(ChannelError::UnsupportedOperation(OperationKey {
+            return Err(UpstreamError::UnsupportedOperation(OperationKey {
                 operation: other,
                 dialect: Dialect::OpenAiChat,
             }));
@@ -192,7 +193,7 @@ fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
 // ---------------------------------------------------------------- prepare
 
 impl WorkBuddy {
-    fn build(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn build(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = WorkBuddyConfig::from_view(ctx.provider)?;
         let operation = ctx.operation.operation;
         let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLI_HEADERS)?;
@@ -234,7 +235,7 @@ impl WorkBuddy {
         }
         builder
             .body(body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     /// Send, then lift the gateway envelope off a successful reply. A failure
@@ -243,7 +244,7 @@ impl WorkBuddy {
         &self,
         operation: Operation,
         context: OperationContext<'_>,
-    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    ) -> Result<WireResponse<HttpBody>, UpstreamError> {
         let OperationContext {
             provider,
             credential,
@@ -283,11 +284,28 @@ impl WorkBuddy {
     }
 }
 
-impl BaseChannel for WorkBuddy {
+impl UpstreamKind for WorkBuddy {
     fn id(&self) -> &'static str {
         ID
     }
 
+    /// v3 sent no connection profile for WorkBuddy and there is no capture of
+    /// the plugin's ClientHello to reproduce, so the operator's own profile is
+    /// the only thing that decides the outbound stack.
+    fn default_connection(&self) -> Option<gproxy_client::ConnectionConfig> {
+        None
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+
+    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for WorkBuddy {
     /// Tencent Copilot through its plugin: a browser device login, a
     /// refreshable token, a configuration document that doubles as the
     /// catalogue, and two billing meters.
@@ -345,13 +363,6 @@ impl BaseChannel for WorkBuddy {
         }
     }
 
-    /// v3 sent no connection profile for WorkBuddy and there is no capture of
-    /// the plugin's ClientHello to reproduce, so the operator's own profile is
-    /// the only thing that decides the outbound stack.
-    fn default_connection(&self) -> Option<gproxy_client::ConnectionConfig> {
-        None
-    }
-
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent | Operation::StreamGenerateContent => {
@@ -364,7 +375,7 @@ impl BaseChannel for WorkBuddy {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         self.build(ctx)
     }
 
@@ -373,30 +384,24 @@ impl BaseChannel for WorkBuddy {
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.unwrapped(Operation::ListModels, context))
     }
 
     fn create_image<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.unwrapped(Operation::CreateImage, context))
     }
 
     fn edit_image<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.unwrapped(Operation::EditImage, context))
     }
 
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
-    }
-    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        Some(self)
-    }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }

@@ -2,10 +2,10 @@
 //! credential view is handled before this module: its replies pass through.
 //! Caller/Pool must not turn unknown historical allowances or vendor credits
 //! into zeros, nor expose another user's tasks or plugin invocations.
-use crate::channel::ChannelError;
-use crate::channels::shared::services_common::{json_response, read_body};
 use super::super::wire::{analytics::*, usage::*};
+use crate::channels::shared::services_common::{json_response, read_body};
 use gproxy_protocol::{HttpBody, Rest, WireRequest, WireResponse};
+use gproxy_upstream::UpstreamError;
 use http::StatusCode;
 use serde::Serialize;
 use serde_json::json;
@@ -17,16 +17,16 @@ fn unavailable() -> Rest {
     ])
 }
 
-fn response(value: impl Serialize) -> Result<Option<WireResponse>, ChannelError> {
+fn response(value: impl Serialize) -> Result<Option<WireResponse>, UpstreamError> {
     let value =
-        serde_json::to_value(value).map_err(|e| ChannelError::InvalidResponse(e.to_string()))?;
+        serde_json::to_value(value).map_err(|e| UpstreamError::InvalidResponse(e.to_string()))?;
     Ok(Some(json_response(StatusCode::OK, &value)))
 }
 
 pub(super) async fn answer(
     path: &str,
     request: WireRequest<HttpBody>,
-) -> Result<Option<WireResponse>, ChannelError> {
+) -> Result<Option<WireResponse>, UpstreamError> {
     let path = path.strip_prefix("/backend-api/wham/").unwrap_or(path);
     let query = |key: &str| {
         request.query.as_deref().and_then(|query| {

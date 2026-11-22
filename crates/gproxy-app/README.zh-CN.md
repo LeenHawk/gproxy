@@ -8,17 +8,11 @@ GPROXY v4 的产品层：谁在调用、允许他做什么，以及改变这两�
 
 它不拥有任何 server。这里没有 HTTP 框架、没有路由器、没有运行时、没有 CLI，也没有
 引擎的任何部分：选路、凭证选择、失败转移、协议转换、结算与捕获都属于 `gproxy-core`
-和它之上的句柄。正是这条界线让同一套判断既能跑在原生 axum server 后面，也能跑在
-Cloudflare Worker 里——本 crate 能为 `wasm32-unknown-unknown` 构建，而且会一直如此，
-因为它本来就没有任何与平台绑定的东西。
+和它之上的句柄。正是这条界线让同一套判断可以跑在任何宿主后面：
+它本来就没有任何与平台绑定的东西。
 
-`App<C>` 在**每个**目标上都是 `Send + Sync`，这样宿主才能把它放进请求级 state——
-`axum::Router<S>` 要 `S: Clone + Send + Sync + 'static` 才肯接。这在 wasm 上不是白来的：
-那边的引擎按设计就是 `!Send`，因为 JS 传输句柄属于创建它的 isolate，`gproxy-client`
-的 `ClientBounds` 在类型上写明了这件事。所以 `App` 在该目标上用
-`send_wrapper::SendWrapper` 持有句柄，其余一律不变——一层包装，运行时检查而非断言，
-因 Worker isolate 单线程而成立。`App` 自身方法返回的 future 在 wasm 上仍是 `!Send`；
-宿主在各自的 handler 处桥接（见 `gproxy_host_axum::send`）。
+`App<C>` 是 `Send + Sync`，这样宿主才能把它放进请求级 state——
+`axum::Router<S>` 要 `S: Clone + Send + Sync + 'static` 才肯接。
 
 ## 一个请求的形状
 
@@ -73,7 +67,7 @@ let outcome = app.call(&caller, request).await?;
 | `error` | `AppError`，带 `status_code()` 与用于 API 信封的稳定 `code()` |
 
 表里的模块都已实现。本 crate 还缺的是宿主：这里没有任何东西绑定传输层，那是
-`gproxy-host-axum` 与 `gproxy-host-edge` 的事。
+`gproxy-host-axum` 的事。
 
 ## 快照
 

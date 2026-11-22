@@ -1,9 +1,7 @@
-use sea_orm::{ConnectionTrait, DbErr, EntityTrait, SchemaBuilder};
-#[cfg(not(target_arch = "wasm32"))]
-use sea_orm::{DbBackend, Statement};
+use sea_orm::{ConnectionTrait, DbBackend, DbErr, EntityTrait, SchemaBuilder, Statement};
 use sea_orm_migration::{MigrationStatus, MigratorTrait};
 
-/// Shared entity registration for SeaORM's native builder and the D1 adapter.
+/// Shared entity registration for SeaORM's native builder and the libSQL adapter.
 pub trait EntityRegistry: Sized + Send {
     fn register<E: EntityTrait>(self, entity: E) -> Self;
 }
@@ -22,14 +20,14 @@ impl EntityRegistry for super::SchemaSync {
 
 #[derive(Clone, Debug, Default)]
 pub struct SyncReport {
-    /// D1 planner warnings about existing column types left unchanged. Native
+    /// libSQL planner warnings about existing column types left unchanged. Native
     /// SeaORM emits its own diagnostics through logging instead of this list.
     pub warnings: Vec<String>,
 }
 
 /// The tables an engine keeps for itself, which no census of "what is in this
 /// database" should count. `sqlite_*` is SQLite's own catalogue; `_cf_*` is what
-/// D1 puts beside a binding's data.
+/// Cloudflare D1 puts beside a database's data.
 pub fn is_engine_table(name: &str) -> bool {
     name.starts_with("sqlite_") || name.starts_with("_cf_")
 }
@@ -64,8 +62,7 @@ pub trait SchemaSyncConnectionTrait: ConnectionTrait {
     /// Apply pending migrations with SeaORM's official runner.
     ///
     /// The default refuses: not every connection this adapter offers can be
-    /// handed to the runner. Overridden for native SeaORM connections and for
-    /// the D1 binding, which reaches the runner through its own proxy bridge.
+    /// handed to the runner. Overridden for native SeaORM connections.
     async fn run_migrations<M: MigratorTrait>(&self, steps: Option<u32>) -> Result<(), DbErr> {
         let _ = steps;
         Err(no_runner())
@@ -144,7 +141,6 @@ fn status_against<M: MigratorTrait>(
 /// rather than any `ConnectionTrait`. `DatabaseConnection` and
 /// `DatabaseTransaction` satisfy it; nothing else in this workspace is used as a
 /// native store connection.
-#[cfg(not(target_arch = "wasm32"))]
 #[async_trait::async_trait]
 impl<C> SchemaSyncConnectionTrait for C
 where
@@ -256,45 +252,6 @@ impl SchemaSyncConnectionTrait for crate::LibsqlConnection {
     }
 
     // `run_migrations` keeps the refusing default: the runner needs a
-    // `DatabaseConnection`, and the proxy bridge that gives D1 one is built on
-    // SeaORM's `proxy` feature, which this crate can only enable on wasm32 — it
-    // does not compile next to `sqlx-sqlite`.
-}
-
-#[cfg(target_arch = "wasm32")]
-#[async_trait::async_trait]
-impl SchemaSyncConnectionTrait for crate::D1Connection {
-    type Registry = super::SchemaSync;
-
-    fn schema_registry(&self) -> Self::Registry {
-        self.schema_sync()
-    }
-
-    async fn apply_schema(&self, registry: Self::Registry) -> Result<SyncReport, DbErr> {
-        Ok(SyncReport {
-            warnings: super::apply_registry(registry, self).await?,
-        })
-    }
-
-    async fn sync_schema(&self, registry: Self::Registry) -> Result<SyncReport, DbErr> {
-        Ok(SyncReport {
-            warnings: registry.sync(self).await?.warnings,
-        })
-    }
-
-    async fn table_names(&self) -> Result<Vec<String>, DbErr> {
-        super::table_names(self).await
-    }
-
-    async fn run_migrations<M: MigratorTrait>(&self, steps: Option<u32>) -> Result<(), DbErr> {
-        self.migrate_up::<M>(steps).await
-    }
-
-    /// Read through the projection rather than through the proxy bridge that
-    /// [`crate::D1Connection::migration_status`] uses: that one initializes the
-    /// ledger table on its way past, and a status question should leave a
-    /// database exactly as it found it.
-    async fn ledger_versions(&self, table: &str) -> Result<Vec<String>, DbErr> {
-        super::ledger_versions(self, table).await
-    }
+    // `DatabaseConnection`, and SeaORM's `proxy` feature, which could bridge
+    // one, does not compile next to `sqlx-sqlite`.
 }

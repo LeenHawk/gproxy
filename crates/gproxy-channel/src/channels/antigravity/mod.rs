@@ -81,15 +81,17 @@ mod oauth;
 mod quota;
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
-    ConfigKeyKind, CredentialRefresh, CredentialView, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
-    OAuthAuthorizationCode, OperationContext, OperationFuture, PrepareContext, ProviderView,
-    QuotaModel, QuotaQuery, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelHeaders, HOST_CONFIG_KEYS,
+    HeaderAllowlist, OperationContext, PrepareContext, QuotaModel, QuotaQuery, forwardable,
 };
 use crate::channels::shared::code_assist;
 use gproxy_client::{Alpn, ConnectionConfig, EmulationConfig, Fingerprint};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse, connection::Bytes,
+};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, CredentialRefresh, CredentialView, LoginMode, OAuthAuthorizationCode,
+    ProviderView, UpstreamError, UpstreamFuture, UpstreamKind,
 };
 use http::{HeaderMap, HeaderName, HeaderValue, Method, header};
 use serde::Deserialize;
@@ -178,9 +180,9 @@ impl Default for AntigravityConfig {
 }
 
 impl AntigravityConfig {
-    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, ChannelError> {
+    pub fn from_view(provider: ProviderView<'_>) -> Result<Self, UpstreamError> {
         serde_json::from_value(provider.config.clone())
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 
@@ -253,25 +255,25 @@ pub(super) fn fact<'a>(credential: &CredentialView<'a>, name: &str) -> Option<&'
         .or_else(|| non_empty(credential.secret.get(name)))
 }
 
-pub(super) fn access_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, ChannelError> {
+pub(super) fn access_token<'a>(credential: &CredentialView<'a>) -> Result<&'a str, UpstreamError> {
     credential
         .secret
         .get("access_token")
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|token| !token.is_empty())
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }
 
 /// The Cloud project discovered for this credential at login.
-pub(super) fn project(credential: &CredentialView<'_>) -> Result<String, ChannelError> {
+pub(super) fn project(credential: &CredentialView<'_>) -> Result<String, UpstreamError> {
     fact(credential, "project_id")
         .map(str::to_owned)
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }
 
-fn header_value(value: &str) -> Result<HeaderValue, ChannelError> {
-    HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)
+fn header_value(value: &str) -> Result<HeaderValue, UpstreamError> {
+    HeaderValue::from_str(value).map_err(|_| UpstreamError::InvalidCredential)
 }
 
 /// Headers every hub Code Assist call carries (catalogue, quota,
@@ -283,7 +285,7 @@ pub(super) fn apply_headers(
     headers: &mut HeaderMap,
     config: &AntigravityConfig,
     access_token: &str,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     headers.insert(
         header::AUTHORIZATION,
         header_value(&format!("Bearer {access_token}"))?,
@@ -296,10 +298,10 @@ pub(super) fn apply_headers(
     for (name, value) in &config.headers {
         headers.insert(
             HeaderName::from_bytes(name.as_bytes()).map_err(|_| {
-                ChannelError::InvalidConfig(format!("header `{name}` is not a header name"))
+                UpstreamError::InvalidConfig(format!("header `{name}` is not a header name"))
             })?,
             HeaderValue::from_str(value).map_err(|_| {
-                ChannelError::InvalidConfig(format!("header `{name}` has an invalid value"))
+                UpstreamError::InvalidConfig(format!("header `{name}` has an invalid value"))
             })?,
         );
     }
@@ -309,14 +311,14 @@ pub(super) fn apply_headers(
 /// The Code Assist method for an operation (v3 `prepare.rs`). The client's
 /// own `/v1beta/models/...` path is not trusted: Code Assist mounts every
 /// operation on `/v1internal`.
-fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
+fn operation_path(operation: Operation) -> Result<&'static str, UpstreamError> {
     Ok(match operation {
         Operation::ListModels | Operation::GetModel => "/v1internal:fetchAvailableModels",
         Operation::CountTokens => "/v1internal:countTokens",
         Operation::GenerateContent => "/v1internal:generateContent",
         Operation::StreamGenerateContent => "/v1internal:streamGenerateContent",
         other => {
-            return Err(ChannelError::UnsupportedOperation(OperationKey {
+            return Err(UpstreamError::UnsupportedOperation(OperationKey {
                 operation: other,
                 dialect: Dialect::Gemini,
             }));
@@ -328,10 +330,10 @@ fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
 /// integer, i.e. the hash of the empty session string it always has.
 const SESSION_ID: &str = "-3750763034362895579";
 
-fn uuid() -> Result<String, ChannelError> {
+fn uuid() -> Result<String, UpstreamError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes)
-        .map_err(|_| ChannelError::InvalidConfig("request id randomness failed".into()))?;
+        .map_err(|_| UpstreamError::InvalidConfig("request id randomness failed".into()))?;
     Ok(format_uuid(bytes))
 }
 
@@ -352,7 +354,7 @@ fn format_uuid(mut bytes: [u8; 16]) -> String {
 /// The cascade and trajectory ids of a conversation: UUIDs from the SHA-256
 /// of the first user text, so every turn of a conversation shares them;
 /// random when the conversation opens without text.
-fn conversation_ids(request: &Value) -> Result<(String, String), ChannelError> {
+fn conversation_ids(request: &Value) -> Result<(String, String), UpstreamError> {
     use sha2::Digest as _;
     let first = request
         .get("contents")
@@ -433,7 +435,7 @@ fn agent_labels(
     request: &Value,
     model: &str,
     ms: i64,
-) -> Result<(String, serde_json::Map<String, Value>), ChannelError> {
+) -> Result<(String, serde_json::Map<String, Value>), UpstreamError> {
     let (cascade, trajectory) = conversation_ids(request)?;
     let contents = request
         .get("contents")
@@ -484,7 +486,7 @@ fn agent_labels(
 
 /// The envelope fields the hub sends in place of the Gemini CLI's; a value
 /// the client already put in the envelope is kept.
-fn agent_envelope(envelope: &mut Value, model: &str) -> Result<(), ChannelError> {
+fn agent_envelope(envelope: &mut Value, model: &str) -> Result<(), UpstreamError> {
     let Some(object) = envelope.as_object_mut() else {
         return Ok(());
     };
@@ -590,7 +592,7 @@ fn strip_billing_line(request: &mut Value) {
 }
 
 impl Antigravity {
-    fn build(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn build(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let config = AntigravityConfig::from_view(ctx.provider)?;
         let token = access_token(&ctx.credential)?;
         let operation = ctx.operation.operation;
@@ -605,7 +607,7 @@ impl Antigravity {
         let buffered = match body {
             HttpBody::Bytes(bytes) => bytes,
             HttpBody::Stream(_) => {
-                return Err(ChannelError::InvalidConfig(
+                return Err(UpstreamError::InvalidConfig(
                     "the Code Assist envelope needs a buffered request body".into(),
                 ));
             }
@@ -620,7 +622,7 @@ impl Antigravity {
                 let project = project(&ctx.credential)?;
                 let bytes = code_assist::envelope(&buffered, &model, &project)?;
                 let mut envelope: Value = serde_json::from_slice(&bytes)
-                    .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
+                    .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
                 if let Some(request) = envelope.get_mut("request") {
                     strip_billing_line(request);
                 }
@@ -633,12 +635,12 @@ impl Antigravity {
                 }
                 agent_envelope(&mut envelope, &model)?;
                 (
-                    code_assist::encode(&envelope, ChannelError::InvalidConfig)?,
+                    code_assist::encode(&envelope, UpstreamError::InvalidConfig)?,
                     operation == Operation::StreamGenerateContent,
                 )
             }
             other => {
-                return Err(ChannelError::UnsupportedOperation(OperationKey {
+                return Err(UpstreamError::UnsupportedOperation(OperationKey {
                     operation: other,
                     dialect: ctx.operation.dialect,
                 }));
@@ -665,7 +667,7 @@ impl Antigravity {
         }
         builder
             .body(HttpBody::Bytes(body))
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     /// Buffered generation: one JSON object with the Gemini reply under
@@ -674,7 +676,7 @@ impl Antigravity {
         &self,
         operation: Operation,
         ctx: OperationContext<'_>,
-    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+    ) -> Result<WireResponse<HttpBody>, UpstreamError> {
         let OperationContext {
             provider,
             credential,
@@ -708,11 +710,25 @@ impl Antigravity {
     }
 }
 
-impl BaseChannel for Antigravity {
+impl UpstreamKind for Antigravity {
     fn id(&self) -> &'static str {
         ID
     }
 
+    fn default_connection(&self) -> Option<ConnectionConfig> {
+        Some(default_connection())
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+
+    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for Antigravity {
     /// A Google account through the Antigravity IDE: an authorization code
     /// login that also discovers the Cloud project, a refreshable token, and the
     /// 5-hour and weekly quota windows each model family shares.
@@ -756,10 +772,6 @@ impl BaseChannel for Antigravity {
         }
     }
 
-    fn default_connection(&self) -> Option<ConnectionConfig> {
-        Some(default_connection())
-    }
-
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent
@@ -771,44 +783,38 @@ impl BaseChannel for Antigravity {
         }
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         self.build(ctx)
     }
 
     fn list_models<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::invoke(self, Operation::ListModels, context))
     }
 
     fn get_model<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(models::invoke(self, Operation::GetModel, context))
     }
 
     fn generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.generate(Operation::GenerateContent, context))
     }
 
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(self.generate(Operation::StreamGenerateContent, context))
     }
 
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
-    }
-    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
-        Some(self)
-    }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
@@ -843,7 +849,7 @@ pub(super) fn catalog_request(
     config: &AntigravityConfig,
     provider: ProviderView<'_>,
     credential: &CredentialView<'_>,
-) -> Result<(String, HeaderMap, Bytes), ChannelError> {
+) -> Result<(String, HeaderMap, Bytes), UpstreamError> {
     let token = access_token(credential)?;
     let mut headers = HeaderMap::new();
     apply_headers(&mut headers, config, token)?;

@@ -507,4 +507,4 @@ or gives them a zero-byte budget. Request metadata follows the independent
 keeps them all. Active captures are retained. The cap counts encoded
 payload bytes and manifests, not SQLite pages or indexes; SQLite reuses freed
 pages, while its separate `maxDatabaseSizeMb` policy governs physical cleanup.
-Embedders/edge schedulers can call `Store::prune_capture_payloads` explicitly.
+Embedders can call `Store::prune_capture_payloads` explicitly.

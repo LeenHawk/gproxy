@@ -303,7 +303,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
             .await
             .map_err(|error| match error {
                 gproxy_core::CoreError::Channel(
-                    gproxy_channel::ChannelError::UnsupportedService,
+                    gproxy_upstream::UpstreamError::UnsupportedService,
                 ) => SdkError::Unsupported("this channel cannot reopen a spent quota window"),
                 error => error.into(),
             })?
@@ -396,7 +396,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
     async fn provider(
         &self,
         id: &str,
-    ) -> SdkResult<(String, std::sync::Arc<dyn gproxy_channel::BaseChannel>)> {
+    ) -> SdkResult<(
+        String,
+        &dyn gproxy_upstream::UpstreamKind,
+        gproxy_channel::ChannelDescriptor,
+    )> {
         let id = crud::text(id, "providerId")?;
         let provider = self
             .writer
@@ -408,19 +412,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
             .next()
             .flatten()
             .ok_or_else(|| SdkError::not_found("provider", &id))?;
-        let channel = self
-            .writer
-            .core()
-            .channels()
-            .get(&provider.channel)
-            .cloned()
+        let core = self.writer.core();
+        let kind = core
+            .upstream_kind(&provider.channel)
+            .zip(crate::handle::descriptor(core, &provider.channel))
             .ok_or_else(|| {
                 SdkError::invalid(format!(
                     "channel `{}` is not registered in this build",
                     provider.channel
                 ))
             })?;
-        Ok((id, channel))
+        Ok((id, kind.0, kind.1))
     }
 
     fn assert_row(&self, query: Select<credential::Entity>) -> BatchStatement {
@@ -567,7 +569,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
         let backend = self.writer.backend();
         // Lock the row before testing its current owner/version. A CASE that
         // fails a NOT NULL column is the same portable transaction assertion
-        // used by quota settlement: it also rolls back a D1 batch, where an
+        // used by quota settlement: it also rolls back a libSQL batch, where an
         // interactive transaction is unavailable. Checking affected rows after
         // commit would leave earlier batch items applied on authorization loss.
         let lock = credential::Entity::update_many()
@@ -625,9 +627,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
 
     async fn build(&self, write: CredentialWrite) -> SdkResult<(credential::ActiveModel, String)> {
         let id = crud::id_or_new(write.id.as_deref());
-        let (provider_id, channel) = self.provider(&write.provider_id).await?;
+        let (provider_id, channel, descriptor) = self.provider(&write.provider_id).await?;
         let auth_kind = crud::text(&write.auth_kind, "authKind")?;
-        let descriptor = channel.descriptor();
         if !descriptor.credential_kinds.contains(&auth_kind.as_str()) {
             return Err(SdkError::invalid(format!(
                 "channel `{}` does not accept credential type `{auth_kind}`; supported types: {}",
@@ -687,7 +688,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
         }
         let mut initial_expiry = None;
         if let Some(secret) = patch.secret {
-            let (_, channel) = self.provider(&current.provider_id).await?;
+            let (_, channel, _) = self.provider(&current.provider_id).await?;
             // Existing rows may carry legacy kind labels. Validate their material
             // without silently migrating immutable auth_kind values.
             channel

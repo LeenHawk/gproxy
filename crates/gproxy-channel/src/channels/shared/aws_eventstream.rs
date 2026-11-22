@@ -16,8 +16,8 @@
 //! CodeWhisperer events out of the payloads and `aws_bedrock` reads
 //! base64-wrapped Claude Messages events, and each keeps its own translator.
 
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::UpstreamError;
 
 const PRELUDE_LEN: usize = 12;
 const MIN_FRAME_LEN: usize = PRELUDE_LEN + 4;
@@ -44,7 +44,7 @@ impl FrameParser {
         Self::default()
     }
 
-    pub(crate) fn push(&mut self, chunk: &[u8]) -> Result<Vec<Frame>, ChannelError> {
+    pub(crate) fn push(&mut self, chunk: &[u8]) -> Result<Vec<Frame>, UpstreamError> {
         self.pending.extend_from_slice(chunk);
         let mut frames = Vec::new();
         loop {
@@ -61,7 +61,7 @@ impl FrameParser {
     }
 
     /// A clean EOF leaves nothing half-read.
-    pub(crate) fn finish(&self) -> Result<(), ChannelError> {
+    pub(crate) fn finish(&self) -> Result<(), UpstreamError> {
         if self.pending.is_empty() {
             Ok(())
         } else {
@@ -79,7 +79,7 @@ struct Layout {
     headers_len: usize,
 }
 
-fn decode_prelude(prelude: &[u8]) -> Result<Layout, ChannelError> {
+fn decode_prelude(prelude: &[u8]) -> Result<Layout, UpstreamError> {
     let total_len = read_u32(&prelude[..4]) as usize;
     if !(MIN_FRAME_LEN..=MAX_FRAME_LEN).contains(&total_len) {
         return Err(decode(format!(
@@ -101,7 +101,7 @@ fn decode_prelude(prelude: &[u8]) -> Result<Layout, ChannelError> {
     })
 }
 
-fn decode_frame(raw: &[u8], layout: Layout) -> Result<Frame, ChannelError> {
+fn decode_frame(raw: &[u8], layout: Layout) -> Result<Frame, UpstreamError> {
     let message_end = layout.total_len - 4;
     if crc32fast::hash(&raw[..message_end]) != read_u32(&raw[message_end..]) {
         return Err(decode("message CRC mismatch"));
@@ -112,7 +112,7 @@ fn decode_frame(raw: &[u8], layout: Layout) -> Result<Frame, ChannelError> {
     Ok(frame)
 }
 
-fn decode_headers(mut bytes: &[u8]) -> Result<Frame, ChannelError> {
+fn decode_headers(mut bytes: &[u8]) -> Result<Frame, UpstreamError> {
     let mut frame = Frame::default();
     while !bytes.is_empty() {
         let name_len = usize::from(take(&mut bytes, 1)?[0]);
@@ -135,7 +135,7 @@ fn decode_headers(mut bytes: &[u8]) -> Result<Frame, ChannelError> {
 
 /// Only the string type (7) yields a value; the rest are skipped by their
 /// fixed or length-prefixed width.
-fn header_value(kind: u8, bytes: &mut &[u8]) -> Result<Option<String>, ChannelError> {
+fn header_value(kind: u8, bytes: &mut &[u8]) -> Result<Option<String>, UpstreamError> {
     let skip = match kind {
         0 | 1 => 0,
         2 => 1,
@@ -161,7 +161,7 @@ fn header_value(kind: u8, bytes: &mut &[u8]) -> Result<Option<String>, ChannelEr
     Ok(None)
 }
 
-fn take<'a>(bytes: &mut &'a [u8], length: usize) -> Result<&'a [u8], ChannelError> {
+fn take<'a>(bytes: &mut &'a [u8], length: usize) -> Result<&'a [u8], UpstreamError> {
     if bytes.len() < length {
         return Err(decode("the header block is truncated"));
     }
@@ -176,8 +176,8 @@ fn read_u32(bytes: &[u8]) -> u32 {
 
 /// The framing's own error voice. A channel translating these frames reports
 /// a malformed payload in the same voice, so it is shared too.
-pub(crate) fn decode(message: impl Into<String>) -> ChannelError {
-    ChannelError::InvalidResponse(format!("AWS event-stream: {}", message.into()))
+pub(crate) fn decode(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("AWS event-stream: {}", message.into()))
 }
 
 /// Encode one frame with a single `:event-type` string header. Only tests and

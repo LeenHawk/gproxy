@@ -19,12 +19,14 @@ mod credentials;
 // under the same grammar a permission rule uses.
 pub(crate) mod glob;
 mod keys;
+mod mcp;
 mod membership;
 mod oauth_policy;
 mod permission;
 
 pub use credentials::{CredentialOwnership, Owner};
 pub use keys::{ApiKeyIdentity, ApiKeyIndex, decode_key_hash, encode_key_hash};
+pub use mcp::McpPolicy;
 pub use membership::MembershipIndex;
 pub use oauth_policy::ClientAllowlist;
 pub use permission::{Decision, PermissionSet, Subject};
@@ -66,6 +68,7 @@ pub struct AppData {
     pub memberships: MembershipIndex,
     pub credential_ownership: CredentialOwnership,
     pub permissions: PermissionSet,
+    pub mcp: McpPolicy,
     pub oauth_client_allowlist: ClientAllowlist,
     pub users: HashMap<String, user::Model>,
     pub organizations: HashMap<String, organization::Model>,
@@ -112,6 +115,7 @@ impl AppData {
             ),
             credential_ownership: CredentialOwnership::build(credentials),
             permissions: PermissionSet::build(&identity.permissions),
+            mcp: McpPolicy::build(&identity.mcp_scopes, &identity.mcp_tool_natures),
             oauth_client_allowlist: ClientAllowlist::build(
                 &identity.users,
                 &identity.organizations,
@@ -137,6 +141,7 @@ impl AppData {
             memberships: MembershipIndex::default(),
             credential_ownership: CredentialOwnership::default(),
             permissions: PermissionSet::default(),
+            mcp: McpPolicy::default(),
             oauth_client_allowlist: ClientAllowlist::default(),
             users: HashMap::new(),
             organizations: HashMap::new(),

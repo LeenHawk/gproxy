@@ -8,10 +8,6 @@ use crate::{
     Core, CoreError, CoreResult, CredentialData, CredentialStatus, CredentialSummary,
     CredentialVersion, Invalidation, RefreshMode, api::lifecycle::now_ms, keys,
 };
-use gproxy_channel::{
-    ChannelError,
-    channel::{CredentialContext, CredentialView, RefreshReason},
-};
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::{
     entity::upstream::credential,
@@ -20,6 +16,7 @@ use gproxy_store::{
         credentials::{CredentialRefresh as RefreshRow, CredentialStatusUpdate},
     },
 };
+use gproxy_upstream::{CredentialContext, CredentialView, RefreshReason, UpstreamError};
 use sea_orm::{Condition, EntityTrait, QueryFilter};
 use std::{sync::Arc, time::Duration};
 
@@ -35,7 +32,7 @@ pub(crate) fn can_refresh(
     version: &CredentialVersion,
 ) -> bool {
     provider
-        .channel
+        .upstream()
         .credential_refresh()
         .is_some_and(|refresher| {
             refresher.supports(&crate::execute::prepare::credential_view(
@@ -52,7 +49,7 @@ pub(crate) fn needs_refresh(
     now_ms: i64,
 ) -> bool {
     provider
-        .channel
+        .upstream()
         .credential_refresh()
         .is_some_and(|refresher| {
             refresher
@@ -91,21 +88,23 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                 && provider.entity.enabled
                 && version.status == CredentialStatus::Active
                 && provider
-                    .channel
+                    .upstream()
                     .credential_refresh()
                     .is_some_and(|refresher| {
                         let view = crate::execute::prepare::credential_view(credential, &version);
                         refresher.supports(&view)
                             && refresher.keepalive(&view)
-                            && refresher
-                                .proactive_refresh_reason(view, now_ms())
-                                .is_some()
+                            && refresher.proactive_refresh_reason(view, now_ms()).is_some()
                     });
             if !due {
                 continue;
             }
             if let Err(error) = self
-                .refresh_credential(&credential.provider_id, &credential.id, RefreshMode::IfNeeded)
+                .refresh_credential(
+                    &credential.provider_id,
+                    &credential.id,
+                    RefreshMode::IfNeeded,
+                )
                 .await
             {
                 tracing::warn!(%error, credential = %credential.id, "keepalive refresh failed");
@@ -171,8 +170,8 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         if mode == RefreshMode::IfNeeded && !needs_refresh(&provider, &credential, &current, now) {
             return Ok(summary(credential_id, &current));
         }
-        let Some(refresher) = provider.channel.credential_refresh() else {
-            return Err(CoreError::Channel(ChannelError::UnsupportedService));
+        let Some(refresher) = provider.upstream().credential_refresh() else {
+            return Err(CoreError::Channel(UpstreamError::UnsupportedService));
         };
 
         // One refresher per credential across instances. While waiting, a peer
@@ -194,7 +193,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                     credential_id: credential_id.to_owned(),
                 });
             }
-            crate::rt::sleep(LEASE_POLL).await;
+            tokio::time::sleep(LEASE_POLL).await;
         };
         let result = self
             .refresh_under_lease(&provider, &credential, &current, mode, refresher, filter)
@@ -209,7 +208,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         credential: &Arc<CredentialData>,
         current: &Arc<CredentialVersion>,
         mode: RefreshMode,
-        refresher: &dyn gproxy_channel::channel::CredentialRefresh,
+        refresher: &dyn gproxy_upstream::CredentialRefresh,
         filter: Option<&Condition>,
     ) -> CoreResult<CredentialSummary> {
         let credential_id = credential.id.as_str();
@@ -256,21 +255,21 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             client: credential.client.as_ref(),
         };
         if !refresher.supports(&context.credential) {
-            return Err(CoreError::Channel(ChannelError::UnsupportedService));
+            return Err(CoreError::Channel(UpstreamError::UnsupportedService));
         }
         // Reload the durable row before consulting a version-scoped rejection:
         // another process may have replaced the failed login material.
         if let Some(reason) = credential.state.refresh_rejection(row.version) {
-            return Err(CoreError::Channel(ChannelError::RefreshRejected(reason)));
+            return Err(CoreError::Channel(UpstreamError::RefreshRejected(reason)));
         }
         let cookie_client = if refresher.connection_purpose(&context.credential)
-            == gproxy_channel::channel::ConnectionPurpose::Browser
+            == gproxy_upstream::ConnectionPurpose::Browser
             && row.connection_profile_id.is_none()
         {
             Some(
                 self.provider_client_for_proxy(
                     &provider.entity.id,
-                    gproxy_channel::channel::ConnectionPurpose::Browser,
+                    gproxy_upstream::ConnectionPurpose::Browser,
                     row.proxy.as_ref(),
                 )
                 .await?,
@@ -283,10 +282,10 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         }
         let update = match refresher.refresh_with_reason(context, reason).await {
             Ok(update) => update,
-            Err(ChannelError::RefreshRejected(reason)) => {
+            Err(UpstreamError::RefreshRejected(reason)) => {
                 if !refresher.persist_rejection(&reason) {
                     credential.state.reject_refresh(row.version, reason.clone());
-                    return Err(CoreError::Channel(ChannelError::RefreshRejected(reason)));
+                    return Err(CoreError::Channel(UpstreamError::RefreshRejected(reason)));
                 }
                 return Err(self
                     .mark_dead(credential, &row_version, reason, filter)

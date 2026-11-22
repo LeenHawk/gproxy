@@ -86,7 +86,7 @@ impl HttpExecution {
                                     let report_error = message.clone();
                                     let _ = send_usage.send(Box::pin(async move {
                                         Err(CoreError::Channel(
-                                            gproxy_channel::ChannelError::InvalidResponse(
+                                            gproxy_upstream::UpstreamError::InvalidResponse(
                                                 report_error,
                                             ),
                                         ))
@@ -172,7 +172,7 @@ mod tests {
     async fn slow_result_gets_heartbeats_then_original_body_and_completion() {
         let result = HttpExecution::with_sse_keepalive::<CoreError>(
             Box::pin(async {
-                crate::rt::sleep(Duration::from_secs(40)).await;
+                tokio::time::sleep(Duration::from_secs(40)).await;
                 Ok(execution(StatusCode::OK, b"data: answer\n\n"))
             }),
             Dialect::OpenAiChat,
@@ -206,7 +206,7 @@ mod tests {
         assert_eq!(result.response().status, StatusCode::BAD_REQUEST);
         let late = HttpExecution::with_sse_keepalive::<CoreError>(
             Box::pin(async {
-                crate::rt::sleep(Duration::from_secs(20)).await;
+                tokio::time::sleep(Duration::from_secs(20)).await;
                 Ok(execution(
                     StatusCode::TOO_MANY_REQUESTS,
                     br#"{"error":{"message":"over quota"}}"#,

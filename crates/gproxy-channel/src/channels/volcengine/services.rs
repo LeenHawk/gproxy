@@ -1,10 +1,10 @@
 //! get-personal-plan-api: read-only plan status, not a quota reading.
 use super::{Volcengine, control, json_response};
 use crate::channel::{
-    ChannelError, ChannelServices, OperationFuture, ServiceClass, ServiceContext, ServiceRoute,
-    ServiceTransport,
+    ChannelServices, ServiceClass, ServiceContext, ServiceRoute, ServiceTransport,
 };
 use gproxy_protocol::{HttpBody, WireResponse};
+use gproxy_upstream::{UpstreamError, UpstreamFuture};
 use http::{Method, StatusCode};
 use serde_json::json;
 
@@ -21,10 +21,10 @@ impl ChannelServices for Volcengine {
         ROUTES
     }
 
-    fn call<'a>(&'a self, ctx: ServiceContext<'a>) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    fn call<'a>(&'a self, ctx: ServiceContext<'a>) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
             if self.route(&ctx.request.method, &ctx.request.path).is_none() {
-                return Err(ChannelError::UnsupportedService);
+                return Err(UpstreamError::UnsupportedService);
             }
             if ctx.view.is_synthesized() {
                 return Ok(json_response(

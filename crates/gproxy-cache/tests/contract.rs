@@ -1,7 +1,4 @@
-#![cfg(all(
-    not(target_arch = "wasm32"),
-    any(feature = "memory", feature = "redis")
-))]
+#![cfg(any(feature = "memory", feature = "redis"))]
 
 use gproxy_cache::*;
 use std::{sync::Arc, time::Duration};

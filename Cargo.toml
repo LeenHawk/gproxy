@@ -10,18 +10,20 @@ members = [
     "crates/gproxy-store",
     "crates/gproxy-client",
     "crates/gproxy-client-sdk",
+    "crates/gproxy-upstream",
     "crates/gproxy-channel",
+    "crates/gproxy-convert",
+    "crates/gproxy-lite",
+    "crates/gproxy-mcp",
     "crates/gproxy-cache",
     "crates/gproxy-core",
     "crates/gproxy-sdk",
     "crates/gproxy-app",
     "crates/gproxy-host-axum",
-    "crates/gproxy-host-edge",
     "crates/gproxy",
     "crates/gproxy-host-tauri",
     "examples/channel-plugin/channel",
     "examples/channel-plugin/native",
-    "examples/channel-plugin/edge",
 ]
 
 # `cargo check`, `cargo test` and `cargo clippy` with no `-p` and no
@@ -42,8 +44,8 @@ members = [
 # lockfile resolves with it in.
 #
 # `examples/channel-plugin` is left out for a smaller reason: it holds a second
-# copy of the `gproxy` binary and of the Worker, and linking them on every
-# `cargo test` buys nothing. CI checks them on their own.
+# copy of the `gproxy` binary, and linking it on every `cargo test` buys
+# nothing. CI checks it on its own.
 default-members = [
     "crates/gproxy-protocol",
     "crates/gproxy-protocol-macros",
@@ -53,13 +55,16 @@ default-members = [
     "crates/gproxy-store",
     "crates/gproxy-client",
     "crates/gproxy-client-sdk",
+    "crates/gproxy-upstream",
     "crates/gproxy-channel",
+    "crates/gproxy-convert",
+    "crates/gproxy-lite",
+    "crates/gproxy-mcp",
     "crates/gproxy-cache",
     "crates/gproxy-core",
     "crates/gproxy-sdk",
     "crates/gproxy-app",
     "crates/gproxy-host-axum",
-    "crates/gproxy-host-edge",
     "crates/gproxy",
 ]
 
@@ -75,9 +80,10 @@ aes-gcm = { version = "0.11", default-features = false, features = ["aes", "allo
 argon2 = "0.6"
 arc-swap = "1"
 async-trait = "0.1"
-# Every entry below that a wasm32 crate also uses (axum, reqwest, tokio) is
-# declared with the fewest features that crate needs: features requested here
-# cannot be switched off by a member, so each native member lists its own.
+# Every entry below that a wasm32 build of the stateless crates also uses
+# (tokio) is declared with the fewest features that build needs: features
+# requested here cannot be switched off by a member, so each native member
+# lists its own.
 axum = { version = "0.8", default-features = false }
 base64 = "0.23"
 blake3 = "1"
@@ -92,11 +98,12 @@ gproxy = { path = "crates/gproxy", version = "=4.2.7", default-features = false 
 gproxy-core = { path = "crates/gproxy-core", version = "=4.2.7", default-features = false }
 gproxy-channel = { path = "crates/gproxy-channel", version = "=4.2.7", default-features = false }
 gproxy-client = { path = "crates/gproxy-client", version = "=4.2.7", default-features = false }
+gproxy-convert = { path = "crates/gproxy-convert", version = "=4.2.7" }
 gproxy-client-sdk = { path = "crates/gproxy-client-sdk", version = "=4.2.7", default-features = false }
 gproxy-cache = { path = "crates/gproxy-cache", version = "=4.2.7", default-features = false }
 gproxy-file = { path = "crates/gproxy-file", version = "=4.2.7", default-features = false }
+gproxy-mcp = { path = "crates/gproxy-mcp", version = "=4.2.7" }
 gproxy-host-axum = { path = "crates/gproxy-host-axum", version = "=4.2.7", default-features = false }
-gproxy-host-edge = { path = "crates/gproxy-host-edge", version = "=4.2.7", default-features = false }
 gproxy-host-tauri = { path = "crates/gproxy-host-tauri", version = "=4.2.7" }
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.2.7", features = ["exhaustive"] }
 gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.2.7" }
@@ -104,6 +111,7 @@ gproxy-sdk = { path = "crates/gproxy-sdk", version = "=4.2.7", default-features 
 gproxy-seaorm = { path = "crates/gproxy-seaorm", version = "=4.2.7" }
 gproxy-store = { path = "crates/gproxy-store", version = "=4.2.7" }
 gproxy-tokenizer = { path = "crates/gproxy-tokenizer", version = "=4.2.7", default-features = false }
+gproxy-upstream = { path = "crates/gproxy-upstream", version = "=4.2.7", default-features = false }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 dashmap = { version = "6" }
 dotenvy = "0.15"
@@ -175,7 +183,6 @@ json-patch = { version = "5", default-features = false }
 serde_json = "1"
 schemars = { version = "1", features = ["rust_decimal1", "bytes1"] }
 utoipa = "6"
-serde-wasm-bindgen = "0.6"
 syn = { version = "3", features = ["full", "visit-mut"] }
 tauri = { version = "2" }
 tauri-build = { version = "2" }
@@ -212,7 +219,6 @@ web-sys = "0.3"
 web-time = "1"
 windows = "0.62"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_Packaging_Appx"] }
-worker = { version = "0.9", default-features = false }
 wreq = { version = "0.16", features = ["stream", "ws", "gzip", "brotli", "zstd", "deflate", "socks"] }
 wreq-util = { version = "0.2", features = ["emulation"] }
 zip = { version = "9", default-features = false, features = ["deflate"] }

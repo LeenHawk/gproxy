@@ -6,8 +6,8 @@
 //! tracker holds one record per call id and emits as the fragments arrive.
 
 use super::sse;
-use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 
 /// Content occupies output index 0 and reasoning index 1, so the first tool
@@ -48,7 +48,7 @@ impl Tracker {
         &mut self,
         value: &Value,
         sequence: &mut u64,
-    ) -> Result<Vec<Bytes>, ChannelError> {
+    ) -> Result<Vec<Bytes>, UpstreamError> {
         let call_id = value
             .get("toolUseId")
             .and_then(Value::as_str)
@@ -150,6 +150,6 @@ fn take(sequence: &mut u64) -> u64 {
     current
 }
 
-fn decode(message: &str) -> ChannelError {
-    ChannelError::InvalidResponse(format!("Kiro stream: {message}"))
+fn decode(message: &str) -> UpstreamError {
+    UpstreamError::InvalidResponse(format!("Kiro stream: {message}"))
 }

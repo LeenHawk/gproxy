@@ -3,14 +3,14 @@
 use super::common::{invalid_response, send_json};
 use super::{Codex, CodexConfig, DEFAULT_CLIENT_ID};
 use crate::OutboundClient;
-use crate::channel::{
-    AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, CredentialRefresh,
-    CredentialUpdate, CredentialView, DeviceAuthorization, DevicePoll, LoginContext,
-    OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
-    RefreshReason,
-};
 use crate::channels::shared::services_common::unix_now_ms;
 use base64::Engine;
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, AuthorizationStart, CredentialRefresh,
+    CredentialUpdate, CredentialView, DeviceAuthorization, DevicePoll, LoginContext,
+    OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, RefreshContext, RefreshReason,
+    UpstreamError, UpstreamFuture,
+};
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -158,7 +158,7 @@ async fn exchange_code(
     code: &str,
     redirect_uri: &str,
     code_verifier: &str,
-) -> Result<OAuthCredential, ChannelError> {
+) -> Result<OAuthCredential, UpstreamError> {
     let url = format!("{}/oauth/token", config.issuer.trim_end_matches('/'));
     // Field order of login/src/oauth/client.rs `exchange_code`.
     let body = form_encode(&[
@@ -177,7 +177,7 @@ async fn exchange_code(
     )
     .await?;
     if !status.is_success() {
-        return Err(ChannelError::UpstreamResponse {
+        return Err(UpstreamError::UpstreamResponse {
             status,
             body: bytes,
         });
@@ -200,7 +200,7 @@ impl OAuthAuthorizationCode for Codex {
         &'a self,
         context: LoginContext<'a>,
         request: AuthorizationRequest<'a>,
-    ) -> OperationFuture<'a, AuthorizationStart> {
+    ) -> UpstreamFuture<'a, AuthorizationStart> {
         Box::pin(async move {
             let config = CodexConfig::from_view(context.provider)?;
             let redirect_uri = match request.redirect_uri.trim() {
@@ -237,7 +237,7 @@ impl OAuthAuthorizationCode for Codex {
         &'a self,
         context: LoginContext<'a>,
         grant: AuthorizationCode<'a>,
-    ) -> OperationFuture<'a, OAuthCredential> {
+    ) -> UpstreamFuture<'a, OAuthCredential> {
         Box::pin(async move {
             let config = CodexConfig::from_view(context.provider)?;
             exchange_code(
@@ -277,7 +277,7 @@ struct DeviceTokenResponse {
 }
 
 impl OAuthDeviceCode for Codex {
-    fn start<'a>(&'a self, context: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
+    fn start<'a>(&'a self, context: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
             let config = CodexConfig::from_view(context.provider)?;
             let issuer = config.issuer.trim_end_matches('/');
@@ -294,7 +294,7 @@ impl OAuthDeviceCode for Codex {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });
@@ -318,7 +318,7 @@ impl OAuthDeviceCode for Codex {
         &'a self,
         context: LoginContext<'a>,
         authorization: &'a DeviceAuthorization,
-    ) -> OperationFuture<'a, DevicePoll> {
+    ) -> UpstreamFuture<'a, DevicePoll> {
         Box::pin(async move {
             let config = CodexConfig::from_view(context.provider)?;
             let issuer = config.issuer.trim_end_matches('/');
@@ -342,7 +342,7 @@ impl OAuthDeviceCode for Codex {
             match status {
                 StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => return Ok(DevicePoll::Pending),
                 status if !status.is_success() => {
-                    return Err(ChannelError::UpstreamResponse {
+                    return Err(UpstreamError::UpstreamResponse {
                         status,
                         body: bytes,
                     });
@@ -402,7 +402,7 @@ impl CredentialRefresh for Codex {
         false
     }
 
-    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         self.refresh_with_reason(context, RefreshReason::Forced)
     }
 
@@ -410,7 +410,7 @@ impl CredentialRefresh for Codex {
         &'a self,
         context: RefreshContext<'a>,
         reason: RefreshReason,
-    ) -> OperationFuture<'a, CredentialUpdate> {
+    ) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let config = CodexConfig::from_view(context.provider)?;
             let secret = context.credential.secret;
@@ -419,7 +419,7 @@ impl CredentialRefresh for Codex {
                 .and_then(Value::as_str)
                 .filter(|t| !t.is_empty())
                 .ok_or_else(|| {
-                    ChannelError::RefreshRejected("credential has no refresh token".into())
+                    UpstreamError::RefreshRejected("credential has no refresh token".into())
                 })?;
             let url = format!("{}/oauth/token", config.issuer.trim_end_matches('/'));
             let body = json!({
@@ -440,12 +440,12 @@ impl CredentialRefresh for Codex {
             headers.insert(
                 HeaderName::from_static("originator"),
                 HeaderValue::from_str(&config.originator)
-                    .map_err(|_| ChannelError::InvalidConfig("originator".into()))?,
+                    .map_err(|_| UpstreamError::InvalidConfig("originator".into()))?,
             );
             headers.insert(
                 header::USER_AGENT,
                 HeaderValue::from_str(&super::agent::user_agent(&config.originator))
-                    .map_err(|_| ChannelError::InvalidConfig("originator".into()))?,
+                    .map_err(|_| UpstreamError::InvalidConfig("originator".into()))?,
             );
             let (status, _, bytes) = send_json(
                 context.client,
@@ -469,11 +469,11 @@ impl CredentialRefresh for Codex {
                     || (status == StatusCode::BAD_REQUEST
                         && code.as_deref() == Some("invalid_grant"));
                 if definitive {
-                    return Err(ChannelError::RefreshRejected(
+                    return Err(UpstreamError::RefreshRejected(
                         code.unwrap_or_else(|| format!("http {}", status.as_u16())),
                     ));
                 }
-                return Err(ChannelError::UpstreamResponse {
+                return Err(UpstreamError::UpstreamResponse {
                     status,
                     body: bytes,
                 });

@@ -1,7 +1,8 @@
 //! How a Cline credential authenticates and the client identity it presents.
 
-use crate::channel::{ChannelError, ChannelHeaders, CredentialView};
+use crate::channel::ChannelHeaders;
 use base64::Engine as _;
+use gproxy_upstream::{CredentialView, UpstreamError};
 use http::{HeaderMap, HeaderName, HeaderValue, header};
 use serde_json::Value;
 
@@ -44,7 +45,7 @@ pub(super) fn fact<'a>(credential: &CredentialView<'a>, name: &str) -> Option<&'
 
 /// The bearer this credential presents. A login token carries the `workos:`
 /// scheme the upstream keys account traffic on; a pasted `api_key` does not.
-pub(super) fn bearer(credential: &CredentialView<'_>) -> Result<String, ChannelError> {
+pub(super) fn bearer(credential: &CredentialView<'_>) -> Result<String, UpstreamError> {
     if let Some(token) = text(credential.secret.get("access_token")) {
         return Ok(if token.to_ascii_lowercase().starts_with(WORKOS_PREFIX) {
             token.to_owned()
@@ -54,7 +55,7 @@ pub(super) fn bearer(credential: &CredentialView<'_>) -> Result<String, ChannelE
     }
     text(credential.secret.get("api_key"))
         .map(str::to_owned)
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }
 
 /// Older refreshes copied the access token into the API-key slot. Recognize
@@ -85,10 +86,10 @@ pub(super) fn token_expires_at_ms(token: &str) -> Option<i64> {
         .checked_mul(1_000)
 }
 
-fn insert(headers: &mut HeaderMap, name: HeaderName, value: &str) -> Result<(), ChannelError> {
+fn insert(headers: &mut HeaderMap, name: HeaderName, value: &str) -> Result<(), UpstreamError> {
     headers.insert(
         name,
-        HeaderValue::from_str(value).map_err(|_| ChannelError::InvalidCredential)?,
+        HeaderValue::from_str(value).map_err(|_| UpstreamError::InvalidCredential)?,
     );
     Ok(())
 }
@@ -98,7 +99,7 @@ fn insert(headers: &mut HeaderMap, name: HeaderName, value: &str) -> Result<(), 
 pub(super) fn apply(
     headers: &mut HeaderMap,
     credential: &CredentialView<'_>,
-) -> Result<(), ChannelError> {
+) -> Result<(), UpstreamError> {
     insert(
         headers,
         header::AUTHORIZATION,

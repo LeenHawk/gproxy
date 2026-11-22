@@ -5,7 +5,7 @@ use sea_orm::{
 
 use crate::{Projection, error};
 
-/// A query's SQL and its named D1 result types. Native drivers decode their own
+/// A query's SQL and its named result types. Native drivers decode their own
 /// rows. SELECT and backend-supported DML RETURNING are both allowed.
 #[derive(Clone, Debug)]
 pub struct BatchQuery {
@@ -56,22 +56,22 @@ impl BatchStatement {
 }
 
 /// One result per input step, in exactly the same order. Query results should be
-/// read by alias/FromQueryResult; D1 batch responses do not contain column order.
+/// read by alias/FromQueryResult rather than by column order.
 #[derive(Debug)]
 pub enum BatchResult {
     Executed(ExecResult),
     Rows(Vec<QueryResult>),
 }
 
-/// Portable ordered batches over native SeaORM connections and Workers D1.
+/// Portable ordered batches over native SeaORM connections and libSQL.
 ///
 /// Native connections use a repeatable-read transaction (SQLite uses its native
-/// transaction snapshot); D1 uses one batch call. A SQL failure rolls back the
+/// transaction snapshot); libSQL uses one pipeline call. A SQL failure rolls back the
 /// batch. A zero-row write is successful SQL, not a conflict/rollback signal.
 ///
 /// No automatic splitting, retrying, or interactive Rust transaction callback.
 /// Dialects and projection modes are checked before dispatch. Errors after
-/// dispatch/commit, including D1 result decoding, do not prove rollback.
+/// dispatch/commit, including remote result decoding, do not prove rollback.
 #[async_trait::async_trait]
 pub trait BatchConnectionTrait: ConnectionTrait {
     async fn batch(&self, statements: &[BatchStatement]) -> Result<Vec<BatchResult>, DbErr>;
@@ -85,7 +85,7 @@ pub trait BatchConnectionTrait: ConnectionTrait {
         self.batch(&statements).await
     }
 
-    /// D1 and libSQL need named result types to decode remote rows. Native
+    /// libSQL needs named result types to decode remote rows. Native
     /// drivers already carry those types and need no derived projection.
     fn requires_query_projection(&self) -> bool {
         true
@@ -163,7 +163,7 @@ impl BatchConnectionTrait for DatabaseConnection {
         if query.statement.db_backend != self.get_database_backend() {
             return Err(error("query dialect does not match the connection"));
         }
-        #[cfg(all(feature = "group-commit", not(target_arch = "wasm32")))]
+        #[cfg(feature = "group-commit")]
         if let Some(queue) = crate::group::queue(self) {
             let result =
                 crate::group::submit(self, queue, vec![BatchStatement::Query(query)], false)
@@ -192,7 +192,7 @@ impl BatchConnectionTrait for DatabaseConnection {
         }
         // Reads share the queue with writes so they do not each acquire the
         // SQLite pool and dispatch a separate worker command under load.
-        #[cfg(all(feature = "group-commit", not(target_arch = "wasm32")))]
+        #[cfg(feature = "group-commit")]
         if let Some(queue) = crate::group::queue(self) {
             return crate::group::submit(self, queue, statements, true).await;
         }

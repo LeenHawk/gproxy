@@ -1,6 +1,6 @@
 //! Publications and upstream file reads behind `ResourceAccess`, backed by
-//! Store rows and the configured file storage (local filesystem natively,
-//! S3-compatible storage such as R2 on every target).
+//! Store rows and the configured file storage (local filesystem, or
+//! S3-compatible storage such as R2).
 
 use super::*;
 use gproxy_store::entity::resource::{file_object, resource_binding};
@@ -198,7 +198,7 @@ impl<C: Send + Sync> Upstream for ScopeUpstream<'_, C> {
                 request.query = Some(query);
             }
             let binding = ChannelBinding::new(
-                provider.channel.as_ref(),
+                super::model_channel(provider)?.as_ref(),
                 prepare::provider_view(provider),
                 prepare::credential_view(credential, &version),
                 credential.client.clone(),
@@ -309,9 +309,9 @@ fn file_content_path(
 ///   credential client, so no provider auth leaks to an arbitrary origin;
 ///   redirects are followed up to `MAX_REDIRECT_HOPS` with the policy asked
 ///   again for every hop, and the body is bounded by the read limit. Only a
-///   direct native fetch is pinned to the addresses the policy vetted;
-///   through the global proxy, and on wasm32 (no resolver), the egress must
-///   enforce the destination policy itself (see `crate::fetch_policy`).
+///   direct fetch is pinned to the addresses the policy vetted; through the
+///   global proxy the egress must enforce the destination policy itself (see
+///   `crate::fetch_policy`).
 pub struct Resources<'a, C> {
     core: &'a Core<C>,
     limits: CapabilityLimits,
@@ -331,6 +331,33 @@ impl<'a, C> Resources<'a, C> {
     }
     pub fn core(&self) -> &'a Core<C> {
         self.core
+    }
+
+    /// Resource access in the caller's scope, bound to the attempt's
+    /// provider and credentials.
+    pub(crate) fn for_attempt(
+        core: &'a Core<C>,
+        upstream: &super::AttemptUpstream,
+        codec: gproxy_protocol::codec::CodecLimits,
+        scope: &super::StateScope,
+    ) -> (Self, ResourceScope) {
+        let target = &upstream.attempt().request.target;
+        (
+            Self::new(
+                core,
+                gproxy_protocol::capability::Upstream::limits(upstream),
+                codec,
+            ),
+            ResourceScope {
+                scope: scope.scope.clone(),
+                target: ExecutionTarget {
+                    requested_model: None,
+                    provider: target.provider.clone(),
+                    upstream_model: target.upstream_model.clone(),
+                    credentials: target.credentials.clone(),
+                },
+            },
+        )
     }
 }
 
@@ -518,8 +545,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Resources<'_, C> {
         operation: gproxy_protocol::Operation,
     ) -> Result<gproxy_protocol::Dialect, CapabilityError> {
         let provider = &scope.target.provider;
-        provider
-            .channel
+        super::model_channel(provider)?
             .native_dialects(prepare::provider_view(provider), operation)
             .into_iter()
             .next()
@@ -704,13 +730,9 @@ fn transport(message: impl Into<String>) -> CapabilityError {
 }
 
 /// The addresses the runtime resolver returns for the URL's host name; empty
-/// for a literal IP host (the policy reads that from the URL itself) and on
-/// wasm32, which has no resolver (so there the policy judges a name without
-/// its addresses and the platform egress must keep fetches off internal
-/// networks). Natively a name that resolves to nothing
-/// is a transport failure before any policy decision: there is nothing to
-/// connect to.
-#[cfg(not(target_arch = "wasm32"))]
+/// for a literal IP host (the policy reads that from the URL itself). A name
+/// that resolves to nothing is a transport failure before any policy decision:
+/// there is nothing to connect to.
 async fn resolve_host(url: &url::Url) -> Result<Vec<std::net::IpAddr>, CapabilityError> {
     let Some(url::Host::Domain(name)) = url.host() else {
         return Ok(Vec::new());
@@ -725,11 +747,6 @@ async fn resolve_host(url: &url::Url) -> Result<Vec<std::net::IpAddr>, Capabilit
         return Err(transport(format!("URL host {name} resolved to no address")));
     }
     Ok(addrs)
-}
-
-#[cfg(target_arch = "wasm32")]
-async fn resolve_host(_: &url::Url) -> Result<Vec<std::net::IpAddr>, CapabilityError> {
-    Ok(Vec::new())
 }
 
 /// The host name a fetch's connection must be pinned to, when there is one to
@@ -751,23 +768,12 @@ fn pin_target<'u>(
     (!vetted.is_empty() && config.proxy == gproxy_client::ProxyConfig::Direct).then_some(name)
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn pinned_client(
     config: &gproxy_client::ConnectionConfig,
     host: &str,
     vetted: &[std::net::IpAddr],
 ) -> Result<gproxy_client::Client, gproxy_client::Error> {
     gproxy_client::Client::pinned(config, host, vetted)
-}
-
-/// wasm32 resolves nothing, so [`pin_target`] never asks for a pin here.
-#[cfg(target_arch = "wasm32")]
-fn pinned_client(
-    config: &gproxy_client::ConnectionConfig,
-    _: &str,
-    _: &[std::net::IpAddr],
-) -> Result<gproxy_client::Client, gproxy_client::Error> {
-    Err(gproxy_client::Error::BackendUnavailable(config.backend))
 }
 
 /// `Content-Type` without its parameters, the exact form adapters require.

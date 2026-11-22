@@ -27,7 +27,7 @@ use super::{
     auth::{Auth, browser_headers, json_accept},
     request::Upload,
 };
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 pub(super) const UPLOAD: &str = "claudeweb_upload";
 pub(super) const CREATE: &str = "claudeweb_conversation_create";
@@ -73,7 +73,7 @@ impl Requests {
         &self,
         conversation: &str,
         upload: &Upload,
-    ) -> Result<http::Request<HttpBody>, ChannelError> {
+    ) -> Result<http::Request<HttpBody>, UpstreamError> {
         let boundary = format!("----gproxy{}", super::id::fresh("upload")?);
         let mut body = Vec::new();
         body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
@@ -92,7 +92,7 @@ impl Requests {
         request.headers_mut().insert(
             CONTENT_TYPE,
             HeaderValue::from_str(&format!("multipart/form-data; boundary={boundary}"))
-                .map_err(|error| ChannelError::InvalidConfig(format!("multipart: {error}")))?,
+                .map_err(|error| UpstreamError::InvalidConfig(format!("multipart: {error}")))?,
         );
         json_accept(request.headers_mut());
         Ok(request)
@@ -101,7 +101,7 @@ impl Requests {
     pub(super) fn create(
         &self,
         conversation: &str,
-    ) -> Result<http::Request<HttpBody>, ChannelError> {
+    ) -> Result<http::Request<HttpBody>, UpstreamError> {
         let path = format!(
             "/api/organizations/{}/chat_conversations",
             self.auth.organization
@@ -121,7 +121,7 @@ impl Requests {
         &self,
         conversation: &str,
         extended: bool,
-    ) -> Result<http::Request<HttpBody>, ChannelError> {
+    ) -> Result<http::Request<HttpBody>, UpstreamError> {
         let path = conversation_path(&self.auth.organization, conversation);
         let mode = if extended && self.auth.pro {
             Value::from("extended")
@@ -141,7 +141,7 @@ impl Requests {
         &self,
         conversation: &str,
         body: &Value,
-    ) -> Result<http::Request<HttpBody>, ChannelError> {
+    ) -> Result<http::Request<HttpBody>, UpstreamError> {
         let path = format!(
             "{}/completion",
             conversation_path(&self.auth.organization, conversation)
@@ -154,7 +154,7 @@ impl Requests {
             None => self.request(Method::POST, COMPLETION, &path, conversation, Vec::new())?,
         };
         *request.body_mut() = HttpBody::Bytes(Bytes::from(
-            serde_json::to_vec(body).map_err(|e| ChannelError::InvalidConfig(e.to_string()))?,
+            serde_json::to_vec(body).map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?,
         ));
         request
             .headers_mut()
@@ -169,7 +169,7 @@ impl Requests {
         &self,
         conversation: &str,
         body: &Value,
-    ) -> Result<http::Request<HttpBody>, ChannelError> {
+    ) -> Result<http::Request<HttpBody>, UpstreamError> {
         let path = format!(
             "{}/tool_result",
             conversation_path(&self.auth.organization, conversation)
@@ -180,7 +180,7 @@ impl Requests {
     pub(super) fn cleanup(
         &self,
         conversation: &str,
-    ) -> Result<http::Request<HttpBody>, ChannelError> {
+    ) -> Result<http::Request<HttpBody>, UpstreamError> {
         let path = conversation_path(&self.auth.organization, conversation);
         self.request(Method::DELETE, CLEANUP, &path, conversation, Vec::new())
     }
@@ -192,9 +192,9 @@ impl Requests {
         path: &str,
         conversation: &str,
         value: &Value,
-    ) -> Result<http::Request<HttpBody>, ChannelError> {
+    ) -> Result<http::Request<HttpBody>, UpstreamError> {
         let body =
-            serde_json::to_vec(value).map_err(|e| ChannelError::InvalidConfig(e.to_string()))?;
+            serde_json::to_vec(value).map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
         let mut request = self.request(method, key, path, conversation, body)?;
         request
             .headers_mut()
@@ -209,7 +209,7 @@ impl Requests {
         path: &str,
         conversation: &str,
         body: Vec<u8>,
-    ) -> Result<http::Request<HttpBody>, ChannelError> {
+    ) -> Result<http::Request<HttpBody>, UpstreamError> {
         let url = endpoint_url(
             &self.endpoints,
             key,
@@ -229,7 +229,7 @@ impl Requests {
         url: &str,
         conversation: &str,
         body: Bytes,
-    ) -> Result<http::Request<HttpBody>, ChannelError> {
+    ) -> Result<http::Request<HttpBody>, UpstreamError> {
         let referer = format!("{}/chat/{conversation}", self.base);
         let mut headers = self.headers.clone();
         headers.extend(browser_headers(
@@ -244,7 +244,7 @@ impl Requests {
         }
         builder
             .body(HttpBody::Bytes(body))
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 }
 
@@ -297,7 +297,7 @@ pub(super) fn session_get(
     cookie: &str,
     device_id: Option<&str>,
     base: &str,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     let mut headers = browser_headers(cookie, device_id, base, &format!("{base}/new"))?;
     json_accept(&mut headers);
     let mut builder = http::Request::builder().method(Method::GET).uri(url);
@@ -306,5 +306,5 @@ pub(super) fn session_get(
     }
     builder
         .body(HttpBody::Bytes(Bytes::new()))
-        .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
 }

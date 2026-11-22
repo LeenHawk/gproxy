@@ -1,14 +1,13 @@
 //! Model capability facts from the assigned account's catalogue.
 
 use super::{GrokBuild, config::base_url, unix_now_ms};
-use crate::channel::{
-    BaseChannel, ChannelState, OperationContext, OperationFuture, PrepareContext, ProviderView,
-};
+use crate::channel::{BaseChannel, OperationContext, PrepareContext};
 use crate::channels::shared::compatible::http::read_body;
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse, capability::StateWrite,
     connection::Bytes,
 };
+use gproxy_upstream::{ProviderView, UpstreamFuture, UpstreamState};
 use http::{HeaderMap, Method};
 use serde_json::Value;
 
@@ -39,7 +38,7 @@ fn supports_effort(catalog: &Value, model: &str) -> Option<bool> {
     )
 }
 
-async fn cache(provider: ProviderView<'_>, state: &dyn ChannelState, body: &Bytes) {
+async fn cache(provider: ProviderView<'_>, state: &dyn UpstreamState, body: &Bytes) {
     let key = format!("grokbuild:models:{}", base_url(provider));
     let expected = state
         .get(&key)
@@ -64,7 +63,7 @@ async fn cache(provider: ProviderView<'_>, state: &dyn ChannelState, body: &Byte
 pub(super) fn list<'a>(
     channel: &'a GrokBuild,
     context: OperationContext<'a>,
-) -> OperationFuture<'a, WireResponse<HttpBody>> {
+) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
     Box::pin(async move {
         let request = channel.prepare(PrepareContext {
             provider: context.provider,
@@ -97,7 +96,7 @@ pub(super) fn generate<'a>(
     channel: &'a GrokBuild,
     operation: Operation,
     mut context: OperationContext<'a>,
-) -> OperationFuture<'a, WireResponse<HttpBody>> {
+) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
     Box::pin(async move {
         if context.dialect == Dialect::OpenAi
             && let HttpBody::Bytes(body) = &context.request.body

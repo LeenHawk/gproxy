@@ -29,14 +29,17 @@ use super::common::invalid_config;
 use super::headers::{account, backend_headers, base_urls, plan_type};
 use super::{Codex, CodexConfig};
 use crate::channel::{
-    CallerUsage, CallerUsageWindow, ChannelError, ChannelServices, CredentialContext,
-    CredentialView, HeaderAllowlist, OperationFuture, ResourceAccess, ServiceClass, ServiceContext,
-    ServiceRoute, ServiceTransport,
+    ChannelServices, HeaderAllowlist, ResourceAccess, ServiceClass, ServiceContext, ServiceRoute,
+    ServiceTransport,
 };
 use crate::channels::shared::services_common::{
     classify, create_bound, json_response, param, stable_id, unix_now_ms,
 };
 use gproxy_protocol::{HttpBody, WireRequest, WireResponse, capability::UpstreamConnection};
+use gproxy_upstream::{
+    CallerUsage, CallerUsageWindow, CredentialContext, CredentialView, UpstreamError,
+    UpstreamFuture,
+};
 use http::{HeaderValue, Method, StatusCode, header};
 use serde_json::{Map, Value, json};
 use std::sync::OnceLock;
@@ -612,11 +615,11 @@ fn forward<B>(
     account: &CredentialContext<'_>,
     request: WireRequest<B>,
     websocket: bool,
-) -> Result<http::Request<B>, ChannelError> {
+) -> Result<http::Request<B>, UpstreamError> {
     let config = CodexConfig::from_view(account.provider)?;
     let identity = super::headers::account(&account.credential)?;
     let (_, backend) = base_urls(account.provider);
-    let path = canonical_path(&request.path).ok_or(ChannelError::UnsupportedService)?;
+    let path = canonical_path(&request.path).ok_or(UpstreamError::UnsupportedService)?;
     let allowlist = HeaderAllowlist::from_view_for(account.provider, super::CLI_HEADERS)?;
     let mut headers = backend_headers(
         &config,
@@ -647,7 +650,7 @@ fn forward<B>(
 async fn send<'a>(
     account: &CredentialContext<'a>,
     request: WireRequest<HttpBody>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     Ok(account
         .client
         .send(forward(account, request, false)?)
@@ -969,7 +972,7 @@ async fn resource_call<'a>(
     access: ResourceAccess,
     params: &[(&'static str, &str)],
     ctx: ServiceContext<'a>,
-) -> Result<WireResponse<HttpBody>, ChannelError> {
+) -> Result<WireResponse<HttpBody>, UpstreamError> {
     match access {
         List => {
             let summaries = ctx
@@ -1028,11 +1031,12 @@ impl ChannelServices for Codex {
             .find(|route| route.matches(method, &path).is_some())
     }
 
-    fn call<'a>(&'a self, ctx: ServiceContext<'a>) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    fn call<'a>(&'a self, ctx: ServiceContext<'a>) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
-            let path = canonical_path(&ctx.request.path).ok_or(ChannelError::UnsupportedService)?;
+            let path =
+                canonical_path(&ctx.request.path).ok_or(UpstreamError::UnsupportedService)?;
             let Some((route, params)) = classify(routes(), &ctx.request.method, &path) else {
-                return Err(ChannelError::UnsupportedService);
+                return Err(UpstreamError::UnsupportedService);
             };
             let params = params
                 .into_iter()
@@ -1100,7 +1104,7 @@ impl ChannelServices for Codex {
     fn connect<'a>(
         &'a self,
         ctx: ServiceContext<'a, ()>,
-    ) -> OperationFuture<'a, UpstreamConnection> {
+    ) -> UpstreamFuture<'a, UpstreamConnection> {
         Box::pin(async move {
             if ctx.view.is_synthesized() {
                 return Ok(UpstreamConnection::Rejected(forbidden(

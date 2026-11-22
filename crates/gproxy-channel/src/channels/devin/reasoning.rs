@@ -4,7 +4,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 pub(super) const PREFIX: &str = "devin:";
 
@@ -23,7 +23,7 @@ impl Reasoning {
             STANDARD.encode(serde_json::to_vec(self).expect("reasoning fields serialize"))
         )
     }
-    pub fn details(&self, id: &str) -> Result<Vec<Value>, ChannelError> {
+    pub fn details(&self, id: &str) -> Result<Vec<Value>, UpstreamError> {
         let format = match self.signature_type.as_str() {
             "anthropic" => Some("anthropic-claude-v1"),
             "gemini" => Some("google-gemini-v1"),
@@ -34,7 +34,7 @@ impl Reasoning {
             // These providers' native signatures are opaque strings. Do not
             // re-encode them or put them inside a Devin-specific envelope.
             let signature = std::str::from_utf8(&self.signature).map_err(|_| {
-                ChannelError::InvalidResponse("non-UTF8 native reasoning signature".into())
+                UpstreamError::InvalidResponse("non-UTF8 native reasoning signature".into())
             })?;
             if format == "openai-responses-v1" {
                 let mut details = Vec::new();
@@ -58,7 +58,7 @@ impl Reasoning {
         Ok(details)
     }
 
-    pub fn from_message(message: &Value) -> Result<Self, ChannelError> {
+    pub fn from_message(message: &Value) -> Result<Self, UpstreamError> {
         let mut out = Self {
             text: message
                 .get("reasoning_content")

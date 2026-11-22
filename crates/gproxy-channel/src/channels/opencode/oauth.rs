@@ -16,12 +16,12 @@
 use super::config::{DEFAULT_CLIENT_ID, OpenCodeConfig, ZEN_ID as ID};
 use super::request::fact;
 use crate::OutboundClient;
-use crate::channel::{
-    ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
-    LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
-};
 use crate::channels::shared::compatible::ability::{bearer, send};
 use crate::channels::shared::compatible::http::invalid_response;
+use gproxy_upstream::{
+    CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll, LoginContext,
+    OAuthCredential, OAuthDeviceCode, RefreshContext, UpstreamError, UpstreamFuture,
+};
 use http::{HeaderMap, HeaderValue, Method, Uri, header};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -63,9 +63,9 @@ struct TokenRequest<'a> {
     client_id: &'a str,
 }
 
-fn token_body(request: &TokenRequest<'_>) -> Result<Vec<u8>, ChannelError> {
+fn token_body(request: &TokenRequest<'_>) -> Result<Vec<u8>, UpstreamError> {
     serde_json::to_vec(request)
-        .map_err(|error| ChannelError::InvalidConfig(format!("{ID} token request: {error}")))
+        .map_err(|error| UpstreamError::InvalidConfig(format!("{ID} token request: {error}")))
 }
 
 #[derive(Deserialize)]
@@ -161,10 +161,10 @@ async fn console_get<T: serde::de::DeserializeOwned>(
     client: &dyn OutboundClient,
     url: &str,
     token: &str,
-) -> Result<T, ChannelError> {
+) -> Result<T, UpstreamError> {
     let (status, _, body) = send(client, Method::GET, url, bearer(token)?, None).await?;
     if !status.is_success() {
-        return Err(ChannelError::UpstreamResponse { status, body });
+        return Err(UpstreamError::UpstreamResponse { status, body });
     }
     serde_json::from_slice(&body).map_err(|error| invalid_response(format!("{ID} {url}: {error}")))
 }
@@ -206,7 +206,7 @@ async fn account_fields(
 }
 
 impl OAuthDeviceCode for super::OpenCode {
-    fn start<'a>(&'a self, context: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
+    fn start<'a>(&'a self, context: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
             let config = OpenCodeConfig::from_view(context.provider)?;
             let base = config.console_base_url(None);
@@ -223,7 +223,7 @@ impl OAuthDeviceCode for super::OpenCode {
             )
             .await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let reply: DeviceCodeReply = serde_json::from_slice(&body)
                 .map_err(|error| invalid_response(format!("{ID} device code: {error}")))?;
@@ -252,7 +252,7 @@ impl OAuthDeviceCode for super::OpenCode {
         &'a self,
         context: LoginContext<'a>,
         authorization: &'a DeviceAuthorization,
-    ) -> OperationFuture<'a, DevicePoll> {
+    ) -> UpstreamFuture<'a, DevicePoll> {
         Box::pin(async move {
             let config = OpenCodeConfig::from_view(context.provider)?;
             let base = config.console_base_url(
@@ -277,7 +277,7 @@ impl OAuthDeviceCode for super::OpenCode {
             // A pending authorization is an error status carrying an OAuth
             // code, so the body is read before the status is judged.
             let Ok(reply) = serde_json::from_slice::<TokenReply>(&body) else {
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             };
             let Some(access) = reply.access() else {
                 return Ok(match reply.error.as_deref() {
@@ -289,7 +289,7 @@ impl OAuthDeviceCode for super::OpenCode {
                     },
                     Some("access_denied" | "invalid_grant") => DevicePoll::Denied,
                     Some("expired_token") => DevicePoll::Expired,
-                    _ => return Err(ChannelError::UpstreamResponse { status, body }),
+                    _ => return Err(UpstreamError::UpstreamResponse { status, body }),
                 });
             };
             let mut provider_fields = account_fields(context.client, &base, access).await;
@@ -310,7 +310,7 @@ impl OAuthDeviceCode for super::OpenCode {
 }
 
 impl CredentialRefresh for super::OpenCode {
-    fn supports(&self, credential: &crate::channel::CredentialView<'_>) -> bool {
+    fn supports(&self, credential: &gproxy_upstream::CredentialView<'_>) -> bool {
         self.is_zen()
             && credential
                 .secret
@@ -319,7 +319,7 @@ impl CredentialRefresh for super::OpenCode {
                 .is_some_and(|token| !token.trim().is_empty())
     }
 
-    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> OperationFuture<'a, CredentialUpdate> {
+    fn refresh<'a>(&'a self, context: RefreshContext<'a>) -> UpstreamFuture<'a, CredentialUpdate> {
         Box::pin(async move {
             let config = OpenCodeConfig::from_view(context.provider)?;
             let refresh_token = context
@@ -330,7 +330,7 @@ impl CredentialRefresh for super::OpenCode {
                 .map(str::trim)
                 .filter(|token| !token.is_empty())
                 .ok_or_else(|| {
-                    ChannelError::RefreshRejected("credential has no refresh token".into())
+                    UpstreamError::RefreshRejected("credential has no refresh token".into())
                 })?;
             let base = config.console_base_url(fact(&context.credential, CONSOLE_FIELD));
             let (status, _, body) = send(
@@ -359,11 +359,11 @@ impl CredentialRefresh for super::OpenCode {
                 // any other refusal as final (`account.ts` `refreshToken`,
                 // `plugin/provider/opencode.ts` `refresh`), a bare 401 included.
                 if code.as_deref() == Some("invalid_grant") {
-                    return Err(ChannelError::RefreshRejected(
+                    return Err(UpstreamError::RefreshRejected(
                         code.unwrap_or_else(|| format!("http {}", status.as_u16())),
                     ));
                 }
-                return Err(ChannelError::UpstreamResponse { status, body });
+                return Err(UpstreamError::UpstreamResponse { status, body });
             }
             let reply = reply.expect("a token reply was just confirmed");
             let access = granted.expect("an access token was just confirmed");
@@ -373,7 +373,7 @@ impl CredentialRefresh for super::OpenCode {
             let mut secret = context.credential.secret.clone();
             let object = secret
                 .as_object_mut()
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             object.insert("access_token".into(), json!(access));
             // A pasted key and an account token are the same field upstream;
             // v3 kept both names in step and so does this.

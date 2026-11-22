@@ -24,7 +24,7 @@ use super::{
     request::{self, invalid},
     waa::{self, WaaError},
 };
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 /// How long one Waa/Create program and its snapshot function are reused. The
 /// reference signer keeps a VM for twelve hours; this is deliberately short.
@@ -142,14 +142,15 @@ pub(super) async fn proof(
     model_short: &str,
     binding: String,
     page: String,
-) -> Result<String, ChannelError> {
+) -> Result<String, UpstreamError> {
     let slot = slot(key(session, model_short));
     let mut held = slot.lock().await;
     if let Some(worker) = held.as_ref().filter(|worker| !worker.stale())
         && let Ok(proof) = worker.prove(binding.clone(), page.clone()).await
-            && proof.starts_with('!') {
-                return Ok(proof);
-            }
+        && proof.starts_with('!')
+    {
+        return Ok(proof);
+    }
     // Stale, failed or absent: end the old worker and start over from Waa/Create.
     *held = None;
     let challenge = request::fetch_create(client, session, tier).await?;
@@ -188,7 +189,8 @@ pub(super) fn discard(session: &Session, model_short: &str) {
         .get(&key)
         .cloned();
     if let Some(slot) = slot
-        && let Ok(mut held) = slot.try_lock() {
-            *held = None;
-        }
+        && let Ok(mut held) = slot.try_lock()
+    {
+        *held = None;
+    }
 }

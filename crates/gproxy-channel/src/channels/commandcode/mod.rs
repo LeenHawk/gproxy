@@ -19,20 +19,29 @@ pub use config::{CommandCodeConfig, DEFAULT_BASE_URL, ID};
 pub use request::{CLI_HEADERS, CLI_VERSION};
 
 use crate::channel::{
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, LoginMode, OAuthAuthorizationCode, OperationContext, OperationFuture,
-    PrepareContext, ProviderView, QuotaQuery,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, OperationContext,
+    PrepareContext, QuotaQuery,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, OAuthAuthorizationCode, ProviderView, UpstreamError,
+    UpstreamFuture, UpstreamKind,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CommandCode;
 
-impl BaseChannel for CommandCode {
+impl UpstreamKind for CommandCode {
     fn id(&self) -> &'static str {
         ID
     }
 
+    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
+        Some(self)
+    }
+}
+
+impl BaseChannel for CommandCode {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -95,33 +104,29 @@ impl BaseChannel for CommandCode {
             })
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         request::build(ctx)
     }
 
     fn generate_content<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(response::invoke(self, ctx, false))
     }
 
     fn stream_generate_content<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(response::invoke(self, ctx, true))
     }
 
     fn list_models<'a>(
         &'a self,
         ctx: OperationContext<'a>,
-    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+    ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(response::models(self, ctx))
-    }
-
-    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
-        Some(self)
     }
 
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {

@@ -1,6 +1,6 @@
 use super::super::event::{Event, invalid};
 use super::ItemState;
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 use serde_json::{Value, json};
 
 pub(super) fn handles(event: &Event) -> bool {
@@ -21,7 +21,7 @@ pub(super) fn handles(event: &Event) -> bool {
     )
 }
 
-pub(super) fn apply(state: &mut ItemState, event: &Event) -> Result<(), ChannelError> {
+pub(super) fn apply(state: &mut ItemState, event: &Event) -> Result<(), UpstreamError> {
     if state.done {
         return Err(invalid("content after item completion"));
     }

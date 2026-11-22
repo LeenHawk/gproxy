@@ -22,11 +22,12 @@
 use super::config::{GO_ID as ID, OpenCodeConfig, Tier};
 use super::request::api_key;
 use crate::channel::{
-    ChannelError, CredentialContext, OperationFuture, QuotaAllowance, QuotaEntry,
-    QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaValue,
+    QuotaAllowance, QuotaEntry, QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject,
+    QuotaValue,
 };
 use crate::channels::shared::compatible::ability::{bearer, decimal, require_success, send};
 use crate::channels::shared::compatible::http::invalid_response;
+use gproxy_upstream::{CredentialContext, UpstreamError, UpstreamFuture};
 use http::Method;
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -56,7 +57,7 @@ fn iso_to_ms(value: &str) -> Option<i64> {
 
 /// Every window has to read, because a partial reading would look like a
 /// reset rather than like a failure to read.
-fn entries(payload: &Value) -> Result<Vec<QuotaEntry>, ChannelError> {
+fn entries(payload: &Value) -> Result<Vec<QuotaEntry>, UpstreamError> {
     let usage = payload
         .get("usage")
         .ok_or_else(|| invalid_response(format!("{ID} usage: no usage")))?;
@@ -101,7 +102,7 @@ fn entries(payload: &Value) -> Result<Vec<QuotaEntry>, ChannelError> {
 }
 
 impl crate::channel::QuotaQuery for super::OpenCode {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let key = api_key(&context.credential)?;
             let (status, _, body) = send(

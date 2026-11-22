@@ -122,14 +122,7 @@ impl<C> Gproxy<C> {
     /// Every compiled-in channel as data, ordered by id: what a management UI
     /// renders its provider forms from.
     pub fn channels(&self) -> Vec<ChannelDescriptor> {
-        let registry = self.0.core.channels();
-        let mut out: Vec<ChannelDescriptor> = registry
-            .ids()
-            .filter_map(|id| registry.get(id))
-            .map(|channel| channel.descriptor())
-            .collect();
-        out.sort_by_key(|descriptor| descriptor.id);
-        out
+        descriptors(&self.0.core)
     }
     /// Stop the background synchronization loops. The handle stays usable;
     /// `reload` and `tick` still work, nothing reloads on its own any more.
@@ -176,8 +169,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Gproxy<C> {
 
     /// One synchronization step for a host that has no background loop: apply
     /// whatever invalidations are already waiting, then poll the revision.
-    /// This is what an edge isolate calls at the top of a request; natively
-    /// with `SyncMode::Background` it is redundant but harmless.
+    /// A `SyncMode::Manual` host calls this at the top of a request; with
+    /// `SyncMode::Background` it is redundant but harmless.
     pub async fn tick(&self) -> SdkResult<Option<ReloadOutcome>> {
         let drained = sync::drain(&self.0).await?;
         Ok(sync::poll_once(&self.0).await?.or(drained))
@@ -223,5 +216,36 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Inner<C> {
             .await?
             .map(|settings| settings.config_revision)
             .ok_or_else(|| SdkError::invalid("the global settings row is missing"))
+    }
+}
+
+/// Every registered implementation a provider can name, ordered by id: the
+/// channels, then described the same way the upstream kinds with no model side.
+pub(crate) fn descriptors<C>(core: &gproxy_core::Core<C>) -> Vec<ChannelDescriptor> {
+    let channels = core.channels();
+    let upstreams = core.upstreams();
+    let mut out: Vec<ChannelDescriptor> = channels
+        .ids()
+        .filter_map(|id| channels.get(id))
+        .map(|channel| channel.descriptor())
+        .chain(
+            upstreams
+                .ids()
+                .filter_map(|id| upstreams.get(id))
+                .map(|kind| ChannelDescriptor::of_upstream(kind.as_ref())),
+        )
+        .collect();
+    out.sort_by_key(|descriptor| descriptor.id);
+    out
+}
+
+/// The description of one implementation, when this build registered it.
+pub(crate) fn descriptor<C>(core: &gproxy_core::Core<C>, id: &str) -> Option<ChannelDescriptor> {
+    match core.channels().get(id) {
+        Some(channel) => Some(channel.descriptor()),
+        None => core
+            .upstreams()
+            .get(id)
+            .map(|kind| ChannelDescriptor::of_upstream(kind.as_ref())),
     }
 }

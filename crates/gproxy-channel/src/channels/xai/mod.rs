@@ -27,20 +27,25 @@ pub use quota::{POSTPAID_DIMENSION, PREPAID_DIMENSION};
 pub use request::CLIENT_HEADERS;
 pub use usage::{COST_TICKS_METRIC, UPSTREAM_COST_METRIC, UPSTREAM_PRICED_DIMENSION};
 
-use crate::channel::{UsageExtras, 
-    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, LoginMode, PrepareContext, ProviderView, QuotaModel, QuotaQuery,
-    };
+use crate::channel::{
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, HOST_CONFIG_KEYS, PrepareContext,
+    QuotaModel, QuotaQuery, UsageExtras,
+};
 use gproxy_protocol::{Dialect, HttpBody, Operation};
+use gproxy_upstream::{
+    ConfigKey, ConfigKeyKind, LoginMode, ProviderView, UpstreamError, UpstreamKind,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Xai;
 
-impl BaseChannel for Xai {
+impl UpstreamKind for Xai {
     fn id(&self) -> &'static str {
         ID
     }
+}
 
+impl BaseChannel for Xai {
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,
@@ -90,11 +95,11 @@ impl BaseChannel for Xai {
         vec![Dialect::OpenAiChat, Dialect::OpenAi]
     }
 
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let (builder, request) = request::build(ctx)?;
         builder
             .body(request.body)
-            .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
+            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))
     }
 
     fn quota_model(&self) -> Option<&dyn QuotaModel> {

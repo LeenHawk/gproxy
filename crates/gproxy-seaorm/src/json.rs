@@ -3,7 +3,7 @@ use sea_orm::{DbBackend, DbErr, sea_query::Expr};
 /// Exact, case-sensitive membership of a string in a top-level JSON array.
 /// NULL, non-array documents and non-string elements never match. Arguments
 /// remain SeaQuery expressions/bind parameters; no caller text becomes SQL.
-/// SQLite includes D1. Other supported dialects are PostgreSQL and MySQL 8+.
+/// SQLite includes libSQL. Other supported dialects are PostgreSQL and MySQL 8+.
 /// Unimplemented backends return an error before query dispatch.
 pub fn json_array_contains_text(
     backend: DbBackend,

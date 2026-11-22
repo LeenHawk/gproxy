@@ -61,7 +61,7 @@ impl<C: BatchConnectionTrait> Source<'_, C> {
         let mut query = Query::select();
         let mut projection = Projection::new();
         if self.connection.requires_query_projection() {
-            // D1/libSQL return untyped JS values. Cast integers to text before
+            // libSQL returns untyped JSON values. Cast integers to text before
             // transport so v3 identifiers above 2^53 keep their exact value.
             let columns = self
                 .columns

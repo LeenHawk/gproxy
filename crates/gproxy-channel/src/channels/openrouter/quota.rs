@@ -8,12 +8,15 @@
 use super::OpenRouter;
 use super::config::{DEFAULT_BASE_URL, ID};
 use crate::channel::{
-    ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior,
-    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+    QuotaAllowance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
+    QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
+    QuotaWindow,
 };
 use crate::channels::shared::compatible::ability::{bearer, decimal, require_success, send};
 use crate::channels::shared::compatible::http::invalid_response;
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamFuture,
+};
 use http::Method;
 use serde_json::Value;
 
@@ -99,7 +102,7 @@ fn entries(payload: &Value) -> Vec<QuotaEntry> {
 }
 
 impl QuotaQuery for OpenRouter {
-    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
             let key = context
                 .credential
@@ -108,7 +111,7 @@ impl QuotaQuery for OpenRouter {
                 .and_then(Value::as_str)
                 .map(str::trim)
                 .filter(|key| !key.is_empty())
-                .ok_or(ChannelError::InvalidCredential)?;
+                .ok_or(UpstreamError::InvalidCredential)?;
             let base = context
                 .provider
                 .base_url

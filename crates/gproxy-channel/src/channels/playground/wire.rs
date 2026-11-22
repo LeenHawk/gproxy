@@ -9,7 +9,7 @@ use base64::{
 use serde_json::{Map, Value, json};
 
 use super::{request::invalid, schema::lower};
-use crate::channel::ChannelError;
+use gproxy_upstream::UpstreamError;
 
 fn set(array: &mut Vec<Value>, index: usize, value: Value) {
     if !value.is_null() {
@@ -42,11 +42,11 @@ fn field(array: &mut Vec<Value>, index: usize, value: &Value, name: &str) {
     }
 }
 
-fn bad_request(message: &str) -> ChannelError {
-    ChannelError::InvalidConfig(format!("Playground request: {message}"))
+fn bad_request(message: &str) -> UpstreamError {
+    UpstreamError::InvalidConfig(format!("Playground request: {message}"))
 }
 
-fn base64(value: &Value) -> Result<Value, ChannelError> {
+fn base64(value: &Value) -> Result<Value, UpstreamError> {
     let text = value
         .as_str()
         .ok_or_else(|| bad_request("expected base64 string"))?;
@@ -86,7 +86,7 @@ fn encode_struct(value: &Value) -> Value {
         .collect::<Vec<_>>()])
 }
 
-fn decode_value(value: &Value) -> Result<Value, ChannelError> {
+fn decode_value(value: &Value) -> Result<Value, UpstreamError> {
     let values = value
         .as_array()
         .ok_or_else(|| invalid("invalid protobuf Value"))?;
@@ -113,7 +113,7 @@ fn decode_value(value: &Value) -> Result<Value, ChannelError> {
     Ok(Value::Null)
 }
 
-fn decode_struct(value: &Value) -> Result<Value, ChannelError> {
+fn decode_struct(value: &Value) -> Result<Value, UpstreamError> {
     let mut object = Map::new();
     if let Some(entries) = value.get(0).and_then(Value::as_array) {
         for entry in entries {
@@ -130,7 +130,7 @@ fn decode_struct(value: &Value) -> Result<Value, ChannelError> {
     Ok(object.into())
 }
 
-fn schema(value: &Value) -> Result<Value, ChannelError> {
+fn schema(value: &Value) -> Result<Value, UpstreamError> {
     let mut out = vec![];
     if let Some(kind) = value.get("type").and_then(Value::as_str) {
         let kind = match kind.to_ascii_uppercase().as_str() {
@@ -175,7 +175,7 @@ fn schema(value: &Value) -> Result<Value, ChannelError> {
                 properties
                     .iter()
                     .map(|(key, value)| Ok(json!([key, schema(value)?])))
-                    .collect::<Result<_, ChannelError>>()?,
+                    .collect::<Result<_, UpstreamError>>()?,
             ),
         );
     }
@@ -202,7 +202,7 @@ fn schema(value: &Value) -> Result<Value, ChannelError> {
     Ok(out.into())
 }
 
-fn part(value: &Value) -> Result<Value, ChannelError> {
+fn part(value: &Value) -> Result<Value, UpstreamError> {
     let mut out = vec![];
     field(&mut out, 1, value, "text");
     if let Some(data) = key(value, "inlineData") {
@@ -259,7 +259,7 @@ fn part(value: &Value) -> Result<Value, ChannelError> {
     Ok(out.into())
 }
 
-fn content(value: &Value, default_role: &str) -> Result<Value, ChannelError> {
+fn content(value: &Value, default_role: &str) -> Result<Value, UpstreamError> {
     let parts = value
         .get("parts")
         .and_then(Value::as_array)
@@ -273,10 +273,8 @@ fn content(value: &Value, default_role: &str) -> Result<Value, ChannelError> {
     ]))
 }
 
-fn generation_config(value: &Value) -> Result<Value, ChannelError> {
-    if key(value, "candidateCount")
-        .is_some_and(|count| count.as_u64() != Some(1))
-    {
+fn generation_config(value: &Value) -> Result<Value, UpstreamError> {
+    if key(value, "candidateCount").is_some_and(|count| count.as_u64() != Some(1)) {
         return Err(bad_request(
             "Playground currently supports one candidate per request",
         ));
@@ -298,8 +296,8 @@ fn generation_config(value: &Value) -> Result<Value, ChannelError> {
         field(&mut out, index, value, name);
     }
     // The wire has one schema slot; a JSON Schema is lowered into it.
-    if let Some(json_schema) = key(value, "responseJsonSchema")
-        .or_else(|| key(value, "_responseJsonSchema"))
+    if let Some(json_schema) =
+        key(value, "responseJsonSchema").or_else(|| key(value, "_responseJsonSchema"))
     {
         set(&mut out, 8, schema(&lower(json_schema))?);
     } else if let Some(schema_value) = key(value, "responseSchema") {
@@ -351,7 +349,7 @@ fn generation_config(value: &Value) -> Result<Value, ChannelError> {
     Ok(out.into())
 }
 
-pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value, ChannelError> {
+pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value, UpstreamError> {
     let contents = value
         .get("contents")
         .and_then(Value::as_array)
@@ -425,7 +423,7 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
                         } else if let Some(parameters) = declaration.get("parameters") {
                             set(&mut function, 2, schema(parameters)?);
                         }
-                        Ok::<_, ChannelError>(Value::Array(function))
+                        Ok::<_, UpstreamError>(Value::Array(function))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 set(&mut item, 1, functions.into());
@@ -456,7 +454,12 @@ pub(super) fn encode(model: &str, value: &Value, timezone: &str) -> Result<Value
                 }
                 let names = tool
                     .as_object()
-                    .map(|tool| tool.keys().map(String::as_str).collect::<Vec<_>>().join(", "))
+                    .map(|tool| {
+                        tool.keys()
+                            .map(String::as_str)
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
                     .unwrap_or_default();
                 return Err(bad_request(&format!("unsupported tool `{names}`")));
             }
@@ -496,7 +499,7 @@ pub(super) fn prompt(wire: &Value) -> String {
         .join(" ")
 }
 
-fn decode_part(part: &Value) -> Result<Value, ChannelError> {
+fn decode_part(part: &Value) -> Result<Value, UpstreamError> {
     let mut out = Map::new();
     if let Some(text) = part.get(1).and_then(Value::as_str) {
         out.insert("text".into(), text.into());
@@ -553,7 +556,7 @@ fn decode_part(part: &Value) -> Result<Value, ChannelError> {
 
 /// `None` for an element that carries no content, such as the timing trailer
 /// `[null,null,null,["<micros>",n,n]]` Google appends after the last chunk.
-pub(super) fn response(value: &Value, model: &str) -> Result<Option<Value>, ChannelError> {
+pub(super) fn response(value: &Value, model: &str) -> Result<Option<Value>, UpstreamError> {
     let mut out = Map::new();
     out.insert(
         "modelVersion".into(),
@@ -572,7 +575,7 @@ pub(super) fn response(value: &Value, model: &str) -> Result<Option<Value>, Chan
                 out.insert("finishReason".into(),reason.into());
             }
             Ok(Value::Object(out))
-        }).collect::<Result<Vec<_>,ChannelError>>()?;
+        }).collect::<Result<Vec<_>,UpstreamError>>()?;
         out.insert("candidates".into(), candidates.into());
     }
     if let Some(usage) = value.get(2).and_then(Value::as_array) {
@@ -601,7 +604,7 @@ pub(super) fn response(value: &Value, model: &str) -> Result<Option<Value>, Chan
     Ok(Some(out.into()))
 }
 
-pub(super) fn models(value: &Value) -> Result<Vec<Value>, ChannelError> {
+pub(super) fn models(value: &Value) -> Result<Vec<Value>, UpstreamError> {
     let models = value
         .get(0)
         .and_then(Value::as_array)

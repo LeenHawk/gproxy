@@ -70,7 +70,7 @@ pub fn check_oauth_operation(
 
 /// Consent is an upper bound, including for operator-approved CLI clients.
 /// Unknown/identity scopes never implicitly authorize a resource operation.
-fn require_oauth_scope(caller: &Caller, required: &str) -> Result<(), AppError> {
+pub(crate) fn require_oauth_scope(caller: &Caller, required: &str) -> Result<(), AppError> {
     if caller.kind != CallerKind::OAuthGrant
         || caller
             .grant

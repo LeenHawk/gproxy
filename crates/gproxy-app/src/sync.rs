@@ -43,13 +43,6 @@
 //! including a name this build has never heard of and a payload that will not
 //! parse at all, refreshes. Unknown means reload: always correct, merely
 //! slower.
-//!
-//! # No loop at the edge
-//!
-//! A Worker isolate does not outlive its request, so a spawned loop would be
-//! cancelled mid-sleep and never poll. [`App::tick`] is the whole mechanism
-//! there, called at the top of a request beside the sdk's own — exactly as the
-//! sdk documents its wasm story.
 
 use std::{sync::Arc, time::Duration};
 
@@ -77,9 +70,7 @@ pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(30);
 /// Resubscription backoff after the notification topic closes or refuses.
 /// Only the background loop resubscribes; `tick` leaves a closed topic to the
 /// revision poll of the same call.
-#[cfg(not(target_arch = "wasm32"))]
 const MIN_BACKOFF: Duration = Duration::from_secs(1);
-#[cfg(not(target_arch = "wasm32"))]
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 /// The scope names that cannot change [`AppData`](crate::AppData), and so are
@@ -124,8 +115,8 @@ impl AppSync {
 }
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
-    /// Subscribe to the invalidation topic and start whatever loops this
-    /// target and mode have.
+    /// Subscribe to the invalidation topic and start whatever loops this mode
+    /// has.
     ///
     /// Called once, by the host, after the first [`App::reload_all`] — the
     /// order matters in `Manual` mode, where a fresh subscription always opens
@@ -135,8 +126,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
     /// allocation. Calling it twice is a host bug and is refused with a
     /// warning rather than a second set of loops.
     pub async fn start_sync(self: &Arc<Self>, mode: SyncMode, poll_interval: Duration) {
-        // wasm has no task to run a loop in, whatever the mode says.
-        let manual = mode == SyncMode::Manual || cfg!(target_arch = "wasm32");
+        let manual = mode == SyncMode::Manual;
         let handle = AppSync {
             cancel: CancellationToken::new(),
             subscription: if manual {
@@ -152,10 +142,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
         self.spawn_loops(manual, poll_interval);
     }
 
-    #[cfg(target_arch = "wasm32")]
-    fn spawn_loops(self: &Arc<Self>, _manual: bool, _poll_interval: Duration) {}
-
-    #[cfg(not(target_arch = "wasm32"))]
     fn spawn_loops(self: &Arc<Self>, manual: bool, poll_interval: Duration) {
         if manual {
             return;
@@ -220,9 +206,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
     /// One synchronization step for a host with no background loop: apply
     /// whatever is already waiting, then poll the revision.
     ///
-    /// This is what an edge isolate calls at the top of a request, next to
-    /// [`Gproxy::tick`](gproxy_sdk::Gproxy::tick). Natively, under
-    /// `SyncMode::Background`, it is redundant but harmless.
+    /// A `SyncMode::Manual` host calls this at the top of a request, next to
+    /// [`Gproxy::tick`](gproxy_sdk::Gproxy::tick). Under
+    /// `SyncMode::Background` it is redundant but harmless.
     pub async fn tick(&self) -> Result<Option<i64>> {
         let drained = self.drain_notifications().await?;
         Ok(self.sync_now().await?.or(drained))
@@ -303,8 +289,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
 ///
 /// A fresh subscription always opens with `ResyncRequired`; the host's initial
 /// [`App::reload_all`] *is* that resync, so delivering it to the first `tick`
-/// would only reload twice on every cold start — which a Worker pays for in
-/// wall clock.
+/// would only reload twice on every cold start.
 async fn subscribe(cache: &Arc<dyn Cache>) -> Option<tokio::sync::Mutex<Box<dyn Subscription>>> {
     match cache.subscribe(INVALIDATION_TOPIC).await {
         Ok(mut subscription) => {
@@ -340,14 +325,13 @@ fn clamp(revision: u64) -> i64 {
 
 /// The durable backstop: poll the revision, rebuild when it moved. Holds a
 /// `Weak`, so dropping the last handle ends the loop at its next wake.
-#[cfg(not(target_arch = "wasm32"))]
 async fn poll_loop<C>(app: std::sync::Weak<App<C>>, interval: Duration, cancel: CancellationToken)
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
     loop {
         if cancel
-            .run_until_cancelled(rt::sleep(interval))
+            .run_until_cancelled(tokio::time::sleep(interval))
             .await
             .is_none()
         {
@@ -366,7 +350,6 @@ where
 /// is resubscribed with a 1s→30s backoff, and every fresh subscription opens
 /// with `ResyncRequired`, so whatever landed while we were away is recovered
 /// by the poll that follows.
-#[cfg(not(target_arch = "wasm32"))]
 async fn subscription_loop<C>(
     app: std::sync::Weak<App<C>>,
     cache: Arc<dyn Cache>,
@@ -403,7 +386,7 @@ async fn subscription_loop<C>(
             Err(error) => tracing::warn!(%error, "invalidation subscription refused; retrying"),
         }
         if cancel
-            .run_until_cancelled(rt::sleep(backoff))
+            .run_until_cancelled(tokio::time::sleep(backoff))
             .await
             .is_none()
         {

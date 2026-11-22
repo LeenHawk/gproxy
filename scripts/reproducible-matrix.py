@@ -34,11 +34,6 @@ for row in rows:
         elif row["target"].startswith("riscv64gc-") and item["builder"] != "cargo-alpine":
             item["container"] = "cross"
         matrix.append(item)
-for arch, runner in [("x86_64", "ubuntu-24.04"), ("aarch64", "ubuntu-24.04-arm")]:
-    matrix.append(dict(target=f"{arch}-unknown-linux-musl", os="linux", runner=runner,
-                       kind="serverless", builder="cargo-alpine", container=""))
-matrix.append(dict(target="wasm32-unknown-unknown", os="wasm", runner="ubuntu-24.04",
-                   kind="edge", builder="cargo", container=""))
 selected = [row for row in matrix if (args.target == "all" or row["target"] == args.target)
             and (args.kind == "all" or row["kind"] == args.kind)]
 if not selected:

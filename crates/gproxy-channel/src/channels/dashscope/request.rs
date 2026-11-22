@@ -5,9 +5,10 @@ use super::config::{
     ANTHROPIC_MODE, COMPATIBLE_MODE, DEFAULT_BASE_URL, DashScopeConfig, RERANK_PATH,
 };
 use super::image;
-use crate::channel::{ChannelError, HeaderAllowlist, PrepareContext, forwardable};
+use crate::channel::{HeaderAllowlist, PrepareContext, forwardable};
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireRequest};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderValue, header};
 
 fn conversational(operation: Operation) -> bool {
@@ -47,7 +48,7 @@ pub(super) fn path(operation: Operation, dialect: Dialect, path: &str) -> String
 
 pub(super) fn build(
     ctx: PrepareContext<'_>,
-) -> Result<(http::request::Builder, WireRequest<HttpBody>), ChannelError> {
+) -> Result<(http::request::Builder, WireRequest<HttpBody>), UpstreamError> {
     let config = DashScopeConfig::from_view(ctx.provider)?;
     let key = ctx
         .credential
@@ -56,7 +57,7 @@ pub(super) fn build(
         .and_then(|value| value.as_str())
         .map(str::trim)
         .filter(|key| !key.is_empty())
-        .ok_or(ChannelError::InvalidCredential)?;
+        .ok_or(UpstreamError::InvalidCredential)?;
     let operation = ctx.operation.operation;
     let mut request = ctx.request;
     let url = match ctx.endpoint_override {
@@ -94,14 +95,14 @@ pub(super) fn build(
     headers.insert(
         header::AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {key}"))
-            .map_err(|_| ChannelError::InvalidCredential)?,
+            .map_err(|_| UpstreamError::InvalidCredential)?,
     );
     for (name, value) in &config.headers {
         insert_configured(&mut headers, name, value)?;
     }
     if image_operation(operation) {
         let HttpBody::Bytes(bytes) = &request.body else {
-            return Err(ChannelError::InvalidConfig(
+            return Err(UpstreamError::InvalidConfig(
                 "DashScope image requests need a buffered JSON body; multipart uploads are not converted".into(),
             ));
         };

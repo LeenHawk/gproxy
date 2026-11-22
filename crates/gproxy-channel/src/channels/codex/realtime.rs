@@ -3,9 +3,7 @@
 use super::common::invalid_config;
 use super::headers::{account, backend_headers};
 use super::{CLI_HEADERS, Codex, CodexConfig};
-use crate::channel::{
-    BaseChannel, ChannelError, HeaderAllowlist, OperationContext, PrepareContext,
-};
+use crate::channel::{BaseChannel, HeaderAllowlist, OperationContext, PrepareContext};
 use futures_util::{FutureExt, StreamExt};
 use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireResponse,
@@ -14,23 +12,24 @@ use gproxy_protocol::{
     connection::Bytes,
     wire::openai::realtime::RealtimeRoute,
 };
+use gproxy_upstream::UpstreamError;
 use http::{HeaderMap, HeaderValue, header};
 use serde_json::{Value, json};
 use url::Url;
 
-fn error(error: impl std::fmt::Display) -> ChannelError {
+fn error(error: impl std::fmt::Display) -> UpstreamError {
     invalid_config(format!("Codex realtime: {error}"))
 }
 
-fn request_error(cause: impl std::fmt::Display) -> ChannelError {
-    ChannelError::Transport(CapabilityError::new(
+fn request_error(cause: impl std::fmt::Display) -> UpstreamError {
+    UpstreamError::Transport(CapabilityError::new(
         CapabilityErrorKind::Invalid,
         CapabilityErrorStage::BodyTransfer,
         format!("invalid realtime request: {cause}"),
     ))
 }
 
-fn boundary(headers: &HeaderMap) -> Result<Option<String>, ChannelError> {
+fn boundary(headers: &HeaderMap) -> Result<Option<String>, UpstreamError> {
     let Some(value) = headers.get(header::CONTENT_TYPE) else {
         return Ok(None);
     };
@@ -54,9 +53,9 @@ fn boundary(headers: &HeaderMap) -> Result<Option<String>, ChannelError> {
 }
 
 fn backend(
-    provider: crate::channel::ProviderView<'_>,
+    provider: gproxy_upstream::ProviderView<'_>,
     endpoint: Option<&str>,
-) -> Result<bool, ChannelError> {
+) -> Result<bool, UpstreamError> {
     let url = Url::parse(
         endpoint.unwrap_or_else(|| provider.base_url.unwrap_or(super::DEFAULT_BASE_URL)),
     )
@@ -65,23 +64,23 @@ fn backend(
     Ok(path == "/backend-api" || path.starts_with("/backend-api/"))
 }
 
-fn codec_error(cause: CodecError) -> ChannelError {
+fn codec_error(cause: CodecError) -> UpstreamError {
     let kind = match cause.kind() {
         CodecErrorKind::Transport => CapabilityErrorKind::Transport,
         CodecErrorKind::Limit => CapabilityErrorKind::Limit,
         _ => CapabilityErrorKind::Invalid,
     };
-    ChannelError::Transport(CapabilityError::with_source(
+    UpstreamError::Transport(CapabilityError::with_source(
         kind,
         CapabilityErrorStage::BodyTransfer,
         "realtime multipart decoding failed",
         cause,
     ))
 }
-fn body_error(cause: gproxy_protocol::connection::TransportError) -> ChannelError {
+fn body_error(cause: gproxy_protocol::connection::TransportError) -> UpstreamError {
     match cause.downcast::<CodecError>() {
         Ok(cause) => codec_error(*cause),
-        Err(cause) => ChannelError::Transport(CapabilityError::with_source(
+        Err(cause) => UpstreamError::Transport(CapabilityError::with_source(
             CapabilityErrorKind::Transport,
             CapabilityErrorStage::BodyTransfer,
             "realtime body read failed",
@@ -90,7 +89,7 @@ fn body_error(cause: gproxy_protocol::connection::TransportError) -> ChannelErro
     }
 }
 
-pub(super) fn prepare_buffered(ctx: &mut PrepareContext<'_>) -> Result<(), ChannelError> {
+pub(super) fn prepare_buffered(ctx: &mut PrepareContext<'_>) -> Result<(), UpstreamError> {
     if !backend(ctx.provider, ctx.endpoint_override)? {
         return Ok(());
     }
@@ -123,9 +122,9 @@ pub(super) fn prepare_buffered(ctx: &mut PrepareContext<'_>) -> Result<(), Chann
 }
 
 pub(super) fn call_path(
-    provider: crate::channel::ProviderView<'_>,
+    provider: gproxy_upstream::ProviderView<'_>,
     path: &str,
-) -> Result<&'static str, ChannelError> {
+) -> Result<&'static str, UpstreamError> {
     Ok(
         if !backend(provider, None)?
             && matches!(
@@ -151,7 +150,7 @@ fn json_headers(headers: &mut HeaderMap) {
 pub(super) async fn create_call(
     channel: &Codex,
     mut ctx: OperationContext<'_>,
-) -> Result<WireResponse, ChannelError> {
+) -> Result<WireResponse, UpstreamError> {
     if backend(ctx.provider, ctx.endpoint_override)?
         && let Some(boundary) = boundary(&ctx.request.headers)?
     {
@@ -172,13 +171,9 @@ pub(super) async fn create_call(
     Ok(ctx.client.send(prepared).await?)
 }
 
-async fn multipart(body: HttpBody, boundary: String) -> Result<Bytes, ChannelError> {
-    let mut decoder = MultipartDecoder::new(
-        body,
-        boundary,
-        crate::channel::UNBOUNDED,
-    )
-    .map_err(codec_error)?;
+async fn multipart(body: HttpBody, boundary: String) -> Result<Bytes, UpstreamError> {
+    let mut decoder =
+        MultipartDecoder::new(body, boundary, crate::channel::UNBOUNDED).map_err(codec_error)?;
     let mut output = serde_json::Map::new();
     while let Some(part) = decoder.next_part().await.map_err(codec_error)? {
         let name = part
@@ -221,7 +216,7 @@ async fn multipart(body: HttpBody, boundary: String) -> Result<Bytes, ChannelErr
 
 pub(super) fn prepare_connect(
     ctx: PrepareContext<'_, ()>,
-) -> Result<http::Request<()>, ChannelError> {
+) -> Result<http::Request<()>, UpstreamError> {
     let config = CodexConfig::from_view(ctx.provider)?;
     // Realtime uses the API host even with a ChatGPT credential. Existing-call
     // sidebands use that same credential; the host must bind call continuations.

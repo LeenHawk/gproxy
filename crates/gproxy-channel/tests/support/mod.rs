@@ -2,8 +2,8 @@
 //! bindings, a fixed identity and usage, a configurable role.
 #![allow(dead_code)]
 
-use gproxy_channel::channel::{
-    CallerIdentity, CallerRole, CallerUsage, OperationFuture, ResourceBindingRecord, ServiceCaller,
+use gproxy_upstream::{
+    CallerIdentity, CallerRole, CallerUsage, ResourceBindingRecord, ServiceCaller, UpstreamFuture,
 };
 use std::sync::Mutex;
 
@@ -63,7 +63,7 @@ impl ServiceCaller for ScriptCaller {
     fn identity(&self) -> &CallerIdentity {
         &self.identity
     }
-    fn usage<'a>(&'a self) -> OperationFuture<'a, CallerUsage> {
+    fn usage<'a>(&'a self) -> UpstreamFuture<'a, CallerUsage> {
         let usage = self.usage.clone();
         Box::pin(async move { Ok(usage) })
     }
@@ -71,7 +71,7 @@ impl ServiceCaller for ScriptCaller {
         &'a self,
         kind: &'a str,
         upstream_id: &'a str,
-    ) -> OperationFuture<'a, Option<ResourceBindingRecord>> {
+    ) -> UpstreamFuture<'a, Option<ResourceBindingRecord>> {
         let found = self
             .bindings
             .lock()
@@ -84,7 +84,7 @@ impl ServiceCaller for ScriptCaller {
     fn list_bindings<'a>(
         &'a self,
         kind: &'a str,
-    ) -> OperationFuture<'a, Vec<ResourceBindingRecord>> {
+    ) -> UpstreamFuture<'a, Vec<ResourceBindingRecord>> {
         let found = self
             .bindings
             .lock()
@@ -95,15 +95,11 @@ impl ServiceCaller for ScriptCaller {
             .collect();
         Box::pin(async move { Ok(found) })
     }
-    fn save_binding<'a>(&'a self, record: ResourceBindingRecord) -> OperationFuture<'a, ()> {
+    fn save_binding<'a>(&'a self, record: ResourceBindingRecord) -> UpstreamFuture<'a, ()> {
         self.bindings.lock().unwrap().push(record);
         Box::pin(async { Ok(()) })
     }
-    fn delete_binding<'a>(
-        &'a self,
-        kind: &'a str,
-        upstream_id: &'a str,
-    ) -> OperationFuture<'a, ()> {
+    fn delete_binding<'a>(&'a self, kind: &'a str, upstream_id: &'a str) -> UpstreamFuture<'a, ()> {
         self.bindings
             .lock()
             .unwrap()
@@ -115,12 +111,11 @@ impl ServiceCaller for ScriptCaller {
 // --------------------------------------------- fixtures for the API-key fleet
 
 use gproxy_channel::OutboundClient;
-use gproxy_channel::channel::{
-    ChannelError, CredentialContext, CredentialView, ProviderView, QuotaQuery, QuotaSnapshot,
-};
+use gproxy_channel::channel::{QuotaQuery, QuotaSnapshot};
 use gproxy_protocol::capability::{CapabilityError, CapabilityFuture};
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{HttpBody, WireRequest, WireResponse};
+use gproxy_upstream::{CredentialContext, CredentialView, ProviderView, UpstreamError};
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::Value;
 
@@ -230,7 +225,7 @@ pub async fn quota<C: QuotaQuery>(
     base_url: Option<&str>,
     status: StatusCode,
     body: String,
-) -> Result<(String, QuotaSnapshot), ChannelError> {
+) -> Result<(String, QuotaSnapshot), UpstreamError> {
     let config = Value::Object(Default::default());
     let client = OneShot::new(status, body);
     let snapshot = channel

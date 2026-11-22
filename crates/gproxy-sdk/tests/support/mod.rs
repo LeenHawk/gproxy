@@ -15,14 +15,8 @@ use std::{
 
 use futures_util::StreamExt;
 use gproxy_channel::{
-    BaseChannel, ChannelError, OutboundClient,
-    channel::{
-        AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelCapabilities,
-        ChannelDescriptor, CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView,
-        DeviceAuthorization, DevicePoll, LoginContext, LoginMode, OAuthAuthorizationCode,
-        OAuthCredential, OAuthDeviceCode, OperationFuture, PrepareContext, ProviderView,
-        QuotaQuery, QuotaSnapshot,
-    },
+    BaseChannel, OutboundClient,
+    channel::{ChannelCapabilities, ChannelDescriptor, PrepareContext, QuotaQuery, QuotaSnapshot},
 };
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, WireRequest, WireResponse,
@@ -30,6 +24,12 @@ use gproxy_protocol::{
     connection::{Bytes, TransportError, WebSocket, WsFrame},
 };
 use gproxy_sdk::{Cache, ClientPool, Gproxy, GproxyBuilder, SyncMode};
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, AuthorizationStart, CredentialContext,
+    CredentialRefresh, CredentialUpdate, CredentialView, DeviceAuthorization, DevicePoll,
+    LoginContext, LoginMode, OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode,
+    ProviderView, UpstreamError, UpstreamFuture, UpstreamKind,
+};
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
@@ -75,14 +75,29 @@ pub struct TestChannel {
     pub login_calls: Arc<Log>,
 }
 
+impl UpstreamKind for TestChannel {
+    fn id(&self) -> &'static str {
+        "test"
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+
+    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
+        Some(self)
+    }
+
+    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
+        Some(self)
+    }
+}
+
 impl BaseChannel for TestChannel {
     fn quota_model(&self) -> Option<&dyn gproxy_channel::channel::QuotaModel> {
         Some(self)
     }
 
-    fn id(&self) -> &'static str {
-        "test"
-    }
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: self.id(),
@@ -104,16 +119,7 @@ impl BaseChannel for TestChannel {
             config_keys: Vec::new(),
         }
     }
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
-    }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
-        Some(self)
-    }
-    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
-        Some(self)
-    }
-    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
         Some(self)
     }
 
@@ -136,7 +142,7 @@ impl BaseChannel for TestChannel {
             configured
         }
     }
-    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+    fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, UpstreamError> {
         let url = match ctx.endpoint_override {
             Some(url) => url.to_owned(),
             None => format!(
@@ -162,17 +168,17 @@ impl BaseChannel for TestChannel {
         }
         builder
             .body(ctx.request.body)
-            .map_err(|_| ChannelError::InvalidCredential)
+            .map_err(|_| UpstreamError::InvalidCredential)
     }
 }
 
 /// An API key or the access token a login produced; a credential with neither
 /// cannot be used against this upstream.
-fn bearer<'a>(credential: CredentialView<'a>) -> Result<&'a str, ChannelError> {
+fn bearer<'a>(credential: CredentialView<'a>) -> Result<&'a str, UpstreamError> {
     ["api_key", "access_token"]
         .iter()
         .find_map(|field| credential.secret.get(*field).and_then(Value::as_str))
-        .ok_or(ChannelError::InvalidCredential)
+        .ok_or(UpstreamError::InvalidCredential)
 }
 
 impl OAuthAuthorizationCode for TestChannel {
@@ -180,7 +186,7 @@ impl OAuthAuthorizationCode for TestChannel {
         &'a self,
         context: LoginContext<'a>,
         request: AuthorizationRequest<'a>,
-    ) -> OperationFuture<'a, AuthorizationStart> {
+    ) -> UpstreamFuture<'a, AuthorizationStart> {
         self.login_calls.push(format!(
             "authorize {} state={} challenge={}",
             context.provider.id, request.state, request.code_challenge
@@ -205,7 +211,7 @@ impl OAuthAuthorizationCode for TestChannel {
         &'a self,
         _: LoginContext<'a>,
         grant: AuthorizationCode<'a>,
-    ) -> OperationFuture<'a, OAuthCredential> {
+    ) -> UpstreamFuture<'a, OAuthCredential> {
         self.login_calls.push(format!(
             "exchange code={} verifier={} state={}",
             grant.code, grant.code_verifier, grant.state
@@ -220,12 +226,12 @@ impl OAuthAuthorizationCode for TestChannel {
             .unwrap()
             .pop_front()
             .expect("scripted authorization code exchange");
-        Box::pin(async move { reply.map_err(|reason| ChannelError::InvalidConfig(reason.into())) })
+        Box::pin(async move { reply.map_err(|reason| UpstreamError::InvalidConfig(reason.into())) })
     }
 }
 
 impl OAuthDeviceCode for TestChannel {
-    fn start<'a>(&'a self, context: LoginContext<'a>) -> OperationFuture<'a, DeviceAuthorization> {
+    fn start<'a>(&'a self, context: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         self.login_calls
             .push(format!("device-start {}", context.provider.id));
         let authorization = self
@@ -241,7 +247,7 @@ impl OAuthDeviceCode for TestChannel {
         &'a self,
         _: LoginContext<'a>,
         authorization: &'a DeviceAuthorization,
-    ) -> OperationFuture<'a, DevicePoll> {
+    ) -> UpstreamFuture<'a, DevicePoll> {
         self.login_calls
             .push(format!("device-poll {}", authorization.device_code));
         let reply = self
@@ -257,8 +263,8 @@ impl OAuthDeviceCode for TestChannel {
 impl CredentialRefresh for TestChannel {
     fn refresh<'a>(
         &'a self,
-        context: gproxy_channel::channel::RefreshContext<'a>,
-    ) -> CapabilityFuture<'a, Result<CredentialUpdate, ChannelError>> {
+        context: gproxy_upstream::RefreshContext<'a>,
+    ) -> CapabilityFuture<'a, Result<CredentialUpdate, UpstreamError>> {
         self.refresh_calls
             .lock()
             .unwrap()
@@ -279,15 +285,17 @@ impl CredentialRefresh for TestChannel {
                     secret: json!({ "api_key": api_key }),
                     expires_at_ms,
                 }),
-                RefreshReply::Rejected(reason) => Err(ChannelError::RefreshRejected(reason.into())),
-                RefreshReply::Failed => Err(ChannelError::InvalidResponse("upstream down".into())),
+                RefreshReply::Rejected(reason) => {
+                    Err(UpstreamError::RefreshRejected(reason.into()))
+                }
+                RefreshReply::Failed => Err(UpstreamError::InvalidResponse("upstream down".into())),
             }
         })
     }
 }
 
 impl QuotaQuery for TestChannel {
-    fn query<'a>(&'a self, _: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, _: CredentialContext<'a>) -> UpstreamFuture<'a, QuotaSnapshot> {
         let reply = self
             .quota_snapshots
             .lock()
@@ -513,7 +521,7 @@ impl gproxy_channel::channel::QuotaModel for TestChannel {
     fn dimensions(
         &self,
         _: ProviderView<'_>,
-        credential: gproxy_channel::channel::CredentialView<'_>,
+        credential: gproxy_upstream::CredentialView<'_>,
     ) -> Vec<gproxy_channel::channel::QuotaDimension> {
         use gproxy_channel::channel::{
             QuotaDimension, QuotaMetric, QuotaScope, QuotaTracking, QuotaWindow,

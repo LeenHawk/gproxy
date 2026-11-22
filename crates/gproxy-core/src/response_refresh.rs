@@ -6,7 +6,7 @@ use crate::{
     Core, CoreData, CredentialState, CredentialStatus, CredentialVersion, Invalidation,
     SecretCodec, keys,
 };
-use gproxy_channel::{BaseChannel, OutboundClient, channel::CredentialView};
+use gproxy_channel::OutboundClient;
 use gproxy_protocol::{
     HttpBody, WireResponse,
     capability::{
@@ -19,11 +19,12 @@ use gproxy_store::{
     Store,
     operations::{CasOutcome, credentials::CredentialRefresh},
 };
+use gproxy_upstream::{CredentialView, UpstreamKind};
 use std::sync::Arc;
 
 struct ResponseRefresh<C> {
     inner: Arc<dyn OutboundClient>,
-    channel: Arc<dyn BaseChannel>,
+    kind: Arc<dyn UpstreamKind>,
     id: String,
     provider_id: String,
     auth_kind: String,
@@ -53,7 +54,7 @@ impl<C: BatchConnectionTrait + Send + Sync> OutboundClient for ResponseRefresh<C
                 .map_err(storage)?;
             *head.headers_mut() = request.headers().clone();
             let mut response = self.inner.send(request).await?;
-            let Some(refresh) = self.channel.credential_refresh() else {
+            let Some(refresh) = self.kind.credential_refresh() else {
                 return Ok(response);
             };
             let update = refresh.response_update(
@@ -124,13 +125,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
             let Some(provider) = data.providers.get(&credential.provider_id) else {
                 continue;
             };
-            if provider.channel.credential_refresh().is_none() {
+            if provider.upstream().credential_refresh().is_none() {
                 continue;
             }
             let credential = Arc::make_mut(credential);
             credential.client = Arc::new(ResponseRefresh {
                 inner: credential.client.clone(),
-                channel: provider.channel.clone(),
+                kind: provider.upstream_arc(),
                 id: credential.id.clone(),
                 provider_id: credential.provider_id.clone(),
                 auth_kind: credential.auth_kind.clone(),

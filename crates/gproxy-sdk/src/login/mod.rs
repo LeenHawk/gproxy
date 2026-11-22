@@ -7,8 +7,8 @@
 //!
 //! What the SDK owns, and a caller therefore never has to:
 //!
-//! - **PKCE.** The verifier is minted here, never sent, and only its S256
-//!   digest reaches the upstream.
+//! - **PKCE.** The verifier is minted here (`gproxy_upstream::login`), never
+//!   sent, and only its S256 digest reaches the upstream.
 //! - **CSRF state.** Minted here and compared here. A callback whose state does
 //!   not match the one this session was started with is refused and the session
 //!   is destroyed, so a replay cannot be retried into success.
@@ -26,15 +26,14 @@
 //! interval to wait before asking again. Nothing here sleeps or loops.
 
 mod persist;
-mod pkce;
 mod session;
 
 use std::sync::Arc;
 
-use gproxy_channel::channel::{AuthorizationCode, AuthorizationRequest, DevicePoll, LoginContext};
 use gproxy_core::ProviderData;
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::upstream::provider;
+use gproxy_upstream::{AuthorizationCode, AuthorizationRequest, DevicePoll, LoginContext};
 
 use crate::{
     SdkError, SdkResult,
@@ -81,12 +80,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
     /// will need.
     pub async fn authcode_start(&self, request: AuthCodeStart) -> SdkResult<AuthCodeStarted> {
         let provider = self.provider(&request.provider_id)?;
-        let Some(flow) = provider.channel.oauth_authorization_code() else {
+        let Some(flow) = provider.upstream().oauth_authorization_code() else {
             return Err(SdkError::Unsupported(
                 "this channel has no authorization code login",
             ));
         };
-        let pkce = pkce::pkce(flow.pkce_verifier_bytes())?;
+        let pkce = gproxy_upstream::login::pkce(flow.pkce_verifier_bytes())
+            .map_err(|_| SdkError::invalid("secure randomness is unavailable"))?;
         let state = crate::ids::random_id();
         let client = self.inner.core.provider_client(&provider.entity.id).await?;
         // An empty redirect leaves the choice to the channel, which is what a
@@ -154,7 +154,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
                 "this login session is not an authorization code login",
             ));
         };
-        let (code, state) = authorization_code(&request)?;
+        let (code, state) = gproxy_upstream::login::authorization_code(
+            request.callback_url.as_deref(),
+            request.code.as_deref(),
+            request.state.as_deref(),
+        )
+        .map_err(|error| SdkError::invalid(error.0))?;
         if let Some(state) = state
             && state != expected_state
         {
@@ -165,7 +170,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
         }
         let provider = self.provider(&provider_id)?;
         expect_channel(&provider.entity, &channel)?;
-        let Some(flow) = provider.channel.oauth_authorization_code() else {
+        let Some(flow) = provider.upstream().oauth_authorization_code() else {
             return Err(SdkError::Unsupported(
                 "this channel has no authorization code login",
             ));
@@ -199,7 +204,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
     /// authorization itself is parked for the poll.
     pub async fn device_start(&self, request: DeviceStart) -> SdkResult<DeviceStarted> {
         let provider = self.provider(&request.provider_id)?;
-        let Some(flow) = provider.channel.oauth_device_code() else {
+        let Some(flow) = provider.upstream().oauth_device_code() else {
             return Err(SdkError::Unsupported(
                 "this channel has no device code login",
             ));
@@ -258,7 +263,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
         };
         let provider = self.provider(&provider_id)?;
         expect_channel(&provider.entity, &channel)?;
-        let Some(flow) = provider.channel.oauth_device_code() else {
+        let Some(flow) = provider.upstream().oauth_device_code() else {
             return Err(SdkError::Unsupported(
                 "this channel has no device code login",
             ));
@@ -325,12 +330,16 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
         auth_kind: &str,
         label: Option<String>,
         owner: CredentialOwner,
-        acquired: gproxy_channel::channel::AcquiredCredential,
+        acquired: gproxy_upstream::AcquiredCredential,
     ) -> SdkResult<CredentialCreated> {
         let credential_id = persist::credential(
             self.writer(),
             &provider.entity,
-            provider.channel.as_ref(),
+            // A channel names its product; a tool server is known by its provider name.
+            match provider.channel() {
+                Some(channel) => channel.descriptor().display_name,
+                None => &provider.entity.name,
+            },
             auth_kind,
             label,
             owner,
@@ -358,132 +367,4 @@ fn expect_channel(provider: &provider::Model, expected: &str) -> SdkResult<()> {
         )));
     }
     Ok(())
-}
-
-/// The authorization code and, when there is one, the state that must match.
-/// Exactly one of `callbackUrl` and `code` is accepted.
-fn authorization_code(request: &AuthCodeComplete) -> SdkResult<(String, Option<String>)> {
-    let callback_url = non_blank(request.callback_url.as_deref());
-    let code = non_blank(request.code.as_deref());
-    match (callback_url, code) {
-        (Some(url), None) => callback(url),
-        (None, Some(code)) => Ok((
-            code.to_owned(),
-            non_blank(request.state.as_deref()).map(str::to_owned),
-        )),
-        (Some(_), Some(_)) => Err(SdkError::invalid(
-            "provide either callbackUrl or code, not both",
-        )),
-        (None, None) => Err(SdkError::invalid(
-            "provide the callbackUrl or the authorization code",
-        )),
-    }
-}
-
-/// `code` and `state` out of a callback's query. A bare query string and a
-/// site-relative path are both accepted: a browser hands a console
-/// `location.search`, not an absolute URL.
-fn callback(url: &str) -> SdkResult<(String, Option<String>)> {
-    if let Some((code, state)) = pasted_code(url) {
-        return Ok((code.to_owned(), Some(state.to_owned())));
-    }
-    let malformed = || SdkError::invalid("the login callback is not a valid URL");
-    let base = url::Url::parse("http://callback.invalid/").expect("a constant URL parses");
-    let parsed = url::Url::options()
-        .base_url(Some(&base))
-        .parse(url)
-        .map_err(|_| malformed())?;
-    let mut code = None;
-    let mut state = None;
-    for (name, value) in parsed.query_pairs() {
-        match name.as_ref() {
-            "code" => code = non_blank(Some(value.as_ref())).map(str::to_owned),
-            "state" => state = non_blank(Some(value.as_ref())).map(str::to_owned),
-            _ => {}
-        }
-    }
-    let code = code.ok_or_else(|| SdkError::invalid("the login callback carries no code"))?;
-    if state.is_none() {
-        // Every session this crate starts has a state, so a callback without
-        // one cannot be the answer to it.
-        return Err(SdkError::invalid(
-            "the login callback carries no authorization state",
-        ));
-    }
-    Ok((code, state))
-}
-
-/// The `code#state` text a provider's own callback page shows for copying
-/// instead of leaving the result in the address bar (Claude does). Anything
-/// that looks like a URL or a query is left to [`callback`].
-pub fn pasted_code(text: &str) -> Option<(&str, &str)> {
-    let (code, state) = text.trim().split_once('#')?;
-    let plain = |part: &str| {
-        !part.is_empty() && !part.contains(|c: char| c.is_whitespace() || "/?&=#".contains(c))
-    };
-    (plain(code) && plain(state)).then_some((code, state))
-}
-
-fn non_blank(value: Option<&str>) -> Option<&str> {
-    value.map(str::trim).filter(|value| !value.is_empty())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{authorization_code, callback};
-    use crate::dto::AuthCodeComplete;
-
-    fn request(
-        callback_url: Option<&str>,
-        code: Option<&str>,
-        state: Option<&str>,
-    ) -> AuthCodeComplete {
-        AuthCodeComplete {
-            login_session_id: "session".into(),
-            callback_url: callback_url.map(str::to_owned),
-            code: code.map(str::to_owned),
-            state: state.map(str::to_owned),
-        }
-    }
-
-    #[test]
-    fn a_callback_or_a_bare_code_but_not_both() {
-        assert_eq!(
-            authorization_code(&request(
-                Some("http://localhost/callback?code=from-callback&state=s1"),
-                None,
-                None
-            ))
-            .unwrap(),
-            ("from-callback".into(), Some("s1".into()))
-        );
-        assert_eq!(
-            authorization_code(&request(None, Some("  bare  "), Some("s1"))).unwrap(),
-            ("bare".into(), Some("s1".into()))
-        );
-        assert!(
-            authorization_code(&request(Some("http://x/?code=a&state=s"), Some("b"), None))
-                .is_err()
-        );
-        assert!(authorization_code(&request(None, None, Some("s1"))).is_err());
-    }
-
-    #[test]
-    fn a_bare_query_string_is_a_callback() {
-        assert_eq!(
-            callback("?code=a&state=s1").unwrap(),
-            ("a".into(), Some("s1".into()))
-        );
-        assert_eq!(
-            callback("/oauth/callback?state=s1&code=a").unwrap(),
-            ("a".into(), Some("s1".into()))
-        );
-    }
-
-    #[test]
-    fn a_callback_without_a_code_or_a_state_is_refused() {
-        assert!(callback("http://localhost/?state=s1").is_err());
-        assert!(callback("http://localhost/?code=a").is_err());
-        assert!(callback("http://localhost/?code=&state=s1").is_err());
-    }
 }

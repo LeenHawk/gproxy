@@ -1,9 +1,10 @@
 //! The three surfaces' paths and the authentication each one wants.
 
 use super::config::{DEFAULT_BASE_URL, DeepSeekConfig};
-use crate::channel::{ChannelError, HeaderAllowlist, PrepareContext, forwardable};
+use crate::channel::{HeaderAllowlist, PrepareContext, forwardable};
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use gproxy_protocol::{Dialect, Operation, WireRequest};
+use gproxy_upstream::UpstreamError;
 use http::{HeaderName, HeaderValue, header};
 
 /// Operations whose path is the dialect's own conversation endpoint; only
@@ -43,7 +44,7 @@ pub(super) fn path(operation: Operation, dialect: Dialect, path: &str) -> String
 /// Build everything but the body, so HTTP and websocket preparation share it.
 pub(super) fn build<B>(
     ctx: PrepareContext<'_, B>,
-) -> Result<(http::request::Builder, WireRequest<B>), ChannelError> {
+) -> Result<(http::request::Builder, WireRequest<B>), UpstreamError> {
     let config = DeepSeekConfig::from_view(ctx.provider)?;
     let key = ctx
         .credential
@@ -52,7 +53,7 @@ pub(super) fn build<B>(
         .and_then(|value| value.as_str())
         .map(str::trim)
         .filter(|key| !key.is_empty())
-        .ok_or(ChannelError::InvalidCredential)?;
+        .ok_or(UpstreamError::InvalidCredential)?;
     let mut request = ctx.request;
     let url = match ctx.endpoint_override {
         Some(url) => url.to_owned(),
@@ -93,13 +94,13 @@ pub(super) fn build<B>(
         // Anthropic does, but asks for no anthropic-version.
         headers.insert(
             HeaderName::from_static("x-api-key"),
-            HeaderValue::from_str(key).map_err(|_| ChannelError::InvalidCredential)?,
+            HeaderValue::from_str(key).map_err(|_| UpstreamError::InvalidCredential)?,
         );
     } else {
         headers.insert(
             header::AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {key}"))
-                .map_err(|_| ChannelError::InvalidCredential)?,
+                .map_err(|_| UpstreamError::InvalidCredential)?,
         );
     }
     for (name, value) in &config.headers {

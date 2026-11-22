@@ -3,17 +3,17 @@
 mod support;
 
 use gproxy_channel::{
-    BaseChannel, ChannelError, OutboundClient,
-    channel::{
-        CredentialContext, CredentialView, PrepareContext, ProviderView, QuotaHeaderContext,
-        QuotaValue,
-    },
+    BaseChannel, OutboundClient,
+    channel::{PrepareContext, QuotaHeaderContext, QuotaValue},
     channels::claudeapi::Claudeapi,
 };
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture, UpstreamConnection},
     connection::Bytes,
+};
+use gproxy_upstream::{
+    CredentialContext, CredentialView, ProviderView, UpstreamError, UpstreamKind,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use rust_decimal::Decimal;
@@ -138,7 +138,7 @@ fn prepare<'a>(
     dialect: Dialect,
     request: WireRequest<HttpBody>,
     endpoint_override: Option<&'a str>,
-) -> Result<http::Request<HttpBody>, ChannelError> {
+) -> Result<http::Request<HttpBody>, UpstreamError> {
     Claudeapi.prepare(PrepareContext {
         provider: provider(config, base_url),
         credential: credential(secret),
@@ -280,7 +280,7 @@ fn routes_every_native_dialect_and_injects_the_api_key() {
             request("/v1/messages", None, b"{}"),
             None
         ),
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
     assert!(matches!(
         prepare(
@@ -292,7 +292,7 @@ fn routes_every_native_dialect_and_injects_the_api_key() {
             request("/v1/images", None, b"{}"),
             None
         ),
-        Err(ChannelError::UnsupportedOperation(_))
+        Err(UpstreamError::UnsupportedOperation(_))
     ));
 }
 
@@ -652,7 +652,7 @@ async fn reads_the_organization_cost_report_with_the_admin_key() {
                 client: &client,
             })
             .await,
-        Err(ChannelError::InvalidResponse(_))
+        Err(UpstreamError::InvalidResponse(_))
     ));
 
     // Without any key at all there is nothing to ask with.
@@ -665,7 +665,7 @@ async fn reads_the_organization_cost_report_with_the_admin_key() {
                 client: &client,
             })
             .await,
-        Err(ChannelError::InvalidCredential)
+        Err(UpstreamError::InvalidCredential)
     ));
 }
 
