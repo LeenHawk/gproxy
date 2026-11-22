@@ -1,4 +1,5 @@
-//! SDK-compatible heartbeats while a buffered upstream result is pending.
+//! SDK-compatible heartbeats while a buffered upstream result is pending, and
+//! through quiet stretches of an SSE stream that is already running.
 //! The pending execution retains its own retries, cancellation and settlement.
 use super::{CoreError, HttpExecution, Settled, UsageCompletion};
 use futures_util::StreamExt;
@@ -32,11 +33,8 @@ impl HttpExecution {
         mut pending: Pending<E>,
         dialect: Dialect,
     ) -> Result<Self, E> {
-        let heartbeat = match dialect {
-            Dialect::OpenAi | Dialect::OpenAiChat | Dialect::GeminiInteractions => SSE_COMMENT,
-            Dialect::Claude => CLAUDE_PING,
-            Dialect::Gemini => b"\n\n",
-            _ => return pending.await,
+        let Some(heartbeat) = heartbeat(dialect) else {
+            return pending.await;
         };
         if let Some(result) = crate::rt::timeout(INTERVAL, &mut pending).await {
             return result;
@@ -124,6 +122,102 @@ impl HttpExecution {
             Settled(()),
         ))
     }
+}
+
+impl HttpExecution {
+    /// Keep an SSE client connected through quiet stretches of a running
+    /// stream, such as a model thinking between two events. Only a successful
+    /// `text/event-stream` body is touched. A heartbeat is sent after
+    /// [`INTERVAL`] without bytes, and only between two events, so an event
+    /// the upstream split across chunks is never cut. Heartbeats are added
+    /// outside the observed body: usage, capture and the upstream idle timeout
+    /// do not see them.
+    pub fn with_sse_idle_heartbeat(self, dialect: Dialect) -> Self {
+        let Some(heartbeat) = heartbeat(dialect) else {
+            return self;
+        };
+        let response = self.response();
+        let sse = response.status.is_success()
+            && !response.headers.contains_key(header::CONTENT_ENCODING)
+            && response
+                .headers
+                .get(header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| {
+                    value
+                        .trim_start()
+                        .to_ascii_lowercase()
+                        .starts_with("text/event-stream")
+                });
+        if !sse {
+            return self;
+        }
+        self.map_response(|mut response| {
+            response.body = match response.body {
+                HttpBody::Stream(inner) => HttpBody::Stream(idle_heartbeats(inner, heartbeat)),
+                bytes => bytes,
+            };
+            response
+        })
+    }
+}
+
+fn heartbeat(dialect: Dialect) -> Option<&'static [u8]> {
+    match dialect {
+        Dialect::OpenAi | Dialect::OpenAiChat | Dialect::GeminiInteractions => Some(SSE_COMMENT),
+        Dialect::Claude => Some(CLAUDE_PING),
+        Dialect::Gemini => Some(b"\n\n"),
+        _ => None,
+    }
+}
+
+/// The last bytes sent, enough to tell whether the stream stands between two
+/// SSE events: nothing sent yet, or a blank line last.
+#[derive(Default)]
+struct Tail(Vec<u8>);
+
+impl Tail {
+    fn push(&mut self, chunk: &[u8]) {
+        self.0
+            .extend_from_slice(&chunk[chunk.len().saturating_sub(4)..]);
+        let extra = self.0.len().saturating_sub(4);
+        self.0.drain(..extra);
+    }
+
+    fn between_events(&self) -> bool {
+        let tail = self.0.as_slice();
+        if tail.is_empty() {
+            return true;
+        }
+        tail.strip_suffix(b"\r\n")
+            .or_else(|| tail.strip_suffix(b"\n"))
+            .or_else(|| tail.strip_suffix(b"\r"))
+            .is_some_and(|rest| matches!(rest.last(), Some(b'\n' | b'\r')))
+    }
+}
+
+fn idle_heartbeats(inner: ByteStream, heartbeat: &'static [u8]) -> ByteStream {
+    Box::pin(futures_util::stream::unfold(
+        (inner, Tail::default()),
+        move |(mut inner, mut tail)| async move {
+            loop {
+                match crate::rt::timeout(INTERVAL, inner.next()).await {
+                    Some(Some(chunk)) => {
+                        if let Ok(bytes) = &chunk {
+                            tail.push(bytes);
+                        }
+                        return Some((chunk, (inner, tail)));
+                    }
+                    Some(None) => return None,
+                    None if tail.between_events() => {
+                        return Some((Ok(Bytes::from_static(heartbeat)), (inner, tail)));
+                    }
+                    // Mid-event: wait for the upstream to finish it.
+                    None => {}
+                }
+            }
+        },
+    ))
 }
 
 fn byte_stream(body: HttpBody) -> ByteStream {

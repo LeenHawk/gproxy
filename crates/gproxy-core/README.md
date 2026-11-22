@@ -169,6 +169,8 @@ For SSE calls that may use buffered generation, the SDK sends a comment heartbea
 every 15 seconds while waiting. Fast failures retain their HTTP status; after the
 first heartbeat, late failures are SSE error events. Retries and settlement remain
 inside the pending execution. Gemini JSON-array responses receive no SSE comments.
+Once any SSE generation stream is running, the same heartbeat is sent after 15
+seconds without bytes, only between two events, and outside usage and capture.
 
 Conversion runs protocol's adaptation flows over `AttemptUpstream`, so every
 native call inside a flow is captured, metered and rewritten like a passthrough

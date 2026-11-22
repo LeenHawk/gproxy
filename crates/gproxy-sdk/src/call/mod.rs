@@ -281,7 +281,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
         // Only plans that may synthesize SSE from a complete result need a
         // heartbeat before core returns headers. Keep the entire failover walk
         // inside the pending future so heartbeats do not bypass retries.
-        let keepalive = operation.operation == gproxy_protocol::Operation::StreamGenerateContent
+        let sse = operation.operation == gproxy_protocol::Operation::StreamGenerateContent
             && (matches!(
                 operation.dialect,
                 gproxy_protocol::Dialect::OpenAi
@@ -291,7 +291,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
             ) || (operation.dialect == gproxy_protocol::Dialect::Gemini
                 && query
                     .as_deref()
-                    .is_some_and(|q| q.split('&').any(|p| p == "alt=sse"))))
+                    .is_some_and(|q| q.split('&').any(|p| p == "alt=sse"))));
+        let keepalive = sse
             && prepared.plan.targets.iter().any(|target| {
                 matches!(gproxy_core::convert::route_for_model(&target.provider, operation, target.upstream_model.as_deref()),
                     Ok(gproxy_core::convert::Route::TransformTo { target })
@@ -332,11 +333,18 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
             }
             Err(walk.exhausted())
         });
-        if keepalive {
+        let execution = if keepalive {
             HttpExecution::with_sse_keepalive(pending, operation.dialect).await
         } else {
             pending.await
-        }
+        }?;
+        // A stream that is already running can still go quiet for longer than
+        // an intermediary tolerates, while a model thinks between two events.
+        Ok(if sse {
+            execution.with_sse_idle_heartbeat(operation.dialect)
+        } else {
+            execution
+        })
     }
 }
 
