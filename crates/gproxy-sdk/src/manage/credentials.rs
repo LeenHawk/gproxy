@@ -71,7 +71,23 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
         crud::create(self, write).await
     }
     pub async fn update(&self, id: &str, patch: CredentialPatch) -> SdkResult<CredentialDto> {
-        crud::update(self, id, patch).await
+        // A quota block written under the old cap would otherwise hold until
+        // its window resets, whatever the new cap says.
+        let cap_changed = match &patch.metadata {
+            Some(metadata) => {
+                let current = crud::row::<C, Self>(self, id).await?;
+                current.metadata.get("cap_percent") != metadata.get("cap_percent")
+            }
+            None => false,
+        };
+        let result = crud::update(self, id, patch).await?;
+        if cap_changed {
+            self.writer
+                .core()
+                .reevaluate_quota_blocks(&result.id)
+                .await?;
+        }
+        Ok(result)
     }
     pub async fn delete(&self, id: &str) -> SdkResult<()> {
         crud::delete(self, id).await

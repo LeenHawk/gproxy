@@ -16,8 +16,8 @@ use crate::{
 };
 use gproxy_cache::Cache;
 use gproxy_channel::channel::{
-    QuotaAllowance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaMetric, QuotaModel,
-    QuotaScope, QuotaSnapshot, QuotaTracking, QuotaValue, QuotaWindow, classify_by_id,
+    QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaMetric,
+    QuotaModel, QuotaScope, QuotaSnapshot, QuotaTracking, QuotaValue, QuotaWindow, classify_by_id,
 };
 use gproxy_protocol::{Operation, OperationKey, capability::CapabilityFuture};
 use gproxy_seaorm::BatchConnectionTrait;
@@ -254,6 +254,35 @@ fn snapshot_json(entry: &QuotaEntry) -> serde_json::Value {
         "period_end_ms": a.period_end_ms,
         "reset_behavior": format!("{:?}", a.reset_behavior).to_lowercase(),
     })
+}
+
+/// The value of an observation row written by [`snapshot_json`], as far as
+/// [`exhausted`] reads it. None for a breakdown or an unreadable row.
+fn reading_value(snapshot: &serde_json::Value) -> Option<QuotaValue> {
+    let decimal = |key: &str| snapshot.get(key)?.as_str()?.parse::<Decimal>().ok();
+    let kind = snapshot.get("kind")?.as_str()?;
+    if kind == "balance" {
+        return Some(QuotaValue::Balance(QuotaBalance {
+            remaining: decimal("remaining"),
+            ..Default::default()
+        }));
+    }
+    let a = QuotaAllowance {
+        used: decimal("used"),
+        limit: decimal("limit"),
+        remaining: decimal("remaining"),
+        used_percent: decimal("used_percent"),
+        unlimited: snapshot
+            .get("unlimited")
+            .and_then(serde_json::Value::as_bool),
+        ..Default::default()
+    };
+    match kind {
+        "window" => Some(QuotaValue::Window(a)),
+        "rate_limit" => Some(QuotaValue::RateLimit(a)),
+        "budget" => Some(QuotaValue::Budget(a)),
+        _ => None,
+    }
 }
 
 /// Blocks derived from one exhausted entry: one per declared operation, or a
@@ -677,6 +706,97 @@ impl<C: BatchConnectionTrait> Core<C> {
         self.clear_recovered_quota_blocks(&credential, &observed.entries, queried_at_ms)
             .await?;
         Ok(observed)
+    }
+
+    /// Judge this credential's quota exhaustion blocks again under its
+    /// current `cap_percent`, after an operator changed the cap. A block is
+    /// released when the reading it was written from no longer counts as
+    /// exhausted: a cap raised from 70 to 80 frees a window read at 75%, and a
+    /// removed cap frees every window short of real exhaustion. Blocks whose
+    /// reading is gone are kept until they end.
+    pub async fn reevaluate_quota_blocks(&self, credential_id: &str) -> CoreResult<()> {
+        let snapshot = self.snapshot();
+        let Some(credential) = snapshot.credentials.get(credential_id) else {
+            return Ok(());
+        };
+        let cap = cap_percent(credential);
+        let rows = self
+            .store()
+            .credential_blocks()
+            .query(
+                credential_block::Entity::find()
+                    .filter(credential_block::Column::CredentialId.eq(credential_id)),
+            )
+            .await?;
+        let mut cycle_ids: Vec<String> = rows
+            .iter()
+            .filter(|row| row.source["kind"] == "quota_exhausted")
+            .filter_map(|row| row.source["cycle_id"].as_str().map(str::to_owned))
+            .collect();
+        cycle_ids.sort();
+        cycle_ids.dedup();
+        if cycle_ids.is_empty() {
+            return Ok(());
+        }
+        let readings = self
+            .store()
+            .credential_quota_cycles()
+            .get_many(&cycle_ids)
+            .await?;
+        let released: Vec<&String> = cycle_ids
+            .iter()
+            .zip(readings)
+            .filter_map(|(id, row)| {
+                let value = reading_value(&row?.snapshot)?;
+                (!exhausted(&value, cap)).then_some(id)
+            })
+            .collect();
+        if released.is_empty() {
+            return Ok(());
+        }
+        let is_released = |source: &serde_json::Value| {
+            source["kind"] == "quota_exhausted"
+                && source["cycle_id"]
+                    .as_str()
+                    .is_some_and(|id| released.iter().any(|released| *released == id))
+        };
+        let ids: Vec<_> = rows
+            .into_iter()
+            .filter(|row| is_released(&row.source))
+            .map(|row| row.id)
+            .collect();
+        if !ids.is_empty() {
+            self.store().credential_blocks().delete_many(&ids).await?;
+        }
+        let key = crate::keys::credential_blocks(&credential.provider_id, &credential.id);
+        loop {
+            let Some(cached) = self.cache().get(&key).await? else {
+                return Ok(());
+            };
+            let mut blocks: crate::CredentialBlocks = serde_json::from_slice(&cached.value)
+                .map_err(|e| CoreError::Rewrite(e.to_string()))?;
+            let before = blocks.blocks.len();
+            blocks.blocks.retain(|block| {
+                !matches!(&block.source, BlockSource::QuotaExhausted { cycle_id: Some(id), .. }
+                    if released.contains(&id))
+            });
+            if blocks.blocks.len() == before {
+                return Ok(());
+            }
+            let replacement = gproxy_cache::Replacement {
+                value: serde_json::to_vec(&blocks)
+                    .map_err(|e| CoreError::Rewrite(e.to_string()))?,
+                ttl: EMPTY_BLOCKS_CACHE_TTL,
+            };
+            if self
+                .cache()
+                .compare_exchange(&key, Some(cached.version), Some(replacement))
+                .await?
+                != gproxy_cache::CasOutcome::Conflict
+            {
+                return Ok(());
+            }
+        }
     }
 
     /// Only positive upstream readings can remove an older exhaustion block.
