@@ -125,21 +125,6 @@ fn requires_reasoning(model: &str) -> bool {
         .any(|name| crate::transform::instructions::family(model, name))
 }
 
-fn chat_tools_require_responses(model: &str) -> bool {
-    // https://developers.openai.com/api/docs/guides/latest-model#migration-quickstart
-    // Both 6.2 models, Astra, 6.1 Sol and 6.1 Terra require Responses for tools; 6 Sol and
-    // Luna accept Chat function calling with `reasoning_effort: "none"`.
-    [
-        "gpt-6.2-astra",
-        "gpt-6.2-sol",
-        "gpt-6-astra",
-        "gpt-6.1-sol",
-        "gpt-6.1-terra",
-    ]
-    .iter()
-    .any(|name| crate::transform::instructions::family(model, name))
-}
-
 pub(crate) fn target_responses(out: &mut r::GenerateContentRequestBody, report: &mut Report) {
     let model = out
         .model
@@ -210,27 +195,6 @@ pub(crate) fn target_chat(out: &mut c::GenerateContentRequestBody, report: &mut 
                 report.omitted(
                     field,
                     "GPT-6 reasoning does not support sampling controls or log probabilities",
-                );
-            }
-        }
-    }
-    if chat_tools_require_responses(&model)
-        || out.reasoning_effort.flatten() != Some(c::ReasoningEffort::None)
-    {
-        for (present, field) in [
-            (out.tools.take().is_some(), "tools"),
-            (out.tool_choice.take().is_some(), "tool_choice"),
-            (
-                out.parallel_tool_calls.take().is_some(),
-                "parallel_tool_calls",
-            ),
-            (out.functions.take().is_some(), "functions"),
-            (out.function_call.take().is_some(), "function_call"),
-        ] {
-            if present {
-                report.omitted(
-                    field,
-                    "tool calling for this GPT-6 reasoning mode requires Responses",
                 );
             }
         }
