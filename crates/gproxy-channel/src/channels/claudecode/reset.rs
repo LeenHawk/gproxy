@@ -274,7 +274,14 @@ fn grant_options(value: Option<&Value>, now: i64) -> Result<Vec<QuotaResetOption
     };
     let status: Grants =
         serde_json::from_value(value.clone()).map_err(|e| invalid_response(e.to_string()))?;
-    if status.grants.is_empty() {
+    // Like the CLI (`Nt`), a spent grant the server can no longer redeem
+    // is history, not an offer; drop it instead of listing it at zero.
+    let grants: Vec<&Grant> = status
+        .grants
+        .iter()
+        .filter(|grant| grant.resets_left > 0 || grant.usable_now)
+        .collect();
+    if grants.is_empty() {
         let mut option = unavailable(
             "cedar_ember",
             status.ineligible_reason.as_deref().unwrap_or("no_grant"),
@@ -285,9 +292,8 @@ fn grant_options(value: Option<&Value>, now: i64) -> Result<Vec<QuotaResetOption
     // The server's `usable_now` decides; the CLI offers the first usable,
     // unexpired grant of each kind and no longer waits for `next_grant_id`.
     let mut offered = Vec::new();
-    let options = status
-        .grants
-        .iter()
+    let options = grants
+        .into_iter()
         .map(|grant| {
             let expires_at_ms = instant(grant.ends_at.as_deref());
             let reason = if !status.eligible {
@@ -299,8 +305,6 @@ fn grant_options(value: Option<&Value>, now: i64) -> Result<Vec<QuotaResetOption
                 )
             } else if grant.paused {
                 Some("paused".into())
-            } else if grant.resets_left == 0 && !grant.usable_now {
-                Some("no_grant".into())
             } else if !grant.usable_now {
                 Some(grant.unavailable_reason(&status))
             } else if expires_at_ms.is_some_and(|end| end <= now) {
