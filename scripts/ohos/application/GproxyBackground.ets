@@ -76,6 +76,11 @@ export class GproxyBackground {
 
   private async execute(command: string): Promise<string> {
     if (this.destroyed) throw new Error('The application is closing');
+    if (command === 'quit') {
+      // Teardown stops the engine and ends the process (EntryAbility.onDestroy).
+      this.context.terminateSelf().catch((error: Error) => console.error(error.message));
+      return '';
+    }
     const desktop = deviceInfo.deviceType === '2in1' || deviceInfo.deviceType === 'pc';
     if (!this.storage) {
       this.storage = await preferences.getPreferences(this.context, { name: 'gproxy_background' });

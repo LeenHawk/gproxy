@@ -1190,6 +1190,12 @@
     },
     "documentation": "使用文件"
   },
+  "privacyConsent": {
+    "title": "隱私說明",
+    "intro": "使用 GPROXY 前，請閱讀以下隱私說明。點選「同意」後繼續使用；點選「不同意」將結束應用程式。",
+    "agree": "同意",
+    "decline": "不同意並結束"
+  },
   "shellPreferences": {
     "privacyNotice": "隱私說明",
     "title": "應用程式",

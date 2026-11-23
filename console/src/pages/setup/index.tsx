@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { ChannelPicker } from "./channel-picker"
 import { SetupFrame } from "./frame"
+import { PrivacyNotice } from "@/components/privacy-notice"
 import { PendingCredentialsContext, setupSteps, type PendingCredentials } from "./pending"
 
 const SETUP_KEY = ["desktop", "setup"] as const
@@ -177,5 +178,6 @@ function SetupWizard({ initial, onProviders }: { initial: SetupStatus; onProvide
       </CardContent>
       <CardFooter className="justify-between gap-3"><Button type="button" variant="ghost" disabled={busy || step === 0} onClick={() => { setStep(step - 1); setErrors({}); setup.reset() }}><ArrowLeft data-icon="inline-start" />{t("setup.back")}</Button><Button type="submit" disabled={busy || (step === 2 && upstreams === "import" && !!fileError)}>{setup.isPending ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : null}{t(step === 2 ? "setup.finish" : "setup.next")}{step < 2 ? <ArrowRight data-icon="inline-end" /> : null}</Button></CardFooter>
     </Card></form>}
+    <div className="text-center text-sm"><PrivacyNotice link /></div>
   </SetupFrame>
 }

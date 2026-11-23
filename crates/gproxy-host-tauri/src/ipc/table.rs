@@ -471,6 +471,7 @@ ipc_table! {
         desktop preferences language => desktop_preferences_language;
         desktop background set => desktop_background_set;
         desktop application action => desktop_application_action;
+        desktop application quit => desktop_application_quit;
         desktop fonts status => desktop_fonts_status;
         desktop fonts download => desktop_fonts_download;
         desktop fonts remove => desktop_fonts_remove;
@@ -973,6 +974,32 @@ pub async fn desktop_background_set(enabled: bool) -> IpcResult<serde_json::Valu
             gproxy_app::AppError::invalid("this host does not use OpenHarmony background tasks")
                 .into(),
         )
+    }
+}
+
+/// Declining the privacy notice ends the application on every host.
+#[tauri::command]
+pub async fn desktop_application_quit<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> IpcResult<()> {
+    #[cfg(target_env = "ohos")]
+    {
+        // The Ability's teardown stops the engine and ends the process.
+        let _ = app;
+        crate::ohos::call("quit").await.map(drop)
+    }
+    #[cfg(not(target_env = "ohos"))]
+    {
+        crate::engine::shutdown();
+        // Android has no event loop to leave; like the activity's destruction,
+        // this is a cold stop.
+        #[cfg(mobile)]
+        std::process::exit(0);
+        #[cfg(desktop)]
+        {
+            app.exit(0);
+            Ok(())
+        }
     }
 }
 

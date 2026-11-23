@@ -223,6 +223,11 @@ evidence. PC/2-in-1 behavior has separate platform support and needs its own tes
   HarmonyOS paragraphs. Review the platform-specific paragraph when copying.
 - `privacy/`: the bundled notices. `scripts/mobile/sync-listings.py` generates
   `fastlane/metadata/android/` text and the website's English/Chinese privacy pages.
+- `appgallery-icon.png`: the 1024 × 1024 opaque icon for HarmonyOS AppGallery
+  Connect. AppGallery rejects transparent icons; the HAP's layered icon uses the
+  same white background (`scripts/ohos/application/icon-background.png`).
+- `privacy/` is also shown as a consent screen on first launch of the Tauri
+  application. Changing the effective-date line asks for consent again.
 - `fastlane/metadata/android/<locale>/images/`: application icon and feature
   graphic derived from the existing logo. Phone screenshots must come from the
   actual application. Never include private credentials or present illustrative metrics as measured results.

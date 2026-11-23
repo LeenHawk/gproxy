@@ -1190,6 +1190,12 @@
     },
     "documentation": "Documentation"
   },
+  "privacyConsent": {
+    "title": "Privacy notice",
+    "intro": "Before using GPROXY, please read the privacy notice below. Select Agree to continue; selecting Decline exits the application.",
+    "agree": "Agree",
+    "decline": "Decline and exit"
+  },
   "shellPreferences": {
     "privacyNotice": "Privacy notice",
     "title": "Application",

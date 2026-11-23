@@ -1,9 +1,20 @@
-import { NativeAbility } from '@ohos-rs/ability';
+import { NativeAbility, WebHost } from '@ohos-rs/ability';
 import { AbilityConstant, Want } from '@kit.AbilityKit';
 import window from '@ohos.window';
 import webview from '@ohos.web.webview';
 import native from 'libgproxy_host_tauri.so';
 import { GproxyBackground } from './GproxyBackground';
+
+// The system back gesture closes an open dialog, then walks the console's
+// history; only at the first page does it leave the app.
+const BACK_SCRIPT = `(() => {
+  if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [role="menu"][data-state="open"]')) {
+    (document.activeElement ?? document).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    return true;
+  }
+  if (window.navigation?.canGoBack) { history.back(); return true; }
+  return false;
+})()`;
 
 export default class EntryAbility extends NativeAbility {
   public moduleName: string = 'gproxy_host_tauri';
@@ -22,6 +33,9 @@ export default class EntryAbility extends NativeAbility {
       isStandard: true, isLocal: false, isDisplayIsolated: false,
       isSecure: false, isCspBypassing: false, isCodeCacheSupported: false,
     }]);
+    WebHost.configureBackNavigation(BACK_SCRIPT, () => {
+      this.context.moveAbilityToBackground().catch((error: Error) => console.error(error.message));
+    });
     await super.onCreate(want, launchParam);
   }
 

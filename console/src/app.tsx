@@ -16,6 +16,7 @@ import { useSessionContext, useUnauthorizedReset } from "@/capability/session"
 import { AppShell } from "@/components/shell/app-shell"
 import { ErrorNotice, LoadingRows } from "@/components/state"
 import { Toaster } from "@/components/ui/sonner"
+import { PrivacyConsent } from "@/components/privacy-notice"
 import { AuthorizePage, DevicePage } from "@/pages/oauth-consent"
 import { Routes } from "@/pages/routes"
 import { SignInPage } from "@/pages/sign-in"
@@ -76,7 +77,7 @@ function Gate() {
 export function App() {
   return (
     <QueryClientProvider client={client}>
-      {inShell ? <Suspense fallback={<LoadingRows />}><SetupGate><Gate /></SetupGate></Suspense> : <Gate />}
+      {inShell ? <PrivacyConsent><Suspense fallback={<LoadingRows />}><SetupGate><Gate /></SetupGate></Suspense></PrivacyConsent> : <Gate />}
       <Toaster />
     </QueryClientProvider>
   )

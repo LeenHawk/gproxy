@@ -64,18 +64,21 @@ pub struct BackgroundStatus {
 }
 
 pub async fn request(command: &str) -> IpcResult<BackgroundStatus> {
+    serde_json::from_str(&call(command).await?).map_err(IpcError::internal)
+}
+
+pub async fn call(command: &str) -> IpcResult<String> {
     let handler = HANDLER
         .lock()
         .map_err(IpcError::internal)?
         .clone()
         .ok_or_else(|| IpcError::internal("OpenHarmony background task bridge is not ready"))?;
-    let result = handler
+    handler
         .call_async(command.to_owned())
         .await
         .map_err(IpcError::internal)?
         .await
-        .map_err(IpcError::internal)?;
-    serde_json::from_str(&result).map_err(IpcError::internal)
+        .map_err(IpcError::internal)
 }
 
 pub fn restore() {

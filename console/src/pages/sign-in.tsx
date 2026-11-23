@@ -12,6 +12,7 @@ import { signIn } from "@/api/session"
 import { SESSION_KEY } from "@/capability/session"
 import { ErrorNotice } from "@/components/state"
 import { InstanceFooter } from "@/components/instance-footer"
+import { PrivacyNotice } from "@/components/privacy-notice"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -78,6 +79,7 @@ export function SignInPage() {
                 {t("actions.signIn")}
               </Button>
             </form>
+            <div className="mt-4 text-center text-sm"><PrivacyNotice link /></div>
           </CardContent>
         </Card>
       </main>

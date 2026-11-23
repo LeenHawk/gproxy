@@ -39,4 +39,6 @@ export type OhosStatus = {
 }
 export type OhosAction = "startup-settings" | "minimize-on" | "minimize-off" | "tray-on" | "tray-off" | "close-hide" | "close-quit"
 export const ohosAction = (action: OhosAction) => shellCall<OhosStatus>("desktop_application_action", { action })
+/** Ends the application; the host does not answer on success. */
+export const quitApplication = () => shellCall<void>("desktop_application_quit")
 export const setOhosBackground = (enabled: boolean) => shellCall<OhosStatus>("desktop_background_set", { enabled })

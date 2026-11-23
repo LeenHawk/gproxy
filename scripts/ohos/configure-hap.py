@@ -24,6 +24,21 @@ for resource in ("AppScope/resources/base/media/foreground.png",
                  "entry/src/main/resources/base/media/foreground.png",
                  "entry/src/main/resources/base/media/startIcon.png"):
     shutil.copyfile(icon, project / resource)
+# The layered icon needs an opaque layer; the template's blue one does not
+# match the store icon (distribution/mobile/appgallery-icon.png).
+for resource in ("AppScope/resources/base/media/background.png",
+                 "entry/src/main/resources/base/media/background.png"):
+    shutil.copyfile("scripts/ohos/application/icon-background.png", project / resource)
+# The launcher shows the ability label, which the template leaves as "label".
+# It must match the AppScope name and the AppGallery listing.
+name = json5.loads((project / "AppScope/resources/base/element/string.json").read_text())
+name = next(item["value"] for item in name["string"] if item["name"] == "app_name")
+strings = project / "entry/src/main/resources/base/element/string.json"
+config = json5.loads(strings.read_text())
+for item in config["string"]:
+    if item["name"] in ("EntryAbility_label", "EntryAbility_desc", "module_desc"):
+        item["value"] = name
+strings.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n")
 # CLI owns native compilation. This hook only strips the staged library before
 # signing, including when the toolchain template changes its build callback.
 hvigor = project / "entry/hvigorfile.ts"
