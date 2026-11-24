@@ -190,6 +190,11 @@ nvidia = ["dep:futures-util"]
 # Responses and Realtime over a WebSocket, x-ratelimit-* headers and the
 # organization cost report.
 openai = ["dep:futures-util", "dep:web-time"]
+# Factory Droid (api.factory.ai): a Factory API key or the CLI's WorkOS
+# device login, one origin serving Claude Messages, Responses, Chat
+# Completions and a Gemini stream by path, chosen per model, and the
+# /api/billing/limits usage windows.
+factory = ["dep:base64", "dep:futures-util", "dep:getrandom", "dep:time", "dep:web-time"]
 # OpenCode (opencode.ai): two channels, `opencodezen` (pay-as-you-go, device
 # login or a pasted key) and `opencodego` (subscription, a pasted key, the
 # `/usage` windows), three compatible surfaces each and the tool's

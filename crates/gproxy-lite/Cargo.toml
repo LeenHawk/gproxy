@@ -39,6 +39,7 @@ all-channels = [
     "gproxy-channel/commandcode",
     "gproxy-channel/copilotcli",
     "gproxy-channel/devin",
+    "gproxy-channel/factory",
     "gproxy-channel/geminicli",
     "gproxy-channel/grokbuild",
     "gproxy-channel/kimi",

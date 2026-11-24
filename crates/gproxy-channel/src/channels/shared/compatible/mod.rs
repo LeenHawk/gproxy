@@ -15,6 +15,7 @@
     feature = "cloudflare_ai_gateway",
     feature = "copilotcli",
     feature = "deepseek",
+    feature = "factory",
     feature = "glm",
     feature = "minimax",
     feature = "grokbuild",

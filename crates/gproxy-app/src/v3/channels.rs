@@ -36,7 +36,7 @@ use super::{Error, Result};
 /// feature set must still translate a full document: a provider whose channel
 /// this binary was not compiled with is a runtime concern the operator can fix
 /// by rebuilding, not a reason to refuse their configuration.
-pub const V4_CHANNELS: [&str; 39] = [
+pub const V4_CHANNELS: [&str; 40] = [
     "aistudio",
     "playground",
     "antigravity",
@@ -54,6 +54,7 @@ pub const V4_CHANNELS: [&str; 39] = [
     "dashscope",
     "deepseek",
     "devin",
+    "factory",
     "geminicli",
     "glm",
     "glmcode",

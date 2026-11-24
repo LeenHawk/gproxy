@@ -18,6 +18,7 @@ pub(crate) use crate::channel::insert_configured;
     feature = "volcengine",
     feature = "minimax",
     feature = "deepseek",
+    feature = "factory",
     feature = "kimi",
     feature = "nvidia",
     feature = "opencode",

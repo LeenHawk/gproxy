@@ -59,6 +59,7 @@ channels! {
     "glm" => glm, glm::Glm::API, glm::Glm::CODING;
     "minimax" => minimax, minimax::MiniMax;
     "devin" => devin, devin::Devin;
+    "factory" => factory, factory::Factory;
     "geminicli" => geminicli, geminicli::GeminiCli;
     "grokbuild" => grokbuild, grokbuild::GrokBuild;
     "kimi" => kimi, kimi::Kimi;
@@ -99,6 +100,7 @@ channels! {
     feature = "grokbuild",
     feature = "dashscope",
     feature = "deepseek",
+    feature = "factory",
     feature = "glm",
     feature = "minimax",
     feature = "kimi",

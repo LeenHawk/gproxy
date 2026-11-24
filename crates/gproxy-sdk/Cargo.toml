@@ -32,6 +32,7 @@ deepseek = ["gproxy-channel/deepseek"]
 glm = ["gproxy-channel/glm"]
 minimax = ["gproxy-channel/minimax"]
 devin = ["gproxy-channel/devin"]
+factory = ["gproxy-channel/factory"]
 geminicli = ["gproxy-channel/geminicli", "gproxy-client/wreq"]
 grokbuild = ["gproxy-channel/grokbuild"]
 kimi = ["gproxy-channel/kimi"]
@@ -70,6 +71,7 @@ channels = [
     "glm",
     "minimax",
     "devin",
+    "factory",
     "geminicli",
     "grokbuild",
     "kimi",
