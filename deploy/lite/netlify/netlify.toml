@@ -1,4 +1,6 @@
 [build]
+# Fetches the prebuilt engine into lite/ (prepare-lite.mjs).
+command = "npm run build"
 publish = "public"
 
 [functions]
@@ -11,3 +13,8 @@ included_files = ["lite/**"]
 # without requests. Once a day is enough for a refresh token; the times are UTC.
 [functions."renew"]
 schedule = "0 4 * * *"
+
+# Asked for by the deploy button. The JSON holds secrets; mark the variable
+# secret in the site settings afterwards.
+[template.environment]
+GPROXY_LITE_CONFIG = "Configuration JSON, e.g. {\"access_key\":\"choose-a-long-random-key\",\"providers\":[{\"name\":\"openai\",\"channel\":\"openai\",\"credential\":\"sk-...\"}]}"

@@ -9,6 +9,9 @@
 
 [Документация](https://gproxy.leenhawk.com/ru/) · [Загрузки](https://github.com/LeenHawk/gproxy/releases) · [Обсуждения](https://github.com/LeenHawk/gproxy/discussions) · [Поддержать](https://github.com/sponsors/LeenHawk)
 
+<a href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fmain%2Fdeploy%2Flite%2Fcloudflare"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32"></a>
+<a href="https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=main&create_from_path=deploy%2Flite%2Fnetlify"><img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" height="32"></a>
+<a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fmain%2Fdeploy%2Flite%2Fvercel&project-name=gproxy-lite&repository-name=gproxy-lite&env=GPROXY_LITE_CONFIG,CRON_SECRET&products=%5B%7B%22type%22%3A%22integration%22%2C%22protocol%22%3A%22storage%22%2C%22productSlug%22%3A%22upstash-kv%22%2C%22integrationSlug%22%3A%22upstash%22%7D%5D"><img src="https://vercel.com/button" alt="Deploy with Vercel" height="32"></a>
 <a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
 <a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
 
@@ -216,9 +219,8 @@ Gemini (`/v1beta/models/fast:generateContent`). Пошагово всё это �
 
 ## Размещение на платформах
 
-Кнопки развёртывания в начале страницы используют шаблоны Render и Heroku.
-Обе платформы запускают обычный исполняемый файл в небольшом контейнере с
-PostgreSQL.
+Кнопки Render и Heroku в начале страницы запускают обычный исполняемый файл
+в небольшом контейнере с PostgreSQL.
 
 При развёртывании понадобятся пароль администратора и мастер-ключ. Сначала
 прочитайте [Docker, Render и Heroku](https://gproxy.leenhawk.com/ru/deployment/containers):
@@ -227,8 +229,10 @@ PostgreSQL.
 
 На Cloudflare Workers, Netlify и Vercel вместо него работает `gproxy-lite`:
 движок для одного арендатора с одним ключом доступа и без базы данных,
-построенный на тех же каналах и том же преобразовании протоколов. Шаблоны
-лежат в `deploy/lite`; см.
+построенный на тех же каналах и том же преобразовании протоколов. Их кнопки
+развёртывают шаблоны из `deploy/lite` с готовым движком из выпуска `staging`,
+который следует за `main`; ничего не компилируется. При развёртывании
+понадобится `GPROXY_LITE_CONFIG` (JSON с настройками). См.
 [Cloudflare Workers, Netlify и Vercel](https://gproxy.leenhawk.com/ru/deployment/lite).
 
 ## Обновление с v3

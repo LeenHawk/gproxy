@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "node prepare-lite.mjs"
+  },
   "dependencies": {
     "@netlify/blobs": "^10.0.0"
   }

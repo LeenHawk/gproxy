@@ -9,6 +9,9 @@
 
 [Documentation](https://gproxy.leenhawk.com/) · [Downloads](https://github.com/LeenHawk/gproxy/releases) · [Discussions](https://github.com/LeenHawk/gproxy/discussions) · [Sponsor](https://github.com/sponsors/LeenHawk)
 
+<a href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fmain%2Fdeploy%2Flite%2Fcloudflare"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32"></a>
+<a href="https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=main&create_from_path=deploy%2Flite%2Fnetlify"><img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" height="32"></a>
+<a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fmain%2Fdeploy%2Flite%2Fvercel&project-name=gproxy-lite&repository-name=gproxy-lite&env=GPROXY_LITE_CONFIG,CRON_SECRET&products=%5B%7B%22type%22%3A%22integration%22%2C%22protocol%22%3A%22storage%22%2C%22productSlug%22%3A%22upstash-kv%22%2C%22integrationSlug%22%3A%22upstash%22%7D%5D"><img src="https://vercel.com/button" alt="Deploy with Vercel" height="32"></a>
 <a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
 <a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
 
@@ -214,8 +217,8 @@ console built in.
 
 ## Hosted deployment
 
-The deploy buttons at the top of this page use the Render and Heroku
-templates. Both run the native binary in a small container with PostgreSQL.
+The Render and Heroku buttons at the top of this page run the native binary in
+a small container with PostgreSQL.
 
 You will be asked for an administrator password and a master key. Read
 [Docker, Render and Heroku](https://gproxy.leenhawk.com/deployment/containers)
@@ -223,7 +226,10 @@ first; it covers database choice, plan costs and the limits of each platform.
 
 Cloudflare Workers, Netlify and Vercel run `gproxy-lite` instead: a
 single-tenant engine with one access key and no database, built from the same
-channels and protocol conversion. The templates are in `deploy/lite`; see
+channels and protocol conversion. Their buttons deploy the templates in
+`deploy/lite` with a prebuilt engine from the `staging` release, which follows
+`main`; nothing is compiled. You will be asked for `GPROXY_LITE_CONFIG`, the
+configuration JSON. See
 [Cloudflare Workers, Netlify, and Vercel](https://gproxy.leenhawk.com/deployment/lite).
 
 ## Upgrading from v3

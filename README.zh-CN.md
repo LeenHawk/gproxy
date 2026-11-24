@@ -9,6 +9,9 @@
 
 [文档](https://gproxy.leenhawk.com/zh-cn/) · [下载](https://github.com/LeenHawk/gproxy/releases) · [讨论](https://github.com/LeenHawk/gproxy/discussions) · [赞助](https://github.com/sponsors/LeenHawk)
 
+<a href="https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fmain%2Fdeploy%2Flite%2Fcloudflare"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32"></a>
+<a href="https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy&branch=main&create_from_path=deploy%2Flite%2Fnetlify"><img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" height="32"></a>
+<a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fmain%2Fdeploy%2Flite%2Fvercel&project-name=gproxy-lite&repository-name=gproxy-lite&env=GPROXY_LITE_CONFIG,CRON_SECRET&products=%5B%7B%22type%22%3A%22integration%22%2C%22protocol%22%3A%22storage%22%2C%22productSlug%22%3A%22upstash-kv%22%2C%22integrationSlug%22%3A%22upstash%22%7D%5D"><img src="https://vercel.com/button" alt="Deploy with Vercel" height="32"></a>
 <a href="https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32"></a>
 <a href="https://heroku.com/deploy?template=https%3A%2F%2Fgithub.com%2FLeenHawk%2Fgproxy%2Ftree%2Fdev"><img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy to Heroku" height="32"></a>
 
@@ -135,11 +138,11 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 
 ## 托管部署
 
-页面顶部的部署按钮对应 Render 和 Heroku 模板，两者都在一个小容器里运行原生程序，数据库是 PostgreSQL。
+页面顶部的 Render 和 Heroku 按钮在一个小容器里运行原生程序，数据库是 PostgreSQL。
 
 部署时需要填写管理员密码和主密钥。动手之前请先读 [Docker、Render 与 Heroku](https://gproxy.leenhawk.com/zh-cn/deployment/containers)，里面讲了数据库怎么选、各平台套餐的费用，以及平台本身的限制。
 
-Cloudflare Workers、Netlify 和 Vercel 上运行的是 `gproxy-lite`：一个单租户引擎，只有一把访问密钥，不带数据库，使用同样的渠道和协议转换。模板在 `deploy/lite`，详见 [Cloudflare Workers、Netlify 与 Vercel](https://gproxy.leenhawk.com/zh-cn/deployment/lite)。
+Cloudflare Workers、Netlify 和 Vercel 上运行的是 `gproxy-lite`：一个单租户引擎，只有一把访问密钥，不带数据库，使用同样的渠道和协议转换。这三个按钮部署 `deploy/lite` 里的模板，引擎是 `staging` 发布里预先构建好的（跟随 `main`），部署时不编译。部署时需要填写配置 JSON `GPROXY_LITE_CONFIG`。详见 [Cloudflare Workers、Netlify 与 Vercel](https://gproxy.leenhawk.com/zh-cn/deployment/lite)。
 
 ## 从 v3 升级
 

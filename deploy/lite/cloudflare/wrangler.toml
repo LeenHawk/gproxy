@@ -20,3 +20,6 @@ crons = ["0 4 * * *"]
 # The configuration holds the access key and upstream credentials, so it is a
 # secret: `wrangler secret put GPROXY_LITE_CONFIG`. Locally it is read from
 # `.dev.vars`.
+
+[secrets]
+required = ["GPROXY_LITE_CONFIG"]

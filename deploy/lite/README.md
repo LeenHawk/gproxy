@@ -12,6 +12,21 @@ What it is and what it leaves out is described in the
 | `cloudflare/` | Worker, with a Durable Object as the store |
 | `netlify/` | Function, with Netlify Blobs as the store |
 | `vercel/` | Function, with Upstash Redis as the store |
+| `*/prepare-lite.mjs` | Fetches the prebuilt module and shell into the template's `lite/` |
+
+## Prebuilt engine
+
+Every release run publishes `gproxy-lite.zip`, the `lite/` directory that
+`build.sh` produces. `npm run build` in a template runs `prepare-lite.mjs`,
+which downloads it, checks it against the release's `SHA256SUMS` and unpacks
+it; this is the build step of the deploy buttons, so they need no Rust
+toolchain. `GPROXY_LITE_RELEASE` chooses the release: `staging` (the default,
+built from `main`), `latest` (the latest stable release) or a tag such as
+`v4.3.1`. A `lite/` that is already there is kept, so a module from
+`build.sh` is not replaced; delete it to fetch again.
+
+The three copies of `prepare-lite.mjs` are identical. The Cloudflare button
+copies only its own directory, so the script cannot live in `shell/`.
 
 ## Build
 

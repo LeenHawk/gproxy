@@ -1,0 +1,17 @@
+{
+  "name": "gproxy-lite-cloudflare",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "node prepare-lite.mjs",
+    "deploy": "wrangler deploy"
+  },
+  "cloudflare": {
+    "bindings": {
+      "GPROXY_LITE_CONFIG": {
+        "description": "The configuration JSON, for example {\"access_key\":\"choose-a-long-random-key\",\"providers\":[{\"name\":\"openai\",\"channel\":\"openai\",\"credential\":\"sk-...\"}]}. Clients send access_key as their API key. See https://gproxy.leenhawk.com/deployment/lite"
+      }
+    }
+  }
+}
