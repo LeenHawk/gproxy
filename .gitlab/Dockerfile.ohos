@@ -1,6 +1,6 @@
 # GPROXY's Go build dependency on top of the shared, verified OHOS toolchain.
-FROM docker.io/library/golang:1.27.4-trixie@sha256:b54b2639de8c1bfe538ec5ffc45f29b1932235ac5f6d63c059853646677112d9 AS go
-FROM ghcr.io/leenhawk/tauri-harmony@sha256:ee30bfa6166f227ed305d65b0610be959f9bb8b0650b3154dd94d2e835bbe662
+FROM docker.io/library/golang:1.27.4-trixie@sha256:f18c3d73a184fb0582828510722e723b63a93f7188d11dd223d9be6f6880e65d AS go
+FROM ghcr.io/leenhawk/tauri-harmony@sha256:f6da4f0f4440954709a71c0e8a0861549fca422e988faee8bee60f3c12a922fc
 COPY --from=go /usr/local/go /usr/local/go
 COPY scripts/ohos/compiler-warnings.patch /opt/gproxy-compiler-warnings.patch
 RUN cd /opt/ohos-tauri && git apply --check /opt/gproxy-compiler-warnings.patch \
