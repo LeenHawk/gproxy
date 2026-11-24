@@ -516,7 +516,7 @@ fn required_nullable_and_nonnullable_fields_have_distinct_contracts() {
     }
     required::<ImageGenerationCall>(
         json!({"type":"image_generation_call","id":"i","result":null,"status":"failed"}),
-        &["type", "id", "result", "status"],
+        &["type", "id", "status"],
     );
     required::<CodeInterpreterCall>(
         json!({"type":"code_interpreter_call","id":"i","code":null,"container_id":"c","outputs":null,"status":"failed"}),

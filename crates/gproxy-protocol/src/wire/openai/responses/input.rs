@@ -1404,9 +1404,11 @@ pub struct ImageGenerationCall {
     #[serde(rename = "type")]
     pub type_: ImageGenerationCallType,
     pub id: String,
+    // OpenAI documents the key as always there; OpenRouter does not, and
+    // an item that has only begun comes without it from some upstreams.
+    // Read as null, and written as null.
     #[wire(required)]
-    #[cfg_attr(feature = "schema", schemars(extend("x-gproxy-required" = true)))]
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(default)]
     pub result: Option<String>,
     pub status: ImageGenerationStatus,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]

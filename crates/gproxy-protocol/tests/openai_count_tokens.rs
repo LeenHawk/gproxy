@@ -168,6 +168,14 @@ fn required_nullable_fields_distinguish_missing_null_and_value() {
         assert_eq!(serde_json::to_value(parsed).unwrap()["result"], value);
     }
     assert!(serde_json::from_value::<ImageGenerationCall>(image(serde_json::json!({}))).is_err());
+    // An item that has only begun may come without the key: it is null then.
+    let begun =
+        serde_json::json!({"type":"image_generation_call","id":"ig","status":"in_progress"});
+    let parsed: ImageGenerationCall = serde_json::from_value(begun).unwrap();
+    assert_eq!(
+        serde_json::to_value(parsed).unwrap()["result"],
+        serde_json::Value::Null
+    );
 
     let code = |extra: serde_json::Value| serde_json::json!({"type":"code_interpreter_call","id":"ci","container_id":"c","status":"completed","code":null,"outputs":null, "extra":extra});
     let parsed: CodeInterpreterCall =

@@ -716,7 +716,8 @@ fn every_output_field_has_its_documented_required_optional_and_null_contract() {
         (
             "image_generation_call",
             &["id", "result", "status", "type"],
-            &["id", "result", "status", "type"],
+            // `result` may be left out; it is then written as null.
+            &["id", "status", "type"],
             &[],
             &["result"],
         ),
