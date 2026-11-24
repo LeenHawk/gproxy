@@ -196,7 +196,14 @@ for device testing, under `dist/mobile/appgallery-ohos/`. The native library is
 reused for the final APP packaging step; no released HAP is downloaded/repacked.
 An unsigned HAP from the ordinary release workflow is not an upload-ready APP.
 
-The GitHub store workflow signs and verifies the APP and standalone HAP in the `release` environment after assembly.
+The Release workflow runs this build for stable version tags, then signs and
+verifies the APP and its HAP in the `release` environment. They are kept as the
+`appgallery-harmonyos-arm64` workflow artifact for 30 days and are not attached
+to the public release, which carries only the direct-distribution HAP.
+`scripts/ohos/upload-appgallery.py` then uploads the APP to AppGallery Connect
+with the developer-level service account in `AGC_SERVICE_ACCOUNT` and the
+application ID in `AGC_APP_ID`. A project-level credential is refused by the
+Publishing API. The upload does not submit the version for review.
 For local Hvigor signing, supply `GPROXY_OHOS_SIGNING_CONFIG`, the path to a JSON/JSON5 file
 containing one valid release `signingConfigs` entry from your DevEco/Hvigor
 configuration. Its `material.certpath`, `material.profile` and `material.storeFile`
@@ -246,13 +253,9 @@ evidence. PC/2-in-1 behavior has separate platform support and needs its own tes
   jurisdiction, permission and disclosure work. They are worksheets, not filed
   declarations or a guarantee of approval.
 
-The manual **Prepare mobile store packages** workflow builds unsigned Android
-and HarmonyOS artifacts from the selected branch. It uploads only workflow
-artifacts (which may be downloadable by users with access to public-repository
-Actions). It does not submit to a store or update release/beta/dev channels.
-Signed distribution builds and first product submissions remain separate steps.
-The workflow becomes available for dispatch after its file reaches the repository's
-default branch; merging preparation into `dev` alone does not publish or run it.
+Store packages come from the Release workflow. Nothing is submitted to a store
+automatically: select the uploaded HarmonyOS package and submit it for review
+in AppGallery Connect.
 
 ## Official references
 

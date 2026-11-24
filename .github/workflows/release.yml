@@ -519,6 +519,66 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  ohos-appgallery:
+    name: HarmonyOS AppGallery APP
+    needs: [prepare, console, ohos-toolchain]
+    if: needs.prepare.outputs.channel == 'release'
+    runs-on: ubuntu-24.04
+    environment: release
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ${{ needs.ohos-toolchain.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      GPROXY_BUILD_HASH: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: git config --global --add safe.directory "$PWD"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: console-dist
+          path: console/dist
+      - run: node console/scripts/sync-to-embed.mjs
+      - uses: ./.github/actions/ghcr-rust-cache
+        with:
+          key: ohos-container-tauri-aarch64-unknown-linux-ohos
+          token: ${{ secrets.GITHUB_TOKEN }}
+          save: false
+      # The store build has no self-updater and is packaged as an APP bundle.
+      - run: GPROXY_OHOS_FRONTEND_READY=1 bash scripts/mobile/build-ohos.sh
+      - name: Sign and verify AppGallery packages
+        env:
+          OHOS_SIGNING_MATERIAL: ${{ secrets.OHOS_SIGNING_MATERIAL }}
+          OHOS_SIGNING_PASSWORD: ${{ secrets.OHOS_SIGNING_PASSWORD }}
+        run: |
+          tool="$HARMONY_TOOLS_DIR/command-line-tools/sdk/default/openharmony/toolchains/lib/hap-sign-tool.jar"
+          cd dist/mobile/appgallery-ohos
+          mkdir signed
+          python3 "$GITHUB_WORKSPACE/scripts/ohos/sign-hap.py" gproxy-appgallery-ohos-unsigned.app signed/gproxy-appgallery-ohos.app --tool "$tool" --release-env
+          for hap in *.hap; do
+            python3 "$GITHUB_WORKSPACE/scripts/ohos/sign-hap.py" "$hap" "signed/$hap" --tool "$tool" --release-env
+          done
+      # Never attached to the public release.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: appgallery-harmonyos-arm64
+          path: dist/mobile/appgallery-ohos/signed/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload the APP to AppGallery Connect without submitting it
+        env:
+          AGC_SERVICE_ACCOUNT: ${{ secrets.AGC_SERVICE_ACCOUNT }}
+          AGC_APP_ID: ${{ vars.AGC_APP_ID }}
+        run: python3 scripts/ohos/upload-appgallery.py dist/mobile/appgallery-ohos/signed/gproxy-appgallery-ohos.app
+
   riscv:
     name: ${{ matrix.kind == 'cli' && 'CLI' || 'Application' }} (${{ matrix.target }})
     needs: [prepare, console, riscv-toolchain]

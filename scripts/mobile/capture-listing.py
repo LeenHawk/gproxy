@@ -24,6 +24,7 @@ LABELS = {
     "en": ("Demo user", "Primary gateway", "Backup gateway", "Local models", "Demo credential"),
     "zh-CN": ("演示用户", "研发网关", "备用线路", "本地模型", "演示凭据"),
     "zh-TW": ("示範使用者", "研發閘道", "備用線路", "本機模型", "示範憑證"),
+    "ru": ("Демо-пользователь", "Основной шлюз", "Резервный шлюз", "Локальные модели", "Демо-учётные данные"),
 }
 
 
@@ -127,6 +128,9 @@ class Demonstration:
         url = urlparse(route.request.url)
         if url.netloc != self.origin:
             route.abort()
+        elif url.path == "/console/fonts/active.css":
+            # Served by the gateway when an interface font was downloaded.
+            route.fulfill(content_type="text/css", body="")
         elif url.path == "/info" or url.path.startswith(("/admin/api/", "/portal/api/")):
             try:
                 route.fulfill(json=self.answer(route.request))
@@ -176,6 +180,7 @@ def main():
                                              args=["--no-sandbox"])
         for language in args.languages:
             for layout, viewport, scale in [("phone-layout", dict(width=432, height=768), 2.5),
+                                             ("tablet", dict(width=1920, height=1280), 1),
                                              ("desktop", dict(width=1920, height=1080), 1)]:
                 folder = args.output / language / layout
                 folder.mkdir(parents=True, exist_ok=True)
