@@ -183,14 +183,10 @@ GPROXY 以 GNU Affero 通用公共许可证第 3 版或更新版本（AGPL-3.0-o
 
 ## 工具支持
 
-[![JetBrains logo](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)](https://jb.gg/OpenSource)
-
-[![Deploys by Netlify](https://www.netlify.com/assets/badges/netlify-badge-color-accent.svg)](https://www.netlify.com)
-
+<a href="https://jb.gg/OpenSource"><img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg" alt="JetBrains" height="32"></a>
+<a href="https://www.netlify.com"><img src="https://www.netlify.com/assets/badges/netlify-badge-color-accent.svg" alt="Deploys by Netlify" height="32"></a>
 <a href="https://neon.com/"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/neon-dark.svg"><img src=".github/readme/neon-light.svg" alt="Neon" height="32"></picture></a>
-
-<a href="https://www.fastly.com/"><img src=".github/readme/fastly.png" alt="Fastly" height="32"></a>
-
+<a href="https://www.fastly.com/"><img src=".github/readme/fastly.svg" alt="Fastly" height="32"></a>
 <a href="https://www.vultr.com/"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/vultr-dark.svg"><img src=".github/readme/vultr-light.svg" alt="Vultr" height="32"></picture></a>
 
 ## Star History
