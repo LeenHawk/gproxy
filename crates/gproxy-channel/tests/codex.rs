@@ -2927,7 +2927,7 @@ async fn reset_refuses_a_selection_from_another_channel_without_sending() {
             },
         )
         .await;
-    assert!(matches!(result, Err(UpstreamError::InvalidConfig(_))));
+    assert!(matches!(result, Err(UpstreamError::InvalidRequest(_))));
     assert!(client.sent().is_empty());
 }
 

@@ -209,14 +209,14 @@ fn model_for(
         (_, Dialect::Claude) => {
             let body = buffered(&request.body, operation)?;
             let value: Value = serde_json::from_slice(body)
-                .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
+                .map_err(|error| UpstreamError::InvalidRequest(error.to_string()))?;
             let model = value
                 .get("model")
                 .and_then(Value::as_str)
                 .map(str::trim)
                 .filter(|model| !model.is_empty())
                 .ok_or_else(|| {
-                    UpstreamError::InvalidConfig(
+                    UpstreamError::InvalidRequest(
                         "a Claude request to Vertex must name its model in the body".into(),
                     )
                 })?;
@@ -235,10 +235,10 @@ fn body(body: HttpBody, operation: OperationKey) -> Result<HttpBody, UpstreamErr
     }
     let bytes = buffered(&body, operation)?;
     let mut value: Value = serde_json::from_slice(bytes)
-        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidRequest(error.to_string()))?;
     claude_images::fit(&mut value, true);
     let object = value.as_object_mut().ok_or_else(|| {
-        UpstreamError::InvalidConfig("a Claude request body must be a JSON object".into())
+        UpstreamError::InvalidRequest("a Claude request body must be a JSON object".into())
     })?;
     object.insert(
         "anthropic_version".into(),

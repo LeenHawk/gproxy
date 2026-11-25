@@ -102,7 +102,7 @@ pub(super) fn build(
     }
     if image_operation(operation) {
         let HttpBody::Bytes(bytes) = &request.body else {
-            return Err(UpstreamError::InvalidConfig(
+            return Err(UpstreamError::InvalidRequest(
                 "DashScope image requests need a buffered JSON body; multipart uploads are not converted".into(),
             ));
         };

@@ -108,7 +108,7 @@ pub(super) fn uuid() -> Result<String, UpstreamError> {
 }
 
 pub(super) fn invalid(message: impl Into<String>) -> UpstreamError {
-    UpstreamError::InvalidConfig(format!("Grok Build: {}", message.into()))
+    UpstreamError::InvalidRequest(format!("Grok Build: {}", message.into()))
 }
 
 #[cfg(test)]

@@ -22,7 +22,7 @@ pub(super) fn task_id(path: &str) -> Result<&str, UpstreamError> {
         .next()
         .unwrap_or_default();
     if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(UpstreamError::InvalidConfig(
+        return Err(UpstreamError::InvalidRequest(
             "MiniMax video task ID must be numeric".into(),
         ));
     }
@@ -31,13 +31,13 @@ pub(super) fn task_id(path: &str) -> Result<&str, UpstreamError> {
 
 pub(super) fn request(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
     let mut body: Map<String, Value> = serde_json::from_slice(body)
-        .map_err(|e| UpstreamError::InvalidConfig(format!("MiniMax video JSON: {e}")))?;
+        .map_err(|e| UpstreamError::InvalidRequest(format!("MiniMax video JSON: {e}")))?;
     // Native content remains available for all H3 reference modalities.
     let mut content = match body.remove("content") {
         Some(Value::Array(items)) => items,
         None => vec![],
         Some(_) => {
-            return Err(UpstreamError::InvalidConfig(
+            return Err(UpstreamError::InvalidRequest(
                 "video content must be an array".into(),
             ));
         }
@@ -49,14 +49,14 @@ pub(super) fn request(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
         if let Some(items) = body.remove(name) {
             let items = items
                 .as_array()
-                .ok_or_else(|| UpstreamError::InvalidConfig(format!("{name} must be an array")))?;
+                .ok_or_else(|| UpstreamError::InvalidRequest(format!("{name} must be an array")))?;
             for item in items {
                 let mut item = item.as_object().cloned().ok_or_else(|| {
-                    UpstreamError::InvalidConfig(format!("{name} entries must be objects"))
+                    UpstreamError::InvalidRequest(format!("{name} entries must be objects"))
                 })?;
                 let role = if frames {
                     item.remove("frame_type").ok_or_else(|| {
-                        UpstreamError::InvalidConfig("frame_type is required".into())
+                        UpstreamError::InvalidRequest("frame_type is required".into())
                     })?
                 } else {
                     Value::String(
@@ -65,7 +65,7 @@ pub(super) fn request(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
                             Some("video_url") => "reference_video",
                             Some("audio_url") => "reference_audio",
                             _ => {
-                                return Err(UpstreamError::InvalidConfig(
+                                return Err(UpstreamError::InvalidRequest(
                                     "unknown video reference type".into(),
                                 ));
                             }
@@ -85,7 +85,7 @@ pub(super) fn request(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
     // Native Sora multipart/size semantics cannot be silently approximated.
     for key in ["seconds", "size", "input_reference", "provider"] {
         if body.contains_key(key) {
-            return Err(UpstreamError::InvalidConfig(format!(
+            return Err(UpstreamError::InvalidRequest(format!(
                 "MiniMax H3 uses duration, resolution, frame_images and input_references; unsupported field: {key}"
             )));
         }

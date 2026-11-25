@@ -35,7 +35,7 @@ pub(super) fn path(operation: Operation, path: &str) -> String {
 /// (v3 `xai/shape/audio.rs`).
 fn speech(body: &[u8]) -> Result<Bytes, UpstreamError> {
     let mut object: Map<String, Value> = serde_json::from_slice(body)
-        .map_err(|_| UpstreamError::InvalidConfig("xAI speech requests must be JSON".into()))?;
+        .map_err(|_| UpstreamError::InvalidRequest("xAI speech requests must be JSON".into()))?;
     for name in ["model", "instructions", "stream_format"] {
         object.remove(name);
     }

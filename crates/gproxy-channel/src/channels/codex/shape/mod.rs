@@ -14,5 +14,5 @@ pub(super) fn request(
 }
 
 fn invalid(error: impl std::fmt::Display) -> UpstreamError {
-    UpstreamError::InvalidConfig(format!("Codex Responses request: {error}"))
+    UpstreamError::InvalidRequest(format!("Codex Responses request: {error}"))
 }

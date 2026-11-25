@@ -461,7 +461,7 @@ fn a_body_without_a_model_cannot_address_bedrock() {
     )
     .unwrap_err();
     assert!(
-        matches!(&error, UpstreamError::InvalidConfig(message) if message.contains("model")),
+        matches!(&error, UpstreamError::InvalidRequest(message) if message.contains("model")),
         "{error}"
     );
 }

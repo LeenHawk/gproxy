@@ -67,7 +67,7 @@ pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>
                 .split('&')
                 .any(|part| matches!(part.split('=').next(), Some("after" | "order")))
         }) {
-            return Err(UpstreamError::InvalidConfig(
+            return Err(UpstreamError::InvalidRequest(
                 "MiniMax lists videos with page_num/page_size; after/order are unsupported".into(),
             ));
         }

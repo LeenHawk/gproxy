@@ -511,7 +511,7 @@ pub(super) async fn invoke(
         }));
     }
     let HttpBody::Bytes(bytes) = &ctx.request.body else {
-        return Err(request::bad("requires a buffered JSON request"));
+        return Err(UpstreamError::InvalidConfig("OrcaTerm requires a buffered JSON request".into()));
     };
     let input = serde_json::from_slice(bytes).map_err(|_| request::bad("invalid JSON"))?;
     let chat = request::build(&input)?;
@@ -670,7 +670,7 @@ pub(super) async fn search(
     ctx: OperationContext<'_>,
 ) -> Result<WireResponse<HttpBody>, UpstreamError> {
     let HttpBody::Bytes(bytes) = &ctx.request.body else {
-        return Err(request::bad("requires a buffered search request"));
+        return Err(UpstreamError::InvalidConfig("OrcaTerm requires a buffered search request".into()));
     };
     let input: gproxy_protocol::wire::openai::web_search::WebSearchRequestBody =
         serde_json::from_slice(bytes).map_err(|_| request::bad("invalid search request"))?;

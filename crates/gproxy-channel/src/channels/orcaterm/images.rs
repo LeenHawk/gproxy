@@ -155,7 +155,7 @@ pub(super) async fn upload_all(
             .method(Method::POST)
             .uri(format!("{}/drive/llmSave", config.base_url(provider)))
             .body(HttpBody::Bytes(data.into()))
-            .map_err(|e| bad(&e.to_string()))?;
+            .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
         request.headers_mut().extend(configured_headers(&config)?);
         request
             .headers_mut()
@@ -163,7 +163,7 @@ pub(super) async fn upload_all(
         request.headers_mut().insert(
             header::CONTENT_TYPE,
             HeaderValue::from_str(&format!("multipart/form-data; boundary={boundary}"))
-                .map_err(|e| bad(&e.to_string()))?,
+                .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?,
         );
         request
             .headers_mut()

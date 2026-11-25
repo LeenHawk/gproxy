@@ -52,7 +52,7 @@ const CREATE_MODEL: &str = "hunyuan-image-v3.0";
 const EDIT_MODEL: &str = "hunyuan-image-v2.0-general-edit";
 
 fn invalid(message: &str) -> UpstreamError {
-    UpstreamError::InvalidConfig(format!("WorkBuddy: {message}"))
+    UpstreamError::InvalidRequest(format!("WorkBuddy: {message}"))
 }
 
 pub(super) fn request(body: &[u8], edit: bool) -> Result<Bytes, UpstreamError> {

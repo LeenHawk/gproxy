@@ -12,7 +12,7 @@ pub(crate) fn from_path(path: &str) -> Result<Option<String>, UpstreamError> {
     let raw = tail.split(':').next().unwrap_or(tail);
     let model = percent_encoding::percent_decode_str(raw)
         .decode_utf8()
-        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidRequest(error.to_string()))?;
     Ok((!model.is_empty()).then(|| model.into_owned()))
 }
 
@@ -33,7 +33,7 @@ pub(crate) fn resource(model: &str, default_publisher: &str) -> Result<String, U
         .split('/')
         .any(|part| part.is_empty() || part == "." || part == "..")
     {
-        return Err(UpstreamError::InvalidConfig(format!(
+        return Err(UpstreamError::InvalidRequest(format!(
             "`{model}` is not a Vertex model resource"
         )));
     }
@@ -68,10 +68,12 @@ pub(crate) fn anthropic_id(model: &str) -> Result<String, UpstreamError> {
         .strip_prefix("publishers/")
         .or_else(|| resource.split_once("/publishers/").map(|(_, rest)| rest))
         .ok_or_else(|| {
-            UpstreamError::InvalidConfig("expected an Anthropic publisher model".into())
+            UpstreamError::InvalidRequest("expected an Anthropic publisher model".into())
         })?;
     resource
         .strip_prefix("anthropic/models/")
         .map(str::to_owned)
-        .ok_or_else(|| UpstreamError::InvalidConfig("expected an Anthropic publisher model".into()))
+        .ok_or_else(|| {
+            UpstreamError::InvalidRequest("expected an Anthropic publisher model".into())
+        })
 }

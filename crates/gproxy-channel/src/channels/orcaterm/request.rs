@@ -48,7 +48,7 @@ pub(super) fn configured_headers(config: &OrcaTermConfig) -> Result<HeaderMap, U
 }
 
 pub(super) fn bad(message: &str) -> UpstreamError {
-    UpstreamError::InvalidConfig(format!("OrcaTerm request: {message}"))
+    UpstreamError::InvalidRequest(format!("OrcaTerm: {message}"))
 }
 
 fn text(value: &Value) -> Result<String, UpstreamError> {
@@ -261,7 +261,7 @@ pub(super) fn prepare(
         .method(Method::POST)
         .uri(url)
         .body(HttpBody::Bytes(body.to_string().into()))
-        .map_err(|e| bad(&e.to_string()))?;
+        .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
     *request.headers_mut() = headers;
     Ok(request)
 }

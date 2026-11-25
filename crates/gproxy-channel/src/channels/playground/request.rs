@@ -187,7 +187,7 @@ async fn generate_native(
     let model = model(&context.request.path)?;
     let model_short = model.strip_prefix("models/").unwrap_or(&model).to_string();
     let body: Value = serde_json::from_slice(&read_body(context.request.body).await?)
-        .map_err(|_| UpstreamError::InvalidConfig("Playground request must be JSON".into()))?;
+        .map_err(|_| UpstreamError::InvalidRequest("Playground request must be JSON".into()))?;
     let mut wire = wire::encode(&model, &body, &config.timezone)?;
     let tier = context
         .credential

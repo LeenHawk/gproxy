@@ -12,7 +12,7 @@ use http::{HeaderMap, header};
 use serde_json::{Value, json};
 
 fn invalid(error: impl std::fmt::Display) -> UpstreamError {
-    UpstreamError::InvalidConfig(format!("Codex image request: {error}"))
+    UpstreamError::InvalidRequest(format!("Codex image request: {error}"))
 }
 
 pub(in crate::channels::codex) fn create(body: &Bytes) -> Result<Bytes, UpstreamError> {

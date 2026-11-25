@@ -350,11 +350,12 @@ pub(super) async fn invoke(
             "Trae requires a JSON request".into(),
         ));
     };
-    let input: Value = serde_json::from_slice(bytes).map_err(invalid)?;
+    let input: Value = serde_json::from_slice(bytes)
+        .map_err(|e| UpstreamError::InvalidRequest(format!("Trae: {e}")))?;
     let model = input["model"]
         .as_str()
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| UpstreamError::InvalidConfig("Trae: model is required".into()))?
+        .ok_or_else(|| UpstreamError::InvalidRequest("Trae: model is required".into()))?
         .to_owned();
     let selected =
         models::selected(ctx.provider, ctx.credential, ctx.client.as_ref(), &model).await?;

@@ -88,7 +88,7 @@ fn method_path(operation: OperationKey, path: &str) -> Result<String, UpstreamEr
         _ => return Err(UpstreamError::UnsupportedOperation(operation)),
     };
     let model = google_model::from_path(path)?.ok_or_else(|| {
-        UpstreamError::InvalidConfig(
+        UpstreamError::InvalidRequest(
             "a Vertex Express request must name its model in the path".into(),
         )
     })?;

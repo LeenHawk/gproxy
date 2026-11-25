@@ -14,7 +14,7 @@
 //! the server's turn-state token).
 
 use super::agent::CLI_VERSION;
-use super::common::invalid_config;
+use super::common::{invalid_config, invalid_request};
 use super::headers::Account;
 use gproxy_protocol::connection::{Bytes, WsFrame};
 use gproxy_upstream::UpstreamError;
@@ -158,7 +158,7 @@ impl AccountIdentity {
     fn metadata(&self, value: &mut Value) -> Result<(), UpstreamError> {
         let object = value
             .as_object_mut()
-            .ok_or_else(|| invalid_config("Codex turn metadata must be a JSON object"))?;
+            .ok_or_else(|| invalid_request("Codex turn metadata must be a JSON object"))?;
         object.insert(
             "installation_id".into(),
             Value::String(self.installation_id.clone()),
@@ -187,7 +187,7 @@ impl AccountIdentity {
     fn turn_metadata(&self, value: &mut Value) -> Result<(), UpstreamError> {
         if let Some(text) = value.as_str() {
             let mut metadata: Value = serde_json::from_str(text)
-                .map_err(|_| invalid_config("Codex turn metadata must contain a JSON object"))?;
+                .map_err(|_| invalid_request("Codex turn metadata must contain a JSON object"))?;
             self.metadata(&mut metadata)?;
             *value = Value::String(ascii(&metadata.to_string()));
         } else {
@@ -208,9 +208,9 @@ impl AccountIdentity {
         if let Some(value) = headers.get("x-codex-turn-metadata") {
             let text = value
                 .to_str()
-                .map_err(|_| invalid_config("invalid Codex turn metadata header"))?;
+                .map_err(|_| invalid_request("invalid Codex turn metadata header"))?;
             let mut metadata: Value = serde_json::from_str(text)
-                .map_err(|_| invalid_config("Codex turn metadata must contain a JSON object"))?;
+                .map_err(|_| invalid_request("Codex turn metadata must contain a JSON object"))?;
             self.metadata(&mut metadata)?;
             headers.insert(
                 HeaderName::from_static("x-codex-turn-metadata"),
@@ -230,7 +230,7 @@ impl AccountIdentity {
         }
         let object = metadata
             .as_object_mut()
-            .ok_or_else(|| invalid_config("Codex client_metadata must be an object"))?;
+            .ok_or_else(|| invalid_request("Codex client_metadata must be an object"))?;
         object.remove("x-oai-attestation");
         object.insert(
             "x-codex-installation-id".into(),

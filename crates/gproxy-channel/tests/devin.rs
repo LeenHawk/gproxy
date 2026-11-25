@@ -693,8 +693,8 @@ fn a_router_selector_is_refused_with_its_own_reason() {
     let extra = std::collections::BTreeMap::new();
     for name in ["adaptive", "arena-alpha"] {
         let error = devin::resolve(name, &extra).unwrap_err();
-        let UpstreamError::InvalidConfig(message) = &error else {
-            panic!("expected a configuration refusal: {error}");
+        let UpstreamError::InvalidRequest(message) = &error else {
+            panic!("expected a request refusal: {error}");
         };
         assert!(
             message.contains("AssignModel"),

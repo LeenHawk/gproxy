@@ -135,7 +135,7 @@ pub(super) fn model_from_body(body: &[u8]) -> Result<String, UpstreamError> {
         .filter(|model| !model.is_empty())
         .map(str::to_owned)
         .ok_or_else(|| {
-            UpstreamError::InvalidConfig(
+            UpstreamError::InvalidRequest(
                 "the request body carries no `model`; Bedrock addresses the model in the URL"
                     .into(),
             )
@@ -166,7 +166,7 @@ pub(super) fn serves_messages(model: &str) -> bool {
 pub(super) fn model_from_path(path: &str) -> Result<String, UpstreamError> {
     let segment = path.split_once("/models/").map(|(_, id)| id).unwrap_or("");
     if segment.is_empty() {
-        return Err(UpstreamError::InvalidConfig(
+        return Err(UpstreamError::InvalidRequest(
             "the request path names no model".into(),
         ));
     }
@@ -188,7 +188,7 @@ fn percent_decode_segment(value: &str) -> Result<String, UpstreamError> {
                 .and_then(|pair| std::str::from_utf8(pair).ok())
                 .and_then(|text| u8::from_str_radix(text, 16).ok())
                 .ok_or_else(|| {
-                    UpstreamError::InvalidConfig("the model id is not percent encoded".into())
+                    UpstreamError::InvalidRequest("the model id is not percent encoded".into())
                 })?;
             out.push(pair);
             index += 3;
@@ -198,7 +198,7 @@ fn percent_decode_segment(value: &str) -> Result<String, UpstreamError> {
         }
     }
     String::from_utf8(out)
-        .map_err(|_| UpstreamError::InvalidConfig("the model id is not UTF-8".into()))
+        .map_err(|_| UpstreamError::InvalidRequest("the model id is not UTF-8".into()))
 }
 
 pub(super) fn method_for(plane: Plane) -> Method {

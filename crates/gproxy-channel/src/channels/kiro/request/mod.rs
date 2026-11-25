@@ -15,7 +15,7 @@ use gproxy_upstream::UpstreamError;
 use serde_json::{Map, Value, json};
 
 fn invalid(message: impl Into<String>) -> UpstreamError {
-    UpstreamError::InvalidConfig(message.into())
+    UpstreamError::InvalidRequest(message.into())
 }
 
 /// `{conversationState, inferenceConfig?}` from a Responses body.
@@ -211,10 +211,10 @@ mod tests {
                 .as_bytes(),
             "c",
         );
-        assert!(matches!(error, Err(UpstreamError::InvalidConfig(_))));
+        assert!(matches!(error, Err(UpstreamError::InvalidRequest(_))));
         assert!(matches!(
             build(json!({"model": "m"}).to_string().as_bytes(), "c"),
-            Err(UpstreamError::InvalidConfig(_))
+            Err(UpstreamError::InvalidRequest(_))
         ));
     }
 }

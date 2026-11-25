@@ -457,7 +457,7 @@ impl QuotaReset for Codex {
                 .is_some_and(|program| program != "codex_rate_limits")
                 || request.grant_id == Some("")
             {
-                return Err(UpstreamError::InvalidConfig(
+                return Err(UpstreamError::InvalidRequest(
                     "invalid Codex reset selection".into(),
                 ));
             }

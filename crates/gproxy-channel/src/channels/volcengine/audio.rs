@@ -18,7 +18,7 @@ use serde_json::{Value, json};
 pub(super) const CHARACTERS_HEADER: &str = "x-gproxy-volcengine-audio-characters";
 
 pub(super) fn request(bytes: &[u8]) -> Result<Vec<u8>, UpstreamError> {
-    let invalid = |message: &str| UpstreamError::InvalidConfig(message.into());
+    let invalid = |message: &str| UpstreamError::InvalidRequest(message.into());
     let mut body: Value = serde_json::from_slice(bytes).map_err(|e| invalid(&e.to_string()))?;
     if body["model"].as_str() != Some("doubao-seed-tts-2.0") {
         return Err(invalid(

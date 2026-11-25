@@ -32,7 +32,7 @@ const OPENAI_ONLY: &[&str] = &[
 ];
 
 fn invalid(message: &str) -> UpstreamError {
-    UpstreamError::InvalidConfig(message.into())
+    UpstreamError::InvalidRequest(message.into())
 }
 
 /// An image reference, however the caller wrote it: a bare URL string, an
@@ -164,7 +164,7 @@ mod tests {
         );
         assert!(matches!(
             request(json!({"model": "m"}).to_string().as_bytes(), false),
-            Err(UpstreamError::InvalidConfig(_))
+            Err(UpstreamError::InvalidRequest(_))
         ));
     }
 

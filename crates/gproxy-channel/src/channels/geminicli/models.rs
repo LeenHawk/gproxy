@@ -50,7 +50,7 @@ pub(super) fn catalog(body: &[u8]) -> Result<Vec<Value>, UpstreamError> {
 /// The model id a `GET /v1beta/models/{id}` path names.
 fn requested(path: &str) -> Result<String, UpstreamError> {
     code_assist::request_model(path, None)
-        .ok_or_else(|| UpstreamError::InvalidConfig("model id missing from request path".into()))
+        .ok_or_else(|| UpstreamError::InvalidRequest("model id missing from request path".into()))
 }
 
 pub(super) async fn invoke(

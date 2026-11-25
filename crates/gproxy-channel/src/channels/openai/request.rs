@@ -82,8 +82,8 @@ fn realtime_query(source: Option<String>) -> Result<String, UpstreamError> {
     match call_id.or(model) {
         Some(selector) => kept.push(selector),
         None => {
-            return Err(invalid_config(
-                "a Realtime handshake needs a model or a call_id",
+            return Err(UpstreamError::InvalidRequest(
+                "a Realtime handshake needs a model or a call_id".into(),
             ));
         }
     }

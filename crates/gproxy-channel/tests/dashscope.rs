@@ -225,7 +225,7 @@ fn an_image_request_that_cannot_be_converted_is_refused_before_the_call() {
                 Dialect::OpenAi,
                 streamed
             ),
-            Err(UpstreamError::InvalidConfig(_))
+            Err(UpstreamError::InvalidRequest(_))
         ),
         "a multipart upload is not converted"
     );
@@ -240,7 +240,7 @@ fn an_image_request_that_cannot_be_converted_is_refused_before_the_call() {
             Dialect::OpenAi,
             no_prompt
         ),
-        Err(UpstreamError::InvalidConfig(_))
+        Err(UpstreamError::InvalidRequest(_))
     ));
 }
 

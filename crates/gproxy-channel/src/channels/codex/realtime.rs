@@ -1,6 +1,6 @@
 //! Realtime media-call setup and transparent control WebSockets.
 //! Codex's backend accepts {sdp, session}; the public API accepts multipart.
-use super::common::invalid_config;
+use super::common::{invalid_config, invalid_request};
 use super::headers::{account, backend_headers};
 use super::{CLI_HEADERS, Codex, CodexConfig};
 use crate::channel::{BaseChannel, HeaderAllowlist, OperationContext, PrepareContext};
@@ -240,7 +240,7 @@ pub(super) fn prepare_connect(
             let prefix = format!("{}/", url.path().trim_end_matches('/'));
             url.set_path(&id_path);
             if !url.path().starts_with(&prefix) {
-                return Err(error("invalid live call path"));
+                return Err(invalid_request("Codex realtime: invalid live call path"));
             }
         }
     }

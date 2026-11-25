@@ -23,7 +23,7 @@ pub(super) fn task_id(path: &str) -> Result<&str, UpstreamError> {
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
     {
-        return Err(UpstreamError::InvalidConfig(
+        return Err(UpstreamError::InvalidRequest(
             "Invalid Ark video task ID".into(),
         ));
     }
@@ -31,7 +31,7 @@ pub(super) fn task_id(path: &str) -> Result<&str, UpstreamError> {
 }
 
 pub(super) fn request(bytes: &[u8]) -> Result<Vec<u8>, UpstreamError> {
-    let invalid = |message: &str| UpstreamError::InvalidConfig(message.into());
+    let invalid = |message: &str| UpstreamError::InvalidRequest(message.into());
     let mut body: Map<String, Value> =
         serde_json::from_slice(bytes).map_err(|e| invalid(&e.to_string()))?;
     let mut content = match body.remove("content") {

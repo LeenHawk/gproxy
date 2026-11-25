@@ -87,11 +87,11 @@ pub(super) async fn reply(
             .split_once("/models/")
             .map(|(_, id)| id)
             .ok_or_else(|| {
-                UpstreamError::InvalidConfig("model id missing from request path".into())
+                UpstreamError::InvalidRequest("model id missing from request path".into())
             })?;
         let id = percent_encoding::percent_decode_str(id)
             .decode_utf8()
-            .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
+            .map_err(|error| UpstreamError::InvalidRequest(error.to_string()))?;
         match models
             .into_iter()
             .find(|model| model["id"].as_str().is_some_and(|m| m == id.as_ref()))

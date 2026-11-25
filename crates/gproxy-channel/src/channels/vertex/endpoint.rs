@@ -178,7 +178,7 @@ fn method_path(
 
 fn required_model(operation: OperationKey, model: Option<&str>) -> Result<&str, UpstreamError> {
     setting(model).ok_or_else(|| {
-        UpstreamError::InvalidConfig(format!(
+        UpstreamError::InvalidRequest(format!(
             "{:?} on Vertex needs an upstream model; none was found in the request",
             operation.operation
         ))

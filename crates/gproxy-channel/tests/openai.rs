@@ -414,7 +414,7 @@ fn opens_the_two_socket_surfaces_and_refuses_the_rest() {
             "/v1/realtime",
             None
         ),
-        Err(UpstreamError::InvalidConfig(_))
+        Err(UpstreamError::InvalidRequest(_))
     ));
     assert!(matches!(
         connect(

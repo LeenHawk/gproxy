@@ -51,10 +51,10 @@ pub(super) async fn reply(
             .path
             .split_once("/models/")
             .map(|(_, id)| id)
-            .ok_or_else(|| UpstreamError::InvalidConfig("model id missing".into()))?;
+            .ok_or_else(|| UpstreamError::InvalidRequest("model id missing".into()))?;
         let id = percent_encoding::percent_decode_str(id)
             .decode_utf8()
-            .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
+            .map_err(|e| UpstreamError::InvalidRequest(e.to_string()))?;
         match models
             .into_iter()
             .find(|model| model["id"].as_str() == Some(id.as_ref()))

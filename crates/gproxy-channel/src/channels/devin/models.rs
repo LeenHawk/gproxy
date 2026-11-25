@@ -246,7 +246,7 @@ fn is_router(name: &str) -> bool {
 /// A router selector fails for a reason of its own, so it says so rather than
 /// reading as a misspelled model.
 fn router(name: &str) -> UpstreamError {
-    UpstreamError::InvalidConfig(format!(
+    UpstreamError::InvalidRequest(format!(
         "devin: `{name}` is a router selector. Resolving one to a concrete \
          model needs an AssignModel round trip, which this channel does not \
          implement because every field number of that method is a guess in \

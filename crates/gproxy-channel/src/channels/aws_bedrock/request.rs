@@ -161,11 +161,11 @@ pub(super) fn invoke_body(
     client_headers: &HeaderMap,
 ) -> Result<Bytes, UpstreamError> {
     let mut value: Value = serde_json::from_slice(body).map_err(|error| {
-        UpstreamError::InvalidConfig(format!("{ID} request body is not JSON: {error}"))
+        UpstreamError::InvalidRequest(format!("{ID} request body is not JSON: {error}"))
     })?;
     claude_images::fit(&mut value, true);
     let object = value.as_object_mut().ok_or_else(|| {
-        UpstreamError::InvalidConfig(format!("{ID} request body is not an object"))
+        UpstreamError::InvalidRequest(format!("{ID} request body is not an object"))
     })?;
     object.remove("model");
     object.remove("stream");

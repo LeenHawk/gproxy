@@ -138,11 +138,11 @@ pub(super) fn chat(
         ));
     };
     let mut input: Value =
-        serde_json::from_slice(&bytes).map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
+        serde_json::from_slice(&bytes).map_err(|e| UpstreamError::InvalidRequest(format!("Trae: {e}")))?;
     let messages = input
         .get_mut("messages")
         .and_then(Value::as_array_mut)
-        .ok_or_else(|| UpstreamError::InvalidConfig("Trae: messages must be an array".into()))?;
+        .ok_or_else(|| UpstreamError::InvalidRequest("Trae: messages must be an array".into()))?;
     for message in messages.iter_mut() {
         if message["role"] == "developer" {
             message["role"] = json!("system");
@@ -152,7 +152,7 @@ pub(super) fn chat(
             None | Some(Value::Null) => message["content"] = json!([]),
             Some(Value::Array(_)) => {}
             _ => {
-                return Err(UpstreamError::InvalidConfig(
+                return Err(UpstreamError::InvalidRequest(
                     "Trae: unsupported message content".into(),
                 ));
             }

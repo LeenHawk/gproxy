@@ -1,6 +1,6 @@
 //! HTTP and WebSocket operations, request shaping and turn state.
 
-use super::common::invalid_config;
+use super::common::{invalid_config, invalid_request};
 use super::headers::{Account, account, backend_headers, base_urls};
 use super::identity::{Identity, RequestKind};
 use super::{
@@ -511,7 +511,7 @@ impl Codex {
                     call_id,
                 }) = route
                 else {
-                    return Err(invalid_config("invalid realtime hangup path"));
+                    return Err(invalid_request("invalid realtime hangup path"));
                 };
                 format!("https://api.openai.com/v1/realtime/calls/{call_id}/hangup")
             }

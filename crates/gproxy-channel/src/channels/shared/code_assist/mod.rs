@@ -28,7 +28,7 @@ use http::{HeaderMap, Method, StatusCode};
 use serde_json::{Map, Value, json};
 
 pub(crate) fn invalid_request(message: impl Into<String>) -> UpstreamError {
-    UpstreamError::InvalidConfig(message.into())
+    UpstreamError::InvalidRequest(message.into())
 }
 
 pub(crate) fn invalid_response(message: impl Into<String>) -> UpstreamError {
@@ -68,8 +68,9 @@ pub(crate) fn request_model(path: &str, body: Option<&Value>) -> Option<String> 
 /// (v3 `shared/code_assist.rs::prompt_id`).
 pub(crate) fn prompt_id() -> Result<String, UpstreamError> {
     let mut bytes = [0_u8; 16];
-    getrandom::fill(&mut bytes)
-        .map_err(|_| invalid_request("Code Assist prompt id randomness failed"))?;
+    getrandom::fill(&mut bytes).map_err(|_| {
+        UpstreamError::InvalidConfig("Code Assist prompt id randomness failed".into())
+    })?;
     use std::fmt::Write as _;
     let mut output = String::with_capacity(32);
     for byte in bytes {
@@ -273,7 +274,7 @@ pub(crate) async fn send(
     }
     let request = builder
         .body(HttpBody::Bytes(body.map(Bytes::from).unwrap_or_default()))
-        .map_err(|error| invalid_request(error.to_string()))?;
+        .map_err(|error| UpstreamError::InvalidConfig(error.to_string()))?;
     let WireResponse {
         status,
         headers,

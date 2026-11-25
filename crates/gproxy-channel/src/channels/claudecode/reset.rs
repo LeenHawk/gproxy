@@ -417,9 +417,9 @@ impl QuotaReset for Claudecode {
         Box::pin(async move {
             let program = request
                 .program
-                .ok_or_else(|| UpstreamError::InvalidConfig("select a reset program".into()))?;
+                .ok_or_else(|| UpstreamError::InvalidRequest("select a reset program".into()))?;
             if !matches!(program, "juniper_tide" | "cedar_ember") {
-                return Err(UpstreamError::InvalidConfig("unknown reset program".into()));
+                return Err(UpstreamError::InvalidRequest("unknown reset program".into()));
             }
             // Revalidate only the selected program. An unrelated offer's
             // rate limit or malformed response must not block this redemption.

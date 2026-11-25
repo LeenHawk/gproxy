@@ -58,7 +58,7 @@ pub(super) async fn selected(
         .find(|v| v["config_name"].as_str() == Some(model) && !is_custom(v))
         .cloned()
         .ok_or_else(|| {
-            UpstreamError::InvalidConfig(format!(
+            UpstreamError::InvalidRequest(format!(
                 "Trae: model {model} is not in this account's chat catalogue"
             ))
         })

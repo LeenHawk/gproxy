@@ -1,6 +1,6 @@
 //! Codex catalogs normalized for the host's model directory. Client-specific
 //! projection, permission filtering and aliases belong to the host, not here.
-use super::common::{invalid_config, invalid_response};
+use super::common::{invalid_config, invalid_request, invalid_response};
 use super::headers::{account, backend_headers, base_urls};
 use super::{CLI_HEADERS, CLI_VERSION, CodexConfig};
 use crate::channel::{HeaderAllowlist, OperationContext, PrepareContext};
@@ -59,7 +59,7 @@ pub(super) async fn invoke(
             .split_once("/models/")
             .map(|(_, id)| id)
             .filter(|id| !id.is_empty())
-            .ok_or_else(|| invalid_config("model id missing from request path"))?;
+            .ok_or_else(|| invalid_request("model id missing from request path"))?;
         // Form decoding is reused with literal '+' escaped: model paths use
         // percent encoding, where '+' is not a space.
         let encoded = format!("id={}", segment.replace('+', "%2B"));

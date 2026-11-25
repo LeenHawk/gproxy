@@ -36,7 +36,7 @@ const MAX_PAGES: usize = 20;
 const SERVED_TASKS: [&str; 3] = ["Text Generation", "Text Embeddings", "Text Classification"];
 
 fn invalid(message: &str) -> UpstreamError {
-    UpstreamError::InvalidConfig(message.into())
+    UpstreamError::InvalidRequest(message.into())
 }
 
 impl CloudflareAiGateway {

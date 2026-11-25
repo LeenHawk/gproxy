@@ -195,7 +195,7 @@ fn a_request_without_a_model_names_what_is_missing() {
     )
     .unwrap_err();
     assert!(
-        matches!(&error, UpstreamError::InvalidConfig(message) if message.contains("model")),
+        matches!(&error, UpstreamError::InvalidRequest(message) if message.contains("model")),
         "{error}"
     );
 }

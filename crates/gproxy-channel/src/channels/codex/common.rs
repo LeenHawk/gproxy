@@ -10,6 +10,10 @@ pub(super) fn invalid_config(message: impl Into<String>) -> UpstreamError {
     UpstreamError::InvalidConfig(message.into())
 }
 
+pub(super) fn invalid_request(message: impl Into<String>) -> UpstreamError {
+    UpstreamError::InvalidRequest(message.into())
+}
+
 pub(super) fn invalid_response(message: impl Into<String>) -> UpstreamError {
     UpstreamError::InvalidResponse(message.into())
 }

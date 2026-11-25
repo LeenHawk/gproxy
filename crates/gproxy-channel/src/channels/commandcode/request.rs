@@ -54,6 +54,10 @@ fn invalid(message: &str) -> UpstreamError {
     UpstreamError::InvalidConfig(format!("Command Code request: {message}"))
 }
 
+fn invalid_request(message: &str) -> UpstreamError {
+    UpstreamError::InvalidRequest(format!("Command Code: {message}"))
+}
+
 fn text_blocks(value: &Value) -> String {
     if let Some(text) = value.as_str() {
         return text.to_owned();
@@ -98,30 +102,30 @@ fn workspace_config() -> Result<Value, UpstreamError> {
 
 /// CLI toWireMessages/toWireTools: Claude blocks become AI SDK model messages.
 fn envelope(body: &[u8]) -> Result<Value, UpstreamError> {
-    let mut input: Value = serde_json::from_slice(body).map_err(|e| invalid(&e.to_string()))?;
+    let mut input: Value = serde_json::from_slice(body).map_err(|e| invalid_request(&e.to_string()))?;
     claude_images::fit(&mut input, false);
     let model = input["model"]
         .as_str()
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| invalid("missing model"))?;
+        .ok_or_else(|| invalid_request("missing model"))?;
     let mut messages = Vec::new();
     let mut tools_by_id = BTreeMap::new();
     for message in input["messages"]
         .as_array()
-        .ok_or_else(|| invalid("messages must be an array"))?
+        .ok_or_else(|| invalid_request("messages must be an array"))?
     {
         let role = message["role"]
             .as_str()
-            .ok_or_else(|| invalid("missing message role"))?;
+            .ok_or_else(|| invalid_request("missing message role"))?;
         if !matches!(role, "assistant" | "user") {
-            return Err(invalid("expected user or assistant message"));
+            return Err(invalid_request("expected user or assistant message"));
         }
         let content = if let Some(text) = message["content"].as_str() {
             vec![json!({"type":"text", "text":text})]
         } else {
             message["content"]
                 .as_array()
-                .ok_or_else(|| invalid("invalid message content"))?
+                .ok_or_else(|| invalid_request("invalid message content"))?
                 .clone()
         };
         let mut parts = Vec::new();
@@ -131,7 +135,7 @@ fn envelope(body: &[u8]) -> Result<Value, UpstreamError> {
                 (_, "text") => parts.push(json!({"type":"text", "text":part["text"]})),
                 ("assistant", "thinking") => parts.push(json!({"type":"reasoning", "text":part["thinking"]})),
                 ("assistant", "tool_use") => {
-                    let id = part["id"].as_str().ok_or_else(|| invalid("missing tool call id"))?;
+                    let id = part["id"].as_str().ok_or_else(|| invalid_request("missing tool call id"))?;
                     tools_by_id.insert(id.to_owned(), part["name"].clone());
                     parts.push(json!({"type":"tool-call", "toolCallId":id, "toolName":part["name"], "input":part["input"]}));
                 }
@@ -141,11 +145,11 @@ fn envelope(body: &[u8]) -> Result<Value, UpstreamError> {
                     "output":{"type":"text", "value":text_blocks(&part["content"])}
                 })),
                 ("user", "image") if part["source"]["type"] == "base64" => {
-                    let mime = part["source"]["media_type"].as_str().ok_or_else(|| invalid("missing image media type"))?;
-                    let data = part["source"]["data"].as_str().ok_or_else(|| invalid("missing image data"))?;
+                    let mime = part["source"]["media_type"].as_str().ok_or_else(|| invalid_request("missing image media type"))?;
+                    let data = part["source"]["data"].as_str().ok_or_else(|| invalid_request("missing image data"))?;
                     parts.push(json!({"type":"image", "image":format!("data:{mime};base64,{data}"), "mimeType":mime}));
                 }
-                _ => return Err(invalid("content block is not supported by the CLI wire")),
+                _ => return Err(invalid_request("content block is not supported by the CLI wire")),
             }
         }
         if !results.is_empty() {
@@ -159,10 +163,10 @@ fn envelope(body: &[u8]) -> Result<Value, UpstreamError> {
     if let Some(items) = input.get("tools") {
         for tool in items
             .as_array()
-            .ok_or_else(|| invalid("tools must be an array"))?
+            .ok_or_else(|| invalid_request("tools must be an array"))?
         {
             if !tool["name"].is_string() || !tool["input_schema"].is_object() {
-                return Err(invalid("only client function tools are supported"));
+                return Err(invalid_request("only client function tools are supported"));
             }
             tools.push(json!({"name":tool["name"], "description":tool.get("description").cloned().unwrap_or(json!("")), "input_schema":tool["input_schema"]}));
         }
@@ -171,7 +175,7 @@ fn envelope(body: &[u8]) -> Result<Value, UpstreamError> {
     if let Some(choice) = input.get("tool_choice")
         && choice.get("type").and_then(Value::as_str) != Some("auto")
     {
-        return Err(invalid("CLI wire supports only automatic tool choice"));
+        return Err(invalid_request("CLI wire supports only automatic tool choice"));
     }
     let mut params = json!({"model":model, "messages":messages, "tools":tools,
         "system":input.get("system").cloned().unwrap_or(json!("")),
@@ -221,7 +225,7 @@ pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, 
             insert_configured(&mut out, "x-session-id", &new_id()?)?;
         }
         let HttpBody::Bytes(bytes) = ctx.request.body else {
-            return Err(invalid("generation needs a buffered JSON body"));
+            return Err(UpstreamError::InvalidConfig("Command Code: generation needs a buffered JSON body".into()));
         };
         HttpBody::Bytes(envelope(&bytes)?.to_string().into())
     };
