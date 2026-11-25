@@ -20,6 +20,7 @@ const REQ_CHAT_MESSAGE: u32 = 3;
 /// A constant 5 on every captured request; its meaning is not recorded.
 const REQ_CONSTANT_SEVEN: u32 = 7;
 const REQ_COMPLETION_CONFIG: u32 = 8;
+const REQ_TOOL_CHOICE: u32 = 12;
 /// A constant 1 on every captured request; its meaning is not recorded.
 const REQ_CONSTANT_TWENTY: u32 = 20;
 const REQ_MODEL_SELECTOR: u32 = 21;
@@ -413,14 +414,8 @@ pub(super) fn build(
         return Err(super::bad_request("devin request has no usable content"));
     }
 
-    if request.get("tool_choice").is_some_and(|choice| {
-        !choice.is_null() && !matches!(choice.as_str(), Some("auto" | "none"))
-    }) {
-        return Err(super::bad_request(
-            "devin supports only auto or none tool_choice",
-        ));
-    }
-    let tools: Vec<&Value> = if request.get("tool_choice").and_then(Value::as_str) == Some("none") {
+    let tool_choice = request.get("tool_choice");
+    let tools: Vec<&Value> = if tool_choice.and_then(Value::as_str) == Some("none") {
         Vec::new()
     } else {
         request
@@ -437,6 +432,25 @@ pub(super) fn build(
                     .flatten(),
             )
             .collect()
+    };
+    // ChatToolChoice (#12): 1 = option name, 2 = tool name. Verified live
+    // 2026-11-25: `required` and `function` + name force a call, `none` drops
+    // the tools upstream, and unknown option names (including `any`) are
+    // rejected. `auto` is the upstream default and is not written; `none`
+    // already removes the tools above.
+    let forced: Option<(&str, Option<&str>)> = if tools.is_empty() {
+        None
+    } else {
+        match tool_choice {
+            Some(Value::String(choice)) if choice == "required" => Some(("required", None)),
+            Some(choice @ Value::Object(_)) => choice
+                .get("function")
+                .and_then(|function| function.get("name"))
+                .and_then(Value::as_str)
+                .filter(|name| !name.is_empty())
+                .map(|name| ("function", Some(name))),
+            _ => None,
+        }
     };
     if !tools.is_empty() && system.trim().is_empty() {
         system = "You are a helpful assistant.".into();
@@ -515,6 +529,14 @@ pub(super) fn build(
                     .to_string(),
             );
         out.message(10, &definition);
+    }
+    if let Some((option, name)) = forced {
+        let mut choice = Message::new();
+        choice.string(1, option);
+        if let Some(name) = name {
+            choice.string(2, name);
+        }
+        out.message(REQ_TOOL_CHOICE, &choice);
     }
     // Session metadata is appended after validation by session::Session.
 

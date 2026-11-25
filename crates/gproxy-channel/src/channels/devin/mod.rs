@@ -148,11 +148,18 @@
 //! error occurred" while `0.001` succeeds, so a request for greedy sampling is
 //! clamped to that floor (live finding, same section).
 //!
+//! #12 `tool_choice` is a `ChatToolChoice { 1 option_name, 2 tool_name }`,
+//! verified live on 2026-11-25: `required` and `function` with a tool name
+//! force a call, `none` makes the upstream drop the tools, and unknown option
+//! names (including Anthropic's `any`) fail with `invalid_argument`. The
+//! channel writes it only for `required` and a named function; `auto` is the
+//! upstream default and `none` already removes the tools from the request.
+//!
 //! Request fields this channel deliberately does not write: #11
-//! `disable_parallel_tool_calls`, #12 `tool_choice`, #13
-//! prompt-cache options — all recorded in the mirrors as declaration order
-//! from third-party `.proto` files rather than as wire captures — and #22
-//! `request_id`, which the verified turn-1 request omits.
+//! `disable_parallel_tool_calls`, #13 prompt-cache options — both recorded in
+//! the mirrors as declaration order from third-party `.proto` files rather
+//! than as wire captures — and #22 `request_id`, which the verified turn-1
+//! request omits.
 //!
 //! # `GetChatMessageResponse`
 //!
@@ -243,9 +250,6 @@
 //!
 //! # Not implemented, and why
 //!
-//! * **Forced tool choice.** Native function declarations, history, streamed
-//!   calls, signed reasoning and tool results are supported; `tool_choice` supports `auto` and
-//!   `none`. Other choices are refused rather than silently weakened.
 //! * **Router selectors** (`adaptive`, `arena-*`). They need an `AssignModel`
 //!   round trip to resolve to a concrete `model_uid` first, and every field
 //!   number of that method is a guess in both mirrors — the reference labels
@@ -298,7 +302,7 @@
 //! Installing the Windsurf client is the **lowest**-value item on this list,
 //! not the highest. A live binary capture would only explain the meaning of
 //! request #7 = 5 and #20 = 1, whether #31 has semantics beyond its length,
-//! the `tool_choice` option-name strings, and which client version is current
+//! and which client version is current
 //! — and the three versions the mirrors disagree about all work. Items 1 to 5
 //! need a token, not a binary.
 
