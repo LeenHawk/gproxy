@@ -79,7 +79,7 @@ pub(super) fn now_ms() -> i64 {
 
 pub(super) fn new_id() -> Result<String, UpstreamError> {
     let mut bytes = [0u8; 16];
-    getrandom::fill(&mut bytes).map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
+    getrandom::fill(&mut bytes).map_err(|e| UpstreamError::Host(e.to_string()))?;
     bytes[6] = bytes[6] & 0x0f | 0x40;
     bytes[8] = bytes[8] & 0x3f | 0x80;
     let hex = bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();

@@ -16,7 +16,7 @@ pub(super) fn now_ms() -> i64 {
 pub(super) fn random_hex<const N: usize>() -> Result<String, UpstreamError> {
     let mut bytes = [0; N];
     getrandom::fill(&mut bytes)
-        .map_err(|_| UpstreamError::InvalidConfig("Trae: randomness unavailable".into()))?;
+        .map_err(|_| UpstreamError::Host("Trae: randomness unavailable".into()))?;
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 

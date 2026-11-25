@@ -68,9 +68,8 @@ pub(crate) fn request_model(path: &str, body: Option<&Value>) -> Option<String> 
 /// (v3 `shared/code_assist.rs::prompt_id`).
 pub(crate) fn prompt_id() -> Result<String, UpstreamError> {
     let mut bytes = [0_u8; 16];
-    getrandom::fill(&mut bytes).map_err(|_| {
-        UpstreamError::InvalidConfig("Code Assist prompt id randomness failed".into())
-    })?;
+    getrandom::fill(&mut bytes)
+        .map_err(|_| UpstreamError::Host("Code Assist prompt id randomness failed".into()))?;
     use std::fmt::Write as _;
     let mut output = String::with_capacity(32);
     for byte in bytes {

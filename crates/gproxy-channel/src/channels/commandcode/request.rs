@@ -50,10 +50,6 @@ pub(super) fn headers(key: &str) -> Result<HeaderMap, UpstreamError> {
     Ok(out)
 }
 
-fn invalid(message: &str) -> UpstreamError {
-    UpstreamError::InvalidConfig(format!("Command Code request: {message}"))
-}
-
 fn invalid_request(message: &str) -> UpstreamError {
     UpstreamError::InvalidRequest(format!("Command Code: {message}"))
 }
@@ -80,11 +76,11 @@ fn text_blocks(value: &Value) -> String {
 fn workspace_config() -> Result<Value, UpstreamError> {
     let elapsed = web_time::SystemTime::now()
         .duration_since(web_time::UNIX_EPOCH)
-        .map_err(|e| invalid(&format!("invalid system clock: {e}")))?;
+        .map_err(|e| UpstreamError::Host(format!("Command Code: invalid system clock: {e}")))?;
     let seconds =
-        i64::try_from(elapsed.as_secs()).map_err(|_| invalid("system clock is out of range"))?;
+        i64::try_from(elapsed.as_secs()).map_err(|_| UpstreamError::Host("Command Code: system clock is out of range".into()))?;
     let date = time::OffsetDateTime::from_unix_timestamp(seconds)
-        .map_err(|e| invalid(&format!("invalid system date: {e}")))?
+        .map_err(|e| UpstreamError::Host(format!("Command Code: invalid system date: {e}")))?
         .date()
         .to_string();
     Ok(json!({
@@ -262,7 +258,7 @@ pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, 
 /// A session for callers without a CLI session id; never share unrelated turns.
 pub(super) fn new_id() -> Result<String, UpstreamError> {
     let mut bytes = [0u8; 16];
-    getrandom::fill(&mut bytes).map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;
+    getrandom::fill(&mut bytes).map_err(|e| UpstreamError::Host(e.to_string()))?;
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     let text = bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();

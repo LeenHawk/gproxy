@@ -67,7 +67,7 @@ pub(super) fn unix_now_ms() -> i64 {
 fn device_id() -> Result<String, UpstreamError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|error| {
-        UpstreamError::InvalidConfig(format!(
+        UpstreamError::Host(format!(
             "operating-system randomness is unavailable: {error}"
         ))
     })?;

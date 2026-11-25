@@ -81,7 +81,7 @@ fn path(operation: OperationKey) -> Result<&'static str, UpstreamError> {
 fn minted_session() -> Result<String, UpstreamError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|error| {
-        UpstreamError::InvalidConfig(format!(
+        UpstreamError::Host(format!(
             "operating-system randomness is unavailable: {error}"
         ))
     })?;

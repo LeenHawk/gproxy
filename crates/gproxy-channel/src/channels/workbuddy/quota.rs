@@ -80,9 +80,9 @@ fn format_time(seconds: i64) -> Option<String> {
 
 fn personal_body(now_secs: i64) -> Result<Vec<u8>, UpstreamError> {
     let begin = format_time(now_secs)
-        .ok_or_else(|| UpstreamError::InvalidConfig("the system clock is unusable".into()))?;
+        .ok_or_else(|| UpstreamError::Host("the system clock is unusable".into()))?;
     let end = format_time(now_secs.saturating_add(PACKAGE_WINDOW_SECS))
-        .ok_or_else(|| UpstreamError::InvalidConfig("the system clock is unusable".into()))?;
+        .ok_or_else(|| UpstreamError::Host("the system clock is unusable".into()))?;
     Ok(json!({
         "PageNumber": 1,
         "PageSize": 100,

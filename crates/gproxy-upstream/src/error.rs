@@ -39,7 +39,10 @@ pub enum UpstreamError {
     /// to that instance; nothing about the credential is wrong.
     #[error("continuation is held by instance `{instance_id}`")]
     ContinuationElsewhere { instance_id: String },
-    /// The host's caller facts (`ServiceCaller`) could not be read or written.
+    /// Something the host environment provides failed: the caller facts
+    /// (`ServiceCaller`) could not be read or written, or the system clock or
+    /// operating-system randomness is unusable. The instance is at fault, not
+    /// the request, the configuration or the upstream.
     #[error("host service failed: {0}")]
     Host(String),
     #[error(transparent)]

@@ -37,7 +37,7 @@ pub(super) async fn call(
     let body = body.to_string();
     let seconds = web_time::SystemTime::now()
         .duration_since(web_time::UNIX_EPOCH)
-        .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?
+        .map_err(|e| UpstreamError::Host(e.to_string()))?
         .as_secs();
     let date = time::OffsetDateTime::from_unix_timestamp(seconds as i64)
         .map_err(|e| UpstreamError::InvalidConfig(e.to_string()))?;

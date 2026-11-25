@@ -511,5 +511,5 @@ fn now_secs() -> Result<u64, UpstreamError> {
     web_time::SystemTime::now()
         .duration_since(web_time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_secs())
-        .map_err(|_| UpstreamError::InvalidConfig("the system clock is before 1970".into()))
+        .map_err(|_| UpstreamError::Host("the system clock is before 1970".into()))
 }

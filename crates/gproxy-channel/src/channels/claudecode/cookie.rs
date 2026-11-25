@@ -387,7 +387,7 @@ fn pkce() -> Result<(String, String, String), UpstreamError> {
     let mut state = [0_u8; 24];
     getrandom::fill(&mut verifier)
         .and_then(|()| getrandom::fill(&mut state))
-        .map_err(|_| UpstreamError::InvalidConfig("secure randomness unavailable".into()))?;
+        .map_err(|_| UpstreamError::Host("secure randomness unavailable".into()))?;
     let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
     let verifier = engine.encode(verifier);
     let challenge = engine.encode(Sha256::digest(verifier.as_bytes()));

@@ -140,7 +140,7 @@ fn expired(message: impl Into<String>) -> UpstreamError {
 fn now_ms() -> Result<i64, UpstreamError> {
     let millis = web_time::SystemTime::now()
         .duration_since(web_time::UNIX_EPOCH)
-        .map_err(|_| UpstreamError::InvalidConfig("system clock is before the Unix epoch".into()))?
+        .map_err(|_| UpstreamError::Host("system clock is before the Unix epoch".into()))?
         .as_millis();
     i64::try_from(millis)
         .map_err(|_| UpstreamError::InvalidConfig("Unix milliseconds overflow".into()))

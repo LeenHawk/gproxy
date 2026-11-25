@@ -362,7 +362,7 @@ impl OAuthAuthorizationCode for OAuth {
             let config = TraeConfig::from_view(context.provider)?;
             let mut bytes = [0; 32];
             getrandom::fill(&mut bytes)
-                .map_err(|_| UpstreamError::InvalidConfig("Trae: randomness unavailable".into()))?;
+                .map_err(|_| UpstreamError::Host("Trae: randomness unavailable".into()))?;
             let key = SigningKey::from_slice(&bytes).map_err(invalid)?;
             let id = random_hex::<16>()?;
             let machine = random_hex::<32>()?;

@@ -26,7 +26,7 @@ pub(super) fn uuid() -> Result<String, UpstreamError> {
 fn random() -> Result<[u8; 16], UpstreamError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|error| {
-        UpstreamError::InvalidConfig(format!(
+        UpstreamError::Host(format!(
             "operating-system randomness is unavailable: {error}"
         ))
     })?;

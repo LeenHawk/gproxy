@@ -318,13 +318,7 @@ impl OAuthAuthorizationCode for super::Kiro {
                 uri => uri,
             };
             let registration =
-                register_client(context.client, &region, redirect_uri, config.start_url())
-                    .await?
-                    .ok_or_else(|| {
-                        UpstreamError::InvalidConfig(
-                            "AWS OIDC did not register a client for this login".into(),
-                        )
-                    })?;
+                register_client(context.client, &region, redirect_uri, config.start_url()).await?;
             let mut provider_state = BTreeMap::new();
             provider_state.insert(CLIENT_ID.into(), Value::String(registration.id.clone()));
             provider_state.insert(CLIENT_SECRET.into(), Value::String(registration.secret));
@@ -421,16 +415,15 @@ impl OAuthAuthorizationCode for super::Kiro {
 }
 
 /// AWS OIDC `RegisterClient` (RFC 7591), as the Kiro CLI calls it before an
-/// Identity Center browser login (v3 `login.rs`). `None` means the portal
-/// refused — registration is disabled, or the issuer does not allow it — which
-/// is an answer rather than a failure, because the operator may have registered
-/// a client by hand.
+/// Identity Center browser login (v3 `login.rs`). A refusal (registration
+/// disabled, or the issuer does not allow it) comes back as the portal's own
+/// status and body.
 async fn register_client(
     client: &dyn OutboundClient,
     region: &str,
     redirect_uri: &str,
     start_url: &str,
-) -> Result<Option<Registration>, UpstreamError> {
+) -> Result<Registration, UpstreamError> {
     let body = json!({
         "clientName": REGISTRATION_CLIENT_NAME,
         "clientType": "public",
@@ -448,18 +441,21 @@ async fn register_client(
     )
     .await?;
     if !status.is_success() {
-        return Ok(None);
+        return Err(UpstreamError::UpstreamResponse {
+            status,
+            body: bytes,
+        });
     }
     let reply: RegisteredClient = serde_json::from_slice(&bytes)
         .map_err(|error| invalid_response(format!("client registration: {error}")))?;
-    Ok(Some(Registration {
+    Ok(Registration {
         id: required(reply.client_id, "clientId")?,
         secret: required(reply.client_secret, "clientSecret")?,
         expires_at_ms: reply
             .client_secret_expires_at
             .filter(|seconds| *seconds > 0)
             .map(|seconds| seconds.saturating_mul(1_000)),
-    }))
+    })
 }
 
 /// The pair `authorize` registered, as the login session parked it. Both halves

@@ -333,7 +333,7 @@ const SESSION_ID: &str = "-3750763034362895579";
 fn uuid() -> Result<String, UpstreamError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes)
-        .map_err(|_| UpstreamError::InvalidConfig("request id randomness failed".into()))?;
+        .map_err(|_| UpstreamError::Host("request id randomness failed".into()))?;
     Ok(format_uuid(bytes))
 }
 
