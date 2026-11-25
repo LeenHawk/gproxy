@@ -312,10 +312,10 @@ GPROXY распространяется по лицензии GNU Affero General
 
 ## Инструменты разработки
 
-<a href="https://jb.gg/OpenSource"><img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg" alt="JetBrains" height="32"></a>
-<a href="https://www.netlify.com"><img src="https://www.netlify.com/assets/badges/netlify-badge-color-accent.svg" alt="Deploys by Netlify" height="32"></a>
-<a href="https://neon.com/"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/neon-dark.svg"><img src=".github/readme/neon-light.svg" alt="Neon" height="32"></picture></a>
-<a href="https://www.fastly.com/"><img src=".github/readme/fastly.svg" alt="Fastly" height="32"></a>
+<a href="https://jb.gg/OpenSource"><img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg" alt="JetBrains" height="32"></a>&nbsp;
+<a href="https://www.netlify.com"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/netlify-dark.svg"><img src=".github/readme/netlify-light.svg" alt="Netlify" height="32"></picture></a>&nbsp;
+<a href="https://neon.com/"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/neon-dark.svg"><img src=".github/readme/neon-light.svg" alt="Neon" height="32"></picture></a>&nbsp;
+<a href="https://www.fastly.com/"><img src=".github/readme/fastly.svg" alt="Fastly" height="32"></a>&nbsp;
 <a href="https://www.vultr.com/"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/vultr-dark.svg"><img src=".github/readme/vultr-light.svg" alt="Vultr" height="32"></picture></a>
 
 ## История звёзд
