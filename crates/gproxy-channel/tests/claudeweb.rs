@@ -640,7 +640,7 @@ async fn tool_use_parks_the_turn_and_tool_result_resumes_it() {
         .await
         .expect_err("mixed continuations");
     assert!(
-        matches!(&error, UpstreamError::Transport(e) if e.kind() == CapabilityErrorKind::Invalid),
+        matches!(&error, UpstreamError::InvalidRequest(_)),
         "{error}"
     );
 }

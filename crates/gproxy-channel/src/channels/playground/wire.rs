@@ -43,7 +43,7 @@ fn field(array: &mut Vec<Value>, index: usize, value: &Value, name: &str) {
 }
 
 fn bad_request(message: &str) -> UpstreamError {
-    UpstreamError::InvalidConfig(format!("Playground request: {message}"))
+    UpstreamError::InvalidRequest(format!("Playground: {message}"))
 }
 
 fn base64(value: &Value) -> Result<Value, UpstreamError> {

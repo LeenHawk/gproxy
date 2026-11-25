@@ -341,8 +341,11 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                 return Err(CoreError::Cancelled);
             }
             Some(Err(error)) => {
-                let client_fault =
-                    matches!(error, gproxy_upstream::UpstreamError::InvalidConfig(_));
+                let client_fault = matches!(
+                    error,
+                    gproxy_upstream::UpstreamError::InvalidConfig(_)
+                        | gproxy_upstream::UpstreamError::InvalidRequest(_)
+                );
                 let outcome = AttemptOutcome::Failed(error);
                 funnel.trace(TraceEvent::AttemptFinished {
                     attempt: &attempt,

@@ -332,7 +332,6 @@ pub use usage::CACHE_CREATION_METRIC;
 
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireResponse,
-    capability::{CapabilityError, CapabilityErrorKind, CapabilityErrorStage},
     connection::{ByteStream, Bytes},
 };
 use http::{HeaderMap, HeaderValue, StatusCode, header};
@@ -351,11 +350,7 @@ use gproxy_upstream::{
 pub struct Devin;
 
 fn bad_request(message: impl Into<String>) -> UpstreamError {
-    UpstreamError::Transport(CapabilityError::new(
-        CapabilityErrorKind::Invalid,
-        CapabilityErrorStage::Start,
-        message,
-    ))
+    UpstreamError::InvalidRequest(message.into())
 }
 
 /// Unix seconds for the `created` field of a completion.

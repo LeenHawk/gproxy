@@ -103,6 +103,9 @@ impl From<UpstreamError> for Refusal {
             UpstreamError::InvalidConfig(_) => {
                 Self::new(StatusCode::INTERNAL_SERVER_ERROR, error.to_string())
             }
+            UpstreamError::InvalidRequest(_) => {
+                Self::new(StatusCode::BAD_REQUEST, error.to_string())
+            }
             UpstreamError::InvalidCredential | UpstreamError::RefreshRejected(_) => {
                 Self::new(StatusCode::SERVICE_UNAVAILABLE, error.to_string())
             }

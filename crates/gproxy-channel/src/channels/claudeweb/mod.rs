@@ -126,11 +126,7 @@ impl ClaudeWeb {
 }
 
 fn bad_request(message: impl Into<String>) -> UpstreamError {
-    UpstreamError::Transport(CapabilityError::new(
-        CapabilityErrorKind::Invalid,
-        CapabilityErrorStage::Start,
-        message,
-    ))
+    UpstreamError::InvalidRequest(message.into())
 }
 
 fn expired(message: impl Into<String>) -> UpstreamError {

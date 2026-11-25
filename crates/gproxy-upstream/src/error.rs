@@ -20,6 +20,11 @@ pub enum UpstreamError {
     WrongTransport(OperationKey),
     #[error("invalid channel configuration: {0}")]
     InvalidConfig(String),
+    /// The caller's request is something this channel cannot express
+    /// upstream, found before anything was sent. Answered as `400` with the
+    /// message intact; the credential and the upstream are not at fault.
+    #[error("invalid request: {0}")]
+    InvalidRequest(String),
     #[error("invalid credential")]
     InvalidCredential,
     /// The upstream definitively refused to refresh this credential

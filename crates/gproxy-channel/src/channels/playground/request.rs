@@ -43,14 +43,14 @@ fn require_gemini(
 fn model(path: &str) -> Result<String, UpstreamError> {
     let (_, model) = path
         .split_once("models/")
-        .ok_or_else(|| invalid("missing model in request path"))?;
+        .ok_or_else(|| UpstreamError::InvalidRequest("Playground: missing model in request path".into()))?;
     let model = model
         .split(':')
         .next()
         .unwrap_or_default()
         .trim_matches('/');
     if model.is_empty() {
-        return Err(invalid("empty model"));
+        return Err(UpstreamError::InvalidRequest("Playground: empty model".into()));
     }
     Ok(format!("models/{model}"))
 }

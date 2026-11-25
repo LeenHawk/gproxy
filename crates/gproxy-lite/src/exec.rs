@@ -129,7 +129,9 @@ fn capability(error: UpstreamError) -> CapabilityError {
                 error.to_string(),
             )
         }
-        UpstreamError::InvalidConfig(_) | UpstreamError::InvalidCredential => CapabilityError::new(
+        UpstreamError::InvalidConfig(_)
+        | UpstreamError::InvalidRequest(_)
+        | UpstreamError::InvalidCredential => CapabilityError::new(
             CapabilityErrorKind::Invalid,
             CapabilityErrorStage::Start,
             error.to_string(),

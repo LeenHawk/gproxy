@@ -155,7 +155,7 @@ fn channel_status(error: &gproxy_upstream::UpstreamError) -> u16 {
     use gproxy_upstream::UpstreamError as E;
     match error {
         E::UnsupportedService | E::UnsupportedOperation(_) | E::WrongTransport(_) => 501,
-        E::InvalidConfig(_) => 400,
+        E::InvalidConfig(_) | E::InvalidRequest(_) => 400,
         E::InvalidCredential | E::RefreshRejected(_) => 401,
         E::UpstreamResponse { status, .. } => status.as_u16(),
         E::ContinuationElsewhere { .. } => 421,
