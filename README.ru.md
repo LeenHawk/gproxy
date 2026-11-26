@@ -153,6 +153,15 @@ irm https://gproxy.leenhawk.com/install.ps1 | iex
 службу. Параметры смотрите в `--help`; например, `--edition headless`
 устанавливает сборку без веб-консоли.
 
+На macOS и Linux можно установить через [Homebrew](https://github.com/LeenHawk/homebrew-tap):
+
+```sh
+brew install leenhawk/tap/gproxy                  # или gproxy-headless
+brew install --cask leenhawk/tap/gproxy-desktop   # приложение, только macOS
+```
+
+`brew services start gproxy` запускает его в фоне.
+
 Пакеты можно скачать и вручную со страницы
 [Releases](https://github.com/LeenHawk/gproxy/releases/latest). В каждом выпуске
 есть:

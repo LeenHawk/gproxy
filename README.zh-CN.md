@@ -95,6 +95,15 @@ irm https://gproxy.leenhawk.com/install.ps1 | iex
 
 脚本会下载最新稳定版 CLI，询问数据目录、端口、管理员密码等几个问题，也可以顺便注册为后台服务。可用选项见 `--help`，例如 `--edition headless` 安装不带 Web 控制台的版本。中文环境默认从 CNB 镜像下载。
 
+macOS 和 Linux 也可以用 [Homebrew](https://github.com/LeenHawk/homebrew-tap) 安装：
+
+```sh
+brew install leenhawk/tap/gproxy                  # 或 gproxy-headless
+brew install --cask leenhawk/tap/gproxy-desktop   # 桌面应用，仅 macOS
+```
+
+`brew services start gproxy` 可在后台运行。
+
 也可以从 [Releases](https://github.com/LeenHawk/gproxy/releases/latest) 手动下载。每个版本包含三类安装包：
 
 - `gproxy-*`：内置 Web 控制台的 CLI；

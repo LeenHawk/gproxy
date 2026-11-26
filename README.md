@@ -150,6 +150,15 @@ directory, port, administrator password) and can register a background
 service. Run it with `--help` to see the options, for example `--edition
 headless` for a build without the web console.
 
+With [Homebrew](https://github.com/LeenHawk/homebrew-tap) on macOS or Linux:
+
+```sh
+brew install leenhawk/tap/gproxy                  # or gproxy-headless
+brew install --cask leenhawk/tap/gproxy-desktop   # desktop app, macOS only
+```
+
+`brew services start gproxy` runs it in the background.
+
 You can also download a package by hand from
 [Releases](https://github.com/LeenHawk/gproxy/releases/latest). Each release
 contains:
