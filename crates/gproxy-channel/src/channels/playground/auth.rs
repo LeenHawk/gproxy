@@ -478,15 +478,20 @@ impl CredentialRefresh for Playground {
             }
             let body: Value = serde_json::from_slice(&bytes)
                 .map_err(|_| request::invalid("invalid benefit tier response"))?;
-            let tier = body
-                .get(0)
-                .and_then(Value::as_u64)
-                .ok_or_else(|| request::invalid("missing benefit tier"))?;
+            // Free accounts answer `[]`, `[null]` or `[0]`, and the page then
+            // sends no tier header.
+            let tier = match body.get(0) {
+                None | Some(Value::Null) => 0,
+                Some(value) => value
+                    .as_u64()
+                    .ok_or_else(|| request::invalid("invalid benefit tier"))?,
+            };
             let (plan, header) = match tier {
-                1 => ("Pro", "TIER1"),
-                2 => ("Ultra", "TIER2"),
-                3 => ("Free", "TIER0"),
-                _ => ("Unknown", "BENEFIT_TIER_UNSPECIFIED"),
+                0 => ("Free", None),
+                1 => ("Pro", Some("TIER1")),
+                2 => ("Ultra", Some("TIER2")),
+                3 => ("Plus", Some("TIER0")),
+                _ => ("Unknown", None),
             };
             let secret = session.secret(context.credential.secret)?;
             let mut metadata = context
@@ -496,7 +501,10 @@ impl CredentialRefresh for Playground {
                 .cloned()
                 .unwrap_or_default();
             metadata.insert("plan".into(), plan.into());
-            metadata.insert("benefit_tier".into(), header.into());
+            match header {
+                Some(header) => metadata.insert("benefit_tier".into(), header.into()),
+                None => metadata.remove("benefit_tier"),
+            };
             Ok(CredentialUpdate {
                 secret,
                 metadata: Some(metadata.into()),
