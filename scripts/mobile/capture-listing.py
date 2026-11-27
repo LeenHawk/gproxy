@@ -20,11 +20,14 @@ ROOT = Path(__file__).resolve().parents[2]
 VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
 NOW = 1790928000000
 CAPABILITIES = dict(refresh=False, quotaQuery=False, quotaReset=False, services=False, websocket=False)
+CHANNELS = [("deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek-chat"),
+            ("glm", "GLM API / Z.ai", "https://open.bigmodel.cn", "glm-4.6"),
+            ("kimi", "Moonshot (Kimi)", "https://api.moonshot.cn", "kimi-k2")]
 LABELS = {
-    "en": ("Demo user", "Primary gateway", "Backup gateway", "Local models", "Demo credential"),
-    "zh-CN": ("演示用户", "研发网关", "备用线路", "本地模型", "演示凭据"),
-    "zh-TW": ("示範使用者", "研發閘道", "備用線路", "本機模型", "示範憑證"),
-    "ru": ("Демо-пользователь", "Основной шлюз", "Резервный шлюз", "Локальные модели", "Демо-учётные данные"),
+    "en": ("Demo user", "Demo credential"),
+    "zh-CN": ("演示用户", "演示凭据"),
+    "zh-TW": ("示範使用者", "示範憑證"),
+    "ru": ("Демо-пользователь", "Демо-учётные данные"),
 }
 
 
@@ -42,15 +45,12 @@ class Demonstration:
         labels = LABELS[language]
         self.user = dict(id="demo-user", name=labels[0], role="admin", hasPassword=True)
         self.scope = dict(kind="instance", id=None, name=None, organizationId=None, selector="instance", current=True)
-        self.providers = [dict(id=f"demo-provider-{i}", name=name, displayName=labels[i + 1],
-                               channel="openai", baseUrl=base, connectionProfileId=None, proxy=None,
+        self.providers = [dict(id=f"demo-provider-{i}", name=channel, displayName=display,
+                               channel=channel, baseUrl=base, connectionProfileId=None, proxy=None,
                                config={}, enabled=True, createdAtMs=NOW - 86400000)
-                          for i, (name, base) in enumerate([
-                              ("primary", "https://primary.example.invalid/v1"),
-                              ("backup", "https://backup.example.invalid/v1"),
-                              ("local", "http://127.0.0.1:11434/v1")])]
+                          for i, (channel, display, base, _) in enumerate(CHANNELS)]
         self.credentials = [dict(id=f"demo-credential-{i}", providerId=p["id"], organizationId=None,
-                                 teamId=None, userId=None, label=f"{labels[4]} {i + 1}", authKind="api_key",
+                                 teamId=None, userId=None, label=f"{labels[1]} {i + 1}", authKind="api_key",
                                  hasSecret=True, version=1, connectionProfileId=None, proxy=None, metadata={},
                                  expiresAtMs=None, status="active", statusReason=None, enabled=True)
                             for i, p in enumerate(self.providers)]
@@ -60,12 +60,12 @@ class Demonstration:
                            ("assistant-default", "weighted"), ("coding-balanced", "round_robin"),
                            ("local-chat", "failover")])]
         self.members = [dict(id=f"demo-member-{i}", routeId="demo-route-0", providerId=p["id"],
-                             upstreamModel="chat-model", tier=0 if i < 2 else 1,
+                             upstreamModel=CHANNELS[i][3], tier=0 if i < 2 else 1,
                              weight=[70, 30, 100][i], enabled=True)
                         for i, p in enumerate(self.providers)]
         self.models = [dict(id=f"demo-model-{i}", providerId="demo-provider-0", upstreamName=name,
                             modelId=None, metadata={}, enabled=True, hasPrice=False)
-                       for i, name in enumerate(["chat-model", "reasoning-model", "vision-model"])]
+                       for i, name in enumerate(["deepseek-chat", "deepseek-reasoner"])]
 
     def page(self, rows, query):
         for key in ("providerId", "routeId"):
@@ -103,8 +103,8 @@ class Demonstration:
                          modelPattern=None, unit="USD", used="2.40", limit="10", usedPercent="24",
                          startsAtMs=NOW - 28800000, resetsAtMs=NOW + 57600000)]
         if path == "/admin/api/channels":
-            return [dict(id="openai", displayName="OpenAI-compatible", loginModes=["api_key"],
-                         capabilities=CAPABILITIES, configKeys=[])]
+            return [dict(id=channel, displayName=display, loginModes=["api_key"],
+                         capabilities=CAPABILITIES, configKeys=[]) for channel, display, _, _ in CHANNELS]
         if path == "/admin/api/credentials/providers":
             return [dict(id=p["id"], name=p["name"], displayName=p["displayName"], channel=p["channel"],
                          enabled=p["enabled"], loginModes=["api_key"], capabilities=CAPABILITIES)
@@ -221,9 +221,9 @@ def main():
                     page.wait_for_timeout(4000)
                     mark("Manage providers and credentials you configure",
                          "统一管理自行配置的供应商和凭据")
-                    page.get_by_role("link", name=label(language, "nav.providers"), exact=True).click()
+                    page.goto(args.url + "/console/providers", wait_until="networkidle")
                     settled(page)
-                    page.get_by_role("link", name=LABELS[language][1], exact=False).first.click()
+                    page.get_by_role("link", name=CHANNELS[0][1], exact=False).first.click()
                     settled(page)
                     page.wait_for_timeout(5000)
                     mark("Manage the upstream models offered by each provider",
@@ -235,7 +235,7 @@ def main():
                          "配置模型路由目标、相对权重和故障切换层级")
                     page.goto(args.url + "/console/model-routes", wait_until="networkidle")
                     settled(page)
-                    page.get_by_role("button", name=label(language, "management.manage"), exact=True).first.click()
+                    page.get_by_role("button", name=label(language, "management.manage")).first.click()
                     page.get_by_role("dialog").wait_for()
                     page.wait_for_timeout(6000)
                     page.keyboard.press("Escape")
