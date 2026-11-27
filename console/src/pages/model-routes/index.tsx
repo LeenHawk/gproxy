@@ -1,36 +1,48 @@
-import { MemberForm } from "./member-form"
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { configFamily } from "@/api/config-family"
+import { Plus } from "lucide-react"
+import { directory } from "@/api/models"
 import { providers as providerFamily } from "@/api/configuration"
-import type { RouteDto, RouteWrite, RoutePatch, RouteMemberDto, RouteMemberWrite, RouteMemberPatch } from "@/generated/sdk"
-import { CollectionPage } from "@/pages/identity/collection"
-import { ManagementDialog } from "@/components/management-dialog"
-import { BoolCell } from "@/components/cells"
+import { readSettings, SETTINGS_ACCESS, SETTINGS_KEY } from "@/api/settings"
+import { useConsoleContext } from "@/capability/session"
+import { Page, PageHeader } from "@/components/page"
+import { EmptyNotice, QueryState } from "@/components/state"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { routeFamily, memberFamily } from "./families"
+import { RouteCard, type RouteContext } from "./route-card"
 
-const routes = configFamily<RouteDto, Partial<RouteWrite>, Partial<RoutePatch>>("/routes")
-const members = configFamily<RouteMemberDto, Partial<RouteMemberWrite>, Partial<RouteMemberPatch>>("/route-members")
+/** What a fresh settings row allows when the caller cannot read the settings. */
+const DEFAULT_ATTEMPTS = 6
+
 export function ModelRoutesPage() {
   const { t } = useTranslation()
-  const [selected, setSelected] = useState<RouteDto | null>(null)
-  return <><CollectionPage id="routes" family={routes} searchable rowId={row => row.id} rowLabel={row => row.name} onOpen={setSelected}
-    columns={[{ key: "name", header: t("modelRoutes.modelName"), cell: row => row.name }, { key: "strategy", cell: row => row.strategy }, { key: "sessionAffinity", cell: row => <BoolCell value={row.sessionAffinity} /> }, { key: "maxAttempts", cell: row => row.maxAttempts }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
-    fields={[{ name: "name", label: t("modelRoutes.modelName"), kind: "text", required: true }, { name: "strategy", kind: "select", choices: ["round_robin", "weighted", "failover"].map(value => ({ value, label: t(`values.${value}`) })) }, { name: "sessionAffinity", kind: "switch", defaultChecked: false }, { name: "maxAttempts", kind: "number" }, { name: "enabled", kind: "switch" }]}
-  />
-    {selected ? <RouteDetails route={selected} onClose={() => setSelected(null)} /> : null}
-  </>
-}
-function RouteDetails({ route, onClose }: { route: RouteDto; onClose: () => void }) {
-  return <ManagementDialog title={route.name} onClose={onClose}>
-    <CollectionPage renderForm={props => props.open ? <MemberForm original={props.original} onSubmit={props.onSubmit} onClose={() => props.onOpenChange(false)} pending={props.pending} error={props.error} /> : null} embedded id="route-members" family={members} filter={{ routeId: route.id }} create={body => members.create({ ...body, routeId: route.id })} rowId={row => row.id} rowLabel={row => row.upstreamModel}
-      columns={[{ key: "providerId", cell: row => <ProviderName id={row.providerId} /> }, { key: "upstreamModel", cell: row => row.upstreamModel }, { key: "tier", cell: row => row.tier }, { key: "weight", cell: row => row.weight }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
-      fields={[{ name: "providerId", kind: "select", required: true }, { name: "upstreamModel", kind: "text", required: true }, { name: "tier", kind: "number" }, { name: "weight", kind: "number" }, { name: "enabled", kind: "switch" }]}
-    />
-  </ManagementDialog>
-}
-
-function ProviderName({ id }: { id: string }) {
-  const provider = useQuery({ queryKey: ["admin", "/providers", "detail", id], queryFn: () => providerFamily.get(id) })
-  return provider.data?.name ?? id
+  const context = useConsoleContext()
+  const [search, setSearch] = useState("")
+  const [open, setOpen] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const routes = useQuery({ queryKey: ["admin", routeFamily.path, "all"], queryFn: () => directory(routeFamily) })
+  const members = useQuery({ queryKey: ["admin", memberFamily.path, "all"], queryFn: () => directory(memberFamily) })
+  const providers = useQuery({ queryKey: ["admin", providerFamily.path, "all"], queryFn: () => directory(providerFamily) })
+  const canSettings = context.has(SETTINGS_ACCESS)
+  const settings = useQuery({ queryKey: SETTINGS_KEY, queryFn: readSettings, enabled: canSettings })
+  const routeContext: RouteContext = {
+    providers: new Map((providers.data ?? []).map(provider => [provider.id, provider])),
+    attemptCeiling: settings.data?.instance.maxAttempts ?? DEFAULT_ATTEMPTS,
+  }
+  const needle = search.trim().toLowerCase()
+  const shown = (routes.data ?? []).filter(route => !needle || route.name.toLowerCase().includes(needle)).sort((a, b) => a.name.localeCompare(b.name))
+  const membersOf = (routeId: string) => (members.data ?? []).filter(member => member.routeId === routeId)
+  return <Page>
+    <PageHeader title={t("nav.routes")} actions={<Button size="sm" disabled={creating} onClick={() => { setCreating(true); setOpen(null) }}><Plus data-icon="inline-start" />{t("modelRoutes.newRoute")}</Button>} />
+    <Input className="max-w-xs" aria-label={t("actions.search")} placeholder={t("actions.search")} value={search} onChange={event => setSearch(event.target.value)} />
+    <QueryState isPending={routes.isPending || members.isPending || providers.isPending} error={routes.error ?? members.error ?? providers.error}>
+      <div className="flex flex-col gap-3">
+        {creating ? <RouteCard route={null} members={[]} context={routeContext} open onOpenChange={setCreating} /> : null}
+        {shown.map(route => <RouteCard key={route.id} route={route} members={membersOf(route.id)} context={routeContext} open={open === route.id} onOpenChange={next => setOpen(next ? route.id : null)} />)}
+        {!shown.length && !creating ? <EmptyNotice title={t(needle ? "state.emptyTitle" : "modelRoutes.empty")} /> : null}
+      </div>
+    </QueryState>
+  </Page>
 }
