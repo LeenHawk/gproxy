@@ -1,7 +1,7 @@
 //! Claude Code: a Claude.ai subscription used through the OAuth surface of
 //! `api.anthropic.com`, the way the Claude Code CLI uses it.
 //!
-//! Wire facts follow Claude Code 2.1.329 (release binary and native captures):
+//! Wire facts follow Claude Code 2.1.332 (release binary and native captures):
 //! PKCE authorization at `claude.com/cai/oauth/authorize`, token exchange and
 //! refresh at `platform.claude.com/v1/oauth/token` (JSON bodies), a cookie
 //! login that mints the same OAuth tokens through `claude.ai/api/bootstrap`
@@ -87,16 +87,16 @@ pub const OAUTH_BETA: &str = "oauth-2025-04-20";
 /// as for any client (`hygiene`).
 const MAIN_LOOP_BETAS: &str = "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,tool-provenance-2026-10-26";
 /// The Claude Code release used for request shaping and client identification.
-pub const CLI_VERSION: &str = "2.1.329";
-pub const CLI_USER_AGENT: &str = "claude-cli/2.1.329 (external, cli)";
+pub const CLI_VERSION: &str = "2.1.332";
+pub const CLI_USER_AGENT: &str = "claude-cli/2.1.332 (external, cli)";
 /// The `@anthropic-ai/claude-agent-sdk` release that bundles `CLI_VERSION`
-/// (npm 0.3.329 pins Claude Code 2.1.329). The SDK spawns that CLI with
+/// (npm 0.3.332 pins Claude Code 2.1.332). The SDK spawns that CLI with
 /// `CLAUDE_CODE_ENTRYPOINT=sdk-ts` and `CLAUDE_AGENT_SDK_VERSION` set.
-pub const AGENT_SDK_VERSION: &str = "0.3.329";
+pub const AGENT_SDK_VERSION: &str = "0.3.332";
 /// What the CLI's `wU` builds under the TypeScript Agent SDK.
-pub const AGENT_SDK_USER_AGENT: &str = "claude-cli/2.1.329 (external, sdk-ts, agent-sdk/0.3.329)";
+pub const AGENT_SDK_USER_AGENT: &str = "claude-cli/2.1.332 (external, sdk-ts, agent-sdk/0.3.332)";
 /// The profile and roles calls use the CLI's axios client with this agent.
-const PROFILE_USER_AGENT: &str = "claude-code/2.1.329";
+const PROFILE_USER_AGENT: &str = "claude-code/2.1.332";
 pub const ANTHROPIC_VERSION: &str = gproxy_protocol::claude::API_VERSION;
 /// The CLI posts to the token endpoint through axios (2.1.318 capture).
 const TOKEN_USER_AGENT: &str = "axios/1.15.2";
