@@ -559,12 +559,18 @@ fn the_envelope_carries_the_agent_fields_the_editor_sends() {
     assert_eq!(first["userAgent"], "antigravity");
     assert_eq!(first["requestType"], "agent");
     assert!(first["request"].get("safetySettings").is_none());
-    assert_eq!(first["request"]["sessionId"], "-3750763034362895579");
     // agent/<cascade>/<ms>/<trajectory>/<step>, the ids following the first
     // user text so every turn of a conversation shares them.
     let id = first["requestId"].as_str().unwrap();
     let parts: Vec<&str> = id.split('/').collect();
     assert_eq!(parts.len(), 5, "{id}");
+    // The signed FNV-1a 64 of the cascade id, as CLI 1.5.18 sends it.
+    let fnv = parts[1]
+        .bytes()
+        .fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+        });
+    assert_eq!(first["request"]["sessionId"], (fnv as i64).to_string());
     assert_eq!((parts[0], parts[4]), ("agent", "1"));
     let labels = &first["request"]["labels"];
     assert_eq!(labels["cascade_id"], parts[1]);

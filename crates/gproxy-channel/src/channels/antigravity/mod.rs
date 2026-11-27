@@ -1,7 +1,7 @@
 //! Antigravity: a Google account used against the Code Assist host the
 //! Antigravity editor's agent talks to, rather than a Gemini API key.
 //!
-//! The channel presents itself as the Antigravity IDE (2.7.0, the official
+//! The channel presents itself as the Antigravity IDE (2.9.0, the official
 //! Linux x64 build), whose traffic leaves from two places:
 //!
 //! - The Electron main process (`resources/app/out/main.js`) logs in with
@@ -17,7 +17,7 @@
 //!   and `internal/api/handlers/management/auth_files_provider_oauth.go`).
 //! - Since 2.6.0 the IDE ships no language server: its bundled `agy`
 //!   extension downloads the Antigravity CLI and runs it as
-//!   `antigravity --hub` (CLI 1.5.12, hub server 2.33.0), and that Go
+//!   `antigravity --hub` (CLI 1.5.18, hub server 2.35.2), and that Go
 //!   process makes the model calls: `POST /v1internal:generateContent`,
 //!   `:streamGenerateContent?alt=sse` and `:countTokens` carrying the Code
 //!   Assist envelope, the catalogue from `POST /v1internal:fetchAvailableModels`
@@ -57,21 +57,26 @@
 //! `user_prompt_id`. It names itself (`userAgent: "antigravity"`) and the
 //! kind of call (`requestType: "agent"`, `"image_gen"` for an image model).
 //! An agent call (captured from the hub and CLI 1.4.10 on 2026-10-29, and
-//! rechecked with CLI 1.5.12 on 2026-11-19) carries
+//! rechecked with CLI 1.5.12 on 2026-11-19 and against the CLI 1.5.18
+//! binary on 2026-11-27) carries
 //! `requestId: agent/<cascade>/<ms>/<trajectory>/<step>`, where the cascade
 //! and trajectory ids stay put across a conversation and the step is the
 //! number of `contents`; `request.labels` repeating those ids
 //! (`last_step_index` one less than the step, `request_id`
 //! `<trajectory>-<model turns so far>`) and saying whether the model is
-//! Claude or not Gemini; and `request.sessionId` `-3750763034362895579`,
-//! the signed FNV-1a 64 of the empty session string the hub hashes
-//! (`codeassistclient.BuildGenerateContentRequest`). Without the hub's
+//! Claude or not Gemini; and `request.sessionId`, the signed FNV-1a 64 of
+//! the conversation (cascade) id in decimal (CLI 1.5.18 `ccpa.BuildRequest`
+//! hashes `GenerateStreamRequest.ConversationID`; up to 1.5.12 it hashed an
+//! empty string, which gave the constant `-3750763034362895579`). Without the hub's
 //! conversation state, the cascade and trajectory ids are derived from the
 //! first user text, so every turn of a conversation shares them, and the
 //! `model_enum` label (the catalogue's internal model number) comes from a
 //! captured table (`MODEL_ENUMS`).
 //! Any other kind keeps `<kind>/<uuid>`, and an image call
-//! `image_gen/<ms>/<uuid>/12`. It sends no `safetySettings` and keeps
+//! `image_gen/<ms>/<uuid>/12`; neither gets a `sessionId` from the channel,
+//! because it has no conversation id for them (`ccpa.HashSessionID` returns
+//! nothing for an empty one, and the image call does not hash at all). It
+//! sends no `safetySettings` and keeps
 //! `toolConfig` inside `request`
 //! (`antigravity_executor_request.go::geminiToAntigravity`).
 
@@ -109,7 +114,7 @@ pub const DEFAULT_CLIENT_ID: &str =
     "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
 /// Shipped inside the tool, so an identifier rather than a secret.
 pub const DEFAULT_CLIENT_SECRET: &str = "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";
-/// GPROXY's fixed loopback callback; IDE 2.7.0 uses an ephemeral port.
+/// GPROXY's fixed loopback callback; IDE 2.9.0 uses an ephemeral port.
 pub const DEFAULT_REDIRECT_URI: &str = "http://localhost:51121/oauth-callback";
 /// The IDE's scope list, exactly (`main.js` `Ats=[…]`): the Gemini CLI's
 /// three plus `cclog` and `experimentsandconfigs`.
@@ -122,11 +127,11 @@ pub const OAUTH_SCOPE: &str = concat!(
 );
 
 /// The Antigravity IDE release this channel impersonates: `product.json`
-/// `"ideVersion": "2.7.0"` of the official Linux x64 build
-/// (`antigravity/stable/2.7.0-4507555968450560`).
+/// `"ideVersion": "2.9.0"` of the official Linux x64 build
+/// (`antigravity/stable/2.9.0-4671306730438656`).
 macro_rules! ide_version {
     () => {
-        "2.7.0"
+        "2.9.0"
     };
 }
 pub const IDE_VERSION: &str = ide_version!();
@@ -148,16 +153,19 @@ pub const EDITOR_USER_AGENT: &str = concat!(
     " linux/amd64 google-api-nodejs-client/10.3.0"
 );
 /// The user agent of the hub the IDE runs (`antigravity --hub`, CLI
-/// 1.5.12), which makes the catalogue, quota and generation calls
+/// 1.5.18), which makes the catalogue, quota and generation calls
 /// (`codeassistclient.UserAgent`): `%s/%s/%s (%s)` of the agent name
 /// (`antigravity`), the subclient type (`hub` under `--hub`, `cli`
-/// otherwise), the hub server's version (2.33.0; the CLI's own version under
+/// otherwise), the hub server's version (2.35.2; the CLI's own version under
 /// `cli`), and `aidev_client`, `os_type=<GOOS>`, `arch=<GOARCH>` and the
 /// build's `cl=<changelist>` joined by `; `. The hub's sign-in records no
 /// `auth_method` (the standalone CLI's adds `auth_method=consumer`). Captured
-/// from the Linux amd64 build of CLI 1.5.12 on 2026-11-19.
+/// from the Linux amd64 build of CLI 1.5.12 on 2026-11-19; the version and
+/// changelist come from the CLI 1.5.18 binary (2026-11-27): `main.hubVersion`
+/// reads the first entry of the embedded hub release list (2.35.2), and the
+/// build stamp is changelist 1030252320.
 pub const USER_AGENT: &str =
-    "antigravity/hub/2.33.0 (aidev_client; os_type=linux; arch=amd64; cl=1024904911)";
+    "antigravity/hub/2.35.2 (aidev_client; os_type=linux; arch=amd64; cl=1030252320)";
 
 /// Provider `config` JSON understood by this channel. Unknown keys ignored.
 #[derive(Debug, Deserialize)]
@@ -209,7 +217,7 @@ const CHANNEL_HEADERS: &[&str] = &[
     "x-goog-user-project",
 ];
 
-/// HTTP/1.1 with gzip: CLI 1.5.12 `newCloudCodeTransport` disables HTTP/2
+/// HTTP/1.1 with gzip: CLI 1.5.18 `newCloudCodeTransport` disables HTTP/2
 /// and strips `h2` from ALPN. The Go transport negotiates and decodes gzip; the
 /// downstream client's encoding preferences cannot describe this channel's
 /// parser. The captured CLI fingerprint is the public `antigravity` TLS
@@ -326,9 +334,17 @@ fn operation_path(operation: Operation) -> Result<&'static str, UpstreamError> {
     })
 }
 
-/// The hub's `request.sessionId`: the FNV-1a 64 offset basis as a signed
-/// integer, i.e. the hash of the empty session string it always has.
-const SESSION_ID: &str = "-3750763034362895579";
+/// The hub's `request.sessionId` for a conversation (CLI 1.5.18
+/// `ccpa.HashSessionID`): FNV-1a 64 of the conversation id, written as a
+/// signed decimal integer.
+fn session_id(conversation: &str) -> String {
+    let hash = conversation
+        .bytes()
+        .fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+        });
+    (hash as i64).to_string()
+}
 
 fn uuid() -> Result<String, UpstreamError> {
     let mut bytes = [0_u8; 16];
@@ -385,7 +401,8 @@ fn conversation_ids(request: &Value) -> Result<(String, String), UpstreamError> 
 /// production and `daily-` hosts), checked again on the `daily-` host on
 /// 2026-11-11 when the `gemini-4-carbon-*` models appeared. Hydrogen labels
 /// come from CLI 1.5.10 `geminimodels.Catalog`; Neon labels come from
-/// CLI 1.5.12, checked against its Model enum descriptor;
+/// CLI 1.5.12, checked against its Model enum descriptor (both unchanged in
+/// CLI 1.5.18);
 /// availability still comes only from the account catalogue. A model missing
 /// here gets no label.
 const MODEL_ENUMS: &[(&str, &str)] = &[
@@ -429,13 +446,13 @@ const MODEL_ENUMS: &[(&str, &str)] = &[
     ("gpt-oss-120b-medium", "MODEL_OPENAI_GPT_OSS_120B_MEDIUM"),
 ];
 
-/// The `requestId` and `request.labels` of an agent call, from the
-/// conversation so far.
+/// The `requestId`, `request.labels` and `request.sessionId` of an agent
+/// call, from the conversation so far.
 fn agent_labels(
     request: &Value,
     model: &str,
     ms: i64,
-) -> Result<(String, serde_json::Map<String, Value>), UpstreamError> {
+) -> Result<(String, serde_json::Map<String, Value>, String), UpstreamError> {
     let (cascade, trajectory) = conversation_ids(request)?;
     let contents = request
         .get("contents")
@@ -481,7 +498,11 @@ fn agent_labels(
     ] {
         labels.insert(name.into(), Value::from(value));
     }
-    Ok((format!("agent/{cascade}/{ms}/{trajectory}/{step}"), labels))
+    Ok((
+        format!("agent/{cascade}/{ms}/{trajectory}/{step}"),
+        labels,
+        session_id(&cascade),
+    ))
 }
 
 /// The envelope fields the hub sends in place of the Gemini CLI's; a value
@@ -500,14 +521,14 @@ fn agent_envelope(envelope: &mut Value, model: &str) -> Result<(), UpstreamError
         .map(str::to_owned)
         .unwrap_or_else(|| if image { "image_gen" } else { "agent" }.to_owned());
     let ms = code_assist::unix_now_ms();
-    let (request_id, labels) = match kind.as_str() {
-        "image_gen" => (format!("image_gen/{ms}/{}/12", uuid()?), None),
+    let (request_id, labels, session) = match kind.as_str() {
+        "image_gen" => (format!("image_gen/{ms}/{}/12", uuid()?), None, None),
         "agent" => {
             let request = object.get("request").unwrap_or(&Value::Null);
-            let (id, labels) = agent_labels(request, model, ms)?;
-            (id, Some(labels))
+            let (id, labels, session) = agent_labels(request, model, ms)?;
+            (id, Some(labels), Some(session))
         }
-        other => (format!("{other}/{}", uuid()?), None),
+        other => (format!("{other}/{}", uuid()?), None, None),
     };
     object.insert("requestType".into(), Value::from(kind));
     object
@@ -529,8 +550,8 @@ fn agent_envelope(envelope: &mut Value, model: &str) -> Result<(), UpstreamError
         .get("sessionId")
         .and_then(Value::as_str)
         .is_some_and(|id| !id.trim().is_empty());
-    if !named {
-        request.insert("sessionId".into(), Value::from(SESSION_ID));
+    if !named && let Some(session) = session {
+        request.insert("sessionId".into(), Value::from(session));
     }
     Ok(())
 }

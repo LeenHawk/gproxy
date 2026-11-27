@@ -544,6 +544,8 @@ fn tls_presets() -> Vec<TlsPresetDto> {
             // extension, so this is the supported subset, not an exact copy.
             // `newCloudCodeTransport` now disables HTTP/2 and strips `h2`
             // from ALPN; telemetry still uses Go's separate HTTP/2 transport.
+            // CLI 1.5.18 (hub 2.35.2) has the same transport code; only the
+            // user agent changed.
             emulation: json!({
                 "kind": "custom",
                 "alpn": ["http1"],
@@ -574,7 +576,7 @@ fn tls_presets() -> Vec<TlsPresetDto> {
                 "psk_dhe_ke": false,
                 "headers": [[
                     "user-agent",
-                    "antigravity/hub/2.33.0 (aidev_client; os_type=linux; arch=amd64; cl=1024904911)"
+                    "antigravity/hub/2.35.2 (aidev_client; os_type=linux; arch=amd64; cl=1030252320)"
                 ]],
             }),
         },
