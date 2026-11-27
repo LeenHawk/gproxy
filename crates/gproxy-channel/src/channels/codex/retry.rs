@@ -13,8 +13,9 @@ fn eligible(status: u16, error: &Value) -> bool {
     if status == 503 {
         return code == Some("server_is_overloaded");
     }
-    // api_bridge.rs gives these 429s their own terminal errors. All other
-    // 429s become RetryLimit, including an empty or non-JSON response.
+    // api_bridge.rs and error.rs::parse_terminal_provider_error give these
+    // 429s their own terminal errors. All other 429s become RetryLimit,
+    // including an empty or non-JSON response.
     status == 429
         && !matches!(
             error["type"].as_str(),
@@ -28,6 +29,7 @@ fn eligible(status: u16, error: &Value) -> bool {
                     | "flex_unavailable"
                     | "insufficient_quota"
                     | "credit_balance_exhausted"
+                    | "api_key_spend_limit_exceeded"
                     | "organization_spend_limit_exceeded"
                     | "project_spend_limit_exceeded"
                     | "organization_usage_limit_exceeded"
@@ -87,6 +89,19 @@ pub(super) fn event(data: &[u8], fallback: &str) -> Option<String> {
             if value.pointer("/response/error/code")?.as_str()? == "server_is_overloaded" =>
         {
             "/response/error"
+        }
+        // Since 0.172.0 a statusless overload event is terminal
+        // (`sse/responses_error.rs::parse_error_event`), advised by
+        // error.headers, then the event's own headers.
+        "error"
+            if value.get("status").is_none()
+                && value.get("status_code").is_none()
+                && value.pointer("/error/code")?.as_str()? == "server_is_overloaded" =>
+        {
+            if has_advice(&value["headers"]) {
+                return None;
+            }
+            "/error"
         }
         "error" => {
             let status = value
