@@ -482,8 +482,10 @@ fn build_realm(ctx: &Ctx<'_>, is_top: bool) -> Result<(), WaaError> {
 }
 
 fn flush_micro(ctx: &Ctx<'_>) {
+    // `drain_jobs` stops at a job that throws; calling it again carries on with
+    // the rest of the queue, the way a browser's microtask checkpoint does.
     for _ in 0..200_000 {
-        if !ctx.execute_pending_job() {
+        if ctx.drain_jobs().is_ok() {
             break;
         }
     }
