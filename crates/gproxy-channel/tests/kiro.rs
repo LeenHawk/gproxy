@@ -1193,5 +1193,10 @@ fn the_descriptor_names_both_ways_in_and_the_keys_a_form_needs() {
 
 #[test]
 fn the_kiro_fingerprint_is_opt_in() {
-    assert!(Kiro.default_connection().is_none());
+    let connection = Kiro.default_connection().expect("a default client");
+    assert!(
+        connection.emulation.is_none(),
+        "the TLS preset stays opt-in"
+    );
+    assert!(connection.gzip && !connection.brotli && !connection.zstd && !connection.deflate);
 }

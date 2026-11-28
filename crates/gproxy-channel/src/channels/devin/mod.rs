@@ -45,10 +45,10 @@
 //! `content-type: application/connect+proto`, `connect-protocol-version: 1`,
 //! `accept: */*` and a fresh `sentry-trace`, and no `user-agent`: the header
 //! set Devin CLI 3000.15.14 sends (captured 2026-11-28 against a local
-//! server). The CLI also sends `accept-encoding: gzip`, because its HTTP
-//! client decompresses; the host client here does not by default, so that
-//! header is left out. The reference's `connect-es/2.0.0` banner was its own
-//! JavaScript client's. An envelope is
+//! server). The CLI also sends `accept-encoding: gzip` because its HTTP
+//! client decompresses; this channel's default connection turns gzip decoding
+//! on, which makes the client send the same header and decode the reply. The
+//! reference's `connect-es/2.0.0` banner was its own JavaScript client's. An envelope is
 //! `[flags][big-endian length][payload]`, flag `0x01` gzip and `0x02`
 //! end-of-stream, whose payload is a JSON trailer: `{}` for success,
 //! `{"error":{…}}` for failure. The request frame goes out **uncompressed** —
@@ -499,6 +499,17 @@ fn deliver(error: UpstreamError) -> Result<WireResponse<HttpBody>, UpstreamError
 impl UpstreamKind for Devin {
     fn id(&self) -> &'static str {
         ID
+    }
+
+    /// Devin CLI 3000.15.14's reqwest client decodes gzip, so its calls carry
+    /// `accept-encoding: gzip` (captured 2026-11-28). The default client does
+    /// the same and decodes what comes back; a connection profile an operator
+    /// selects replaces this default.
+    fn default_connection(&self) -> Option<gproxy_client::ConnectionConfig> {
+        Some(gproxy_client::ConnectionConfig {
+            gzip: true,
+            ..gproxy_client::ConnectionConfig::default()
+        })
     }
 
     fn oauth_authorization_code(&self) -> Option<&dyn gproxy_upstream::OAuthAuthorizationCode> {

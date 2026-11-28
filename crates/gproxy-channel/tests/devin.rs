@@ -1625,10 +1625,12 @@ fn the_descriptor_declares_oauth_and_a_quota_query() {
         "CompletionConfig #3 is the newline cap the CLI sends"
     );
     assert!(descriptor.config_key("allowed_headers").is_some());
+    let connection = Devin.default_connection().expect("a default client");
     assert!(
-        Devin.default_connection().is_none(),
-        "connect-es over plain HTTPS has no fingerprint to reproduce"
+        connection.gzip && !connection.brotli && !connection.zstd && !connection.deflate,
+        "the CLI decodes gzip only, so it advertises gzip only"
     );
+    assert!(connection.emulation.is_none());
     assert_eq!(
         Devin.native_dialects(
             provider(&Value::Null),

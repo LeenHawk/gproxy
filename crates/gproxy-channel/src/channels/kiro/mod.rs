@@ -549,10 +549,16 @@ impl UpstreamKind for Kiro {
         ID
     }
 
-    /// No client fingerprint by default; the CLI's captured TLS identity is
-    /// a public TLS preset an operator selects in a connection profile.
+    /// The CLI's reqwest client decodes gzip, so every call it makes says
+    /// `accept-encoding: gzip` (`accepts: Accepts { gzip: true }` in the 3.7.0
+    /// trace). The default client does the same and nothing more; the CLI's
+    /// TLS identity stays a public TLS preset an operator selects in a
+    /// connection profile, which replaces this default.
     fn default_connection(&self) -> Option<ConnectionConfig> {
-        None
+        Some(ConnectionConfig {
+            gzip: true,
+            ..ConnectionConfig::default()
+        })
     }
 
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
