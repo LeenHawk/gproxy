@@ -9,7 +9,8 @@
 //!   `runtime.{region}.kiro.dev` serves
 //!   `AmazonCodeWhispererStreamingService.GenerateAssistantResponse` and
 //!   `management.{region}.kiro.dev` serves
-//!   `AmazonCodeWhispererService.ListAvailableModels` and `GetUsageLimits`.
+//!   `KiroControlPlaneBearerService.ListAvailableModels` and
+//!   `AmazonCodeWhispererService.GetUsageLimits`.
 //!   The operation is named in `x-amz-target`, never in the path, and every
 //!   request carries the AWS SDK's own `user-agent`, `x-amz-user-agent`,
 //!   `amz-sdk-request` and `amz-sdk-invocation-id`.
@@ -84,8 +85,13 @@ const UA_MANAGEMENT: &str = "aws-sdk-rust/1.6.0 ua/2.1 api/codewhispererruntime/
 /// metrics (`m/F`, adaptive retry) there and leaves out `md/appVersion`.
 const AMZ_UA_RUNTIME: &str = "aws-sdk-rust/1.6.0 ua/2.1 api/codewhispererstreaming/0.1.19636 os/linux lang/rust/1.94.1 m/F app/AmazonQ-For-CLI";
 const AMZ_UA_MANAGEMENT: &str = "aws-sdk-rust/1.6.0 ua/2.1 api/codewhispererruntime/0.1.19636 os/linux lang/rust/1.94.1 m/F app/AmazonQ-For-CLI";
+/// The control-plane client's pair; its paginator adds the `C` metric.
+const UA_CONTROL_PLANE: &str = "aws-sdk-rust/1.6.0 ua/2.1 api/kirocontrolplanebearer/0.1.0 os/linux lang/rust/1.94.1 md/appVersion-3.7.0 app/AmazonQ-For-CLI";
+const AMZ_UA_CONTROL_PLANE: &str = "aws-sdk-rust/1.6.0 ua/2.1 api/kirocontrolplanebearer/0.1.0 os/linux lang/rust/1.94.1 m/F,C app/AmazonQ-For-CLI";
 const TARGET_GENERATE: &str = "AmazonCodeWhispererStreamingService.GenerateAssistantResponse";
-const TARGET_LIST_MODELS: &str = "AmazonCodeWhispererService.ListAvailableModels";
+/// kiro-cli 3.7.0 lists models through the Kiro control plane, on the same
+/// management host; the CodeWhisperer operation of that name is gone from it.
+const TARGET_LIST_MODELS: &str = "KiroControlPlaneBearerService.ListAvailableModels";
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Kiro;
@@ -123,16 +129,18 @@ impl Target {
     }
 
     fn user_agent(self) -> &'static str {
-        match self.plane() {
-            Plane::Runtime => UA_RUNTIME,
-            Plane::Management => UA_MANAGEMENT,
+        match self {
+            Self::Generate => UA_RUNTIME,
+            Self::ListModels => UA_CONTROL_PLANE,
+            Self::UsageLimits => UA_MANAGEMENT,
         }
     }
 
     fn amz_user_agent(self) -> &'static str {
-        match self.plane() {
-            Plane::Runtime => AMZ_UA_RUNTIME,
-            Plane::Management => AMZ_UA_MANAGEMENT,
+        match self {
+            Self::Generate => AMZ_UA_RUNTIME,
+            Self::ListModels => AMZ_UA_CONTROL_PLANE,
+            Self::UsageLimits => AMZ_UA_MANAGEMENT,
         }
     }
 }

@@ -1,6 +1,6 @@
 //! The model catalogue, as an OpenAI list.
 //!
-//! `AmazonCodeWhispererService.ListAvailableModels` answers `{models: [...]}`
+//! `KiroControlPlaneBearerService.ListAvailableModels` answers `{models: [...]}`
 //! where an entry is either a bare id or an object naming it under `modelId`.
 //! The channel declares `Dialect::OpenAi` for `ListModels`, so the reply is
 //! rewritten into `{object: "list", data: [...]}` before the host sees it

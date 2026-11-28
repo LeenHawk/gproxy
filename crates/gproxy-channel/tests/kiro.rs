@@ -279,7 +279,7 @@ fn a_region_moves_both_planes_and_a_base_url_replaces_the_runtime_one() {
     );
     assert_eq!(
         catalogue.headers()["x-amz-target"],
-        "AmazonCodeWhispererService.ListAvailableModels"
+        "KiroControlPlaneBearerService.ListAvailableModels"
     );
 
     let proxied = prepare(
