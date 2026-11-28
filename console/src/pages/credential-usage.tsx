@@ -2,15 +2,18 @@
 //!
 //! One read (`GET /admin/api/credentials/usage`) carries the credentials and
 //! their open cycles, so the page costs the same with five credentials or five
-//! hundred. Nothing here asks the upstream: the figures are the last readings
-//! this instance recorded. A live probe stays in the credential's own dialog,
-//! which a row opens.
+//! hundred. The figures are the last readings this instance recorded; a row's
+//! refresh button probes that one credential upstream (the probe persists its
+//! cycles) and then re-reads the page. There is no probe-everything button on
+//! purpose: it would fire every account's quota request in the same second.
 
 import { useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
-import { credentialDirectory, credentialUsage } from "@/api/credentials"
+import { LoaderCircle, RefreshCw } from "lucide-react"
+import { toast } from "sonner"
+import { credentialDirectory, credentialUsage, probeQuota } from "@/api/credentials"
 import type { CredentialCycleDto, CredentialDto, CredentialUsageDto } from "@/generated/sdk"
 import type { CredentialProviderDto } from "@/generated/app"
 import { Page, PageHeader } from "@/components/page"
@@ -79,8 +82,19 @@ function providerName(provider: CredentialProviderDto | undefined, id: string) {
 
 function CredentialRow({ row, provider, onOpen }: { row: CredentialUsageDto; provider?: CredentialProviderDto; onOpen?: () => void }) {
   const { t, i18n } = useTranslation()
+  const client = useQueryClient()
   const { credential, cycles } = row
   const label = credential.label ?? credential.id
+  const probe = useMutation({
+    mutationFn: () => probeQuota(credential.id),
+    onError: (error: Error) => toast.error(`${label}: ${error.message}`),
+    onSettled: () => Promise.all([
+      client.invalidateQueries({ queryKey: ["admin", "/credentials", "usage"] }),
+      client.invalidateQueries({ queryKey: ["credential-quota", credential.id] }),
+      client.invalidateQueries({ queryKey: ["credential-quota-observations", credential.id] }),
+    ]),
+  })
+  const probeable = !!provider?.capabilities.quotaQuery && provider.enabled && credential.enabled && credential.status !== "dead"
   const moment = new Intl.DateTimeFormat(i18n.language, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
   return <li className="grid gap-2 px-3 py-2.5 md:grid-cols-[minmax(10rem,16rem)_minmax(0,1fr)] md:items-start">
     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -88,6 +102,9 @@ function CredentialRow({ row, provider, onOpen }: { row: CredentialUsageDto; pro
         : <span className="min-w-0 font-medium wrap-anywhere">{label}</span>}
       {credential.status !== "active" ? <Badge variant={credential.status === "dead" ? "destructive" : "warning"}>{t(`values.${credential.status}`, { defaultValue: credential.status })}</Badge> : null}
       {!credential.enabled ? <Badge variant="outline">{t("management.disabled")}</Badge> : null}
+      {probeable ? <Button variant="ghost" size="icon-sm" className="ml-auto" disabled={probe.isPending} title={t("management.probe")} aria-label={`${t("management.probe")} · ${label}`} onClick={() => probe.mutate()}>
+        {probe.isPending ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
+      </Button> : null}
     </div>
     {cycles.length ? <ul className="flex flex-col gap-1.5">
       {cycles.map(cycle => {
