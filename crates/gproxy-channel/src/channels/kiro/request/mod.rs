@@ -8,7 +8,10 @@
 //! turn and tool results attach to the following user turn.
 
 mod content;
+mod reasoning;
 mod tools;
+
+pub(super) use reasoning::{REDACTED as REASONING_REDACTED, SIGNED as REASONING_SIGNED};
 
 use gproxy_protocol::connection::Bytes;
 use gproxy_upstream::UpstreamError;
@@ -33,6 +36,9 @@ pub(super) fn build(body: &[u8], conversation_id: &str) -> Result<Bytes, Upstrea
     if let Some(config) = inference_config(&value) {
         output["inferenceConfig"] = config;
     }
+    if let Some(fields) = reasoning::model_fields(&value, &model) {
+        output["additionalModelRequestFields"] = fields;
+    }
     Ok(Bytes::from(output.to_string()))
 }
 
@@ -53,11 +59,27 @@ fn conversation_state(
         }
         Value::Array(items) => {
             let mut results = Vec::new();
+            // Signed reasoning waiting for the assistant turn it belongs to.
+            let mut reasoning = None;
             for item in items {
                 match item.get("type").and_then(Value::as_str) {
+                    Some("reasoning") => {
+                        let Some(content) = reasoning::history(item) else {
+                            continue;
+                        };
+                        // Responses puts reasoning before the turn it led to;
+                        // this channel's own output lists it after the message.
+                        // Pending tool results mean a new turn has begun.
+                        let mut pending = Some(content);
+                        if !results.is_empty() || !attach_reasoning(&mut messages, &mut pending) {
+                            reasoning = pending;
+                        }
+                        continue;
+                    }
                     Some("function_call") => {
                         tools::flush_results(&mut messages, &mut results, model);
                         tools::append_call(&mut messages, item)?;
+                        attach_reasoning(&mut messages, &mut reasoning);
                         continue;
                     }
                     Some("function_call_output") => {
@@ -74,6 +96,8 @@ fn conversation_state(
                 }
                 match role {
                     "user" => {
+                        // Reasoning no assistant turn claimed has nothing to replay with.
+                        reasoning = None;
                         content::push_system(&mut messages, system.take().as_deref(), model);
                         let mut message = content::user(&text, model, images);
                         tools::attach_results(&mut message, std::mem::take(&mut results));
@@ -82,6 +106,7 @@ fn conversation_state(
                     "assistant" => {
                         tools::flush_results(&mut messages, &mut results, model);
                         messages.push(content::assistant(text));
+                        attach_reasoning(&mut messages, &mut reasoning);
                     }
                     other => return Err(invalid(format!("Kiro has no role `{other}`"))),
                 }
@@ -110,6 +135,24 @@ fn conversation_state(
         "chatTriggerType": "MANUAL",
         "agentTaskType": "vibe",
     }))
+}
+
+/// Give the last turn the pending reasoning if it is an assistant turn that
+/// has none yet; true when it was taken.
+fn attach_reasoning(messages: &mut [Value], reasoning: &mut Option<Value>) -> bool {
+    let Some(turn) = messages
+        .last_mut()
+        .and_then(|message| message.get_mut("assistantResponseMessage"))
+        .and_then(Value::as_object_mut)
+        .filter(|turn| !turn.contains_key("reasoningContent"))
+    else {
+        return false;
+    };
+    let Some(content) = reasoning.take() else {
+        return false;
+    };
+    turn.insert("reasoningContent".into(), content);
+    true
 }
 
 /// The three sampling fields the envelope has a place for, under AWS's names.

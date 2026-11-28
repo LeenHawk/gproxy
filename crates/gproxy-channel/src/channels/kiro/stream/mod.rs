@@ -29,6 +29,9 @@ pub(super) struct Translator {
     model: String,
     content: String,
     reasoning: String,
+    /// What replays the reasoning next turn: `kiro:<signature>` or
+    /// `kiro-redacted:<data>` (see `request::reasoning`).
+    reasoning_handle: Option<String>,
     last_content: String,
     last_reasoning: String,
     usage: Option<Value>,
@@ -51,6 +54,7 @@ impl Translator {
             model: model.to_owned(),
             content: String::new(),
             reasoning: String::new(),
+            reasoning_handle: None,
             last_content: String::new(),
             last_reasoning: String::new(),
             usage: None,
@@ -123,14 +127,28 @@ impl Translator {
                 self.text(text, out);
             }
             "reasoningContentEvent" => {
-                let Some(text) = payload
+                let field = |name: &str| {
+                    payload
+                        .get(name)
+                        .and_then(Value::as_str)
+                        .filter(|value| !value.is_empty())
+                };
+                if let Some(text) = payload
                     .get("text")
                     .or_else(|| payload.get("content"))
                     .and_then(Value::as_str)
-                else {
-                    return Ok(());
-                };
-                self.thinking(text, out);
+                {
+                    self.thinking(text, out);
+                }
+                // A redacted blob stands in for text; a signature covers the
+                // text so far. Either is what replays this reasoning.
+                if let Some(data) = field("redactedContent") {
+                    self.open_reasoning(out);
+                    self.reasoning_handle = Some(format!("{}{data}", super::request::REASONING_REDACTED));
+                } else if let Some(signature) = field("signature") {
+                    self.reasoning_handle =
+                        Some(format!("{}{signature}", super::request::REASONING_SIGNED));
+                }
             }
             "metadataEvent" => {
                 if let Some(reported) = payload.get("tokenUsage").and_then(usage::response_usage) {
@@ -217,17 +235,7 @@ impl Translator {
         if delta.is_empty() {
             return;
         }
-        self.ensure_started(out);
-        if !self.reasoning_started {
-            self.reasoning_started = true;
-            let sequence = self.take();
-            let item = sse::reasoning(&self.reasoning_id, "", "in_progress");
-            self.emit(
-                out,
-                &json!({"type": "response.output_item.added", "sequence_number": sequence,
-                        "output_index": 1, "item": item}),
-            );
-        }
+        self.open_reasoning(out);
         self.reasoning.push_str(&delta);
         let sequence = self.take();
         let item_id = self.reasoning_id.clone();
@@ -235,6 +243,21 @@ impl Translator {
             out,
             &json!({"type": "response.reasoning_text.delta", "sequence_number": sequence,
                     "output_index": 1, "item_id": item_id, "content_index": 0, "delta": delta}),
+        );
+    }
+
+    fn open_reasoning(&mut self, out: &mut Vec<u8>) {
+        self.ensure_started(out);
+        if self.reasoning_started {
+            return;
+        }
+        self.reasoning_started = true;
+        let sequence = self.take();
+        let item = sse::reasoning(&self.reasoning_id, "", "in_progress", None);
+        self.emit(
+            out,
+            &json!({"type": "response.output_item.added", "sequence_number": sequence,
+                    "output_index": 1, "item": item}),
         );
     }
 
@@ -291,7 +314,12 @@ impl Translator {
                         "output_index": 1, "item_id": reasoning_id, "content_index": 0,
                         "text": reasoning}),
             );
-            let item = sse::reasoning(&reasoning_id, &reasoning, "completed");
+            let item = sse::reasoning(
+                &reasoning_id,
+                &reasoning,
+                "completed",
+                self.reasoning_handle.as_deref(),
+            );
             self.emit(
                 &mut out,
                 &json!({"type": "response.output_item.done", "sequence_number": item_done,
@@ -303,7 +331,12 @@ impl Translator {
             output.push(sse::message(&message_id, &content, "completed"));
         }
         if self.reasoning_started {
-            output.push(sse::reasoning(&reasoning_id, &reasoning, "completed"));
+            output.push(sse::reasoning(
+                &reasoning_id,
+                &reasoning,
+                "completed",
+                self.reasoning_handle.as_deref(),
+            ));
         }
         output.extend(self.tools.items());
         let mut response = sse::response(&self.response_id, &self.model, "completed", output);

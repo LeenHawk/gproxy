@@ -28,11 +28,16 @@ pub(super) fn message(id: &str, text: &str, status: &str) -> Value {
     })
 }
 
-pub(super) fn reasoning(id: &str, text: &str, status: &str) -> Value {
-    json!({
+/// A reasoning item; `encrypted` is the handle that replays it, once known.
+pub(super) fn reasoning(id: &str, text: &str, status: &str, encrypted: Option<&str>) -> Value {
+    let mut item = json!({
         "id": id, "type": "reasoning", "status": status, "summary": [],
         "content": [{"type": "reasoning_text", "text": text}],
-    })
+    });
+    if let Some(encrypted) = encrypted {
+        item["encrypted_content"] = Value::String(encrypted.to_owned());
+    }
+    item
 }
 
 /// A stable Responses item id derived from the conversation, so a reconnect
