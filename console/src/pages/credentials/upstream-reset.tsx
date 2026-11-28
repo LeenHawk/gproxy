@@ -1,3 +1,4 @@
+import { randomUUID } from "@/lib/uuid"
 import { useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
@@ -18,7 +19,7 @@ export function UpstreamReset({ id, enabled, busy, onReset }: { id: string; enab
   const pending = busy || cards.isFetching || reset.isPending || !enabled
   const choose = (option?: QuotaResetOptionDto) => {
     reset.reset()
-    setSelection({ option, request: { program: option?.program ?? null, grantId: option?.grantId ?? null, requestId: crypto.randomUUID() } })
+    setSelection({ option, request: { program: option?.program ?? null, grantId: option?.grantId ?? null, requestId: randomUUID() } })
   }
   const text = (value: string) => t(`limits.resetText.${value}`, { defaultValue: value })
   const label = (option: QuotaResetOptionDto) => option.title ? text(option.title) : option.label || t("limits.grantReset")
