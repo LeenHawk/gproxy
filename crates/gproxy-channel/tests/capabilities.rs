@@ -268,6 +268,7 @@ async fn oauth_flows_preserve_pkce_state_tokens_and_host_driven_device_polling()
     let ctx = LoginContext {
         provider: provider(&config),
         client: &client,
+        variant: None,
     };
     let base: &dyn BaseChannel = &Demo;
     let code = base.oauth_authorization_code().unwrap();

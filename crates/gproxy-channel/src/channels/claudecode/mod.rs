@@ -727,6 +727,7 @@ impl BaseChannel for Claudecode {
             id: ID,
             display_name: "Claude Code (Claude.ai)",
             credential_kinds: vec!["oauth"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

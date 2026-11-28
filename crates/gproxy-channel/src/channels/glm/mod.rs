@@ -53,6 +53,7 @@ impl BaseChannel for Glm {
             id: self.id(),
             display_name: if self.coding_plan { "GLM Coding Plan / Z.ai" } else { "GLM API / Z.ai" },
             credential_kinds: vec!["api_key"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities { quota_query: self.coding_plan, ..Default::default() },
             config_keys: [

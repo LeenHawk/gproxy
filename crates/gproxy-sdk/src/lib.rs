@@ -79,4 +79,4 @@ pub use gproxy_core::{
 pub use gproxy_file::Operator;
 pub use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
 pub use gproxy_store::Store;
-pub use gproxy_upstream::{ConfigKey, ConfigKeyKind, LoginMode, UpstreamError};
+pub use gproxy_upstream::{ConfigKey, ConfigKeyKind, LoginMode, LoginVariant, UpstreamError};

@@ -47,6 +47,7 @@ impl BaseChannel for CommandCode {
             id: ID,
             display_name: "Command Code",
             credential_kinds: vec!["api_key", "oauth"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::ApiKey, LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
                 quota_query: true,

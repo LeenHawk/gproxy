@@ -384,6 +384,7 @@ async fn the_device_login_keeps_the_github_token_and_the_probed_origin() {
         .start(LoginContext {
             provider: provider("copilotcli", &config, None),
             client: &start_client,
+            variant: None,
         })
         .await
         .unwrap();
@@ -408,6 +409,7 @@ async fn the_device_login_keeps_the_github_token_and_the_probed_origin() {
                 LoginContext {
                     provider: provider("copilotcli", &config, None),
                     client: &pending,
+                    variant: None,
                 },
                 &started
             )
@@ -433,6 +435,7 @@ async fn the_device_login_keeps_the_github_token_and_the_probed_origin() {
             LoginContext {
                 provider: provider("copilotcli", &config, None),
                 client: &granted,
+                variant: None,
             },
             &started,
         )

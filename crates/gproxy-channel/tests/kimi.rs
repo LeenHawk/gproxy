@@ -337,6 +337,7 @@ async fn the_device_login_mints_a_machine_and_carries_it_into_the_poll() {
         .start(LoginContext {
             provider: provider("kimi", &config, None),
             client: &start_client,
+            variant: None,
         })
         .await
         .unwrap();
@@ -366,6 +367,7 @@ async fn the_device_login_mints_a_machine_and_carries_it_into_the_poll() {
             LoginContext {
                 provider: provider("kimi", &config, None),
                 client: &pending,
+                variant: None,
             },
             &started,
         )
@@ -383,6 +385,7 @@ async fn the_device_login_mints_a_machine_and_carries_it_into_the_poll() {
             LoginContext {
                 provider: provider("kimi", &config, None),
                 client: &slow,
+                variant: None,
             },
             &started,
         )
@@ -400,6 +403,7 @@ async fn the_device_login_mints_a_machine_and_carries_it_into_the_poll() {
             LoginContext {
                 provider: provider("kimi", &config, None),
                 client: &granted,
+                variant: None,
             },
             &started,
         )

@@ -434,9 +434,12 @@ where
                 Err(error) => Err(back(lang, error)),
             }
         } else if choice == lang.t(Msg::SignIn) {
-            match login {
-                Some(LoginMode::DeviceCode) => device_login(lang, app, provider).await,
-                _ => authcode_login(lang, app, provider).await,
+            match sign_in_choice(lang, descriptor, login) {
+                Ok((LoginMode::DeviceCode, variant)) => {
+                    device_login(lang, app, provider, variant).await
+                }
+                Ok((_, variant)) => authcode_login(lang, app, provider, variant).await,
+                Err(error) => Err(error),
             }
         } else {
             return Ok(());
@@ -455,11 +458,39 @@ where
     }
 }
 
+/// Which flow, and which variant of it, a sign-in runs. A channel without
+/// variants runs its first login mode; one with variants asks.
+fn sign_in_choice(
+    lang: Lang,
+    descriptor: &ChannelDescriptor,
+    first: Option<LoginMode>,
+) -> Result<(LoginMode, Option<String>)> {
+    if descriptor.login_variants.is_empty() {
+        return Ok((first.unwrap_or(LoginMode::AuthorizationCode), None));
+    }
+    let labels: Vec<&str> = descriptor
+        .login_variants
+        .iter()
+        .map(|variant| variant.label)
+        .collect();
+    let picked = Select::new(lang.t(Msg::SignInWith), labels)
+        .with_help_message(lang.t(Msg::SelectHelp))
+        .raw_prompt()
+        .map_err(|error| back(lang, error))?;
+    let variant = &descriptor.login_variants[picked.index];
+    Ok((variant.mode, Some(variant.id.to_owned())))
+}
+
 /// Print the authorization link, read back what the browser ended on. A
 /// channel with a registered redirect takes the callback URL whole; one
 /// without takes the bare code, with the state from the link it issued — the
 /// console's login dialog makes the same distinction.
-async fn authcode_login<C>(lang: Lang, app: &Arc<App<C>>, provider: &ProviderDto) -> Result<()>
+async fn authcode_login<C>(
+    lang: Lang,
+    app: &Arc<App<C>>,
+    provider: &ProviderDto,
+    variant: Option<String>,
+) -> Result<()>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
@@ -467,6 +498,7 @@ where
     let started = login
         .authcode_start(AuthCodeStart {
             provider_id: provider.id.clone(),
+            variant,
             ..Default::default()
         })
         .await?;
@@ -503,7 +535,12 @@ where
 
 /// Print the code and where to enter it, then poll at the pace the upstream
 /// asked for until it answers or the code expires.
-async fn device_login<C>(lang: Lang, app: &Arc<App<C>>, provider: &ProviderDto) -> Result<()>
+async fn device_login<C>(
+    lang: Lang,
+    app: &Arc<App<C>>,
+    provider: &ProviderDto,
+    variant: Option<String>,
+) -> Result<()>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
@@ -511,6 +548,7 @@ where
     let started = login
         .device_start(DeviceStart {
             provider_id: provider.id.clone(),
+            variant,
             ..Default::default()
         })
         .await?;

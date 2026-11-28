@@ -14,7 +14,22 @@ pub struct CredentialProviderDto {
     pub enabled: bool,
     pub credential_kinds: Vec<String>,
     pub login_modes: Vec<gproxy_sdk::LoginMode>,
+    /// Named choices inside `login_modes`; empty means each mode is one choice.
+    #[serde(default)]
+    pub login_variants: Vec<CredentialLoginVariantDto>,
     pub capabilities: gproxy_sdk::ChannelCapabilities,
+}
+
+/// One `LoginVariant` of the provider's channel.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct CredentialLoginVariantDto {
+    pub id: String,
+    pub label: String,
+    pub mode: gproxy_sdk::LoginMode,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

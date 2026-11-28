@@ -33,7 +33,9 @@ use std::sync::Arc;
 use gproxy_core::ProviderData;
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::upstream::provider;
-use gproxy_upstream::{AuthorizationCode, AuthorizationRequest, DevicePoll, LoginContext};
+use gproxy_upstream::{
+    AuthorizationCode, AuthorizationRequest, DevicePoll, LoginContext, LoginMode, UpstreamKind,
+};
 
 use crate::{
     SdkError, SdkResult,
@@ -85,6 +87,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
                 "this channel has no authorization code login",
             ));
         };
+        let variant = checked_variant(
+            provider.upstream(),
+            request.variant.as_deref(),
+            LoginMode::AuthorizationCode,
+        )?;
         let pkce = gproxy_upstream::login::pkce(flow.pkce_verifier_bytes())
             .map_err(|_| SdkError::invalid("secure randomness is unavailable"))?;
         let state = crate::ids::random_id();
@@ -98,6 +105,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
                 LoginContext {
                     provider: provider.view(),
                     client: client.as_ref(),
+                    variant: variant.as_deref(),
                 },
                 AuthorizationRequest {
                     redirect_uri: request.redirect_uri.as_deref().unwrap_or_default(),
@@ -117,6 +125,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
                 state,
                 redirect_uri: started.redirect_uri.clone(),
                 provider_state: started.provider_state,
+                variant,
                 label: request.label,
                 owner: request.owner,
             },
@@ -146,6 +155,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
             state: expected_state,
             redirect_uri,
             provider_state,
+            variant,
             label,
             owner,
         } = loaded
@@ -181,6 +191,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
                 LoginContext {
                     provider: provider.view(),
                     client: client.as_ref(),
+                    variant: variant.as_deref(),
                 },
                 AuthorizationCode {
                     code: &code,
@@ -209,11 +220,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
                 "this channel has no device code login",
             ));
         };
+        let variant = checked_variant(
+            provider.upstream(),
+            request.variant.as_deref(),
+            LoginMode::DeviceCode,
+        )?;
         let client = self.inner.core.provider_client(&provider.entity.id).await?;
         let authorization = flow
             .start(LoginContext {
                 provider: provider.view(),
                 client: client.as_ref(),
+                variant: variant.as_deref(),
             })
             .await?;
         let login_session_id = crate::ids::random_id();
@@ -234,6 +251,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
                 channel: provider.entity.channel.clone(),
                 interval_secs: authorization.interval_secs,
                 authorization,
+                variant,
                 label: request.label,
                 owner: request.owner,
             },
@@ -252,6 +270,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
             provider_id,
             channel,
             authorization,
+            variant,
             label,
             owner,
             interval_secs,
@@ -274,6 +293,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
                 LoginContext {
                     provider: provider.view(),
                     client: client.as_ref(),
+                    variant: variant.as_deref(),
                 },
                 &authorization,
             )
@@ -291,6 +311,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
                         provider_id,
                         channel,
                         authorization,
+                        variant,
                         label,
                         owner,
                         interval_secs: raised,
@@ -359,6 +380,32 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
 /// That the provider still speaks the channel the login was started against. A
 /// provider re-pointed mid-login would otherwise have a code minted by one
 /// upstream exchanged against another.
+/// The variant a login request named, if the kind declares it for this flow.
+/// Blank counts as absent; anything else undeclared is refused rather than
+/// passed to a channel that would not know it.
+fn checked_variant(
+    kind: &dyn UpstreamKind,
+    requested: Option<&str>,
+    mode: LoginMode,
+) -> SdkResult<Option<String>> {
+    let Some(requested) = requested.map(str::trim).filter(|id| !id.is_empty()) else {
+        return Ok(None);
+    };
+    match kind
+        .login_variants()
+        .iter()
+        .find(|variant| variant.id == requested)
+    {
+        Some(variant) if variant.mode == mode => Ok(Some(variant.id.to_owned())),
+        Some(_) => Err(SdkError::invalid(format!(
+            "login variant `{requested}` belongs to another login flow"
+        ))),
+        None => Err(SdkError::invalid(format!(
+            "this channel has no login variant `{requested}`"
+        ))),
+    }
+}
+
 fn expect_channel(provider: &provider::Model, expected: &str) -> SdkResult<()> {
     if provider.channel != expected {
         return Err(SdkError::invalid(format!(

@@ -207,6 +207,7 @@ fn login<'a>(server: &'a Server, config: &'a Value) -> LoginContext<'a> {
             config,
         },
         client: server,
+        variant: None,
     }
 }
 

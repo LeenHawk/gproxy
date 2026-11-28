@@ -39,6 +39,10 @@ pub struct AuthCodeStart {
     /// a CLI-shaped channel needs.
     #[serde(default)]
     pub redirect_uri: Option<String>,
+    /// A `LoginVariant::id` the channel declares for this flow. Absent lets
+    /// the channel fall back to its provider configuration.
+    #[serde(default)]
+    pub variant: Option<String>,
     /// The label for the credential this login will create. Absent derives one
     /// from the channel and whatever account the upstream names.
     #[serde(default)]
@@ -103,6 +107,10 @@ pub struct CredentialCreated {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct DeviceStart {
     pub provider_id: String,
+    /// A `LoginVariant::id` the channel declares for this flow. Absent lets
+    /// the channel fall back to its provider configuration.
+    #[serde(default)]
+    pub variant: Option<String>,
     #[serde(default)]
     pub label: Option<String>,
     #[serde(default)]

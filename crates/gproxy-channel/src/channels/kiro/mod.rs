@@ -66,7 +66,8 @@ use gproxy_client::ConnectionConfig;
 use gproxy_protocol::connection::{ByteStream, Bytes, TransportError};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
 use gproxy_upstream::{
-    ConfigKey, ConfigKeyKind, CredentialRefresh, CredentialView, LoginMode, OAuthAuthorizationCode,
+    ConfigKey, ConfigKeyKind, CredentialRefresh, CredentialView, LoginMode, LoginVariant,
+    OAuthAuthorizationCode,
     OAuthDeviceCode, ProviderView, UpstreamError, UpstreamFuture, UpstreamKind,
 };
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
@@ -557,6 +558,29 @@ impl UpstreamKind for Kiro {
     fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
         Some(self)
     }
+
+    /// The three sign-ins kiro-cli offers: the desktop device flow opens
+    /// GitHub or Google, and the AWS OIDC authorization code is Builder ID or,
+    /// with `sso_start_url`, an Identity Center portal.
+    fn login_variants(&self) -> Vec<LoginVariant> {
+        vec![
+            LoginVariant {
+                id: "github",
+                label: "GitHub",
+                mode: LoginMode::DeviceCode,
+            },
+            LoginVariant {
+                id: "google",
+                label: "Google",
+                mode: LoginMode::DeviceCode,
+            },
+            LoginVariant {
+                id: "aws",
+                label: "AWS Builder ID / IAM Identity Center",
+                mode: LoginMode::AuthorizationCode,
+            },
+        ]
+    }
 }
 
 impl BaseChannel for Kiro {
@@ -567,6 +591,7 @@ impl BaseChannel for Kiro {
             id: ID,
             display_name: "Kiro (AWS CodeWhisperer)",
             credential_kinds: vec!["oauth"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::DeviceCode, LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
                 refresh: true,
@@ -603,7 +628,7 @@ impl BaseChannel for Kiro {
                 ConfigKey::optional(
                     "login_provider",
                     ConfigKeyKind::String,
-                    "Identity provider the device login opens: github or google.",
+                    "Identity provider the device login opens when the login names none: github or google.",
                 ),
                 ConfigKey::optional(
                     "sso_start_url",

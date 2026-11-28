@@ -224,6 +224,7 @@ messages! {
     CredentialAction => ["Add a credential", "Добавить учётные данные", "添加凭据", "新增憑據"],
     PasteKey => ["Paste an API key", "Вставить API-ключ", "粘贴 API Key", "貼上 API Key"],
     SignIn => ["Sign in", "Войти", "登录账号", "登入帳號"],
+    SignInWith => ["Sign in with", "Способ входа", "登录方式", "登入方式"],
     Skip => ["Skip", "Пропустить", "跳过", "略過"],
     ApiKey => ["API key", "API-ключ", "API Key", "API Key"],
     LaterInConsole => [

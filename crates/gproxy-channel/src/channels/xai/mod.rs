@@ -51,6 +51,7 @@ impl BaseChannel for Xai {
             id: ID,
             display_name: "xAI (Grok)",
             credential_kinds: vec!["api_key"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
                 quota_query: true,

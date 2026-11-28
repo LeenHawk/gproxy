@@ -52,6 +52,7 @@ impl BaseChannel for Acme {
             id: ID,
             display_name: "Acme",
             credential_kinds: vec!["api_key"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::ApiKey],
             capabilities: Default::default(),
             config_keys: [

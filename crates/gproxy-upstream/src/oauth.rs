@@ -12,6 +12,12 @@ use gproxy_client::OutboundClient;
 pub struct LoginContext<'a> {
     pub provider: ProviderView<'a>,
     pub client: &'a dyn OutboundClient,
+    /// The `LoginVariant::id` the person chose, already checked against the
+    /// kind's declared variants and this flow's mode. The host passes the
+    /// same value to every step of one login. None when the kind declares no
+    /// variants or the caller named none; the flow then falls back to its
+    /// provider configuration.
+    pub variant: Option<&'a str>,
 }
 
 /// Common token fields; provider-specific account/organization fields stay in

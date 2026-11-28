@@ -71,6 +71,7 @@ impl BaseChannel for Kimi {
             id: ID,
             display_name: "Moonshot (Kimi)",
             credential_kinds: vec!["api_key", "oauth"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::ApiKey, LoginMode::DeviceCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

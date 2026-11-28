@@ -171,6 +171,7 @@ impl BaseChannel for Aistudio {
             id: ID,
             display_name: "Google AI Studio",
             credential_kinds: vec!["api_key"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities { websocket: true, ..ChannelCapabilities::default() },
             config_keys: [

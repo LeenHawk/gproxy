@@ -24,8 +24,13 @@ export function CredentialLoginDialog({ provider, onClose }: { provider: Credent
   const [label, setLabel] = useState("")
   const browserKey = provider.channel === "commandcode"
   const traeCallback = provider.channel === "trae"
-  const modes = provider.loginModes.filter(mode => mode !== "api_key")
-  const [mode, setMode] = useState(modes[0])
+  // A channel that names variants (Kiro: GitHub, Google, AWS) lists them; otherwise each login mode is one choice.
+  const choices = provider.loginVariants.length
+    ? provider.loginVariants.map(variant => ({ value: `variant:${variant.id}`, label: variant.label, mode: variant.mode, variant: variant.id as string | null }))
+    : provider.loginModes.filter(mode => mode !== "api_key").map(mode => ({ value: mode as string, label: t(`management.${mode}`), mode, variant: null as string | null }))
+  const [choice, setChoice] = useState(choices[0]?.value)
+  const selected = choices.find(entry => entry.value === choice) ?? choices[0]
+  const mode = selected?.mode
   const [callback, setCallback] = useState("")
   const [auth, setAuth] = useState<AuthCodeStarted | null>(null)
   const [device, setDevice] = useState<DeviceStarted | null>(null)
@@ -34,7 +39,7 @@ export function CredentialLoginDialog({ provider, onClose }: { provider: Credent
   const [terminal, setTerminal] = useState<string | null>(null)
   const finish = async () => { setCallback(""); await client.invalidateQueries({ queryKey: ["admin", "/credentials"] }); onClose() }
   const start = useMutation({ mutationFn: async () => {
-    const request = { providerId: provider.id, label: label.trim() || null, owner: ownerColumns(owner) }
+    const request = { providerId: provider.id, variant: selected?.variant ?? null, label: label.trim() || null, owner: ownerColumns(owner) }
     if (mode === "authorization_code") { setAuth(await startAuthCode({ ...request, redirectUri: null })); return }
     if (mode === "device_code") { setDevice(await startDevice(request)); setPolling(true); return }
   } })
@@ -73,7 +78,7 @@ export function CredentialLoginDialog({ provider, onClose }: { provider: Credent
   return <ManagementDialog title={`${provider.displayName ?? provider.name} · ${t("management.loginAdd")}`} onClose={onClose} busy={busy} className="sm:max-w-lg">
     <FieldGroup className="sm:grid-cols-1">
       {!started ? <>
-        <Field><FieldLabel htmlFor="login-mode">{t("management.loginMode")}</FieldLabel><Select value={mode} onValueChange={value => setMode(value as typeof mode)} disabled={busy}><SelectTrigger id="login-mode"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{modes.map(value => <SelectItem key={value} value={value}>{t(`management.${value}`)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
+        <Field><FieldLabel htmlFor="login-mode">{t("management.loginMode")}</FieldLabel><Select value={choice} onValueChange={setChoice} disabled={busy}><SelectTrigger id="login-mode"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{choices.map(entry => <SelectItem key={entry.value} value={entry.value}>{entry.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
         <Field><FieldLabel htmlFor="login-label">{t("fields.label")}</FieldLabel><Input id="login-label" value={label} onChange={e => setLabel(e.target.value)} disabled={busy} /></Field>
         <Field><FieldLabel htmlFor="login-owner">{t("management.owner")}</FieldLabel><Select value={owner} onValueChange={setOwner} disabled={busy}><SelectTrigger id="login-owner"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{ownership.choices.map(entry => <SelectItem key={entry.value} value={entry.value}>{entry.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
         <Button className="self-start" disabled={busy} onClick={() => start.mutate()}>{t("management.startLogin")}</Button>

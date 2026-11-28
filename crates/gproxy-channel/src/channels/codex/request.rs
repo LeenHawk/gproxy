@@ -595,6 +595,7 @@ impl BaseChannel for Codex {
             id: ID,
             display_name: "OpenAI Codex (ChatGPT)",
             credential_kinds: vec!["oauth"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::AuthorizationCode, LoginMode::DeviceCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

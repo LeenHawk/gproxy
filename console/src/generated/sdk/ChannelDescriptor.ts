@@ -2,6 +2,7 @@
 import type { ChannelCapabilities } from "./ChannelCapabilities";
 import type { ConfigKey } from "./ConfigKey";
 import type { LoginMode } from "./LoginMode";
+import type { LoginVariant } from "./LoginVariant";
 
 /**
  * A channel as the management layer sees it.
@@ -14,7 +15,12 @@ id: string, displayName: string,
 /**
  * Empty means no login flow is offered for this channel.
  */
-loginModes: Array<LoginMode>,
+loginModes: Array<LoginMode>, 
+/**
+ * Named choices inside those flows; empty means each mode is one choice
+ * (`UpstreamKind::login_variants`).
+ */
+loginVariants: Array<LoginVariant>, 
 /**
  * Stored credential types accepted on manual creation, distinct from login flows.
  */

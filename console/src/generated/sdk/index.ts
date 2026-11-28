@@ -68,6 +68,7 @@ export * from "./LogQuery";
 export * from "./LoggingSettingsDto";
 export * from "./LoggingSettingsPatch";
 export * from "./LoginMode";
+export * from "./LoginVariant";
 export * from "./ModelDto";
 export * from "./ModelPatch";
 export * from "./ModelTest";

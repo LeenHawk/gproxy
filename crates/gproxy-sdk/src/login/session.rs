@@ -60,6 +60,9 @@ pub(crate) enum LoginSession {
         /// credential's published metadata. This session is where it lives and
         /// the only place it does.
         provider_state: BTreeMap<String, Value>,
+        /// The variant the login started with, handed to every later step.
+        #[serde(default)]
+        variant: Option<String>,
         label: Option<String>,
         owner: CredentialOwner,
     },
@@ -69,6 +72,9 @@ pub(crate) enum LoginSession {
         /// The channel's own handle on the pending authorization, including
         /// the `provider_state` a non-standard device flow needs.
         authorization: DeviceAuthorization,
+        /// The variant the login started with, handed to every later step.
+        #[serde(default)]
+        variant: Option<String>,
         label: Option<String>,
         owner: CredentialOwner,
         /// The current polling cadence, which a `slow_down` answer raises.

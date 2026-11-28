@@ -135,6 +135,7 @@ async fn authcode_start_parks_the_verifier_and_publishes_only_its_challenge() {
         .login()
         .authcode_start(AuthCodeStart {
             provider_id: provider_id.clone(),
+            variant: None,
             redirect_uri: Some("http://127.0.0.1:1455/callback".into()),
             label: None,
             owner: owner(),
@@ -590,6 +591,7 @@ async fn a_device_login_polls_until_it_is_ready() {
         .login()
         .device_start(DeviceStart {
             provider_id: provider_id.clone(),
+            variant: None,
             label: None,
             owner: owner(),
         })

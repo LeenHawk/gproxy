@@ -1148,6 +1148,7 @@ async fn authorize_uses_antigravitys_own_client_and_scopes() {
             LoginContext {
                 provider: provider(&config, None),
                 client: &client,
+                variant: None,
             },
             AuthorizationRequest {
                 redirect_uri: "",
@@ -1195,6 +1196,7 @@ async fn the_exchange_discovers_the_project_and_reports_antigravity_as_the_ide()
             LoginContext {
                 provider: provider(&config, None),
                 client: &client,
+                variant: None,
             },
             AuthorizationCode {
                 code: "code-1",

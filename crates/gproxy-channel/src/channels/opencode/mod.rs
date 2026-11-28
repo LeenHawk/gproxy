@@ -117,6 +117,7 @@ impl BaseChannel for OpenCode {
             } else {
                 vec!["api_key"]
             },
+            login_variants: self.login_variants(),
             login_modes: if zen {
                 vec![LoginMode::ApiKey, LoginMode::DeviceCode]
             } else {

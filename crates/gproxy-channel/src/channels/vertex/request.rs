@@ -59,6 +59,7 @@ impl BaseChannel for Vertex {
             id: ID,
             display_name: "Google Vertex AI",
             credential_kinds: vec!["service_account"],
+            login_variants: self.login_variants(),
             login_modes: Vec::new(),
             capabilities: ChannelCapabilities {
                 refresh: true,

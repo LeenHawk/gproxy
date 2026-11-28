@@ -230,6 +230,19 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
                     login_modes: descriptor
                         .map(|channel| channel.login_modes.clone())
                         .unwrap_or_default(),
+                    login_variants: descriptor
+                        .map(|channel| {
+                            channel
+                                .login_variants
+                                .iter()
+                                .map(|variant| crate::dto::CredentialLoginVariantDto {
+                                    id: variant.id.to_owned(),
+                                    label: variant.label.to_owned(),
+                                    mode: variant.mode,
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                     capabilities: descriptor
                         .map(|channel| channel.capabilities)
                         .unwrap_or_default(),

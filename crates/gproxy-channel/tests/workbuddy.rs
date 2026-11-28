@@ -585,6 +585,7 @@ async fn the_device_login_is_a_browser_redirect_polled_to_a_credential() {
         LoginContext {
             provider: provider(&config, None),
             client: start.as_ref(),
+            variant: None,
         },
     )
     .await
@@ -614,6 +615,7 @@ async fn the_device_login_is_a_browser_redirect_polled_to_a_credential() {
                 LoginContext {
                     provider: provider(&config, None),
                     client: pending.as_ref(),
+                    variant: None,
                 },
                 &started,
             )
@@ -637,6 +639,7 @@ async fn the_device_login_is_a_browser_redirect_polled_to_a_credential() {
                 LoginContext {
                     provider: provider(&config, None),
                     client: half.as_ref(),
+                    variant: None,
                 },
                 &started,
             )
@@ -663,6 +666,7 @@ async fn the_device_login_is_a_browser_redirect_polled_to_a_credential() {
             LoginContext {
                 provider: provider(&config, None),
                 client: granted.as_ref(),
+                variant: None,
             },
             &started,
         )

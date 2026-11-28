@@ -104,6 +104,7 @@ impl BaseChannel for TestChannel {
             display_name: self.id(),
             // The scripted bearer accepts manual API keys as well as login results.
             credential_kinds: vec!["api_key", "oauth", "cookie"],
+            login_variants: self.login_variants(),
             login_modes: vec![
                 LoginMode::ApiKey,
                 LoginMode::AuthorizationCode,

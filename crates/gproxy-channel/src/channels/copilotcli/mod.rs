@@ -105,6 +105,7 @@ impl BaseChannel for CopilotCli {
             id: ID,
             display_name: "GitHub Copilot CLI",
             credential_kinds: vec!["oauth"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::DeviceCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

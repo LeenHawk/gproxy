@@ -21,6 +21,7 @@ export * from "./BatchPatch";
 export * from "./CacheCreationDto";
 export * from "./ChannelCapabilities";
 export * from "./ConsentDecision";
+export * from "./CredentialLoginVariantDto";
 export * from "./CredentialOwnerOptionDto";
 export * from "./CredentialProviderDto";
 export * from "./DeviceCodeRequest";

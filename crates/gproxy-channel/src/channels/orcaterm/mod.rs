@@ -82,6 +82,7 @@ impl BaseChannel for OrcaTerm {
             id: ID,
             display_name: "OrcaTerm",
             credential_kinds: vec!["oauth"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::DeviceCode],
             capabilities: ChannelCapabilities { refresh: true, quota_query: true, ..Default::default() },
             config_keys: [

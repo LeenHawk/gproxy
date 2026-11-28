@@ -22,6 +22,25 @@ pub enum LoginMode {
     ApiKey,
 }
 
+/// One named way into a login flow, for an upstream whose single flow fronts
+/// several identity providers (Kiro's device login opens GitHub or Google; its
+/// authorization code is AWS Builder ID or Identity Center). The host lists
+/// variants instead of bare modes when a kind declares any, and hands the
+/// chosen id to the flow as `LoginContext::variant`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct LoginVariant {
+    /// Stable id the login request names; unique within the kind.
+    pub id: &'static str,
+    /// What a UI shows. Usually a product name, so it is not translated.
+    pub label: &'static str,
+    /// The flow this variant runs.
+    pub mode: LoginMode,
+}
+
 /// One implementation a provider row can name: how its accounts sign in, how
 /// their credentials are renewed and checked, and which outbound client they
 /// expect. What the upstream is then asked to do (models, tools) is the
@@ -47,6 +66,13 @@ pub trait UpstreamKind: Send + Sync {
             modes.push(LoginMode::DeviceCode);
         }
         modes
+    }
+
+    /// Named choices inside the login flows, in the order a UI lists them.
+    /// Empty (the default) means each mode is one choice. Every variant's
+    /// mode must be one of `login_modes`.
+    fn login_variants(&self) -> Vec<LoginVariant> {
+        Vec::new()
     }
 
     /// Stored credential types accepted on manual creation.

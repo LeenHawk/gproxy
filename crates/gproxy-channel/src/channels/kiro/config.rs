@@ -89,8 +89,15 @@ impl KiroConfig {
 
     /// The identity provider name the device authorization takes, in the
     /// upstream's own capitalisation (v3 `login.rs`).
-    pub(super) fn login_provider(&self) -> &'static str {
-        match self.login_provider.trim().to_ascii_lowercase().as_str() {
+    /// A login that names its variant (`github`, `google`) wins over the
+    /// provider's `login_provider`.
+    pub(super) fn login_provider(&self, variant: Option<&str>) -> &'static str {
+        match variant
+            .unwrap_or(&self.login_provider)
+            .trim()
+            .to_ascii_lowercase()
+            .as_str()
+        {
             "google" => "Google",
             _ => "Github",
         }

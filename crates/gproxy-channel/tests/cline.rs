@@ -454,6 +454,7 @@ async fn the_login_is_workos_then_cline_and_records_the_account_it_learned() {
         .start(LoginContext {
             provider: provider("cline", &config, None),
             client: &start_client,
+            variant: None,
         })
         .await
         .unwrap();
@@ -479,6 +480,7 @@ async fn the_login_is_workos_then_cline_and_records_the_account_it_learned() {
                 LoginContext {
                     provider: provider("cline", &config, None),
                     client: &pending,
+                    variant: None,
                 },
                 &started
             )
@@ -509,6 +511,7 @@ async fn the_login_is_workos_then_cline_and_records_the_account_it_learned() {
             LoginContext {
                 provider: provider("cline", &config, None),
                 client: &granted,
+                variant: None,
             },
             &started,
         )

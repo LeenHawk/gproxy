@@ -16,7 +16,7 @@
 //! from the same definitions — a console that renders a provider form off a
 //! descriptor cannot then be typed against a hand-written copy of it.
 
-use gproxy_upstream::{ConfigKey, ConfigKeyKind, LoginMode, UpstreamKind};
+use gproxy_upstream::{ConfigKey, ConfigKeyKind, LoginMode, LoginVariant, UpstreamKind};
 
 /// Optional abilities beyond protocol operations. All false is a legitimate
 /// channel: an API-key upstream needs none of them.
@@ -77,6 +77,9 @@ pub struct ChannelDescriptor {
     pub display_name: &'static str,
     /// Empty means no login flow is offered for this channel.
     pub login_modes: Vec<LoginMode>,
+    /// Named choices inside those flows; empty means each mode is one choice
+    /// (`UpstreamKind::login_variants`).
+    pub login_variants: Vec<LoginVariant>,
     /// Stored credential types accepted on manual creation, distinct from login flows.
     pub credential_kinds: Vec<&'static str>,
     pub capabilities: ChannelCapabilities,
@@ -90,6 +93,7 @@ impl ChannelDescriptor {
         Self {
             id: kind.id(),
             display_name: kind.display_name(),
+            login_variants: kind.login_variants(),
             login_modes: kind.login_modes(),
             credential_kinds: kind.credential_kinds(),
             capabilities: ChannelCapabilities {

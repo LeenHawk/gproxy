@@ -275,6 +275,7 @@ impl BaseChannel for AwsBedrock {
             // An access key pair or a Bedrock API key is pasted; AWS grants
             // neither through an OAuth flow this channel could drive.
             credential_kinds: vec!["api_key", "aws_access_key"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities::default(),
             config_keys: [

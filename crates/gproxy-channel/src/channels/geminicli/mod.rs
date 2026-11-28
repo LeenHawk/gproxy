@@ -396,6 +396,7 @@ impl BaseChannel for GeminiCli {
             id: ID,
             display_name: "Gemini CLI (Code Assist)",
             credential_kinds: vec!["oauth"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::AuthorizationCode],
             capabilities: ChannelCapabilities {
                 refresh: true,

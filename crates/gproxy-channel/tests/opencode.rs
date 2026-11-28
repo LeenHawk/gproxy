@@ -378,6 +378,7 @@ async fn the_console_login_records_the_console_and_the_account_it_used() {
         .start(LoginContext {
             provider: provider("opencodezen", &config, None),
             client: &start_client,
+            variant: None,
         })
         .await
         .unwrap();
@@ -405,6 +406,7 @@ async fn the_console_login_records_the_console_and_the_account_it_used() {
                 LoginContext {
                     provider: provider("opencodezen", &config, None),
                     client: &denied,
+                    variant: None,
                 },
                 &started
             )
@@ -423,6 +425,7 @@ async fn the_console_login_records_the_console_and_the_account_it_used() {
                 LoginContext {
                     provider: provider("opencodezen", &config, None),
                     client: &slow,
+                    variant: None,
                 },
                 &started
             )
@@ -451,6 +454,7 @@ async fn the_console_login_records_the_console_and_the_account_it_used() {
             LoginContext {
                 provider: provider("opencodezen", &config, None),
                 client: &granted,
+                variant: None,
             },
             &started,
         )
@@ -499,6 +503,7 @@ async fn the_console_login_records_the_console_and_the_account_it_used() {
             LoginContext {
                 provider: provider("opencodezen", &config, None),
                 client: &lookups_fail,
+                variant: None,
             },
             &started,
         )

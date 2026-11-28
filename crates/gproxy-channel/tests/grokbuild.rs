@@ -518,6 +518,7 @@ async fn the_device_login_reads_the_account_out_of_the_id_token() {
         LoginContext {
             provider: provider(&config, None),
             client: start.as_ref(),
+            variant: None,
         },
     )
     .await
@@ -550,6 +551,7 @@ async fn the_device_login_reads_the_account_out_of_the_id_token() {
                 LoginContext {
                     provider: provider(&config, None),
                     client: client.as_ref(),
+                    variant: None,
                 },
                 &started,
             )
@@ -578,6 +580,7 @@ async fn the_device_login_reads_the_account_out_of_the_id_token() {
             LoginContext {
                 provider: provider(&config, None),
                 client: granted.as_ref(),
+                variant: None,
             },
             &started,
         )

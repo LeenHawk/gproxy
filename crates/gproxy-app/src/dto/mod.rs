@@ -59,7 +59,9 @@ pub use api_keys::{
 };
 pub use audit::{AuditEventDto, AuditQuery};
 pub use common::{BatchItem, BatchPatch, ListQuery, Page, double_option};
-pub use credential_management::{CredentialOwnerOptionDto, CredentialProviderDto};
+pub use credential_management::{
+    CredentialLoginVariantDto, CredentialOwnerOptionDto, CredentialProviderDto,
+};
 pub use mcp::{
     McpScopeDto, McpScopePatch, McpScopeWrite, McpToolDto, McpToolNatureDto, McpToolNaturePatch,
     McpToolNatureWrite,

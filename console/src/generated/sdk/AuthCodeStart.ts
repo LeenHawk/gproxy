@@ -13,6 +13,11 @@ export type AuthCodeStart = { providerId: string,
  */
 redirectUri: string | null, 
 /**
+ * A `LoginVariant::id` the channel declares for this flow. Absent lets
+ * the channel fall back to its provider configuration.
+ */
+variant: string | null, 
+/**
  * The label for the credential this login will create. Absent derives one
  * from the channel and whatever account the upstream names.
  */

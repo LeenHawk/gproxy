@@ -205,6 +205,7 @@ impl BaseChannel for OpenAi {
             id: ID,
             display_name: "OpenAI",
             credential_kinds: vec!["api_key"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::ApiKey],
             capabilities: ChannelCapabilities {
                 quota_query: true,

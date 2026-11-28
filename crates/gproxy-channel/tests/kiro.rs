@@ -734,6 +734,7 @@ async fn the_device_login_opens_the_desktop_flow_and_polls_it_to_a_credential() 
         .start(LoginContext {
             provider: provider(&config, None),
             client: start_client.as_ref(),
+            variant: None,
         })
         .await
         .expect("a device authorization");
@@ -761,6 +762,7 @@ async fn the_device_login_opens_the_desktop_flow_and_polls_it_to_a_credential() 
             LoginContext {
                 provider: provider(&config, None),
                 client: pending.as_ref(),
+                variant: None,
             },
             &started,
         )
@@ -779,6 +781,7 @@ async fn the_device_login_opens_the_desktop_flow_and_polls_it_to_a_credential() 
             LoginContext {
                 provider: provider(&config, None),
                 client: granted.as_ref(),
+                variant: None,
             },
             &started,
         )
@@ -807,6 +810,7 @@ async fn a_device_authorization_with_nothing_to_open_is_not_one() {
         Kiro.start(LoginContext {
             provider: provider(&config, None),
             client: client.as_ref(),
+            variant: None,
         })
         .await,
         Err(UpstreamError::InvalidResponse(_))
@@ -920,6 +924,7 @@ fn login<'a>(config: &'a Value, client: &'a ScriptClient) -> LoginContext<'a> {
     LoginContext {
         provider: provider(config, None),
         client,
+        variant: None,
     }
 }
 

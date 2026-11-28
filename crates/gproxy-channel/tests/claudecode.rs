@@ -711,6 +711,7 @@ async fn authorize_url_and_code_exchange_follow_the_cli() {
     let context = LoginContext {
         provider: provider(&config, None),
         client: &client,
+        variant: None,
     };
     let login = Claudecode.oauth_authorization_code().unwrap();
     let start = login
@@ -805,6 +806,7 @@ async fn authorize_url_and_code_exchange_follow_the_cli() {
         .exchange(
             LoginContext {
                 client: &settings_client,
+                variant: None,
                 ..context
             },
             AuthorizationCode {

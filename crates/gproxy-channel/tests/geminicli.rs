@@ -686,6 +686,7 @@ async fn authorize_builds_the_google_consent_url() {
             LoginContext {
                 provider: provider(&config, None),
                 client: &client,
+                variant: None,
             },
             AuthorizationRequest {
                 redirect_uri: "",
@@ -747,6 +748,7 @@ async fn the_exchange_discovers_the_project_and_tier_for_the_host_to_persist() {
             LoginContext {
                 provider: provider(&config, None),
                 client: &client,
+                variant: None,
             },
             AuthorizationCode {
                 code: "code-1",

@@ -40,7 +40,7 @@ mod export;
 /// export away. `manage().catalog().channels()` answers with these, and a
 /// console renders a provider form from them.
 pub use gproxy_channel::{ChannelCapabilities, ChannelDescriptor};
-pub use gproxy_upstream::{ConfigKey, ConfigKeyKind, LoginMode};
+pub use gproxy_upstream::{ConfigKey, ConfigKeyKind, LoginMode, LoginVariant};
 
 pub use catalog::{
     ApplyDefaultPricesReportDto, ApplyDefaultPricesRequest, ApplyRulePreset, CatalogProviderDto,

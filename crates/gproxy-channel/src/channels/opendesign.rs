@@ -107,6 +107,7 @@ impl BaseChannel for OpenDesign {
             id: ID,
             display_name: "OpenDesign",
             credential_kinds: vec!["api_key"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::ApiKey],
             capabilities: Default::default(),
             config_keys: [

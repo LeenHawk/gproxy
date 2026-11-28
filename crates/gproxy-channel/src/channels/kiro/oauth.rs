@@ -189,7 +189,7 @@ impl OAuthDeviceCode for super::Kiro {
     fn start<'a>(&'a self, context: LoginContext<'a>) -> UpstreamFuture<'a, DeviceAuthorization> {
         Box::pin(async move {
             let config = KiroConfig::from_view(context.provider)?;
-            let body = json!({"clientId": CLIENT_NAME, "loginProvider": config.login_provider()});
+            let body = json!({"clientId": CLIENT_NAME, "loginProvider": config.login_provider(context.variant)});
             let (status, _, bytes) = send(
                 context.client,
                 Method::POST,

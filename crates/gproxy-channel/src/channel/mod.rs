@@ -87,6 +87,7 @@ pub trait BaseChannel: UpstreamKind {
             id: self.id(),
             display_name: self.display_name(),
             credential_kinds: self.credential_kinds(),
+            login_variants: self.login_variants(),
             login_modes: self.login_modes(),
             capabilities: ChannelCapabilities {
                 refresh: self.credential_refresh().is_some(),

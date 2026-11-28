@@ -48,12 +48,18 @@ enum Session {
         /// verbatim in the exchange.
         redirect_uri: String,
         provider_state: BTreeMap<String, Value>,
+        /// The `LoginVariant::id` the login started with.
+        #[serde(default)]
+        variant: Option<String>,
     },
     DeviceCode {
         provider: String,
         authorization: DeviceAuthorization,
         /// The polling cadence, which a `slow_down` answer raises.
         interval_secs: u64,
+        /// The `LoginVariant::id` the login started with.
+        #[serde(default)]
+        variant: Option<String>,
     },
 }
 
@@ -63,6 +69,9 @@ struct Start {
     provider: String,
     #[serde(default)]
     mode: Option<LoginMode>,
+    /// One of the channel's `login_variants`; it fixes the mode.
+    #[serde(default)]
+    variant: Option<String>,
     #[serde(default)]
     redirect_uri: Option<String>,
 }
@@ -122,6 +131,7 @@ impl Inner {
                 "name": provider.name,
                 "channel": provider.channel.id(),
                 "login_modes": provider.channel.descriptor().login_modes,
+                "login_variants": provider.channel.login_variants(),
                 "credential": match &held {
                     None => "none",
                     Some(held) if held.record.dead.is_some() => "dead",
@@ -165,13 +175,36 @@ impl Inner {
                 "this provider's credential is in the configuration",
             ));
         }
+        let variant = match request.variant.as_deref().map(str::trim) {
+            None | Some("") => None,
+            Some(id) => Some(
+                provider
+                    .channel
+                    .login_variants()
+                    .into_iter()
+                    .find(|variant| variant.id == id)
+                    .ok_or_else(|| {
+                        Refusal::bad_request("this channel has no such login variant")
+                    })?,
+            ),
+        };
+        let mode = match (request.mode, variant) {
+            (Some(mode), Some(variant)) if mode != variant.mode => {
+                return Err(Refusal::bad_request(
+                    "this login variant belongs to another login flow",
+                ));
+            }
+            (mode, variant) => mode.or(variant.map(|variant| variant.mode)),
+        };
+        let variant = variant.map(|variant| variant.id);
         let context = LoginContext {
             provider: self.provider_view(index),
             client: self.client.as_ref(),
+            variant,
         };
         let code_flow = provider.channel.oauth_authorization_code();
         let device_flow = provider.channel.oauth_device_code();
-        match (request.mode, code_flow, device_flow) {
+        match (mode, code_flow, device_flow) {
             (Some(LoginMode::AuthorizationCode) | None, Some(flow), _) => {
                 let pkce =
                     gproxy_upstream::login::pkce(flow.pkce_verifier_bytes()).map_err(|_| {
@@ -201,6 +234,7 @@ impl Inner {
                             state,
                             redirect_uri: started.redirect_uri.clone(),
                             provider_state: started.provider_state,
+                            variant: variant.map(str::to_owned),
                         },
                         AUTHORIZATION_CODE_TTL,
                     )
@@ -233,6 +267,7 @@ impl Inner {
                             provider: provider.name.clone(),
                             interval_secs: authorization.interval_secs,
                             authorization,
+                            variant: variant.map(str::to_owned),
                         },
                         ttl,
                     )
@@ -267,6 +302,7 @@ impl Inner {
                 state: expected_state,
                 redirect_uri,
                 provider_state,
+                variant,
             } => {
                 let (code, state) = gproxy_upstream::login::authorization_code(
                     request.callback_url.as_deref(),
@@ -290,6 +326,7 @@ impl Inner {
                         LoginContext {
                             provider: self.provider_view(index),
                             client: self.client.as_ref(),
+                            variant: variant.as_deref(),
                         },
                         AuthorizationCode {
                             code: &code,
@@ -309,6 +346,7 @@ impl Inner {
                 provider,
                 authorization,
                 interval_secs,
+                variant,
             } => {
                 let index = self.provider_named(&provider)?;
                 let flow = self.providers[index]
@@ -320,6 +358,7 @@ impl Inner {
                         LoginContext {
                             provider: self.provider_view(index),
                             client: self.client.as_ref(),
+                            variant: variant.as_deref(),
                         },
                         &authorization,
                     )
@@ -334,6 +373,7 @@ impl Inner {
                             provider,
                             authorization,
                             interval_secs,
+                            variant,
                         };
                         self.store
                             .compare_exchange(

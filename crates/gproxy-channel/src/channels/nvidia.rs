@@ -74,6 +74,7 @@ impl BaseChannel for Nvidia {
             id: ID,
             display_name: "NVIDIA NIM",
             credential_kinds: vec!["api_key"],
+            login_variants: self.login_variants(),
             login_modes: vec![LoginMode::ApiKey],
             capabilities: Default::default(),
             config_keys: [

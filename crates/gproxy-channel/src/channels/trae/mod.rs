@@ -48,7 +48,7 @@ impl UpstreamKind for Trae {
 
 impl BaseChannel for Trae {
     fn descriptor(&self) -> ChannelDescriptor {
-        ChannelDescriptor { id:ID,display_name:"Trae",credential_kinds:vec!["oauth"],login_modes:vec![LoginMode::AuthorizationCode],
+        ChannelDescriptor { id:ID,display_name:"Trae",credential_kinds:vec!["oauth"],login_variants:self.login_variants(),login_modes:vec![LoginMode::AuthorizationCode],
             capabilities:ChannelCapabilities { refresh:true,quota_query:true,..Default::default() },
             config_keys:[
                 ConfigKey::optional("international",ConfigKeyKind::Bool,"Use international Trae; defaults to mainland China. Account region selects the international service origin."),

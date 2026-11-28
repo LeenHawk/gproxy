@@ -470,6 +470,7 @@ async fn device_code_login_polls_then_exchanges_the_code() {
     let context = LoginContext {
         provider: provider(&config, None),
         client: &client,
+        variant: None,
     };
     let start = login.start(context).await.unwrap();
     assert_eq!(start.device_code, "dev-1");

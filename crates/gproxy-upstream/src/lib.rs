@@ -23,7 +23,7 @@ pub use caller::{
 };
 pub use config::{ConfigKey, ConfigKeyKind};
 pub use error::{UpstreamError, UpstreamFuture};
-pub use kind::{LoginMode, UpstreamKind};
+pub use kind::{LoginMode, LoginVariant, UpstreamKind};
 pub use oauth::{
     AcquiredCredential, AuthorizationCode, AuthorizationRequest, AuthorizationStart,
     DeviceAuthorization, DevicePoll, LoginContext, OAuthAuthorizationCode, OAuthCredential,

@@ -207,6 +207,7 @@ impl BaseChannel for ClaudeWeb {
             id: ID,
             display_name: "Claude Web (claude.ai session)",
             credential_kinds: vec!["cookie"],
+            login_variants: self.login_variants(),
             login_modes: vec![],
             capabilities: ChannelCapabilities {
                 refresh: true,
