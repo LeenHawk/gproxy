@@ -12,7 +12,7 @@ gproxy-protocol.workspace = true
 gproxy-upstream.workspace = true
 http.workspace = true
 # The protocol's types only; the transport here is gproxy's own outbound client.
-rmcp = { version = "3.11", default-features = false }
+rmcp = { version = "3.12", default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

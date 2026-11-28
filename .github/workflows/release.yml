@@ -522,7 +522,9 @@ jobs:
   ohos-appgallery:
     name: HarmonyOS AppGallery APP
     needs: [prepare, console, ohos-toolchain]
-    if: needs.prepare.outputs.channel == 'release'
+    # Paused: the AppGallery submission is off for now; releases ship the
+    # signed HAP from ohos-application. Restore the channel check to resume.
+    if: false && needs.prepare.outputs.channel == 'release'
     runs-on: ubuntu-24.04
     environment: release
     timeout-minutes: 120
