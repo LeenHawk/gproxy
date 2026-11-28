@@ -596,7 +596,7 @@ impl BaseChannel for Devin {
             Operation::GenerateContent | Operation::StreamGenerateContent => {
                 vec![Dialect::OpenAiChat, Dialect::Claude]
             }
-            Operation::ListModels => vec![Dialect::OpenAiChat],
+            Operation::ListModels => vec![Dialect::OpenAi],
             _ => Vec::new(),
         }
     }
@@ -629,7 +629,7 @@ impl BaseChannel for Devin {
         context: OperationContext<'a>,
     ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
-            if context.dialect != Dialect::OpenAiChat {
+            if context.dialect != Dialect::OpenAi {
                 return Err(unsupported(Operation::ListModels, context.dialect));
             }
             let config = DevinConfig::from_view(context.provider)?;

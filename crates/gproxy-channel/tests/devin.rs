@@ -740,15 +740,15 @@ async fn models_are_discovered_from_the_live_raw_protobuf_catalogue() {
         headers: HeaderMap::new(),
         body: HttpBody::Bytes(Bytes::from(catalogue.into_bytes())),
     }]);
-    let response = Devin
-        .list_models(context(
-            provider(&config),
-            credential(&secret, &metadata),
-            client.clone(),
-            json!({}),
-        ))
-        .await
-        .unwrap();
+    let mut listing = context(
+        provider(&config),
+        credential(&secret, &metadata),
+        client.clone(),
+        json!({}),
+    );
+    // A client's model list arrives as `ListModels / OpenAi`.
+    listing.dialect = Dialect::OpenAi;
+    let response = Devin.list_models(listing).await.unwrap();
     let body: Value = serde_json::from_str(&drain(response).await).unwrap();
     let ids: Vec<&str> = body["data"]
         .as_array()

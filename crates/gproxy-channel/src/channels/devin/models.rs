@@ -297,8 +297,12 @@ pub(super) fn decode_list(
             Some(2) => "openai",
             Some(3) => "anthropic",
             Some(4) => "google",
+            Some(5) => "xai",
+            Some(6) => "deepseek",
             Some(7) => "moonshot",
             Some(9) => "zhipu",
+            Some(11) => "nvidia",
+            // 13 (muse-wonder) and anything newer: no family is known yet.
             _ => "devin",
         };
         let mut model = json!({"id":selector,"object":"model","created":0,"owned_by":owner});
