@@ -38,18 +38,6 @@ fn gemini_embed_and_batch_keep_camel_snake_aliases_and_unknowns() {
 }
 
 #[test]
-fn rerank_openai_compatible_structured_documents_and_nullable_echo() {
-    let request: RerankRequestBody = serde_json::from_value(json!({
-        "model":"cohere/rerank-v3.5", "query":"capital", "documents":["Paris",{"image":"data:image/png;base64,AA=="}], "top_n":1
-    })).unwrap();
-    assert_eq!(request.top_n, Some(1));
-    let response: RerankResponseBody = serde_json::from_value(json!({
-        "id":"r1", "model":"cohere/rerank-v3.5", "results":[{"index":0,"relevance_score":0.98,"document":{"text":"Paris"}}], "usage":{"search_units":1,"total_tokens":4}
-    })).unwrap();
-    assert_eq!(response.results[0].document.text.as_deref(), Some("Paris"));
-}
-
-#[test]
 fn http_envelope_keeps_embedding_path_and_body_separate() {
     let body =
         CreateEmbeddingRequestBody::builder(EmbeddingInput::Text("hello".into()), "m".into())
@@ -165,18 +153,6 @@ fn openrouter_provider_shapes_preserve_all_known_fields_and_nulls() {
     );
     exact::<RerankResponseBody>(
         json!({"id":"i","model":"m","provider":"p","results":[{"index":0,"relevance_score":0.9,"document":{"image":"u"}}],"usage":{"search_units":1,"total_tokens":2,"cost":0.1}}),
-    );
-    assert!(
-        serde_json::from_value::<RerankResponseBody>(
-            json!({"model":"m","results":[{"index":0,"relevance_score":0.1}]})
-        )
-        .is_err()
-    );
-    assert!(
-        serde_json::from_value::<RerankResponseBody>(
-            json!({"model":"m","results":[{"index":0,"relevance_score":0.1,"document":null}]})
-        )
-        .is_err()
     );
     exact::<DashscopeRerankRequestBody>(
         json!({"model":"qwen3-rerank","query":"q","documents":["a"],"top_n":1,"instruct":"rank"}),

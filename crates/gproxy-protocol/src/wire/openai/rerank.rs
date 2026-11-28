@@ -1,6 +1,16 @@
-//! OpenRouter `/rerank` and separately named DashScope `/reranks` wire shapes.
-//! Sources: openrouter/Submit a rerank request.md and dashscope/OpenAI-compatible Rerank.md.
-//! OpenRouter requires each result document; DashScope may omit it.
+//! The `/v1/rerank` wire shape, and DashScope's separately named `/reranks`.
+//!
+//! `/v1/rerank` is the union of what OpenAI-dialect rerank providers send:
+//! OpenRouter (`openrouter/Submit a rerank request.md`), Cohere, Jina and
+//! SiliconFlow. They agree on `query`, `documents`, `top_n` and on
+//! `results[].{index, relevance_score}`, and differ in the rest: a result
+//! carries its document only when the provider echoes it (OpenRouter always,
+//! the others on `return_documents`), `model` is absent from Cohere and
+//! SiliconFlow replies, and usage arrives as `usage` (OpenRouter, Jina),
+//! top-level `tokens` (SiliconFlow) or `meta.billed_units` and `meta.tokens`
+//! (Cohere).
+//!
+//! DashScope (`dashscope/OpenAI-compatible Rerank.md`) is typed on its own.
 use crate::{Rest, WireRequest, WireResponse};
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +31,9 @@ pub struct RerankRequestBody {
     pub documents: Vec<RerankDocumentInput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_n: Option<i64>,
+    /// Whether each result echoes its document (Cohere, Jina, SiliconFlow).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub return_documents: Option<bool>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -55,12 +68,20 @@ pub struct RerankDocument {
 pub struct RerankResponseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
-    pub model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
     pub results: Vec<RerankResult>,
+    /// OpenRouter and Jina usage.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<RerankUsage>,
+    /// SiliconFlow usage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tokens: Option<RerankTokens>,
+    /// Cohere usage, with whatever else Cohere reports about the call.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<RerankMeta>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -81,7 +102,8 @@ pub enum RerankObject {
 pub struct RerankResult {
     pub index: i64,
     pub relevance_score: serde_json::Number,
-    pub document: RerankDocument,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document: Option<RerankDocument>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -94,9 +116,56 @@ pub struct RerankUsage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub search_units: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_tokens: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub total_tokens: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost: Option<serde_json::Number>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+/// Tokens counted for a rerank: SiliconFlow's top-level `tokens`, and
+/// Cohere's `meta.tokens`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct RerankTokens {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<i64>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+/// Cohere's `meta`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct RerankMeta {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub billed_units: Option<RerankBilledUnits>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tokens: Option<RerankTokens>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+/// Cohere's `meta.billed_units`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct RerankBilledUnits {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub search_units: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<i64>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }

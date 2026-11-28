@@ -185,15 +185,38 @@ impl TranscriptionStream {
 
 // ----------------------------------------------------------------- rerank
 
-/// A rerank reply. Rerank consumes input only: `prompt_tokens` where the
-/// upstream splits it out, else `total_tokens`. A provider that bills by
-/// search unit reports `search_units`, recorded as a metric of that name.
+/// A rerank reply, in whichever usage shape the provider sends: `usage`
+/// (OpenRouter, Jina), top-level `tokens` (SiliconFlow), or Cohere's
+/// `meta.billed_units` and `meta.tokens`, billed units first. Input is
+/// `prompt_tokens` where `usage` splits it out, else `total_tokens`, else
+/// `input_tokens`. A provider that bills by search unit reports
+/// `search_units`, recorded as a metric of that name.
 pub(super) fn rerank(body: &[u8]) -> Option<NormalizedUsage> {
-    let reply: Reply = serde_json::from_slice(body).ok()?;
-    let usage = reply.usage?;
-    let input = count(&usage, "prompt_tokens").or_else(|| count(&usage, "total_tokens"));
-    let units = count(&usage, "search_units");
-    if input.is_none() && units.is_none() {
+    let reply: Value = serde_json::from_slice(body).ok()?;
+    let object = |pointer: &str| reply.pointer(pointer).filter(|value| value.is_object());
+    let usage = object("/usage");
+    let counted = [
+        object("/tokens"),
+        object("/meta/billed_units"),
+        object("/meta/tokens"),
+    ];
+    let input = usage
+        .and_then(|usage| count(usage, "prompt_tokens").or_else(|| count(usage, "total_tokens")))
+        .or_else(|| {
+            counted
+                .iter()
+                .flatten()
+                .find_map(|c| count(c, "input_tokens"))
+        });
+    let output = counted
+        .iter()
+        .flatten()
+        .find_map(|c| count(c, "output_tokens"));
+    let units = [usage, object("/meta/billed_units")]
+        .into_iter()
+        .flatten()
+        .find_map(|c| count(c, "search_units"));
+    if input.is_none() && output.is_none() && units.is_none() {
         return None;
     }
     let mut normalized = NormalizedUsage {
@@ -201,6 +224,7 @@ pub(super) fn rerank(body: &[u8]) -> Option<NormalizedUsage> {
         ..NormalizedUsage::default()
     };
     normalized.tokens.input_tokens = input;
+    normalized.tokens.output_tokens = output;
     common::metric(&mut normalized, "search_units", units.unwrap_or_default());
     Some(normalized)
 }

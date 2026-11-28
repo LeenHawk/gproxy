@@ -31,7 +31,7 @@
 //! | embeddings | OpenAI, Gemini | `usage` / `usageMetadata`, input only |
 //! | images | OpenAI | `usage`, the number of images, and the image qualifiers |
 //! | transcription, translation | OpenAI | `usage` in tokens or seconds |
-//! | rerank | OpenAI | `usage` in tokens or search units |
+//! | rerank | OpenAI | `usage`, `tokens` or `meta.billed_units`, in tokens or search units |
 //! | realtime | OpenAI | each `response.done`, summed by response id |
 //!
 //! [`SseDecoder`]: crate::codec::SseDecoder
