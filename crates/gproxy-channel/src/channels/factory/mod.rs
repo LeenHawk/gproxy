@@ -148,7 +148,9 @@ impl BaseChannel for Factory {
         model: Option<&str>,
     ) -> Vec<Dialect> {
         match (operation, model) {
-            (Operation::ListModels, _) => vec![Dialect::OpenAiChat],
+            // The OpenAI model list is `ListModels / OpenAi`; the protocol has
+            // no Chat Completions variant of it.
+            (Operation::ListModels, _) => vec![Dialect::OpenAi],
             (Operation::GenerateContent, None) => {
                 vec![Dialect::Claude, Dialect::OpenAi, Dialect::OpenAiChat]
             }
@@ -191,7 +193,7 @@ impl BaseChannel for Factory {
         context: OperationContext<'a>,
     ) -> UpstreamFuture<'a, WireResponse<HttpBody>> {
         Box::pin(async move {
-            if context.dialect != Dialect::OpenAiChat {
+            if context.dialect != Dialect::OpenAi {
                 return Err(UpstreamError::UnsupportedOperation(OperationKey {
                     operation: Operation::ListModels,
                     dialect: context.dialect,

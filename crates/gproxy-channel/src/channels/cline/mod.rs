@@ -113,12 +113,15 @@ impl BaseChannel for Cline {
     }
 
     /// One Chat Completions route and one catalogue; every other dialect is
-    /// the host's conversion problem.
+    /// the host's conversion problem. The catalogue is an OpenAI model list,
+    /// which the protocol keys as `ListModels / OpenAi`: there is no Chat
+    /// Completions variant of it.
     fn native_dialects(&self, _: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
-            Operation::GenerateContent
-            | Operation::StreamGenerateContent
-            | Operation::ListModels => vec![Dialect::OpenAiChat],
+            Operation::GenerateContent | Operation::StreamGenerateContent => {
+                vec![Dialect::OpenAiChat]
+            }
+            Operation::ListModels => vec![Dialect::OpenAi],
             _ => Vec::new(),
         }
     }

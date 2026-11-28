@@ -173,7 +173,9 @@ impl BaseChannel for CopilotCli {
             Operation::GenerateContent | Operation::StreamGenerateContent => {
                 endpoints::dialects(model)
             }
-            Operation::ListModels => vec![Dialect::OpenAiChat],
+            // The OpenAI model list is `ListModels / OpenAi`; the protocol has
+            // no Chat Completions variant of it.
+            Operation::ListModels => vec![Dialect::OpenAi],
             _ => Vec::new(),
         }
     }
