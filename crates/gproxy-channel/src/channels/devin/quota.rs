@@ -8,20 +8,15 @@
 //! `samples/windsurfapi/src/windsurf-api.js` and
 //! `samples/cpa-manager-plus/apps/web/src/utils/quota/{constants,providerRequests}.ts`.
 //!
-//! The client identity in the body is **one mirror's, verbatim**:
-//! `windsurf-api.js::buildMetadata`, which sends `ideName`/`extensionName`
-//! `windsurf` with version `1.9600.41`, `locale: en`, and neither `clientName`
-//! nor `os`. The two mirrors send different identities and both work, so the
-//! server evidently reads only `apiKey`; that is exactly why the value here is
-//! a quotation rather than a blend of the two, which is what a reader would
-//! otherwise take for a capture. It is deliberately **not** the chat
-//! identity from `config`: the protobuf `ClientMetadata` is a different
-//! message with different field numbers, and `extensionName` has no
-//! identified slot there at all (the positional JSON-to-protobuf map covers
-//! `ideName` #1, `ideVersion` #2, `apiKey` #3, `locale` #4, `os` #5,
-//! `extensionVersion` #7 and `clientName` #12, and stops). So the two calls
-//! are consistent in the only direction the evidence allows: each sends the
-//! identity that was captured on it, and neither invents a field number.
+//! The client identity in the body is Devin CLI 3000.15.14's own. The CLI
+//! calls this method with the protobuf codec (captured 2026-11-28) and its
+//! `ClientMetadata` carries #1 `chisel`, #2 and #7 the version, #3 the token,
+//! #4 the locale, #5 the operating system and #12 `chisel`. The JSON names for
+//! those fields (`ideName`, `ideVersion`, `apiKey`, `locale`, `os`,
+//! `extensionVersion`, `clientName`) are the ones both mirrors send, so the
+//! body is the same metadata in the codec the mirrors showed works. The CLI
+//! sends nothing in #6, so `extensionName` is left out; its #31 fingerprint
+//! has no known JSON name and is left out too.
 //!
 //! The reply carries `userStatus.planStatus` with a daily and a weekly window
 //! reported as **remaining** percent plus a unix reset second, which is a
@@ -65,12 +60,6 @@ pub const OVERAGE_ID: &str = "devin_overage";
 /// Prompt credits and flex credits for the plan period.
 pub const PROMPT_CREDITS_ID: &str = "devin_prompt_credits";
 pub const FLEX_CREDITS_ID: &str = "devin_flex_credits";
-
-/// `windsurf-api.js::buildMetadata`, quoted. See the module documentation for
-/// why this is one mirror's identity rather than the chat identity.
-const QUOTA_IDE_NAME: &str = "windsurf";
-const QUOTA_IDE_VERSION: &str = "1.9600.41";
-const QUOTA_LOCALE: &str = "en";
 
 impl QuotaModel for Devin {
     fn allows_paid_usage(&self, credential: CredentialView<'_>, dimension: &str) -> bool {
@@ -131,12 +120,13 @@ impl QuotaQuery for Devin {
             );
             let body = json!({
                 "metadata": {
+                    "ideName": config.client_name,
+                    "ideVersion": config.client_version,
                     "apiKey": auth.token,
-                    "ideName": QUOTA_IDE_NAME,
-                    "ideVersion": QUOTA_IDE_VERSION,
-                    "extensionName": QUOTA_IDE_NAME,
-                    "extensionVersion": QUOTA_IDE_VERSION,
-                    "locale": QUOTA_LOCALE,
+                    "locale": config.locale,
+                    "os": config.os,
+                    "extensionVersion": config.client_version,
+                    "clientName": config.client_name,
                 }
             });
             let mut builder = http::Request::post(&url);

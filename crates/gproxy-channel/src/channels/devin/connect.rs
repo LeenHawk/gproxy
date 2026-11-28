@@ -35,13 +35,12 @@ pub const USER_STATUS_PATH: &str = "/exa.seat_management_pb.SeatManagementServic
 /// module documentation for why the credential carries the JWT instead.
 pub const USER_JWT_PATH: &str = "/exa.auth_pb.AuthService/GetUserJwt";
 
-/// `application/connect+proto`, `connect-protocol-version: 1`,
-/// `connect-accept-encoding: gzip`, `user-agent: connect-es/2.0.0`
-/// (`devin-connect.js` file header and `connect.js::connectHeaders`).
+/// `application/connect+proto` and `connect-protocol-version: 1`. Devin CLI
+/// 3000.15.14 sends no `user-agent` and no `connect-accept-encoding`
+/// (captured 2026-11-28); the reference's `connect-es/2.0.0` banner was its
+/// own JavaScript client's, not the CLI's.
 pub const PROTO_CONTENT_TYPE: &str = "application/connect+proto";
 pub const PROTOCOL_VERSION: &str = "1";
-pub const ACCEPT_ENCODING: &str = "gzip";
-pub const USER_AGENT: &str = "connect-es/2.0.0";
 
 /// Ceiling on one frame, for both its advertised length and the size it may
 /// inflate to. The reference bounds both at the same value for the same
@@ -211,6 +210,20 @@ pub fn proto_headers(token: &str) -> Result<HeaderMap, UpstreamError> {
     Ok(headers)
 }
 
+/// The `sentry-trace` the CLI puts on the chat call: a fresh trace id and span
+/// id, unsampled (`<32 hex>-<16 hex>-0`).
+pub fn sentry_trace() -> Result<HeaderValue, UpstreamError> {
+    let mut bytes = [0_u8; 24];
+    getrandom::fill(&mut bytes).map_err(|error| {
+        UpstreamError::Host(format!(
+            "operating-system randomness is unavailable: {error}"
+        ))
+    })?;
+    let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+    HeaderValue::from_str(&format!("{}-{}-0", &hex[..32], &hex[32..]))
+        .map_err(|error| UpstreamError::Host(error.to_string()))
+}
+
 /// Headers for a Connect call carrying JSON. Connect's JSON codec is what the
 /// account endpoints use; the session token rides in the body there, not in a
 /// header (`windsurf-api.js::postJson` sends no authorization).
@@ -230,11 +243,6 @@ fn common_headers(headers: &mut HeaderMap) {
         HeaderName::from_static("connect-protocol-version"),
         HeaderValue::from_static(PROTOCOL_VERSION),
     );
-    headers.insert(
-        HeaderName::from_static("connect-accept-encoding"),
-        HeaderValue::from_static(ACCEPT_ENCODING),
-    );
-    headers.insert(header::USER_AGENT, HeaderValue::from_static(USER_AGENT));
 }
 
 /// The Connect code and message a failed trailer carries.

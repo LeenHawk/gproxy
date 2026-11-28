@@ -43,8 +43,12 @@
 //!
 //! `POST {base}/exa.api_server_pb.ApiServerService/GetChatMessage` with
 //! `content-type: application/connect+proto`, `connect-protocol-version: 1`,
-//! `connect-accept-encoding: gzip` and `user-agent: connect-es/2.0.0`
-//! (`devin-connect.js` header; `connect.js::connectHeaders`). An envelope is
+//! `accept: */*` and a fresh `sentry-trace`, and no `user-agent`: the header
+//! set Devin CLI 3000.15.14 sends (captured 2026-11-28 against a local
+//! server). The CLI also sends `accept-encoding: gzip`, because its HTTP
+//! client decompresses; the host client here does not by default, so that
+//! header is left out. The reference's `connect-es/2.0.0` banner was its own
+//! JavaScript client's. An envelope is
 //! `[flags][big-endian length][payload]`, flag `0x01` gzip and `0x02`
 //! end-of-stream, whose payload is a JSON trailer: `{}` for success,
 //! `{"error":{…}}` for failure. The request frame goes out **uncompressed** —
@@ -60,23 +64,17 @@
 //! copy inside the message (`ClientMetadata.session_token`, #3) stays
 //! **single** (`devin-connect.js` header §1 and `buildClientMetadata`).
 //!
-//! `ClientMetadata` #31 is a device fingerprint of **732 hexadecimal
-//! characters (366 bytes)**; a shorter value trips a server-side "internal"
-//! error. The server checks the shape and not the value, so any hex string of
-//! that length works (`devin-connect.js` header §2, `generateFingerprint`).
-//! This channel stretches one from a seed that is **not** the session token:
-//! the reference derives its stable-device value from a separate seed on
-//! purpose, because the `info` label namespaces distinct fingerprints from one
-//! seed *"so the #31 metadata and, later, the login UA cannot be
-//! cross-correlated or reversed"*. The seed here is the credential's host
-//! identity (provider and credential id), so the device is stable for the
-//! credential's lifetime, nothing has to be persisted, the value is not a
-//! function of the secret, and two installations that paste the same token do
-//! not present the same device. A credential may name its own `device_seed`
-//! to keep a device across a re-add, or carry a literal 732-character
-//! `fingerprint`; a value of the wrong shape is refused here rather than
-//! upstream. The length requirement is the upstream's, the construction is
-//! *inferred*.
+//! `ClientMetadata` #31 is a fingerprint of **430 hexadecimal characters
+//! (215 bytes)**, and Devin CLI 3000.15.14 sends a different one on every call
+//! (captured 2026-11-28; the reference recorded 732 characters from an older
+//! build). The server checks the shape, not the value. This channel keeps a
+//! stable per-credential device value, stretched from a seed that is **not**
+//! the session token (the credential's host identity, or its own
+//! `device_seed`), and derives the session identity from it; #31 is then
+//! drawn fresh from that device value and a random nonce on each call. A
+//! credential may instead carry a literal `fingerprint` (430 or the older 732
+//! characters), which is sent as it is; a value of the wrong shape is refused
+//! here rather than upstream.
 //!
 //! # `GetChatMessageRequest`
 //!
@@ -92,9 +90,11 @@
 //! | 20 | constant `1` | meaning not recorded |
 //! | 21 | `model_selector` | a **string** selector, not an enum ordinal |
 //!
-//! `ClientMetadata`: #1 and #12 the client name (`chisel`), #2 and #7 the CLI
-//! version, #3 the session token, #4 the locale, #5 the operating system, #21
-//! an optional short-lived user JWT, #31 the fingerprint. The duplicated pairs
+//! `ClientMetadata`: #1 the client name (`devin-cli` on the chat call,
+//! `chisel` on account calls), #12 `chisel`, #2 and #7 the CLI version, #3 the
+//! session token, #4 the locale, #5 the operating system, #21 an optional
+//! short-lived user JWT, #28 `chisel` again on the chat call, #31 a
+//! 430-hex-character fingerprint drawn fresh per call (3000.15.14 capture). The duplicated pairs
 //! are not echoes: the JSON codec's body for the same message is
 //! `{ideName, ideVersion, apiKey, locale, os, extensionName, extensionVersion,
 //! clientName}`, which maps positionally onto #1 `ide_name`, #2 `ide_version`,
@@ -134,17 +134,13 @@
 //!   only the turn that would cross the threshold. A turn carrying images
 //!   never merges — it encodes to a different shape.
 //!
-//! `CompletionConfig`: #1 enabled, #2 `max_tokens`, #3 the context window, #5
-//! temperature (double), #7 `top_k`, #8 `top_p` (double). The #2/#3 pair was
-//! corrected in the reference after a capture showed the output cap sitting on
-//! `max_newlines`; `DEVIN-CONNECT-CUTOVER.md` §8.9 records both the fix and
-//! that enforcement of #2 is a schema-backed expectation rather than a
-//! measured fact. #3 is the contradiction the reference never resolved: it
-//! *declares* the field `max_newlines` and *writes* the context window into
-//! it, reconciling the two with "a large max_newlines is a no-op". This
-//! channel follows the use rather than the declaration and calls the key
-//! `context_window`, because an operator who reaches for it is trying to move
-//! a context limit. An exact temperature of `0` reliably answers "an internal
+//! `CompletionConfig`: #1 enabled, #2 `max_tokens`, #3 `max_newlines`, #5
+//! temperature (double), #7 `top_k`, #8 `top_p` (double). Devin CLI 3000.15.14
+//! sends #2 = 128000 and #3 = 400 (captured 2026-11-28), which settles the
+//! pair the reference left contradictory: it declared #3 `max_newlines` and
+//! wrote a 128000 context window into it. #3 is the newline cap, and the key is
+//! `max_newlines` again (`context_window` still loads). An exact temperature
+//! of `0` reliably answers "an internal
 //! error occurred" while `0.001` succeeds, so a request for greedy sampling is
 //! clamped to that floor (live finding, same section).
 //!
@@ -436,6 +432,7 @@ async fn start(context: OperationContext<'_>) -> Result<stream::Turn, UpstreamEr
             "connect-accept-encoding",
             "user-agent",
             "accept",
+            "sentry-trace",
         ],
     );
     for (name, value) in connect::proto_headers(auth.token)? {
@@ -443,6 +440,10 @@ async fn start(context: OperationContext<'_>) -> Result<stream::Turn, UpstreamEr
             headers.insert(name, value);
         }
     }
+    headers.insert(
+        http::HeaderName::from_static("sentry-trace"),
+        connect::sentry_trace()?,
+    );
     config.static_headers(&mut headers)?;
 
     let mut builder = http::Request::post(&url);
@@ -532,12 +533,12 @@ impl BaseChannel for Devin {
                 ConfigKey::optional(
                     "client_name",
                     ConfigKeyKind::String,
-                    "ClientMetadata #1 and #12; defaults to the CLI's own name.",
+                    "ClientMetadata #12 and #28, and #1 on account calls; defaults to the CLI's internal name, chisel. The chat call's #1 is always devin-cli.",
                 ),
                 ConfigKey::optional(
                     "client_version",
                     ConfigKeyKind::String,
-                    "ClientMetadata #2 and #7; defaults to the captured CLI build.",
+                    "ClientMetadata #2 and #7; defaults to the captured CLI build (3000.15.14).",
                 ),
                 ConfigKey::optional(
                     "locale",
@@ -557,12 +558,12 @@ impl BaseChannel for Devin {
                 ConfigKey::optional(
                     "max_tokens",
                     ConfigKeyKind::Integer,
-                    "CompletionConfig #2 when the request names no cap.",
+                    "CompletionConfig #2 when the request names no cap; defaults to 128000, as the CLI sends.",
                 ),
                 ConfigKey::optional(
-                    "context_window",
+                    "max_newlines",
                     ConfigKeyKind::Integer,
-                    "CompletionConfig #3. The reference declares this field max_newlines and writes the context window into it; the key is named for the use, not the declaration. Also accepted as max_newlines.",
+                    "CompletionConfig #3; defaults to 400, as Devin CLI 3000.15.14 sends. Also accepted as context_window.",
                 ),
                 ConfigKey::optional(
                     "headers",
@@ -633,13 +634,15 @@ impl BaseChannel for Devin {
                     )
                 });
             let mut body = proto::Message::new();
-            body.message(1, &request::client_metadata(&config, &auth));
+            body.message(
+                1,
+                &request::client_metadata(&config, &auth, request::Call::Account)?,
+            );
             let mut headers = connect::proto_headers(auth.token)?;
             headers.insert(
                 header::CONTENT_TYPE,
                 HeaderValue::from_static("application/proto"),
             );
-            headers.remove("connect-accept-encoding");
             config.static_headers(&mut headers)?;
             let mut upstream = http::Request::post(url)
                 .body(HttpBody::Bytes(Bytes::from(body.into_bytes())))

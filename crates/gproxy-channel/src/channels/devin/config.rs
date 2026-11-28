@@ -9,13 +9,15 @@ use gproxy_upstream::{ProviderView, UpstreamError};
 
 pub const ID: &str = "devin";
 
-/// `ClientMetadata` #1 and #12 on every captured request: the CLI's internal
-/// client name (`devin-connect.js`, the `CLIENT_NAME` constant). The account
-/// endpoints in `samples/cpa-manager-plus` send the same name.
+/// `ClientMetadata` #12, and #1 on the account calls: the CLI's internal name.
+/// Devin CLI 3000.15.14 (captured 2026-11-28) sends it on every call; the
+/// chat call also repeats it in #28.
 pub const CLIENT_NAME: &str = "chisel";
-/// `ClientMetadata` #2 and #7: the CLI build string the capture carried
-/// (`devin-connect.js`, `CLIENT_VERSION`).
-pub const CLIENT_VERSION: &str = "2026.8.18";
+/// `ClientMetadata` #1 on `GetChatMessage`, where the same CLI names itself
+/// by its product name instead (captured 2026-11-28).
+pub const CHAT_CLIENT_NAME: &str = "devin-cli";
+/// `ClientMetadata` #2 and #7: the CLI build (`devin version`, 3000.15.14).
+pub const CLIENT_VERSION: &str = "3000.15.14";
 /// `ClientMetadata` #4 and #5 on the captured request.
 pub const CLIENT_LOCALE: &str = "en";
 /// The CLI's browser PKCE authorization page.
@@ -23,31 +25,20 @@ pub const DEFAULT_AUTHORIZE_URL: &str = "https://app.devin.ai/auth/cli/continue"
 /// The CLI's authorization-code exchange endpoint.
 pub const DEFAULT_TOKEN_URL: &str = "https://api.devin.ai/auth/cli/token";
 pub const CLIENT_OS: &str = "windows";
-/// `CompletionConfig` #2, the enforced output cap when the caller names none.
-/// The reference defaults to 8192 rather than a smaller value because #2 only
-/// became the real cap once the max_tokens/max_newlines tags were corrected.
-pub const DEFAULT_MAX_TOKENS: u64 = 8192;
-/// `CompletionConfig` #3, the slot the reference *names* `max_newlines` and
-/// *writes* the context window into (`devin-connect.js` declares
-/// `#3 = max_newlines`, and `buildCompletionConfig` writes
-/// `contextWindow ?? 128000` there, reconciling the two with "a large
-/// max_newlines is a no-op"). The field is therefore documented as one thing
-/// and used as another on the reference wire, and this channel follows the
-/// use rather than the name: the key is `context_window`, because an operator
-/// who reaches for it is trying to move a context limit, not a newline count.
-///
-/// The value is a constant here and a per-model number there. This channel
-/// has no per-model context sizes to source it from — the captured catalogue
-/// snapshot carries selectors and providers, not window sizes — so it writes
-/// the reference's own default and leaves the key for an operator who knows
-/// better. Raising it is not known to raise anything upstream.
-pub const DEFAULT_CONTEXT_WINDOW: u64 = 128_000;
+/// `CompletionConfig` #2, the output cap when the caller names none. Devin
+/// CLI 3000.15.14 sends 128000 here (captured 2026-11-28).
+pub const DEFAULT_MAX_TOKENS: u64 = 128_000;
+/// `CompletionConfig` #3, which the reference's `.proto` declares
+/// `max_newlines`. The reference wrote its context window (128000) there; Devin
+/// CLI 3000.15.14 sends 400 (captured 2026-11-28), so the field is the
+/// newline cap its declaration names, not a context size.
+pub const DEFAULT_MAX_NEWLINES: u64 = 400;
 
 /// Provider `config` JSON understood by this channel. Unknown keys are ignored.
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct DevinConfig {
-    /// `ClientMetadata` #1 and #12.
+    /// `ClientMetadata` #12 and #28, and #1 on the account calls.
     pub client_name: String,
     /// `ClientMetadata` #2 and #7.
     pub client_version: String,
@@ -61,12 +52,10 @@ pub struct DevinConfig {
     pub models: BTreeMap<String, String>,
     /// `CompletionConfig` #2 when the request names no cap.
     pub max_tokens: u64,
-    /// `CompletionConfig` #3. Named for what the reference writes into it
-    /// rather than for what its `.proto` calls it; see
-    /// [`DEFAULT_CONTEXT_WINDOW`]. The old `max_newlines` spelling is accepted
-    /// so a provider row written against the field name still loads.
-    #[serde(alias = "max_newlines")]
-    pub context_window: u64,
+    /// `CompletionConfig` #3; see [`DEFAULT_MAX_NEWLINES`]. The earlier
+    /// `context_window` spelling still loads.
+    #[serde(alias = "context_window")]
+    pub max_newlines: u64,
     /// Browser PKCE authorization endpoint.
     pub authorize_url: String,
     /// Authorization-code exchange endpoint.
@@ -84,7 +73,7 @@ impl Default for DevinConfig {
             os: CLIENT_OS.into(),
             models: BTreeMap::new(),
             max_tokens: DEFAULT_MAX_TOKENS,
-            context_window: DEFAULT_CONTEXT_WINDOW,
+            max_newlines: DEFAULT_MAX_NEWLINES,
             authorize_url: DEFAULT_AUTHORIZE_URL.into(),
             token_url: DEFAULT_TOKEN_URL.into(),
             headers: BTreeMap::new(),

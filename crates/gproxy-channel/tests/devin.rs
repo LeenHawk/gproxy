@@ -358,8 +358,12 @@ async fn the_authorization_header_doubles_the_token_and_the_body_copy_stays_sing
         "application/connect+proto"
     );
     assert_eq!(headers.get("connect-protocol-version").unwrap(), "1");
-    assert_eq!(headers.get("connect-accept-encoding").unwrap(), "gzip");
-    assert_eq!(headers.get("user-agent").unwrap(), "connect-es/2.0.0");
+    assert!(headers.get("connect-accept-encoding").is_none());
+    assert!(
+        headers.get("user-agent").is_none(),
+        "the CLI sends no user-agent"
+    );
+    assert!(headers.get("sentry-trace").is_some());
 
     // The body is one uncompressed envelope; its ClientMetadata carries a
     // single copy of the token and a full-length fingerprint.
@@ -374,8 +378,9 @@ async fn the_authorization_header_doubles_the_token_and_the_body_copy_stays_sing
     let fingerprint = devin::proto::text_of(&metadata, 31).unwrap();
     assert_eq!(fingerprint.len(), devin::FINGERPRINT_HEX_CHARS);
     assert!(fingerprint.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    assert_eq!(devin::proto::text_of(&metadata, 1), Some("devin-cli"));
     assert_eq!(
-        devin::proto::text_of(&metadata, 1),
+        devin::proto::text_of(&metadata, 28),
         Some(devin::CLIENT_NAME)
     );
     assert_eq!(
@@ -391,7 +396,7 @@ async fn the_authorization_header_doubles_the_token_and_the_body_copy_stays_sing
     // The caller's cap reaches CompletionConfig #2, not #3.
     let completion = devin::proto::parse(devin::proto::bytes_of(&fields, 8).unwrap()).unwrap();
     assert_eq!(devin::proto::varint_of(&completion, 2), Some(512));
-    assert_eq!(devin::proto::varint_of(&completion, 3), Some(128_000));
+    assert_eq!(devin::proto::varint_of(&completion, 3), Some(400));
 }
 
 #[test]
@@ -596,7 +601,11 @@ async fn sent_fingerprint(secret: &Value, credential_id: &'static str) -> String
 async fn the_fingerprint_is_not_derived_from_the_session_token() {
     let token = secret();
     let first = sent_fingerprint(&token, "cred-1").await;
-    assert_eq!(first, sent_fingerprint(&token, "cred-1").await, "stable");
+    assert_ne!(
+        first,
+        sent_fingerprint(&token, "cred-1").await,
+        "the CLI sends a fresh #31 on every call"
+    );
     assert_ne!(
         first,
         sent_fingerprint(&token, "cred-2").await,
@@ -608,10 +617,12 @@ async fn the_fingerprint_is_not_derived_from_the_session_token() {
         "a value public to the upstream is never a function of the secret"
     );
     let seeded = json!({"session_token": "devin-session-token$abc", "device_seed": "my-seed"});
-    assert_eq!(
-        sent_fingerprint(&seeded, "cred-1").await,
+    let sent = sent_fingerprint(&seeded, "cred-1").await;
+    assert_eq!(sent.len(), devin::FINGERPRINT_HEX_CHARS);
+    assert_ne!(
+        sent,
         devin::derive_fingerprint("my-seed"),
-        "an explicit seed is what survives re-adding the account"
+        "the seed fixes the device, and #31 is drawn fresh from it per call"
     );
 }
 
@@ -1408,15 +1419,13 @@ async fn the_quota_query_reads_both_windows_from_plan_status() {
     let body: Value = serde_json::from_slice(body).unwrap();
     assert_eq!(body["metadata"]["apiKey"], "devin-session-token$abc");
     assert_eq!(
-        body["metadata"]["ideName"], "windsurf",
-        "one mirror's captured identity, verbatim, not a blend of the two"
+        body["metadata"]["ideName"], "chisel",
+        "the CLI's own GetUserStatus identity"
     );
-    assert_eq!(body["metadata"]["extensionName"], "windsurf");
-    assert_eq!(body["metadata"]["ideVersion"], "1.9600.41");
-    assert!(
-        body["metadata"].get("clientName").is_none() && body["metadata"].get("os").is_none(),
-        "the capture sends neither"
-    );
+    assert!(body["metadata"].get("extensionName").is_none());
+    assert_eq!(body["metadata"]["ideVersion"], devin::CLIENT_VERSION);
+    assert_eq!(body["metadata"]["clientName"], "chisel");
+    assert!(body["metadata"].get("os").is_some());
 
     assert_eq!(snapshot.entries.len(), 2);
     let daily = &snapshot.entries[0];
@@ -1612,8 +1621,8 @@ fn the_descriptor_declares_oauth_and_a_quota_query() {
     assert!(descriptor.config_key("models").is_some());
     assert!(descriptor.config_key("client_version").is_some());
     assert!(
-        descriptor.config_key("context_window").is_some(),
-        "CompletionConfig #3 is named for what the reference writes into it"
+        descriptor.config_key("max_newlines").is_some(),
+        "CompletionConfig #3 is the newline cap the CLI sends"
     );
     assert!(descriptor.config_key("allowed_headers").is_some());
     assert!(

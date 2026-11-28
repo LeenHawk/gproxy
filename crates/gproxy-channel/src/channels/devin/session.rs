@@ -139,6 +139,48 @@ impl Session {
         }
         let mut fields = Message::new();
         fields.message(15, &metadata).string(16, &self.cascade);
+        // #22: one id per user prompt, kept through the tool loop that
+        // answers it; #28: the CLI's local session name. Devin CLI 3000.15.14
+        // sends both from the first turn (captured 2026-11-28).
+        let prompts = messages.map_or(0, |messages| {
+            messages.iter().filter(|message| is_prompt(message)).count()
+        });
+        fields
+            .string(22, &uuid(&format!("devin-exchange:{}:{prompts}", self.id)))
+            .string(28, &session_name(&self.id));
         body.extend_from_slice(fields.as_bytes());
     }
+}
+
+/// A user turn the person wrote, as opposed to one that only returns tool
+/// results (a Claude client's `tool_result` blocks ride on user turns).
+fn is_prompt(message: &Value) -> bool {
+    if message.get("role").and_then(Value::as_str) != Some("user") {
+        return false;
+    }
+    match message.get("content") {
+        Some(Value::Array(parts)) => !parts.iter().all(|part| {
+            part.get("type").and_then(Value::as_str) == Some("tool_result")
+        }),
+        _ => true,
+    }
+}
+
+/// An adjective-noun name in the shape of the CLI's session ids
+/// (`valiant-toast`), stable for one session.
+fn session_name(id: &str) -> String {
+    const ADJECTIVES: [&str; 16] = [
+        "valiant", "brisk", "quiet", "amber", "lucid", "nimble", "gentle", "bold",
+        "sunny", "steady", "clever", "mellow", "rapid", "silver", "humble", "vivid",
+    ];
+    const NOUNS: [&str; 16] = [
+        "toast", "harbor", "falcon", "meadow", "lantern", "pebble", "comet", "willow",
+        "anchor", "ember", "orchid", "summit", "otter", "maple", "beacon", "river",
+    ];
+    let digest = Sha256::digest(format!("devin-session-name:{id}").as_bytes());
+    format!(
+        "{}-{}",
+        ADJECTIVES[usize::from(digest[0] % 16)],
+        NOUNS[usize::from(digest[1] % 16)]
+    )
 }

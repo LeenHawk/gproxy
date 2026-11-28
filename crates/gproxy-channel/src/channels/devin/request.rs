@@ -35,21 +35,23 @@ const META_VERSION_ECHO: u32 = 7;
 const META_CLIENT_NAME_ECHO: u32 = 12;
 const META_USER_JWT: u32 = 21;
 const META_FINGERPRINT: u32 = 31;
+/// The CLI's internal name again, on the chat call only (captured 2026-11-28).
+const META_CLIENT_LABEL: u32 = 28;
 
 // ChatMessage
 const MSG_UUID: u32 = 1;
 const MSG_SOURCE: u32 = 2;
 const MSG_TEXT: u32 = 3;
 const MSG_IMAGES: u32 = 10;
+const MSG_USER_PROMPT: u32 = 8;
 const IMAGE_BASE64: u32 = 1;
 const IMAGE_MIME: u32 = 2;
 
 // CompletionConfig
 const COMPLETION_ENABLED: u32 = 1;
 const COMPLETION_MAX_TOKENS: u32 = 2;
-/// Declared `max_newlines` by the reference and written the context window by
-/// it; see `config::DEFAULT_CONTEXT_WINDOW` for the contradiction.
-const COMPLETION_CONTEXT_WINDOW: u32 = 3;
+/// `max_newlines`; see `config::DEFAULT_MAX_NEWLINES`.
+const COMPLETION_MAX_NEWLINES: u32 = 3;
 const COMPLETION_TEMPERATURE: u32 = 5;
 const COMPLETION_TOP_K: u32 = 7;
 const COMPLETION_TOP_P: u32 = 8;
@@ -65,18 +67,25 @@ const SOURCE_ASSISTANT: u64 = 2;
 const MIN_TEMPERATURE: f64 = 0.001;
 const DEFAULT_TEMPERATURE: f64 = 1.0;
 const DEFAULT_TOP_K: u64 = 40;
-const DEFAULT_TOP_P: f64 = 0.95;
+/// The CLI holds top_p as an f32 and widens it, so the default goes out as
+/// 0.95f32, not 0.95 (`000000606666ee3f`, captured 2026-11-28).
+const DEFAULT_TOP_P: f64 = 0.95_f32 as f64;
 
-/// `ClientMetadata` #31 must be 732 hexadecimal characters, i.e. 366 bytes.
-/// A shorter value trips a server-side "internal" error; the value itself is
-/// not session-bound, so any hex string of that length is accepted
-/// (`devin-connect.js` file header §2 and `generateFingerprint`).
-pub const FINGERPRINT_HEX_CHARS: usize = 732;
+/// `ClientMetadata` #31: Devin CLI 3000.15.14 sends 430 hexadecimal characters
+/// (215 bytes), a fresh value on every call (captured 2026-11-28). The
+/// reference recorded 732 from an older build; a configured fingerprint of
+/// that length is still sent as it is.
+pub const FINGERPRINT_HEX_CHARS: usize = 430;
+const LEGACY_FINGERPRINT_HEX_CHARS: usize = 732;
 
 /// The session token and the client identity that travel with it.
 pub(super) struct Auth<'a> {
     pub token: &'a str,
+    /// This credential's device identity: stable, so sessions derived from it
+    /// stay put. #31 itself is drawn fresh from it per call unless the
+    /// credential configured one.
     pub fingerprint: String,
+    pub configured_fingerprint: bool,
     pub user_jwt: Option<&'a str>,
 }
 
@@ -91,13 +100,15 @@ pub(super) fn auth<'a>(credential: &CredentialView<'a>) -> Result<Auth<'a>, Upst
         .map(str::trim)
         .filter(|token| !token.is_empty())
         .ok_or(UpstreamError::InvalidCredential)?;
-    let fingerprint = match credential.secret.get("fingerprint").and_then(Value::as_str) {
+    let configured = credential.secret.get("fingerprint").and_then(Value::as_str);
+    let fingerprint = match configured {
         Some(configured) => validate_fingerprint(configured.trim())?.to_owned(),
         None => derive_fingerprint(&fingerprint_seed(credential)),
     };
     Ok(Auth {
         token,
         fingerprint,
+        configured_fingerprint: configured.is_some(),
         user_jwt: credential
             .secret
             .get("user_jwt")
@@ -137,13 +148,15 @@ fn fingerprint_seed(credential: &CredentialView<'_>) -> String {
 /// the server's complaint is an opaque "internal" error that looks like a
 /// dead account.
 pub fn validate_fingerprint(value: &str) -> Result<&str, UpstreamError> {
-    if value.len() != FINGERPRINT_HEX_CHARS || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+    if ![FINGERPRINT_HEX_CHARS, LEGACY_FINGERPRINT_HEX_CHARS].contains(&value.len())
+        || !value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
         return Err(UpstreamError::InvalidCredential);
     }
     Ok(value)
 }
 
-/// Stretch a seed into the 366 bytes #31 wants: SHA-256 in counter mode with
+/// Stretch a seed into the 215 bytes #31 wants: SHA-256 in counter mode with
 /// a label, which is the HKDF expand phase the reference uses (it reaches for
 /// HMAC-SHA256; the label, not the construction, is what does the work here).
 /// Same seed in, same fingerprint out, with nothing persisted; a different
@@ -248,10 +261,32 @@ fn stop_sequences(request: &Value) -> Vec<String> {
     }
 }
 
-pub(super) fn client_metadata(config: &DevinConfig, auth: &Auth<'_>) -> Message {
+/// Which call the metadata rides on. The CLI names itself `devin-cli` in #1
+/// on the chat call and adds #28; the account calls carry `chisel` in #1
+/// (captured 2026-11-28).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Call {
+    Chat,
+    Account,
+}
+
+pub(super) fn client_metadata(
+    config: &DevinConfig,
+    auth: &Auth<'_>,
+    call: Call,
+) -> Result<Message, UpstreamError> {
+    let name = match call {
+        Call::Chat => super::config::CHAT_CLIENT_NAME,
+        Call::Account => config.client_name.as_str(),
+    };
+    let fingerprint = if auth.configured_fingerprint {
+        auth.fingerprint.clone()
+    } else {
+        derive_fingerprint(&format!("{}:{}", auth.fingerprint, uuid()?))
+    };
     let mut metadata = Message::new();
     metadata
-        .string(META_CLIENT_NAME, &config.client_name)
+        .string(META_CLIENT_NAME, name)
         .string(META_CLIENT_VERSION, &config.client_version)
         .string(META_SESSION_TOKEN, auth.token)
         .string(META_LOCALE, &config.locale)
@@ -261,8 +296,11 @@ pub(super) fn client_metadata(config: &DevinConfig, auth: &Auth<'_>) -> Message 
     if let Some(jwt) = auth.user_jwt {
         metadata.string(META_USER_JWT, jwt);
     }
-    metadata.string(META_FINGERPRINT, &auth.fingerprint);
-    metadata
+    if call == Call::Chat {
+        metadata.string(META_CLIENT_LABEL, &config.client_name);
+    }
+    metadata.string(META_FINGERPRINT, &fingerprint);
+    Ok(metadata)
 }
 
 pub(super) fn build(
@@ -461,7 +499,7 @@ pub(super) fn build(
         .and_then(Value::as_u64)
         .filter(|cap| *cap > 0);
 
-    let metadata = client_metadata(config, auth);
+    let metadata = client_metadata(config, auth, Call::Chat)?;
 
     let mut completion = Message::new();
     let temperature = request
@@ -475,7 +513,7 @@ pub(super) fn build(
             COMPLETION_MAX_TOKENS,
             max_tokens.unwrap_or(config.max_tokens),
         )
-        .varint(COMPLETION_CONTEXT_WINDOW, config.context_window)
+        .varint(COMPLETION_MAX_NEWLINES, config.max_newlines)
         .double(COMPLETION_TEMPERATURE, temperature)
         .varint(
             COMPLETION_TOP_K,
@@ -554,6 +592,13 @@ fn chat_message(turn: &Turn) -> Result<Message, UpstreamError> {
         .string(MSG_UUID, &uuid()?)
         .varint(MSG_SOURCE, turn.source)
         .string(MSG_TEXT, &turn.text);
+    // The CLI marks the person's own prompt with #8 `{1: 1}`; context it
+    // injects as user turns goes without (captured 2026-11-28).
+    if turn.source == SOURCE_USER {
+        let mut kind = Message::new();
+        kind.varint(1, 1);
+        message.message(MSG_USER_PROMPT, &kind);
+    }
     if !turn.reasoning.text.is_empty() {
         message.string(11, &turn.reasoning.text);
     }
