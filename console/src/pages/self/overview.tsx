@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import * as portal from "@/api/portal"
 import { useConsoleContext } from "@/capability/session"
+import { AnnouncementBanner } from "@/components/announcements"
 import { Page, PageHeader, PageSection } from "@/components/page"
 import { QuotaWindows } from "@/components/quota-windows"
 import { LoadingRows, QueryState } from "@/components/state"
@@ -35,6 +36,8 @@ export function OverviewPage() {
   return (
     <Page>
       <PageHeader title={t("overview.title", { name: context.userName })} />
+
+      <AnnouncementBanner />
 
       <UsageRangeSelector value={range} onChange={setRange} />
 

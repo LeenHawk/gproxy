@@ -5,12 +5,16 @@
 //! through a Markdown library: the subset is five rules, the feed is signed by
 //! the project, and nothing else in the console needs a parser.
 
-import { Fragment, type ReactNode } from "react"
+import { Fragment, useState, type ReactNode } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { InfoIcon, OctagonAlertIcon, TriangleAlertIcon } from "lucide-react"
-import type { Announcement, AnnouncementSeverity } from "@/api/update"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { InfoIcon, OctagonAlertIcon, TriangleAlertIcon, XIcon } from "lucide-react"
+import { ANNOUNCEMENTS_KEY, announcements, type Announcement, type AnnouncementSeverity } from "@/api/update"
+import { SETTINGS_ACCESS } from "@/api/settings"
+import { useConsoleContext } from "@/capability/session"
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { formatInstant } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -28,29 +32,70 @@ function localized(notice: Announcement, language: string) {
 }
 
 export function AnnouncementList({ notices }: { notices: Array<Announcement> }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   if (notices.length === 0) return <p className="text-sm text-muted-foreground">{t("update.announcements.empty")}</p>
   return (
     <ul className="flex flex-col gap-3">
-      {notices.map((notice) => {
-        const content = localized(notice, i18n.language)
-        const Icon = ICONS[notice.severity] ?? InfoIcon
-        const published = Date.parse(notice.published_at)
-        return (
-          <li key={notice.id}>
-            <Alert className={cn("px-4 py-3", TONES[notice.severity] ?? TONES.info)}>
-              <Icon aria-hidden />
-              <AlertTitle className="flex flex-wrap items-center gap-2">
-                <span>{content.title}</span>
-                <Badge variant={BADGES[notice.severity] ?? "info"}>{t(`update.announcements.severity.${notice.severity}`)}</Badge>
-                {Number.isFinite(published) ? <time dateTime={notice.published_at} className="text-xs font-normal text-muted-foreground">{formatInstant(published, i18n.language)}</time> : null}
-              </AlertTitle>
-              <AlertDescription className="block text-foreground/90"><AnnouncementBody text={content.body} /></AlertDescription>
-            </Alert>
-          </li>
-        )
-      })}
+      {notices.map((notice) => <li key={notice.id}><Notice notice={notice} /></li>)}
     </ul>
+  )
+}
+
+/**
+ * The notices an operator has not closed yet, above the landing page.
+ *
+ * Only callers who may open the update page see it, because the feed is that
+ * page's and its route asks for the same access. A host that cannot update
+ * itself has no feed route; the 404 is silence, like every other failure here.
+ */
+export function AnnouncementBanner() {
+  const context = useConsoleContext()
+  const allowed = context.has(SETTINGS_ACCESS)
+  const notices = useQuery({ queryKey: ANNOUNCEMENTS_KEY, queryFn: announcements, enabled: allowed, retry: false, staleTime: 5 * 60 * 1000 })
+  const [dismissed, setDismissed] = useState(readDismissed)
+  if (!allowed || !notices.data) return null
+  const open = notices.data.filter((notice) => !dismissed.includes(notice.id))
+  if (open.length === 0) return null
+  const dismiss = (id: string) => {
+    // Ids the feed no longer carries are dropped, so the list stays as long
+    // as the feed rather than growing with every notice ever closed.
+    const live = new Set(notices.data.map((notice) => notice.id))
+    const next = [...dismissed.filter((other) => live.has(other)), id]
+    try { window.localStorage.setItem(DISMISSED_KEY, JSON.stringify(next)) } catch { /* Shown again next visit. */ }
+    setDismissed(next)
+  }
+  return (
+    <ul className="flex flex-col gap-3">
+      {open.map((notice) => <li key={notice.id}><Notice notice={notice} onDismiss={() => dismiss(notice.id)} /></li>)}
+    </ul>
+  )
+}
+
+const DISMISSED_KEY = "gproxy.announcements.dismissed"
+
+function readDismissed(): Array<string> {
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(DISMISSED_KEY) ?? "[]")
+    return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : []
+  } catch { return [] }
+}
+
+function Notice({ notice, onDismiss }: { notice: Announcement; onDismiss?: () => void }) {
+  const { t, i18n } = useTranslation()
+  const content = localized(notice, i18n.language)
+  const Icon = ICONS[notice.severity] ?? InfoIcon
+  const published = Date.parse(notice.published_at)
+  return (
+    <Alert className={cn("px-4 py-3", TONES[notice.severity] ?? TONES.info)}>
+      <Icon aria-hidden />
+      <AlertTitle className="flex flex-wrap items-center gap-2">
+        <span>{content.title}</span>
+        <Badge variant={BADGES[notice.severity] ?? "info"}>{t(`update.announcements.severity.${notice.severity}`)}</Badge>
+        {Number.isFinite(published) ? <time dateTime={notice.published_at} className="text-xs font-normal text-muted-foreground">{formatInstant(published, i18n.language)}</time> : null}
+      </AlertTitle>
+      <AlertDescription className="block text-foreground/90"><AnnouncementBody text={content.body} /></AlertDescription>
+      {onDismiss ? <AlertAction><Button type="button" variant="ghost" size="icon-sm" aria-label={t("actions.close")} title={t("actions.close")} onClick={onDismiss}><XIcon aria-hidden /></Button></AlertAction> : null}
+    </Alert>
   )
 }
 
