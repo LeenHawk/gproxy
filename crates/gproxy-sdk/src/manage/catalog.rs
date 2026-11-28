@@ -580,31 +580,40 @@ fn tls_presets() -> Vec<TlsPresetDto> {
                 ]],
             }),
         },
-        // The Rust AWS SDK over rustls: TLS 1.2 floor, TLS 1.3 suites first,
-        // no GREASE and no ALPN offer of its own.
+        // kiro-cli 3.7.0 (captured 2026-11-28): reqwest over rustls 0.23 with
+        // aws-lc-rs. TLS 1.2 floor, TLS 1.3 suites first, no GREASE, no ALPN
+        // extension, X25519MLKEM768 and X25519 key shares, OCSP and session
+        // tickets offered. rustls shuffles its extension order per
+        // connection, so no order is pinned; it signals renegotiation with
+        // the SCSV where BoringSSL sends the extension.
         cli(
             "kiro",
             "Kiro CLI",
             json!({
                 "kind": "custom",
-                "alpn": [],
+                "disable_alpn": true,
                 "min_tls": "tls12",
                 "max_tls": "tls13",
                 "grease": false,
-                "preserve_tls13_cipher_list": false,
+                "preserve_tls13_cipher_list": true,
                 "cipher_list": concat!(
                     "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:",
                     "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:",
                     "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-AES256-GCM-SHA384:",
                     "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-CHACHA20-POLY1305"
                 ),
-                "curves_list": "X25519:P-256:P-384",
+                "curves_list": "X25519MLKEM768:X25519:P-256:P-384",
                 "sigalgs_list": concat!(
-                    "ecdsa_secp384r1_sha384:ecdsa_secp256r1_sha256:ed25519:",
-                    "rsa_pss_rsae_sha512:rsa_pss_rsae_sha384:rsa_pss_rsae_sha256:",
-                    "rsa_pkcs1_sha512:rsa_pkcs1_sha384:rsa_pkcs1_sha256"
+                    "ecdsa_secp384r1_sha384:ecdsa_secp256r1_sha256:ecdsa_secp521r1_sha512:",
+                    "ed25519:rsa_pss_rsae_sha512:rsa_pss_rsae_sha384:rsa_pss_rsae_sha256:",
+                    "rsa_pkcs1_sha512:rsa_pkcs1_sha384:rsa_pkcs1_sha256:",
+                    "mldsa44:mldsa65:mldsa87"
                 ),
-                "headers": [["user-agent", "aws-sdk-rust/1.3.10 os/linux lang/rust/1.92.0"]],
+                "ocsp_stapling": true,
+                "signed_cert_timestamps": false,
+                "session_ticket": true,
+                "psk_dhe_ke": true,
+                "headers": [["user-agent", "aws-sdk-rust/1.6.0 ua/2.1 api/codewhispererstreaming/0.1.19636 os/linux lang/rust/1.94.1 md/appVersion-3.7.0 app/AmazonQ-For-CLI"]],
             }),
         ),
         // HTTP/1.1 only, TLS 1.2 floor, the CLI's cipher and curve order and

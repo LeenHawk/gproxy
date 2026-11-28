@@ -205,7 +205,14 @@ fn a_generation_is_a_smithy_call_carrying_the_conversation_envelope() {
             .starts_with("aws-sdk-rust/"),
         "the runtime plane's own SDK banner"
     );
-    assert_eq!(headers["user-agent"], headers["x-amz-user-agent"]);
+    assert!(
+        headers["x-amz-user-agent"]
+            .to_str()
+            .unwrap()
+            .contains(" m/F "),
+        "the SDK's business metrics ride on x-amz-user-agent"
+    );
+    assert_eq!(headers["x-amzn-kiro-attempt"], "1;max=3");
     assert_eq!(
         headers["amz-sdk-invocation-id"].to_str().unwrap().len(),
         36,

@@ -75,10 +75,14 @@ use sha2::{Digest, Sha256};
 
 /// The Smithy content type both planes speak.
 const AMZ_JSON: &str = "application/x-amz-json-1.0";
-/// The runtime plane's SDK banner (v3 `prepare.rs`).
-const UA_RUNTIME: &str = "aws-sdk-rust/1.3.15 ua/2.1 api/codewhispererstreaming/0.1.16551 os/linux lang/rust/1.92.0 md/appVersion-2.6.1 app/AmazonQ-For-CLI";
+/// The runtime plane's `user-agent` (kiro-cli 3.7.0, captured 2026-11-28).
+const UA_RUNTIME: &str = "aws-sdk-rust/1.6.0 ua/2.1 api/codewhispererstreaming/0.1.19636 os/linux lang/rust/1.94.1 md/appVersion-3.7.0 app/AmazonQ-For-CLI";
 /// The management plane's, which names the other service.
-const UA_MANAGEMENT: &str = "aws-sdk-rust/1.3.15 ua/2.1 api/codewhispererruntime/0.1.16551 os/linux lang/rust/1.92.0 md/appVersion-2.6.1 app/AmazonQ-For-CLI";
+const UA_MANAGEMENT: &str = "aws-sdk-rust/1.6.0 ua/2.1 api/codewhispererruntime/0.1.19636 os/linux lang/rust/1.94.1 md/appVersion-3.7.0 app/AmazonQ-For-CLI";
+/// `x-amz-user-agent` differs from `user-agent`: the SDK puts its business
+/// metrics (`m/F`, adaptive retry) there and leaves out `md/appVersion`.
+const AMZ_UA_RUNTIME: &str = "aws-sdk-rust/1.6.0 ua/2.1 api/codewhispererstreaming/0.1.19636 os/linux lang/rust/1.94.1 m/F app/AmazonQ-For-CLI";
+const AMZ_UA_MANAGEMENT: &str = "aws-sdk-rust/1.6.0 ua/2.1 api/codewhispererruntime/0.1.19636 os/linux lang/rust/1.94.1 m/F app/AmazonQ-For-CLI";
 const TARGET_GENERATE: &str = "AmazonCodeWhispererStreamingService.GenerateAssistantResponse";
 const TARGET_LIST_MODELS: &str = "AmazonCodeWhispererService.ListAvailableModels";
 
@@ -123,6 +127,13 @@ impl Target {
             Plane::Management => UA_MANAGEMENT,
         }
     }
+
+    fn amz_user_agent(self) -> &'static str {
+        match self.plane() {
+            Plane::Runtime => AMZ_UA_RUNTIME,
+            Plane::Management => AMZ_UA_MANAGEMENT,
+        }
+    }
 }
 
 // ---------------------------------------------------------------- headers
@@ -138,6 +149,7 @@ pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
         "x-amzn-codewhisperer-optout",
         "amz-sdk-request",
         "amz-sdk-invocation-id",
+        "x-amzn-kiro-attempt",
     ],
     prefixes: &[],
 };
@@ -151,6 +163,7 @@ const CHANNEL_HEADERS: &[&str] = &[
     "x-amzn-codewhisperer-optout",
     "amz-sdk-request",
     "amz-sdk-invocation-id",
+    "x-amzn-kiro-attempt",
     "accept",
     "cookie",
 ];
@@ -344,14 +357,13 @@ pub(super) fn smithy_headers(
     );
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(AMZ_JSON));
     headers.insert(header::ACCEPT, HeaderValue::from_static("*/*"));
-    let banner = target.user_agent();
     headers.insert(
         header::USER_AGENT,
-        HeaderValue::from_str(banner).map_err(|_| invalid_config("user_agent"))?,
+        HeaderValue::from_static(target.user_agent()),
     );
     headers.insert(
         HeaderName::from_static("x-amz-user-agent"),
-        HeaderValue::from_str(banner).map_err(|_| invalid_config("user_agent"))?,
+        HeaderValue::from_static(target.amz_user_agent()),
     );
     headers.insert(
         HeaderName::from_static("x-amz-target"),
@@ -365,6 +377,13 @@ pub(super) fn smithy_headers(
         HeaderName::from_static("amz-sdk-request"),
         HeaderValue::from_static("attempt=1; max=3"),
     );
+    // Kiro's own retry counter, sent on the generation call only.
+    if target.plane() == Plane::Runtime {
+        headers.insert(
+            HeaderName::from_static("x-amzn-kiro-attempt"),
+            HeaderValue::from_static("1;max=3"),
+        );
+    }
     headers.insert(
         HeaderName::from_static("amz-sdk-invocation-id"),
         HeaderValue::from_str(&request_id(body, "invocation"))
